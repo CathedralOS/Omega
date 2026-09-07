@@ -4,7 +4,6 @@ use selected_instructions::{
     MachineEffectCatalogIdentity, PreAllocationMachineEffectIdentity,
     PreAllocationMachineEffectPlan, SelectedInstructionId, SelectedInstructionPlanIdentity,
 };
-use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,8 +98,6 @@ pub enum MachineEffectError {
     NonCanonicalFunction,
     NonCanonicalBlock,
     InstructionMismatch { instruction: SelectedInstructionId },
-    StructuralFunctionMismatch { machine: MachineId },
-    StructuralCallMismatch { machine: MachineId },
     IdentityMismatch,
     CountOverflow,
 }
@@ -121,9 +118,7 @@ pub(super) fn receipt(
             .checked_add(function.blocks.len())
             .ok_or(MachineEffectError::CountOverflow)
     })?;
-    let block_count = ordinary_block_count
-        .checked_add(plan.structural_unit_functions.len())
-        .ok_or(MachineEffectError::CountOverflow)?;
+    let block_count = ordinary_block_count;
     let ordinary_instruction_count = plan
         .functions
         .iter()
@@ -133,17 +128,7 @@ pub(super) fn receipt(
                 .checked_add(block.instructions.len())
                 .ok_or(MachineEffectError::CountOverflow)
         })?;
-    let structural_instruction_count =
-        plan.structural_unit_functions
-            .iter()
-            .try_fold(0usize, |count, function| {
-                count
-                    .checked_add(1 + usize::from(function.call.is_some()))
-                    .ok_or(MachineEffectError::CountOverflow)
-            })?;
-    let instruction_count = ordinary_instruction_count
-        .checked_add(structural_instruction_count)
-        .ok_or(MachineEffectError::CountOverflow)?;
+    let instruction_count = ordinary_instruction_count;
     let (alternative_count, unit_action_count, fuel_settlement_count) = plan
         .functions
         .iter()
@@ -167,52 +152,12 @@ pub(super) fn receipt(
                     .ok_or(MachineEffectError::CountOverflow)?,
             ))
         })?;
-    let (unit_action_count, fuel_settlement_count) =
-        plan.structural_unit_functions.iter().try_fold(
-            (unit_action_count, fuel_settlement_count),
-            |counts, function| {
-                let mut actions = function
-                    .return_instruction
-                    .unit_uses
-                    .len()
-                    .checked_add(function.return_instruction.unit_defs.len())
-                    .and_then(|count| {
-                        count.checked_add(function.return_instruction.unit_clobbers.len())
-                    })
-                    .ok_or(MachineEffectError::CountOverflow)?;
-                let mut fuel = function.return_instruction.provenance.fuel.len();
-                if let Some(call) = &function.call {
-                    actions = actions
-                        .checked_add(call.unit_uses.len())
-                        .and_then(|count| count.checked_add(call.unit_defs.len()))
-                        .and_then(|count| count.checked_add(call.unit_clobbers.len()))
-                        .ok_or(MachineEffectError::CountOverflow)?;
-                    fuel = fuel
-                        .checked_add(call.provenance.fuel.len())
-                        .ok_or(MachineEffectError::CountOverflow)?;
-                }
-                Ok::<_, MachineEffectError>((
-                    counts
-                        .0
-                        .checked_add(actions)
-                        .ok_or(MachineEffectError::CountOverflow)?,
-                    counts
-                        .1
-                        .checked_add(fuel)
-                        .ok_or(MachineEffectError::CountOverflow)?,
-                ))
-            },
-        )?;
     Ok(PreAllocationMachineEffectReceipt {
         identity: plan.identity,
         selected: plan.selected,
         register_environment: plan.register_environment,
         machine_effect_catalog: plan.machine_effect_catalog,
-        function_count: plan
-            .functions
-            .len()
-            .checked_add(plan.structural_unit_functions.len())
-            .ok_or(MachineEffectError::CountOverflow)?,
+        function_count: plan.functions.len(),
         block_count,
         instruction_count,
         alternative_count,

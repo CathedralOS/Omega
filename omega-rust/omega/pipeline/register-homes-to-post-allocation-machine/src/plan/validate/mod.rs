@@ -1,14 +1,13 @@
 //! Optimizer module role: executable entrance. Independent post-allocation plan replay.
 //!
 //! Validation proceeds in visible rejection order: custody roots, ordinary
-//! functions, structural-Unit functions, canonical identity, then receipt.
+//! functions, canonical identity, then receipt.
 //! Each child reconstructs from validated inputs and never calls production
 //! construction.
 
 mod instruction;
 mod ordinary;
 mod roots;
-mod structural;
 
 use register_model::{
     TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
@@ -52,7 +51,6 @@ pub fn validate_post_allocation_machine_plan<S: ValidatedSelectedAnalysis>(
         &plan,
     )?;
     ordinary::validate_ordinary_functions(selected, effects, homes, physical, &plan)?;
-    structural::validate_structural_functions(selected, effects, homes, physical, &plan)?;
     if post_allocation_machine_identity(&plan) != plan.identity {
         return Err(PostAllocationMachineError::IdentityMismatch);
     }

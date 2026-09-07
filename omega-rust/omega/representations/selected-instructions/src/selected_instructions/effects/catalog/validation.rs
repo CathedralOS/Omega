@@ -1,63 +1,11 @@
-use register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess, ValidatedRegisterConstraintCatalog,
-};
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 
 use super::{
-    MachineAlternativeApplicability, MachineBarrier, MachineCleanupEffect, MachineEffectCatalog,
-    MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    StructuralUnitCallBarrier, StructuralUnitCallEffect, StructuralUnitCallFrameEffect,
-    StructuralUnitCallMemoryEffect,
+    MachineAlternativeApplicability, MachineBarrier, MachineEffectCatalogValidationError,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind, MachineSizeKnowledge,
 };
-pub(super) fn validate_structural_unit_call(
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: &MachineEffectCatalog,
-) -> Result<(), MachineEffectCatalogValidationError> {
-    let (Some(key), Some(declaration)) = (
-        catalog.selected_keys.structural_unit_call,
-        catalog.structural_unit_call,
-    ) else {
-        return if catalog.selected_keys.structural_unit_call.is_none()
-            && catalog.structural_unit_call.is_none()
-        {
-            Ok(())
-        } else {
-            Err(MachineEffectCatalogValidationError::StructuralCallDeclarationMismatch)
-        };
-    };
-    let row = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == key)
-        .ok_or(MachineEffectCatalogValidationError::StructuralCallDeclarationMismatch)?;
-    if declaration.constraint != key
-        || !row.operands.is_empty()
-        || row.implicit_uses.is_empty()
-        || row.implicit_defs.is_empty()
-        || row.clobbers.is_empty()
-        || declaration.memory
-            != (StructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
-                root_byte_count: 16,
-                copy_stack_byte_offsets: [32, 48],
-            })
-        || declaration.frame
-            != (StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-                frame_byte_count: 72,
-                shadow_byte_count: 32,
-                pre_call_stack_alignment: 16,
-            })
-        || declaration.trap != MachineTrapBehavior::MayArchitecturalFaultV1
-        || declaration.barrier != StructuralUnitCallBarrier::CallV1
-        || declaration.call != StructuralUnitCallEffect::DirectInternalUnitV1
-        || declaration.cleanup != MachineCleanupEffect::NoneV1
-    {
-        return Err(MachineEffectCatalogValidationError::StructuralCallDeclarationMismatch);
-    }
-    Ok(())
-}
-
 pub(super) fn validate_declaration(
     constraint: &RegisterInstructionConstraint,
     declaration: &MachineEffectDeclaration,
@@ -73,7 +21,10 @@ pub(super) fn validate_declaration(
             | MachineSemanticKind::ReturnUnit
     ) {
         MachineBarrier::ControlFlow
-    } else if matches!(semantic, MachineSemanticKind::CallI64) {
+    } else if matches!(
+        semantic,
+        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+    ) {
         MachineBarrier::Call
     } else {
         MachineBarrier::None
@@ -85,12 +36,12 @@ pub(super) fn validate_declaration(
     }
     match (semantic, declaration.call) {
         (
-            MachineSemanticKind::CallI64,
+            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit,
             crate::MachineCallEffect::DirectInternalNormalReturnV1 {
                 pre_call_stack_alignment,
             },
         ) if pre_call_stack_alignment.is_power_of_two() => {}
-        (MachineSemanticKind::CallI64, _) => {
+        (MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit, _) => {
             return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
                 semantic,
             ));
@@ -232,6 +183,24 @@ fn validate_encoded_effects(
             return Err(());
         }
     }
+    if declaration.semantic == MachineSemanticKind::CallUnit
+        && (constraint
+            .operands
+            .iter()
+            .any(|operand| operand.access != RegisterOperandAccess::Use)
+            || !encoded
+                .external_operand_reads
+                .iter()
+                .copied()
+                .eq(constraint.operands.iter().map(|operand| operand.operand))
+            || !encoded.external_operand_writes.is_empty()
+            || encoded.implicit_unit_uses != constraint.implicit_uses
+            || encoded.implicit_unit_defs != constraint.implicit_defs
+            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1)
+    {
+        return Err(());
+    }
     let expected_barrier = match encoded.control {
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
@@ -272,7 +241,22 @@ fn validate_encoded_effects(
         ) if memory_pointer == stack_pointer
             && memory_bytes == return_address_byte_count
             && return_address_byte_count != 0 => {}
-        (MachineEncodedMemoryEffect::NoneV1, MachineEncodedStackEffect::UnchangedV1, _) => {}
+        (
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand,
+                byte_count: 8,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && encoded.external_operand_reads.contains(&pointer_operand) => {}
+        (
+            MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 { byte_count: 8, .. },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.memory == crate::MachineMemoryEffect::WriteOutgoingArgumentV1 => {}
+        (MachineEncodedMemoryEffect::NoneV1, MachineEncodedStackEffect::UnchangedV1, _)
+            if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
         _ => return Err(()),
     }
     Ok(())

@@ -1,4 +1,3 @@
-use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 #[test]
@@ -17,112 +16,61 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         &[],
     )
     .expect("the structural Unit leaf must reach physical custody");
-    let realization = (physical)
-        .into_structural_unit_for_test()
-        .unwrap_or_else(|| {
-            panic!("the PSI-only request must reach structural-Unit function-relative custody")
-        });
-    let exit = realization.exit_contract().contract();
-    assert_eq!(
-        exit.policy,
-        WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1
-    );
-    assert!(exit.functions.is_empty());
-    assert_eq!(exit.structural_unit_functions.len(), 1);
-    assert_eq!(
-        exit.structural_unit_functions[0].machine,
-        MachineId::new(3_602).unwrap()
-    );
-    assert!(exit.structural_unit_functions[0].call.is_none());
-    assert_eq!(exit.structural_unit_functions[0].body_stack_delta, 0);
+    let source = physical.into_function_fragment_emission_source();
+    let exit = source.exit_contract().contract();
+    assert_eq!(exit.functions.len(), 1);
+    assert_eq!(exit.functions[0].machine, MachineId::new(3_602).unwrap());
+    assert_eq!(exit.functions[0].body_stack_delta, 0);
     assert!(
-        exit.structural_unit_functions[0]
-            .modified_callee_saved_units
-            .is_empty()
+        exit.functions[0]
+            .returns
+            .iter()
+            .all(|returned| returned.value == WholeFunctionReturnValueEvidence::UnitV1)
     );
+    let framed = source.frame_layout().is_some();
     assert_eq!(
-        exit.structural_unit_functions[0].returned.value,
-        WholeFunctionReturnValueEvidence::UnitV1
+        framed,
+        matches!(
+            exit.frame,
+            WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { .. }
+        )
     );
-    let realization_manifest = realization.manifest().record();
-    assert_eq!(realization_manifest.statistics.structural_unit_functions, 1);
-    assert_eq!(realization_manifest.statistics.structural_unit_blocks, 1);
+    let fragments = stage_optimized_function_fragment_emission(source).unwrap();
+    assert_eq!(fragments.fragments().functions.len(), 1);
     assert_eq!(
-        realization_manifest.statistics.structural_unit_instructions,
-        1
-    );
-    assert_eq!(realization_manifest.statistics.structural_unit_bytes, 1);
-    assert_eq!(
-        realization_manifest
+        fragments
+            .manifest()
+            .record()
             .statistics
             .unresolved_internal_machine_fixups,
         0
     );
-
-    let fragments = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::StructuralUnit(Box::new(realization)).into(),
-    )
-    .expect("the leaf must emit one relocation-free structural fragment");
-    let fragment_manifest = fragments.manifest().record();
-    assert_eq!(
-        fragment_manifest.stage,
-        FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
-    );
-    assert_eq!(
-        fragment_manifest.source_kind,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1
-    );
-    assert_eq!(fragment_manifest.statistics.structural_unit_functions, 1);
-    assert_eq!(
-        fragment_manifest
-            .statistics
-            .structural_unit_instruction_spans,
-        1
-    );
-    assert_eq!(fragment_manifest.statistics.structural_unit_bytes, 1);
-    assert_eq!(
-        fragment_manifest
-            .statistics
-            .unresolved_internal_machine_fixups,
-        0
-    );
-    assert_eq!(fragments.fragments().structural_unit_functions.len(), 1);
-    let leaf = &fragments.fragments().structural_unit_functions[0];
-    assert_eq!(leaf.bytes, [0xc3]);
-    assert!(leaf.block.call.is_none());
-    assert_eq!(leaf.block.return_instruction.offset, 0);
-
-    let text = stage_optimized_relocation_free_text_section(fragments)
-        .expect("the call-free structural leaf must place without fixup resolution");
-    assert_eq!(text.text_section().bytes, [0xc3]);
-    assert_eq!(text.text_section().functions.len(), 1);
-    assert!(
-        text.text_section()
-            .resolved_internal_machine_calls
-            .is_empty()
-    );
-    let text_manifest = text.manifest().record();
-    assert_eq!(
-        text_manifest.source_kind,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1
-    );
-    assert_eq!(text_manifest.statistics.structural_unit_functions, 1);
-    assert_eq!(text_manifest.statistics.structural_unit_bytes, 1);
-    assert_eq!(text_manifest.statistics.source_internal_machine_fixups, 0);
-    assert_eq!(text_manifest.statistics.resolved_internal_machine_fixups, 0);
-    assert_eq!(
-        text_manifest.statistics.remaining_internal_machine_fixups,
-        0
-    );
-
-    let object = stage_optimized_relocation_free_object_container(text)
-        .expect("the leaf text must enter a relocation-free object container");
-    assert_eq!(object.object().text_section.bytes, [0xc3]);
+    let check_text = |text: &machine_code::RelocationFreeTextSectionPlacement,
+                      manifest: &FunctionFragmentTextSectionManifest| {
+        assert_eq!(text.functions.len(), 1);
+        assert!(text.resolved_internal_machine_calls.is_empty());
+        assert_eq!(manifest.statistics.functions, 1);
+        assert_eq!(manifest.statistics.remaining_internal_machine_fixups, 0);
+    };
+    let object = if framed {
+        let applied = stage_function_fragment_frame_application(fragments).unwrap();
+        let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
+        check_text(text.text_section(), text.manifest().record());
+        validate_optimized_fixed_frame_text_section(&text).unwrap();
+        stage_optimized_relocation_free_object_container(text).unwrap()
+    } else {
+        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+        check_text(text.text_section(), text.manifest().record());
+        validate_optimized_relocation_free_text_section(&text).unwrap();
+        stage_optimized_relocation_free_object_container(text).unwrap()
+    };
     assert_eq!(object.object().symbols.len(), 1);
     assert_eq!(object.object().symbols[0].section_offset, 0);
-    assert_eq!(object.object().symbols[0].byte_count, 1);
+    assert_eq!(
+        object.object().symbols[0].byte_count,
+        object.object().text_section.byte_count
+    );
     assert_eq!(object.object().relocation_record_count, 0);
-
     let published = image_emission::build_function_fragment_object_artifact(&object)
         .expect("the shared structural leaf must publish without invented stack homes");
     image_emission::validate_function_fragment_object_artifact(&object, &published)
@@ -149,7 +97,7 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         artifact.artifact().semantic_entry,
         MachineId::new(3_602).unwrap()
     );
-    assert_eq!(artifact.artifact().statistics.text_bytes, 1);
+    assert!(artifact.artifact().statistics.text_bytes > 0);
     assert_eq!(artifact.artifact().statistics.function_symbols, 1);
     assert_eq!(artifact.artifact().statistics.relocation_records, 0);
     validate_optimized_object_artifact(&artifact).unwrap();

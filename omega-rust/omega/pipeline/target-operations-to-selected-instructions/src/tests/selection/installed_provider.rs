@@ -13,22 +13,17 @@ fn installed_provider_call_selection_retains_and_hashes_exact_source_custody() {
     let (abstract_plan, target, unit) = installed_provider_legalization_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("installed provider call legalizes");
-    let legalized_source = legalized.plan().structural_unit_functions[0]
-        .call
-        .as_ref()
-        .expect("legalized installed call")
-        .source
-        .clone();
+    let legalized_source =
+        crate::tests::fixtures::ordinary_graph::call(&legalized.plan().scalar_functions[0])
+            .source
+            .clone();
     let (physical, catalog, constraints) = microsoft_selection_environment();
     let selected = select_instructions(&legalized, &constraints, &physical, &catalog)
         .expect("installed provider call selects through the shared physical ABI");
-    let selected_call = selected.plan().structural_unit_functions[0]
-        .call
-        .as_ref()
-        .expect("selected installed call");
+    let selected_call = &selected.plan().functions[0].calls[0].call;
     assert_eq!(selected_call.source, legalized_source);
     assert_eq!(
-        selected_call.ownership,
+        selected.plan().functions[0].calls[0].ownership,
         [optimization_unit::OwnershipEvent::ClaimCompletion(vec![
             ClaimId::new(1).unwrap(),
             ClaimId::new(2).unwrap()
@@ -38,10 +33,7 @@ fn installed_provider_call_selection_retains_and_hashes_exact_source_custody() {
 
     let selected_identity = selected.receipt().identity();
     let mut corrupted = selected.plan().clone();
-    let call = corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("selected installed call");
+    let call = &mut corrupted.functions[0].calls[0].call;
     let legalized_operations::LegalizedCallUnitSource::InstalledProvider { provider, .. } =
         &mut call.source
     else {
@@ -54,15 +46,12 @@ fn installed_provider_call_selection_retains_and_hashes_exact_source_custody() {
     );
     assert!(matches!(
         validate_selected_instructions(&legalized, &constraints, &physical, &catalog, corrupted,),
-        Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+        Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
     ));
 
     let mut wrong_kind = selected.plan().clone();
-    wrong_kind.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("selected installed call")
-        .source = legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit;
+    wrong_kind.functions[0].calls[0].call.source =
+        legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit;
     assert_ne!(
         selected_instruction_plan_identity(&wrong_kind),
         selected_identity
@@ -73,10 +62,7 @@ fn installed_provider_call_selection_retains_and_hashes_exact_source_custody() {
     );
 
     let mut receipt_tamper = selected.plan().clone();
-    let call = receipt_tamper.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("selected installed call");
+    let call = &mut receipt_tamper.functions[0].calls[0].call;
     let legalized_operations::LegalizedCallUnitSource::InstalledProvider {
         completion_receipts,
         ..

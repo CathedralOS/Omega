@@ -53,7 +53,7 @@ pub(super) fn derive_remaining(
             let matched = match_structural_unit_form(target_function, abstracted, optimized)
                 .ok_or(Error::UnsupportedSourceShape { function: index })?;
             rosters
-                .structural_unit_functions
+                .scalar_functions
                 .push(derive_source_structural_unit_function(
                     index,
                     target_function,

@@ -1,26 +1,10 @@
 //! Placement replay controls shared by the direct, structural, and frame fixtures.
 use machine_code::RelocationFreeTextSectionPlacement;
-use machine_emission::{
-    StructuralFragmentPlacementInputs, TextPlacementInput, validate_fragment_text_section,
-};
+use machine_emission::{TextPlacementInput, validate_fragment_text_section};
 
 pub(super) fn direct(staged: &crate::StagedOptimizedRelocationFreeTextSection) {
     let source = staged.source();
-    let current = source.source();
-    let input = if source.fragments().structural_unit_functions.is_empty() {
-        TextPlacementInput::RelocationFree(source.fragments())
-    } else {
-        TextPlacementInput::Structural {
-            fragments: source.fragments(),
-            facts: StructuralFragmentPlacementInputs {
-                program: current.program(),
-                structural_encoding: current.encoding().structural_unit_functions(),
-                exit: current.exit_contract().contract(),
-                physical: current.register_environment().physical(),
-                constraints: current.register_environment().constraints(),
-            },
-        }
-    };
+    let input = TextPlacementInput::RelocationFree(source.fragments());
     check(input, staged.text_section());
     let retained = staged.shared_text_section();
     assert!(std::ptr::eq(retained.as_ref(), staged.text_section()));

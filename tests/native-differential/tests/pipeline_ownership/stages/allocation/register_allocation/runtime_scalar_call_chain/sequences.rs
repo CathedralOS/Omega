@@ -237,17 +237,35 @@ fn selected_materialization_preserves_normal_call_encoding_and_replay() {
             .liveness_stage()
             .selected_stage();
         let physical = selected.register_environment().physical();
-        let baseline = encode(selected.selected(), &machine, physical, None).unwrap();
-        let changed = encode(selected.selected(), &machine, physical, Some(&optimized)).unwrap();
+        let baseline = encode(selected.selected(), &machine, physical, None, None).unwrap();
+        let changed = encode(
+            selected.selected(),
+            &machine,
+            physical,
+            None,
+            Some(&optimized),
+        )
+        .unwrap();
         validate(
             selected.selected(),
             &machine,
             physical,
+            None,
             Some(&optimized),
             &changed,
         )
         .unwrap();
-        assert!(validate(selected.selected(), &machine, physical, None, &changed).is_err());
+        assert!(
+            validate(
+                selected.selected(),
+                &machine,
+                physical,
+                None,
+                None,
+                &changed
+            )
+            .is_err()
+        );
         let calls = |encoded: &StagedOptimizedSelectedFormEncoding| {
             encoded
                 .rows()

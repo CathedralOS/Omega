@@ -220,7 +220,7 @@ fn build_action(
         .ok_or(SpillRecoveryActionError::FunctionMismatch { function })?;
     if !matches!(
         victim.definition_site,
-        ValueDefinitionSite::Node { block, .. } if block == selected_block.source_block
+        Some(ValueDefinitionSite::Node { block, .. }) if block == selected_block.source_block
     ) {
         return Err(SpillRecoveryActionError::UnsupportedOrigin {
             function,
@@ -362,7 +362,9 @@ fn build_action(
         victim_class: victim.class,
         victim_scalar_type: victim.scalar_type,
         victim_origin: victim.origin,
-        victim_definition_site: victim.definition_site,
+        victim_definition_site: victim
+            .definition_site
+            .ok_or(SpillRecoveryActionError::FunctionMismatch { function })?,
         current_view: choice.selected_victim_view,
         reclaimed_view: choice.reclaimed_view,
         storage: SpillRecoveryLogicalStorage {

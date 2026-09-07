@@ -18,6 +18,20 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    Load64 {
+        byte_offset: u32,
+    },
+    Store64 {
+        slot: super::OutgoingArgumentSlotId,
+        byte_offset: u32,
+    },
+    FrameAddress {
+        slot: super::OutgoingArgumentSlotId,
+        byte_offset: u32,
+    },
+    CallUnit {
+        callee: MachineId,
+    },
     CompareI64Zero,
     /// Compare two i64 register bit-patterns and define the target condition
     /// state consumed by conditional control. This instruction has no scalar

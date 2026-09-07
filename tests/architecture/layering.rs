@@ -2188,7 +2188,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_output.contains("Ok((self.program, self.evidence))")
             && physical_stage.contains("target program/evidence join")
             && optimizer_physical_model.contains("StagedOptimizedUnitFunctionRelativeRealization")
-            && optimizer_physical_model
+            && !optimizer_physical_model
                 .contains("StagedOptimizedStructuralUnitFunctionRelativeRealization")
             && optimizer_physical_model.contains("StagedFixedFrameFunctionRelativeRealization")
             && !optimizer_physical_model.contains("PhysicalIdentity")
@@ -2201,8 +2201,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 .contains("stage_current_allocation_function_relative_pipeline(allocation, machine)")
             && optimizer_identity_route
                 .contains("stage_optimized_unit_function_relative_realization(allocation, machine)")
-            && optimizer_identity_route.contains(
-                "stage_optimized_structural_unit_function_relative_realization(allocation, machine)"
+            && !optimizer_identity_route.contains(
+                "stage_optimized_structural_unit_function_relative_realization"
             )
             && optimizer_identity_route
                 .contains("stage_fixed_frame_function_relative_realization(allocation, machine, budget)")
@@ -3115,29 +3115,13 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
             "projected legalization producer must not consume replay mechanics; found {forbidden}",
         );
     }
-    let legalization_catalog = legalization_replay
-        .parent()
-        .expect("replay has legalization parent")
-        .join("catalog.rs");
-    let legalization_catalog_source = std::fs::read_to_string(&legalization_catalog)
-        .unwrap_or_else(|error| {
-            panic!("failed to read {}: {error}", legalization_catalog.display())
-        });
-    for forbidden in [
-        "TargetOperation",
-        "TargetUnitOperation",
-        "AbstractOperation",
-        "TargetIntegerExpression",
-        "match_scalar_form",
-        "validator_accepts",
-        "crate::source",
-        "crate::replay",
-    ] {
-        assert!(
-            !legalization_catalog_source.contains(forbidden),
-            "legalization catalog must remain declarative contract data; found {forbidden}"
-        );
-    }
+    let legalization_root = legalization_replay.parent().expect("legalization owner");
+    assert!(
+        !legalization_root.join("catalog.rs").exists(),
+        "ordinary graph legalization must not regain fixture-form recipes"
+    );
+    assert!(legalization_producer_source.contains("derive_source_function_rosters"));
+    assert!(legalization_replay_source.contains("replay_terminal_legalized_plan"));
     assert!(
         selection_manifest_source.contains("legalized-operations"),
         "the checked legalization/selection pipeline must retain its legalized representation dependency"
@@ -4621,7 +4605,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
-fn selected_structural_unit_validation_cannot_reenter_its_producer() {
+fn ordinary_structural_transport_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let selection = root
         .join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection");
@@ -4629,36 +4613,44 @@ fn selected_structural_unit_validation_cannot_reenter_its_producer() {
     for forbidden in [
         "crate::selection::construction",
         "selection::construction",
-        "construction::structural_unit_layout",
-        "construction::structural_call_row",
+        "construction::",
+        "structural_unit_layout",
+        "structural_call_row",
     ] {
         assert!(
             !validation.contains(forbidden),
-            "independent structural-Unit selection validation must not consume producer mechanics; found {forbidden}",
+            "independent transport replay consumes producer {forbidden}"
         );
     }
+    let transport =
+        std::fs::read_to_string(selection.join("validation/scalar_graph/structural.rs")).unwrap();
     for required in [
-        "reconstruct_structural_unit_contract",
-        "reconstruct_structural_unit_layout",
-        "reconstruct_structural_call_row",
+        "SelectedMemoryAccessRole::ReadPlace",
+        "SelectedMemoryAccessRole::WriteOutgoing",
+        "SelectedMemoryAccessRole::AddressOutgoing",
+        "replay.check_instruction(",
+        "source_byte_offset",
+        "call.validate_source(",
     ] {
         assert!(
-            validation.contains(required),
-            "structural-Unit selection validation must visibly own independent `{required}` reconstruction",
+            transport.contains(required),
+            "ordinary structural replay loses {required}"
         );
     }
-
-    let construction = recursive_rust_source(&selection.join("construction"));
-    for forbidden_export in [
-        "pub(in crate::selection) fn structural_unit_layout",
-        "pub(in crate::selection) fn structural_call_row",
-        "pub(super) use plan::{build_plan, structural_call_row, structural_unit_layout}",
+    let graph = std::fs::read_to_string(selection.join("validation/scalar_graph.rs")).unwrap();
+    for required in [
+        "selected.calls",
+        "selected.outgoing_arguments",
+        "selected.memory_accesses",
+        "selected.boundary_settlements",
     ] {
         assert!(
-            !construction.contains(forbidden_export),
-            "structural-Unit producer helpers must remain private to construction; found {forbidden_export}",
+            graph.contains(required),
+            "ordinary replay omits current metadata {required}"
         );
     }
+    assert!(!selection.join("construction/structural_unit").exists());
+    assert!(!selection.join("validation/structural_unit").exists());
 }
 
 #[test]
@@ -4704,7 +4696,7 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
     );
     let entrance = std::fs::read_to_string(construction.join("mod.rs"))
         .expect("read selected construction entrance");
-    for required in ["scalar_graph::build", "structural_unit::build"] {
+    for required in ["scalar_graph::build", ".scalar_functions"] {
         assert!(
             entrance.contains(required),
             "selected construction entrance must visibly coordinate {required}",
@@ -4852,7 +4844,7 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let entrance = std::fs::read_to_string(stage.join("lib.rs"))
         .expect("read selected-form encoding entrance");
     let validate_candidate = entrance
-        .find("validation::validate(selected, machine, physical, optimization, &artifact)?")
+        .find("validation::validate(selected, machine, physical, frame, optimization, &artifact)?")
         .expect("raw encoding candidates enter independent validation");
     let seal_candidate = entrance
         .find("Ok(StagedOptimizedSelectedFormEncoding {")
@@ -4881,7 +4873,6 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
         "row/x86_mov_r32_imm32.rs",
         "row/x86_mov_r64_imm32_sign_extended.rs",
         "row/x86_xor_zero.rs",
-        "structural.rs",
     ]
     .into_iter()
     .map(|leaf| {
@@ -4913,7 +4904,7 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
         "validate_aarch64_selected_form_encoding",
         "validate_aarch64_shortest_movn_materialization",
         "validate_x86_64_xor_zero_i64_materialization",
-        "validate_x86_64_selected_structural_unit_call_template",
+        "validate_x86_64_selected_memory_form",
     ] {
         assert!(
             validation.contains(required_decoder),
@@ -5066,7 +5057,6 @@ fn resolved_layout_validation_cannot_reenter_its_producer() {
     );
     for required_rung in [
         "mod ordinary;",
-        "mod structural;",
         "mod validation;",
         "let artifact = compute::compute(",
         "validation::validate(",
@@ -5112,7 +5102,6 @@ fn resolved_layout_validation_cannot_reenter_its_producer() {
         "ordinary/roster.rs",
         "policy.rs",
         "row.rs",
-        "structural.rs",
     ]
     .into_iter()
     .map(|leaf| {
@@ -5237,10 +5226,10 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         );
     }
     for (manifest, version) in [
-        (publication.with_extension("").join("codec.rs"), 12),
+        (publication.with_extension("").join("codec.rs"), 13),
         (
             root.join("omega-rust/omega/representations/machine-code/src/machine_code/layout/text_section/publication/codec.rs"),
-            13,
+            14,
         ),
     ] {
         let encoded = std::fs::read_to_string(&manifest)

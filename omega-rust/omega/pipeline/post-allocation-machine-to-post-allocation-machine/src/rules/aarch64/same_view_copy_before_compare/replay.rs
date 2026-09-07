@@ -248,17 +248,19 @@ fn replayed_source_value(
     }
     by_id
         .get(&virtual_register)
-        .map(|register| match register.origin {
+        .and_then(|register| match register.origin {
+            selected_instructions::VirtualRegisterOrigin::StructuralParameter { .. }
+            | selected_instructions::VirtualRegisterOrigin::AbiTransport { .. } => None,
             selected_instructions::VirtualRegisterOrigin::BlockParameter {
                 source_value, ..
-            } => source_value,
+            } => Some(source_value),
             selected_instructions::VirtualRegisterOrigin::EntryParameter {
                 source_value, ..
             }
             | selected_instructions::VirtualRegisterOrigin::InstructionResult {
                 source_value,
                 ..
-            } => source_value,
+            } => Some(source_value),
         })
 }
 

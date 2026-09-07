@@ -2,9 +2,9 @@ use selected_instructions::MachineAlternativeFamily;
 use target::Architecture;
 
 use crate::frame_layout::{
-    AllocatedCalleeSavedFunctionKind, FrameAbiPreservationConvention,
-    StagedOptimizedPostAllocationMachinePlan, ValidatedAllocatedCalleeSavedRequirements,
-    ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
+    FrameAbiPreservationConvention, StagedOptimizedPostAllocationMachinePlan,
+    ValidatedAllocatedCalleeSavedRequirements, ValidatedNonAuthoritativeCalleeSaveStorage,
+    ValidatedTargetRegisterEnvironment,
 };
 
 use super::{
@@ -39,18 +39,7 @@ pub(super) fn derive(
     {
         return Err(TargetFrameLayoutError::RootMismatch);
     }
-    if !machine_plan.structural_unit_functions.is_empty()
-        || requirement_plan
-            .functions
-            .iter()
-            .any(|row| row.kind != AllocatedCalleeSavedFunctionKind::Ordinary)
-        || storage_plan
-            .functions
-            .iter()
-            .any(|row| row.kind != AllocatedCalleeSavedFunctionKind::Ordinary)
-    {
-        return Err(TargetFrameLayoutError::StructuralFunctionUnsupported);
-    }
+
     if machine_plan.functions.len() != requirement_plan.functions.len()
         || machine_plan.functions.len() != storage_plan.functions.len()
     {
@@ -66,7 +55,6 @@ pub(super) fn derive(
             |((machine_function, requirement_function), storage_function)| {
                 if machine_function.machine != requirement_function.machine
                     || machine_function.machine != storage_function.machine
-                    || requirement_function.kind != storage_function.kind
                 {
                     return Err(TargetFrameLayoutError::FunctionRosterMismatch);
                 }
@@ -75,7 +63,10 @@ pub(super) fn derive(
                     .iter()
                     .flat_map(|block| &block.instructions)
                     .any(|instruction| {
-                        instruction.alternative.key.family == MachineAlternativeFamily::CallI64
+                        matches!(
+                            instruction.alternative.key.family,
+                            MachineAlternativeFamily::CallI64 | MachineAlternativeFamily::CallUnit
+                        )
                     });
                 let callee_save_slots = storage_function
                     .slots
@@ -94,6 +85,7 @@ pub(super) fn derive(
                     policy,
                     machine_function.machine,
                     contains_call,
+                    &machine_function.outgoing_arguments,
                     storage_function.abstract_area_bytes,
                     callee_save_slots,
                 )
@@ -120,6 +112,7 @@ fn function_layout(
     policy: TargetFrameLayoutPolicy,
     machine: semantic_vocabulary::MachineId,
     contains_call: bool,
+    outgoing_arguments: &[selected_instructions::SelectedOutgoingArgumentSlot],
     callee_save_area_bytes: u64,
     mut callee_save_slots: Vec<CalleeSaveFrameSlot>,
 ) -> Result<FunctionTargetFrameLayout, TargetFrameLayoutError> {
@@ -128,8 +121,27 @@ fn function_layout(
     } else {
         0
     };
+    let mut outgoing_extent = u64::from(shadow_bytes);
+    for slot in outgoing_arguments {
+        if !contains_call
+            || abi != FrameAbiPreservationConvention::MicrosoftX64
+            || slot.byte_size == 0
+            || !slot.alignment.is_power_of_two()
+            || slot.abi_stack_byte_offset < u32::from(shadow_bytes)
+            || !slot
+                .abi_stack_byte_offset
+                .is_multiple_of(u32::from(slot.alignment))
+        {
+            return Err(TargetFrameLayoutError::NonCanonicalLayout);
+        }
+        let end = slot
+            .abi_stack_byte_offset
+            .checked_add(slot.byte_size)
+            .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+        outgoing_extent = outgoing_extent.max(u64::from(end));
+    }
     let outgoing_abi_area = machine_code::OutgoingAbiFrameArea {
-        byte_size: u64::from(shadow_bytes),
+        byte_size: outgoing_extent,
         shadow_bytes,
     };
     for slot in &mut callee_save_slots {
@@ -220,7 +232,6 @@ fn function_layout(
 
     Ok(FunctionTargetFrameLayout {
         machine,
-        kind: AllocatedCalleeSavedFunctionKind::Ordinary,
         contains_call,
         stack_pointer,
         pre_call_stack_alignment: 16,
@@ -271,6 +282,7 @@ mod tests {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 false,
+                &[],
                 area,
                 Vec::new(),
             )
@@ -304,6 +316,7 @@ mod tests {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
+                &[],
                 area,
                 slots,
             )
@@ -325,6 +338,7 @@ mod tests {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
+                &[],
                 u64::MAX,
                 Vec::new(),
             ),

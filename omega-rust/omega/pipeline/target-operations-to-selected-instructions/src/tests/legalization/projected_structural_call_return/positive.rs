@@ -7,7 +7,6 @@ fn exact_projected_closure_legalizes_and_receipts_on_all_targets() {
         let legalized = legalize_target_operations(&target, &source, &unit)
             .expect("the exact closure identity-legalizes");
         assert!(legalized.plan().scalar_functions.is_empty());
-        assert!(legalized.plan().structural_unit_functions.is_empty());
         let [closure] = legalized
             .plan()
             .projected_structural_call_returns

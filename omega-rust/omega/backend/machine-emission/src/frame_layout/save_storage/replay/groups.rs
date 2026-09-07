@@ -77,7 +77,6 @@ pub(super) fn reconstruct_functions(
             }
             Ok(FunctionNonAuthoritativeCalleeSaveStorage {
                 machine: function.machine,
-                kind: function.kind,
                 abstract_area_bytes: extent,
                 abstract_area_alignment: max_alignment,
                 slots,

@@ -12,8 +12,7 @@ use target::NativeTarget;
 pub use machine_code::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
     ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
-    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
-    ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
+    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
 };
 
 use machine_code::{
@@ -69,10 +68,6 @@ impl StagedOptimizedResolvedSelectedFormLayout {
         &self.program.functions
     }
 
-    pub fn structural_unit_functions(&self) -> &[ResolvedStructuralUnitFunctionLayout] {
-        &self.program.structural_unit_functions
-    }
-
     pub fn program(&self) -> &ResolvedMachineLayout {
         &self.program
     }
@@ -92,11 +87,5 @@ impl StagedOptimizedResolvedSelectedFormLayout {
     #[cfg(any(test, feature = "test-support"))]
     pub fn functions_mut(&mut self) -> &mut [ResolvedSelectedFunctionLayout] {
         &mut Arc::make_mut(&mut self.program).functions
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    #[allow(dead_code)]
-    pub fn structural_unit_functions_mut(&mut self) -> &mut [ResolvedStructuralUnitFunctionLayout] {
-        &mut Arc::make_mut(&mut self.program).structural_unit_functions
     }
 }

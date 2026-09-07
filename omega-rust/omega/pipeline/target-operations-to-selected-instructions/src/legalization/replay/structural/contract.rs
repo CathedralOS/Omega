@@ -7,12 +7,30 @@ pub(super) fn validate_replayed_contract(
     target: &target_operations::TargetFunction,
     abstracted: &abstract_operations::AbstractFunction,
     optimized: &optimization_unit::PsiOptimizationFunction,
-    proposed: &LegalizedStructuralUnitFunction,
+    proposed: &legalized_operations::LegalizedScalarFunction,
     target_plan: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     validated: &ValidatedStructuralUnitForm<'_>,
 ) -> Result<(), LegalizationError> {
+    let signature = proposed
+        .structural
+        .as_ref()
+        .ok_or(Error::NonCanonicalLegalizedPlan)?;
+    let [block] = proposed.blocks.as_slice() else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
+    let legalized_operations::LegalizedScalarTerminator::Return(returned) = &block.terminator
+    else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
+    if !proposed.parameters.is_empty()
+        || !block.parameters.is_empty()
+        || block.id != proposed.entry_block
+        || returned.value != legalized_operations::LegalizedScalarReturnValue::Unit
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
     let TargetOperation::UnitBody(body) = &target.operation else {
         return Err(Error::UnsupportedSourceShape { function });
     };
@@ -121,24 +139,25 @@ pub(super) fn validate_replayed_contract(
         || proposed.machine != target.machine
         || proposed.attachment != target.attachment
         || proposed.provenance != target.provenance
-        || proposed.structural_types != body.structural_types
+        || signature.structural_types != body.structural_types
         || proposed.call_plan != body.call_plan
-        || proposed.entry_claims != abstracted.entry_claims
-        || proposed.published_service_ceiling != abstracted.published_service_ceiling
+        || signature.entry_claims != abstracted.entry_claims
+        || signature.published_service_ceiling != abstracted.published_service_ceiling
         || proposed.entry_block != optimized_block.id
-        || proposed.boundary_settlements.len()
-            != validated
-                .settlement_rows
-                .map_or(0, |(rows, _, _)| rows.len())
-        || proposed.return_edge != *psi_edge
-        || proposed.return_fuel != validated.optimized_return.fuel
-        || proposed.return_effect != validated.optimized_return.effect
-        || proposed.return_ownership != validated.optimized_return.ownership
-        || proposed.parameters.len() != body.parameters.len()
+        || block.instructions.len()
+            != validated.settlement_rows.map_or(
+                usize::from(validated.target_call.is_some()),
+                |(rows, _, _)| rows.len(),
+            )
+        || returned.edge != *psi_edge
+        || returned.fuel != validated.optimized_return.fuel
+        || returned.effect != validated.optimized_return.effect
+        || returned.ownership != validated.optimized_return.ownership
+        || signature.parameters.len() != body.parameters.len()
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
-    for ((proposed_parameter, semantic), target_parameter) in proposed
+    for ((proposed_parameter, semantic), target_parameter) in signature
         .parameters
         .iter()
         .zip(&abstracted.structural_parameters)
@@ -165,7 +184,7 @@ pub(super) fn validate_replayed_contract(
             },
         })
         .collect::<Vec<_>>();
-    if proposed.structural_places != expected_structural_places {
+    if signature.structural_places != expected_structural_places {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
     Ok(())

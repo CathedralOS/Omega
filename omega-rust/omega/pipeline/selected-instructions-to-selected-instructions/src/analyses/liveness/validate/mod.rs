@@ -5,7 +5,6 @@ mod function_contract;
 mod receipt;
 mod replay;
 mod shared;
-mod structural;
 
 #[cfg(test)]
 mod tests;
@@ -13,7 +12,6 @@ mod tests;
 use function_contract::validate_function;
 use replay::replay_function;
 use shared::*;
-use structural::validate_structural_unit_roster;
 
 pub fn validate_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
@@ -31,8 +29,6 @@ pub fn validate_liveness(
         || plan.fuel_schedule != selected.fuel_schedule_identity()
         || plan.target != selected.selected_plan().target
         || plan.functions.len() != selected.selected_plan().functions.len()
-        || plan.structural_unit_functions.len()
-            != selected.selected_plan().structural_unit_functions.len()
     {
         return Err(LivenessError::RootMismatch);
     }
@@ -46,10 +42,5 @@ pub fn validate_liveness(
         let expected = replay_function(function_index, selected_function)?;
         validate_function(function_index, actual, &expected)?;
     }
-    validate_structural_unit_roster(
-        &selected.selected_plan().functions,
-        &selected.selected_plan().structural_unit_functions,
-        &plan.structural_unit_functions,
-    )?;
     Ok(receipt::admit_validated_liveness(selected, plan))
 }

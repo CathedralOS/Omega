@@ -12,6 +12,23 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+pub const X86_64_LOAD64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 700,
+};
+pub const X86_64_STORE64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 701,
+};
+pub const X86_64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 702,
+};
+pub const X86_64_MICROSOFT_CALL_UNIT: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Call,
+    variant: 700,
+};
+
 const GPR64: RegisterClassId = RegisterClassId(0);
 const GPR32: RegisterClassId = RegisterClassId(1);
 const GPR16: RegisterClassId = RegisterClassId(2);
@@ -88,14 +105,6 @@ pub const X86_64_MICROSOFT_CALL: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,
     variant: 1,
 };
-/// Atomic value-less Microsoft-x64 call for the bounded pair of owned,
-/// indirectly passed structural roots. The roots are ABI state rather than
-/// allocator-managed scalar operands, so this row has no operand or result.
-pub const X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR: RegisterConstraintKey =
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 2,
-    };
 /// Arity-ordered keys for the microsoft register-only U64 call ABI.
 pub fn x86_64_microsoft_register_call_keys() -> Vec<RegisterConstraintKey> {
     (10..=14)
@@ -207,10 +216,9 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 31] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 34] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
-    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
     RegisterConstraintKey {
         family: RegisterConstraintFamily::Call,
@@ -256,6 +264,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 31] = [
         family: RegisterConstraintFamily::Call,
         variant: 14,
     },
+    X86_64_MICROSOFT_CALL_UNIT,
     X86_64_SYSTEM_V_RETURN,
     X86_64_MICROSOFT_RETURN,
     X86_64_SYSTEM_V_RETURN_UNIT,
@@ -272,6 +281,9 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 31] = [
     X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_COMPARE_I64,
     X86_64_JUMP,
+    X86_64_LOAD64,
+    X86_64_STORE64,
+    X86_64_FRAME_ADDRESS,
 ];
 
 struct ModelBuilder {
@@ -612,21 +624,6 @@ pub fn x86_64_register_constraint_catalog(
 
     let sysv = convention("system-v-amd64");
     let microsoft = convention("microsoft-x64");
-    let structural_unit_call_uses = sorted_units(
-        view("rcx")
-            .units
-            .iter()
-            .copied()
-            .chain(view("rdx").units.iter().copied())
-            .chain(rsp_units.iter().copied())
-            .chain(rip_units.iter().copied()),
-    );
-    let structural_unit_call_clobbers = microsoft
-        .caller_saved
-        .iter()
-        .copied()
-        .filter(|unit| !control_defs.contains(unit))
-        .collect::<Vec<_>>();
     let all_units = physical
         .units
         .iter()
@@ -855,14 +852,6 @@ pub fn x86_64_register_constraint_catalog(
             clobbers: Vec::new(),
         },
         RegisterInstructionConstraint {
-            id: RegisterConstraintId(16),
-            key: X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
-            operands: Vec::new(),
-            implicit_uses: structural_unit_call_uses,
-            implicit_defs: control_defs,
-            clobbers: structural_unit_call_clobbers,
-        },
-        RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key: X86_64_JUMP,
             operands: Vec::new(),
@@ -921,6 +910,52 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(call);
     }
 
+    for (key, operands, uses) in [
+        (
+            X86_64_LOAD64,
+            vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
+            ],
+            Vec::new(),
+        ),
+        (
+            X86_64_STORE64,
+            vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            view("rsp").units.clone(),
+        ),
+        (
+            X86_64_FRAME_ADDRESS,
+            vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            view("rsp").units.clone(),
+        ),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands,
+            implicit_uses: uses,
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        });
+    }
+    let mut unit_call = abi_call;
+    unit_call.key = X86_64_MICROSOFT_CALL_UNIT;
+    unit_call.implicit_uses = sorted_units(
+        view("rsp")
+            .units
+            .iter()
+            .copied()
+            .chain(view("rip").units.iter().copied()),
+    );
+    unit_call.operands = vec![
+        fixed(0, RegisterOperandAccess::Use, "rcx"),
+        fixed(1, RegisterOperandAccess::Use, "rdx"),
+    ];
+    // A Unit call has no explicit RAX result definition. It still destroys
+    // every caller-saved register, including the scalar result register.
+    unit_call.clobbers = sorted_units(unit_call.clobbers.into_iter().chain(rax_units));
+    constraints.push(unit_call);
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =
@@ -1156,13 +1191,17 @@ mod tests {
                     && sysv_call.implicit_defs.contains(unit))
         );
 
-        let structural_unit_call = row(catalog, X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR);
-        assert_eq!(
-            structural_unit_call.key,
-            X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
-        );
-        assert!(structural_unit_call.operands.is_empty());
-        for used in ["rcx", "rdx", "rsp", "rip"] {
+        let unit_call = row(catalog, X86_64_MICROSOFT_CALL_UNIT);
+        assert_eq!(unit_call.key, X86_64_MICROSOFT_CALL_UNIT);
+        assert_eq!(unit_call.operands.len(), 2);
+        for (operand, name) in unit_call.operands.iter().zip(["rcx", "rdx"]) {
+            assert_eq!(operand.access, RegisterOperandAccess::Use);
+            assert_eq!(
+                operand.fixed_view,
+                Some(model.model().view_named(name).unwrap().id)
+            );
+        }
+        for used in ["rsp", "rip"] {
             assert!(
                 model
                     .model()
@@ -1170,7 +1209,7 @@ mod tests {
                     .unwrap()
                     .units
                     .iter()
-                    .all(|unit| structural_unit_call.implicit_uses.contains(unit))
+                    .all(|unit| unit_call.implicit_uses.contains(unit))
             );
         }
         for clobbered in [
@@ -1184,7 +1223,7 @@ mod tests {
                     .unwrap()
                     .units
                     .iter()
-                    .all(|unit| structural_unit_call.clobbers.contains(unit))
+                    .all(|unit| unit_call.clobbers.contains(unit))
             );
         }
         let scalar_call = row(catalog, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64);

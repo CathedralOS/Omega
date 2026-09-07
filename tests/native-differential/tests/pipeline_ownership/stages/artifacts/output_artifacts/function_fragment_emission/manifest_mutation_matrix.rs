@@ -75,7 +75,7 @@ fn fragment_publication_data_outlives_its_producer_without_a_history_snapshot() 
 fn every_representable_fragment_manifest_field_rejects_after_reauthentication() {
     let mut staged = staged_fragment_emission();
     let baseline = staged.manifest().record().clone();
-    let mutations: [(&str, ManifestMutation); 30] = [
+    let mutations: [(&str, ManifestMutation); 25] = [
         ("stage", |record| {
             record.stage =
                 FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
@@ -156,23 +156,8 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
         ("statistics.logical_fuel_settlements", |record| {
             record.statistics.logical_fuel_settlements += 1
         }),
-        ("statistics.structural_unit_functions", |record| {
-            record.statistics.structural_unit_functions += 1
-        }),
-        ("statistics.structural_unit_blocks", |record| {
-            record.statistics.structural_unit_blocks += 1
-        }),
-        ("statistics.structural_unit_instruction_spans", |record| {
-            record.statistics.structural_unit_instruction_spans += 1
-        }),
-        ("statistics.structural_unit_bytes", |record| {
-            record.statistics.structural_unit_bytes += 1
-        }),
         ("statistics.unresolved_internal_machine_fixups", |record| {
             record.statistics.unresolved_internal_machine_fixups += 1
-        }),
-        ("statistics.structural_logical_fuel_settlements", |record| {
-            record.statistics.structural_logical_fuel_settlements += 1
         }),
     ];
 
@@ -207,7 +192,7 @@ fn every_representable_fragment_manifest_field_rejects_after_reauthentication() 
 fn fragment_manifest_wire_rejects_every_closed_tag_and_envelope_mutation() {
     let staged = staged_fragment_emission();
     let encoded = staged.manifest().record().encode();
-    assert_eq!(encoded.len(), 500, "selected-lowering V10 layout is pinned");
+    assert_eq!(encoded.len(), 460, "selected-lowering V13 layout is pinned");
 
     let mut wrong_magic = encoded.clone();
     wrong_magic[0] ^= 1;

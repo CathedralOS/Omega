@@ -18,7 +18,6 @@ use crate::{
 
 pub(super) struct ReplayedSplitRequirements {
     pub(super) functions: Vec<FunctionFixedPrecoloredSplitRequirements>,
-    pub(super) structural_unit_functions: Vec<FunctionFixedPrecoloredSplitRequirements>,
     pub(super) usage: OptimizationWorkUsage,
 }
 
@@ -39,18 +38,8 @@ pub(super) fn replay(
         &fixed.plan().functions,
         &mut work,
     )?;
-    let structural_unit_functions = family(
-        &ranges.plan().structural_unit_functions,
-        &legality.plan().structural_unit_functions,
-        &fixed.plan().structural_unit_functions,
-        &mut work,
-    )?;
     let usage = work.finish(budget)?;
-    Ok(ReplayedSplitRequirements {
-        functions,
-        structural_unit_functions,
-        usage,
-    })
+    Ok(ReplayedSplitRequirements { functions, usage })
 }
 
 fn family(

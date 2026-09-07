@@ -7,7 +7,7 @@ use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
 use semantic_vocabulary::MachineId;
 
 const REGISTER_HOME_MAGIC: &[u8; 8] = b"OMGRAH\0\0";
-const REGISTER_HOME_VERSION: u32 = 6;
+const REGISTER_HOME_VERSION: u32 = 7;
 
 impl RegisterHomePlan {
     /// Canonical artifact representation. Decoding this representation does
@@ -58,27 +58,6 @@ impl RegisterHomePlan {
                 assignments,
             });
         }
-        let structural_unit_function_count = cursor.length()?;
-        let mut structural_unit_functions =
-            Vec::with_capacity(structural_unit_function_count.min(cursor.remaining()));
-        for _ in 0..structural_unit_function_count {
-            let raw_machine = u64::from_le_bytes(cursor.array()?);
-            let machine = MachineId::new(raw_machine)
-                .ok_or(RegisterHomeDecodeError::InvalidMachineId(raw_machine))?;
-            let assignment_count = cursor.length()?;
-            let mut assignments = Vec::with_capacity(assignment_count.min(cursor.remaining()));
-            for _ in 0..assignment_count {
-                assignments.push(VirtualRegisterHome {
-                    virtual_register: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
-                    class: RegisterClassId(u16::from_le_bytes(cursor.array()?)),
-                    view: RegisterViewId(u16::from_le_bytes(cursor.array()?)),
-                });
-            }
-            structural_unit_functions.push(FunctionRegisterHomes {
-                machine,
-                assignments,
-            });
-        }
         if cursor.remaining() != 0 {
             return Err(RegisterHomeDecodeError::TrailingBytes);
         }
@@ -88,7 +67,6 @@ impl RegisterHomePlan {
             register_environment,
             allocator_availability,
             functions,
-            structural_unit_functions,
         };
         if register_home_identity(&plan) != identity {
             return Err(RegisterHomeDecodeError::IdentityMismatch);

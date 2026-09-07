@@ -21,6 +21,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         function.provenance.edges.iter().map(|value| value.get()),
     );
     encode_call_plan(bytes, &function.call_plan);
+    match &function.structural {
+        Some(signature) => {
+            bytes.push(1);
+            super::plan::encode_structural_contract(bytes, signature);
+        }
+        None => bytes.push(0),
+    }
+
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
         bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
@@ -41,9 +49,15 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         encode_len(bytes, block.instructions.len());
         for instruction in &block.instructions {
             bytes.extend_from_slice(&instruction.operation.get().to_le_bytes());
-            bytes.extend_from_slice(&instruction.result.get().to_le_bytes());
-            encode_scalar_type(bytes, instruction.scalar_type);
-            encode_definition_site(bytes, instruction.definition_site);
+            match instruction.result {
+                Some(result) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&result.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, result.scalar_type);
+                    encode_definition_site(bytes, result.definition_site);
+                }
+                None => bytes.push(0),
+            }
             match &instruction.kind {
                 LegalizedScalarInstructionKind::BooleanNot { operand } => {
                     bytes.push(4);
@@ -63,23 +77,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 }
                 LegalizedScalarInstructionKind::Call(call) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&call.callee.get().to_le_bytes());
-                    encode_call_plan(bytes, &call.call_plan);
-                    encode_len(bytes, call.arguments.len());
-                    for argument in &call.arguments {
-                        bytes.extend_from_slice(&argument.source.get().to_le_bytes());
-                        encode_placement(bytes, &argument.placement);
-                    }
-                    encode_placement(bytes, &call.result_placement);
-                    encode_ids(
-                        bytes,
-                        call.requirement_obligations.iter().map(|value| value.get()),
-                    );
-                    let crash =
-                        terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
-                            .expect("admitted crash routes");
-                    encode_len(bytes, crash.len());
-                    bytes.extend_from_slice(&crash);
+                    super::ordinary_calls::encode_call(bytes, call);
+                }
+                LegalizedScalarInstructionKind::BoundarySettlement(settlement) => {
+                    bytes.push(6);
+                    super::structural::encode_boundary_settlement(bytes, settlement);
                 }
                 LegalizedScalarInstructionKind::ExactBinary {
                     operator,

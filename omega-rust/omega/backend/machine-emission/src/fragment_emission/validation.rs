@@ -1,9 +1,8 @@
 //! Check publication metadata against admitted source facts and checked fragments.
 
 use super::{
-    FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind,
-    FunctionFragmentEmissionStage, FunctionFragmentEmissionUnavailableData,
-    StagedOptimizedFunctionFragmentEmission,
+    FunctionFragmentEmissionError, FunctionFragmentEmissionStage,
+    FunctionFragmentEmissionUnavailableData, StagedOptimizedFunctionFragmentEmission,
 };
 
 pub(super) fn manifest(
@@ -14,16 +13,7 @@ pub(super) fn manifest(
     let fragments = &staged.fragments;
     let record = staged.manifest.record();
     let counts = crate::function_fragment_emission_statistics(fragments)?;
-    let source_kind = if current
-        .program()
-        .selected
-        .structural_unit_functions
-        .is_empty()
-    {
-        current.source_kind()
-    } else {
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1
-    };
+    let source_kind = current.source_kind();
     let stage = if counts.unresolved_internal_machine_fixups == 0 {
         FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
     } else {

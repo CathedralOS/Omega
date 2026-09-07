@@ -76,41 +76,5 @@ pub fn function_fragment_emission_statistics(
             }
         }
     }
-    result.structural_unit_functions = u64::try_from(fragments.structural_unit_functions.len())
-        .map_err(|_| FunctionFragmentStatisticsOverflow)?;
-    for function in &fragments.structural_unit_functions {
-        result.structural_unit_blocks = result
-            .structural_unit_blocks
-            .checked_add(1)
-            .ok_or(FunctionFragmentStatisticsOverflow)?;
-        result.structural_unit_bytes = result
-            .structural_unit_bytes
-            .checked_add(function.byte_count)
-            .ok_or(FunctionFragmentStatisticsOverflow)?;
-        result.structural_unit_instruction_spans = result
-            .structural_unit_instruction_spans
-            .checked_add(1 + u64::from(function.block.call.is_some()))
-            .ok_or(FunctionFragmentStatisticsOverflow)?;
-        result.structural_logical_fuel_settlements = result
-            .structural_logical_fuel_settlements
-            .checked_add(
-                u64::try_from(function.block.return_instruction.provenance.fuel.len())
-                    .map_err(|_| FunctionFragmentStatisticsOverflow)?,
-            )
-            .ok_or(FunctionFragmentStatisticsOverflow)?;
-        if let Some(call) = &function.block.call {
-            result.unresolved_internal_machine_fixups = result
-                .unresolved_internal_machine_fixups
-                .checked_add(1)
-                .ok_or(FunctionFragmentStatisticsOverflow)?;
-            result.structural_logical_fuel_settlements = result
-                .structural_logical_fuel_settlements
-                .checked_add(
-                    u64::try_from(call.provenance.fuel.len())
-                        .map_err(|_| FunctionFragmentStatisticsOverflow)?,
-                )
-                .ok_or(FunctionFragmentStatisticsOverflow)?;
-        }
-    }
     Ok(result)
 }

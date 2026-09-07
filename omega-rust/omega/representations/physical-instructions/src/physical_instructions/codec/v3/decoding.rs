@@ -15,7 +15,7 @@ use semantic_vocabulary::MachineId;
 
 use crate::{
     MachineAlternativeChoiceRule, PostAllocationMachineBlock, PostAllocationMachineFunction,
-    PostAllocationMachineIdentity, PostAllocationMachinePlan, PostAllocationStructuralUnitFunction,
+    PostAllocationMachineIdentity, PostAllocationMachinePlan,
 };
 use selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
@@ -23,7 +23,7 @@ use super::instruction::decode_instruction;
 
 use super::super::{
     PostAllocationMachineDecodeError,
-    cursor::{array, byte, length, map_field_error, u32_field, u64_field},
+    cursor::{array, byte, length, map_field_error, u16_field, u32_field, u64_field},
 };
 
 pub(in crate::physical_instructions::codec) fn decode_content(
@@ -54,6 +54,20 @@ pub(in crate::physical_instructions::codec) fn decode_content(
     for _ in 0..function_count {
         let machine = MachineId::new(u64_field(cursor)?)
             .ok_or(PostAllocationMachineDecodeError::InvalidField)?;
+        let slot_count = length(cursor)?;
+        let mut outgoing_arguments = Vec::with_capacity(slot_count.min(cursor.remaining()));
+        for _ in 0..slot_count {
+            outgoing_arguments.push(selected_instructions::SelectedOutgoingArgumentSlot {
+                id: selected_instructions::OutgoingArgumentSlotId {
+                    operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
+                        .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                    argument_index: u32_field(cursor)?,
+                },
+                byte_size: u32_field(cursor)?,
+                alignment: u16_field(cursor)?,
+                abi_stack_byte_offset: u32_field(cursor)?,
+            });
+        }
         let block_count = length(cursor)?;
         let mut blocks = Vec::with_capacity(block_count.min(cursor.remaining()));
         for _ in 0..block_count {
@@ -73,32 +87,10 @@ pub(in crate::physical_instructions::codec) fn decode_content(
                 instructions,
             });
         }
-        functions.push(PostAllocationMachineFunction { machine, blocks });
-    }
-    let structural_count = length(cursor)?;
-    let mut structural_unit_functions =
-        Vec::with_capacity(structural_count.min(cursor.remaining()));
-    for _ in 0..structural_count {
-        let machine = MachineId::new(u64_field(cursor)?)
-            .ok_or(PostAllocationMachineDecodeError::InvalidField)?;
-        let block = SelectedBlockId(u32_field(cursor)?);
-        let call = match byte(cursor)? {
-            0 => None,
-            1 => Some(effect_codec::decode_structural_call(cursor).map_err(map_field_error)?),
-            _ => return Err(PostAllocationMachineDecodeError::InvalidField),
-        };
-        let return_instruction = decode_instruction(cursor, allow_i64_less_than, false, false)?;
-        let return_provenance = effect_codec::decode_provenance(cursor).map_err(map_field_error)?;
-        let return_effect = effect_codec::decode_effect_link(cursor).map_err(map_field_error)?;
-        let return_ownership = effect_codec::decode_ownership(cursor).map_err(map_field_error)?;
-        structural_unit_functions.push(PostAllocationStructuralUnitFunction {
+        functions.push(PostAllocationMachineFunction {
             machine,
-            block,
-            call,
-            return_instruction,
-            return_provenance,
-            return_effect,
-            return_ownership,
+            outgoing_arguments,
+            blocks,
         });
     }
     let plan = PostAllocationMachinePlan {
@@ -116,7 +108,6 @@ pub(in crate::physical_instructions::codec) fn decode_content(
         machine_effect_catalog,
         choice_rule,
         functions,
-        structural_unit_functions,
     };
     Ok(plan)
 }

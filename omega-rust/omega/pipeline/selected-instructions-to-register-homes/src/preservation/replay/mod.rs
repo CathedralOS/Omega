@@ -2,7 +2,6 @@
 
 mod ordinary;
 mod state;
-mod structural;
 mod work;
 mod writes;
 
@@ -50,10 +49,7 @@ pub(super) fn reconstruct(
         .copied()
         .collect::<BTreeSet<_>>();
     let ordinary_homes = keyed_homes(&source.homes().plan().functions)?;
-    let structural_homes = keyed_homes(&source.homes().plan().structural_unit_functions)?;
-    if ordinary_homes.len() != selected.functions.len()
-        || structural_homes.len() != selected.structural_unit_functions.len()
-    {
+    if ordinary_homes.len() != selected.functions.len() {
         return Err(AllocatedCalleeSavedRequirementError::FunctionRosterMismatch);
     }
     let mut traversal = ReplayTraversal::new(environment.physical(), &callee_saved);
@@ -62,12 +58,6 @@ pub(super) fn reconstruct(
             .get(&function.machine)
             .ok_or(AllocatedCalleeSavedRequirementError::FunctionRosterMismatch)?;
         ordinary::reconstruct(&mut traversal, function, homes)?;
-    }
-    for function in &selected.structural_unit_functions {
-        let homes = structural_homes
-            .get(&function.machine)
-            .ok_or(AllocatedCalleeSavedRequirementError::FunctionRosterMismatch)?;
-        structural::reconstruct(&mut traversal, function, homes)?;
     }
     let usage = work::usage(&traversal)?;
     if !usage.within(budget) {

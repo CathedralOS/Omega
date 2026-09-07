@@ -76,7 +76,7 @@ pub struct PressureRecoveryClassification {
     pub scalar_type: ScalarType,
     pub class: RegisterClassId,
     pub origin: VirtualRegisterOrigin,
-    pub definition_site: ValueDefinitionSite,
+    pub definition_site: Option<ValueDefinitionSite>,
     pub classification: RecoveryClassification,
 }
 
@@ -146,6 +146,7 @@ pub enum RecoveryClassificationDecodeError {
     InvalidBlockId(u64),
     InvalidOperationId(u64),
     InvalidValueId(u64),
+    InvalidPlaceId(u64),
     InvalidEdgeId(u64),
     InvalidObligationId(u64),
     InvalidIntegerType,

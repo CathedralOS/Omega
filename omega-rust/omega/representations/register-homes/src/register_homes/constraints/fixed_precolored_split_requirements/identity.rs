@@ -12,7 +12,7 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     plan: &FixedPrecoloredSplitRequirementPlan,
 ) -> FixedPrecoloredSplitRequirementPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.fixed-precolored-split-requirements.v1\0");
+    bytes.extend_from_slice(b"omega.fixed-precolored-split-requirements.v2\0");
     bytes.extend_from_slice(&plan.fixed_intervals.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.legality.bytes());
@@ -37,7 +37,6 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    encode_family(&mut bytes, &plan.structural_unit_functions);
     FixedPrecoloredSplitRequirementPlanIdentity(Sha256::digest(bytes).into())
 }
 

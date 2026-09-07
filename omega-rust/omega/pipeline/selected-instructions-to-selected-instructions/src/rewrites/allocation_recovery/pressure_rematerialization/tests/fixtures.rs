@@ -85,10 +85,10 @@ pub(crate) fn fixture() -> (
                 instruction: SelectedInstructionId(register),
                 source_value,
             },
-            definition_site: ValueDefinitionSite::Node {
+            definition_site: Some(ValueDefinitionSite::Node {
                 block: source_block,
                 node: register,
-            },
+            }),
             entry_fixed_view: None,
         });
     }
@@ -117,6 +117,11 @@ pub(crate) fn fixture() -> (
             machine,
             attachment: None,
             provenance: Default::default(),
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
             entry_block: SelectedBlockId(0),
             virtual_registers: registers,
             blocks: vec![SelectedBlock {
@@ -129,7 +134,6 @@ pub(crate) fn fixture() -> (
                 },
             }],
         }],
-        structural_unit_functions: Vec::new(),
         projected_structural_call_returns: Vec::new(),
     };
     let ranges = LiveRangePlan {
@@ -179,7 +183,6 @@ pub(crate) fn fixture() -> (
             architectural_units: Vec::new(),
             interference: Vec::new(),
         }],
-        structural_unit_functions: Vec::new(),
     };
     let original = &selected.functions[0].blocks[0].instructions[0];
     let recovery = RecoveryClassificationPlan {

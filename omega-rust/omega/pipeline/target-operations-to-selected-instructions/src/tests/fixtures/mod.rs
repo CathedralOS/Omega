@@ -3,6 +3,7 @@
 pub(super) mod claim_completion;
 pub(super) mod installed_provider;
 pub(super) mod microsoft_environment;
+pub(super) mod ordinary_graph;
 pub(super) mod plain_unit;
 pub(super) mod projected_structural_call_return;
 pub(super) mod scalar_call_unit;

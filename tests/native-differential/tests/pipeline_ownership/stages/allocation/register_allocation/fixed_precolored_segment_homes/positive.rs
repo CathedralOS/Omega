@@ -14,7 +14,6 @@ fn forwarded_conditional_assigns_exact_segment_domains_without_claiming_movement
         assert_eq!(first, second);
         assert_eq!(first.receipt().target(), target);
         assert_eq!(first.receipt().function_count(), 1);
-        assert_eq!(first.receipt().structural_unit_function_count(), 0);
         assert_eq!(first.receipt().domain_count(), 6);
         assert_eq!(first.receipt().assignment_count(), 8);
         assert_eq!(first.receipt().usage(), exact_usage(target));

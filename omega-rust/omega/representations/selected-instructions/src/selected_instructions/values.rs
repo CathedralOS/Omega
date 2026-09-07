@@ -2,7 +2,7 @@
 use super::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use optimization_unit::ValueDefinitionSite;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
-use semantic_vocabulary::{ScalarType, ValueId};
+use semantic_vocabulary::{PlaceId, ScalarType, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualRegister {
@@ -10,13 +10,22 @@ pub struct VirtualRegister {
     pub scalar_type: ScalarType,
     pub class: RegisterClassId,
     pub origin: VirtualRegisterOrigin,
-    pub definition_site: ValueDefinitionSite,
+    pub definition_site: Option<ValueDefinitionSite>,
     /// An ABI live-in constraint. This is not an assigned physical home.
     pub entry_fixed_view: Option<RegisterViewId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VirtualRegisterOrigin {
+    StructuralParameter {
+        place: PlaceId,
+        parameter_index: usize,
+    },
+    AbiTransport {
+        instruction: SelectedInstructionId,
+        place: PlaceId,
+        byte_offset: u32,
+    },
     EntryParameter {
         source_value: ValueId,
         parameter_index: usize,

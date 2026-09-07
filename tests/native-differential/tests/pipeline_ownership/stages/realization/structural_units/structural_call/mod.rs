@@ -10,6 +10,9 @@ mod realization_publication;
 fn structural_unit_call_reaches_post_allocation_machine_custody() {
     let selected = legalization_selection::lower_and_select_structural_call();
     let homes = effects_allocation::analyze_and_allocate_structural_call(selected);
-    encoding_layout::verify_structural_call_encoding_and_layout(&homes);
+    encoding_layout::verify_structural_call_encoding_and_layout(homes);
+    let homes = effects_allocation::analyze_and_allocate_structural_call(
+        legalization_selection::lower_and_select_structural_call(),
+    );
     realization_publication::realize_and_publish_structural_call(homes);
 }

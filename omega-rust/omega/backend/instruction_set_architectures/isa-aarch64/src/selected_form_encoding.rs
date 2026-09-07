@@ -560,7 +560,12 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::Jump | SelectedInstructionKind::CallI64 { .. } => {
+        SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::FrameAddress { .. }
+        | SelectedInstructionKind::CallUnit { .. }
+        | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::CallI64 { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
@@ -686,7 +691,11 @@ fn encode_unchecked(
         | SelectedInstructionKind::Jump => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::CallI64 { .. } => {
+        SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::FrameAddress { .. }
+        | SelectedInstructionKind::CallUnit { .. }
+        | SelectedInstructionKind::CallI64 { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -990,6 +999,10 @@ fn validate_decoded(
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::FrameAddress { .. }
+        | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
@@ -1114,6 +1127,10 @@ fn footprint(
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::FrameAddress { .. }
+        | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();

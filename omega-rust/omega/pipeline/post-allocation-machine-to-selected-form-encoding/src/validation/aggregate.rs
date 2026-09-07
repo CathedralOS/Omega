@@ -29,26 +29,6 @@ pub(super) fn validate(
             .checked_add(1)
             .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
     }
-    for function in artifact.structural_unit_functions() {
-        counts.structural_encoded_returns = counts
-            .structural_encoded_returns
-            .checked_add(1)
-            .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-        if function.call.is_some() {
-            counts.structural_encoded_call_templates = counts
-                .structural_encoded_call_templates
-                .checked_add(1)
-                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-            counts.structural_deferred_internal_control = counts
-                .structural_deferred_internal_control
-                .checked_add(1)
-                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-            counts.structural_internal_fixups = counts
-                .structural_internal_fixups
-                .checked_add(1)
-                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-        }
-    }
     if artifact.counts != counts {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
@@ -74,7 +54,7 @@ mod tests {
             post_allocation_machine_optimization: None,
             identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
             rows: vec![],
-            structural_unit_functions: vec![],
+            frame: None,
             counts: SelectedFormEncodingCounts::default(),
         };
         program.identity = program.recomputed_identity();

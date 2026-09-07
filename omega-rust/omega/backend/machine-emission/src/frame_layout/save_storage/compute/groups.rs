@@ -64,7 +64,6 @@ pub(super) fn derive_function(
     }
     Ok(FunctionNonAuthoritativeCalleeSaveStorage {
         machine: source.machine,
-        kind: source.kind,
         abstract_area_bytes: extent,
         abstract_area_alignment: max_alignment,
         slots,

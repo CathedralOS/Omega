@@ -10,7 +10,7 @@ pub fn fixed_precolored_segment_home_plan_identity(
     plan: &FixedPrecoloredSegmentHomePlan,
 ) -> FixedPrecoloredSegmentHomePlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.fixed-precolored-segment-homes.v1\0");
+    bytes.extend_from_slice(b"omega.fixed-precolored-segment-homes.v2\0");
     bytes.extend_from_slice(&plan.split_requirements.bytes());
     bytes.extend_from_slice(&plan.fixed_intervals.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
@@ -36,7 +36,6 @@ pub fn fixed_precolored_segment_home_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    encode_family(&mut bytes, &plan.structural_unit_functions);
     FixedPrecoloredSegmentHomePlanIdentity(Sha256::digest(bytes).into())
 }
 

@@ -93,6 +93,26 @@ pub(super) fn build(
         instruction: selected.id,
         alternative,
         operands,
+        address: match selected.kind {
+            selected_instructions::SelectedInstructionKind::Load64 { byte_offset } => {
+                Some(physical_instructions::PhysicalAddressOperation::Load64 {
+                    base_operand: 0,
+                    byte_offset,
+                })
+            }
+            selected_instructions::SelectedInstructionKind::Store64 { slot, byte_offset } => {
+                Some(physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset })
+            }
+            selected_instructions::SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
+                Some(
+                    physical_instructions::PhysicalAddressOperation::FrameAddress {
+                        slot,
+                        byte_offset,
+                    },
+                )
+            }
+            _ => None,
+        },
         implicit_unit_uses: effects.unit_uses.clone(),
         implicit_unit_defs: effects.unit_defs.clone(),
         implicit_unit_clobbers: effects.unit_clobbers.clone(),

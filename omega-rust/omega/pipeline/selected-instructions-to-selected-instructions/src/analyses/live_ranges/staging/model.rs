@@ -48,7 +48,6 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
     pub(super) liveness: crate::LivenessIdentity,
     pub(super) ranges: LiveRangeIdentity,
     pub(super) function_count: usize,
-    pub(super) structural_unit_function_count: usize,
     pub(super) block_count: usize,
     pub(super) virtual_register_count: usize,
     pub(super) virtual_occurrence_count: usize,
@@ -113,10 +112,6 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
 
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
 
     pub const fn block_count(self) -> usize {

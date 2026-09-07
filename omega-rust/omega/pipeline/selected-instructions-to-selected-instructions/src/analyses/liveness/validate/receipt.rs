@@ -9,13 +9,11 @@ pub(super) fn admit_validated_liveness(
     let block_count = plan
         .functions
         .iter()
-        .chain(&plan.structural_unit_functions)
         .map(|function| function.blocks.len())
         .sum();
     let instruction_count = plan
         .functions
         .iter()
-        .chain(&plan.structural_unit_functions)
         .flat_map(|function| &function.blocks)
         .map(|block| block.instructions.len())
         .sum();
@@ -43,7 +41,6 @@ pub(super) fn admit_validated_liveness(
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
         function_count: plan.functions.len(),
-        structural_unit_function_count: plan.structural_unit_functions.len(),
         block_count,
         virtual_register_count: selected
             .selected_plan()

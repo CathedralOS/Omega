@@ -9,7 +9,6 @@ name = "isa_x86_64"
 path = "src/lib.rs"
 
 [dependencies]
-machine-code = { path = "../../../representations/machine-code" }
 calling-conventions = { path = "../../../representations/calling-conventions" }
 register-model = { path = "../../../representations/register-model" }
 target = { path = "../../../representations/target" }

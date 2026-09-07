@@ -4,8 +4,8 @@ use register_model::{RegisterUnitId, ValidatedPhysicalRegisterModel};
 use semantic_vocabulary::MachineId;
 
 use super::super::{
-    AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedUnitRequirement,
-    CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
+    AllocatedCalleeSavedUnitRequirement, CalleeSavedModificationWitness,
+    FunctionAllocatedCalleeSavedRequirements,
 };
 
 pub(super) struct ReplayTraversal<'model> {
@@ -41,13 +41,11 @@ impl<'model> ReplayTraversal<'model> {
     pub(super) fn finish(
         &mut self,
         machine: semantic_vocabulary::MachineId,
-        kind: AllocatedCalleeSavedFunctionKind,
         units: BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
     ) {
         self.functions
             .push(FunctionAllocatedCalleeSavedRequirements {
                 machine,
-                kind,
                 modified_units: units
                     .into_iter()
                     .map(|(unit, witnesses)| AllocatedCalleeSavedUnitRequirement {

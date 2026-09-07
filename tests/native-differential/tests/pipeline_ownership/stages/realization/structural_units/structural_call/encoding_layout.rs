@@ -1,63 +1,36 @@
 use crate::tests::*;
 
-pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimizedRegisterHomes) {
+pub(super) fn verify_structural_call_encoding_and_layout(homes: StagedOptimizedRegisterHomes) {
     let legality_stage = homes.legality_stage();
     let range_stage = legality_stage.live_range_stage();
     let environment = range_stage
         .liveness_stage()
         .selected_stage()
         .register_environment();
-
-    let post = stage_optimized_post_allocation_machine_plan(homes)
-        .expect("structural call must reach post-allocation machine custody");
-    assert!(post.machine().plan().functions.is_empty());
-    assert_eq!(post.machine().plan().structural_unit_functions.len(), 2);
-    assert!(
-        post.machine().plan().structural_unit_functions[0]
-            .call
-            .is_some()
-    );
-    assert!(
-        post.machine().plan().structural_unit_functions[1]
-            .call
-            .is_none()
-    );
-    assert_eq!(post.custody().function_count(), 0);
-    assert_eq!(post.custody().structural_unit_function_count(), 2);
-    assert_eq!(post.machine().receipt().function_count(), 2);
-    assert_eq!(post.machine().receipt().block_count(), 2);
-    assert_eq!(post.machine().receipt().instruction_count(), 3);
-    assert_eq!(post.machine().receipt().operand_count(), 0);
-    let physical_program = post.machine().plan();
-    let call = physical_program.structural_unit_functions[0]
-        .call
-        .as_ref()
-        .unwrap();
-    let return_actions = physical_program
-        .structural_unit_functions
+    let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+    assert_eq!(post.machine().plan().functions.len(), 2);
+    let call = post.machine().plan().functions[0]
+        .blocks
         .iter()
-        .map(|function| {
-            let instruction = &function.return_instruction;
-            instruction.unit_uses.len()
-                + instruction.unit_defs.len()
-                + instruction.unit_clobbers.len()
+        .flat_map(|block| &block.instructions)
+        .find(|row| {
+            row.alternative.key.family == selected_instructions::MachineAlternativeFamily::CallUnit
         })
-        .sum::<usize>();
-    assert_eq!(
-        post.machine().receipt().unit_action_count(),
-        return_actions + call.unit_uses.len() + call.unit_defs.len() + call.unit_clobbers.len()
-    );
+        .unwrap();
+    let call_identity = call.instruction;
+    assert!(!call.unit_clobbers.is_empty());
     let mut corrupted = post.machine().plan().clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
+    corrupted.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|row| row.instruction == call_identity)
         .unwrap()
-        .unit_uses
+        .unit_clobbers
         .clear();
-    // Canonical encoding authenticates data; it cannot admit a different call.
     corrupted.identity = physical_instructions::post_allocation_machine_identity(&corrupted);
-    let corrupted = physical_instructions::PostAllocationMachinePlan::decode(&corrupted.encode())
-        .expect("substituted data has a valid canonical frame, not realization authority");
+    let corrupted =
+        physical_instructions::PostAllocationMachinePlan::decode(&corrupted.encode()).unwrap();
     assert!(
         register_homes_to_post_allocation_machine::validate_post_allocation_machine_plan(
             range_stage.liveness_stage().selected_stage().selected(),
@@ -74,247 +47,143 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         .is_err()
     );
 
-    let encoding = stage_optimized_layout_independent_selected_form_encoding(
-        range_stage.liveness_stage().selected_stage().selected(),
-        &post,
-        environment.physical(),
+    let mut realization = stage_fixed_frame_function_relative_realization(
+        homes.try_into().unwrap(),
+        post,
+        selected_lowering_budget(),
     )
-    .expect("structural Unit calls must retain typed unresolved pre-layout encoding");
-    assert!(encoding.rows().is_empty());
-    assert_eq!(encoding.structural_unit_functions().len(), 2);
+    .unwrap();
+    let encoding = realization.encoding();
+    assert!(encoding.rows().iter().any(|row| matches!(
+        row.state,
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { .. }
+    )));
+    let original_encoding = encoding.clone();
+    let original_layout = realization.baseline_layout().clone();
     assert_eq!(
-        encoding.counts(),
-        SelectedFormEncodingCounts {
-            ordinary_encoded: 0,
-            ordinary_deferred_control: 0,
-            ordinary_encoded_call_templates: 0,
-            ordinary_deferred_internal_control: 0,
-            ordinary_internal_fixups: 0,
-            structural_encoded_call_templates: 1,
-            structural_encoded_returns: 2,
-            structural_deferred_internal_control: 1,
-            structural_internal_fixups: 1,
+        original_encoding.program().frame.as_ref(),
+        Some(realization.frame().plan())
+    );
+    for mutation in 0..5 {
+        let program = realization.encoding_mut().program_mut_for_test();
+        match mutation {
+            0 => program.frame = None,
+            1 => {
+                let frame = program
+                    .frame
+                    .as_mut()
+                    .unwrap()
+                    .functions
+                    .iter_mut()
+                    .find(|frame| frame.contains_call)
+                    .unwrap();
+                frame.outgoing_abi_area.byte_size -= 8;
+            }
+            _ => {
+                let address = program
+                    .rows
+                    .iter_mut()
+                    .filter_map(|row| row.address.as_mut())
+                    .find(|address| {
+                        matches!(
+                            address.symbolic,
+                            physical_instructions::PhysicalAddressOperation::Store64 { .. }
+                        )
+                    })
+                    .unwrap();
+                let physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset } =
+                    address.symbolic
+                else {
+                    unreachable!();
+                };
+                match mutation {
+                    2 => address.displacement += 8,
+                    3 => {
+                        address.symbolic =
+                            physical_instructions::PhysicalAddressOperation::FrameAddress {
+                                slot,
+                                byte_offset,
+                            }
+                    }
+                    _ => {
+                        address.symbolic =
+                            physical_instructions::PhysicalAddressOperation::Store64 {
+                                slot,
+                                byte_offset: byte_offset + 8,
+                            }
+                    }
+                }
+            }
         }
-    );
-    let encoded_caller = &encoding.structural_unit_functions()[0];
-    let encoded_callee = &encoding.structural_unit_functions()[1];
-    let encoded_call = encoded_caller
-        .call
-        .as_ref()
-        .expect("caller owns one unresolved structural call template");
-    assert_eq!(encoded_call.bytes.len(), 89);
-    assert_eq!(
-        encoded_call.callee,
-        post.machine().plan().structural_unit_functions[0]
-            .call
-            .as_ref()
-            .unwrap()
-            .callee
-    );
-    assert_eq!(encoded_call.fixup.callee, encoded_call.callee);
-    assert_eq!(encoded_call.fixup.opcode_byte_offset, 80);
-    assert_eq!(encoded_call.fixup.field_byte_offset, 81);
-    assert_eq!(encoded_call.fixup.next_instruction_byte_offset, 85);
-    assert_eq!(encoded_call.fixup.field_byte_width, 4);
-    assert_eq!(&encoded_call.bytes[81..85], &[0, 0, 0, 0]);
-    assert!(encoded_callee.call.is_none());
-    for function in [encoded_caller, encoded_callee] {
-        assert!(matches!(
-            &function.return_instruction.state,
-            SelectedFormEncodingState::Encoded { bytes, .. }
-                if bytes.as_slice() == [0xc3]
-        ));
+        program.identity = program.recomputed_identity();
+        assert!(
+            validate_optimized_layout_independent_selected_form_encoding(
+                realization.allocation().current().selected(),
+                realization.machine(),
+                realization
+                    .allocation()
+                    .current()
+                    .register_environment()
+                    .physical(),
+                Some(realization.frame().plan()),
+                realization.encoding(),
+            )
+            .is_err(),
+            "reauthenticated frame/address mutation {mutation} must fail encoding replay"
+        );
+        assert!(validate_fixed_frame_function_relative_realization(&realization).is_err());
+        *realization.encoding_mut() = original_encoding.clone();
+        validate_fixed_frame_function_relative_realization(&realization).unwrap();
     }
-    validate_optimized_layout_independent_selected_form_encoding(
-        range_stage.liveness_stage().selected_stage().selected(),
-        &post,
-        environment.physical(),
-        &encoding,
-    )
-    .unwrap();
-
-    let mut corrupted = encoding.clone();
-    corrupted.structural_unit_functions_mut()[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .bytes[0] ^= 1;
-    assert!(matches!(
-        validate_optimized_layout_independent_selected_form_encoding(
-            range_stage.liveness_stage().selected_stage().selected(),
-            &post,
-            environment.physical(),
-            &corrupted,
-        ),
-        Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
-    ));
-    let mut corrupted = encoding.clone();
-    corrupted.counts_mut().structural_internal_fixups = 0;
-    assert!(matches!(
-        validate_optimized_layout_independent_selected_form_encoding(
-            range_stage.liveness_stage().selected_stage().selected(),
-            &post,
-            environment.physical(),
-            &corrupted,
-        ),
-        Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
-    ));
-
-    let layout = stage_optimized_resolved_selected_form_layout(
-        range_stage.liveness_stage().selected_stage().selected(),
-        &post,
-        environment.physical(),
-        &encoding,
-    )
-    .expect("structural Unit fixups must reach unresolved function-relative custody");
-    // Bind the current pipeline inputs; this is not a frozen historical
-    // subject whose upstream catalog identities must remain unchanged.
-    assert_eq!(layout.selected(), encoding.selected());
-    assert_eq!(layout.machine(), encoding.machine());
-    assert_eq!(layout.pre_layout(), encoding.identity());
-    assert_eq!(
-        layout.policy(),
-        SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
-    );
-    assert!(layout.functions().is_empty());
-    assert_eq!(layout.structural_unit_functions().len(), 2);
-    let caller_layout = &layout.structural_unit_functions()[0];
-    let callee_layout = &layout.structural_unit_functions()[1];
-    assert_eq!((caller_layout.offset, caller_layout.byte_count), (0, 90));
-    assert_eq!((callee_layout.offset, callee_layout.byte_count), (0, 1));
-    let call_layout = caller_layout
-        .call
-        .as_ref()
-        .expect("caller layout owns the unresolved template");
-    assert_eq!(call_layout.offset, 0);
-    assert_eq!(call_layout.bytes.len(), 89);
-    assert_eq!(&call_layout.bytes[81..85], &[0, 0, 0, 0]);
-    assert_eq!(call_layout.fixup, encoded_call.fixup);
-    assert_eq!(caller_layout.return_instruction.offset, 89);
-    assert_eq!(caller_layout.return_instruction.bytes, [0xc3]);
-    assert_eq!(callee_layout.return_instruction.offset, 0);
-    assert_eq!(callee_layout.return_instruction.bytes, [0xc3]);
-    validate_optimized_resolved_selected_form_layout(
-        range_stage.liveness_stage().selected_stage().selected(),
-        &post,
-        environment.physical(),
-        &encoding,
-        &layout,
-    )
-    .unwrap();
-    let mut corrupted = layout.clone();
-    corrupted.structural_unit_functions_mut()[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .fixup
-        .field_byte_offset += 1;
-    assert!(matches!(
-        validate_optimized_resolved_selected_form_layout(
-            range_stage.liveness_stage().selected_stage().selected(),
-            &post,
-            environment.physical(),
-            &encoding,
-            &corrupted,
-        ),
-        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
-    ));
-    let mut corrupted = layout.clone();
-    corrupted.structural_unit_functions_mut()[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .bytes[0] ^= 1;
-    assert!(matches!(
-        validate_optimized_resolved_selected_form_layout(
-            range_stage.liveness_stage().selected_stage().selected(),
-            &post,
-            environment.physical(),
-            &encoding,
-            &corrupted,
-        ),
-        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
-    ));
-    let mut corrupted = layout.clone();
-    corrupted.structural_unit_functions_mut()[0]
-        .return_instruction
-        .offset += 1;
-    assert!(matches!(
-        validate_optimized_resolved_selected_form_layout(
-            range_stage.liveness_stage().selected_stage().selected(),
-            &post,
-            environment.physical(),
-            &encoding,
-            &corrupted,
-        ),
-        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
-    ));
-    let mut corrupted = layout.clone();
-    corrupted.structural_unit_functions_mut()[0].byte_count += 1;
-    assert!(matches!(
-        validate_optimized_resolved_selected_form_layout(
-            range_stage.liveness_stage().selected_stage().selected(),
-            &post,
-            environment.physical(),
-            &encoding,
-            &corrupted,
-        ),
-        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
-    ));
-
-    let retained = layout.shared_program();
-    assert!(std::ptr::eq(retained.as_ref(), layout.program()));
-    assert!(std::sync::Arc::ptr_eq(
-        &retained,
-        &layout.clone().shared_program()
-    ));
-    drop(layout);
-    assert_eq!(retained.identity, retained.recomputed_identity());
-    let admitted = admit_resolved_machine_layout(
-        range_stage.liveness_stage().selected_stage().selected(),
-        &post,
-        environment.physical(),
-        &encoding,
-        None,
-        std::sync::Arc::clone(&retained),
-    )
-    .expect("retained current data must admit without the original layout wrapper");
-    assert!(std::sync::Arc::ptr_eq(
-        &retained,
-        &admitted.shared_program()
-    ));
-
-    let original_byte = retained.structural_unit_functions[0]
-        .call
-        .as_ref()
-        .unwrap()
-        .bytes[0];
-    let mut substituted = std::sync::Arc::clone(&retained);
-    let changed = std::sync::Arc::make_mut(&mut substituted);
-    changed.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .bytes[0] ^= 1;
-    changed.identity = changed.recomputed_identity();
-    assert_eq!(
-        admitted.structural_unit_functions()[0]
-            .call
-            .as_ref()
-            .unwrap()
-            .bytes[0],
-        original_byte
-    );
-    assert!(
-        admit_resolved_machine_layout(
-            range_stage.liveness_stage().selected_stage().selected(),
-            &post,
-            environment.physical(),
-            &encoding,
-            None,
-            substituted,
-        )
-        .is_err(),
-        "a recomputed identity must not admit substituted call bytes"
-    );
+    for mutation in 0..4 {
+        let row = realization
+            .encoding_mut()
+            .rows_mut()
+            .iter_mut()
+            .find(|row| {
+                matches!(
+                    row.state,
+                    SelectedFormEncodingState::UnresolvedInternalMachineCall { .. }
+                )
+            })
+            .unwrap();
+        let SelectedFormEncodingState::UnresolvedInternalMachineCall {
+            bytes,
+            footprint,
+            fixup,
+        } = &mut row.state
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => bytes[0] ^= 1,
+            1 => fixup.callee = MachineId::new(999_999).unwrap(),
+            2 => footprint.implicit_clobbers.clear(),
+            _ => row.instruction = SelectedInstructionId(u32::MAX),
+        }
+        assert!(
+            validate_fixed_frame_function_relative_realization(&realization).is_err(),
+            "encoding mutation {mutation}"
+        );
+        *realization.encoding_mut() = original_encoding.clone();
+        validate_fixed_frame_function_relative_realization(&realization).unwrap();
+    }
+    for mutation in 0..3 {
+        let layout = realization.baseline_layout_mut().functions_mut();
+        match mutation {
+            0 => layout.reverse(),
+            1 => layout[0].blocks[0].instructions[0].offset += 1,
+            _ => layout[0].blocks[0].instructions[0].bytes[0] ^= 1,
+        }
+        assert!(
+            validate_fixed_frame_function_relative_realization(&realization).is_err(),
+            "layout mutation {mutation}"
+        );
+        *realization.baseline_layout_mut() = original_layout.clone();
+    }
+    validate_fixed_frame_function_relative_realization(&realization).unwrap();
+    let current = realization.encoding().shared_program();
+    let identity = current.identity;
+    drop(realization);
+    assert_eq!(current.recomputed_identity(), identity);
 }

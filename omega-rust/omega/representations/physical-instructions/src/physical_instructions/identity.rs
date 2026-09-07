@@ -27,25 +27,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v6\0",
-    )
-}
-
-pub(crate) fn post_allocation_machine_identity_v5_legacy(
-    plan: &PostAllocationMachinePlan,
-) -> PostAllocationMachineIdentity {
-    post_allocation_machine_identity_with_domain(
-        plan,
-        b"omega.terminal-postallocation-machine.v5\0",
-    )
-}
-
-pub(crate) fn post_allocation_machine_identity_v4_legacy(
-    plan: &PostAllocationMachinePlan,
-) -> PostAllocationMachineIdentity {
-    post_allocation_machine_identity_with_domain(
-        plan,
-        b"omega.terminal-postallocation-machine.v4\0",
+        b"omega.terminal-postallocation-machine.v7\0",
     )
 }
 
@@ -82,6 +64,14 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        encode_len(&mut bytes, function.outgoing_arguments.len());
+        for slot in &function.outgoing_arguments {
+            bytes.extend_from_slice(&slot.id.operation.get().to_le_bytes());
+            bytes.extend_from_slice(&slot.id.argument_index.to_le_bytes());
+            bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
+            bytes.extend_from_slice(&slot.alignment.to_le_bytes());
+            bytes.extend_from_slice(&slot.abi_stack_byte_offset.to_le_bytes());
+        }
         encode_len(&mut bytes, function.blocks.len());
         for block in &function.blocks {
             bytes.extend_from_slice(&block.block.0.to_le_bytes());
@@ -91,33 +81,7 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
             }
         }
     }
-    encode_len(&mut bytes, plan.structural_unit_functions.len());
-    for function in &plan.structural_unit_functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        bytes.extend_from_slice(&function.block.0.to_le_bytes());
-        match &function.call {
-            None => bytes.push(0),
-            Some(call) => {
-                bytes.push(1);
-                selected_instructions::selected_instructions::effects::program::identity::encode_structural_call(
-                    &mut bytes, call,
-                );
-            }
-        }
-        encode_instruction(&mut bytes, &function.return_instruction);
-        selected_instructions::selected_instructions::effects::program::identity::encode_provenance(
-            &mut bytes,
-            &function.return_provenance,
-        );
-        selected_instructions::selected_instructions::effects::program::identity::encode_effect_link(
-            &mut bytes,
-            function.return_effect,
-        );
-        selected_instructions::selected_instructions::effects::program::identity::encode_ownership(
-            &mut bytes,
-            &function.return_ownership,
-        );
-    }
+
     bytes
 }
 
@@ -153,6 +117,33 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             }
         }
     }
+    match instruction.address {
+        None => bytes.push(0),
+        Some(crate::PhysicalAddressOperation::Load64 {
+            base_operand,
+            byte_offset,
+        }) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        Some(crate::PhysicalAddressOperation::Store64 { slot, byte_offset })
+        | Some(crate::PhysicalAddressOperation::FrameAddress { slot, byte_offset }) => {
+            bytes.push(
+                if matches!(
+                    instruction.address,
+                    Some(crate::PhysicalAddressOperation::Store64 { .. })
+                ) {
+                    2
+                } else {
+                    3
+                },
+            );
+            bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+            bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+    }
     encode_units(bytes, &instruction.implicit_unit_uses);
     encode_units(bytes, &instruction.implicit_unit_defs);
     encode_units(bytes, &instruction.implicit_unit_clobbers);
@@ -179,6 +170,10 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Store64 => 17,
+        MachineAlternativeFamily::FrameAddress => 18,
+        MachineAlternativeFamily::CallUnit => 19,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     match alternative.applicability {
@@ -262,6 +257,22 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
+        MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand,
+            byte_count,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,

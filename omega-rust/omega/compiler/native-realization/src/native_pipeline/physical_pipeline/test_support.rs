@@ -2,16 +2,6 @@ use super::StagedOptimizedVerifiedPhysicalPipeline;
 use machine_emission::FunctionFragmentReplayInputs;
 
 impl StagedOptimizedVerifiedPhysicalPipeline {
-    pub fn into_structural_unit_for_test(
-        self,
-    ) -> Option<machine_emission::StagedOptimizedStructuralUnitFunctionRelativeRealization> {
-        match self.source.into_replay_for_test() {
-            FunctionFragmentReplayInputs::StructuralUnit(realization) => Some(*realization),
-            _ => None,
-        }
-    }
-}
-impl StagedOptimizedVerifiedPhysicalPipeline {
     pub fn fixed_frame_for_test(
         &self,
     ) -> Option<&machine_emission::StagedFixedFrameFunctionRelativeRealization> {

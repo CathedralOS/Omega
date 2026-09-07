@@ -59,6 +59,23 @@ impl Code {
         }
     }
 
+    pub(crate) fn call_unit_indirect_pair(
+        &self,
+        offset: usize,
+        first: &mut [u64; 2],
+        second: &mut [u64; 2],
+    ) {
+        assert!(offset < self.length);
+        // SAFETY: the caller supplies the checked Microsoft x64 Unit entry
+        // with two 16-byte indirect arguments, or its explicitly separate ABI
+        // stress copy. Both distinct writable referents remain live until return.
+        unsafe {
+            let entry: unsafe extern "system" fn(*mut [u64; 2], *mut [u64; 2]) =
+                std::mem::transmute(self.address.cast::<u8>().add(offset));
+            entry(first, second);
+        }
+    }
+
     pub(crate) fn call_scalar(&self, offset: usize, arguments: [u64; 4]) -> u64 {
         assert!(offset < self.length);
         // SAFETY: caller supplies a scalar callee or our preservation wrapper.

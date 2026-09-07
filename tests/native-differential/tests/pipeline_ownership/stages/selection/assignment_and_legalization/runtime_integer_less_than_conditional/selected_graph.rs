@@ -52,7 +52,7 @@ fn runtime_u64_parameter_less_than_selects_ordered_three_block_graph_on_both_isa
         let legalized = &staged.legalized().plan().scalar_functions[0];
         let comparison = &legalized.blocks[0].instructions[0];
         assert_eq!(comparison.operation, less_operation);
-        assert_eq!(comparison.result, condition);
+        assert_eq!(comparison.result.unwrap().value, condition);
         assert_eq!(
             comparison.kind,
             legalized_operations::LegalizedScalarInstructionKind::Compare {

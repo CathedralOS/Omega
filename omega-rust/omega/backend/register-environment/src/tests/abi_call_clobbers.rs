@@ -7,7 +7,7 @@ use isa_aarch64::{
     aarch64_preservation_convention_for_target,
 };
 use isa_x86_64::{
-    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_SYSTEM_V_CALL,
+    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_SYSTEM_V_CALL,
     X86_64RegisterConstraintCatalogValidationError, x86_64_preservation_convention_for_target,
 };
 use register_model::{
@@ -420,19 +420,21 @@ fn structurally_valid_preservation_convention_corruption_rejects_for_every_targe
 }
 
 #[test]
-fn microsoft_structural_unit_call_clobbers_reject_corruption_for_every_coff_target() {
+fn microsoft_unit_call_clobbers_reject_corruption_for_every_coff_target() {
     for target in [NativeTarget::windows_x64(), NativeTarget::uefi_x64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        let row = environment
-            .constraint(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR)
-            .unwrap();
-        assert!(row.operands.is_empty());
+        let row = environment.constraint(X86_64_MICROSOFT_CALL_UNIT).unwrap();
+        assert_eq!(row.operands.len(), 2);
+        for (operand, name) in row.operands.iter().zip(["rcx", "rdx"]) {
+            assert_eq!(operand.access, register_model::RegisterOperandAccess::Use);
+            assert_eq!(
+                operand.fixed_view,
+                Some(environment.physical().model().view_named(name).unwrap().id)
+            );
+        }
         assert_eq!(
             row.implicit_uses,
-            units_for_names(
-                environment.physical().model(),
-                &["rcx", "rdx", "rsp", "rip"]
-            )
+            units_for_names(environment.physical().model(), &["rsp", "rip"])
         );
         assert_eq!(
             row.implicit_defs,
@@ -447,19 +449,12 @@ fn microsoft_structural_unit_call_clobbers_reject_corruption_for_every_coff_targ
         let catalog = target_constraint_catalog(target, &physical);
         for omitted in &row.clobbers {
             let mut corrupted = catalog.clone();
-            row_mut(
-                &mut corrupted,
-                X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
-            )
-            .clobbers
-            .retain(|unit| unit != omitted);
+            row_mut(&mut corrupted, X86_64_MICROSOFT_CALL_UNIT)
+                .clobbers
+                .retain(|unit| unit != omitted);
             let error = validate_target_register_environment(target, raw.clone(), corrupted)
-                .expect_err("structural call must retain every Microsoft caller clobber");
-            assert_target_semantic_error(
-                target,
-                X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
-                error,
-            );
+                .expect_err("Unit call must retain every Microsoft caller clobber");
+            assert_target_semantic_error(target, X86_64_MICROSOFT_CALL_UNIT, error);
         }
     }
 }

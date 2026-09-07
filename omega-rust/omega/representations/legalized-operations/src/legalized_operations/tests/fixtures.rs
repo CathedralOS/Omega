@@ -42,26 +42,28 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let arguments = parameters
         .iter()
         .enumerate()
-        .map(|(position, parameter)| LegalizedCallUnitArgument {
-            semantic: StructuralArgument {
-                place: parameter.semantic.place,
-                path: Vec::new(),
-                access: StructuralAccess::Owned,
+        .map(
+            |(position, parameter)| LegalizedScalarArgument::Structural {
+                semantic: StructuralArgument {
+                    place: parameter.semantic.place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                target: target_operations::TargetStructuralArgument {
+                    place: parameter.semantic.place,
+                    access: StructuralAccess::Owned,
+                    path: Vec::new(),
+                    root_structural_type: extent_type,
+                    structural_type: extent_type,
+                    shape,
+                    source_byte_offset: 0,
+                    fixed_array_length: None,
+                    element_stride: None,
+                    source: call_plan.parameters[position].clone(),
+                    destination: call_plan.parameters[position].clone(),
+                },
             },
-            target: target_operations::TargetStructuralArgument {
-                place: parameter.semantic.place,
-                access: StructuralAccess::Owned,
-                path: Vec::new(),
-                root_structural_type: extent_type,
-                structural_type: extent_type,
-                shape,
-                source_byte_offset: 0,
-                fixed_array_length: None,
-                element_stride: None,
-                source: call_plan.parameters[position].clone(),
-                destination: call_plan.parameters[position].clone(),
-            },
-        })
+        )
         .collect::<Vec<_>>();
     let call = id::<OperationId>(1);
     let return_edge = id::<EdgeId>(1);
@@ -74,116 +76,130 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         fuel_schedule: FuelScheduleIdentity::new(1).expect("fuel schedule"),
         target: NativeTarget::from_omega_target_name(Some("uefi_x86_64")).expect("UEFI target"),
         entry: id(1),
-        scalar_functions: Vec::new(),
-        structural_unit_functions: vec![LegalizedStructuralUnitFunction {
+        scalar_functions: vec![LegalizedScalarFunction {
             machine: id(1),
             attachment: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![call],
                 edges: vec![return_edge],
             },
-            recipe: StructuralUnitLegalizationRecipe::AuthoredCallThenReturnUnitV1,
-            structural_types: vec![StructuralTypeDeclaration {
-                id: extent_type,
-                identity: "omega::core::Extent".into(),
-                shape: StructuralTypeShape::Record {
-                    fields: vec![
-                        StructuralFieldDeclaration {
-                            id: id::<StructuralFieldId>(1),
-                            identity: "base".into(),
-                            relevance: BindingRelevance::Relevant,
-                            field_type: StructuralFieldType::Scalar(
-                                semantic_vocabulary::ScalarType::Integer(
-                                    IntegerType::address(64).expect("addr"),
+            call_plan: call_plan.clone(),
+            parameters: Vec::new(),
+            structural: Some(LegalizedStructuralContract {
+                structural_types: vec![StructuralTypeDeclaration {
+                    id: extent_type,
+                    identity: "omega::core::Extent".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![
+                            StructuralFieldDeclaration {
+                                id: id::<StructuralFieldId>(1),
+                                identity: "base".into(),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(
+                                    semantic_vocabulary::ScalarType::Integer(
+                                        IntegerType::address(64).expect("addr"),
+                                    ),
                                 ),
-                            ),
-                        },
-                        StructuralFieldDeclaration {
-                            id: id::<StructuralFieldId>(2),
-                            identity: "length".into(),
-                            relevance: BindingRelevance::Relevant,
-                            field_type: StructuralFieldType::Scalar(
-                                semantic_vocabulary::ScalarType::Integer(
-                                    IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                            },
+                            StructuralFieldDeclaration {
+                                id: id::<StructuralFieldId>(2),
+                                identity: "length".into(),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(
+                                    semantic_vocabulary::ScalarType::Integer(
+                                        IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                                    ),
                                 ),
-                            ),
+                            },
+                        ],
+                    },
+                }],
+                parameters,
+                structural_places: vec![
+                    StructuralPlaceDeclaration {
+                        id: image_place,
+                        kind: StructuralPlaceKind::Parameter {
+                            position: 0,
+                            is_self: false,
                         },
-                    ],
-                },
-            }],
-            call_plan,
-            parameters,
-            structural_places: vec![
-                StructuralPlaceDeclaration {
-                    id: image_place,
-                    kind: StructuralPlaceKind::Parameter {
-                        position: 0,
-                        is_self: false,
                     },
-                },
-                StructuralPlaceDeclaration {
-                    id: storage_place,
-                    kind: StructuralPlaceKind::Parameter {
-                        position: 1,
-                        is_self: false,
-                    },
-                },
-            ],
-            entry_claims: vec![
-                EntryClaim {
-                    claim: id(1),
-                    input: image_place,
-                    path: Vec::new(),
-                },
-                EntryClaim {
-                    claim: id(2),
-                    input: storage_place,
-                    path: Vec::new(),
-                },
-            ],
-            published_service_ceiling: Vec::new(),
-            entry_block: id(1),
-            boundary_settlements: Vec::new(),
-            call: Some(LegalizedCallUnit {
-                source: LegalizedCallUnitSource::AuthoredCallUnit,
-                operation: call,
-                callee: id(2),
-                arguments,
-                claim_transfers: vec![
-                    ClaimTransfer {
-                        claim: id(1),
-                        argument_index: 0,
-                    },
-                    ClaimTransfer {
-                        claim: id(2),
-                        argument_index: 1,
+                    StructuralPlaceDeclaration {
+                        id: storage_place,
+                        kind: StructuralPlaceKind::Parameter {
+                            position: 1,
+                            is_self: false,
+                        },
                     },
                 ],
-                fuel: vec![FuelSettlement {
-                    site: PsiProvenance::Operation(call),
-                    units: 2,
-                }],
-                effect: EffectLink {
-                    input: 0,
-                    output: 1,
-                },
-                requirement_obligations: vec![semantic_vocabulary::ObligationId::new(1).unwrap()],
-                crash_continuations: vec![terminal_psi::CrashRouteBucket {
-                    cause: terminal_psi::CrashCause::Trap,
-                    alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
-                }],
-                ownership: vec![OwnershipEvent::ClaimTransfer(vec![id(1), id(2)])],
+                entry_claims: vec![
+                    EntryClaim {
+                        claim: id(1),
+                        input: image_place,
+                        path: Vec::new(),
+                    },
+                    EntryClaim {
+                        claim: id(2),
+                        input: storage_place,
+                        path: Vec::new(),
+                    },
+                ],
+                published_service_ceiling: Vec::new(),
             }),
-            return_edge,
-            return_fuel: vec![FuelSettlement {
-                site: PsiProvenance::Edge(return_edge),
-                units: 1,
+            entry_block: id(1),
+            blocks: vec![LegalizedScalarBlock {
+                id: id(1),
+                parameters: Vec::new(),
+                instructions: vec![LegalizedScalarInstruction {
+                    operation: call,
+                    result: None,
+                    kind: LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                        call_plan,
+                        result_placement: None,
+                        source: LegalizedCallUnitSource::AuthoredCallUnit,
+                        callee: id(2),
+                        arguments,
+                        claim_transfers: vec![
+                            ClaimTransfer {
+                                claim: id(1),
+                                argument_index: 0,
+                            },
+                            ClaimTransfer {
+                                claim: id(2),
+                                argument_index: 1,
+                            },
+                        ],
+                        requirement_obligations: vec![
+                            semantic_vocabulary::ObligationId::new(1).unwrap(),
+                        ],
+                        crash_continuations: vec![terminal_psi::CrashRouteBucket {
+                            cause: terminal_psi::CrashCause::Trap,
+                            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+                        }],
+                    }),
+                    fuel: vec![FuelSettlement {
+                        site: PsiProvenance::Operation(call),
+                        units: 2,
+                    }],
+                    effect: EffectLink {
+                        input: 0,
+                        output: 1,
+                    },
+                    ownership: vec![OwnershipEvent::ClaimTransfer(vec![id(1), id(2)])],
+                }],
+                terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
+                    edge: return_edge,
+                    value: LegalizedScalarReturnValue::Unit,
+                    fuel: vec![FuelSettlement {
+                        site: PsiProvenance::Edge(return_edge),
+                        units: 1,
+                    }],
+                    effect: EffectLink {
+                        input: 1,
+                        output: 2,
+                    },
+                    ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
+                }),
             }],
-            return_effect: EffectLink {
-                input: 1,
-                output: 2,
-            },
-            return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
         }],
         projected_structural_call_returns: Vec::new(),
     }
@@ -191,8 +207,8 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
 
 pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
     let mut plan = call_aware_plan();
-    let function = &mut plan.structural_unit_functions[0];
-    function.recipe = StructuralUnitLegalizationRecipe::InstalledProviderCallThenReturnUnitV1;
+    let function = &mut plan.scalar_functions[0];
+    let signature = function.structural.as_ref().expect("structural signature");
     let boundary = id::<BoundaryMachineId>(1);
     let provider = ProviderCandidateConformance {
         boundary,
@@ -201,7 +217,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
         candidate_identity: "UefiProgramProvider::enter".into(),
         candidate: id(2),
         signature: terminal_psi::ProviderSignature {
-            parameters: function
+            parameters: signature
                 .parameters
                 .iter()
                 .map(|parameter| terminal_psi::ProviderSignatureParameter {
@@ -230,7 +246,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
             realized_service_ceiling: Vec::new(),
         },
     };
-    let completion_claim_sources = function
+    let completion_claim_sources = signature
         .entry_claims
         .iter()
         .cloned()
@@ -240,7 +256,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
             content: None,
         })
         .collect::<Vec<_>>();
-    let completion_receipts = function
+    let completion_receipts = signature
         .entry_claims
         .iter()
         .enumerate()
@@ -249,20 +265,23 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
             argument_index: argument_index as u32,
         })
         .collect::<Vec<_>>();
-    let call = function.call.as_mut().expect("structural call");
+    let node = &mut function.blocks[0].instructions[0];
+    let LegalizedScalarInstructionKind::Call(call) = &mut node.kind else {
+        panic!("call fixture");
+    };
     call.source = LegalizedCallUnitSource::InstalledProvider {
         boundary,
         provider,
         completion_claim_sources,
         completion_receipts,
     };
-    call.ownership = vec![OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])];
+    node.ownership = vec![OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])];
     plan
 }
 
 pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let mut plan = call_aware_plan();
-    plan.structural_unit_functions.clear();
+    plan.scalar_functions.clear();
     plan.target = NativeTarget::linux_x64();
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let shape = ValueShape::integer(8, 8);
@@ -294,9 +313,11 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     };
     let instruction = |index, kind| LegalizedScalarInstruction {
         operation: operations[index],
-        result: values[index],
-        scalar_type: ScalarType::Integer(scalar_type),
-        definition_site: definition(index as u32),
+        result: Some(LegalizedValueDefinition {
+            value: values[index],
+            scalar_type: ScalarType::Integer(scalar_type),
+            definition_site: definition(index as u32),
+        }),
         kind,
         fuel: fuel(operations[index]),
         effect: effect(index as u64),
@@ -304,13 +325,15 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     };
     let call = |sources: [ValueId; 2]| {
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            source: LegalizedCallUnitSource::AuthoredCallUnit,
+            claim_transfers: Vec::new(),
             callee,
             call_plan: call_plan.clone(),
-            result_placement: call_plan.result.clone().unwrap(),
+            result_placement: call_plan.result.clone(),
             arguments: sources
                 .into_iter()
                 .zip(&call_plan.parameters)
-                .map(|(source, placement)| LegalizedScalarArgument {
+                .map(|(source, placement)| LegalizedScalarArgument::Scalar {
                     source,
                     placement: placement.clone(),
                 })
@@ -320,6 +343,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         })
     };
     plan.scalar_functions.push(LegalizedScalarFunction {
+        structural: None,
         machine,
         attachment: Some(attachment),
         provenance: TerminalPsiProvenance {

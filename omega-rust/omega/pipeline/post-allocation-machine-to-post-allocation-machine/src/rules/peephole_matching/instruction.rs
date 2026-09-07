@@ -210,6 +210,10 @@ fn whole_instruction_units_match(machine: &PostAllocationMachineInstruction) -> 
 
 fn semantic(kind: &SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
+        SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
+        SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
+        SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
+        SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
         SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
         SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
@@ -235,9 +239,7 @@ fn semantic(kind: &SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::Jump => MachineSemanticKind::Jump,
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
-        SelectedInstructionKind::CallI64 { .. } => {
-            unreachable!("scalar calls are refused before machine optimization")
-        }
+        SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
     }
 }
 

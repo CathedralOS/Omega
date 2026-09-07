@@ -27,18 +27,7 @@ pub(super) fn check(
         frame,
         contract,
     } = inputs;
-    require(
-        contract.structural_unit_functions.is_empty()
-            && contract.functions.len() == selected.functions.len(),
-    )?;
-    if !machine.structural_unit_functions.is_empty()
-        || !encoding.structural_unit_functions().is_empty()
-        || !layout.structural_unit_functions().is_empty()
-        || machine.functions.len() != selected.functions.len()
-        || layout.functions().len() != selected.functions.len()
-    {
-        return Err(WholeFunctionExitContractError::RootMismatch);
-    }
+    require(contract.functions.len() == selected.functions.len())?;
     if let Some((frame, protocol)) = frame
         && (frame.plan().functions.len() != selected.functions.len()
             || protocol.plan().functions.len() != selected.functions.len())
@@ -203,7 +192,11 @@ pub(super) fn check(
                         end,
                         claimed_return,
                     )?;
-                } else if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+                } else if matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::CallI64 { .. }
+                        | SelectedInstructionKind::CallUnit { .. }
+                ) {
                     if function_frame.is_none() {
                         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
                             instruction.id,

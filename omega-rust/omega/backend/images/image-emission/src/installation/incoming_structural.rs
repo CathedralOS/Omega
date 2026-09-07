@@ -3,7 +3,10 @@
 //! complete retained record to its independently admitted executable image.
 
 use super::{InstallationRecord, InstalledFunction, InstalledInternalUnitCall};
-use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{
+    CallSignature, CallingPolicy, IndirectPointerLocation, ValueLocation, ValueShape,
+    evaluate_call_plan,
+};
 use machine_code::{InternalUnitCallSource, StructuralSourceLocation};
 use target_operations::{CallSiteOwner, MachineRegister};
 
@@ -50,9 +53,8 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         || function.scalar_stack.is_some()
         || !function.scalar_call_stacks.is_empty()
         || !function.foreign_call_stacks.is_empty()
-        || calls.len() > 1
         || function.unit_call_stacks.len() != calls.len()
-        || function.byte_count != if calls.is_empty() { 1 } else { 90 }
+        || function.byte_count == 0
     {
         return false;
     }
@@ -98,9 +100,32 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         return false;
     }
     function.unit_stack.is_some_and(|stack| {
-        stack.frame_bytes == 0
-            && stack.stack_alignment == 16
-            && stack.local_peak_bytes == if calls.is_empty() { 0 } else { 80 }
+        stack.stack_alignment == 16
+            && stack.frame_bytes.is_multiple_of(8)
+            && (calls.is_empty()
+                || stack
+                    .frame_bytes
+                    .checked_add(8)
+                    .is_some_and(|bytes| bytes.is_multiple_of(16)))
+            && function.unit_call_stacks.iter().all(|call| {
+                call.active_frame_bytes == stack.frame_bytes
+                    && call.transient_bytes == 8
+                    && stack.frame_bytes.checked_add(8) == Some(call.caller_live_bytes)
+                    && calls
+                        .iter()
+                        .filter(|row| {
+                            row.custody.owner == call.owner && row.custody.target == call.target
+                        })
+                        .count()
+                        == 1
+            })
+            && stack.local_peak_bytes
+                == function
+                    .unit_call_stacks
+                    .iter()
+                    .map(|call| call.caller_live_bytes)
+                    .max()
+                    .unwrap_or(stack.frame_bytes)
     })
 }
 
@@ -124,31 +149,40 @@ pub(super) fn call_is_exact(
         || call.semantic_result.is_some()
         || call.structural_result.is_some()
         || !call.scalar_arguments.is_empty()
-        || call.code_offset != 0
-        || call.byte_count != 89
+        || call.byte_count != 5
         || !matches!(call.owner, CallSiteOwner::Operation(_))
-        || installed.text_offset != function.text_offset
+        || function.text_offset.checked_add(call.code_offset) != Some(installed.text_offset)
+        || call
+            .code_offset
+            .checked_add(call.byte_count)
+            .is_none_or(|end| end > function.byte_count)
+        || !call_attribution_is_exact(record, function, installed)
     {
         return false;
     }
-    let Some(stack) = function.unit_call_stacks.first() else {
+    let Some(stack) = function
+        .unit_call_stacks
+        .iter()
+        .find(|stack| stack.owner == call.owner && stack.target == call.target)
+    else {
         return false;
     };
     if stack.owner != call.owner
         || stack.target != call.target
-        || stack.active_frame_bytes != 0
-        || stack.transient_bytes != 80
-        || stack.caller_live_bytes != 80
-        || function.text_offset.checked_add(81) != Some(stack.text_offset)
+        || function
+            .unit_stack
+            .is_none_or(|frame| stack.active_frame_bytes != frame.frame_bytes)
+        || stack.transient_bytes != 8
+        || stack.active_frame_bytes.checked_add(8) != Some(stack.caller_live_bytes)
+        || installed.text_offset.checked_add(1) != Some(stack.text_offset)
     {
         return false;
     }
-    for (index, ((argument, home), destination)) in call
+    for ((argument, home), destination) in call
         .arguments
         .iter()
         .zip(&function.unit_parameter_homes)
         .zip(&callee.unit_parameter_homes)
-        .enumerate()
     {
         if argument.place != home.place
             || argument.root_structural_type != home.structural_type
@@ -165,10 +199,14 @@ pub(super) fn call_is_exact(
             || argument.source_location != home.location
             || argument.source != home.source
             || argument.destination != destination.source
-            || argument.call_stack_bytes != 72
-            || argument.code_offset != 4 + index * 30
-            || argument.byte_count != 30
-            || argument.bytes != copy_bytes(index)
+            || argument.call_stack_bytes != stack.active_frame_bytes
+            || argument.byte_count == 0
+            || argument.bytes.len() != argument.byte_count
+            || argument
+                .code_offset
+                .checked_add(argument.byte_count)
+                .is_none_or(|end| end > call.code_offset)
+            || !outgoing_fits(&argument.destination, stack.active_frame_bytes)
         {
             return false;
         }
@@ -239,14 +277,115 @@ pub(super) fn call_is_exact(
         }
     }
 }
-
-fn copy_bytes(index: usize) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for offset in [0_u32, 8] {
-        bytes.extend([0x48, 0x8b, if index == 0 { 0x81 } else { 0x82 }]);
-        bytes.extend(offset.to_le_bytes());
-        bytes.extend([0x48, 0x89, 0x84, 0x24]);
-        bytes.extend((32 + index as u32 * 16 + offset).to_le_bytes());
+/// Raw installation data checks the relationship among distinct intervals:
+/// argument copies precede the call instruction, inside its semantic operation.
+/// The complete retained bytes and numeric frame facts are additionally compared
+/// against the independently admitted image by validate_installation_record.
+pub(super) fn call_attribution_is_exact(
+    record: &InstallationRecord,
+    function: &InstalledFunction,
+    installed: &InstalledInternalUnitCall,
+) -> bool {
+    let call = &installed.custody;
+    let CallSiteOwner::Operation(operation) = call.owner else {
+        return false;
+    };
+    let mut rows = record.semantic_code_attribution.iter().filter(|row| {
+        row.machine == function.machine
+            && row.attribution.site == machine_code::SemanticCodeSite::Operation(operation)
+    });
+    let Some(row) = rows.next() else {
+        return false;
+    };
+    if rows.next().is_some() {
+        return false;
     }
-    bytes
+    let span = row.attribution;
+    let Some(call_end) = call.code_offset.checked_add(call.byte_count) else {
+        return false;
+    };
+    let Some(first) = call.arguments.first() else {
+        return false;
+    };
+    span.operation_ordinal == call.operation_ordinal
+        && span.code_offset == first.code_offset
+        && span.code_offset.checked_add(span.byte_count) == Some(call_end)
+        && call_end <= function.byte_count
+        && call.arguments.iter().all(|argument| {
+            argument.code_offset >= span.code_offset
+                && argument.byte_count != 0
+                && argument.bytes.len() == argument.byte_count
+                && argument
+                    .code_offset
+                    .checked_add(argument.byte_count)
+                    .is_some_and(|end| end <= call.code_offset)
+        })
+        && call.arguments.windows(2).all(|pair| {
+            pair[0]
+                .code_offset
+                .checked_add(pair[0].byte_count)
+                .is_some_and(|end| end <= pair[1].code_offset)
+        })
+}
+
+fn outgoing_fits(placement: &calling_conventions::ValuePlacement, frame_bytes: u32) -> bool {
+    let [
+        ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(_),
+            copy_stack_byte_offset: Some(offset),
+            byte_size,
+            alignment,
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return false;
+    };
+    *alignment != 0
+        && alignment.is_power_of_two()
+        && offset.is_multiple_of(u32::from(*alignment))
+        && offset
+            .checked_add(u32::from(*byte_size))
+            .is_some_and(|end| end <= frame_bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_outgoing_copies_require_aligned_space_in_the_retained_frame() {
+        let plan = evaluate_call_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(16, 8); 2],
+                result: None,
+            },
+        )
+        .unwrap();
+        assert!(
+            plan.parameters
+                .iter()
+                .all(|placement| outgoing_fits(placement, 72))
+        );
+        assert!(!outgoing_fits(&plan.parameters[1], 63));
+        let mut changed = plan.parameters[1].clone();
+        let ValueLocation::Indirect {
+            copy_stack_byte_offset,
+            ..
+        } = &mut changed.locations[0]
+        else {
+            panic!("indirect ABI");
+        };
+        *copy_stack_byte_offset = Some(u32::MAX - 7);
+        assert!(!outgoing_fits(&changed, u32::MAX));
+        let ValueLocation::Indirect {
+            copy_stack_byte_offset,
+            ..
+        } = &mut changed.locations[0]
+        else {
+            panic!("indirect ABI");
+        };
+        *copy_stack_byte_offset = Some(49);
+        assert!(!outgoing_fits(&changed, 80));
+    }
 }

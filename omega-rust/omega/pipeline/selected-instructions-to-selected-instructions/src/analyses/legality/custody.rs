@@ -25,7 +25,6 @@ pub(super) fn custody_receipt(
         ranges: upstream.ranges(),
         legality: legality.identity(),
         function_count: legality.function_count(),
-        structural_unit_function_count: legality.structural_unit_function_count(),
         virtual_register_count: legality.virtual_register_count(),
         point_count: legality.point_count(),
         candidate_count: legality.candidate_count(),

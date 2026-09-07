@@ -11,10 +11,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
-use super::compute::{
-    StructuralUnitInstructionFacts, compute_function, compute_structural_unit_facts,
-    reject_unsupported_constraints,
-};
+use super::compute::{compute_function, reject_unsupported_constraints};
 use crate::LivenessError;
 
 mod successor_transfers;
@@ -22,75 +19,64 @@ mod successor_transfers;
 pub(crate) use successor_transfers::successor_parameter_function;
 
 #[test]
-fn structural_unit_call_and_terminal_callee_retain_exact_unit_liveness() {
-    let caller_machine = MachineId::new(1).unwrap();
-    let callee_machine = MachineId::new(2).unwrap();
-    let block = SelectedBlockId(0);
-    let caller_source = BlockId::new(1).unwrap();
-    let callee_source = BlockId::new(2).unwrap();
-    let call_uses = [RegisterUnitId(1), RegisterUnitId(2)];
-    let call_defs = [RegisterUnitId(3)];
-    let call_clobbers = [RegisterUnitId(4)];
-    let return_uses = [RegisterUnitId(3)];
-    let caller = compute_structural_unit_facts(
-        0,
-        caller_machine,
-        block,
-        caller_source,
-        &[
-            StructuralUnitInstructionFacts {
-                id: SelectedInstructionId(0),
-                uses: &call_uses,
-                defs: &call_defs,
-                clobbers: &call_clobbers,
-            },
-            StructuralUnitInstructionFacts {
-                id: SelectedInstructionId(1),
-                uses: &return_uses,
-                defs: &[],
-                clobbers: &[],
-            },
-        ],
-    )
-    .unwrap();
-    assert!(caller.entry_definitions.is_empty());
-    assert!(caller.operand_positions.is_empty());
-    assert_eq!(caller.blocks[0].unit_live_in, call_uses);
-    assert!(caller.blocks[0].unit_live_out.is_empty());
-    assert_eq!(caller.blocks[0].instructions.len(), 2);
+fn ordinary_call_and_return_retain_exact_unit_liveness() {
+    let mut caller = function_with_operand(RegisterOperandAccess::Use);
+    caller.blocks[0].instructions[0].operands.clear();
+    let call = &mut caller.blocks[0].instructions[0];
+    call.kind = SelectedInstructionKind::CallUnit {
+        callee: MachineId::new(2).unwrap(),
+    };
+    call.implicit_uses = vec![RegisterUnitId(1), RegisterUnitId(2)];
+    call.implicit_defs = vec![RegisterUnitId(3)];
+    call.clobbers = vec![RegisterUnitId(4)];
+    let SelectedTerminator::Return { instruction, .. } = &mut caller.blocks[0].terminator else {
+        unreachable!()
+    };
+    instruction.kind = SelectedInstructionKind::ReturnUnit;
+    instruction.implicit_uses = vec![RegisterUnitId(3)];
+    let liveness = compute_function(0, &caller).unwrap();
+    assert!(liveness.entry_definitions.is_empty());
+    assert!(liveness.operand_positions.is_empty());
     assert_eq!(
-        caller.blocks[0].instructions[0].position,
+        liveness.blocks[0].unit_live_in,
+        vec![RegisterUnitId(1), RegisterUnitId(2)]
+    );
+    assert!(liveness.blocks[0].unit_live_out.is_empty());
+    assert_eq!(liveness.blocks[0].instructions.len(), 2);
+    assert_eq!(
+        liveness.blocks[0].instructions[0].position,
         crate::LivenessPosition(0)
     );
-    assert_eq!(caller.blocks[0].instructions[0].unit_live_out, return_uses);
     assert_eq!(
-        caller.blocks[0].instructions[0].unit_clobbers,
-        call_clobbers
+        liveness.blocks[0].instructions[0].unit_live_out,
+        vec![RegisterUnitId(3)]
     );
     assert_eq!(
-        caller.blocks[0].instructions[1].instruction,
+        liveness.blocks[0].instructions[0].unit_clobbers,
+        vec![RegisterUnitId(4)]
+    );
+    assert_eq!(
+        liveness.blocks[0].instructions[1].instruction,
         SelectedInstructionId(1)
     );
 
-    let callee_uses = [RegisterUnitId(5)];
-    let callee_defs = [RegisterUnitId(6)];
-    let callee = compute_structural_unit_facts(
-        1,
-        callee_machine,
-        block,
-        callee_source,
-        &[StructuralUnitInstructionFacts {
-            id: SelectedInstructionId(0),
-            uses: &callee_uses,
-            defs: &callee_defs,
-            clobbers: &[],
-        }],
-    )
-    .unwrap();
-    assert_eq!(callee.machine, callee_machine);
-    assert_eq!(callee.blocks[0].instructions.len(), 1);
-    assert_eq!(callee.blocks[0].unit_live_in, callee_uses);
-    assert_eq!(callee.blocks[0].instructions[0].unit_defs, callee_defs);
+    let mut callee = caller;
+    callee.machine = MachineId::new(2).unwrap();
+    callee.blocks[0].instructions.clear();
+    let SelectedTerminator::Return { instruction, .. } = &mut callee.blocks[0].terminator else {
+        unreachable!()
+    };
+    instruction.id = SelectedInstructionId(0);
+    instruction.implicit_uses = vec![RegisterUnitId(5)];
+    instruction.implicit_defs = vec![RegisterUnitId(6)];
+    let liveness = compute_function(1, &callee).unwrap();
+    assert_eq!(liveness.machine, callee.machine);
+    assert_eq!(liveness.blocks[0].instructions.len(), 1);
+    assert_eq!(liveness.blocks[0].unit_live_in, vec![RegisterUnitId(5)]);
+    assert_eq!(
+        liveness.blocks[0].instructions[0].unit_defs,
+        vec![RegisterUnitId(6)]
+    );
 }
 
 #[test]
@@ -142,6 +128,11 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: Default::default(),
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
             entry_block: SelectedBlockId(0),
             virtual_registers: Vec::new(),
             blocks: vec![
@@ -181,7 +172,7 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
     }
 }
 
-fn function_with_operand(access: RegisterOperandAccess) -> SelectedFunction {
+pub(crate) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFunction {
     let key = RegisterConstraintKey {
         family: RegisterConstraintFamily::Instruction,
         variant: 99,
@@ -208,6 +199,11 @@ fn function_with_operand(access: RegisterOperandAccess) -> SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
         provenance: Default::default(),
+        structural: None,
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: Vec::new(),
         blocks: vec![SelectedBlock {

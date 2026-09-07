@@ -1,11 +1,9 @@
-use isa_x86_64::{validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog};
 use post_allocation_machine_to_post_allocation_machine::{
     Aarch64CbnzInstructionDisposition, Aarch64SameViewCopyInstructionDisposition,
 };
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedInstruction, SelectedTerminator};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
-use target::Architecture;
 
 use crate::{
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
@@ -14,18 +12,19 @@ use crate::{
 use super::{
     OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
     SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormMachineDisposition, SelectedStructuralUnitFunctionEncoding,
-    custody::validate_optimization_roots, materialization::MaterializationPlan,
-    row_encoding::encode_row, structural_encoding::encode_structural_function,
+    SelectedFormMachineDisposition, custody::validate_optimization_roots,
+    materialization::MaterializationPlan, row_encoding::encode_row,
 };
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
 ) -> Result<SelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
+    crate::frame_address::validate_frame_root(machine, frame)?;
     if machine.selected != selected.selected_identity() {
         return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
     }
@@ -213,58 +212,14 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                     selected_instruction,
                     machine_instruction,
                     physical,
+                    crate::frame_address::resolve(machine_function, frame, machine_instruction)?,
                     machine_disposition,
                     materialization_disposition,
                 )?);
             }
         }
     }
-    let effect_plan = staged.effects().plan();
-    if selected_plan.structural_unit_functions.len() != machine.structural_unit_functions.len()
-        || selected_plan.structural_unit_functions.len()
-            != effect_plan.structural_unit_functions.len()
-    {
-        return Err(OptimizedSelectedFormEncodingError::StructuralFunctionRosterMismatch);
-    }
-    let structural_constraints = if selected_plan.structural_unit_functions.is_empty() {
-        None
-    } else {
-        if selected_plan.target.architecture != Architecture::X86_64 {
-            return Err(OptimizedSelectedFormEncodingError::StructuralFunctionRosterMismatch);
-        }
-        let constraints = validate_x86_64_register_constraint_catalog(
-            x86_64_register_constraint_catalog(physical),
-            physical,
-        )
-        .map_err(|_| OptimizedSelectedFormEncodingError::StructuralConstraintCatalogMismatch)?;
-        if constraints.identity() != machine.register_constraints
-            || constraints.identity() != effect_plan.register_constraints
-        {
-            return Err(OptimizedSelectedFormEncodingError::StructuralConstraintCatalogMismatch);
-        }
-        Some(constraints)
-    };
-    let mut structural_unit_functions =
-        Vec::with_capacity(selected_plan.structural_unit_functions.len());
-    for ((selected_function, machine_function), effect_function) in selected_plan
-        .structural_unit_functions
-        .iter()
-        .zip(&machine.structural_unit_functions)
-        .zip(&effect_plan.structural_unit_functions)
-    {
-        structural_unit_functions.push(encode_structural_function(
-            selected_plan.target,
-            selected_plan,
-            selected_function,
-            machine_function,
-            effect_function,
-            physical,
-            structural_constraints
-                .as_ref()
-                .ok_or(OptimizedSelectedFormEncodingError::StructuralConstraintCatalogMismatch)?,
-        )?);
-    }
-    let counts = encoding_counts(&rows, &structural_unit_functions)?;
+    let counts = encoding_counts(&rows)?;
     let selected_root = selected.selected_identity();
     let machine_root = staged.machine().receipt().identity();
     let mut program = SelectedFormEncoding {
@@ -273,7 +228,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         post_allocation_machine_optimization,
         identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
         rows,
-        structural_unit_functions,
+        frame: frame.cloned(),
         counts,
     };
     program.identity = program.recomputed_identity();
@@ -282,7 +237,6 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
 
 fn encoding_counts(
     rows: &[SelectedFormEncodingRow],
-    structural: &[SelectedStructuralUnitFunctionEncoding],
 ) -> Result<SelectedFormEncodingCounts, OptimizedSelectedFormEncodingError> {
     let mut counts = SelectedFormEncodingCounts::default();
     for row in rows {
@@ -306,26 +260,6 @@ fn encoding_counts(
         *count = count
             .checked_add(1)
             .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-    }
-    for function in structural {
-        counts.structural_encoded_returns = counts
-            .structural_encoded_returns
-            .checked_add(1)
-            .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-        if function.call.is_some() {
-            counts.structural_encoded_call_templates = counts
-                .structural_encoded_call_templates
-                .checked_add(1)
-                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-            counts.structural_deferred_internal_control = counts
-                .structural_deferred_internal_control
-                .checked_add(1)
-                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-            counts.structural_internal_fixups = counts
-                .structural_internal_fixups
-                .checked_add(1)
-                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-        }
     }
     Ok(counts)
 }

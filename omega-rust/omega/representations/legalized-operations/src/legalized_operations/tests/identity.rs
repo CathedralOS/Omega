@@ -37,7 +37,13 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             2 => function.blocks[0].instructions.swap(0, 1),
             3 => call_mut(function, 0).callee = id(999),
             4 => call_mut(function, 0).arguments.swap(0, 1),
-            5 => function.blocks[0].instructions[4].result = id(999),
+            5 => {
+                function.blocks[0].instructions[4]
+                    .result
+                    .as_mut()
+                    .unwrap()
+                    .value = id(999)
+            }
             6 => function.blocks[0].instructions[3].fuel[0].units += 1,
             7 => function.blocks[0].instructions[3].effect.output += 1,
             8 => scalar_return_mut(function).edge = id(999),
@@ -52,12 +58,20 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
                 }
             }
             14 => {
-                function.blocks[0].instructions[0].definition_site =
-                    optimization_unit::ValueDefinitionSite::FunctionParameter(0)
+                function.blocks[0].instructions[0]
+                    .result
+                    .as_mut()
+                    .unwrap()
+                    .definition_site = optimization_unit::ValueDefinitionSite::FunctionParameter(0)
             }
-            15 => call_mut(function, 0).result_placement.locations.clear(),
+            15 => call_mut(function, 0)
+                .result_placement
+                .as_mut()
+                .unwrap()
+                .locations
+                .clear(),
             16 => call_mut(function, 0).requirement_obligations.push(id(999)),
-            17 => call_mut(function, 0).arguments[0].source = id(999),
+            17 => *scalar_argument_mut(&mut call_mut(function, 0).arguments[0]).0 = id(999),
             18 => scalar_return_mut(function).fuel[0].units += 1,
             19 => scalar_return_mut(function).effect.input += 1,
             20 => function.blocks[0].instructions.pop().map(|_| ()).unwrap(),
@@ -73,7 +87,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
             definition_site: optimization_unit::ValueDefinitionSite::FunctionParameter(0),
             placement: call_mut(&mut plan.clone().scalar_functions[0], 0).arguments[0]
-                .placement
+                .placement()
                 .clone(),
         });
     let identity = legalized_operation_plan_identity(&parameterized);
@@ -100,215 +114,132 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
 fn call_aware_unit_identity_binds_semantic_and_target_custody() {
     let plan = call_aware_plan();
     let identity = legalized_operation_plan_identity(&plan);
-    assert_eq!(identity, legalized_operation_plan_identity(&plan));
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].recipe =
-        StructuralUnitLegalizationRecipe::InstalledProviderCallThenReturnUnitV1;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].structural_types[0]
-        .identity
-        .push_str("::drift");
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call_plan
-        .shadow_bytes += 8;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].parameters.swap(0, 1);
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].parameters[0]
-        .semantic
-        .qualifications
-        .clear();
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].parameters[0]
-        .target
-        .placement
-        .locations
-        .clear();
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .structural_places
-        .swap(0, 1);
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].entry_claims[0].claim = id::<ClaimId>(3);
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .published_service_ceiling
-        .push(id(1));
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .callee = id(3);
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .arguments
-        .swap(0, 1);
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .arguments[0]
-        .semantic
-        .path
-        .push(StructuralPathSegment::Field("base".into()));
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .arguments[0]
-        .target
-        .source_byte_offset = 8;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .claim_transfers
-        .swap(0, 1);
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .fuel[0]
-        .units += 1;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .effect
-        .output += 1;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .requirement_obligations[0] = semantic_vocabulary::ObligationId::new(2).unwrap();
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .crash_continuations[0]
-        .cause = terminal_psi::CrashCause::Abort;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    let OwnershipEvent::ClaimTransfer(claims) = &mut corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .expect("call")
-        .ownership[0]
-    else {
-        panic!("call claim-transfer ownership");
-    };
-    claims.swap(0, 1);
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].call = None;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].return_fuel[0].units += 1;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    corrupted.structural_unit_functions[0].return_effect.input += 1;
-    assert_identity_drift(identity, &corrupted);
-
-    let mut corrupted = plan.clone();
-    let OwnershipEvent::Cleanup(actions) =
-        &mut corrupted.structural_unit_functions[0].return_ownership[0]
-    else {
-        panic!("return cleanup ownership");
-    };
-    actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(id(
-        1,
-    )));
-    assert_identity_drift(identity, &corrupted);
+    for mutation in 0..23 {
+        let mut changed = plan.clone();
+        match mutation {
+            0 => changed.scalar_functions[0].structural = None,
+            1 => changed.scalar_functions[0]
+                .structural
+                .as_mut()
+                .unwrap()
+                .structural_types[0]
+                .identity
+                .push_str("::drift"),
+            2 => changed.scalar_functions[0].call_plan.shadow_bytes += 8,
+            3 => changed.scalar_functions[0]
+                .structural
+                .as_mut()
+                .unwrap()
+                .parameters
+                .swap(0, 1),
+            4 => changed.scalar_functions[0]
+                .structural
+                .as_mut()
+                .unwrap()
+                .parameters[0]
+                .semantic
+                .qualifications
+                .clear(),
+            5 => changed.scalar_functions[0]
+                .structural
+                .as_mut()
+                .unwrap()
+                .parameters[0]
+                .target
+                .placement
+                .locations
+                .clear(),
+            6 => changed.scalar_functions[0]
+                .structural
+                .as_mut()
+                .unwrap()
+                .structural_places
+                .swap(0, 1),
+            7 => {
+                changed.scalar_functions[0]
+                    .structural
+                    .as_mut()
+                    .unwrap()
+                    .entry_claims[0]
+                    .claim = id::<ClaimId>(3)
+            }
+            8 => changed.scalar_functions[0]
+                .structural
+                .as_mut()
+                .unwrap()
+                .published_service_ceiling
+                .push(id(1)),
+            9 => structural_call_mut(&mut changed).callee = id(3),
+            10 => structural_call_mut(&mut changed).arguments.swap(0, 1),
+            11 => structural_argument_mut(&mut structural_call_mut(&mut changed).arguments[0])
+                .0
+                .path
+                .push(StructuralPathSegment::Field("base".into())),
+            12 => {
+                structural_argument_mut(&mut structural_call_mut(&mut changed).arguments[0])
+                    .1
+                    .source_byte_offset = 8
+            }
+            13 => structural_call_mut(&mut changed).claim_transfers.swap(0, 1),
+            14 => changed.scalar_functions[0].blocks[0].instructions[0].fuel[0].units += 1,
+            15 => {
+                changed.scalar_functions[0].blocks[0].instructions[0]
+                    .effect
+                    .output += 1
+            }
+            16 => structural_call_mut(&mut changed).requirement_obligations[0] = id(2),
+            17 => {
+                structural_call_mut(&mut changed).crash_continuations[0].cause =
+                    terminal_psi::CrashCause::Abort
+            }
+            18 => {
+                let OwnershipEvent::ClaimTransfer(claims) =
+                    &mut changed.scalar_functions[0].blocks[0].instructions[0].ownership[0]
+                else {
+                    panic!("transfer fixture");
+                };
+                claims.swap(0, 1);
+            }
+            19 => changed.scalar_functions[0].blocks[0].instructions.clear(),
+            20 => scalar_return_mut(&mut changed.scalar_functions[0]).fuel[0].units += 1,
+            21 => {
+                scalar_return_mut(&mut changed.scalar_functions[0])
+                    .effect
+                    .input += 1
+            }
+            _ => {
+                let OwnershipEvent::Cleanup(actions) =
+                    &mut scalar_return_mut(&mut changed.scalar_functions[0]).ownership[0]
+                else {
+                    panic!("cleanup fixture");
+                };
+                actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(id(
+                    1,
+                )));
+            }
+        }
+        assert_identity_drift(identity, &changed);
+    }
 }
 
 #[test]
-fn call_aware_unit_roster_cannot_alias_value_less_unit_roster() {
-    let call_aware = call_aware_plan();
-    let call_aware_identity = legalized_operation_plan_identity(&call_aware);
-    let function = &call_aware.structural_unit_functions[0];
-    let mut erased = call_aware.clone();
-    erased.structural_unit_functions.clear();
-    erased.scalar_functions.push(LegalizedScalarFunction {
-        machine: function.machine,
-        attachment: function.attachment,
-        provenance: function.provenance.clone(),
-        call_plan: evaluate_call_plan(
-            CallingPolicy::native_for_target(erased.target),
-            &CallSignature {
-                parameters: Vec::new(),
-                result: None,
-            },
-        )
-        .unwrap(),
-        parameters: Vec::new(),
-        entry_block: function.entry_block,
-        blocks: vec![LegalizedScalarBlock {
-            id: function.entry_block,
-            parameters: vec![],
-            instructions: Vec::new(),
-            terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
-                edge: function.return_edge,
-                value: LegalizedScalarReturnValue::Unit,
-                fuel: function.return_fuel.clone(),
-                effect: function.return_effect,
-                ownership: function.return_ownership.clone(),
-            }),
-        }],
-    });
+fn structural_signature_and_calls_cannot_alias_value_less_unit_graph() {
+    let original = call_aware_plan();
+    let mut erased = original.clone();
+    let function = &mut erased.scalar_functions[0];
+    function.structural = None;
+    function.blocks[0].instructions.clear();
+    function.call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(erased.target),
+        &CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        },
+    )
+    .unwrap();
     assert_ne!(
-        legalized_operation_plan_identity(&erased),
-        call_aware_identity
+        legalized_operation_plan_identity(&original),
+        legalized_operation_plan_identity(&erased)
     );
 }
 

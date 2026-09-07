@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Independent admission of selected-form bytes.
 //!
-//! Ordinary and structural rows descend separately into target-owned byte
-//! decoders. Aggregate custody is checked only after both row families pass.
+//! Ordinary rows descend into target-owned byte decoders. Symbolic addresses
+//! are checked against retained frame geometry before aggregate custody.
 
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
@@ -17,16 +17,20 @@ use super::{
 mod aggregate;
 mod ordinary;
 mod row;
-mod structural;
 
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     artifact: &SelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
+    crate::frame_address::validate_frame_root(machine, frame)?;
+    if artifact.frame.as_ref() != frame {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
     if machine.selected != selected.selected_identity()
         || artifact.selected != selected.selected_identity()
     {
@@ -45,12 +49,13 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
 
-    ordinary::validate(selected, staged, physical, optimization, artifact.rows())?;
-    structural::validate(
+    ordinary::validate(
         selected,
         staged,
         physical,
-        artifact.structural_unit_functions(),
+        frame,
+        optimization,
+        artifact.rows(),
     )?;
     aggregate::validate(artifact)
 }

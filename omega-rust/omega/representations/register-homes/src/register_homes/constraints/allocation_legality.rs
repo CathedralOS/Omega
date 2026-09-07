@@ -32,7 +32,6 @@ pub struct AllocationLegalityPlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub functions: Vec<FunctionAllocationLegality>,
-    pub structural_unit_functions: Vec<FunctionAllocationLegality>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

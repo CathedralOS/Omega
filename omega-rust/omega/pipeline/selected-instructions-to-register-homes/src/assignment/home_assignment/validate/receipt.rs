@@ -20,7 +20,6 @@ pub(super) fn build(
         register_environment: plan.register_environment,
         allocator_availability: plan.allocator_availability,
         function_count: plan.functions.len(),
-        structural_unit_function_count: plan.structural_unit_functions.len(),
         assignment_count: plan
             .functions
             .iter()

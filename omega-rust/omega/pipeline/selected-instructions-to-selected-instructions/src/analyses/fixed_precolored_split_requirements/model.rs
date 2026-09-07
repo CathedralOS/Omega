@@ -18,7 +18,6 @@ pub struct FixedPrecoloredSplitRequirementValidationReceipt {
     pub(crate) policy: FixedPrecoloredSplitRequirementPolicy,
     pub(crate) usage: OptimizationWorkUsage,
     pub(crate) function_count: usize,
-    pub(crate) structural_unit_function_count: usize,
     pub(crate) register_count: usize,
     pub(crate) fragment_count: usize,
     pub(crate) source_point_count: usize,
@@ -62,9 +61,6 @@ impl FixedPrecoloredSplitRequirementValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn register_count(self) -> usize {
         self.register_count

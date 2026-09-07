@@ -49,15 +49,12 @@ pub fn validate_fixed_precolored_segment_homes(
     if candidate.usage != expected.usage {
         return Err(FixedPrecoloredSegmentHomeError::UsageMismatch);
     }
-    if candidate.functions != expected.functions
-        || candidate.structural_unit_functions != expected.structural_unit_functions
-    {
+    if candidate.functions != expected.functions {
         return Err(FixedPrecoloredSegmentHomeError::NonCanonicalFunctions);
     }
     let domain_count = candidate
         .functions
         .iter()
-        .chain(&candidate.structural_unit_functions)
         .map(|function| {
             function
                 .assignments
@@ -70,7 +67,6 @@ pub fn validate_fixed_precolored_segment_homes(
     let assignment_count = candidate
         .functions
         .iter()
-        .chain(&candidate.structural_unit_functions)
         .map(|function| function.assignments.len())
         .sum();
     let receipt = FixedPrecoloredSegmentHomeValidationReceipt {
@@ -87,7 +83,6 @@ pub fn validate_fixed_precolored_segment_homes(
         policy: candidate.policy,
         usage: candidate.usage,
         function_count: candidate.functions.len(),
-        structural_unit_function_count: candidate.structural_unit_functions.len(),
         domain_count,
         assignment_count,
     };

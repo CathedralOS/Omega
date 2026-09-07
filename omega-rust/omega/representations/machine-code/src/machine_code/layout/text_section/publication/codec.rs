@@ -23,11 +23,11 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 13;
+const MANIFEST_VERSION: u32 = 14;
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v13\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v14\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -77,7 +77,6 @@ impl FunctionFragmentTextSectionManifest {
                 optimization: decode_post_allocation_optimization(cursor.byte()?)?,
             },
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-            5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             6 => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
             7 => FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
             tag => {
@@ -90,7 +89,6 @@ impl FunctionFragmentTextSectionManifest {
                 FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
                 FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
                 | FunctionFragmentEmissionSourceKind::UnitBaselineV1
-                | FunctionFragmentEmissionSourceKind::StructuralUnitV1
                 | FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
             )
             | (
@@ -160,11 +158,6 @@ impl FunctionFragmentTextSectionManifest {
             bytes: u64::from_le_bytes(cursor.array()?),
             padding_bytes: u64::from_le_bytes(cursor.array()?),
             relocation_requirements: u64::from_le_bytes(cursor.array()?),
-            structural_unit_functions: u64::from_le_bytes(cursor.array()?),
-            structural_unit_blocks: u64::from_le_bytes(cursor.array()?),
-            structural_unit_instruction_spans: u64::from_le_bytes(cursor.array()?),
-            structural_unit_zero_byte_instruction_spans: u64::from_le_bytes(cursor.array()?),
-            structural_unit_bytes: u64::from_le_bytes(cursor.array()?),
             source_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
             resolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
             remaining_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
@@ -242,7 +235,6 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
             bytes.push(optimization as u8);
         }
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => bytes.push(4),
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1 => bytes.push(5),
         FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => bytes.push(7),
     }
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
@@ -275,21 +267,6 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.extend_from_slice(&record.statistics.bytes.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.padding_bytes.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.relocation_requirements.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.structural_unit_functions.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.structural_unit_blocks.to_le_bytes());
-    bytes.extend_from_slice(
-        &record
-            .statistics
-            .structural_unit_instruction_spans
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(
-        &record
-            .statistics
-            .structural_unit_zero_byte_instruction_spans
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(&record.statistics.structural_unit_bytes.to_le_bytes());
     bytes.extend_from_slice(
         &record
             .statistics

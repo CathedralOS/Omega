@@ -63,7 +63,6 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     pub(super) homes: RegisterHomeIdentity,
     pub(super) post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub(super) function_count: usize,
-    pub(super) structural_unit_function_count: usize,
     pub(super) assignment_count: usize,
 }
 
@@ -118,9 +117,6 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn assignment_count(self) -> usize {
         self.assignment_count

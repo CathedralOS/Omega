@@ -238,10 +238,12 @@ fn replay_classification(
         return replay_no(NoAdmittedRecoveryReason::UnsupportedScalarType);
     }
     let (expected_instruction, source_value) = match victim.origin {
-        VirtualRegisterOrigin::BlockParameter { .. } => {
+        VirtualRegisterOrigin::BlockParameter { .. }
+        | VirtualRegisterOrigin::AbiTransport { .. } => {
             return replay_no(NoAdmittedRecoveryReason::UnsupportedRangeShape);
         }
-        VirtualRegisterOrigin::EntryParameter { .. } => {
+        VirtualRegisterOrigin::EntryParameter { .. }
+        | VirtualRegisterOrigin::StructuralParameter { .. } => {
             return replay_no(NoAdmittedRecoveryReason::EntryParameter);
         }
         VirtualRegisterOrigin::InstructionResult {

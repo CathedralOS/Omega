@@ -78,7 +78,7 @@ pub(super) fn replay(
     };
     let definition_site_ok = matches!(
         value.definition_site,
-        ValueDefinitionSite::Node { block: source, .. } if source == selected_block.source_block
+        Some(ValueDefinitionSite::Node { block: source, .. }) if source == selected_block.source_block
     );
     if !scalar_ok
         || !definition_site_ok

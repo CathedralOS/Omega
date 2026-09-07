@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn retired_realization_roles_and_prior_wire_versions_reject() {
     let encoded = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1).encode();
-    for version in 0..13_u32 {
+    for version in 0..14_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -11,7 +11,7 @@ fn retired_realization_roles_and_prior_wire_versions_reject() {
             Err(FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(version))
         );
     }
-    for tag in [1, 3] {
+    for tag in [1, 3, 5] {
         let mut retired = encoded.clone();
         retired[46] = tag;
         assert_eq!(
@@ -78,7 +78,6 @@ fn text_publication_roundtrips_without_a_compiler_or_admission_capsule() {
     for kind in [
         FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1,
         FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
         FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
             optimization: optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
@@ -87,13 +86,13 @@ fn text_publication_roundtrips_without_a_compiler_or_admission_capsule() {
         let record = record(kind);
         let bytes = record.encode();
         assert_eq!(&bytes[..8], b"OMGTSP\0\0");
-        assert_eq!(&bytes[8..12], &13_u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &14_u32.to_le_bytes());
         let extension = match kind {
             FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => 32,
             FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. } => 1,
             _ => 0,
         };
-        assert_eq!(bytes.len(), 599 + extension);
+        assert_eq!(bytes.len(), 559 + extension);
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&bytes),
             Ok(record)

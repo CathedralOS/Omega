@@ -122,7 +122,9 @@ pub(super) fn validate(
                     else {
                         break;
                     };
-                    if previous.result != base || previous.scalar_type != ScalarType::Boolean {
+                    if previous.result.as_ref().is_none_or(|result| {
+                        result.value != base || result.scalar_type != ScalarType::Boolean
+                    }) {
                         return Err(invalid());
                     }
                     base = operand;
@@ -134,7 +136,11 @@ pub(super) fn validate(
                 let comparison = suffix_start
                     .checked_sub(1)
                     .and_then(|index| block.instructions.get(index))
-                    .filter(|row| row.result == base);
+                    .filter(|row| {
+                        row.result
+                            .as_ref()
+                            .is_some_and(|result| result.value == base)
+                    });
                 let (predicate, operand_type) = if let Some(row) = comparison
                     && let LegalizedScalarInstructionKind::Compare {
                         predicate,
@@ -165,21 +171,24 @@ pub(super) fn validate(
                             .map_err(|_| invalid())?,
                     )
                 };
-                let branch_provenance = SelectedInstructionProvenance {
-                    operations: not_rows.iter().map(|row| row.operation).collect(),
-                    values: if not_rows.is_empty() {
-                        vec![*condition]
-                    } else {
-                        std::iter::once(base)
-                            .chain(not_rows.iter().map(|row| row.result))
-                            .collect()
-                    },
-                    fuel: not_rows
-                        .iter()
-                        .flat_map(|row| row.fuel.iter().copied())
-                        .collect(),
-                    ..Default::default()
-                };
+                let branch_provenance =
+                    SelectedInstructionProvenance {
+                        operations: not_rows.iter().map(|row| row.operation).collect(),
+                        values: if not_rows.is_empty() {
+                            vec![*condition]
+                        } else {
+                            std::iter::once(base)
+                                .chain(not_rows.iter().filter_map(|row| {
+                                    row.result.as_ref().map(|result| result.value)
+                                }))
+                                .collect()
+                        },
+                        fuel: not_rows
+                            .iter()
+                            .flat_map(|row| row.fuel.iter().copied())
+                            .collect(),
+                        ..Default::default()
+                    };
                 let (instruction, actual_true, actual_false, kind) =
                     match (predicate, operand_type.sign(), actual) {
                         (
@@ -396,4 +405,29 @@ pub(super) fn block_order(
         seen.push(actual.source_block);
     }
     Ok(())
+}
+
+pub(super) fn branch_suffix(
+    block: &legalized_operations::LegalizedScalarBlock,
+    index: usize,
+) -> bool {
+    let Some(result) = block.instructions[index].result else {
+        return false;
+    };
+    let mut value = result.value;
+    for row in &block.instructions[index + 1..] {
+        if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
+            || row
+                .result
+                .is_none_or(|result| result.scalar_type != ScalarType::Boolean)
+        {
+            return false;
+        }
+        let Some(result) = row.result else {
+            return false;
+        };
+        value = result.value;
+    }
+    matches!(block.terminator, legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
+        if condition == value)
 }

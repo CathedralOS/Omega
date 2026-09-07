@@ -24,6 +24,8 @@ pub(super) fn encode_ordinary_instruction(
     encode_common_fields(bytes, instruction);
     bytes.push(match instruction.memory {
         MachineMemoryEffect::NoneV1 => 0,
+        MachineMemoryEffect::ReadPointerV1 => 1,
+        MachineMemoryEffect::WriteOutgoingArgumentV1 => 2,
     });
     encode_effect_tail(bytes, instruction);
 }
@@ -95,8 +97,21 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ConditionalBranchI64LessThan => 12,
         SelectedInstructionKind::CallI64 { .. } => 13,
         SelectedInstructionKind::Jump => 14,
+        SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Store64 { .. } => 17,
+        SelectedInstructionKind::FrameAddress { .. } => 18,
+        SelectedInstructionKind::CallUnit { .. } => 19,
     });
     match kind {
+        SelectedInstructionKind::Load64 { byte_offset } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes())
+        }
+        SelectedInstructionKind::Store64 { slot, byte_offset }
+        | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
+            bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+            bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::ExactAddI64 {
             obligation,
@@ -133,7 +148,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
-        SelectedInstructionKind::CallI64 { callee } => {
+        SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
         }
     }

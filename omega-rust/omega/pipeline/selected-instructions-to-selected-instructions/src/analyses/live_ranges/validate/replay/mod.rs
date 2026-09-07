@@ -22,40 +22,16 @@ pub(super) fn replay_live_ranges(
         || plan.fuel_schedule != selected.fuel_schedule_identity()
         || plan.target != selected.selected_plan().target
         || plan.functions.len() != selected.selected_plan().functions.len()
-        || plan.structural_unit_functions.len()
-            != selected.selected_plan().structural_unit_functions.len()
-        || plan.structural_unit_functions.len() != liveness.plan().structural_unit_functions.len()
     {
         return Err(LiveRangeError::RootMismatch);
     }
     let mut machines = BTreeSet::new();
-    for (function_index, function) in plan
-        .functions
-        .iter()
-        .chain(&plan.structural_unit_functions)
-        .enumerate()
-    {
+    for (function_index, function) in plan.functions.iter().enumerate() {
         if !machines.insert(function.machine) {
             return Err(LiveRangeError::FunctionMismatch {
                 function: function_index,
             });
         }
-    }
-    for (function_index, ((selected_function, live_function), actual)) in selected
-        .selected_plan()
-        .structural_unit_functions
-        .iter()
-        .zip(&liveness.plan().structural_unit_functions)
-        .zip(&plan.structural_unit_functions)
-        .enumerate()
-    {
-        let expected = function::replay_structural_function(
-            function_index,
-            selected_function.machine,
-            live_function,
-        )?;
-        canonical::validate(function_index, actual)?;
-        comparison::require_structural_function(function_index, actual, &expected)?;
     }
     for (function_index, ((selected_function, live_function), actual)) in selected
         .selected_plan()

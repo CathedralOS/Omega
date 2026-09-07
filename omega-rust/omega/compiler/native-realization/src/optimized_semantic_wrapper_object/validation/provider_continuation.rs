@@ -3,6 +3,7 @@ use super::super::error::{
     OptimizedProgramStorageSemanticWrapperObjectError,
 };
 use super::super::shared::*;
+use legalized_operations::{LegalizedCallUnitSource, LegalizedScalarArgument};
 
 /// Replay the checked-provider half of the ProgramStorage join whenever the
 /// canonical child owns an installation. Synthetic encoding fixtures retain
@@ -37,20 +38,25 @@ pub fn validate_installed_program_storage_continuation_evidence(
     if installation.psi() != selected.psi || selected.entry != semantic_entry {
         return Err(Error::RootMismatch);
     }
-    if !selected.functions.is_empty() || selected.structural_unit_functions.len() != 2 {
+    if selected.functions.len() != 2 {
         return Err(Error::FunctionRosterMismatch);
     }
     let Some(entry) = selected
-        .structural_unit_functions
+        .functions
         .iter()
         .find(|function| function.machine == selected.entry)
     else {
         return Err(Error::FunctionRosterMismatch);
     };
-    let Some(call) = entry.call.as_ref() else {
+    let [call_contract] = entry.calls.as_slice() else {
         return Err(Error::EntryCallMissing);
     };
-    let SelectedStructuralUnitCallSource::InstalledProvider {
+    let call = &call_contract.call;
+    let entry_structural = entry
+        .structural
+        .as_ref()
+        .ok_or(Error::StructuralContractMismatch)?;
+    let LegalizedCallUnitSource::InstalledProvider {
         boundary,
         provider,
         completion_claim_sources,
@@ -68,9 +74,13 @@ pub fn validate_installed_program_storage_continuation_evidence(
     let semantic_arguments = call
         .arguments
         .iter()
-        .map(|argument| argument.semantic.clone())
-        .collect::<Vec<_>>();
-    let entry_claims = entry
+        .map(|argument| match argument {
+            LegalizedScalarArgument::Structural { semantic, .. } => Some(semantic.clone()),
+            LegalizedScalarArgument::Scalar { .. } => None,
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or(Error::StructuralContractMismatch)?;
+    let entry_claims = entry_structural
         .entry_claims
         .iter()
         .map(|claim| claim.claim)
@@ -87,7 +97,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
     }
     if installed_call.caller() != entry.machine
         || !matches!(installed_call.result(), terminal_psi::OperationResult::Unit)
-        || installed_call.psi_operation() != call.operation
+        || installed_call.psi_operation() != call_contract.operation
         || installed_call.boundary() != *boundary
         || installed_call.structural_arguments() != semantic_arguments
         || installed_call.completion_claim_sources() != completion_claim_sources
@@ -104,7 +114,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
         return Err(Error::EntryClaimMismatch);
     }
     let Some(provider_function) = selected
-        .structural_unit_functions
+        .functions
         .iter()
         .find(|function| function.machine == provider.candidate)
     else {
@@ -115,7 +125,11 @@ pub fn validate_installed_program_storage_continuation_evidence(
     {
         return Err(Error::StructuralContractMismatch);
     }
-    let provider_claims = provider_function
+    let provider_structural = provider_function
+        .structural
+        .as_ref()
+        .ok_or(Error::StructuralContractMismatch)?;
+    let provider_claims = provider_structural
         .entry_claims
         .iter()
         .map(|claim| claim.claim)
@@ -124,7 +138,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
         .boundary_settlements
         .iter()
         .map(
-            |settlement| match settlement.completion_receipts.as_slice() {
+            |settlement| match settlement.settlement.completion_receipts.as_slice() {
                 [receipt] => Some(receipt.claim),
                 _ => None,
             },
@@ -135,16 +149,18 @@ pub fn validate_installed_program_storage_continuation_evidence(
             .boundary_settlements
             .iter()
             .all(|settlement| {
-                settlement.completion_claim_sources.len() == provider_function.entry_claims.len()
+                settlement.settlement.completion_claim_sources.len()
+                    == provider_structural.entry_claims.len()
                     && settlement
+                        .settlement
                         .completion_claim_sources
                         .iter()
-                        .zip(&provider_function.entry_claims)
+                        .zip(&provider_structural.entry_claims)
                         .all(|(source, claim)| {
                             source.claim == claim.claim && source.entry.as_ref() == Some(claim)
                         })
             });
-    if provider_function.call.is_some()
+    if !provider_function.calls.is_empty()
         || provider_function.boundary_settlements.len() != 2
         || settled_provider_claims.as_deref() != Some(provider_claims.as_slice())
         || provider_claims.len() != completion_receipts.len()
@@ -156,12 +172,14 @@ pub fn validate_installed_program_storage_continuation_evidence(
 }
 
 fn structural_signature_matches(
-    function: &selected_instructions::SelectedStructuralUnitFunction,
+    function: &selected_instructions::SelectedFunction,
     signature: &terminal_psi::ProviderSignature,
 ) -> bool {
-    function.abi.parameters.len() == signature.parameters.len()
-        && function
-            .abi
+    let Some(contract) = &function.structural else {
+        return false;
+    };
+    contract.parameters.len() == signature.parameters.len()
+        && contract
             .parameters
             .iter()
             .zip(&signature.parameters)
@@ -173,17 +191,19 @@ fn structural_signature_matches(
                     && actual.multiplicity == expected.multiplicity
                     && actual.access == expected.access
                     && actual.qualifications == expected.qualifications
+                    && actual.projected_qualifications == expected.projected_qualifications
             })
 }
 
-fn entry_claims_match_parameters(
-    function: &selected_instructions::SelectedStructuralUnitFunction,
-) -> bool {
-    function.entry_claims.len() == function.abi.parameters.len()
-        && function
+fn entry_claims_match_parameters(function: &selected_instructions::SelectedFunction) -> bool {
+    let Some(contract) = &function.structural else {
+        return false;
+    };
+    contract.entry_claims.len() == contract.parameters.len()
+        && contract
             .entry_claims
             .iter()
-            .zip(&function.abi.parameters)
+            .zip(&contract.parameters)
             .all(|(claim, parameter)| {
                 claim.input == parameter.semantic.place && claim.path.is_empty()
             })

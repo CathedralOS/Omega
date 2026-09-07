@@ -3,7 +3,6 @@
 mod control;
 mod instruction;
 mod ordinary;
-mod structural;
 
 use super::ResolvedFragmentEmissionError;
 use machine_code::{FunctionFragmentEmissionPlan, ResolvedMachineProgram};
@@ -23,20 +22,8 @@ pub(super) fn check(
             && layout.target == selected.target
             && fragments.entry == selected.entry,
     )?;
-    if selected.structural_unit_functions.is_empty() {
-        require(
-            fragments.structural_unit_functions.is_empty()
-                && layout.structural_unit_functions.is_empty(),
-        )?;
-        ordinary::check(selected, layout, fragments)?;
-    } else {
-        require(
-            selected.functions.is_empty()
-                && layout.functions.is_empty()
-                && fragments.functions.is_empty(),
-        )?;
-        structural::check(selected, layout, fragments)?;
-    }
+    ordinary::check(selected, layout, fragments)?;
+
     require(fragments.identity == fragments.recomputed_identity())
 }
 

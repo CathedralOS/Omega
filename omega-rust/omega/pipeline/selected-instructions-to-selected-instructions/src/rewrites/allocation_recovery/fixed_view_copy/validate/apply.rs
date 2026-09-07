@@ -87,9 +87,19 @@ pub(super) fn replay_apply(
             instruction: copy.copy_instruction,
             source_value: copy.source_value,
         },
-        definition_site: copy.source_definition_site,
+        definition_site: Some(copy.source_definition_site),
         entry_fixed_view: None,
     });
+    let insertion_index =
+        u32::try_from(block.instructions.len()).map_err(|_| FixedViewCopyError::WorkOverflow)?;
+    for settlement in &mut function.boundary_settlements {
+        if settlement.block == block.id && settlement.instruction_index >= insertion_index {
+            settlement.instruction_index = settlement
+                .instruction_index
+                .checked_add(1)
+                .ok_or(FixedViewCopyError::WorkOverflow)?;
+        }
+    }
     block.instructions.push(SelectedInstruction {
         id: copy.copy_instruction,
         kind: SelectedInstructionKind::CopyI64,

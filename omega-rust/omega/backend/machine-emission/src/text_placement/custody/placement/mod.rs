@@ -1,9 +1,9 @@
 //! Optimizer module role: executable entrance. Fragment placement route map.
 //!
 //! This entrance admits the exact fragment source shape, then dispatches to
-//! ordinary relocation-free placement or structural-Unit call resolution.
+//! ordinary relocation-free placement or frame-applied call resolution.
 
-use crate::{StructuralFragmentPlacementInputs, TextPlacementInput, place_fragment_text_section};
+use crate::{TextPlacementInput, place_fragment_text_section};
 use machine_code::RelocationFreeTextSectionPlacement;
 
 #[cfg(any(test, feature = "test-support"))]
@@ -27,40 +27,16 @@ pub(super) fn input(
     let source_manifest = source.manifest().record();
     match (
         fragments.functions.is_empty(),
-        fragments.structural_unit_functions.is_empty(),
         source_manifest.stage,
         source_manifest.source_kind,
     ) {
         (
             false,
-            true,
             FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
             FunctionFragmentEmissionSourceKind::SelectedLoweringV1
             | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
             | FunctionFragmentEmissionSourceKind::UnitBaselineV1,
         ) => Ok(TextPlacementInput::RelocationFree(fragments)),
-        (
-            true,
-            false,
-            FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
-            | FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
-            FunctionFragmentEmissionSourceKind::StructuralUnitV1,
-        ) => {
-            let current = source.source();
-            if !current.encoding().rows().is_empty() {
-                return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
-            }
-            Ok(TextPlacementInput::Structural {
-                fragments,
-                facts: StructuralFragmentPlacementInputs {
-                    program: current.program(),
-                    structural_encoding: current.encoding().structural_unit_functions(),
-                    exit: current.exit_contract().contract(),
-                    physical: current.register_environment().physical(),
-                    constraints: current.register_environment().constraints(),
-                },
-            })
-        },
         _ => Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
     }
 }
@@ -70,13 +46,6 @@ pub fn place_fragments_for_test(
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
     place_fragment_text_section(TextPlacementInput::RelocationFree(fragments)).map_err(Into::into)
-}
-
-#[cfg(any(test, feature = "test-support"))]
-pub fn place_structural_unit_fragments_for_test(
-    source: &StagedOptimizedFunctionFragmentEmission,
-) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
-    place_fragments(source)
 }
 
 pub(super) fn place_fixed_frame_fragments(

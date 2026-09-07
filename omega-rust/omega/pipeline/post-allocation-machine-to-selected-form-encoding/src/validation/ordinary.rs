@@ -21,6 +21,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     rows: &[SelectedFormEncodingRow],
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
@@ -160,6 +161,12 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
                     }
                 };
+                crate::frame_address::validate_address(
+                    machine_function,
+                    frame,
+                    machine_instruction,
+                    candidate.address,
+                )?;
                 row::validate(
                     selected_plan.target,
                     selected_instruction,

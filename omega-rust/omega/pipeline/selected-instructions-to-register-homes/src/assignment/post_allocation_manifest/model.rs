@@ -32,7 +32,6 @@ pub struct PostAllocationStatistics {
     /// Ordinary selected functions. Structural-signature Unit functions are
     /// counted separately and never folded into this established statistic.
     pub functions: u64,
-    pub structural_unit_functions: u64,
     pub assignments: u64,
     pub distinct_physical_views: u64,
     pub virtual_interferences: u64,

@@ -52,7 +52,7 @@ fn v1_refuses_unsupported_victim_type_origin_and_role() {
         parameter_index: 0,
     };
     fixture.selected.virtual_registers[0].definition_site =
-        ValueDefinitionSite::FunctionParameter(0);
+        Some(ValueDefinitionSite::FunctionParameter(0));
     assert!(matches!(
         compute(&fixture),
         Err(LogicalSpillOperationError::UnsupportedOrigin { .. })

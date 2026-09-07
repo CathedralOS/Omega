@@ -6,7 +6,7 @@ use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
 pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-register-liveness.v8\0");
+    bytes.extend_from_slice(b"omega.terminal-register-liveness.v9\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -23,10 +23,6 @@ pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
     bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
-        encode_function(&mut bytes, function);
-    }
-    encode_len(&mut bytes, plan.structural_unit_functions.len());
-    for function in &plan.structural_unit_functions {
         encode_function(&mut bytes, function);
     }
     LivenessIdentity(Sha256::digest(bytes).into())
@@ -171,37 +167,34 @@ mod tests {
             optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             target: target::NativeTarget::linux_x64(),
-            functions: Vec::new(),
-            structural_unit_functions: vec![function(1, 1), function(2, 2)],
+            functions: vec![function(1, 1), function(2, 2)],
         }
     }
 
     #[test]
-    fn v8_identity_binds_structural_roster_order_machine_instruction_and_units() {
+    fn v9_identity_binds_function_roster_order_machine_instruction_and_units() {
         let plan = plan();
         let identity = liveness_identity(&plan);
         assert_eq!(identity, liveness_identity(&plan));
 
         let mut corrupted = plan.clone();
-        corrupted.structural_unit_functions.pop();
+        corrupted.functions.pop();
         assert_ne!(identity, liveness_identity(&corrupted));
 
         let mut corrupted = plan.clone();
-        corrupted.structural_unit_functions.swap(0, 1);
+        corrupted.functions.swap(0, 1);
         assert_ne!(identity, liveness_identity(&corrupted));
 
         let mut corrupted = plan.clone();
-        corrupted.structural_unit_functions[0].machine = MachineId::new(3).unwrap();
+        corrupted.functions[0].machine = MachineId::new(3).unwrap();
         assert_ne!(identity, liveness_identity(&corrupted));
 
         let mut corrupted = plan.clone();
-        corrupted.structural_unit_functions[0].blocks[0].instructions[0].instruction =
-            SelectedInstructionId(1);
+        corrupted.functions[0].blocks[0].instructions[0].instruction = SelectedInstructionId(1);
         assert_ne!(identity, liveness_identity(&corrupted));
 
         let mut corrupted = plan.clone();
-        corrupted.structural_unit_functions[0].blocks[0].instructions[0].unit_uses[0] =
-            RegisterUnitId(3);
+        corrupted.functions[0].blocks[0].instructions[0].unit_uses[0] = RegisterUnitId(3);
         assert_ne!(identity, liveness_identity(&corrupted));
     }
 }

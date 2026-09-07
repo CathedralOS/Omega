@@ -17,3 +17,4 @@ pub fn legalized_operation_plan_identity(
 ) -> LegalizedOperationPlanIdentity {
     canonical::identity(plan)
 }
+mod ordinary_calls;

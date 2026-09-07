@@ -12,7 +12,6 @@ pub struct RegisterHomeValidationReceipt {
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) function_count: usize,
-    pub(crate) structural_unit_function_count: usize,
     pub(crate) assignment_count: usize,
     pub(crate) tied_pair_count: usize,
     pub(crate) tied_component_count: usize,
@@ -37,9 +36,6 @@ impl RegisterHomeValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn assignment_count(self) -> usize {
         self.assignment_count

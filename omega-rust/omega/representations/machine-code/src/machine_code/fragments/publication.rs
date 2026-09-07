@@ -25,7 +25,6 @@ pub enum FunctionFragmentEmissionSourceKind {
     SelectedLoweringV1,
     PostAllocationMachineOptimizationV1 { optimization: Optimization },
     UnitBaselineV1,
-    StructuralUnitV1,
     CanonicalFixedFrameBodyV1,
 }
 
@@ -49,12 +48,7 @@ pub struct FunctionFragmentEmissionStatistics {
     pub bytes: u64,
     pub resolved_conditional_branches: u64,
     pub logical_fuel_settlements: u64,
-    pub structural_unit_functions: u64,
-    pub structural_unit_blocks: u64,
-    pub structural_unit_instruction_spans: u64,
-    pub structural_unit_bytes: u64,
     pub unresolved_internal_machine_fixups: u64,
-    pub structural_logical_fuel_settlements: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

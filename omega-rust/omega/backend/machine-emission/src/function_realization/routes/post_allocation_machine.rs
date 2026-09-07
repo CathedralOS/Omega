@@ -205,7 +205,7 @@ fn build_artifacts<S: ValidatedSelectedAnalysis>(
 > {
     let baseline_encoding =
         stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
-            selected, machine, physical, None,
+            selected, machine, physical, frame.map(|frame| frame.layout().plan()), None,
         )
         .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
     let baseline_layout =
@@ -222,6 +222,7 @@ fn build_artifacts<S: ValidatedSelectedAnalysis>(
             selected,
             machine,
             physical,
+            frame.map(|frame| frame.layout().plan()),
             Some(optimization),
         )
         .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
@@ -279,6 +280,7 @@ fn validate_artifacts<S: ValidatedSelectedAnalysis>(
         selected,
         machine,
         physical,
+        staged.frame.as_ref().map(|frame| frame.layout().plan()),
         None,
         &staged.baseline_encoding,
     )
@@ -296,6 +298,7 @@ fn validate_artifacts<S: ValidatedSelectedAnalysis>(
         selected,
         machine,
         physical,
+        staged.frame.as_ref().map(|frame| frame.layout().plan()),
         Some(optimization),
         &staged.encoding,
     )

@@ -42,6 +42,7 @@ fn disabled_not_equal_zero_baseline_retains_compare_and_branch_on_both_isas() {
             selected,
             machine,
             allocation.register_environment().physical(),
+            None,
         )
         .unwrap();
         let layout = stage_optimized_resolved_selected_form_layout(

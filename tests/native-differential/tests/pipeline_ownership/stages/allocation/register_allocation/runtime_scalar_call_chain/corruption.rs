@@ -49,18 +49,33 @@ fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        let replacement = call_mut(&mut corrupted, 0).arguments[1].source;
-        call_mut(&mut corrupted, 0).arguments[0].source = replacement;
+        let replacement = call_mut(&mut corrupted, 0).arguments[1]
+            .scalar_source()
+            .unwrap();
+        let legalized_operations::LegalizedScalarArgument::Scalar { source, .. } =
+            &mut call_mut(&mut corrupted, 0).arguments[0]
+        else {
+            panic!("scalar call");
+        };
+        *source = replacement;
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        let replacement = call_mut(&mut corrupted, 0).arguments[1].placement.clone();
-        call_mut(&mut corrupted, 0).arguments[0].placement = replacement;
+        let replacement = call_mut(&mut corrupted, 0).arguments[1].placement().clone();
+        let legalized_operations::LegalizedScalarArgument::Scalar { placement, .. } =
+            &mut call_mut(&mut corrupted, 0).arguments[0]
+        else {
+            panic!("scalar call");
+        };
+        *placement = replacement;
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        corrupted.scalar_functions[0].blocks[0].instructions[3].result =
-            ValueId::new(SCALAR_CALL_UNIT_FIRST_RESULT).unwrap();
+        corrupted.scalar_functions[0].blocks[0].instructions[3]
+            .result
+            .as_mut()
+            .unwrap()
+            .value = ValueId::new(SCALAR_CALL_UNIT_FIRST_RESULT).unwrap();
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();

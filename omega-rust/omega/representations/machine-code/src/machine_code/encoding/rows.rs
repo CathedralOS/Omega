@@ -58,6 +58,7 @@ pub struct SelectedFormEncodingRow {
     pub alternative: MachineAlternativeKey,
     pub machine_disposition: SelectedFormMachineDisposition,
     pub state: SelectedFormEncodingState,
+    pub address: Option<ResolvedPhysicalAddress>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -67,8 +68,10 @@ pub struct SelectedFormEncodingCounts {
     pub ordinary_encoded_call_templates: u64,
     pub ordinary_deferred_internal_control: u64,
     pub ordinary_internal_fixups: u64,
-    pub structural_encoded_call_templates: u64,
-    pub structural_encoded_returns: u64,
-    pub structural_deferred_internal_control: u64,
-    pub structural_internal_fixups: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedPhysicalAddress {
+    pub symbolic: physical_instructions::PhysicalAddressOperation,
+    pub displacement: u32,
 }

@@ -20,7 +20,7 @@ fn structural_publication_admits_every_existing_roster_form() {
         assert!(accepts(&target, &abstract_plan, &unit));
         let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
         assert_eq!(
-            legalized.plan().structural_unit_functions.len(),
+            legalized.plan().scalar_functions.len(),
             target.functions.len()
         );
         let (physical, catalog, constraints) = microsoft_selection_environment();
@@ -108,16 +108,16 @@ fn singleton_claim_completion_fixture() -> (
 }
 
 #[test]
-fn structural_publication_rejects_two_leaves_without_restricting_legalization() {
+fn ordinary_structural_selection_admits_two_leaf_functions() {
     let (abstract_plan, target, unit) = claim_completion_settlement_fixture();
-    assert!(!accepts(&target, &abstract_plan, &unit));
+    assert!(accepts(&target, &abstract_plan, &unit));
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
     let (physical, catalog, constraints) = microsoft_selection_environment();
     select_instructions(&legalized, &constraints, &physical, &catalog).unwrap();
 }
 
 #[test]
-fn structural_publication_rejects_three_function_chain_without_restricting_legalization() {
+fn ordinary_structural_selection_admits_three_function_chain() {
     use abstract_operations::AbstractOperation;
     use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
 
@@ -165,7 +165,7 @@ fn structural_publication_rejects_three_function_chain_without_restricting_legal
         .unwrap(),
         abstract_plan.structural_types[0].id,
     );
-    assert!(!accepts(&target, &abstract_plan, &unit));
+    assert!(accepts(&target, &abstract_plan, &unit));
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
     let (physical, catalog, constraints) = microsoft_selection_environment();
     select_instructions(&legalized, &constraints, &physical, &catalog).unwrap();

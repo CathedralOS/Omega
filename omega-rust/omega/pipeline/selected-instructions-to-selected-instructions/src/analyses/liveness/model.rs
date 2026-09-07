@@ -9,7 +9,6 @@ pub struct LivenessValidationReceipt {
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) function_count: usize,
-    pub(crate) structural_unit_function_count: usize,
     pub(crate) block_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) instruction_count: usize,
@@ -37,10 +36,6 @@ impl LivenessValidationReceipt {
 
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
 
     pub const fn block_count(self) -> usize {
@@ -88,12 +83,6 @@ impl ValidatedLiveness {
 pub enum LivenessError {
     ProjectedStructuralCallReturnUnsupported,
     RootMismatch,
-    DuplicateMachine {
-        machine: u64,
-    },
-    StructuralFunctionMismatch {
-        function: usize,
-    },
     UnsupportedUseDef {
         function: usize,
         instruction: u32,

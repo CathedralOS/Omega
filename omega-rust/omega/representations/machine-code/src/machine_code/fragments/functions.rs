@@ -4,40 +4,8 @@ use super::{FunctionFragmentControlProvenance, FunctionFragmentInternalMachineFi
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionProvenance,
 };
-use semantic_vocabulary::{MachineId, OperationId};
+use semantic_vocabulary::MachineId;
 use target_operations::TerminalPsiProvenance;
-
-/// Function fragment for the structural-ABI Unit lane. Its call bytes remain
-/// non-executable until whole-text placement discharges every typed fixup.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructuralUnitFunctionFragment {
-    pub machine: MachineId,
-    pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    pub provenance: TerminalPsiProvenance,
-    pub byte_count: u64,
-    pub bytes: Vec<u8>,
-    pub block: StructuralUnitFunctionFragmentBlockSpan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructuralUnitFunctionFragmentBlockSpan {
-    pub block: SelectedBlockId,
-    pub offset: u64,
-    pub byte_count: u64,
-    pub call: Option<StructuralUnitCallFragmentSpan>,
-    pub return_instruction: FunctionFragmentInstructionSpan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructuralUnitCallFragmentSpan {
-    pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
-    pub callee: MachineId,
-    pub offset: u64,
-    pub bytes: Vec<u8>,
-    pub provenance: SelectedInstructionProvenance,
-    pub fixup: FunctionFragmentInternalMachineFixup,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragment {

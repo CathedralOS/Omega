@@ -178,15 +178,16 @@ fn scalar_cfg_replay_rejects_comparison_type_operands_and_fuel_substitution() {
             2 => *left = value(2),
             3 => *right = value(1),
             4 => {
-                row.scalar_type =
+                row.result.as_mut().unwrap().scalar_type =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
             }
             5 => row.fuel.clear(),
             _ => {
-                row.definition_site = optimization_unit::ValueDefinitionSite::Node {
-                    block: block(5),
-                    node: 0,
-                }
+                row.result.as_mut().unwrap().definition_site =
+                    optimization_unit::ValueDefinitionSite::Node {
+                        block: block(5),
+                        node: 0,
+                    }
             }
         }
         assert!(validate_legalized_operations(&target, &plan, &unit, proposed).is_err());

@@ -29,7 +29,7 @@ pub(super) fn locate(encoded: &[u8]) -> WireOffsets {
     let frame = spills + 1;
     let emission = frame + 1;
     let publication = emission + 1;
-    assert_eq!(encoded.len() - (publication + 1), 6 * 8);
+    assert_eq!(encoded.len() - (publication + 1), 5 * 8);
     WireOffsets {
         stage,
         architecture,

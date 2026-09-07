@@ -17,6 +17,7 @@ pub(super) fn stage_with_budget(
         selected_stage.selected(),
         &machine,
         physical,
+        None,
     )
     .unwrap();
     let baseline_layout = stage_optimized_resolved_selected_form_layout(

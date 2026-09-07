@@ -10,14 +10,14 @@ use selected_instructions::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+mod memory;
 mod scalar_call;
 
 use scalar_call::declaration as scalar_call_declaration;
 
 use crate::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
-    X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64,
-    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_MICROSOFT_RETURN,
+    X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, x86_64_system_v_register_call_keys,
 };
@@ -52,31 +52,25 @@ pub fn x86_64_machine_effect_catalog(
         target,
         register_constraints: constraints.identity(),
         selected_keys: selected_keys.clone(),
-        structural_unit_call: selected_keys.structural_unit_call.map(|constraint| {
-            selected_instructions::StructuralUnitCallEffectDeclaration {
-                constraint,
-                memory: selected_instructions::StructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
-                    root_byte_count: 16,
-                    copy_stack_byte_offsets: [32, 48],
-                },
-                frame: selected_instructions::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-                    frame_byte_count: 72,
-                    shadow_byte_count: 32,
-                    pre_call_stack_alignment: 16,
-                },
-                trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-                barrier: selected_instructions::StructuralUnitCallBarrier::CallV1,
-                call: selected_instructions::StructuralUnitCallEffect::DirectInternalUnitV1,
-                cleanup: MachineCleanupEffect::NoneV1,
-            }
-        }),
-        declarations: selected_keys.declaration_keys().into_iter().map(|(semantic, constraint)| {
-            if semantic == MachineSemanticKind::CallI64 {
-                scalar_call_declaration(constraint, constraints)
-            } else {
-                declaration(semantic, &selected_keys)
-            }
-        }).collect(),
+        declarations: selected_keys
+            .declaration_keys()
+            .into_iter()
+            .map(|(semantic, constraint)| {
+                if matches!(
+                    semantic,
+                    MachineSemanticKind::Load64
+                        | MachineSemanticKind::Store64
+                        | MachineSemanticKind::FrameAddress
+                        | MachineSemanticKind::CallUnit
+                ) {
+                    memory::declaration(semantic, constraint, constraints)
+                } else if semantic == MachineSemanticKind::CallI64 {
+                    scalar_call_declaration(constraint, constraints)
+                } else {
+                    declaration(semantic, &selected_keys)
+                }
+            })
+            .collect(),
     })
 }
 
@@ -117,8 +111,12 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
-        structural_unit_call: matches!(target.object_format, ObjectFormat::Coff)
-            .then_some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
+        load64: (target.object_format == ObjectFormat::Coff).then_some(crate::X86_64_LOAD64),
+        store64: (target.object_format == ObjectFormat::Coff).then_some(crate::X86_64_STORE64),
+        frame_address: (target.object_format == ObjectFormat::Coff)
+            .then_some(crate::X86_64_FRAME_ADDRESS),
+        call_unit: (target.object_format == ObjectFormat::Coff)
+            .then_some(crate::X86_64_MICROSOFT_CALL_UNIT),
         call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
             x86_64_system_v_register_call_keys()
         } else {
@@ -281,7 +279,11 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
-        MachineSemanticKind::CallI64 => {
+        MachineSemanticKind::CallI64
+        | MachineSemanticKind::Load64
+        | MachineSemanticKind::Store64
+        | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
         }
     };
@@ -410,7 +412,11 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::ExactSubtractI64 => {
             unreachable!("subtraction declares alias-dependent alternatives")
         }
-        MachineSemanticKind::CallI64 => {
+        MachineSemanticKind::CallI64
+        | MachineSemanticKind::Load64
+        | MachineSemanticKind::Store64
+        | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
         }
     }
@@ -543,7 +549,10 @@ mod tests {
                             | MachineSemanticKind::ReturnUnit
                     ) {
                         MachineBarrier::ControlFlow
-                    } else if row.semantic == MachineSemanticKind::CallI64 {
+                    } else if matches!(
+                        row.semantic,
+                        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+                    ) {
                         MachineBarrier::Call
                     } else {
                         MachineBarrier::None
@@ -596,25 +605,20 @@ mod tests {
                     .is_empty()
             );
             assert!(validate_x86_64_machine_effect_catalog(target, &constraints, catalog).is_ok());
-            let structural = x86_64_machine_effect_catalog(target, &constraints)
-                .unwrap()
-                .structural_unit_call;
-            if target.object_format == ObjectFormat::Coff {
-                let structural = structural.expect("Microsoft x64 owns the bounded Unit call");
+            let ordinary = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+            for semantic in [
+                MachineSemanticKind::Load64,
+                MachineSemanticKind::Store64,
+                MachineSemanticKind::FrameAddress,
+                MachineSemanticKind::CallUnit,
+            ] {
                 assert_eq!(
-                    structural.constraint,
-                    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
+                    ordinary
+                        .declarations
+                        .iter()
+                        .any(|row| row.semantic == semantic),
+                    target.object_format == ObjectFormat::Coff
                 );
-                assert_eq!(
-                    structural.frame,
-                    selected_instructions::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-                        frame_byte_count: 72,
-                        shadow_byte_count: 32,
-                        pre_call_stack_alignment: 16,
-                    }
-                );
-            } else {
-                assert!(structural.is_none());
             }
         }
     }
@@ -666,21 +670,17 @@ mod tests {
         ));
 
         let target = NativeTarget::windows_x64();
-        let mut wrong_frame = x86_64_machine_effect_catalog(target, &constraints).unwrap();
-        let Some(structural) = wrong_frame.structural_unit_call.as_mut() else {
-            panic!("Microsoft catalog owns structural Unit call effects");
-        };
-        structural.frame =
-            selected_instructions::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-                frame_byte_count: 64,
-                shadow_byte_count: 32,
-                pre_call_stack_alignment: 16,
-            };
-        assert!(matches!(
-            validate_x86_64_machine_effect_catalog(target, &constraints, wrong_frame),
-            Err(X86_64MachineEffectCatalogValidationError::Structural(
-                MachineEffectCatalogValidationError::StructuralCallDeclarationMismatch
-            ))
-        ));
+        let mut wrong_memory = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        wrong_memory
+            .declarations
+            .iter_mut()
+            .find(|row| row.semantic == MachineSemanticKind::Store64)
+            .unwrap()
+            .alternatives[0]
+            .encoded
+            .memory = MachineEncodedMemoryEffect::NoneV1;
+        assert!(
+            validate_x86_64_machine_effect_catalog(target, &constraints, wrong_memory).is_err()
+        );
     }
 }

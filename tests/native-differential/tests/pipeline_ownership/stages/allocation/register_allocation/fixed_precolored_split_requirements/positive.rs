@@ -14,7 +14,6 @@ fn forwarded_conditional_keeps_abi_transfers_outside_semantic_value_domains() {
         assert_eq!(first, second);
         assert_eq!(first.receipt().target(), target);
         assert_eq!(first.receipt().function_count(), 1);
-        assert_eq!(first.receipt().structural_unit_function_count(), 0);
         assert_eq!(first.receipt().register_count(), 6);
         assert_eq!(first.receipt().fragment_count(), 8);
         assert_eq!(first.receipt().segment_count(), 8);

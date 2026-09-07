@@ -50,7 +50,6 @@ pub struct FixedPrecoloredSplitRequirementPlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub functions: Vec<FunctionFixedPrecoloredSplitRequirements>,
-    pub structural_unit_functions: Vec<FunctionFixedPrecoloredSplitRequirements>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

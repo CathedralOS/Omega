@@ -140,10 +140,10 @@ pub(super) fn raw_fixture() -> RawFixture {
                 instruction: SelectedInstructionId(id),
                 source_value: ValueId::new(u64::from(id) + 30).unwrap(),
             },
-            definition_site: ValueDefinitionSite::Node {
+            definition_site: Some(ValueDefinitionSite::Node {
                 block: source_block,
                 node: id,
-            },
+            }),
             entry_fixed_view: None,
         })
         .collect();
@@ -171,6 +171,11 @@ pub(super) fn raw_fixture() -> RawFixture {
         machine,
         attachment: None,
         provenance: Default::default(),
+        structural: None,
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: registers,
         blocks: vec![SelectedBlock {

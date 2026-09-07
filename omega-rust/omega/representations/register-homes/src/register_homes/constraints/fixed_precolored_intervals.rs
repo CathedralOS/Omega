@@ -43,7 +43,6 @@ pub struct FixedPrecoloredIntervalPlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub functions: Vec<FunctionFixedPrecoloredIntervals>,
-    pub structural_unit_functions: Vec<FunctionFixedPrecoloredIntervals>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -26,12 +26,18 @@ impl LegalizedScalarCall {
             .zip(&self.call_plan.parameters)
             .enumerate()
         {
-            if argument.placement != *placement || !direct_u64_register(placement) {
+            if argument.placement() != placement
+                || matches!(argument, crate::LegalizedScalarArgument::Scalar { .. })
+                    && !direct_u64_register(placement)
+            {
                 return Err(Error::ArgumentPlacement { argument: index });
             }
         }
-        if Some(&self.result_placement) != self.call_plan.result.as_ref()
-            || !direct_u64_register(&self.result_placement)
+        if self.result_placement != self.call_plan.result
+            || self
+                .result_placement
+                .as_ref()
+                .is_some_and(|placement| !direct_u64_register(placement))
         {
             return Err(Error::Result);
         }

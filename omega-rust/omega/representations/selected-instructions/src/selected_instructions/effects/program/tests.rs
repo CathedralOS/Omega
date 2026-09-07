@@ -8,18 +8,15 @@ use crate::{
     MachineLatencyKnowledge, MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior,
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
-    SelectedMicrosoftX64OwnedIndirectPairLayout, SelectedStructuralUnitIndirectBinding,
-    StructuralUnitCallBarrier, StructuralUnitCallEffect, StructuralUnitCallEffectDeclaration,
-    StructuralUnitCallFrameEffect, StructuralUnitCallMemoryEffect,
 };
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
+use optimization_unit::{FuelSettlement, PsiProvenance};
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, TargetRegisterEnvironmentIdentity,
 };
 use semantic_vocabulary::{
-    ClaimId, EdgeId, FuelScheduleIdentity, MachineId, ObligationId, OperationId, ValueId,
+    EdgeId, FuelScheduleIdentity, MachineId, ObligationId, OperationId, ValueId,
 };
 use target::NativeTarget;
 
@@ -146,7 +143,6 @@ fn plan() -> PreAllocationMachineEffectPlan {
                 }],
             }],
         }],
-        structural_unit_functions: Vec::new(),
     };
     let return_instruction = InstructionMachineEffects {
         instruction: SelectedInstructionId(1),
@@ -170,82 +166,37 @@ fn plan() -> PreAllocationMachineEffectPlan {
         family: RegisterConstraintFamily::Call,
         variant: 2,
     };
-    plan.structural_unit_functions
-        .push(StructuralUnitFunctionMachineEffects {
-            machine: MachineId::new(6).unwrap(),
+    plan.functions.push(FunctionMachineEffects {
+        machine: MachineId::new(6).unwrap(),
+        blocks: vec![BlockMachineEffects {
             block: SelectedBlockId(0),
-            call: Some(StructuralUnitCallMachineEffects {
-                instruction: SelectedInstructionId(0),
-                operation: OperationId::new(7).unwrap(),
-                callee: MachineId::new(8).unwrap(),
-                constraint: call_constraint,
-                unit_uses: vec![RegisterUnitId(1), RegisterUnitId(2)],
-                unit_defs: vec![RegisterUnitId(3)],
-                unit_clobbers: vec![RegisterUnitId(4)],
-                layout: SelectedMicrosoftX64OwnedIndirectPairLayout {
-                    shadow_byte_count: 32,
-                    outgoing_frame_byte_count: 72,
-                    pre_call_stack_alignment: 16,
-                    bindings: [
-                        SelectedStructuralUnitIndirectBinding {
-                            parameter_index: 0,
-                            pointer: target_operations::MachineRegister::X86Rcx,
-                            copy_stack_byte_offset: 32,
-                            byte_count: 16,
-                            alignment: 8,
-                        },
-                        SelectedStructuralUnitIndirectBinding {
-                            parameter_index: 1,
-                            pointer: target_operations::MachineRegister::X86Rdx,
-                            copy_stack_byte_offset: 48,
-                            byte_count: 16,
-                            alignment: 8,
-                        },
-                    ],
-                },
-                effect: EffectLink {
-                    input: 9,
-                    output: 10,
-                },
-                ownership: vec![
-                    OwnershipEvent::ClaimTransfer(vec![ClaimId::new(11).unwrap()]),
-                    OwnershipEvent::Cleanup(Vec::new()),
-                ],
-                claim_transfers: vec![terminal_psi::ClaimTransfer {
-                    claim: ClaimId::new(11).unwrap(),
-                    argument_index: 0,
-                }],
-                provenance: SelectedInstructionProvenance {
-                    operations: vec![OperationId::new(7).unwrap()],
-                    ..Default::default()
-                },
-                declaration: StructuralUnitCallEffectDeclaration {
+            instructions: vec![
+                InstructionMachineEffects {
+                    instruction: SelectedInstructionId(0),
+                    kind: SelectedInstructionKind::CallUnit {
+                        callee: MachineId::new(8).unwrap(),
+                    },
                     constraint: call_constraint,
-                    memory:
-                        StructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
-                            root_byte_count: 16,
-                            copy_stack_byte_offsets: [32, 48],
-                        },
-                    frame: StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-                        frame_byte_count: 72,
-                        shadow_byte_count: 32,
+                    unit_uses: vec![RegisterUnitId(1), RegisterUnitId(2)],
+                    unit_defs: vec![RegisterUnitId(3)],
+                    unit_clobbers: vec![RegisterUnitId(4)],
+                    memory: MachineMemoryEffect::NoneV1,
+                    trap: MachineTrapBehavior::MayArchitecturalFaultV1,
+                    barrier: MachineBarrier::Call,
+                    call: MachineCallEffect::DirectInternalNormalReturnV1 {
                         pre_call_stack_alignment: 16,
                     },
-                    trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-                    barrier: StructuralUnitCallBarrier::CallV1,
-                    call: StructuralUnitCallEffect::DirectInternalUnitV1,
                     cleanup: MachineCleanupEffect::NoneV1,
+                    provenance: SelectedInstructionProvenance {
+                        operations: vec![OperationId::new(7).unwrap()],
+                        ..Default::default()
+                    },
+                    alternatives: Vec::new(),
                 },
-            }),
-            return_instruction,
-            return_effect: EffectLink {
-                input: 10,
-                output: 11,
-            },
-            return_ownership: vec![OwnershipEvent::StructuralReturn(vec![
-                ClaimId::new(12).unwrap(),
-            ])],
-        });
+                return_instruction,
+            ],
+        }],
+    });
     plan.identity = pre_allocation_machine_effect_identity(&plan);
     plan
 }
@@ -262,7 +213,7 @@ fn codec_round_trips_complete_effect_content() {
 }
 
 #[test]
-fn jump_effects_require_the_v11_wire_vocabulary() {
+fn jump_effects_require_the_v12_wire_vocabulary() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];
     instruction.kind = SelectedInstructionKind::Jump;
@@ -271,7 +222,7 @@ fn jump_effects_require_the_v11_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &11_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &12_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -309,7 +260,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..11 {
+    for version in 0_u32..12 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -371,11 +322,9 @@ fn codec_rejects_framing_corruption_and_stale_identity() {
 fn structural_call_content_is_authenticated_and_closed() {
     let source = plan();
     let mut substituted = source.clone();
-    substituted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .callee = MachineId::new(99).unwrap();
+    substituted.functions[1].blocks[0].instructions[0].kind = SelectedInstructionKind::CallUnit {
+        callee: MachineId::new(99).unwrap(),
+    };
     assert_ne!(
         pre_allocation_machine_effect_identity(&substituted),
         source.identity
@@ -386,7 +335,9 @@ fn structural_call_content_is_authenticated_and_closed() {
     );
 
     let mut invalid_declaration_tag = source.encode();
-    let declaration_tag = invalid_declaration_tag.len() - 58;
+    // The final instruction ends with four empty provenance rosters, empty
+    // fuel, and empty alternatives (six u64 lengths). Cleanup precedes them.
+    let declaration_tag = invalid_declaration_tag.len() - 49;
     invalid_declaration_tag[declaration_tag] = u8::MAX;
     assert!(matches!(
         PreAllocationMachineEffectPlan::decode(&invalid_declaration_tag),

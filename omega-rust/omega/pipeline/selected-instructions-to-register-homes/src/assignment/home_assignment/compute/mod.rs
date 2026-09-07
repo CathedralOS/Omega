@@ -11,8 +11,7 @@ use register_model::{
 };
 
 use crate::{
-    FunctionRegisterHomes, RegisterHomeError, RegisterHomePlan, ValidatedAllocationLegality,
-    ValidatedLiveRanges,
+    RegisterHomeError, RegisterHomePlan, ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 pub(crate) use placement::compute_function;
@@ -40,8 +39,6 @@ pub(crate) fn compute_terminal_register_homes(
             selected_keys,
         ) != register_environment
         || legality.plan().functions.len() != ranges.plan().functions.len()
-        || legality.plan().structural_unit_functions.len()
-            != ranges.plan().structural_unit_functions.len()
     {
         return Err(RegisterHomeError::RootMismatch);
     }
@@ -58,31 +55,11 @@ pub(crate) fn compute_terminal_register_homes(
             compute_function(index, legality, ranges, physical)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let structural_unit_functions = legality
-        .plan()
-        .structural_unit_functions
-        .iter()
-        .zip(&ranges.plan().structural_unit_functions)
-        .enumerate()
-        .map(|(index, (legality, ranges))| {
-            if legality.machine != ranges.machine
-                || !legality.virtual_registers.is_empty()
-                || !ranges.virtual_registers.is_empty()
-            {
-                return Err(RegisterHomeError::FunctionMismatch { function: index });
-            }
-            Ok(FunctionRegisterHomes {
-                machine: ranges.machine,
-                assignments: Vec::new(),
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(RegisterHomePlan {
         legality: legality.receipt().identity(),
         ranges: ranges.receipt().identity(),
         register_environment,
         allocator_availability: legality.receipt().allocator_availability(),
         functions,
-        structural_unit_functions,
     })
 }

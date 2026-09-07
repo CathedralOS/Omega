@@ -13,7 +13,6 @@ use crate::{
 
 pub(super) struct ReplayedIntervals {
     pub(super) functions: Vec<FunctionFixedPrecoloredIntervals>,
-    pub(super) structural_unit_functions: Vec<FunctionFixedPrecoloredIntervals>,
     pub(super) usage: OptimizationWorkUsage,
 }
 
@@ -35,22 +34,13 @@ pub(super) fn replay(
         &legality.plan().functions,
         &mut usage,
     )?;
-    let structural_unit_functions = replay_family(
-        &ranges.plan().structural_unit_functions,
-        &legality.plan().structural_unit_functions,
-        &mut usage,
-    )?;
     if !usage.within(budget) {
         return Err(FixedPrecoloredIntervalError::BudgetExceeded {
             required: usage,
             budget,
         });
     }
-    Ok(ReplayedIntervals {
-        functions,
-        structural_unit_functions,
-        usage,
-    })
+    Ok(ReplayedIntervals { functions, usage })
 }
 
 fn replay_family(

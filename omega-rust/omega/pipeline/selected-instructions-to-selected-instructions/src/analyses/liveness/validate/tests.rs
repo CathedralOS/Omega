@@ -2,7 +2,7 @@
 
 use super::{
     constraints::reject_v1_unsupported, function_contract::validate_function,
-    replay::replay_function, structural::validate_structural_machine_roster,
+    replay::replay_function,
 };
 
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId};
@@ -75,7 +75,7 @@ fn replay_retains_the_explicit_duplicate_copy_transport() {
     assert!(replay_function(0, &selected).is_err());
 }
 
-fn structural_liveness(machine: MachineId) -> crate::FunctionLiveness {
+fn ordinary_liveness(machine: MachineId) -> crate::FunctionLiveness {
     crate::FunctionLiveness {
         machine,
         entry_definitions: Vec::new(),
@@ -106,36 +106,26 @@ fn structural_liveness(machine: MachineId) -> crate::FunctionLiveness {
 }
 
 #[test]
-fn structural_roster_rejects_erasure_order_identity_duplicate_and_unit_drift() {
-    let scalar = MachineId::new(9).unwrap();
+fn ordinary_function_replay_rejects_identity_and_unit_drift() {
     let caller = MachineId::new(1).unwrap();
     let callee = MachineId::new(2).unwrap();
-    let selected = [caller, callee];
-    let exact = [structural_liveness(caller), structural_liveness(callee)];
-    validate_structural_machine_roster([scalar], &selected, &exact).unwrap();
-
+    let exact = [ordinary_liveness(caller), ordinary_liveness(callee)];
+    validate_function(0, &exact[0], &exact[0]).unwrap();
     assert_eq!(
-        validate_structural_machine_roster([scalar], &selected, &exact[..1]),
-        Err(crate::LivenessError::RootMismatch)
+        validate_function(0, &exact[1], &exact[0]),
+        Err(crate::LivenessError::FunctionMismatch { function: 0 })
     );
-    let swapped = [exact[1].clone(), exact[0].clone()];
+    let foreign = ordinary_liveness(MachineId::new(3).unwrap());
     assert_eq!(
-        validate_structural_machine_roster([scalar], &selected, &swapped),
-        Err(crate::LivenessError::StructuralFunctionMismatch { function: 0 })
+        validate_function(0, &foreign, &exact[0]),
+        Err(crate::LivenessError::FunctionMismatch { function: 0 })
     );
-    let foreign = MachineId::new(3).unwrap();
-    let drifted = [structural_liveness(foreign), exact[1].clone()];
+    let mut missing_block = exact[0].clone();
+    missing_block.blocks.clear();
     assert_eq!(
-        validate_structural_machine_roster([scalar], &selected, &drifted),
-        Err(crate::LivenessError::StructuralFunctionMismatch { function: 0 })
+        validate_function(0, &missing_block, &exact[0]),
+        Err(crate::LivenessError::FunctionMismatch { function: 0 })
     );
-    assert_eq!(
-        validate_structural_machine_roster([caller], &selected, &exact),
-        Err(crate::LivenessError::DuplicateMachine {
-            machine: caller.get()
-        })
-    );
-
     let mut unit_drift = exact[0].clone();
     unit_drift.blocks[0].instructions[0].unit_uses[0] = RegisterUnitId(3);
     assert_eq!(

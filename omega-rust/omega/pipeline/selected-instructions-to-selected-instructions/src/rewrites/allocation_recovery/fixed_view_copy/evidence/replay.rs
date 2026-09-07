@@ -30,18 +30,8 @@ pub(crate) fn reconstruct(
     let mut boundaries = replay_roster(
         &requirements.plan().functions,
         &homes.plan().functions,
-        false,
         &mut work,
     )?;
-    let structural = replay_roster(
-        &requirements.plan().structural_unit_functions,
-        &homes.plan().structural_unit_functions,
-        true,
-        &mut work,
-    )?;
-    if !structural.is_empty() {
-        return Err(FixedViewCopyError::UnsupportedSegmentBoundarySet { function: 0 });
-    }
     boundaries.sort_by_key(|boundary| {
         (
             boundary.function,
@@ -94,7 +84,6 @@ fn replay_roots(
 fn replay_roster(
     requirements: &[FunctionFixedPrecoloredSplitRequirements],
     homes: &[FunctionFixedPrecoloredSegmentHomes],
-    structural: bool,
     work: &mut ReplayWork,
 ) -> Result<Vec<AuthenticatedFixedViewBoundary>, FixedViewCopyError> {
     let mut home_functions = BTreeMap::<MachineId, &FunctionFixedPrecoloredSegmentHomes>::new();
@@ -213,11 +202,6 @@ fn replay_roster(
         }
         if consumed_assignments.len() != assignments.len() {
             return Err(FixedViewCopyError::SegmentEvidenceMismatch);
-        }
-        if structural && boundaries.iter().any(|row| row.function == function_index) {
-            return Err(FixedViewCopyError::UnsupportedSegmentBoundarySet {
-                function: function_index,
-            });
         }
     }
     if consumed_functions.len() != home_functions.len() {

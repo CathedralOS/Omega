@@ -27,7 +27,6 @@ pub struct FunctionFragmentEmissionPlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<FunctionFragment>,
-    pub structural_unit_functions: Vec<StructuralUnitFunctionFragment>,
 }
 
 impl FunctionFragmentEmissionPlan {

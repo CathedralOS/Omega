@@ -4,7 +4,6 @@ use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::PreAllocationMachineEffectIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions_to_register_homes::RegisterHomeIdentity;
-use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,12 +103,6 @@ pub enum PostAllocationMachineError {
     PostAllocationManifestMismatch,
     OptimizationUnitMismatch,
     FuelScheduleMismatch,
-    StructuralFunctionMismatch {
-        machine: MachineId,
-    },
-    StructuralAllocationMismatch {
-        machine: MachineId,
-    },
     FunctionMismatch {
         function: usize,
     },
@@ -167,9 +160,7 @@ pub(crate) fn post_allocation_receipt(
             .checked_add(function.blocks.len())
             .ok_or(PostAllocationMachineError::CountOverflow)
     })?;
-    let block_count = ordinary_block_count
-        .checked_add(plan.structural_unit_functions.len())
-        .ok_or(PostAllocationMachineError::CountOverflow)?;
+    let block_count = ordinary_block_count;
     let (ordinary_instruction_count, operand_count, ordinary_unit_action_count) = plan
         .functions
         .iter()
@@ -193,35 +184,6 @@ pub(crate) fn post_allocation_receipt(
                     .ok_or(PostAllocationMachineError::CountOverflow)?,
             ))
         })?;
-    let structural_instruction_count =
-        plan.structural_unit_functions
-            .iter()
-            .try_fold(0_usize, |count, function| {
-                count
-                    .checked_add(1 + usize::from(function.call.is_some()))
-                    .ok_or(PostAllocationMachineError::CountOverflow)
-            })?;
-    let structural_unit_action_count =
-        plan.structural_unit_functions
-            .iter()
-            .try_fold(0_usize, |count, function| {
-                let count = count
-                    .checked_add(function.return_instruction.unit_uses.len())
-                    .and_then(|count| {
-                        count.checked_add(function.return_instruction.unit_defs.len())
-                    })
-                    .and_then(|count| {
-                        count.checked_add(function.return_instruction.unit_clobbers.len())
-                    })
-                    .ok_or(PostAllocationMachineError::CountOverflow)?;
-                function.call.as_ref().map_or(Ok(count), |call| {
-                    count
-                        .checked_add(call.unit_uses.len())
-                        .and_then(|count| count.checked_add(call.unit_defs.len()))
-                        .and_then(|count| count.checked_add(call.unit_clobbers.len()))
-                        .ok_or(PostAllocationMachineError::CountOverflow)
-                })
-            })?;
     Ok(PostAllocationMachineReceipt {
         identity: plan.identity,
         selected: plan.selected,
@@ -229,18 +191,10 @@ pub(crate) fn post_allocation_receipt(
         homes: plan.homes,
         post_allocation_manifest: plan.post_allocation_manifest,
         register_environment: plan.register_environment,
-        function_count: plan
-            .functions
-            .len()
-            .checked_add(plan.structural_unit_functions.len())
-            .ok_or(PostAllocationMachineError::CountOverflow)?,
+        function_count: plan.functions.len(),
         block_count,
-        instruction_count: ordinary_instruction_count
-            .checked_add(structural_instruction_count)
-            .ok_or(PostAllocationMachineError::CountOverflow)?,
+        instruction_count: ordinary_instruction_count,
         operand_count,
-        unit_action_count: ordinary_unit_action_count
-            .checked_add(structural_unit_action_count)
-            .ok_or(PostAllocationMachineError::CountOverflow)?,
+        unit_action_count: ordinary_unit_action_count,
     })
 }

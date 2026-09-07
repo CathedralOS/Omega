@@ -104,7 +104,7 @@ fn replay_rejects_every_root_and_retained_storage_field_corruption() {
             modified_function!(plan).machine = MachineId::new(96_001).unwrap();
         },
         |plan: &mut NonAuthoritativeCalleeSaveStoragePlan| {
-            modified_function!(plan).kind = AllocatedCalleeSavedFunctionKind::StructuralUnit;
+            modified_function!(plan).slots.clear();
         },
         |plan: &mut NonAuthoritativeCalleeSaveStoragePlan| {
             modified_function!(plan).slots[0].id = NonAuthoritativeCalleeSaveSlotId(99);

@@ -18,12 +18,7 @@ pub(super) fn check(
     section: &RelocationFreeTextSectionPlacement,
 ) -> Result<(), TextPlacementError> {
     let fragments = input.fragments();
-    let structural = matches!(input, TextPlacementInput::Structural { .. });
-    let count = if structural {
-        fragments.structural_unit_functions.len()
-    } else {
-        fragments.functions.len()
-    };
+    let count = fragments.functions.len();
     let alignment = match fragments.target.architecture {
         Architecture::X86_64 => 1,
         Architecture::Aarch64 => 4,
@@ -46,29 +41,17 @@ pub(super) fn check(
     }
     let mut offsets = BTreeMap::new();
     let mut extent = 0;
-    if structural {
-        for function in &fragments.structural_unit_functions {
-            functions::source_function(
-                &mut offsets,
-                &mut extent,
-                function.machine,
-                function.byte_count,
-                &function.bytes,
-                alignment,
-            )?;
-        }
-    } else {
-        for function in &fragments.functions {
-            functions::source_function(
-                &mut offsets,
-                &mut extent,
-                function.machine,
-                function.byte_count,
-                &function.bytes,
-                alignment,
-            )?;
-        }
+    for function in &fragments.functions {
+        functions::source_function(
+            &mut offsets,
+            &mut extent,
+            function.machine,
+            function.byte_count,
+            &function.bytes,
+            alignment,
+        )?;
     }
+
     let entry = offsets
         .get(&fragments.entry)
         .ok_or(TextPlacementError::MissingSemanticEntry(fragments.entry))?;

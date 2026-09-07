@@ -127,6 +127,7 @@ fn selected_instruction(id: u32, value: u64) -> SelectedInstruction {
 
 fn machine_instruction(id: u32) -> PostAllocationMachineInstruction {
     PostAllocationMachineInstruction {
+        address: None,
         instruction: SelectedInstructionId(id),
         alternative: MachineAlternative {
             key: MachineAlternativeKey {
@@ -189,6 +190,11 @@ fn fixture() -> (
         target: NativeTarget::linux_arm64(),
         entry: machine,
         functions: vec![SelectedFunction {
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -208,13 +214,13 @@ fn fixture() -> (
                 },
             }],
         }],
-        structural_unit_functions: vec![],
         projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
     let physical = physical();
     let source_identity = PostAllocationMachineIdentity::from_bytes([3; 32]);
     let return_machine = PostAllocationMachineInstruction {
+        address: None,
         instruction: SelectedInstructionId(4),
         alternative: MachineAlternative {
             key: MachineAlternativeKey {
@@ -249,6 +255,7 @@ fn fixture() -> (
         machine_effect_catalog: MachineEffectCatalogIdentity::from_bytes([11; 32]),
         choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions: vec![PostAllocationMachineFunction {
+            outgoing_arguments: Vec::new(),
             machine,
             blocks: vec![PostAllocationMachineBlock {
                 block,
@@ -260,7 +267,6 @@ fn fixture() -> (
                 ],
             }],
         }],
-        structural_unit_functions: vec![],
     };
     (
         selected,

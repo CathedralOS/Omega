@@ -119,7 +119,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/text_placement/production/mod.rs",
-        coordination_marker: "mod structural_unit",
+        coordination_marker: "mod fixed_frame",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/text_placement/validation/mod.rs",
@@ -166,8 +166,8 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_validated_optimized_ordinary_callable_entry",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/function_realization/structural_unit/mod.rs",
-        coordination_marker: "pub fn stage_optimized_structural_unit_function_relative_realization",
+        path: "omega-rust/omega/backend/machine-emission/src/function_realization/routes/fixed_frame.rs",
+        coordination_marker: "pub fn stage_fixed_frame_function_relative_realization",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",

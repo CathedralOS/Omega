@@ -109,7 +109,8 @@ pub fn encode_x86_64_selected_scalar_call_template(
     effects: &MachineEncodedEffects,
 ) -> Result<ValidatedX86_64SelectedScalarCallTemplate, X86_64ScalarCallTemplateError> {
     let callee = match kind {
-        SelectedInstructionKind::CallI64 { callee } => callee,
+        SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let bytes = [0xe8, 0, 0, 0, 0];
@@ -144,11 +145,20 @@ pub fn validate_x86_64_selected_scalar_call_template(
         return Err(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
     let callee = match kind {
-        SelectedInstructionKind::CallI64 { callee } => callee,
+        SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch),
     };
+    let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
+    if unit && target != NativeTarget::windows_x64() {
+        return Err(X86_64ScalarCallTemplateError::UnsupportedTarget);
+    }
     let expected_alternative = MachineAlternativeKey {
-        family: MachineAlternativeFamily::CallI64,
+        family: if unit {
+            MachineAlternativeFamily::CallUnit
+        } else {
+            MachineAlternativeFamily::CallI64
+        },
         variant: 0,
     };
     if alternative != expected_alternative {
@@ -156,7 +166,7 @@ pub fn validate_x86_64_selected_scalar_call_template(
     }
     let arity = operand_views
         .len()
-        .checked_sub(1)
+        .checked_sub(usize::from(!unit))
         .filter(|arity| {
             *arity
                 <= if target == NativeTarget::linux_x64() {
@@ -166,11 +176,30 @@ pub fn validate_x86_64_selected_scalar_call_template(
                 }
         })
         .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
-    let expected_operand_views = expected_operand_views(target, physical, arity);
+    let mut expected_operand_views = expected_operand_views(target, physical, arity);
+    if unit {
+        expected_operand_views.pop();
+    }
+    if unit && arity != 2 {
+        return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
+    }
     if operand_views != expected_operand_views {
         return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
     }
-    if effects != &expected_effects(target, physical, arity) {
+    let mut expected = expected_effects(target, physical, arity);
+    if unit {
+        let catalog = x86_64_register_constraint_catalog(physical);
+        let row = catalog
+            .constraints
+            .iter()
+            .find(|row| row.key == crate::X86_64_MICROSOFT_CALL_UNIT)
+            .expect("canonical Unit call");
+        expected.external_operand_writes.clear();
+        expected.implicit_unit_uses = row.implicit_uses.clone();
+        expected.implicit_unit_defs = row.implicit_defs.clone();
+        expected.implicit_unit_clobbers = row.clobbers.clone();
+    }
+    if effects != &expected {
         return Err(X86_64ScalarCallTemplateError::EffectMismatch);
     }
     let bytes: [u8; X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] = bytes

@@ -28,7 +28,7 @@ pub(crate) use program_entry_plan::{
     bind_optimized_program_storage_semantic_entry_contract,
     plan_optimized_program_storage_semantic_wrapper,
 };
-pub(crate) use selected_instructions::{SelectedInstructionPlan, SelectedStructuralUnitCallSource};
+pub(crate) use selected_instructions::SelectedInstructionPlan;
 pub(crate) use semantic_vocabulary::{IntegerSign, MachineId, ScalarType, StructuralPlaceKind};
 pub(crate) use target::{NativeTarget, ObjectFormat};
 pub(crate) use terminal_psi::{

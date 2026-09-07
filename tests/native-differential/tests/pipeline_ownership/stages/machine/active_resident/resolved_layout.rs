@@ -16,6 +16,7 @@ fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectur
             current.selected(),
             &machine,
             physical,
+            None,
         )
         .unwrap();
         let layout = stage_optimized_resolved_selected_form_layout(

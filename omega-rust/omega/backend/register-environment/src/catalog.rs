@@ -7,8 +7,7 @@ use isa_aarch64::{
 };
 use isa_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL,
-    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_MICROSOFT_RETURN,
+    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
@@ -61,7 +60,10 @@ pub(super) fn selected_environment_keys(
     keys: SelectedConstraintKeys,
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
-        structural_unit_call: keys.structural_unit_call,
+        load64: keys.load64,
+        store64: keys.store64,
+        frame_address: keys.frame_address,
+        call_unit: keys.call_unit,
         call_i64: keys.call_i64,
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
@@ -81,7 +83,10 @@ pub(super) fn selected_environment_keys(
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
-            structural_unit_call: None,
+            load64: None,
+            store64: None,
+            frame_address: None,
+            call_unit: None,
             call_i64: isa_x86_64::x86_64_system_v_register_call_keys(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
@@ -97,7 +102,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
-            structural_unit_call: Some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
+            load64: Some(isa_x86_64::X86_64_LOAD64),
+            store64: Some(isa_x86_64::X86_64_STORE64),
+            frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
+            call_unit: Some(isa_x86_64::X86_64_MICROSOFT_CALL_UNIT),
             call_i64: isa_x86_64::x86_64_microsoft_register_call_keys(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
@@ -113,7 +121,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
-            structural_unit_call: None,
+            load64: None,
+            store64: None,
+            frame_address: None,
+            call_unit: None,
             call_i64: isa_aarch64::aarch64_aapcs64_register_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             copy_i64: AARCH64_COPY_I64,
@@ -129,7 +140,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
-            structural_unit_call: None,
+            load64: None,
+            store64: None,
+            frame_address: None,
+            call_unit: None,
             call_i64: isa_aarch64::aarch64_darwin_register_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             copy_i64: AARCH64_COPY_I64,

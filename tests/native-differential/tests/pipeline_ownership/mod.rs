@@ -1,4 +1,6 @@
 //! Optimizer module role: stage group.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+mod native_execution;
 mod text_placement_checks;
 use std::collections::BTreeSet;
 

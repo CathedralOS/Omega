@@ -1,16 +1,13 @@
 use semantic_vocabulary::MachineId;
 
 use crate::{
-    FunctionRelativeOptimizationRealizationError,
-    OptimizedStructuralUnitFunctionRelativeRealizationError,
-    OptimizedUnitFunctionRelativeRealizationError,
+    FunctionRelativeOptimizationRealizationError, OptimizedUnitFunctionRelativeRealizationError,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionError {
     Source(FunctionRelativeOptimizationRealizationError),
     UnitSource(OptimizedUnitFunctionRelativeRealizationError),
-    StructuralUnitSource(OptimizedStructuralUnitFunctionRelativeRealizationError),
     SourceKindMismatch,
     MissingFunction(MachineId),
     MissingBlock(selected_instructions::SelectedBlockId),

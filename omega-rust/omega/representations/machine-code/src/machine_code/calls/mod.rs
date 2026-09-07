@@ -7,7 +7,6 @@ mod fixups;
 pub mod foreign;
 pub mod internal;
 pub mod results;
-pub mod structural;
 
 pub use arguments::*;
 pub use callbacks::*;
@@ -16,4 +15,3 @@ pub use fixups::*;
 pub use foreign::*;
 pub use internal::*;
 pub use results::*;
-pub use structural::*;

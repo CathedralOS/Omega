@@ -34,12 +34,6 @@ pub(super) fn compute(
         &fixed.plan().functions,
         &mut work,
     )?;
-    let structural_unit_functions = family(
-        &ranges.plan().structural_unit_functions,
-        &legality.plan().structural_unit_functions,
-        &fixed.plan().structural_unit_functions,
-        &mut work,
-    )?;
     let usage = work.finish(budget)?;
     Ok(FixedPrecoloredSplitRequirementPlan {
         fixed_intervals: fixed.receipt().identity(),
@@ -54,7 +48,6 @@ pub(super) fn compute(
         budget,
         usage,
         functions,
-        structural_unit_functions,
     })
 }
 

@@ -145,6 +145,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             selected_stage.selected(),
             &post,
             selected_stage.register_environment().physical(),
+            None,
         )
         .unwrap();
         assert_eq!(encodings.selected(), post.machine().receipt().selected());
@@ -195,6 +196,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             selected_stage.selected(),
             &post,
             selected_stage.register_environment().physical(),
+            None,
             &encodings,
         )
         .unwrap();

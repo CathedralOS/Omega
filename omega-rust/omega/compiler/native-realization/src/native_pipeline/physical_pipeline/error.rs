@@ -1,9 +1,7 @@
 use abstract_operations_to_target_operations::LoweringError;
 
 use machine_emission::{
-    FunctionRelativeOptimizationRealizationError,
-    OptimizedStructuralUnitFunctionRelativeRealizationError,
-    OptimizedUnitFunctionRelativeRealizationError,
+    FunctionRelativeOptimizationRealizationError, OptimizedUnitFunctionRelativeRealizationError,
 };
 use post_allocation_machine_to_post_allocation_machine::OptimizedPostAllocationMachineOptimizationError;
 use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
@@ -35,9 +33,6 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
         resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError,
     ),
     UnitFunctionRelativeRealization(OptimizedUnitFunctionRelativeRealizationError),
-    StructuralUnitFunctionRelativeRealization(
-        OptimizedStructuralUnitFunctionRelativeRealizationError,
-    ),
     UnsupportedPhysicalPhaseComposition,
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }

@@ -22,7 +22,7 @@ fn every_mutable_logical_field_is_bound_by_independent_reconstruction() {
     let baseline = source.post_allocation_manifest().record();
     assert_eq!(
         MUTATIONS.len(),
-        22,
+        21,
         "complete representable mutation-case matrix"
     );
 
@@ -123,9 +123,6 @@ const MUTATIONS: &[(&str, Mutation)] = &[
     }),
     ("statistics.functions", |record| {
         record.statistics.functions += 1
-    }),
-    ("statistics.structural_unit_functions", |record| {
-        record.statistics.structural_unit_functions += 1
     }),
     ("statistics.assignments", |record| {
         record.statistics.assignments += 1

@@ -428,8 +428,6 @@ pub(super) fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
         WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => 2,
         WholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => 3,
         WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
-        WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1 => 5,
-        WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1 => 6,
         WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
         WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
         WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
@@ -444,8 +442,6 @@ pub(super) fn decode_exit_policy(
         2 => Ok(WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1),
         3 => Ok(WholeFunctionExitPolicy::Aapcs64FramelessLeafV1),
         4 => Ok(WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1),
-        5 => Ok(WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1),
-        6 => Ok(WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1),
         7 => Ok(WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1),
         8 => Ok(WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1),
         9 => Ok(WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1),
@@ -459,10 +455,12 @@ fn fixed_frame_exit_policy_retires_the_leaf_only_tag() {
     let policy = WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1;
     assert_eq!(exit_policy_tag(policy), 11);
     assert_eq!(decode_exit_policy(&mut Cursor::new(&[11])), Ok(policy));
-    assert_eq!(
-        decode_exit_policy(&mut Cursor::new(&[10])),
-        Err(OptimizedOrdinaryCallableEntryDecodeError::UnknownExitPolicy(10)),
-    );
+    for retired in [5, 6, 10] {
+        assert_eq!(
+            decode_exit_policy(&mut Cursor::new(&[retired])),
+            Err(OptimizedOrdinaryCallableEntryDecodeError::UnknownExitPolicy(retired)),
+        );
+    }
 }
 pub(super) fn encode_entry_assumption(bytes: &mut Vec<u8>, a: WholeFunctionEntryAssumption) {
     match a {

@@ -2,7 +2,6 @@
 
 mod ordinary;
 mod state;
-mod structural;
 mod work;
 
 use std::collections::BTreeSet;
@@ -56,11 +55,6 @@ pub(super) fn derive(
         &mut traversal,
         &selected.plan().functions,
         &homes.plan().functions,
-    )?;
-    structural::derive(
-        &mut traversal,
-        &selected.plan().structural_unit_functions,
-        &homes.plan().structural_unit_functions,
     )?;
     let usage = work::usage(&traversal)?;
     if !usage.within(budget) {

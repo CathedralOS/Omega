@@ -21,7 +21,7 @@ use super::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 6;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 7;
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
@@ -106,7 +106,6 @@ impl PostAllocationOptimizationManifest {
         let publication = decode_unavailable(&mut cursor)?;
         let statistics = PostAllocationStatistics {
             functions: u64::from_le_bytes(cursor.array()?),
-            structural_unit_functions: u64::from_le_bytes(cursor.array()?),
             assignments: u64::from_le_bytes(cursor.array()?),
             distinct_physical_views: u64::from_le_bytes(cursor.array()?),
             virtual_interferences: u64::from_le_bytes(cursor.array()?),
@@ -198,10 +197,9 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
     canonical
 }
 
-fn statistics_values(statistics: PostAllocationStatistics) -> [u64; 6] {
+fn statistics_values(statistics: PostAllocationStatistics) -> [u64; 5] {
     [
         statistics.functions,
-        statistics.structural_unit_functions,
         statistics.assignments,
         statistics.distinct_physical_views,
         statistics.virtual_interferences,

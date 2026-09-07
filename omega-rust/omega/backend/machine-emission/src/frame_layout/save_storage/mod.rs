@@ -22,10 +22,9 @@ use optimization_core::OptimizationWorkBudget;
 
 use register_environment::{FrameAbiPreservationConvention, ValidatedTargetRegisterEnvironment};
 use selected_instructions_to_register_homes::{
-    AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedRequirementIdentity,
-    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedUnitRequirement,
-    CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
-    ValidatedAllocatedCalleeSavedRequirements,
+    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
+    AllocatedCalleeSavedUnitRequirement, CalleeSavedModificationWitness,
+    FunctionAllocatedCalleeSavedRequirements, ValidatedAllocatedCalleeSavedRequirements,
 };
 
 pub fn stage_non_authoritative_callee_save_storage(

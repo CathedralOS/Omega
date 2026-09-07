@@ -13,7 +13,6 @@ pub struct LiveRangeValidationReceipt {
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) function_count: usize,
-    pub(crate) structural_unit_function_count: usize,
     pub(crate) block_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) virtual_occurrence_count: usize,
@@ -49,9 +48,6 @@ impl LiveRangeValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn block_count(self) -> usize {
         self.block_count

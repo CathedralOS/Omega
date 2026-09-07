@@ -166,8 +166,6 @@ pub(super) fn render_manifest(
             SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 =>
                 "entry-then-zero-fallthrough-then-nonzero-v1",
             SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => "single-entry-block-v1",
-            SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 =>
-                "structural-unit-call-then-return-single-entry-block-v1",
             SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 =>
                 "entry-then-not-less-fallthrough-then-less-v1",
             SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 =>
@@ -193,30 +191,6 @@ pub(super) fn render_manifest(
         output,
         "resolved conditional branches: {}",
         manifest.statistics.resolved_conditional_branches
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "structural functions: {}",
-        manifest.statistics.structural_unit_functions
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "structural blocks: {}",
-        manifest.statistics.structural_unit_blocks
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "structural instructions: {}",
-        manifest.statistics.structural_unit_instructions
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "structural function-relative bytes: {}",
-        manifest.statistics.structural_unit_bytes
     )
     .unwrap();
     writeln!(

@@ -2,11 +2,11 @@
 use super::*;
 mod control;
 mod parameters;
-use calling_conventions::{CallSignature, ValueShape, evaluate_call_plan};
+use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{
-    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarInstruction,
-    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
-    LegalizedScalarTerminator,
+    LegalizedCallUnitSource, LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall,
+    LegalizedScalarInstruction, LegalizedScalarParameter, LegalizedScalarReturn,
+    LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedValueDefinition,
 };
 use optimization_unit::EffectLink;
 use semantic_vocabulary::{
@@ -40,16 +40,18 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
                 .parameters
                 .iter()
                 .enumerate()
-                .map(|(index, placement)| LegalizedScalarArgument {
+                .map(|(index, placement)| LegalizedScalarArgument::Scalar {
                     source: ValueId::new(if raw == 4 { 3 } else { 1 + (index % 2) as u64 })
                         .unwrap(),
                     placement: placement.clone(),
                 })
                 .collect();
             LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                claim_transfers: Vec::new(),
                 callee: MachineId::new(raw + 7).unwrap(),
                 arguments,
-                result_placement: call_plan.result.clone().unwrap(),
+                result_placement: call_plan.result.clone(),
                 call_plan,
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
@@ -57,12 +59,14 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
         };
         instructions.push(LegalizedScalarInstruction {
             operation,
-            result: ValueId::new(raw).unwrap(),
-            scalar_type: ScalarType::Integer(integer),
-            definition_site: ValueDefinitionSite::Node {
-                block,
-                node: raw as u32 - 1,
-            },
+            result: Some(LegalizedValueDefinition {
+                value: ValueId::new(raw).unwrap(),
+                scalar_type: ScalarType::Integer(integer),
+                definition_site: ValueDefinitionSite::Node {
+                    block,
+                    node: raw as u32 - 1,
+                },
+            }),
             kind,
             fuel: vec![FuelSettlement {
                 site: PsiProvenance::Operation(operation),
@@ -73,6 +77,7 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
         });
     }
     LegalizedScalarFunction {
+        structural: None,
         machine: MachineId::new(1).unwrap(),
         attachment: Some(StructuralTypeId::new(1).unwrap()),
         provenance: target_operations::TerminalPsiProvenance {
@@ -251,7 +256,13 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
             else {
                 unreachable!();
             };
-            call.arguments[0].source = parameter;
+            let LegalizedScalarArgument::Scalar {
+                source: argument, ..
+            } = &mut call.arguments[0]
+            else {
+                unreachable!()
+            };
+            *argument = parameter;
             returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
                 value: if return_parameter {
                     parameter
@@ -375,14 +386,16 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                     .instructions
                     .push(LegalizedScalarInstruction {
                         operation,
-                        result: ValueId::new(raw).unwrap(),
-                        scalar_type: ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                        ),
-                        definition_site: ValueDefinitionSite::Node {
-                            block: source.entry_block,
-                            node: raw as u32 - 1,
-                        },
+                        result: Some(LegalizedValueDefinition {
+                            value: ValueId::new(raw).unwrap(),
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            ),
+                            definition_site: ValueDefinitionSite::Node {
+                                block: source.entry_block,
+                                node: raw as u32 - 1,
+                            },
+                        }),
                         kind: LegalizedScalarInstructionKind::ExactBinary {
                             operator,
                             left: ValueId::new(raw - 1).unwrap(),
@@ -465,7 +478,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                     3 => row.provenance.fuel[0].units += 1,
                     4 => {
                         changed.virtual_registers[output.0 as usize].definition_site =
-                            ValueDefinitionSite::FunctionParameter(0)
+                            Some(ValueDefinitionSite::FunctionParameter(0))
                     }
                     5 => {
                         changed.virtual_registers[output.0 as usize].origin =
@@ -525,14 +538,18 @@ fn widening_copy_keeps_distinct_typed_value_and_conversion_custody() {
         .unwrap();
         source.blocks[0].instructions.truncate(1);
         let narrow = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-        source.blocks[0].instructions[0].scalar_type = ScalarType::Integer(narrow);
-        let input = source.blocks[0].instructions[0].result;
+        source.blocks[0].instructions[0]
+            .result
+            .as_mut()
+            .unwrap()
+            .scalar_type = ScalarType::Integer(narrow);
+        let input = source.blocks[0].instructions[0].result.unwrap().value;
         let mut widen = source.blocks[0].instructions[0].clone();
         widen.operation = OperationId::new(20).unwrap();
-        widen.result = ValueId::new(20).unwrap();
-        widen.scalar_type =
+        widen.result.as_mut().unwrap().value = ValueId::new(20).unwrap();
+        widen.result.as_mut().unwrap().scalar_type =
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-        widen.definition_site = ValueDefinitionSite::Node {
+        widen.result.as_mut().unwrap().definition_site = ValueDefinitionSite::Node {
             block: source.entry_block,
             node: 1,
         };
@@ -545,7 +562,7 @@ fn widening_copy_keeps_distinct_typed_value_and_conversion_custody() {
             units: 1,
         }];
         returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
-            value: widen.result,
+            value: widen.result.unwrap().value,
             scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         };
         source.blocks[0].instructions.push(widen);

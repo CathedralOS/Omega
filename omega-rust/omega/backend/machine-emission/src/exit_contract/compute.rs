@@ -22,7 +22,7 @@ use super::{
         EntryAssumptionKind, frame_permissions, target_contract_inputs,
         transformed_implicit_writes_any, unique_encoding_rows, unique_layout_rows,
         validate_internal_call, validate_layout_custody, validate_non_return,
-        validate_preservation_writes, validate_return, validate_structural_unit_functions, view,
+        validate_preservation_writes, validate_return, view,
     },
 };
 
@@ -95,6 +95,9 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
 
+    if encoding.program().frame.as_ref() != frame_inputs.map(|(frame, _)| frame.plan()) {
+        return Err(WholeFunctionExitContractError::RootMismatch);
+    }
     let target = machine.target;
     let (frameless_policy, convention, stack_name, link_name, entry_assumption) =
         target_contract_inputs(physical, target)?;
@@ -185,70 +188,6 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         .transpose()?
         .unwrap_or_default();
 
-    if !selected_plan.structural_unit_functions.is_empty() {
-        if frameless_policy != WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
-            || frame_inputs.is_some()
-            || !selected_plan.functions.is_empty()
-            || !machine.functions.is_empty()
-            || !encoding.rows().is_empty()
-            || !layout.functions().is_empty()
-            || layout.policy()
-                != machine_code::SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
-            || layout_custody != WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
-        {
-            return Err(WholeFunctionExitContractError::UnsupportedTargetPolicy);
-        }
-        let structural_unit_functions = validate_structural_unit_functions(
-            selected_plan,
-            machine,
-            encoding,
-            layout,
-            target,
-            stack_pointer,
-            result_view,
-            &callee_saved,
-            &link_units,
-        )?;
-        let policy = if structural_unit_functions
-            .iter()
-            .any(|function| function.call.is_some())
-        {
-            WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1
-        } else {
-            WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1
-        };
-        let mut contract = WholeFunctionExitContract {
-            identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
-            selected: machine.selected,
-            post_allocation_manifest: machine.post_allocation_manifest,
-            post_allocation_machine: machine.identity,
-            register_environment: machine.register_environment,
-            physical_register_model: machine.physical_register_model,
-            pre_layout: encoding.identity(),
-            resolved_layout: layout.identity(),
-            layout_custody,
-            target,
-            policy,
-            frame: frame_disposition,
-            hardening: WholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
-            entry_assumption,
-            stack_pointer,
-            stack_alignment: convention.stack_alignment,
-            red_zone_bytes: convention.red_zone_bytes,
-            result_view,
-            callee_saved_units: convention.callee_saved.clone(),
-            functions: Box::new(Vec::new()),
-            structural_unit_functions: Box::new(structural_unit_functions),
-        };
-        contract.identity = contract_identity(&contract);
-        return Ok(contract);
-    }
-    if !machine.structural_unit_functions.is_empty()
-        || !encoding.structural_unit_functions().is_empty()
-        || !layout.structural_unit_functions().is_empty()
-    {
-        return Err(WholeFunctionExitContractError::RootMismatch);
-    }
     let frame_functions = frame_inputs
         .map(|(frame, _)| {
             frame
@@ -414,7 +353,11 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         layout_block_end,
                     )?);
                 } else {
-                    if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+                    if matches!(
+                        instruction.kind,
+                        SelectedInstructionKind::CallI64 { .. }
+                            | SelectedInstructionKind::CallUnit { .. }
+                    ) {
                         if function_frame.is_none() {
                             return Err(WholeFunctionExitContractError::NonReturnControlEffect(
                                 instruction.id,
@@ -489,7 +432,6 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         result_view,
         callee_saved_units: convention.callee_saved.clone(),
         functions: Box::new(functions),
-        structural_unit_functions: Box::new(Vec::new()),
     };
     contract.identity = contract_identity(&contract);
     Ok(contract)

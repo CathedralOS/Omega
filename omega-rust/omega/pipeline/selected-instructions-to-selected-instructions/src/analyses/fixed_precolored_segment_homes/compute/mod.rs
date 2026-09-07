@@ -56,12 +56,6 @@ pub(super) fn compute(
         physical,
         &mut work,
     )?;
-    let structural_unit_functions = functions::derive(
-        &requirements.plan().structural_unit_functions,
-        &ranges.plan().structural_unit_functions,
-        physical,
-        &mut work,
-    )?;
     let usage = work.finish(budget)?;
     Ok(FixedPrecoloredSegmentHomePlan {
         split_requirements: requirements.receipt().identity(),
@@ -77,6 +71,5 @@ pub(super) fn compute(
         budget,
         usage,
         functions,
-        structural_unit_functions,
     })
 }

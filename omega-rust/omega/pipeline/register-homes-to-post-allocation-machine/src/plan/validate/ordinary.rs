@@ -37,6 +37,7 @@ pub(super) fn validate_ordinary_functions<S: ValidatedSelectedAnalysis>(
                 function: function_index,
             })?;
         if effect_function.machine != selected_function.machine
+            || actual_function.outgoing_arguments != selected_function.outgoing_arguments
             || actual_function.machine != selected_function.machine
             || effect_function.blocks.len() != selected_function.blocks.len()
             || actual_function.blocks.len() != selected_function.blocks.len()

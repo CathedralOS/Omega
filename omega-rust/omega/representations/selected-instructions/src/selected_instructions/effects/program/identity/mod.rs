@@ -7,23 +7,21 @@ mod alternative;
 mod instruction;
 mod ownership;
 mod provenance;
-mod structural;
 mod values;
 
 #[cfg(test)]
 mod tests;
 use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
-use instruction::{encode_cfg_instruction, encode_ordinary_instruction};
-pub use ownership::encode_ownership;
+use instruction::encode_cfg_instruction;
+pub use ownership::{encode_effect_link, encode_ownership};
 pub use provenance::encode_provenance;
-pub use structural::{encode_effect_link, encode_structural_call};
 use values::{encode_len, encode_target};
 
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v9\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v10\0")
 }
 
 fn identity_with_domain(
@@ -63,20 +61,5 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
         }
     }
 
-    encode_len(&mut bytes, plan.structural_unit_functions.len());
-    for function in &plan.structural_unit_functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        bytes.extend_from_slice(&function.block.0.to_le_bytes());
-        match &function.call {
-            None => bytes.push(0),
-            Some(call) => {
-                bytes.push(1);
-                encode_structural_call(&mut bytes, call);
-            }
-        }
-        encode_ordinary_instruction(&mut bytes, &function.return_instruction);
-        encode_effect_link(&mut bytes, function.return_effect);
-        encode_ownership(&mut bytes, &function.return_ownership);
-    }
     bytes
 }

@@ -128,7 +128,13 @@ fn project_leaf_fragments(projected: &ProjectedFragments) -> Result<MachineCodeP
             return Err("fragment publication requires an eight-byte pointer target");
         }
     };
-    if !fragments.structural_unit_functions.is_empty() {
+    if staged
+        .source()
+        .selected_plan()
+        .functions
+        .iter()
+        .any(|function| function.structural.is_some())
+    {
         return Err("optimized native publication does not yet admit structural Unit fragments");
     }
 

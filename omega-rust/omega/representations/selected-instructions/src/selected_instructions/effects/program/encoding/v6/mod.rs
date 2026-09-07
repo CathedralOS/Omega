@@ -16,9 +16,6 @@ use crate::{
     MachineLatencyKnowledge, MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior,
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
-    SelectedMicrosoftX64OwnedIndirectPairLayout, SelectedStructuralUnitIndirectBinding,
-    StructuralUnitCallBarrier, StructuralUnitCallEffect, StructuralUnitCallEffectDeclaration,
-    StructuralUnitCallFrameEffect, StructuralUnitCallMemoryEffect,
 };
 use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
 use register_model::{
@@ -34,14 +31,12 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use crate::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
     PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
-    StructuralUnitCallMachineEffects, StructuralUnitFunctionMachineEffects,
     pre_allocation_machine_effect_identity,
 };
 
 mod framing;
 mod instruction;
 mod ownership;
-mod structural;
 mod values;
 
 pub use framing::{
@@ -53,11 +48,10 @@ pub use instruction::{
     decode_alternative, decode_alternative_legacy, decode_alternative_without_jump,
     decode_alternative_without_scalar_call, decode_provenance,
 };
+pub use ownership::decode_effect_link;
 pub use ownership::decode_ownership;
-use structural::decode_structural_function;
-pub use structural::{decode_effect_link, decode_structural_call};
 use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligation};
 pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 11;
+const VERSION: u32 = 12;

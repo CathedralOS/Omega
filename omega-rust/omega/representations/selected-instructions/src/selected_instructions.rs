@@ -23,19 +23,13 @@ pub mod liveness;
 pub mod provenance;
 pub mod values;
 
+pub use calls::ordinary::*;
 pub use calls::projected_return::{
     SelectedProjectedStructuralCallReturn, SelectedProjectedStructuralCallReturnRecipe,
     SelectedStructuralCallConstraint, SelectedStructuralCopyConstraint,
     SelectedStructuralCopyOperand, SelectedStructuralFixedOperand,
     SelectedStructuralFragmentConstraint, SelectedStructuralFragmentSite,
     SelectedStructuralReturnConstraint, SelectedStructuralTransfer,
-};
-pub use calls::structural_unit::{
-    SelectedBoundarySettlement, SelectedMicrosoftX64OwnedIndirectPairLayout,
-    SelectedStructuralUnitAbi, SelectedStructuralUnitAbiRecipe, SelectedStructuralUnitCallArgument,
-    SelectedStructuralUnitCallInstruction, SelectedStructuralUnitCallSource,
-    SelectedStructuralUnitFunction, SelectedStructuralUnitIndirectBinding,
-    SelectedStructuralUnitParameter, SelectedStructuralUnitReturn,
 };
 pub use constraints::{
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedSelectionConstraints,
@@ -53,12 +47,8 @@ pub use effects::{
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
     PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, StructuralUnitCallBarrier, StructuralUnitCallEffect,
-    StructuralUnitCallEffectDeclaration, StructuralUnitCallFrameEffect,
-    StructuralUnitCallMachineEffects, StructuralUnitCallMemoryEffect,
-    StructuralUnitFunctionMachineEffects, ValidatedMachineEffectCatalog,
-    machine_effect_catalog_identity, pre_allocation_machine_effect_identity,
-    validate_machine_effect_catalog,
+    PreAllocationMachineEffectPlan, ValidatedMachineEffectCatalog, machine_effect_catalog_identity,
+    pre_allocation_machine_effect_identity, validate_machine_effect_catalog,
 };
 pub use identity::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
@@ -80,11 +70,6 @@ pub struct SelectedInstructionPlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<SelectedFunction>,
-    /// Structural-ABI Unit functions are deliberately kept out of the scalar
-    /// VReg roster. Their selected call bundle has no allocator-managed value
-    /// and cannot acquire a fabricated scalar operand merely to enter the
-    /// ordinary instruction vocabulary.
-    pub structural_unit_functions: Vec<SelectedStructuralUnitFunction>,
     /// Atomic result-bearing structural selections retain their own semantic
     /// and ABI roster. They intentionally create no scalar virtual register.
     pub projected_structural_call_returns: Vec<SelectedProjectedStructuralCallReturn>,

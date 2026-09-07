@@ -55,6 +55,7 @@ fn fixture() -> (
     };
     let machine = PostAllocationMachineInstruction {
         instruction,
+        address: None,
         alternative: MachineAlternative {
             key: MachineAlternativeKey {
                 family: MachineAlternativeFamily::MaterializeI64,
@@ -109,6 +110,7 @@ fn xor_zero_admission_reconstructs_canonical_bytes_and_transformed_flags() {
         &selected,
         &machine,
         &physical,
+        None,
         SelectedFormMachineDisposition::RetainedV1,
         Some(MaterializationDisposition::X86XorZero(&disposition)),
     )
@@ -170,6 +172,7 @@ fn xor_zero_admission_rejects_baseline_destination_count_and_flag_corruption() {
                 &selected,
                 &machine,
                 &physical,
+                None,
                 SelectedFormMachineDisposition::RetainedV1,
                 Some(MaterializationDisposition::X86XorZero(&disposition)),
             )

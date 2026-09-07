@@ -101,7 +101,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 83;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 84;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -3185,7 +3185,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 ));
             }
         }
-        let owner_valid = match custody.owner {
+        let owner_valid = if incoming_call {
+            incoming_structural::call_attribution_is_exact(record, function, installed)
+        } else {
+            match custody.owner {
             CallSiteOwner::Operation(operation) => {
                 record.semantic_code_attribution.iter().any(|attribution| {
                     attribution.machine == installed.machine
@@ -3236,6 +3239,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 })
                         })
             }
+        }
         };
         let scalar_count = custody.scalar_arguments.len();
         let mixed_roster_is_exact = if let Some(abi) = callee_unit_scalar_abi {
@@ -3609,11 +3613,11 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             && super::expected_projected_copy_bytes(record.target, argument)
                                 .as_deref()
                                 != Some(argument.bytes.as_slice()))
-                        || argument.code_offset < custody.code_offset
+                        || (!incoming_call && argument.code_offset < custody.code_offset)
                         || argument
                             .code_offset
                             .checked_add(argument.byte_count)
-                            .is_none_or(|argument_end| argument_end > end)
+                            .is_none_or(|argument_end| argument_end > if incoming_call { custody.code_offset } else { end })
                         || argument
                             .source_byte_offset
                             .checked_add(u32::from(argument.shape.byte_size))

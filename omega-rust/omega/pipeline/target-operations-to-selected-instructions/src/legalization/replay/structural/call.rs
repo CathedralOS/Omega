@@ -7,13 +7,27 @@ pub(crate) fn replay_structural_call(
     target_call: &TargetUnitOperation,
     abstract_call: &AbstractOperation,
     optimized_call: &optimization_unit::OptimizationNode,
-    proposed: &legalized_operations::LegalizedCallUnit,
+    row: &legalized_operations::LegalizedScalarInstruction,
     caller_parameters: &[legalized_operations::LegalizedCallUnitParameter],
     caller_claims: &[terminal_psi::EntryClaim],
     target_plan: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
+    let legalized_operations::LegalizedScalarInstructionKind::Call(proposed) = &row.kind else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
+    let expected_plan = match target_call {
+        TargetUnitOperation::Call { call_plan, .. }
+        | TargetUnitOperation::InstalledProviderCall { call_plan, .. } => call_plan,
+        _ => return Err(Error::NonCanonicalLegalizedPlan),
+    };
+    if row.result.is_some()
+        || proposed.result_placement.is_some()
+        || &proposed.call_plan != expected_plan
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
     let (
         psi_operation,
         callee,
@@ -146,21 +160,21 @@ pub(crate) fn replay_structural_call(
         || !optimized_call.uses.is_empty()
         || !optimized_call.successors.is_empty()
         || proposed.source != expected_source
-        || proposed.operation != psi_operation
+        || row.operation != psi_operation
         || proposed.callee != callee
         || proposed.claim_transfers != *claim_transfers
         || proposed.requirement_obligations != requirement_obligations
         || proposed.crash_continuations != crash_continuations
-        || proposed.fuel != optimized_call.fuel
-        || proposed.effect != optimized_call.effect
-        || proposed.ownership != optimized_call.ownership
+        || row.fuel != optimized_call.fuel
+        || row.effect != optimized_call.effect
+        || row.ownership != optimized_call.ownership
         || proposed.arguments.len() != structural_arguments.len()
         || proposed.arguments.len() != target_arguments.len()
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
     proposed
-        .validate_source()
+        .validate_source(&row.ownership)
         .map_err(|_| Error::NonCanonicalLegalizedPlan)?;
     for (((proposed_argument, semantic), target_argument), source) in proposed
         .arguments
@@ -177,8 +191,7 @@ pub(crate) fn replay_structural_call(
         let Some(source) = source else {
             return Err(Error::NonCanonicalLegalizedPlan);
         };
-        if proposed_argument.semantic != *semantic
-            || proposed_argument.target != *target_argument
+        if !matches!(proposed_argument, legalized_operations::LegalizedScalarArgument::Structural {semantic: actual, target} if actual == semantic && target == target_argument)
             || semantic.place != target_argument.place
             || semantic.access != target_argument.access
             || !semantic.path.is_empty()

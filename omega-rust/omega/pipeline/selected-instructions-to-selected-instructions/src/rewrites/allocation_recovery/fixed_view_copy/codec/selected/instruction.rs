@@ -80,6 +80,10 @@ pub(super) fn decode_instruction(
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
+        SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Store64 { .. } => 17,
+        SelectedInstructionKind::FrameAddress { .. } => 18,
+        SelectedInstructionKind::CallUnit { .. } => 19,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
@@ -99,6 +103,15 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     };
     bytes.push(tag);
     match kind {
+        SelectedInstructionKind::Load64 { byte_offset } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes())
+        }
+        SelectedInstructionKind::Store64 { slot, byte_offset }
+        | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
+            bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+            bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::ExactAddI64 {
             obligation,
@@ -125,7 +138,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::CallI64 { callee } => {
+        SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
         }
         _ => {}
@@ -148,6 +162,24 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
+        16 => SelectedInstructionKind::Load64 {
+            byte_offset: cursor.u32()?,
+        },
+        tag @ (17 | 18) => {
+            let slot = selected_instructions::OutgoingArgumentSlotId {
+                operation: decode_id(cursor, semantic_vocabulary::OperationId::new)?,
+                argument_index: cursor.u32()?,
+            };
+            let byte_offset = cursor.u32()?;
+            if tag == 17 {
+                SelectedInstructionKind::Store64 { slot, byte_offset }
+            } else {
+                SelectedInstructionKind::FrameAddress { slot, byte_offset }
+            }
+        }
+        19 => SelectedInstructionKind::CallUnit {
+            callee: decode_id(cursor, MachineId::new)?,
+        },
         14 => SelectedInstructionKind::Jump,
         0 => SelectedInstructionKind::CompareI64Zero,
         1 => SelectedInstructionKind::MaterializeI64 {
@@ -251,5 +283,33 @@ mod tests {
             decode_kind(&mut cursor).unwrap(),
             SelectedInstructionKind::ConditionalBranchI64LessThan
         );
+    }
+}
+#[test]
+#[cfg(test)]
+fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
+    let slot = selected_instructions::OutgoingArgumentSlotId {
+        operation: semantic_vocabulary::OperationId::new(43).unwrap(),
+        argument_index: 1,
+    };
+    for kind in [
+        SelectedInstructionKind::Load64 { byte_offset: 8 },
+        SelectedInstructionKind::Store64 {
+            slot,
+            byte_offset: 8,
+        },
+        SelectedInstructionKind::FrameAddress {
+            slot,
+            byte_offset: 0,
+        },
+        SelectedInstructionKind::CallUnit {
+            callee: MachineId::new(47).unwrap(),
+        },
+    ] {
+        let mut bytes = Vec::new();
+        encode_kind(&mut bytes, kind);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
+        assert_eq!(cursor.remaining(), 0);
     }
 }

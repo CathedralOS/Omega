@@ -82,6 +82,16 @@ pub(super) fn apply(
         .iter()
         .position(|instruction| instruction.id == first.instruction)
     {
+        let insertion_index =
+            u32::try_from(index).map_err(|_| PressureRematerializationError::WorkOverflow)?;
+        for settlement in &mut function.boundary_settlements {
+            if settlement.block == block.id && settlement.instruction_index >= insertion_index {
+                settlement.instruction_index = settlement
+                    .instruction_index
+                    .checked_add(1)
+                    .ok_or(PressureRematerializationError::WorkOverflow)?;
+            }
+        }
         block.instructions.insert(index, new_instruction);
     } else {
         let terminator_id = match &block.terminator {
@@ -95,6 +105,16 @@ pub(super) fn apply(
             return Err(PressureRematerializationError::DecisionMismatch {
                 function: function_index,
             });
+        }
+        let insertion_index = u32::try_from(block.instructions.len())
+            .map_err(|_| PressureRematerializationError::WorkOverflow)?;
+        for settlement in &mut function.boundary_settlements {
+            if settlement.block == block.id && settlement.instruction_index >= insertion_index {
+                settlement.instruction_index = settlement
+                    .instruction_index
+                    .checked_add(1)
+                    .ok_or(PressureRematerializationError::WorkOverflow)?;
+            }
         }
         block.instructions.push(new_instruction);
     }

@@ -16,9 +16,10 @@ pub fn stage_optimized_layout_independent_selected_form_encoding<S: ValidatedSel
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
-        selected, machine, physical, None,
+        selected, machine, physical, frame, None,
     )
 }
 
@@ -28,10 +29,11 @@ pub fn validate_optimized_layout_independent_selected_form_encoding<
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
-        selected, machine, physical, None, artifact,
+        selected, machine, physical, frame, None, artifact,
     )
 }
 
@@ -45,6 +47,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding_after_aarch64_c
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     fusion: &StagedOptimizedAarch64CbnzFusion,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let optimization =
@@ -53,6 +56,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding_after_aarch64_c
         selected,
         machine,
         physical,
+        frame,
         Some(&optimization),
     )
 }
@@ -64,6 +68,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_after_aarch6
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     fusion: &StagedOptimizedAarch64CbnzFusion,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
@@ -73,6 +78,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_after_aarch6
         selected,
         machine,
         physical,
+        frame,
         Some(&optimization),
         artifact,
     )
@@ -87,6 +93,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding_after_aarch64_m
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     materialization: &StagedOptimizedAarch64MovnMaterialization,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let optimization =
@@ -95,6 +102,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding_after_aarch64_m
         selected,
         machine,
         physical,
+        frame,
         Some(&optimization),
     )
 }
@@ -105,6 +113,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_after_aarch6
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     materialization: &StagedOptimizedAarch64MovnMaterialization,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
@@ -114,6 +123,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_after_aarch6
         selected,
         machine,
         physical,
+        frame,
         Some(&optimization),
         artifact,
     )

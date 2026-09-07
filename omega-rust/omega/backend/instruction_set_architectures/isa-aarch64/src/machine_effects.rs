@@ -52,7 +52,6 @@ pub fn aarch64_machine_effect_catalog(
         target,
         register_constraints: constraints.identity(),
         selected_keys: selected_keys.clone(),
-        structural_unit_call: None,
         declarations: selected_keys
             .declaration_keys()
             .into_iter()
@@ -104,7 +103,10 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
-        structural_unit_call: None,
+        load64: None,
+        store64: None,
+        frame_address: None,
+        call_unit: None,
         call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
             aarch64_aapcs64_register_call_keys()
         } else {
@@ -195,6 +197,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
+        MachineSemanticKind::Load64
+        | MachineSemanticKind::Store64
+        | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::CallUnit => {
+            panic!("memory and Unit call forms are not admitted on this target")
+        }
         MachineSemanticKind::CallI64 => {
             panic!("scalar calls use their dedicated declaration")
         }
@@ -260,6 +268,12 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
+        MachineSemanticKind::Load64
+        | MachineSemanticKind::Store64
+        | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::CallUnit => {
+            panic!("memory and Unit call forms are not admitted on this target")
+        }
         MachineSemanticKind::CallI64 => {
             panic!("scalar calls use their dedicated declaration")
         }

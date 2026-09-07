@@ -119,6 +119,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         selected_stage.selected(),
         machine,
         physical,
+        None,
     )
     .unwrap();
     let baseline_layout = stage_optimized_resolved_selected_form_layout(
@@ -133,6 +134,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
             selected_stage.selected(),
             machine,
             physical,
+            None,
             optimization,
         )
         .unwrap();
@@ -210,6 +212,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         selected_stage.selected(),
         machine,
         physical,
+        None,
         optimization,
         &fused_encoding,
     )
@@ -257,6 +260,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
             selected_stage.selected(),
             machine,
             physical,
+            None,
             optimization,
             &corrupt_encoding,
         ),

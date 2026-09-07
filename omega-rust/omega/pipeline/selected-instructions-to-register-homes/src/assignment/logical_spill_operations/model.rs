@@ -300,6 +300,7 @@ pub enum LogicalSpillOperationDecodeError {
     InvalidMachineId(u64),
     InvalidBlockId(u64),
     InvalidValueId(u64),
+    InvalidPlaceId(u64),
     InvalidFuelSchedule(u32),
     InvalidBudget,
     InvalidUsage,

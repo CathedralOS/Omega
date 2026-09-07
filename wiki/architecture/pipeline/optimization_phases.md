@@ -455,19 +455,30 @@ bind the exact arity-key roster. Empty physical selection uses the same
 admission and encoding route. Microsoft calls reserve their required shadow
 area in the same frame calculation used by publication replay.
 The existing Microsoft-x64 structural Unit family also reaches this shared
-object, image and installation path with empty or nonempty selections: an
-owned-indirect pair leaf, or one entry caller passing that pair to one leaf.
+object, image and installation path with empty or nonempty selections,
+including x86 branch relaxation when no branch is eligible. Its functions use
+the same ordinary instruction graph and frame planning as scalar calls.
+Frame-free leaves remain frame-free. A structural signature retains the two owned indirect parameters;
+call, outgoing-slot and memory-access records retain their exact semantic and ABI
+joins. Ordinary `Load64`, `Store64`, `FrameAddress` and `CallUnit` instructions
+perform the copies and call. Allocation chooses homes for the incoming pointer
+snapshots and copy temporaries; it does not select an atomic call template.
 The call may be authored or selected from an admitted provider conformance;
 claim-completion prefixes retain their execution and receipt evidence as
-zero-byte metadata. Publication records incoming pointer locations directly,
-not invented local homes or cleanup. Provider calls keep their distinct origin
+zero-byte metadata anchored to the ordinary graph. Publication records incoming
+pointer locations directly, not invented local homes or cleanup. Provider calls keep their distinct origin
 and exact conformance through installation encoding and independent replay.
-The call's 72-byte outbound area and eight-byte return address contribute 80
-bytes to stack demand without becoming a persistent frame. Larger structural
-graphs, other ABIs and structural executable-entry provisioning remain outside
-this bounded family; object/image construction does not admit an entrypoint.
-The input classifier enforces the existing singleton or caller-to-leaf topology
-before routing, rather than diverting unsupported programs into later rejection.
+The frame reserves the Microsoft shadow area and both outgoing copy slots;
+preservation storage follows that outgoing extent. Publication derives copy and
+call intervals from the actual instruction spans, including intervening spill
+traffic, and computes stack demand from the checked frame and nested calls.
+There is no fixed 89-byte call or transient 72-byte frame contract. Closed
+acyclic function rosters are not limited to a singleton or caller-to-leaf pair.
+Each function still admits only the bounded owned-indirect-pair leaf, one call,
+or claim-completion-prefix shape. Other structural ABIs, general structural
+operations and executable-entry provisioning remain unfinished;
+object/image construction does not admit an entrypoint.
+The input classifier checks the retained source and ABI contracts before routing.
 This boundary is checked before execution; a failure never
 selects the old route. Empty and selected fragment publication bind the exact
 validated abstract projection, final optimization unit and shared object custody.

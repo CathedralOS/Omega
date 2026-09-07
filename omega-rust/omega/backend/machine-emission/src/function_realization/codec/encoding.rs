@@ -57,7 +57,6 @@ pub(super) fn encode_manifest_content(
     canonical.push(match manifest.layout_policy {
         SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 1,
         SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 2,
-        SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 => 3,
         SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 4,
         SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 => 5,
     });
@@ -70,10 +69,6 @@ pub(super) fn encode_manifest_content(
         manifest.statistics.instructions,
         manifest.statistics.bytes,
         manifest.statistics.resolved_conditional_branches,
-        manifest.statistics.structural_unit_functions,
-        manifest.statistics.structural_unit_blocks,
-        manifest.statistics.structural_unit_instructions,
-        manifest.statistics.structural_unit_bytes,
         manifest.statistics.unresolved_internal_machine_fixups,
     ] {
         canonical.extend_from_slice(&value.to_le_bytes());

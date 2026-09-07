@@ -16,23 +16,25 @@ fn plan() -> RegisterHomePlan {
         ranges: LiveRangeIdentity::from_bytes([2; 32]),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
         allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([4; 32]),
-        functions: vec![FunctionRegisterHomes {
-            machine: MachineId::new(1).unwrap(),
-            assignments: vec![VirtualRegisterHome {
-                virtual_register: VirtualRegisterId(0),
-                class: RegisterClassId(1),
-                view: RegisterViewId(2),
-            }],
-        }],
-        structural_unit_functions: vec![FunctionRegisterHomes {
-            machine: MachineId::new(2).unwrap(),
-            assignments: Vec::new(),
-        }],
+        functions: vec![
+            FunctionRegisterHomes {
+                machine: MachineId::new(1).unwrap(),
+                assignments: vec![VirtualRegisterHome {
+                    virtual_register: VirtualRegisterId(0),
+                    class: RegisterClassId(1),
+                    view: RegisterViewId(2),
+                }],
+            },
+            FunctionRegisterHomes {
+                machine: MachineId::new(2).unwrap(),
+                assignments: Vec::new(),
+            },
+        ],
     }
 }
 
 #[test]
-fn version_six_bytes_survive_representation_ownership_changes() {
+fn retired_split_roster_wire_rejects_before_identity_comparison() {
     // Fixed independently from the v6 field order, not from the encoder under test.
     let identity = [
         0xe0, 0x14, 0x35, 0x59, 0x35, 0x00, 0xd5, 0x03, 0x6e, 0x3e, 0xad, 0x06, 0xff, 0xc8, 0xc9,
@@ -54,9 +56,10 @@ fn version_six_bytes_survive_representation_ownership_changes() {
         expected.extend_from_slice(&value.to_le_bytes());
     }
     assert_eq!(expected.len(), 228);
-    assert_eq!(register_home_identity(&plan()).bytes(), identity);
-    assert_eq!(plan().encode(), expected);
-    assert_eq!(RegisterHomePlan::decode(&expected), Ok(plan()));
+    assert_eq!(
+        RegisterHomePlan::decode(&expected),
+        Err(RegisterHomeDecodeError::UnsupportedVersion(6))
+    );
 }
 
 #[test]
@@ -76,8 +79,10 @@ fn identity_binds_every_home_domain() {
         |plan| plan.functions[0].assignments[0].view = RegisterViewId(3),
         |plan| plan.functions[0].assignments.clear(),
         |plan| plan.functions.clear(),
-        |plan| plan.structural_unit_functions.clear(),
-        |plan| plan.structural_unit_functions[0].machine = MachineId::new(3).unwrap(),
+        |plan| {
+            plan.functions.pop();
+        },
+        |plan| plan.functions[1].machine = MachineId::new(3).unwrap(),
     ];
     for mutate in mutations {
         let mut changed = plan();

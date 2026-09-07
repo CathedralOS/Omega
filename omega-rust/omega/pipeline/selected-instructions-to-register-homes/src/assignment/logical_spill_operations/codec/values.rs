@@ -80,6 +80,25 @@ pub(super) fn decode_scalar_type(
 
 pub(super) fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+            encode_len(bytes, parameter_index);
+        }
+        VirtualRegisterOrigin::AbiTransport {
+            instruction,
+            place,
+            byte_offset,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+
         VirtualRegisterOrigin::BlockParameter {
             source_value,
             block,
@@ -135,6 +154,24 @@ pub(super) fn decode_origin(
             block: selected_instructions::SelectedBlockId(u32::from_le_bytes(cursor.array()?)),
             parameter_index: cursor.length()?,
         }),
+        4 => {
+            let raw = u64::from_le_bytes(cursor.array()?);
+            Ok(VirtualRegisterOrigin::StructuralParameter {
+                place: semantic_vocabulary::PlaceId::new(raw)
+                    .ok_or(LogicalSpillOperationDecodeError::InvalidPlaceId(raw))?,
+                parameter_index: cursor.length()?,
+            })
+        }
+        5 => {
+            let instruction = SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
+            let raw = u64::from_le_bytes(cursor.array()?);
+            Ok(VirtualRegisterOrigin::AbiTransport {
+                instruction,
+                place: semantic_vocabulary::PlaceId::new(raw)
+                    .ok_or(LogicalSpillOperationDecodeError::InvalidPlaceId(raw))?,
+                byte_offset: u32::from_le_bytes(cursor.array()?),
+            })
+        }
         tag => Err(LogicalSpillOperationDecodeError::UnknownOrigin(tag)),
     }
 }

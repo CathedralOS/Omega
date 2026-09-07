@@ -33,9 +33,6 @@ pub(super) fn apply(
     if source.functions.len() != protocol.functions.len() {
         return Err(FrameApplicationError::FunctionRosterMismatch);
     }
-    if !source.structural_unit_functions.is_empty() {
-        return Err(FrameApplicationError::RootMismatch);
-    }
 
     let mut fragments = source.clone();
     let mut applications = Vec::with_capacity(fragments.functions.len());
@@ -411,7 +408,6 @@ mod tests {
                     instructions: vec![call, ret],
                 }],
             }],
-            structural_unit_functions: Vec::new(),
         };
         plan.identity = plan.recomputed_identity();
         plan

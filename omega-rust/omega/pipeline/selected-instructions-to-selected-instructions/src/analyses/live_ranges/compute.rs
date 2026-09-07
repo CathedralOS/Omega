@@ -26,7 +26,7 @@ use fragments::{
     after_point, before_point, block_domain, connector, fragments_from_points, fragments_overlap,
     operand_point, virtual_fragments,
 };
-use function::{compute_function, compute_structural_function};
+use function::compute_function;
 
 pub(crate) fn compute_terminal_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,
@@ -40,14 +40,6 @@ pub(crate) fn compute_terminal_live_ranges(
         .enumerate()
         .map(|(index, (selected, live))| compute_function(index, selected, live))
         .collect::<Result<Vec<_>, _>>()?;
-    let structural_unit_functions = selected
-        .selected_plan()
-        .structural_unit_functions
-        .iter()
-        .zip(&liveness.plan().structural_unit_functions)
-        .enumerate()
-        .map(|(index, (selected, live))| compute_structural_function(index, selected.machine, live))
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(LiveRangePlan {
         selected: selected.selected_identity(),
         liveness: liveness.receipt().identity(),
@@ -55,7 +47,6 @@ pub(crate) fn compute_terminal_live_ranges(
         fuel_schedule: selected.fuel_schedule_identity(),
         target: selected.selected_plan().target,
         functions,
-        structural_unit_functions,
     })
 }
 

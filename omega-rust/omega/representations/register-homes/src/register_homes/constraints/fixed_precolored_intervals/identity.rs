@@ -12,7 +12,7 @@ pub fn fixed_precolored_interval_plan_identity(
     plan: &FixedPrecoloredIntervalPlan,
 ) -> FixedPrecoloredIntervalPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.fixed-precolored-point-intervals.v1\0");
+    bytes.extend_from_slice(b"omega.fixed-precolored-point-intervals.v2\0");
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
@@ -25,7 +25,6 @@ pub fn fixed_precolored_interval_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    encode_family(&mut bytes, &plan.structural_unit_functions);
     FixedPrecoloredIntervalPlanIdentity(Sha256::digest(bytes).into())
 }
 

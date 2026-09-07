@@ -49,10 +49,6 @@ pub struct PostAllocationMachinePlan {
     pub machine_effect_catalog: MachineEffectCatalogIdentity,
     pub choice_rule: MachineAlternativeChoiceRule,
     pub functions: Vec<PostAllocationMachineFunction>,
-    /// Structural-signature Unit functions remain parallel to the ordinary
-    /// scalar/VReg roster. Their optional call is one atomic machine effect;
-    /// only the ordinary `ReturnUnit` row selects an encoded alternative.
-    pub structural_unit_functions: Vec<PostAllocationStructuralUnitFunction>,
 }
 
 impl PostAllocationMachinePlan {

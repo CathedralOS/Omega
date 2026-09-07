@@ -1,6 +1,3 @@
-use isa_x86_64::{
-    X86_64StructuralUnitCallTemplateError, X86_64StructuralUnitInternalControlResolutionError,
-};
 use semantic_vocabulary::MachineId;
 
 use crate::FunctionFragmentEmissionError;
@@ -21,11 +18,6 @@ pub enum RelocationFreeTextSectionPlacementError {
     UnresolvedInternalMachineFixups,
     MissingInternalMachineTarget(MachineId),
     InternalCallOutOfRange,
-    StructuralUnitCallTemplate(MachineId, X86_64StructuralUnitCallTemplateError),
-    StructuralUnitCallResolution(
-        MachineId,
-        X86_64StructuralUnitInternalControlResolutionError,
-    ),
     ArtifactMismatch,
     ManifestMismatch,
     ReceiptMismatch,
@@ -59,12 +51,6 @@ impl From<crate::TextPlacementError> for RelocationFreeTextSectionPlacementError
             Source::DuplicateSemanticEntry(machine) => Self::DuplicateSemanticEntry(machine),
             Source::MissingInternalMachineTarget(machine) => {
                 Self::MissingInternalMachineTarget(machine)
-            }
-            Source::StructuralUnitCallTemplate(machine, error) => {
-                Self::StructuralUnitCallTemplate(machine, error)
-            }
-            Source::StructuralUnitCallResolution(machine, error) => {
-                Self::StructuralUnitCallResolution(machine, error)
             }
         }
     }

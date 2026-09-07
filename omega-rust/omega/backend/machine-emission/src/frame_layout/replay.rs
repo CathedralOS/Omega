@@ -4,7 +4,7 @@ use selected_instructions::MachineAlternativeFamily;
 use target::Architecture;
 
 use crate::frame_layout::{
-    AllocatedCalleeSavedFunctionKind, FrameAbiPreservationConvention, ReturnAddressFrameCustody,
+    FrameAbiPreservationConvention, ReturnAddressFrameCustody,
     StagedOptimizedPostAllocationMachinePlan, TargetFrameLayoutError as Error,
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy, ValidatedAllocatedCalleeSavedRequirements,
     ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetRegisterEnvironment,
@@ -37,18 +37,7 @@ pub(super) fn validate_layout(
     {
         return Err(Error::RootMismatch);
     }
-    if !current.structural_unit_functions.is_empty()
-        || required
-            .functions
-            .iter()
-            .any(|row| row.kind != AllocatedCalleeSavedFunctionKind::Ordinary)
-        || saved
-            .functions
-            .iter()
-            .any(|row| row.kind != AllocatedCalleeSavedFunctionKind::Ordinary)
-    {
-        return Err(Error::StructuralFunctionUnsupported);
-    }
+
     if current.functions.len() != required.functions.len()
         || current.functions.len() != saved.functions.len()
     {
@@ -64,10 +53,7 @@ pub(super) fn validate_layout(
         .zip(&saved.functions)
         .zip(&candidate.functions)
     {
-        if source.machine != requirement.machine
-            || source.machine != storage.machine
-            || requirement.kind != storage.kind
-        {
+        if source.machine != requirement.machine || source.machine != storage.machine {
             return Err(Error::FunctionRosterMismatch);
         }
         let calls = source
@@ -75,24 +61,51 @@ pub(super) fn validate_layout(
             .iter()
             .flat_map(|block| &block.instructions)
             .any(|instruction| {
-                instruction.alternative.key.family == MachineAlternativeFamily::CallI64
+                matches!(
+                    instruction.alternative.key.family,
+                    MachineAlternativeFamily::CallI64 | MachineAlternativeFamily::CallUnit
+                )
             });
-        let outgoing = if calls && required.abi == FrameAbiPreservationConvention::MicrosoftX64 {
+        let shadow = if calls && required.abi == FrameAbiPreservationConvention::MicrosoftX64 {
             32_u64
         } else {
             0
         };
+        let mut outgoing = shadow;
+        for (index, slot) in source.outgoing_arguments.iter().enumerate() {
+            let end = u64::from(slot.abi_stack_byte_offset) + u64::from(slot.byte_size);
+            if !calls
+                || required.abi != FrameAbiPreservationConvention::MicrosoftX64
+                || slot.byte_size == 0
+                || !slot.alignment.is_power_of_two()
+                || u64::from(slot.abi_stack_byte_offset) < shadow
+                || !slot
+                    .abi_stack_byte_offset
+                    .is_multiple_of(u32::from(slot.alignment))
+                || end > u64::from(u32::MAX)
+                || source.outgoing_arguments[..index].iter().any(|earlier| {
+                    earlier.id == slot.id
+                        || (earlier.id.operation == slot.id.operation
+                            && u64::from(earlier.abi_stack_byte_offset) < end
+                            && u64::from(slot.abi_stack_byte_offset)
+                                < u64::from(earlier.abi_stack_byte_offset)
+                                    + u64::from(earlier.byte_size))
+                })
+            {
+                return Err(Error::NonCanonicalLayout);
+            }
+            outgoing = outgoing.max(end);
+        }
         let area = storage
             .abstract_area_bytes
             .checked_add(outgoing)
             .ok_or(Error::GeometryOverflow)?;
         if row.machine != source.machine
-            || row.kind != AllocatedCalleeSavedFunctionKind::Ordinary
             || row.contains_call != calls
             || row.pre_call_stack_alignment != 16
             || row.abi_stack_alignment_bytes != 16
             || row.outgoing_abi_area.byte_size != outgoing
-            || u64::from(row.outgoing_abi_area.shadow_bytes) != outgoing
+            || u64::from(row.outgoing_abi_area.shadow_bytes) != shadow
             || row.callee_save_slots.len() != storage.slots.len()
             || row
                 .callee_save_slots

@@ -27,18 +27,8 @@ pub(crate) fn derive(
     let mut boundaries = derive_roster(
         requirements.plan().functions.as_slice(),
         homes.plan().functions.as_slice(),
-        false,
         &mut work,
     )?;
-    let structural = derive_roster(
-        requirements.plan().structural_unit_functions.as_slice(),
-        homes.plan().structural_unit_functions.as_slice(),
-        true,
-        &mut work,
-    )?;
-    if !structural.is_empty() {
-        return Err(FixedViewCopyError::UnsupportedSegmentBoundarySet { function: 0 });
-    }
     boundaries.sort_by_key(boundary_key);
     Ok(FixedViewBoundaryEvidence {
         boundaries,
@@ -82,7 +72,6 @@ fn validate_roots(
 fn derive_roster(
     requirements: &[FunctionFixedPrecoloredSplitRequirements],
     homes: &[FunctionFixedPrecoloredSegmentHomes],
-    structural: bool,
     work: &mut Work,
 ) -> Result<Vec<AuthenticatedFixedViewBoundary>, FixedViewCopyError> {
     if requirements.len() != homes.len() {
@@ -178,13 +167,6 @@ fn derive_roster(
         }
         if assignment_index != homes.assignments.len() {
             return Err(FixedViewCopyError::SegmentEvidenceMismatch);
-        }
-        if structural
-            && boundaries
-                .iter()
-                .any(|boundary| boundary.function == function)
-        {
-            return Err(FixedViewCopyError::UnsupportedSegmentBoundarySet { function });
         }
     }
     Ok(boundaries)

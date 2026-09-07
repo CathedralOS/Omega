@@ -21,7 +21,7 @@ fn every_representable_direct_manifest_field_rejects_after_reauthentication() {
     let baseline = staged.manifest().record().clone();
     // Stage and scope are singleton in memory; closed tags are covered by the
     // wire matrix. Post-allocation custody has its own positive-shape matrix.
-    let mutations: [(&str, ManifestMutation); 32] = [
+    let mutations: [(&str, ManifestMutation); 28] = [
         ("selections", |record| {
             record.selections = OptimizationSelectionIdentity::from_bytes([0xb1; 32])
         }),
@@ -109,18 +109,6 @@ fn every_representable_direct_manifest_field_rejects_after_reauthentication() {
         ("statistics.bytes", |record| record.statistics.bytes += 1),
         ("statistics.resolved_conditional_branches", |record| {
             record.statistics.resolved_conditional_branches += 1
-        }),
-        ("statistics.structural_unit_functions", |record| {
-            record.statistics.structural_unit_functions += 1
-        }),
-        ("statistics.structural_unit_blocks", |record| {
-            record.statistics.structural_unit_blocks += 1
-        }),
-        ("statistics.structural_unit_instructions", |record| {
-            record.statistics.structural_unit_instructions += 1
-        }),
-        ("statistics.structural_unit_bytes", |record| {
-            record.statistics.structural_unit_bytes += 1
         }),
         ("statistics.unresolved_internal_machine_fixups", |record| {
             record.statistics.unresolved_internal_machine_fixups += 1

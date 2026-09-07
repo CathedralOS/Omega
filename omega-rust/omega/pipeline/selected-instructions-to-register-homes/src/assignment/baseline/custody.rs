@@ -31,7 +31,6 @@ pub(super) fn custody_receipt(
         homes: homes.identity(),
         post_allocation_manifest: manifest,
         function_count: homes.function_count(),
-        structural_unit_function_count: homes.structural_unit_function_count(),
         assignment_count: homes.assignment_count(),
     }
 }

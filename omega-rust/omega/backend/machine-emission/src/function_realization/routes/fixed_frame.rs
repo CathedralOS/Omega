@@ -1,4 +1,4 @@
-//! Direct ordinary function-relative realization with exact fixed-frame custody.
+//! Optimizer module role: executable entrance. Ordinary realization with exact fixed-frame custody.
 
 use super::super::{assembly::*, carriers::*, error::*, prelude::*};
 use resolved_layout_to_resolved_layout::{
@@ -21,9 +21,19 @@ pub fn stage_fixed_frame_function_relative_realization(
     let selected = current.selected();
     let environment = current.register_environment();
     let physical = environment.physical();
-    let encoding =
-        stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)
-            .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    let frame = super::super::frame::stage_frame(
+        &current,
+        &machine,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        budget,
+    )?;
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected,
+        &machine,
+        physical,
+        Some(frame.layout().plan()),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
     let baseline_layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
@@ -40,12 +50,6 @@ pub fn stage_fixed_frame_function_relative_realization(
         current.budget_per_pass(),
     )
     .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
-    let frame = super::super::frame::stage_frame(
-        &current,
-        &machine,
-        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-        budget,
-    )?;
     let exit_contract = stage_whole_function_exit_contract_for_layout(
         selected,
         &machine,
@@ -113,6 +117,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         selected,
         &staged.machine,
         physical,
+        Some(staged.frame.layout().plan()),
         &staged.encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;

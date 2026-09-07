@@ -14,7 +14,6 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
         assert_eq!(first, second);
         assert_eq!(first.receipt().usage(), EXACT_USAGE);
         assert_eq!(first.receipt().function_count(), 1);
-        assert_eq!(first.receipt().structural_unit_function_count(), 0);
         assert_eq!(first.receipt().inspected_register_count(), 6);
         assert_eq!(first.receipt().interval_count(), 4);
         assert_eq!(first.receipt().entry_interval_count(), 2);

@@ -13,11 +13,15 @@ fn structural_unit_return_reaches_legalization_and_stops_before_selection() {
         .unwrap();
         let target = lower_optimized_to_target_operations(optimized, target).unwrap();
 
-        assert!(matches!(
-            stage_optimized_instruction_selection(target),
-            Err(OptimizedSelectionPipelineError::Selection(
-                SelectedInstructionError::UnsupportedSourceShape { function: 0 }
-            ))
-        ));
+        let result = stage_optimized_instruction_selection(target);
+        assert!(
+            matches!(
+                result,
+                Err(OptimizedSelectionPipelineError::Selection(
+                    SelectedInstructionError::UnsupportedSourceShape { function: 0 }
+                ))
+            ),
+            "unexpected selection result: {result:?}"
+        );
     }
 }

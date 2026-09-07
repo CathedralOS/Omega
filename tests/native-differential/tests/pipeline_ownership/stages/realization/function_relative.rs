@@ -354,7 +354,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
         }
     );
     let encoded = emitted.manifest().record().encode();
-    assert_eq!(&encoded[8..12], &12_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &13_u32.to_le_bytes());
     assert_eq!(encoded[45], 2);
     assert_eq!(
         encoded[46],
@@ -536,7 +536,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 );
                 let fragment_manifest = emitted.manifest().record().clone();
                 let fragment_encoded = fragment_manifest.encode();
-                assert_eq!(&fragment_encoded[8..12], &12_u32.to_le_bytes());
+                assert_eq!(&fragment_encoded[8..12], &13_u32.to_le_bytes());
                 assert_eq!(fragment_encoded[45], 2);
                 assert_eq!(
                     fragment_encoded[46],
@@ -648,7 +648,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 assert_eq!(text.manifest().record().statistics.relocation_requirements, 0);
                 let text_manifest = text.manifest().record().clone();
                 let text_encoded = text_manifest.encode();
-                assert_eq!(&text_encoded[8..12], &13_u32.to_le_bytes());
+                assert_eq!(&text_encoded[8..12], &14_u32.to_le_bytes());
                 assert_eq!(text_encoded[45], 1);
                 assert_eq!(text_encoded[46], 2);
                 assert_eq!(

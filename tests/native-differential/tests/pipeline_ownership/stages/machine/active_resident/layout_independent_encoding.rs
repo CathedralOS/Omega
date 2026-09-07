@@ -17,6 +17,7 @@ fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both
             current.selected(),
             &machine,
             physical,
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -61,6 +62,7 @@ fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both
             current.selected(),
             &machine,
             physical,
+            None,
             &encoding,
         )
         .unwrap();
@@ -93,6 +95,7 @@ fn active_resident_rematerialization_encoding_rejects_detached_or_corrupt_custod
         current.selected(),
         &machine,
         physical,
+        None,
     )
     .unwrap();
     let row = encoding
@@ -109,6 +112,7 @@ fn active_resident_rematerialization_encoding_rejects_detached_or_corrupt_custod
             current.selected(),
             &machine,
             physical,
+            None,
             &encoding
         ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)

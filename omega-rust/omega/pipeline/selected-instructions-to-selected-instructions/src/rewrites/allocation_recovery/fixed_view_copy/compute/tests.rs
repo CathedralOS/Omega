@@ -90,6 +90,11 @@ pub(crate) fn fixture() -> (
         machine,
         attachment: None,
         provenance: Default::default(),
+        structural: None,
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: vec![
             VirtualRegister {
@@ -100,7 +105,7 @@ pub(crate) fn fixture() -> (
                     source_value: ValueId::new(1).unwrap(),
                     parameter_index: 0,
                 },
-                definition_site: ValueDefinitionSite::FunctionParameter(0),
+                definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
                 entry_fixed_view: None,
             },
             VirtualRegister {
@@ -111,7 +116,7 @@ pub(crate) fn fixture() -> (
                     source_value,
                     parameter_index: 1,
                 },
-                definition_site: ValueDefinitionSite::FunctionParameter(1),
+                definition_site: Some(ValueDefinitionSite::FunctionParameter(1)),
                 entry_fixed_view: Some(from),
             },
         ],

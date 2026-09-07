@@ -143,18 +143,24 @@ pub fn build_function_fragment_object_artifact(
             ranked_u32_countdown: None,
             structural_return: None,
         });
-        let rows = if let Some(fragment) = fragments
+        let fragment = fragments
             .functions
             .iter()
             .find(|row| row.machine == placed.machine)
-        {
-            attribution::produce(fragment, abstracted)?
-        } else {
-            super::structural::populate(
-                source,
-                functions.last_mut().expect("just inserted function"),
-            )?
-        };
+            .ok_or(Error::Mismatch("missing current fragment"))?;
+        let mut rows = attribution::produce(fragment, abstracted)?;
+        rows.extend(super::structural::settlement_attributions(
+            source,
+            placed.machine,
+        )?);
+        rows.sort_by_key(|row| (row.operation_ordinal, row.code_offset, row.byte_count));
+        super::structural::populate(
+            source,
+            functions
+                .last_mut()
+                .ok_or(Error::Mismatch("missing inserted function"))?,
+            &rows,
+        )?;
         for attribution in rows {
             semantic_code_attribution.push(ObjectCodeAttribution {
                 machine: placed.machine,

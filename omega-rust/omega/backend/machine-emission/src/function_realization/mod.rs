@@ -6,9 +6,7 @@
 //! assembly, codecs, and route mechanics descend into named leaves below.
 
 mod assembly;
-mod structural_unit;
 mod unit;
-pub use structural_unit::*;
 pub use unit::*;
 mod carriers;
 #[cfg(any(test, feature = "test-support"))]

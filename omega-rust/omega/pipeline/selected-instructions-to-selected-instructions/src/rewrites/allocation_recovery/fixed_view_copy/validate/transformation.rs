@@ -151,7 +151,12 @@ pub(super) fn replay_transformation(
                 machine: source_function.machine,
                 source_virtual_register: source.id,
                 source_value,
-                source_definition_site: source.definition_site,
+                source_definition_site: source.definition_site.ok_or(
+                    FixedViewCopyError::UnsupportedSourceRegister {
+                        function: function_index,
+                        register: source.id.0,
+                    },
+                )?,
                 from_view: boundary.from_view,
                 to_view: boundary.to_view,
                 insertion_block: block,

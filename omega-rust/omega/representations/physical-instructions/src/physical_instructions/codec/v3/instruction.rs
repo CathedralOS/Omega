@@ -9,7 +9,7 @@ use selected_instructions::{SelectedInstructionId, VirtualRegisterId};
 
 use super::super::{
     PostAllocationMachineDecodeError,
-    cursor::{byte, decode_units, length, map_field_error, u16_field, u32_field},
+    cursor::{byte, decode_units, length, map_field_error, u16_field, u32_field, u64_field},
 };
 
 pub(super) fn decode_instruction(
@@ -34,10 +34,32 @@ pub(super) fn decode_instruction(
     for _ in 0..operand_count {
         operands.push(decode_operand(cursor)?);
     }
+    let address = match byte(cursor)? {
+        0 => None,
+        1 => Some(crate::PhysicalAddressOperation::Load64 {
+            base_operand: u16_field(cursor)?,
+            byte_offset: u32_field(cursor)?,
+        }),
+        tag @ (2 | 3) => {
+            let slot = selected_instructions::OutgoingArgumentSlotId {
+                operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
+                    .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                argument_index: u32_field(cursor)?,
+            };
+            let byte_offset = u32_field(cursor)?;
+            Some(if tag == 2 {
+                crate::PhysicalAddressOperation::Store64 { slot, byte_offset }
+            } else {
+                crate::PhysicalAddressOperation::FrameAddress { slot, byte_offset }
+            })
+        }
+        _ => return Err(PostAllocationMachineDecodeError::InvalidField),
+    };
     Ok(PostAllocationMachineInstruction {
         instruction,
         alternative,
         operands,
+        address,
         implicit_unit_uses: decode_units(cursor)?,
         implicit_unit_defs: decode_units(cursor)?,
         implicit_unit_clobbers: decode_units(cursor)?,

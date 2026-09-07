@@ -112,7 +112,9 @@ pub(super) fn build(
                 let LegalizedScalarInstructionKind::BooleanNot { operand } = previous.kind else {
                     break;
                 };
-                if previous.result != base || previous.scalar_type != ScalarType::Boolean {
+                if previous.result.as_ref().is_none_or(|result| {
+                    result.value != base || result.scalar_type != ScalarType::Boolean
+                }) {
                     return Err(invalid());
                 }
                 base = operand;
@@ -124,7 +126,11 @@ pub(super) fn build(
             let comparison = suffix_start
                 .checked_sub(1)
                 .and_then(|index| block.instructions.get(index))
-                .filter(|row| row.result == base);
+                .filter(|row| {
+                    row.result
+                        .as_ref()
+                        .is_some_and(|result| result.value == base)
+                });
             let (predicate, operand_type) = if let Some(row) = comparison
                 && let LegalizedScalarInstructionKind::Compare {
                     predicate,
@@ -161,7 +167,11 @@ pub(super) fn build(
                     vec![*condition]
                 } else {
                     std::iter::once(base)
-                        .chain(not_rows.iter().map(|row| row.result))
+                        .chain(
+                            not_rows
+                                .iter()
+                                .filter_map(|row| row.result.as_ref().map(|result| result.value)),
+                        )
                         .collect()
                 },
                 fuel: not_rows

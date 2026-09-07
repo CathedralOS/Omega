@@ -23,7 +23,7 @@ pub(super) fn validate(
         return Err(invalid());
     }
     let result = call.call_plan.result.as_ref().ok_or_else(invalid)?;
-    if *result != call.result_placement {
+    if Some(result) != call.result_placement.as_ref() {
         return Err(invalid());
     }
     for (index, (placement, operand)) in call
@@ -56,7 +56,7 @@ pub(super) fn validate(
             return Err(invalid());
         }
         if let Some(argument) = call.arguments.get(index)
-            && argument.placement != *placement
+            && (argument.placement() != placement || argument.scalar_source().is_none())
         {
             return Err(invalid());
         }

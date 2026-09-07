@@ -4,92 +4,10 @@ use calling_conventions::{
     StaticMachineBinderId, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement,
     ValueShape,
 };
-use selected_instructions::{
-    SelectedMicrosoftX64OwnedIndirectPairLayout, SelectedStructuralUnitAbi,
-    SelectedStructuralUnitAbiRecipe, SelectedStructuralUnitIndirectBinding,
-};
 
 use crate::FixedViewCopyDecodeError;
 
-use super::declarations::{decode_parameter, encode_parameter};
 use crate::rewrites::allocation_recovery::fixed_view_copy::codec::primitives::{Cursor, length};
-
-pub(super) fn encode_abi(
-    bytes: &mut Vec<u8>,
-    abi: &SelectedStructuralUnitAbi,
-    retain_projected_qualifications: bool,
-) {
-    bytes.push(match abi.recipe {
-        SelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1 => 1,
-    });
-    encode_call_plan(bytes, &abi.call_plan);
-    length(bytes, abi.parameters.len());
-    for parameter in &abi.parameters {
-        encode_parameter(bytes, parameter, retain_projected_qualifications);
-    }
-    encode_layout(bytes, abi.layout);
-}
-
-pub(super) fn decode_abi(
-    cursor: &mut Cursor<'_>,
-    retain_projected_qualifications: bool,
-) -> Result<SelectedStructuralUnitAbi, FixedViewCopyDecodeError> {
-    let recipe = match cursor.byte()? {
-        1 => SelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1,
-        tag => return Err(FixedViewCopyDecodeError::UnknownStructuralAbiRecipe(tag)),
-    };
-    let call_plan = decode_call_plan(cursor)?;
-    let parameter_count = cursor.length()?;
-    let mut parameters = Vec::with_capacity(parameter_count.min(cursor.remaining()));
-    for _ in 0..parameter_count {
-        parameters.push(decode_parameter(cursor, retain_projected_qualifications)?);
-    }
-    Ok(SelectedStructuralUnitAbi {
-        recipe,
-        call_plan,
-        parameters,
-        layout: decode_layout(cursor)?,
-    })
-}
-
-pub(super) fn encode_layout(
-    bytes: &mut Vec<u8>,
-    layout: SelectedMicrosoftX64OwnedIndirectPairLayout,
-) {
-    bytes.extend_from_slice(&layout.shadow_byte_count.to_le_bytes());
-    bytes.extend_from_slice(&layout.outgoing_frame_byte_count.to_le_bytes());
-    bytes.extend_from_slice(&layout.pre_call_stack_alignment.to_le_bytes());
-    for binding in layout.bindings {
-        length(bytes, binding.parameter_index);
-        encode_machine_register(bytes, binding.pointer);
-        bytes.extend_from_slice(&binding.copy_stack_byte_offset.to_le_bytes());
-        bytes.extend_from_slice(&binding.byte_count.to_le_bytes());
-        bytes.extend_from_slice(&binding.alignment.to_le_bytes());
-    }
-}
-
-pub(super) fn decode_layout(
-    cursor: &mut Cursor<'_>,
-) -> Result<SelectedMicrosoftX64OwnedIndirectPairLayout, FixedViewCopyDecodeError> {
-    Ok(SelectedMicrosoftX64OwnedIndirectPairLayout {
-        shadow_byte_count: cursor.u32()?,
-        outgoing_frame_byte_count: cursor.u32()?,
-        pre_call_stack_alignment: cursor.u16()?,
-        bindings: [decode_binding(cursor)?, decode_binding(cursor)?],
-    })
-}
-
-fn decode_binding(
-    cursor: &mut Cursor<'_>,
-) -> Result<SelectedStructuralUnitIndirectBinding, FixedViewCopyDecodeError> {
-    Ok(SelectedStructuralUnitIndirectBinding {
-        parameter_index: cursor.length()?,
-        pointer: decode_machine_register(cursor)?,
-        copy_stack_byte_offset: cursor.u32()?,
-        byte_count: cursor.u16()?,
-        alignment: cursor.u16()?,
-    })
-}
 
 pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     bytes.push(match plan.policy {

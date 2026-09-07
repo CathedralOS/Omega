@@ -70,7 +70,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
     let fragments = fragments(source);
-    if (fragments.functions.is_empty() && fragments.structural_unit_functions.is_empty())
+    if fragments.functions.is_empty()
         || fragments.target.pointer_size != 8
         || fragments.target.pointer_alignment != 8
     {
@@ -91,18 +91,24 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             "shared text does not apply its exact frame",
         ));
     }
-    if !fragments.structural_unit_functions.is_empty() {
-        return super::structural::admit(source);
-    }
     for fragment in &fragments.functions {
         let (abstracted, targeted) = function(source, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
+        let selected = current
+            .selected_plan()
+            .functions
+            .iter()
+            .find(|row| row.machine == fragment.machine)
+            .ok_or(Error::Mismatch("missing selected function"))?;
+        let structural = selected.structural.as_ref();
         if abstracted.attachment != fragment.attachment
             || targeted.provenance != fragment.provenance
             || targeted.mixed_structural_scalar_abi.is_some()
-            || !abstracted.structural_parameters.is_empty()
-            || !abstracted.entry_claims.is_empty()
-            || !abstracted.published_service_ceiling.is_empty()
+            || (!abstracted.structural_parameters.is_empty() && structural.is_none())
+            || (structural.is_some() && !unit)
+            || (structural.is_none()
+                && (!abstracted.entry_claims.is_empty()
+                    || !abstracted.published_service_ceiling.is_empty()))
             || (unit && targeted.scalar_abi.is_some())
             || (!unit && targeted.scalar_abi.is_none())
         {
@@ -156,6 +162,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && requirement_obligations.is_empty()
                         && crash_continuations.is_empty()
                 }
+                AbstractOperation::CallUnit { psi_operation, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none()),
+                AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation == *psi_operation)
+                    || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::LegalizedCallUnitSource::InstalledProvider { .. })),
                 AbstractOperation::Return {
                     cleanup_actions, ..
                 }
@@ -219,13 +228,6 @@ pub(super) fn fragment_metadata(
 > {
     let plan = fragments(source);
     if let Some(function) = plan.functions.iter().find(|row| row.machine == machine) {
-        return Ok((function.attachment, &function.provenance));
-    }
-    if let Some(function) = plan
-        .structural_unit_functions
-        .iter()
-        .find(|row| row.machine == machine)
-    {
         return Ok((function.attachment, &function.provenance));
     }
     Err(Error::Mismatch("missing placed fragment"))

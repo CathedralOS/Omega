@@ -69,12 +69,6 @@ impl PostAllocationOptimizationManifest {
         writeln!(output, "emission: unavailable").unwrap();
         writeln!(output, "publication: unavailable").unwrap();
         writeln!(output, "functions: {}", self.statistics.functions).unwrap();
-        writeln!(
-            output,
-            "structural Unit functions: {}",
-            self.statistics.structural_unit_functions
-        )
-        .unwrap();
         writeln!(output, "assignments: {}", self.statistics.assignments).unwrap();
         writeln!(
             output,

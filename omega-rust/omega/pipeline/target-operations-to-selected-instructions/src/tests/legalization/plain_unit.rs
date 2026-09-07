@@ -9,7 +9,6 @@ fn plain_unit_catalog_form_is_produced_and_independently_replayed() {
     let (abstract_plan, target, unit) = plain_unit_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("plain Unit return legalizes through its catalog row");
-    assert!(legalized.plan().structural_unit_functions.is_empty());
     assert_eq!(legalized.plan().scalar_functions.len(), 1);
     assert!(matches!(
         legalized.plan().scalar_functions[0].blocks[0].terminator,

@@ -16,12 +16,12 @@ pub(super) fn replay_structural_unit_function(
     target: &target_operations::TargetFunction,
     abstracted: &abstract_operations::AbstractFunction,
     optimized: &optimization_unit::PsiOptimizationFunction,
-    proposed: &LegalizedStructuralUnitFunction,
+    proposed: &legalized_operations::LegalizedScalarFunction,
     target_plan: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<usize, LegalizationError> {
-    let validated = validate_structural_unit_form(target, abstracted, optimized, proposed.recipe)
+    let validated = validate_structural_unit_form(target, abstracted, optimized)
         .ok_or(Error::NonCanonicalLegalizedPlan)?;
     validate_replayed_contract(
         function,

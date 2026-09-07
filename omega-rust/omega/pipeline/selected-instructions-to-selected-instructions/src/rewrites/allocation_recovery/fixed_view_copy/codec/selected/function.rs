@@ -35,6 +35,7 @@ pub(super) fn encode_function(bytes: &mut Vec<u8>, function: &SelectedFunction) 
     for block in &function.blocks {
         encode_block(bytes, block);
     }
+    super::structural::encode_contracts(bytes, function);
 }
 
 pub(super) fn decode_function(
@@ -60,12 +61,19 @@ pub(super) fn decode_function(
     for _ in 0..block_count {
         blocks.push(decode_block(cursor)?);
     }
-    Ok(SelectedFunction {
+    let mut function = SelectedFunction {
         machine,
         attachment,
         provenance: target_operations::TerminalPsiProvenance { operations, edges },
         entry_block,
         virtual_registers,
         blocks,
-    })
+        structural: None,
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
+    };
+    super::structural::decode_contracts(cursor, &mut function)?;
+    Ok(function)
 }

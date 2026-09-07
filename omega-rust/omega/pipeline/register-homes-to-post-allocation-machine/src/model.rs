@@ -33,7 +33,6 @@ pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
     pub(super) effects: selected_instructions::PreAllocationMachineEffectIdentity,
     pub(super) machine: PostAllocationMachineIdentity,
     pub(super) function_count: usize,
-    pub(super) structural_unit_function_count: usize,
     pub(super) instruction_count: usize,
     pub(super) operand_count: usize,
     pub(super) unit_action_count: usize,
@@ -51,9 +50,6 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
     }
     pub const fn function_count(&self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(&self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn instruction_count(&self) -> usize {
         self.instruction_count

@@ -17,6 +17,9 @@ pub(super) fn replay(
 ) -> Result<(), LegalizationError> {
     let call_plan =
         scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
+    if proposed.structural.is_some() {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
     let invalid = Error::NonCanonicalLegalizedPlan;
     if proposed.machine != target.machine
         || proposed.attachment != target.attachment

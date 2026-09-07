@@ -298,10 +298,9 @@ pub(crate) fn check(audit: &mut Audit) {
                     }
                 }
             }
-            let expected = ["omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/catalog.rs".to_string()];
-            if catalog_declarations != expected {
+            if !catalog_declarations.is_empty() {
                 violations.insert(format!(
-                    "legalization must declare exactly one `LEGALIZATION_FORMS` catalog in catalog.rs; found {catalog_declarations:?}"
+                    "ordinary graph legalization must not retain recipe catalogs: {catalog_declarations:?}"
                 ));
             }
         }

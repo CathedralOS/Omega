@@ -12,63 +12,22 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v12\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v13\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
-    // Preserve role boundaries before the ordered keys: a structural call
-    // key must not alias the first key in a scalar argument-count roster.
-    bytes.push(u8::from(
-        catalog.selected_keys.structural_unit_call.is_some(),
-    ));
+    for key in [
+        catalog.selected_keys.load64,
+        catalog.selected_keys.store64,
+        catalog.selected_keys.frame_address,
+        catalog.selected_keys.call_unit,
+    ] {
+        bytes.push(u8::from(key.is_some()));
+    }
     encode_len(&mut bytes, catalog.selected_keys.call_i64.len());
     let selected_keys = catalog.selected_keys.in_identity_order();
     encode_len(&mut bytes, selected_keys.len());
     for key in selected_keys {
         encode_constraint_key(&mut bytes, key);
-    }
-    match catalog.structural_unit_call {
-        None => bytes.push(0),
-        Some(declaration) => {
-            bytes.push(1);
-            encode_constraint_key(&mut bytes, declaration.constraint);
-            match declaration.memory {
-                crate::StructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
-                    root_byte_count,
-                    copy_stack_byte_offsets,
-                } => {
-                    bytes.push(0);
-                    bytes.extend_from_slice(&root_byte_count.to_le_bytes());
-                    for offset in copy_stack_byte_offsets {
-                        bytes.extend_from_slice(&offset.to_le_bytes());
-                    }
-                }
-            }
-            match declaration.frame {
-                crate::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-                    frame_byte_count,
-                    shadow_byte_count,
-                    pre_call_stack_alignment,
-                } => {
-                    bytes.push(0);
-                    bytes.extend_from_slice(&frame_byte_count.to_le_bytes());
-                    bytes.extend_from_slice(&shadow_byte_count.to_le_bytes());
-                    bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
-                }
-            }
-            bytes.push(match declaration.trap {
-                crate::MachineTrapBehavior::NeverV1 => 0,
-                crate::MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
-            });
-            bytes.push(match declaration.barrier {
-                crate::StructuralUnitCallBarrier::CallV1 => 0,
-            });
-            bytes.push(match declaration.call {
-                crate::StructuralUnitCallEffect::DirectInternalUnitV1 => 0,
-            });
-            bytes.push(match declaration.cleanup {
-                crate::MachineCleanupEffect::NoneV1 => 0,
-            });
-        }
     }
     encode_len(&mut bytes, catalog.declarations.len());
     for declaration in &catalog.declarations {
@@ -78,6 +37,8 @@ pub fn machine_effect_catalog_identity(
         // with an older catalog identity.
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::NoneV1 => 0,
+            crate::MachineMemoryEffect::ReadPointerV1 => 1,
+            crate::MachineMemoryEffect::WriteOutgoingArgumentV1 => 2,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::NeverV1 => 0,
@@ -189,6 +150,22 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
+        MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand,
+            byte_count,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,
             byte_count,
@@ -295,6 +272,10 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::MaterializeI64 => 1,
         MachineSemanticKind::CopyI64 => 2,
         MachineSemanticKind::ZeroExtendU8 => 15,
+        MachineSemanticKind::Load64 => 16,
+        MachineSemanticKind::Store64 => 17,
+        MachineSemanticKind::FrameAddress => 18,
+        MachineSemanticKind::CallUnit => 19,
         MachineSemanticKind::ExactAddI64 => 3,
         MachineSemanticKind::ExactAddI64Immediate => 4,
         MachineSemanticKind::ExactSubtractI64 => 5,
@@ -316,6 +297,10 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::MaterializeI64 => 1,
         MachineAlternativeFamily::CopyI64 => 2,
         MachineAlternativeFamily::ZeroExtendU8 => 15,
+        MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Store64 => 17,
+        MachineAlternativeFamily::FrameAddress => 18,
+        MachineAlternativeFamily::CallUnit => 19,
         MachineAlternativeFamily::ExactAddI64 => 3,
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,
@@ -362,7 +347,10 @@ mod tests {
 
     fn keys() -> SelectedConstraintKeys {
         SelectedConstraintKeys {
-            structural_unit_call: Some(RegisterConstraintKey {
+            load64: Some(instruction(20)),
+            store64: Some(instruction(21)),
+            frame_address: Some(instruction(22)),
+            call_unit: Some(RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
             }),
@@ -395,7 +383,13 @@ mod tests {
         let keys = keys();
         let constraint = keys
             .for_semantic(semantic)
-            .or_else(|| (semantic == MachineSemanticKind::CallI64).then_some(keys.call_i64[0]))
+            .or_else(|| {
+                (matches!(
+                    semantic,
+                    MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+                ))
+                .then_some(keys.call_i64[0])
+            })
             .expect("test catalog declares every semantic constraint");
         MachineEffectDeclaration {
             semantic,
@@ -411,12 +405,18 @@ mod tests {
                     | MachineSemanticKind::ReturnUnit
             ) {
                 MachineBarrier::ControlFlow
-            } else if semantic == MachineSemanticKind::CallI64 {
+            } else if matches!(
+                semantic,
+                MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+            ) {
                 MachineBarrier::Call
             } else {
                 MachineBarrier::None
             },
-            call: if semantic == MachineSemanticKind::CallI64 {
+            call: if matches!(
+                semantic,
+                MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+            ) {
                 MachineCallEffect::DirectInternalNormalReturnV1 {
                     pre_call_stack_alignment: 16,
                 }
@@ -442,22 +442,6 @@ mod tests {
             target: NativeTarget::linux_x64(),
             register_constraints: RegisterConstraintCatalogIdentity::from_bytes([1; 32]),
             selected_keys: keys(),
-            structural_unit_call: Some(crate::StructuralUnitCallEffectDeclaration {
-                constraint: keys().structural_unit_call.unwrap(),
-                memory: crate::StructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
-                    root_byte_count: 16,
-                    copy_stack_byte_offsets: [32, 48],
-                },
-                frame: crate::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-                    frame_byte_count: 72,
-                    shadow_byte_count: 32,
-                    pre_call_stack_alignment: 16,
-                },
-                trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-                barrier: crate::StructuralUnitCallBarrier::CallV1,
-                call: crate::StructuralUnitCallEffect::DirectInternalUnitV1,
-                cleanup: MachineCleanupEffect::NoneV1,
-            }),
             declarations: MachineSemanticKind::ALL
                 .into_iter()
                 .map(declaration)
@@ -466,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn identity_binds_structural_call_and_subtraction_alternatives() {
+    fn identity_binds_memory_call_and_subtraction_alternatives() {
         let source = catalog();
         let baseline = machine_effect_catalog_identity(&source);
         assert_eq!(baseline, machine_effect_catalog_identity(&source));
@@ -481,16 +465,17 @@ mod tests {
         changed.selected_keys.subtract_i64 = instruction(99);
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
         let mut changed = source.clone();
-        changed.selected_keys.structural_unit_call = None;
+        changed.selected_keys.call_unit = None;
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
         let mut changed = source.clone();
-        let Some(structural) = changed.structural_unit_call.as_mut() else {
-            panic!("fixture owns the structural call declaration");
+        let call = changed
+            .declarations
+            .iter_mut()
+            .find(|row| row.semantic == MachineSemanticKind::CallUnit)
+            .unwrap();
+        call.call = MachineCallEffect::DirectInternalNormalReturnV1 {
+            pre_call_stack_alignment: 32,
         };
-        let crate::StructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
-            frame_byte_count, ..
-        } = &mut structural.frame;
-        *frame_byte_count = 64;
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
         let mut changed = source.clone();
         let subtract = changed
@@ -521,7 +506,7 @@ mod tests {
         reordered.selected_keys.call_i64.swap(0, 1);
         assert_ne!(baseline, machine_effect_catalog_identity(&reordered));
         let mut relabeled = source.clone();
-        let structural_key = relabeled.selected_keys.structural_unit_call.take().unwrap();
+        let structural_key = relabeled.selected_keys.call_unit.take().unwrap();
         relabeled.selected_keys.call_i64.insert(0, structural_key);
         assert_eq!(
             source.selected_keys.in_identity_order(),

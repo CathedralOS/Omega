@@ -102,7 +102,6 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
 
         let liveness = stage_optimized_liveness(selected).unwrap();
         assert_eq!(liveness.custody().function_count(), 1);
-        assert_eq!(liveness.custody().structural_unit_function_count(), 0);
         assert_eq!(liveness.custody().block_count(), 1);
         assert_eq!(liveness.custody().virtual_register_count(), 0);
         assert_eq!(liveness.custody().instruction_count(), 1);
@@ -130,7 +129,6 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
 
         let ranges = stage_optimized_live_ranges(liveness).unwrap();
         assert_eq!(ranges.custody().function_count(), 1);
-        assert_eq!(ranges.custody().structural_unit_function_count(), 0);
         assert_eq!(ranges.custody().block_count(), 1);
         assert_eq!(ranges.custody().virtual_register_count(), 0);
         assert_eq!(ranges.custody().virtual_occurrence_count(), 0);
@@ -149,7 +147,6 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
 
         let legality = stage_optimized_allocation_legality(ranges).unwrap();
         assert_eq!(legality.custody().function_count(), 1);
-        assert_eq!(legality.custody().structural_unit_function_count(), 0);
         assert_eq!(legality.custody().virtual_register_count(), 0);
         assert_eq!(legality.custody().point_count(), 0);
         assert_eq!(legality.custody().candidate_count(), 0);
@@ -177,7 +174,6 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
 
         let homes = stage_optimized_register_homes(legality).unwrap();
         assert_eq!(homes.custody().function_count(), 1);
-        assert_eq!(homes.custody().structural_unit_function_count(), 0);
         assert_eq!(homes.custody().assignment_count(), 0);
         assert!(homes.homes().plan().functions[0].assignments.is_empty());
         assert!(

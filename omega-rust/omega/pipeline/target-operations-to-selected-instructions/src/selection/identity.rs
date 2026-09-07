@@ -1,9 +1,9 @@
 use super::shared::*;
 
+mod contracts;
 mod ordinary;
 mod primitives;
 mod projected_structural;
-mod structural_legalized;
 
 use primitives::{encode_constraint_key, encode_machine_register};
 
@@ -11,15 +11,12 @@ pub(super) fn receipt(
     plan: &SelectedInstructionPlan,
     legalized: &ValidatedLegalizedOperations,
 ) -> SelectedInstructionValidationReceipt {
-    let function_count = plan.functions.len()
-        + plan.structural_unit_functions.len()
-        + 2 * plan.projected_structural_call_returns.len();
+    let function_count = plan.functions.len() + 2 * plan.projected_structural_call_returns.len();
     let block_count = plan
         .functions
         .iter()
         .map(|function| function.blocks.len())
         .sum::<usize>()
-        + plan.structural_unit_functions.len()
         + 2 * plan.projected_structural_call_returns.len();
     let virtual_register_count = plan
         .functions
@@ -31,12 +28,7 @@ pub(super) fn receipt(
         .iter()
         .flat_map(|function| &function.blocks)
         .map(|block| block.instructions.len() + 1)
-        .sum::<usize>()
-        + plan
-            .structural_unit_functions
-            .iter()
-            .map(|function| 1 + usize::from(function.call.is_some()))
-            .sum::<usize>();
+        .sum::<usize>();
     SelectedInstructionValidationReceipt {
         identity: selected_instruction_plan_identity(plan),
         legalized: legalized.receipt().identity(),
@@ -54,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v19\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v20\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -81,6 +73,7 @@ pub fn selected_instruction_plan_identity(
             &mut bytes,
             function.provenance.edges.iter().map(|edge| edge.get()),
         );
+        contracts::encode(&mut bytes, function);
         bytes.extend_from_slice(&function.entry_block.0.to_le_bytes());
         encode_len(&mut bytes, function.virtual_registers.len());
         for register in &function.virtual_registers {
@@ -88,6 +81,25 @@ pub fn selected_instruction_plan_identity(
             encode_scalar_type(&mut bytes, register.scalar_type);
             bytes.extend_from_slice(&register.class.0.to_le_bytes());
             match register.origin {
+                VirtualRegisterOrigin::StructuralParameter {
+                    place,
+                    parameter_index,
+                } => {
+                    bytes.push(4);
+                    bytes.extend_from_slice(&place.get().to_le_bytes());
+                    bytes.extend_from_slice(&(parameter_index as u64).to_le_bytes());
+                }
+                VirtualRegisterOrigin::AbiTransport {
+                    instruction,
+                    place,
+                    byte_offset,
+                } => {
+                    bytes.push(5);
+                    bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&place.get().to_le_bytes());
+                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                }
+
                 VirtualRegisterOrigin::BlockParameter {
                     source_value,
                     block,
@@ -115,7 +127,13 @@ pub fn selected_instruction_plan_identity(
                     bytes.extend_from_slice(&source_value.get().to_le_bytes());
                 }
             }
-            encode_definition_site(&mut bytes, register.definition_site);
+            match register.definition_site {
+                Some(site) => {
+                    bytes.push(1);
+                    encode_definition_site(&mut bytes, site);
+                }
+                None => bytes.push(0),
+            }
             encode_option_u16(&mut bytes, register.entry_fixed_view.map(|view| view.0));
         }
         encode_len(&mut bytes, function.blocks.len());
@@ -129,76 +147,10 @@ pub fn selected_instruction_plan_identity(
             ordinary::encode_terminator(&mut bytes, &block.terminator);
         }
     }
-    bytes.extend_from_slice(&structural_legalized::identity(plan).bytes());
-    encode_len(&mut bytes, plan.structural_unit_functions.len());
-    for function in &plan.structural_unit_functions {
-        encode_selected_structural_unit_function(&mut bytes, function);
-    }
     if !plan.projected_structural_call_returns.is_empty() {
         projected_structural::encode(&mut bytes, &plan.projected_structural_call_returns);
     }
     SelectedInstructionPlanIdentity::from_canonical_bytes(&bytes)
-}
-
-fn encode_selected_structural_unit_function(
-    bytes: &mut Vec<u8>,
-    function: &SelectedStructuralUnitFunction,
-) {
-    bytes.extend_from_slice(&function.entry_block.0.to_le_bytes());
-    bytes.push(match function.abi.recipe {
-        SelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1 => 1,
-    });
-    encode_structural_layout(bytes, function.abi.layout);
-    match &function.call {
-        None => bytes.push(0),
-        Some(call) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&call.id.0.to_le_bytes());
-            encode_structural_layout(bytes, call.layout);
-            encode_constraint_key(bytes, call.constraint);
-            encode_u16s(bytes, call.implicit_uses.iter().map(|unit| unit.0));
-            encode_u16s(bytes, call.implicit_defs.iter().map(|unit| unit.0));
-            encode_u16s(bytes, call.clobbers.iter().map(|unit| unit.0));
-            encode_selected_provenance(bytes, &call.provenance);
-        }
-    }
-    encode_instruction(bytes, &function.terminator.instruction);
-}
-
-fn encode_structural_layout(
-    bytes: &mut Vec<u8>,
-    layout: SelectedMicrosoftX64OwnedIndirectPairLayout,
-) {
-    bytes.extend_from_slice(&layout.shadow_byte_count.to_le_bytes());
-    bytes.extend_from_slice(&layout.outgoing_frame_byte_count.to_le_bytes());
-    bytes.extend_from_slice(&layout.pre_call_stack_alignment.to_le_bytes());
-    for binding in layout.bindings {
-        bytes.extend_from_slice(&(binding.parameter_index as u64).to_le_bytes());
-        encode_machine_register(bytes, binding.pointer);
-        bytes.extend_from_slice(&binding.copy_stack_byte_offset.to_le_bytes());
-        bytes.extend_from_slice(&binding.byte_count.to_le_bytes());
-        bytes.extend_from_slice(&binding.alignment.to_le_bytes());
-    }
-}
-
-fn encode_selected_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProvenance) {
-    encode_ids(
-        bytes,
-        provenance
-            .operations
-            .iter()
-            .map(|operation| operation.get()),
-    );
-    encode_ids(bytes, provenance.values.iter().map(|value| value.get()));
-    encode_ids(bytes, provenance.edges.iter().map(|edge| edge.get()));
-    encode_ids(
-        bytes,
-        provenance
-            .obligations
-            .iter()
-            .map(|obligation| obligation.get()),
-    );
-    encode_fuel(bytes, &provenance.fuel);
 }
 
 fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
@@ -223,6 +175,11 @@ fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
+        SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Store64 { .. } => 17,
+        SelectedInstructionKind::FrameAddress { .. } => 18,
+        SelectedInstructionKind::CallUnit { .. } => 19,
+
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
@@ -241,6 +198,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
+        SelectedInstructionKind::Load64 { byte_offset } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes())
+        }
+        SelectedInstructionKind::Store64 { slot, byte_offset }
+        | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
+            contracts::slot(bytes, slot);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         SelectedInstructionKind::MaterializeI64 { value } => match value {
             semantic_vocabulary::IntegerValue::Signed(value) => {
                 bytes.push(0);
@@ -298,7 +263,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit
         | SelectedInstructionKind::Jump => {}
-        SelectedInstructionKind::CallI64 { callee } => {
+        SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
         }
     }

@@ -17,7 +17,6 @@ use crate::{
 
 pub(super) struct ReplayedHomes {
     pub(super) functions: Vec<FunctionFixedPrecoloredSegmentHomes>,
-    pub(super) structural_unit_functions: Vec<FunctionFixedPrecoloredSegmentHomes>,
     pub(super) usage: OptimizationWorkUsage,
 }
 
@@ -38,18 +37,8 @@ pub(super) fn replay(
         physical,
         &mut work,
     )?;
-    let structural_unit_functions = family(
-        &ranges.plan().structural_unit_functions,
-        &requirements.plan().structural_unit_functions,
-        physical,
-        &mut work,
-    )?;
     let usage = work.finish(budget)?;
-    Ok(ReplayedHomes {
-        functions,
-        structural_unit_functions,
-        usage,
-    })
+    Ok(ReplayedHomes { functions, usage })
 }
 
 fn family(

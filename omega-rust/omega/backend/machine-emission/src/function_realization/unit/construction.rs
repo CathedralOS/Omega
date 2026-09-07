@@ -32,9 +32,15 @@ pub(super) fn construct_unit_function_relative_realization(
     let physical = environment.physical();
     validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(OptimizedUnitFunctionRelativeRealizationError::Machine)?;
-    let encoding =
-        stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)
-            .map_err(OptimizedUnitFunctionRelativeRealizationError::Encoding)?;
+    let frame = super::frame::stage_unit_frame(&current, &machine)
+        .map_err(OptimizedUnitFunctionRelativeRealizationError::Manifest)?;
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected,
+        &machine,
+        physical,
+        frame.as_ref().map(|frame| frame.layout().plan()),
+    )
+    .map_err(OptimizedUnitFunctionRelativeRealizationError::Encoding)?;
     let layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(OptimizedUnitFunctionRelativeRealizationError::Layout)?;
@@ -51,8 +57,6 @@ pub(super) fn construct_unit_function_relative_realization(
         current.budget_per_pass(),
     )
     .map_err(OptimizedUnitFunctionRelativeRealizationError::LayoutOptimization)?;
-    let frame = super::frame::stage_unit_frame(&current, &machine)
-        .map_err(OptimizedUnitFunctionRelativeRealizationError::Manifest)?;
     let exit_contract = stage_whole_function_exit_contract_for_layout(
         selected,
         &machine,

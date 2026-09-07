@@ -25,11 +25,6 @@ pub(super) fn compute(
         &legality.plan().functions,
         &mut usage,
     )?;
-    let structural_unit_functions = family(
-        &ranges.plan().structural_unit_functions,
-        &legality.plan().structural_unit_functions,
-        &mut usage,
-    )?;
     if !usage.within(budget) {
         return Err(FixedPrecoloredIntervalError::BudgetExceeded {
             required: usage,
@@ -47,7 +42,6 @@ pub(super) fn compute(
         budget,
         usage,
         functions,
-        structural_unit_functions,
     })
 }
 
@@ -57,8 +51,6 @@ fn roots(
 ) -> Result<(), FixedPrecoloredIntervalError> {
     if legality.receipt().ranges() != ranges.receipt().identity()
         || ranges.plan().functions.len() != legality.plan().functions.len()
-        || ranges.plan().structural_unit_functions.len()
-            != legality.plan().structural_unit_functions.len()
     {
         return Err(FixedPrecoloredIntervalError::RootMismatch);
     }

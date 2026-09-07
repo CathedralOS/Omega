@@ -40,27 +40,21 @@ pub(super) fn replay_remaining(
             .iter()
             .filter(|candidate| candidate.machine == target_function.machine)
             .collect::<Vec<_>>();
-        if graphs.is_empty()
-            && crate::legalization::scalar_graph_input::match_input(
+        let [graph] = graphs.as_slice() else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        let count = if graph.structural.is_some() {
+            replay_structural_unit_function(
+                index,
                 target_function,
                 abstracted,
                 optimized,
+                graph,
                 target,
                 abstract_plan,
                 unit,
-            )
-            .is_ok()
-        {
-            return Err(Error::NonCanonicalLegalizedPlan);
-        }
-        let count = if let [graph] = graphs.as_slice() {
-            if proposed
-                .structural_unit_functions
-                .iter()
-                .any(|candidate| candidate.machine == target_function.machine)
-            {
-                return Err(Error::NonCanonicalLegalizedPlan);
-            }
+            )?
+        } else {
             super::scalar_graph::replay(
                 target_function,
                 abstracted,
@@ -72,29 +66,6 @@ pub(super) fn replay_remaining(
                 graph,
             )?;
             0
-        } else if !graphs.is_empty() {
-            return Err(Error::NonCanonicalLegalizedPlan);
-        } else if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
-            let matches = proposed
-                .structural_unit_functions
-                .iter()
-                .filter(|candidate| candidate.machine == target_function.machine)
-                .collect::<Vec<_>>();
-            let [legalized] = matches.as_slice() else {
-                return Err(Error::NonCanonicalLegalizedPlan);
-            };
-            replay_structural_unit_function(
-                index,
-                target_function,
-                abstracted,
-                optimized,
-                legalized,
-                target,
-                abstract_plan,
-                unit,
-            )?
-        } else {
-            return Err(Error::NonCanonicalLegalizedPlan);
         };
         decomposition_count = decomposition_count
             .checked_add(count)

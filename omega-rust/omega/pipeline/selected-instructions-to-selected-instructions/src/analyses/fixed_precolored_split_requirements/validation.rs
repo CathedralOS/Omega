@@ -33,15 +33,12 @@ pub fn validate_fixed_precolored_split_requirements(
     if candidate.usage != expected.usage {
         return Err(FixedPrecoloredSplitRequirementError::UsageMismatch);
     }
-    if candidate.functions != expected.functions
-        || candidate.structural_unit_functions != expected.structural_unit_functions
-    {
+    if candidate.functions != expected.functions {
         return Err(FixedPrecoloredSplitRequirementError::NonCanonicalFunctions);
     }
     let registers = candidate
         .functions
         .iter()
-        .chain(&candidate.structural_unit_functions)
         .flat_map(|function| &function.registers)
         .collect::<Vec<_>>();
     let fragments = registers
@@ -75,7 +72,6 @@ pub fn validate_fixed_precolored_split_requirements(
         policy: candidate.policy,
         usage: candidate.usage,
         function_count: candidate.functions.len(),
-        structural_unit_function_count: candidate.structural_unit_functions.len(),
         register_count: registers.len(),
         fragment_count: fragments.len(),
         source_point_count: legality.receipt().point_count(),

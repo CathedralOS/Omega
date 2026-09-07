@@ -55,13 +55,15 @@ fn operation_plan() -> LegalizedOperationPlan {
             let operation = id(400 + position as u64);
             LegalizedScalarInstruction {
                 operation,
-                result: id(200 + position as u64),
-                scalar_type,
+                result: Some(LegalizedValueDefinition {
+                    value: id(200 + position as u64),
+                    scalar_type,
+                    definition_site: ValueDefinitionSite::Node {
+                        block: function.entry_block,
+                        node: position as u32,
+                    },
+                }),
                 kind,
-                definition_site: ValueDefinitionSite::Node {
-                    block: function.entry_block,
-                    node: position as u32,
-                },
                 fuel: vec![FuelSettlement {
                     site: PsiProvenance::Operation(operation),
                     units: 1,
@@ -93,12 +95,15 @@ fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
             let row = &mut changed.scalar_functions[0].blocks[0].instructions[position];
             match mutation {
                 0 => row.operation = id(999),
-                1 => row.result = id(999),
+                1 => row.result.as_mut().unwrap().value = id(999),
                 2 => {
-                    row.scalar_type =
+                    row.result.as_mut().unwrap().scalar_type =
                         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
                 }
-                3 => row.definition_site = ValueDefinitionSite::FunctionParameter(0),
+                3 => {
+                    row.result.as_mut().unwrap().definition_site =
+                        ValueDefinitionSite::FunctionParameter(0)
+                }
                 4 => row.fuel[0].site = PsiProvenance::Operation(id(999)),
                 5 => row.fuel[0].units += 1,
                 6 => row.effect.input += 1,

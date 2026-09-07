@@ -12,37 +12,17 @@ pub use statistics::text_section_statistics;
 mod validation;
 
 pub use error::TextPlacementError;
-use machine_code::SelectedStructuralUnitFunctionEncoding;
-use machine_code::{
-    FunctionFragmentEmissionPlan, RelocationFreeTextSectionPlacement, ResolvedMachineProgram,
-    WholeFunctionExitContract,
-};
-use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
-
-#[derive(Clone, Copy)]
-pub struct StructuralFragmentPlacementInputs<'a> {
-    pub program: &'a ResolvedMachineProgram,
-    pub structural_encoding: &'a [SelectedStructuralUnitFunctionEncoding],
-    pub exit: &'a WholeFunctionExitContract,
-    pub physical: &'a ValidatedPhysicalRegisterModel,
-    pub constraints: &'a ValidatedRegisterConstraintCatalog,
-}
+use machine_code::{FunctionFragmentEmissionPlan, RelocationFreeTextSectionPlacement};
 
 #[derive(Clone, Copy)]
 pub enum TextPlacementInput<'a> {
     RelocationFree(&'a FunctionFragmentEmissionPlan),
     InternalCalls(&'a FunctionFragmentEmissionPlan),
-    Structural {
-        fragments: &'a FunctionFragmentEmissionPlan,
-        facts: StructuralFragmentPlacementInputs<'a>,
-    },
 }
 impl<'a> TextPlacementInput<'a> {
     fn fragments(self) -> &'a FunctionFragmentEmissionPlan {
         match self {
-            Self::RelocationFree(fragments)
-            | Self::InternalCalls(fragments)
-            | Self::Structural { fragments, .. } => fragments,
+            Self::RelocationFree(fragments) | Self::InternalCalls(fragments) => fragments,
         }
     }
 }
@@ -53,9 +33,6 @@ pub fn place_fragment_text_section(
     let section = match input {
         TextPlacementInput::RelocationFree(fragments) => production::relocation_free(fragments)?,
         TextPlacementInput::InternalCalls(fragments) => production::fixed_frame(fragments)?,
-        TextPlacementInput::Structural { fragments, facts } => {
-            production::structural_unit(fragments, &facts)?
-        }
     };
     validation::check(input, &section)?;
     Ok(section)

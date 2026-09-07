@@ -12,8 +12,7 @@ use selected_instructions::{
 use crate::MachineEffectError;
 use selected_instructions::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
-    PreAllocationMachineEffectPlan, StructuralUnitCallMachineEffects,
-    StructuralUnitFunctionMachineEffects, pre_allocation_machine_effect_identity,
+    PreAllocationMachineEffectPlan, pre_allocation_machine_effect_identity,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -70,24 +69,6 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
             blocks,
         });
     }
-    let mut structural_unit_functions = Vec::with_capacity(source.structural_unit_functions.len());
-    for function in &source.structural_unit_functions {
-        let call = function
-            .call
-            .as_ref()
-            .map(|call| compute_structural_call(function.machine, call, constraints, catalog))
-            .transpose()?;
-        let return_instruction =
-            compute_instruction(&function.terminator.instruction, constraints, catalog)?;
-        structural_unit_functions.push(StructuralUnitFunctionMachineEffects {
-            machine: function.machine,
-            block: function.entry_block,
-            call,
-            return_instruction,
-            return_effect: function.terminator.effect,
-            return_ownership: function.terminator.ownership.clone(),
-        });
-    }
     let mut plan = PreAllocationMachineEffectPlan {
         identity: selected_instructions::PreAllocationMachineEffectIdentity::from_bytes([0; 32]),
         selected: selected.selected_identity(),
@@ -98,52 +79,9 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
         register_constraints: constraints.identity(),
         machine_effect_catalog: catalog.identity(),
         functions,
-        structural_unit_functions,
     };
     plan.identity = pre_allocation_machine_effect_identity(&plan);
     Ok(plan)
-}
-
-fn compute_structural_call(
-    machine: semantic_vocabulary::MachineId,
-    call: &selected_instructions::SelectedStructuralUnitCallInstruction,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: &ValidatedMachineEffectCatalog,
-) -> Result<StructuralUnitCallMachineEffects, MachineEffectError> {
-    let constraint = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == call.constraint)
-        .ok_or(MachineEffectError::StructuralCallMismatch { machine })?;
-    let declaration = catalog
-        .catalog()
-        .structural_unit_call
-        .ok_or(MachineEffectError::StructuralCallMismatch { machine })?;
-    if constraint.operands.is_empty()
-        && call.implicit_uses == constraint.implicit_uses
-        && call.implicit_defs == constraint.implicit_defs
-        && call.clobbers == constraint.clobbers
-        && declaration.constraint == call.constraint
-    {
-        Ok(StructuralUnitCallMachineEffects {
-            instruction: call.id,
-            operation: call.operation,
-            callee: call.callee,
-            constraint: call.constraint,
-            unit_uses: call.implicit_uses.clone(),
-            unit_defs: call.implicit_defs.clone(),
-            unit_clobbers: call.clobbers.clone(),
-            layout: call.layout,
-            effect: call.effect,
-            ownership: call.ownership.clone(),
-            claim_transfers: call.claim_transfers.clone(),
-            provenance: call.provenance.clone(),
-            declaration,
-        })
-    } else {
-        Err(MachineEffectError::StructuralCallMismatch { machine })
-    }
 }
 
 fn validate_catalog_roots(
@@ -168,7 +106,10 @@ fn terminal_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
-        structural_unit_call: keys.structural_unit_call,
+        load64: keys.load64,
+        store64: keys.store64,
+        frame_address: keys.frame_address,
+        call_unit: keys.call_unit,
         call_i64: keys.call_i64.clone(),
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
@@ -275,5 +216,9 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
+        SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
+        SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
+        SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
+        SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,
     }
 }

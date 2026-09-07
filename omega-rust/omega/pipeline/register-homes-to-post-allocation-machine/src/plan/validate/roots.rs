@@ -11,8 +11,6 @@ use crate::PostAllocationMachineError;
 use physical_instructions::{MachineAlternativeChoiceRule, PostAllocationMachinePlan};
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
-use super::structural::validate_structural_allocation;
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -26,7 +24,6 @@ pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
     constraints: &ValidatedRegisterConstraintCatalog,
     plan: &PostAllocationMachinePlan,
 ) -> Result<(), PostAllocationMachineError> {
-    validate_structural_allocation(selected, effects, ranges, legality, homes)?;
     if effects.receipt().selected() != selected.selected_identity()
         || ranges.receipt().selected() != selected.selected_identity()
         || plan.selected != selected.selected_identity()

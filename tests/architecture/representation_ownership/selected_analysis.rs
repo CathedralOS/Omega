@@ -50,13 +50,13 @@ fn selected_analysis_schemas_and_identities_have_one_representation_owner() {
             "liveness",
             LIVENESS_TYPES,
             "liveness_identity",
-            "omega.terminal-register-liveness.v8",
+            "omega.terminal-register-liveness.v9",
         ),
         (
             "live_ranges",
             LIVE_RANGE_TYPES,
             "live_range_identity",
-            "omega.terminal-live-range-fragments.v9",
+            "omega.terminal-live-range-fragments.v10",
         ),
     ] {
         assert!(program_root.contains(&format!("mod {module};")));

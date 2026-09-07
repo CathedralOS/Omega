@@ -10,8 +10,4 @@ pub enum SelectedFunctionLayoutPolicy {
     /// The module contains more than one admitted canonical function shape;
     /// each function derives its own exact block order from its terminator.
     PerFunctionCanonicalShapeV1,
-    /// A separate zero-VReg structural roster. Every function has one entry
-    /// block containing either `ReturnUnit`, or one unresolved whole-root
-    /// `CallUnit` template followed by `ReturnUnit`.
-    StructuralUnitCallThenReturnSingleEntryBlockV1,
 }

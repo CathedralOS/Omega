@@ -63,7 +63,8 @@ pub(super) fn validate_def_use(
             return Err(invalid());
         }
         match register.origin {
-            VirtualRegisterOrigin::EntryParameter { .. } => {
+            VirtualRegisterOrigin::EntryParameter { .. }
+            | VirtualRegisterOrigin::StructuralParameter { .. } => {
                 definitions[position] = Some((None, None))
             }
             VirtualRegisterOrigin::BlockParameter { block, .. } => {
@@ -164,7 +165,7 @@ pub(super) fn validate_def_use(
                         if destination.id != parameter
                             || destination.scalar_type != semantic.scalar_type
                             || argument_row.scalar_type != semantic.scalar_type
-                            || source_value(argument_row) != semantic.argument
+                            || source_value(argument_row) != Some(semantic.argument)
                             || !available(argument, block_index, block.instructions.len() + 1)
                         {
                             return Err(invalid());
@@ -184,11 +185,13 @@ pub(super) fn validate_def_use(
     Ok(())
 }
 
-fn source_value(register: &VirtualRegister) -> ValueId {
+fn source_value(register: &VirtualRegister) -> Option<ValueId> {
     match register.origin {
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::InstructionResult { source_value, .. }
-        | VirtualRegisterOrigin::BlockParameter { source_value, .. } => source_value,
+        | VirtualRegisterOrigin::BlockParameter { source_value, .. } => Some(source_value),
+        VirtualRegisterOrigin::StructuralParameter { .. }
+        | VirtualRegisterOrigin::AbiTransport { .. } => None,
     }
 }
 

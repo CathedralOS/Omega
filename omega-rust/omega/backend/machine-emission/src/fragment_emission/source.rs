@@ -146,14 +146,6 @@ impl From<crate::StagedOptimizedUnitFunctionRelativeRealization>
     }
 }
 
-impl From<crate::StagedOptimizedStructuralUnitFunctionRelativeRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: crate::StagedOptimizedStructuralUnitFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::StructuralUnit(Box::new(realization)).into()
-    }
-}
-
 impl From<crate::StagedFixedFrameFunctionRelativeRealization>
     for StagedOptimizedFunctionFragmentEmissionSource
 {

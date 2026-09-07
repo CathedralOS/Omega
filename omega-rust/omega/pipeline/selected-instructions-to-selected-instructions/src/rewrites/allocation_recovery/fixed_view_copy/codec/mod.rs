@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. Public V14 binds semantic successors to explicit register transport.
+//! Owns admission and authentication order. Public V15 binds ordinary structural calls, memory contracts, and register transport.
 //! Every older envelope is rejected before its payload is interpreted.
 
 mod content;
@@ -12,11 +12,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v14_identity;
+use self::envelope::v15_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 14;
+const VERSION: u32 = 15;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -26,7 +26,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v14_identity(self, &content));
+        encoded.extend_from_slice(&v15_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

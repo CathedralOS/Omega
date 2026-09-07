@@ -12,8 +12,6 @@ use selected_instructions_to_register_homes::{
 use crate::PostAllocationMachineError;
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
-use super::structural::{unique_effect, unique_home};
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -26,7 +24,6 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), PostAllocationMachineError> {
-    validate_structural_allocation(selected, effects, ranges, legality, homes)?;
     if effects.receipt().selected() != selected.selected_identity()
         || ranges.receipt().selected() != selected.selected_identity()
     {
@@ -76,62 +73,6 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         || constraints.identity() != effects.plan().register_constraints
     {
         return Err(PostAllocationMachineError::RegisterConstraintCatalogMismatch);
-    }
-    Ok(())
-}
-
-fn validate_structural_allocation<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    effects: &ValidatedPreAllocationMachineEffects,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-) -> Result<(), PostAllocationMachineError> {
-    let source = &selected.selected_plan().structural_unit_functions;
-    if effects.plan().structural_unit_functions.len() != source.len()
-        || ranges.plan().structural_unit_functions.len() != source.len()
-        || legality.plan().structural_unit_functions.len() != source.len()
-        || homes.plan().structural_unit_functions.len() != source.len()
-    {
-        let machine = source
-            .first()
-            .map(|function| function.machine)
-            .unwrap_or(selected.selected_plan().entry);
-        return Err(PostAllocationMachineError::StructuralAllocationMismatch { machine });
-    }
-    for function in source {
-        unique_effect(effects, function.machine)?;
-        let range_matches = ranges
-            .plan()
-            .structural_unit_functions
-            .iter()
-            .filter(|candidate| candidate.machine == function.machine)
-            .collect::<Vec<_>>();
-        let legality_matches = legality
-            .plan()
-            .structural_unit_functions
-            .iter()
-            .filter(|candidate| candidate.machine == function.machine)
-            .collect::<Vec<_>>();
-        let home = unique_home(homes, function.machine)?;
-        let ([range], [legality]) = (range_matches.as_slice(), legality_matches.as_slice()) else {
-            return Err(PostAllocationMachineError::StructuralAllocationMismatch {
-                machine: function.machine,
-            });
-        };
-        if range.block_domains.len() != 1
-            || range.block_domains[0].block != function.entry_block
-            || !range.virtual_registers.is_empty()
-            || !range.tied_pairs.is_empty()
-            || !range.early_clobbers.is_empty()
-            || !range.interference.is_empty()
-            || !legality.virtual_registers.is_empty()
-            || !home.assignments.is_empty()
-        {
-            return Err(PostAllocationMachineError::StructuralAllocationMismatch {
-                machine: function.machine,
-            });
-        }
     }
     Ok(())
 }

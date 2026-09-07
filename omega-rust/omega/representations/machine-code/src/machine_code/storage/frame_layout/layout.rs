@@ -1,6 +1,6 @@
 use super::{NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageIdentity};
 use physical_instructions::PostAllocationMachineIdentity;
-use register_homes::{AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedRequirementIdentity};
+use register_homes::AllocatedCalleeSavedRequirementIdentity;
 use register_model::{
     FrameAbiPreservationConvention, PhysicalRegisterModelIdentity, RegisterViewId,
     TargetRegisterEnvironmentIdentity,
@@ -58,7 +58,6 @@ pub struct OutgoingAbiFrameArea {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionTargetFrameLayout {
     pub machine: MachineId,
-    pub kind: AllocatedCalleeSavedFunctionKind,
     pub contains_call: bool,
     pub stack_pointer: RegisterViewId,
     pub pre_call_stack_alignment: u16,

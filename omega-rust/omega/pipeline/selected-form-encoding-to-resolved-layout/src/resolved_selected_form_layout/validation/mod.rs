@@ -23,7 +23,6 @@ mod branch;
 mod ordinary;
 mod policy;
 mod row;
-mod structural;
 
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -37,6 +36,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         selected,
         machine,
         physical,
+        pre_layout.program().frame.as_ref(),
         optimization,
         pre_layout,
     )
@@ -49,20 +49,8 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.functions.len()
-        || selected_plan.structural_unit_functions.len()
-            != machine_plan.structural_unit_functions.len()
-        || selected_plan.structural_unit_functions.len()
-            != pre_layout.structural_unit_functions().len()
         || pre_layout.post_allocation_machine_optimization() != normalized
     {
-        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
-    }
-    let has_ordinary = !selected_plan.functions.is_empty();
-    let has_structural = !selected_plan.structural_unit_functions.is_empty();
-    if has_ordinary && has_structural {
-        return Err(OptimizedResolvedSelectedFormLayoutError::MixedOrdinaryAndStructuralFunctions);
-    }
-    if has_structural && optimization.is_some() {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
     let expected_policy = policy::derive(selected_plan)?;
@@ -83,6 +71,5 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         expected_policy,
         artifact,
     )?;
-    structural::validate(selected, machine, pre_layout, artifact)?;
     aggregate::validate_identity(artifact)
 }

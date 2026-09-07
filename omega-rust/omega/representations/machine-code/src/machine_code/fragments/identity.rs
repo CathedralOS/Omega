@@ -2,9 +2,9 @@
 
 use super::{
     FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
-    FunctionFragmentEmissionPlan, FunctionFragmentInstructionSpan,
-    FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState, FunctionFragmentSuccessorProvenance,
+    FunctionFragmentEmissionPlan, FunctionFragmentInternalMachineFixup,
+    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+    FunctionFragmentSuccessorProvenance,
 };
 use optimization_core::FunctionFragmentEmissionIdentity;
 use optimization_unit::{FuelSettlement, PsiProvenance};
@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v5";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v6";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -62,50 +62,7 @@ pub fn function_fragment_emission_identity(
             }
         }
     }
-    hasher.update((plan.structural_unit_functions.len() as u64).to_le_bytes());
-    for function in &plan.structural_unit_functions {
-        hasher.update(function.machine.get().to_le_bytes());
-        match function.attachment {
-            None => hasher.update([0]),
-            Some(attachment) => {
-                hasher.update([1]);
-                hasher.update(attachment.get().to_le_bytes());
-            }
-        }
-        encode_function_provenance(&mut hasher, &function.provenance);
-        hasher.update(function.byte_count.to_le_bytes());
-        encode_bytes(&mut hasher, &function.bytes);
-        let block = &function.block;
-        hasher.update(block.block.0.to_le_bytes());
-        hasher.update(block.offset.to_le_bytes());
-        hasher.update(block.byte_count.to_le_bytes());
-        match &block.call {
-            None => hasher.update([0]),
-            Some(call) => {
-                hasher.update([1]);
-                hasher.update(call.instruction.0.to_le_bytes());
-                hasher.update(call.operation.get().to_le_bytes());
-                hasher.update(call.callee.get().to_le_bytes());
-                hasher.update(call.offset.to_le_bytes());
-                encode_bytes(&mut hasher, &call.bytes);
-                encode_instruction_provenance(&mut hasher, &call.provenance);
-                encode_internal_machine_fixup(&mut hasher, call.fixup);
-            }
-        }
-        encode_instruction_span(&mut hasher, &block.return_instruction);
-    }
     FunctionFragmentEmissionIdentity::from_canonical_bytes(&hasher.finalize())
-}
-
-fn encode_instruction_span(hasher: &mut Sha256, row: &FunctionFragmentInstructionSpan) {
-    hasher.update(row.instruction.0.to_le_bytes());
-    encode_alternative(hasher, row.alternative);
-    hasher.update(row.offset.to_le_bytes());
-    encode_bytes(hasher, &row.bytes);
-    encode_branch(hasher, row.branch.as_deref());
-    encode_optional_internal_machine_fixup(hasher, row.internal_machine_fixup);
-    encode_instruction_provenance(hasher, &row.provenance);
-    encode_control(hasher, &row.control);
 }
 
 fn encode_optional_internal_machine_fixup(
@@ -308,6 +265,10 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Store64 => 17,
+        MachineAlternativeFamily::FrameAddress => 18,
+        MachineAlternativeFamily::CallUnit => 19,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -352,6 +313,22 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     );
     match effects.memory {
         MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
+        MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand,
+            byte_count,
+        } => {
+            hasher.update([3]);
+            hasher.update(pointer_operand.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([4]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,
             byte_count,

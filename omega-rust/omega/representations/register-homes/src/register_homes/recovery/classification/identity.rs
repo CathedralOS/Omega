@@ -12,7 +12,7 @@ pub fn recovery_classification_identity(
     plan: &RecoveryClassificationPlan,
 ) -> RecoveryClassificationIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v4\0");
     bytes.extend_from_slice(&encode_terminal_recovery_classification_content(plan));
     RecoveryClassificationIdentity(Sha256::digest(bytes).into())
 }
@@ -56,7 +56,13 @@ pub(crate) fn encode_terminal_recovery_classification_content(
             encode_scalar_type(&mut bytes, row.scalar_type);
             bytes.extend_from_slice(&row.class.0.to_le_bytes());
             encode_origin(&mut bytes, row.origin);
-            encode_definition_site(&mut bytes, row.definition_site);
+            match row.definition_site {
+                Some(site) => {
+                    bytes.push(1);
+                    encode_definition_site(&mut bytes, site);
+                }
+                None => bytes.push(0),
+            }
             match &row.classification {
                 RecoveryClassification::ImmediateU64RematerializationCandidate {
                     defining_instruction,
@@ -135,6 +141,25 @@ fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
 
 fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+            encode_len(bytes, parameter_index);
+        }
+        VirtualRegisterOrigin::AbiTransport {
+            instruction,
+            place,
+            byte_offset,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+
         VirtualRegisterOrigin::BlockParameter {
             source_value,
             block,
@@ -290,10 +315,10 @@ mod tests {
                         instruction: SelectedInstructionId(7),
                         source_value: value,
                     },
-                    definition_site: ValueDefinitionSite::Node {
+                    definition_site: Some(ValueDefinitionSite::Node {
                         block: BlockId::new(10).unwrap(),
                         node: 11,
-                    },
+                    }),
                     classification:
                         RecoveryClassification::ImmediateU64RematerializationCandidate {
                             defining_instruction: SelectedInstructionId(7),

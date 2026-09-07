@@ -93,6 +93,11 @@ fn fixture() -> (
         machine,
         attachment: None,
         provenance: Default::default(),
+        structural: None,
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: (0..3_u32)
             .map(|register| VirtualRegister {
@@ -103,10 +108,10 @@ fn fixture() -> (
                     instruction: SelectedInstructionId(register),
                     source_value: ValueId::new(u64::from(register) + 1).unwrap(),
                 },
-                definition_site: ValueDefinitionSite::Node {
+                definition_site: Some(ValueDefinitionSite::Node {
                     block: source_block,
                     node: register,
-                },
+                }),
                 entry_fixed_view: None,
             })
             .collect(),

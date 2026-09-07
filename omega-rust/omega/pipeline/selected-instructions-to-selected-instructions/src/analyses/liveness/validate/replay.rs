@@ -115,6 +115,7 @@ pub(super) fn replay_function(
             matches!(
                 register.origin,
                 VirtualRegisterOrigin::EntryParameter { .. }
+                    | VirtualRegisterOrigin::StructuralParameter { .. }
             )
         })
         .map(|register| EntryDefinition {
