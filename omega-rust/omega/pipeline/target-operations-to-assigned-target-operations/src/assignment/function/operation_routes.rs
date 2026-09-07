@@ -1,6 +1,6 @@
 use super::{
-    boundary, cleanup, dynamic_parameter, ranked_countdown, scalar, scalar_store, structural,
-    structural_parameter, unit,
+    boundary, cleanup, dynamic_parameter, scalar, scalar_store, structural, structural_parameter,
+    unit,
 };
 use crate::assignment::shared::*;
 
@@ -12,8 +12,8 @@ pub(super) fn assign_operation(
     native_callbacks: &[target_operations::TargetNativeCallbackArgument],
 ) -> Result<AssignedOperation, AssignmentError> {
     match &function.operation {
-        TargetOperation::RankedU32Countdown(countdown) => {
-            ranked_countdown::assign(countdown, target)
+        TargetOperation::RankedU32Countdown(_) => {
+            Err(AssignmentError::RequiresSelectedGraph(function.machine))
         }
         operation @ TargetOperation::ReturnStructuralScalarCall { .. } => {
             structural::scalar_call_result::assign(function.machine, operation, target)

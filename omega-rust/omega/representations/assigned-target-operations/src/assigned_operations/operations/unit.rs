@@ -33,7 +33,6 @@ use target_operations::BoundaryScalarArgument;
 use target_operations::CompletionClaimSource;
 use target_operations::MachineRegister;
 use target_operations::ProviderExecutionBinding;
-use target_operations::RankedU32CountdownCustody;
 use target_operations::ScalarAbiValue;
 use target_operations::TargetStructuralParameter;
 use terminal_psi::ClaimTransfer;
@@ -49,18 +48,6 @@ use terminal_psi::StructuralResultClaimTransfer;
 use terminal_psi::StructuralResultDeclaration;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::TerminalAffineCleanupAction;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssignedRankedU32Countdown {
-    pub custody: RankedU32CountdownCustody,
-    pub call_plan: CallPlan,
-    /// Stable mutable home of the loop-carried rank. The first exact slice
-    /// requires this to be the canonical incoming target-native register.
-    pub rank_home: MachineRegister,
-    pub structural_types: Vec<StructuralTypeDeclaration>,
-    pub structural_parameters: Vec<TargetStructuralParameter>,
-    pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignedUnitBody {

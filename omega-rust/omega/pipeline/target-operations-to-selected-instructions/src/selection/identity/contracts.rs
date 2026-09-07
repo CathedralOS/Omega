@@ -9,6 +9,19 @@ pub(super) fn slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
 }
 pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
+    match &function.ranked {
+        None => bytes.push(0),
+        Some(custody) => {
+            match abstract_operations::ranked_u32_countdown_custody_identity(custody) {
+                Ok(identity) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&identity);
+                }
+                // Invalid raw proposals have no proof authority and never decode as admitted custody.
+                Err(_) => bytes.push(2),
+            }
+        }
+    }
     match &function.structural {
         Some(contract) => {
             bytes.push(1);

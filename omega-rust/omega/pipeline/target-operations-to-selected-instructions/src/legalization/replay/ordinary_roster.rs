@@ -43,7 +43,7 @@ pub(super) fn replay_remaining(
         let [graph] = graphs.as_slice() else {
             return Err(Error::NonCanonicalLegalizedPlan);
         };
-        let count = if graph.structural.is_some() {
+        let count = if graph.structural.is_some() && graph.ranked.is_none() {
             replay_structural_unit_function(
                 index,
                 target_function,

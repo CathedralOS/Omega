@@ -27,6 +27,7 @@ pub(in crate::selection) fn validate(
         || selected.attachment != source.attachment
         || selected.provenance != source.provenance
         || selected.structural != source.structural
+        || selected.ranked != source.ranked
         || selected.entry_block != SelectedBlockId(0)
     {
         return Err(invalid());
@@ -74,6 +75,11 @@ pub(in crate::selection) fn validate(
             != match parameter.scalar_type {
                 ScalarType::Boolean => 1,
                 ScalarType::Integer(integer) if integer.bits() == 64 => 8,
+                ScalarType::Integer(integer)
+                    if integer.bits() == 32 && integer.sign() == IntegerSign::Unsigned =>
+                {
+                    4
+                }
                 _ => return Err(invalid()),
             }
         {
@@ -108,10 +114,16 @@ pub(in crate::selection) fn validate(
     }
     for index in 0..replay.definitions.len() {
         let (value, input, site, scalar_type) = replay.definitions[index];
-        let output = if scalar_type == ScalarType::Boolean {
+        let output = if scalar_type == ScalarType::Boolean
+            || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Unsigned)
+        {
             let output = replay.result_register(value, site, scalar_type)?;
             replay.check_instruction(
-                SelectedInstructionKind::ZeroExtendU8,
+                if scalar_type == ScalarType::Boolean {
+                    SelectedInstructionKind::ZeroExtendU8
+                } else {
+                    SelectedInstructionKind::ZeroExtendU32
+                },
                 constraints.keys.copy_i64,
                 &[input, output],
                 &SelectedInstructionProvenance {

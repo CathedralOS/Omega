@@ -139,7 +139,7 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in [3_u32, 4, 5, 6, 8] {
+    for version in [3_u32, 4, 5, 6, 7, 9] {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -168,12 +168,17 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
         Err(PostAllocationMachineDecodeError::WrongMagic)
     );
 
-    let mut unsupported_version = encoded.clone();
-    unsupported_version[8..12].copy_from_slice(&8_u32.to_le_bytes());
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&unsupported_version),
-        Err(PostAllocationMachineDecodeError::UnsupportedVersion(8))
-    );
+    let current_version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
+    for version in [current_version - 1, current_version.checked_add(1).unwrap()] {
+        let mut unsupported_version = encoded.clone();
+        unsupported_version[8..12].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&unsupported_version),
+            Err(PostAllocationMachineDecodeError::UnsupportedVersion(
+                version
+            ))
+        );
+    }
 
     for offset in [
         TARGET_OFFSET,
@@ -310,5 +315,27 @@ fn reauthenticated_physical_data_is_still_only_a_proposal() {
     assert_eq!(
         PostAllocationMachinePlan::decode(&substituted.encode()),
         Ok(substituted)
+    );
+}
+
+#[test]
+fn physical_u32_normalization_round_trips_and_binds_its_family() {
+    let mut source = plan();
+    source.functions[0].blocks[0].instructions[0]
+        .alternative
+        .key
+        .family = MachineAlternativeFamily::ZeroExtendU32;
+    source.identity = post_allocation_machine_identity(&source);
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    source.functions[0].blocks[0].instructions[0]
+        .alternative
+        .key
+        .family = MachineAlternativeFamily::CopyI64;
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&source.encode()),
+        Err(PostAllocationMachineDecodeError::InvalidIdentity)
     );
 }

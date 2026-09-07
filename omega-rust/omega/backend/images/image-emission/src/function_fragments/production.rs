@@ -10,10 +10,12 @@ use object_file::{
     StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
     entry_symbol_name,
 };
+use std::sync::Arc;
 
 pub fn build_function_fragment_object_artifact(
-    source: &StagedOptimizedRelocationFreeObjectContainer,
+    replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
 ) -> Result<ObjectArtifact, Error> {
+    let source = replay.as_ref();
     source::admit(source)?;
     let text = source.source().text_section();
     let fragments = source::fragments(source);
@@ -140,7 +142,7 @@ pub fn build_function_fragment_object_artifact(
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
-            ranked_u32_countdown: None,
+            ranked_u32_countdown: source::ranked_record(targeted),
             structural_return: None,
         });
         let fragment = fragments
@@ -172,6 +174,7 @@ pub fn build_function_fragment_object_artifact(
         }
     }
     let artifact = ObjectArtifact {
+        fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
         psi: text.psi,
         target: text.target,
         x86_feature_profile: None,

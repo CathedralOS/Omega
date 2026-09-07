@@ -101,8 +101,8 @@ pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
 ) -> Result<ExecutableImage, Diagnostic> {
+    super::function_fragments::replay::validate(artifact)?;
     validate_x86_scalar_fma_provider(artifact)?;
-    super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if !can_emit_executable_image(artifact.target) {
         return Err(Diagnostic::error(format!(
             "cannot emit terminal-Psi executable image for {:?}",
@@ -172,8 +172,8 @@ pub fn validate_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<(), Diagnostic> {
+    super::function_fragments::replay::validate(artifact)?;
     validate_x86_scalar_fma_provider(artifact)?;
-    super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if artifact.psi() != image.psi()
         || artifact.target() != image.target()
         || artifact.x86_scalar_fma_provider() != image.x86_scalar_fma_provider()

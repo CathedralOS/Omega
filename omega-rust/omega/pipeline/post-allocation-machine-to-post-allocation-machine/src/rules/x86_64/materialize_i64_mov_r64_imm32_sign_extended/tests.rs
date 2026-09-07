@@ -142,6 +142,7 @@ fn fixture() -> Fixture {
         target: NativeTarget::linux_x64(),
         entry: machine,
         functions: vec![SelectedFunction {
+            ranked: None,
             structural: None,
             outgoing_arguments: Vec::new(),
             calls: Vec::new(),

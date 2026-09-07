@@ -3,7 +3,7 @@ use optimization_core::OptimizationValidatorIdentity;
 
 pub fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v30",
+        b"omega.terminal-target-legalization-independent-replay.v31",
     )
 }
 
@@ -151,9 +151,6 @@ pub enum ProjectedStructuralCallReturnLegalizationError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizationError {
-    RankedCountdownNotYetSelectable {
-        machine: semantic_vocabulary::MachineId,
-    },
     AttachedUnitStructuralScalarNotYetSelectable {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,

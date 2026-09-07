@@ -1,109 +1,83 @@
-use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator};
-
+//! Place ordinary blocks by mandatory conditional fallthrough chains.
+use super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
 use post_allocation_machine_to_post_allocation_machine::StagedOptimizedAarch64CbnzFusion;
-
-use super::super::OptimizedResolvedSelectedFormLayoutError;
-use super::super::SelectedFunctionLayoutPolicy;
+use selected_instructions::{SelectedBlock, SelectedFunction, SelectedTerminator};
 
 pub(super) fn derive<'a>(
     function: &'a SelectedFunction,
-    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+    _fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
     policy: SelectedFunctionLayoutPolicy,
 ) -> Result<Vec<&'a SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
-    let function_has_fusion = fusion.is_some_and(|fusion| {
-        fusion
-            .fusion()
-            .plan()
-            .actions
-            .iter()
-            .any(|action| action.machine == function.machine)
-    });
-    if let [block] = function.blocks.as_slice() {
-        if function.entry_block != block.id
-            || !matches!(block.terminator, SelectedTerminator::Return { .. })
-        {
-            return unsupported(function);
-        }
-        return Ok(vec![block]);
-    }
-    if !matches!(function.blocks.len(), 3 | 4) {
-        return unsupported(function);
-    }
-    let entry = find(function, function.entry_block)?;
-    let (taken, fallthrough) = match (&entry.terminator, policy) {
-        (
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            },
-            SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1
-            | SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-        ) => (when_nonzero, when_zero),
-        (
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            },
-            SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1
-            | SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-        ) if !function_has_fusion => (when_less, when_not_less),
-        _ => return unsupported(function),
-    };
-    if taken.block == fallthrough.block || entry.id == taken.block || entry.id == fallthrough.block
-    {
-        return unsupported(function);
-    }
-    let fallthrough = find(function, fallthrough.block)?;
-    let taken = find(function, taken.block)?;
-    if function.blocks.len() == 4 {
-        let (
-            SelectedTerminator::Jump {
-                successor: left, ..
-            },
-            SelectedTerminator::Jump {
-                successor: right, ..
-            },
-        ) = (&fallthrough.terminator, &taken.terminator)
-        else {
-            return unsupported(function);
-        };
-        if left.block != right.block || [entry.id, fallthrough.id, taken.id].contains(&left.block) {
-            return unsupported(function);
-        }
-        let joined = find(function, left.block)?;
-        if !matches!(joined.terminator, SelectedTerminator::Return { .. }) {
-            return unsupported(function);
-        }
-        return Ok(vec![entry, fallthrough, taken, joined]);
-    }
-    if !matches!(fallthrough.terminator, SelectedTerminator::Return { .. })
-        || !matches!(taken.terminator, SelectedTerminator::Return { .. })
-    {
-        return unsupported(function);
-    }
-    Ok(vec![entry, fallthrough, taken])
-}
-
-fn find(
-    function: &SelectedFunction,
-    id: SelectedBlockId,
-) -> Result<&SelectedBlock, OptimizedResolvedSelectedFormLayoutError> {
-    function
+    let invalid =
+        || OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine);
+    let count = function.blocks.len();
+    let entry = function
         .blocks
         .iter()
-        .find(|block| block.id == id)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine))
+        .position(|block| block.id == function.entry_block)
+        .ok_or_else(invalid)?;
+    if policy == SelectedFunctionLayoutPolicy::SingleEntryBlockV1
+        && (count != 1
+            || !matches!(
+                function.blocks[entry].terminator,
+                SelectedTerminator::Return { .. }
+            ))
+    {
+        return Err(invalid());
+    }
+    let mut following = vec![None; count];
+    let mut preceding = vec![None; count];
+    for (source, block) in function.blocks.iter().enumerate() {
+        if function.blocks[..source]
+            .iter()
+            .any(|other| other.id == block.id)
+        {
+            return Err(invalid());
+        }
+        let successor = match &block.terminator {
+            SelectedTerminator::ConditionalBranch { when_zero, .. } => Some(when_zero),
+            SelectedTerminator::ConditionalBranchU64LessThan { when_not_less, .. }
+            | SelectedTerminator::ConditionalBranchI64LessThan { when_not_less, .. } => {
+                Some(when_not_less)
+            }
+            SelectedTerminator::Jump { .. } | SelectedTerminator::Return { .. } => None,
+        };
+        if let Some(successor) = successor {
+            let destination = function
+                .blocks
+                .iter()
+                .position(|block| block.id == successor.block)
+                .ok_or_else(invalid)?;
+            if destination == source || preceding[destination].replace(source).is_some() {
+                return Err(invalid());
+            }
+            following[source] = Some(destination);
+        }
+    }
+    // Entry cannot be placed after another block's fallthrough. Explicit Jump
+    // edges impose no adjacency and may point backward, including loop backedges.
+    if preceding[entry].is_some() {
+        return Err(invalid());
+    }
+    let roots = std::iter::once(entry)
+        .chain((0..count).filter(|index| *index != entry && preceding[*index].is_none()));
+    let mut visited = vec![false; count];
+    let mut order = Vec::with_capacity(count);
+    for root in roots {
+        let mut current = Some(root);
+        while let Some(index) = current {
+            if std::mem::replace(&mut visited[index], true) {
+                return Err(invalid());
+            }
+            order.push(&function.blocks[index]);
+            current = following[index];
+        }
+    }
+    if order.len() != count {
+        return Err(invalid());
+    }
+    Ok(order)
 }
 
-fn unsupported<T>(
-    function: &SelectedFunction,
-) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine))
-}
+#[cfg(test)]
+mod tests;

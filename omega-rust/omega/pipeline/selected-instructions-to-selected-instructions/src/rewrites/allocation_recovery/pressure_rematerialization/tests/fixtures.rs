@@ -114,6 +114,7 @@ pub(crate) fn fixture() -> (
         target: target::NativeTarget::linux_x64(),
         entry: machine,
         functions: vec![SelectedFunction {
+            ranked: None,
             machine,
             attachment: None,
             provenance: Default::default(),

@@ -168,6 +168,7 @@ pub(super) fn raw_fixture() -> RawFixture {
         provenance: SelectedInstructionProvenance::default(),
     };
     let selected = SelectedFunction {
+        ranked: None,
         machine,
         attachment: None,
         provenance: Default::default(),

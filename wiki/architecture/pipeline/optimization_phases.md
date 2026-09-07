@@ -325,8 +325,8 @@ abstract native admission and lowering now run unconditionally before
 selection presence is inspected. A closed `Identity | Selected` optimization
 continuation makes empty execution explicit instead of encoding it as a missing
 context. Both cases first enter one explicit post-Terminal optimization stage.
-That stage alone consumes the continuation and publishes ordinary identity,
-ranked identity, or validated optimized-ordinary custody. Empty selection still
+That stage alone consumes the continuation and publishes the current optimized
+abstract program beside its ordinary or ranked native authority. Empty selection still
 retains the verified optimizer input, executes the abstract-stage identity
 validation, and rejects a changed plan. Target lowering
 consumes that closed result and cannot invoke the optimizer or inspect the
@@ -346,7 +346,7 @@ identity execution before custody is consumed; it never means try a specialized
 route and silently fall back. Consequently every selected-pipeline result owns a
 non-optional function-relative manifest. The remaining transitional split is one
 layer out: `NativePhysicalStageResult` still carries assigned operations for
-ranked programs and ordinary identity programs beyond the supported fragment
+ordinary identity programs beyond the supported fragment
 publication shape. The selection stage owns publication-input classification,
 using the same input predicates and ordered form catalog as legalization.
 The coordinator contains no separate scalar grammar and does not try legalization
@@ -363,6 +363,26 @@ Independent replay checks definition availability, operand identity, accepted
 arithmetic facts and logical fuel. Canonical graph encoding binds those facts;
 retired source-family tags are not reused. Reading incoming stack arguments
 remains outside this contract.
+
+The admitted ranked U32 countdown also uses this graph for empty and nonempty
+post-Terminal selections. Its loop is ordinary blocks, successor arguments,
+comparison, subtraction and return; no assigned countdown or ISA loop template
+remains. Entry transport normalizes the incoming U32 register without changing
+its semantic type. Ranking, fixed-fuel, structural frontiers and cleanup remain
+explicit evidence, checked independently against the actual source and selected
+graph. Frame demand comes from common allocation and frame planning. The current
+slice remains one Linux x64/Arm64 entry with an affine-owned root or mutable
+receiver; this change does not admit ranked callees or new recursive shapes.
+Canonical layout follows conditional-fallthrough chains, beginning with the
+entry chain and then remaining roots in selected block order. Explicit jumps can
+point backward; layout is not limited to single-block or diamond-shaped bodies.
+Conflicting or cyclic fallthrough constraints reject rather than silently
+changing a control edge.
+
+Common object publication retains the complete fragment replay inputs as
+evidence beside its directly usable current object. Final image admission replays
+that relationship and the ranked semantic contract; it does not recognize a
+fixed byte template or accept a digest in place of executable correspondence.
 The direct-return conditional forms include unsigned equality and inequality,
 signed/unsigned less-than and less-or-equal, and unsigned equality/inequality
 against zero. Boolean parameters have an explicit one-byte scalar ABI and enter
@@ -434,9 +454,9 @@ manufacture stack-held result records for values in preserved registers.
 Installation replay composes WCSU from those same frame and call facts, taking
 the maximum across sequential calls and composing nested callees. Scalar and
 Unit callers retain their corresponding checked stack envelopes; neither is
-relabeled to bypass publication checks. Cyclic scalar graphs, narrow and
-Boolean call transport, stack arguments, and the remaining structural/ranked
-routes are unfinished physical-route convergence work.
+relabeled to bypass publication checks. Cyclic scalar graphs beyond the admitted
+ranked countdown, narrow and Boolean call transport, stack arguments, and the
+remaining structural routes are unfinished physical-route convergence work.
 Register-call argument counts come from the checked call plan, including zero;
 they do not select different source-program recipes. The target catalog supplies
 one exact constraint and effect row per admitted ABI register roster. Selection
@@ -492,8 +512,9 @@ it does not inspect which physical optimization variant produced them. Scalar
 publication binds the exact ABI, bytes and semantic intervals, with independent
 object/stack replay. Forward scalar graphs retain actual conditional predicates,
 unconditional targets and returns. Byte-level replay reconstructs block boundaries
-and transfers independently; it rejects hidden branches, backward edges, missing
-blocks and inconsistent incoming stack depths at joins. A shared frame is restored
+and transfers independently; it rejects hidden branches, unadmitted cycles, missing
+blocks and inconsistent incoming stack depths at joins. Ranked backedges retain
+their independently checked decreasing-measure evidence. A shared frame is restored
 at the actual return, not at each jump. The
 taken edge owns the branch interval; the fallthrough edge has a zero-width
 coordinate at the next instruction. Both retain their one semantic conditional
@@ -517,10 +538,10 @@ Microsoft-x64 frames
 reserve the outgoing ABI home area separately from save and link storage. The
 public request surface uses the closed post-Terminal selection type, so this
 transitional branch cannot reopen an earlier phase. Ranked-countdown native
-authority currently rejects a nonempty post-Terminal selection: the ordinary
-optimized target route cannot substitute for the independently admitted ranked
-native route. Supporting that combination requires a ranked-aware optimizer
-carrier through the same physical postcondition.
+authority follows the common physical postcondition with empty or nonempty
+selections. Its exact admitted abstract plan must remain unchanged; physical
+rewrites retain the ranked proof, ownership and fixed-fuel evidence and replay
+it independently through publication.
 
 Migration proceeds in dependency order:
 
@@ -549,9 +570,9 @@ remaining realization replay carriers are transitional, not new canonical IRs.
    before target lowering; target lowering cannot schedule abstract optimization.
    Identity continuation executes and validates the empty abstract-operation
    phase rather than passing its plan through unchecked.
-   Ranked execution remains role-specific authority and selected ranked input
-   fails closed until a ranked-aware optimizer carrier exists. There are
-   currently no cataloged abstract-operation rewrites to move.
+   Ranked execution retains its independently admitted authority inside the
+   same target-stage product and common physical graph. There are currently no
+   cataloged abstract-operation rewrites to move.
 5. **Optimizer-owned physical routes now converge at function-relative
    realization; outer convergence remains.** Identity and selected execution
    enter one target-lowering stage and then one physical-routing stage. The
@@ -559,7 +580,7 @@ remaining realization replay carriers are transitional, not new canonical IRs.
    representation and produces a validated unit, structural-unit, or fixed-frame
    realization; it does not try one route and fall back to another. Its public
    function-relative manifest is therefore non-optional for every route. The
-   outer Terminal-to-native physical result still mixes assigned ranked and
+   outer Terminal-to-native physical result still mixes assigned callback and
    richer ordinary identity plans with the shared fragment result. Return-only
    identity programs already reach that result without selecting an optimization.
    Optimizer-owned routes already

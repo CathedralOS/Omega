@@ -34,7 +34,6 @@ mod installed_artifact;
 mod installed_provider_unit_scalar_call;
 mod instruction_loads;
 mod partial_cleanup_partition;
-mod ranked_u32_countdown;
 mod runtime_scalar_custody;
 mod scalar_call_stack;
 mod scalar_cleanup_preservation;
@@ -137,6 +136,8 @@ use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectArtifact {
+    /// Complete common-pipeline replay inputs, independent of the current object.
+    fragment_replay: Option<function_fragments::replay::FragmentReplay>,
     psi: TerminalPsiIdentity,
     target: NativeTarget,
     /// Exact deployment profile for the source-free feature-requiring x86 FMA
@@ -163,6 +164,11 @@ pub struct ObjectArtifact {
 }
 
 impl ObjectArtifact {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn clear_fragment_replay_for_test(&mut self) {
+        self.fragment_replay = None;
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     pub fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
         &mut self.semantic_code_attribution
@@ -754,7 +760,15 @@ fn build_object_artifact_with_x86_feature_profile(
         validate_forwarded_dynamic_descriptors(plan.target, &plan.functions)?;
     validate_forwarded_dynamic_parameter_calls(plan.target, &plan.functions)?;
     let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
-    ranked_u32_countdown::replay_ranked_u32_countdown(plan)?;
+    // Ranked bodies require the independently replayed common physical source.
+    // Raw machine-code metadata cannot supply that authority.
+    if let Some(function) = plan
+        .functions
+        .iter()
+        .find(|function| function.ranked_u32_countdown.is_some())
+    {
+        return Err(ObjectError::InvalidRankedCountdown(function.machine));
+    }
     let mut previous = None;
     let mut saw_entry = false;
     let mut text_size = 0usize;
@@ -3056,6 +3070,7 @@ fn build_object_artifact_with_x86_feature_profile(
     }
 
     Ok(ObjectArtifact {
+        fragment_replay: None,
         psi: plan.psi,
         target: plan.target,
         x86_feature_profile,

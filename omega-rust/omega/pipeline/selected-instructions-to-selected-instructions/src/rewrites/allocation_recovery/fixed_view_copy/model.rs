@@ -295,6 +295,7 @@ pub enum FixedViewCopyDecodeError {
     InvalidUtf8,
     InvalidNominalId(u64),
     InvalidProviderExecution,
+    InvalidRankedCustody,
     InvalidCrashContinuations,
     LengthOverflow,
     TransformedIdentityMismatch,

@@ -8,8 +8,8 @@ pub(crate) use assigned_target_operations::{
     AssignedDynamicDescriptorParameterAbi, AssignedDynamicParameterCallMechanism,
     AssignedDynamicTraitDescriptorAbi, AssignedFunction, AssignedIeeeFloatFmaOperand,
     AssignedIntegerControl, AssignedIntegerExpression, AssignedNormalizedForeignScalarArgument,
-    AssignedOperation, AssignedOperationPlan, AssignedRankedU32Countdown, AssignedScalarExpression,
-    AssignedScalarLocation, AssignedStructuralHome, AssignedUnitBody, AssignedUnitOperation,
+    AssignedOperation, AssignedOperationPlan, AssignedScalarExpression, AssignedScalarLocation,
+    AssignedStructuralHome, AssignedUnitBody, AssignedUnitOperation,
     AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument, AssignedUnitScalarHome,
     EntryRegisterSpill, ExpressionFrame,
 };
@@ -25,8 +25,7 @@ pub(crate) use target_operations::{
     TargetBooleanControl, TargetBooleanExpression, TargetCallArgument,
     TargetDynamicDescriptorArgument, TargetFunction, TargetIeeeFloatFmaOperand,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
-    TargetRankedU32Countdown, TargetScalarExpression, TargetUnitOperation,
-    TargetUnitScalarArgumentSource,
+    TargetScalarExpression, TargetUnitOperation, TargetUnitScalarArgumentSource,
 };
 
 pub(crate) use crate::AssignmentError;

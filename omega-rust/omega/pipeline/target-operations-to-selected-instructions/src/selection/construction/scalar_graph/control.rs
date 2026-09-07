@@ -305,6 +305,10 @@ pub(super) fn block_order(
         .position(|block| block.id == source.entry_block)
         .ok_or(invalid.clone())?;
     let mut order = vec![entry];
+    if source.ranked.is_some() {
+        order.extend((0..source.blocks.len()).filter(|index| *index != entry));
+        return Ok(order);
+    }
     while order.len() < source.blocks.len() {
         let next = source
             .blocks

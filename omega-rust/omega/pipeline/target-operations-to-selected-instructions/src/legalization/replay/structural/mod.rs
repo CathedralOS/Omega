@@ -21,6 +21,9 @@ pub(super) fn replay_structural_unit_function(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<usize, LegalizationError> {
+    if proposed.ranked.is_some() {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
     let validated = validate_structural_unit_form(target, abstracted, optimized)
         .ok_or(Error::NonCanonicalLegalizedPlan)?;
     validate_replayed_contract(

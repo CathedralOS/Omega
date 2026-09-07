@@ -44,7 +44,7 @@ fn empty_and_selected_target_results_share_the_original_current_program() {
             let evidence = optimized_target(target, selections);
             let original = evidence.shared_program();
             assert!(std::ptr::eq(&original.plan, evidence.target_operations()));
-            let stage = NativeTargetStageResult::ordinary(evidence);
+            let stage = NativeTargetStageResult::new(evidence);
             assert!(Arc::ptr_eq(&stage.program, &original));
             let (program, evidence) = stage.into_parts().expect("exact current/evidence join");
             assert!(Arc::ptr_eq(&program, &original));
@@ -62,7 +62,7 @@ fn empty_and_selected_target_results_share_the_original_current_program() {
 fn changed_target_contents_reject_even_with_unchanged_root_ids() {
     let evidence = optimized_target(NativeTarget::linux_x64(), OptimizationSelections::default());
     let original = evidence.shared_program();
-    let mut stage = NativeTargetStageResult::ordinary(evidence);
+    let mut stage = NativeTargetStageResult::new(evidence);
     Arc::make_mut(&mut stage.program).plan.functions.clear();
     assert_eq!(stage.program.plan.psi, original.plan.psi);
     assert_eq!(stage.program.plan.entry, original.plan.entry);
@@ -82,7 +82,7 @@ fn changed_target_contents_reject_even_with_unchanged_root_ids() {
 fn substituted_target_profile_rejects_without_rewriting_retained_evidence() {
     let evidence = optimized_target(NativeTarget::linux_x64(), OptimizationSelections::default());
     let original = evidence.shared_program();
-    let mut stage = NativeTargetStageResult::ordinary(evidence);
+    let mut stage = NativeTargetStageResult::new(evidence);
     Arc::make_mut(&mut stage.program).plan.target = NativeTarget::linux_arm64();
     assert_eq!(original.plan.target, NativeTarget::linux_x64());
     assert!(matches!(
@@ -124,41 +124,57 @@ fn ordinary_and_ranked_outputs_own_the_same_representation() {
         panic!("fixture must retain ranked authority");
     };
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+        let optimized = crate::optimize_verified_abstract_input(
+            input,
+            crate::compiler_baseline_request_v1(&OptimizationSelections::default()),
+        )
+        .unwrap();
         let ranked_plan =
-            abstract_operations_to_target_operations::lower_ranked_to_target_operations(
-                &ranked, target,
+            abstract_operations_to_target_operations::lower_validated_ranked_to_target_operations(
+                optimized, &ranked, target,
             )
             .unwrap();
-        let ranked_stage = NativeTargetStageResult::ranked(ranked_plan);
+        let ranked_stage = NativeTargetStageResult::new(ranked_plan);
         let ordinary = optimized_target(target, OptimizationSelections::default());
-        let ordinary_stage = NativeTargetStageResult::ordinary(ordinary);
+        let ordinary_stage = NativeTargetStageResult::new(ordinary);
         let mut programs = Vec::new();
         for (stage, is_ranked) in [(ordinary_stage, false), (ranked_stage, true)] {
             let (program, evidence) = stage.into_parts().expect("current target output");
             assert_eq!(
-                matches!(evidence, NativeTargetStageEvidence::Ranked),
+                evidence
+                    .target_operations()
+                    .functions
+                    .iter()
+                    .any(|function| matches!(
+                        function.operation,
+                        target_operations::TargetOperation::RankedU32Countdown(_)
+                    )),
                 is_ranked
             );
             programs.push(program);
+            assert!(
+                target_operations_to_selected_instructions::is_fragment_publication_program(
+                    &evidence
+                ),
+                "both roles must select the common route even with empty selections"
+            );
+            crate::stage_optimized_verified_physical_pipeline(
+                evidence,
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            )
+            .expect("both roles consume the common physical graph");
         }
         assert_eq!(programs.len(), 2);
         for program in programs {
             assert_eq!(program.plan.target, target);
             assert_eq!(Arc::strong_count(&program), 1);
             assert!(program.native_callback_arguments.is_empty());
-            let assigned = target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(
-                &program,
-            )
-            .expect("assignment consumes current representation for both roles");
-            let previous =
-                target_operations_to_assigned_target_operations::assign_registers(&program.plan)
-                    .expect("prior callback-free assignment");
-            assert_eq!(assigned.plan, previous);
-            assert_eq!(
-                machine_emission::emit_machine_code_with_native_callbacks(&assigned).unwrap(),
-                machine_emission::emit_machine_code(&previous).unwrap(),
-                "shared assignment and emission preserve complete machine bytes and evidence",
-            );
         }
     }
 }

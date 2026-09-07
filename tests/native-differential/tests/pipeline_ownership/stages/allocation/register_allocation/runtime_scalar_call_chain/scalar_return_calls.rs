@@ -247,7 +247,9 @@ fn scalar_calls_with_rel8_use_common_fixed_frame_publication() {
         );
         let object = stage_optimized_relocation_free_object_container(text).unwrap();
         validate_optimized_relocation_free_object_container(&object).unwrap();
-        let published = image_emission::build_function_fragment_object_artifact(&object).unwrap();
+        let object = std::sync::Arc::new(object);
+        let published =
+            image_emission::build_function_fragment_object_artifact(object.clone()).unwrap();
         image_emission::validate_function_fragment_object_artifact(&object, &published).unwrap();
         let image = image_emission::emit_executable_image(&published, 3).unwrap();
         image_emission::validate_executable_image(&published, &image).unwrap();
@@ -378,8 +380,10 @@ fn publish_scalar_artifacts_with_arguments(
                 );
                 let object = stage_optimized_relocation_free_object_container(text).unwrap();
                 validate_optimized_relocation_free_object_container(&object).unwrap();
+                let object = std::sync::Arc::new(object);
                 let published =
-                    image_emission::build_function_fragment_object_artifact(&object).unwrap();
+                    image_emission::build_function_fragment_object_artifact(object.clone())
+                        .unwrap();
                 image_emission::validate_function_fragment_object_artifact(&object, &published)
                     .unwrap();
                 let image = image_emission::emit_executable_image(&published, 3).unwrap();

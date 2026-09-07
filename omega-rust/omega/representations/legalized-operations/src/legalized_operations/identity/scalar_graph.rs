@@ -21,6 +21,17 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         function.provenance.edges.iter().map(|value| value.get()),
     );
     encode_call_plan(bytes, &function.call_plan);
+    match &function.ranked {
+        None => bytes.push(0),
+        Some(custody) => match abstract_operations::encode_ranked_u32_countdown_custody(custody) {
+            Ok(encoded) => {
+                bytes.push(1);
+                encode_len(bytes, encoded.len());
+                bytes.extend_from_slice(&encoded);
+            }
+            Err(_) => bytes.push(2),
+        },
+    }
     match &function.structural {
         Some(signature) => {
             bytes.push(1);

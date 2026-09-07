@@ -25,7 +25,7 @@ use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_iden
 use optimization_unit::PsiOptimizationUnit;
 use target_operations::TargetOperationPlan;
 
-use admission::{reject_attached_unit_structural_scalar, reject_ranked_countdown};
+use admission::reject_attached_unit_structural_scalar;
 use replay::replay_terminal_legalized_plan;
 use source::derive_source_function_rosters;
 
@@ -34,7 +34,6 @@ pub fn legalize_target_operations(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    reject_ranked_countdown(target)?;
     reject_attached_unit_structural_scalar(target)?;
     let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
@@ -58,7 +57,6 @@ pub fn validate_legalized_operations(
     unit: &PsiOptimizationUnit,
     plan: LegalizedOperationPlan,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    reject_ranked_countdown(target)?;
     reject_attached_unit_structural_scalar(target)?;
     let (decomposition_count, projected_structural_call_return) =
         replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;

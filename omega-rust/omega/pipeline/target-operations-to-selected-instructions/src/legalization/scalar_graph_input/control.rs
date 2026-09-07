@@ -4,6 +4,7 @@ pub(super) fn validate(
     node: &OptimizationNode,
     _body: &[OptimizationNode],
     function: &PsiOptimizationFunction,
+    ranked: bool,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (&node.operation, &function.result) {
@@ -13,7 +14,15 @@ pub(super) fn validate(
                 cleanup_actions,
             },
             AbstractFunctionResult::Unit,
-        ) if cleanup_actions.is_empty() => return_edge(node, *psi_edge),
+        ) if cleanup_actions.is_empty()
+            || (ranked
+                && node.ownership
+                    == [optimization_unit::OwnershipEvent::Cleanup(
+                        cleanup_actions.clone(),
+                    )]) =>
+        {
+            return_edge(node, *psi_edge)
+        }
         (
             AbstractOperation::Return {
                 psi_edge,

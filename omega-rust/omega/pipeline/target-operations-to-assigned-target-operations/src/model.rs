@@ -10,8 +10,7 @@ pub enum AssignmentError {
         operation: OperationId,
     },
     EntryFunctionMissing(MachineId),
-    RankedCountdownAbiMismatch(ValueId),
-    RankedCountdownRequiresRegister(ValueId),
+    RequiresSelectedGraph(MachineId),
     UnsupportedScalarCleanup(MachineId),
     InstalledProviderCallRequiresOptimizedLane {
         machine: MachineId,

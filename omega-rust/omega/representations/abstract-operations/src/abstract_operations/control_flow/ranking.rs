@@ -1,6 +1,11 @@
 //! Ranked control graph and the semantic evidence required for replay.
 
+mod codec;
 use crate::AbstractOperationPlan;
+pub use codec::{
+    RankedCustodyCodecError, decode_ranked_u32_countdown_custody,
+    encode_ranked_u32_countdown_custody, ranked_u32_countdown_custody_identity,
+};
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, ObligationId, OperationId, PlaceId,
     Proposition, ValueId,

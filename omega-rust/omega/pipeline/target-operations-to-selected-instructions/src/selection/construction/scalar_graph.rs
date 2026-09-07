@@ -63,6 +63,11 @@ pub(super) fn build(
             != match parameter.scalar_type {
                 ScalarType::Boolean => 1,
                 ScalarType::Integer(integer) if integer.bits() == 64 => 8,
+                ScalarType::Integer(integer)
+                    if integer.bits() == 32 && integer.sign() == IntegerSign::Unsigned =>
+                {
+                    4
+                }
                 _ => return Err(invalid()),
             }
         {
@@ -100,10 +105,16 @@ pub(super) fn build(
     }
     for index in 0..builder.definitions.len() {
         let (value, input, site, scalar_type) = builder.definitions[index];
-        let output = if scalar_type == ScalarType::Boolean {
+        let output = if scalar_type == ScalarType::Boolean
+            || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Unsigned)
+        {
             let output = builder.register(value, site, scalar_type)?;
             builder.emit(
-                SelectedInstructionKind::ZeroExtendU8,
+                if scalar_type == ScalarType::Boolean {
+                    SelectedInstructionKind::ZeroExtendU8
+                } else {
+                    SelectedInstructionKind::ZeroExtendU32
+                },
                 constraints.keys.copy_i64,
                 &[input, output],
                 SelectedInstructionProvenance {
@@ -433,6 +444,7 @@ pub(super) fn build(
         attachment: source.attachment,
         provenance: source.provenance.clone(),
         structural: source.structural.clone(),
+        ranked: source.ranked.clone(),
         outgoing_arguments: builder.transport.slots,
         calls: builder.transport.calls,
         memory_accesses: builder.transport.memory,

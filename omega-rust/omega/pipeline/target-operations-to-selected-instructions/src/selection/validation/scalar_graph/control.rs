@@ -367,6 +367,13 @@ pub(super) fn block_order(
         }
         let expected = if position == 0 {
             source.entry_block
+        } else if source.ranked.is_some() {
+            source
+                .blocks
+                .iter()
+                .find(|block| !seen.contains(&block.id))
+                .map(|block| block.id)
+                .ok_or(invalid.clone())?
         } else {
             source
                 .blocks

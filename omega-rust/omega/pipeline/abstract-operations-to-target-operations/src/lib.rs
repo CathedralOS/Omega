@@ -24,7 +24,7 @@ pub use optimized::{
     lower_optimized_to_target_operations_with_ieee_float_fma_settlements,
     lower_optimized_to_target_operations_with_provider_executions,
     lower_optimized_to_target_operations_with_provider_executions_and_installation,
-    lower_validated_abstract_to_target_operations,
+    lower_validated_abstract_to_target_operations, lower_validated_ranked_to_target_operations,
 };
 pub use placed_view_inputs::{
     lower_to_target_operations_with_placed_view_inputs, validate_placed_view_input_translation,

@@ -52,7 +52,13 @@ pub(super) fn derive(
         provenance: target.provenance.clone(),
         call_plan,
         parameters,
-        structural: None,
+        structural: scalar_graph_input::structural_contract(target, abstracted, optimized),
+        ranked: match &target.operation {
+            target_operations::TargetOperation::RankedU32Countdown(ranked) => {
+                Some(ranked.custody.clone())
+            }
+            _ => None,
+        },
         entry_block: optimized.entry,
         blocks,
     })

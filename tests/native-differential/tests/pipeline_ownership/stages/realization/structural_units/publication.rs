@@ -221,7 +221,7 @@ fn stage(
     selections: OptimizationSelections,
     providers: &[terminal_psi_to_abstract_operations::SelectedProviderAdapter],
     settlements: &[AdmittedBoundarySettlement<'_>],
-) -> StagedOptimizedRelocationFreeObjectContainer {
+) -> std::sync::Arc<StagedOptimizedRelocationFreeObjectContainer> {
     let optimized = optimize_artifact_sections(
         semantic,
         proof,
@@ -262,7 +262,7 @@ fn stage(
         physical.into_function_fragment_emission_source(),
     )
     .expect("shared structural fragments");
-    if fragments.source().frame_layout().is_some() {
+    std::sync::Arc::new(if fragments.source().frame_layout().is_some() {
         let applied = stage_function_fragment_frame_application(fragments)
             .expect("common structural frame application");
         let text =
@@ -272,14 +272,14 @@ fn stage(
         let text = stage_optimized_relocation_free_text_section(fragments)
             .expect("shared frameless structural text");
         stage_optimized_relocation_free_object_container(text).expect("shared structural object")
-    }
+    })
 }
 
 fn publish(
-    source: &StagedOptimizedRelocationFreeObjectContainer,
+    source: &std::sync::Arc<StagedOptimizedRelocationFreeObjectContainer>,
     executions: &[&dyn installation_evidence::ProviderExecutionEvidence],
 ) -> image_emission::ObjectArtifact {
-    let object = image_emission::build_function_fragment_object_artifact(source)
+    let object = image_emission::build_function_fragment_object_artifact(source.clone())
         .expect("shared structural object publication");
     image_emission::validate_function_fragment_object_artifact(source, &object)
         .expect("independent structural object replay");

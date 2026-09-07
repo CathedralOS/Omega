@@ -51,6 +51,7 @@ pub(super) fn assemble(
             entry_claims: abstracted.entry_claims.clone(),
             published_service_ceiling: abstracted.published_service_ceiling.clone(),
         }),
+        ranked: None,
         entry_block: optimized_block.id,
         blocks: vec![legalized_operations::LegalizedScalarBlock {
             id: optimized_block.id,

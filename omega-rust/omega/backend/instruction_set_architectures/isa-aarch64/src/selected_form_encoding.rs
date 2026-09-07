@@ -539,6 +539,7 @@ fn family_and_operand_count(
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
         SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2),
+        SelectedInstructionKind::ZeroExtendU32 => (MachineAlternativeFamily::ZeroExtendU32, 2),
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
@@ -638,6 +639,9 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ZeroExtendU8 => {
             words.push(0xd340_1c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+        }
+        SelectedInstructionKind::ZeroExtendU32 => {
+            words.push(0xd340_7c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
         }
         SelectedInstructionKind::CopyI64 => {
             words.push(0xaa00_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
@@ -781,6 +785,10 @@ enum DecodedWord {
         source: u8,
         destination: u8,
     },
+    ZeroExtendU32 {
+        source: u8,
+        destination: u8,
+    },
     MovN {
         register: u8,
         shift: u8,
@@ -845,6 +853,12 @@ fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEnc
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
     if word & 0xffff_fc00 == 0xd340_1c00 {
         return Ok(DecodedWord::ZeroExtendU8 {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0xd340_7c00 {
+        return Ok(DecodedWord::ZeroExtendU32 {
             source: ((word >> 5) & 31) as u8,
             destination: (word & 31) as u8,
         });
@@ -933,6 +947,13 @@ fn validate_decoded(
         SelectedInstructionKind::ZeroExtendU8 => {
             decoded
                 == [DecodedWord::ZeroExtendU8 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        SelectedInstructionKind::ZeroExtendU32 => {
+            decoded
+                == [DecodedWord::ZeroExtendU32 {
                     source: registers[0],
                     destination: registers[1],
                 }]
@@ -1107,9 +1128,9 @@ fn footprint(
 ) -> Aarch64SelectedFormFootprint {
     let (reads, writes, writes_nzcv) = match kind {
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
-        SelectedInstructionKind::CopyI64 | SelectedInstructionKind::ZeroExtendU8 => {
-            (vec![operands[0]], vec![operands[1]], false)
-        }
+        SelectedInstructionKind::CopyI64
+        | SelectedInstructionKind::ZeroExtendU8
+        | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ExactAddI64 { .. }
@@ -1179,6 +1200,7 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
@@ -1191,6 +1213,7 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
                 SelectedInstructionKind::ExactAddI64 { .. }
@@ -1308,6 +1331,79 @@ mod tests {
             | (u32::from(immediate) << 5)
             | u32::from(register))
         .to_le_bytes()
+    }
+
+    #[test]
+    fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        for source in ["x0", "x1", "x9", "x16", "x29"] {
+            for destination in ["x0", "x1", "x9", "x16", "x29"] {
+                let operands = [
+                    physical.model().view_named(source).unwrap().id,
+                    physical.model().view_named(destination).unwrap().id,
+                ];
+                let kind = SelectedInstructionKind::ZeroExtendU32;
+                let key = alternative(MachineAlternativeFamily::ZeroExtendU32);
+                let encoded =
+                    encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+                assert_eq!(encoded.bytes().len(), 4);
+                // UBFM with immr=0, imms=31 selects exactly the low U32 bits.
+                let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
+                assert_eq!(word & 0xffff_fc00, 0xd340_7c00);
+                validate_aarch64_selected_form_encoding(
+                    &physical,
+                    kind,
+                    key,
+                    &operands,
+                    encoded.bytes(),
+                )
+                .unwrap();
+                let narrow = encode_aarch64_selected_form(
+                    &physical,
+                    SelectedInstructionKind::ZeroExtendU8,
+                    alternative(MachineAlternativeFamily::ZeroExtendU8),
+                    &operands,
+                )
+                .unwrap();
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        narrow.bytes()
+                    )
+                    .is_err()
+                );
+                let copy = encode_aarch64_selected_form(
+                    &physical,
+                    SelectedInstructionKind::CopyI64,
+                    alternative(MachineAlternativeFamily::CopyI64),
+                    &operands,
+                )
+                .unwrap();
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        copy.bytes()
+                    )
+                    .is_err()
+                );
+                for byte in 0..4 {
+                    let mut changed = encoded.bytes().to_vec();
+                    changed[byte] ^= 1;
+                    assert!(
+                        validate_aarch64_selected_form_encoding(
+                            &physical, kind, key, &operands, &changed
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

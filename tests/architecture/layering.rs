@@ -79,6 +79,10 @@ const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
     // exact crate edge; it does not authorize a representations-to-semantics
     // layer pair.
     ("legalized-operations", "terminal-codec"),
+    // Ranked raw custody retains canonical Terminal module and proposition
+    // bytes. This representation edge uses their existing codec, not semantic
+    // verification or a second representation-local wire format.
+    ("abstract-operations", "terminal-codec"),
     // This target-neutral semantic service owns the pre-resolution/pre-check
     // conveyors documented in canonical_ir_fuel_and_resource_provisioning.md.
     // Its probe evaluations deliberately invoke these three Psi frontend passes
@@ -2184,7 +2188,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !target_output.contains("enum NativeTargetStageResult")
             && target_output.contains("program: Arc<TargetOperationPlanWithNativeCallbacks>")
             && target_output.contains("program: evidence.shared_program()")
-            && target_output.contains("self.program != evidence.shared_program()")
+            && target_output.contains("self.program != self.evidence.shared_program()")
             && target_output.contains("Ok((self.program, self.evidence))")
             && physical_stage.contains("target program/evidence join")
             && optimizer_physical_model.contains("StagedOptimizedUnitFunctionRelativeRealization")
@@ -2233,7 +2237,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && optimization_stage
                 .contains("empty selection changed the ordinary abstract-operation plan")
             && optimization_stage
-                .contains("empty selection changed the ranked native abstract-operation plan")
+                .contains("optimization changed the exact admitted ranked abstract-operation plan")
             && optimization_stage.contains("NativeRealizationAuthority::RankedU32Countdown(_)")
             && target_stage.contains("match authority {")
             && !target_stage.contains("optimize_verified_abstract_input(")
@@ -2242,9 +2246,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && !target_stage.contains("optimization_selections")
             && !target_output.contains("Optimized(Box<")
             && physical_stage.contains("enum NativePhysicalStageResult")
-            && physical_stage
-                .contains("NativeTargetStageEvidence::Ranked => assign_current_target")
-            && physical_stage.contains("NativeTargetStageEvidence::Ordinary(optimized_target)")
+            && !physical_stage.contains("NativeTargetStageEvidence")
+            && !target_output.contains("enum NativeTargetStageEvidence")
+            && target_stage.contains("lower_validated_ranked_to_target_operations(")
             && physical_stage.contains(
                 "Assigned(assigned_target_operations::AssignedOperationPlanWithNativeCallbacks)"
             )
@@ -2302,7 +2306,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("lower_validated_abstract_to_target_operations(")
         .expect("identity and selected execution use one target producer");
     let ordinary_target_result = ordinary_target_conveyor
-        .find("Ok(NativeTargetStageResult::ordinary(target))")
+        .find("Ok(NativeTargetStageResult::new(target))")
         .expect("the target stage retains the validated current program");
     let optimization_stage_entrance = machine_code
         .find("let optimization_stage =")
@@ -2317,7 +2321,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("match physical_stage {")
         .expect("machine realization consumes the completed physical stage");
     let physical_target_consumption = physical_stage
-        .find("let (target, evidence) = target_stage")
+        .find("let (target, optimized_target) = target_stage")
         .expect("physical routing consumes current target data and bound evidence");
     let selected_physical_stage = physical_stage
         .find("let physical = crate::stage_optimized_verified_physical_pipeline")
@@ -4595,12 +4599,50 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             && optimized_entrance
                 .matches("let translation_validation =")
                 .count()
-                == 1
+                == 2
             && optimized_entrance
                 .matches("Ok(ValidatedOptimizedTargetOperations {")
                 .count()
-                == 1,
+                == 2,
         "the optimized target-operation entrance must join lowering to independent translation validation before carrier construction",
+    );
+    for (entrance, validator) in [
+        (
+            "pub fn lower_validated_abstract_to_target_operations(",
+            "validate_abstract_to_target_translation_with_ieee_float_fma_settlements(",
+        ),
+        (
+            "pub fn lower_validated_ranked_to_target_operations(",
+            "crate::validate_abstract_to_target_translation(",
+        ),
+    ] {
+        let body = optimized_entrance
+            .split_once(entrance)
+            .expect("typed target entrance")
+            .1
+            .split("\npub fn ")
+            .next()
+            .unwrap();
+        assert!(
+            body.find(validator)
+                .expect("independent translation validation")
+                < body
+                    .find("Ok(ValidatedOptimizedTargetOperations {")
+                    .expect("sealed target construction"),
+            "each native-authority entrance must validate before sealing: {entrance}"
+        );
+    }
+    let ranked = optimized_entrance
+        .split_once("pub fn lower_validated_ranked_to_target_operations(")
+        .expect("ranked target entrance")
+        .1
+        .split("\npub fn ")
+        .next()
+        .unwrap();
+    assert!(
+        ranked.contains("optimized.plan() != &ranked.plan")
+            && ranked.contains("return Err(LoweringError::InvalidRankedCountdown"),
+        "ranked authority must bind exact current abstract data before target lowering"
     );
 }
 
@@ -4755,7 +4797,7 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
 }
 
 #[test]
-fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
+fn ranked_publication_uses_common_replay_and_rejects_raw_machine_authority() {
     let root = workspace_root();
     let image_root = root.join("omega-rust/omega/backend/images/image-emission");
     let manifest = std::fs::read_to_string(image_root.join("Cargo.toml"))
@@ -4771,7 +4813,11 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
         "ranked object replay must not acquire a production dependency on its machine-code producer",
     );
 
-    let replay = recursive_rust_source(&image_root.join("src/ranked_u32_countdown"));
+    assert!(
+        !image_root.join("src/ranked_u32_countdown").exists(),
+        "ranked publication must not retain a parallel final-image validator"
+    );
+    let replay = recursive_rust_source(&image_root.join("src/function_fragments"));
     for forbidden in [
         "machine_emission",
         "emit_machine_code",
@@ -4785,23 +4831,13 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
             "ranked object replay must consume decoded target evidence, not producer mechanics; found {forbidden}",
         );
     }
-    for required in [
-        "validate_x86_64_ranked_u32_countdown_in_edi",
-        "validate_aarch64_ranked_u32_countdown_in_w0",
-        "replay_ranked_countdown_contract",
-        "replay_ranked_u32_countdown_final_image",
-    ] {
-        assert!(
-            replay.contains(required),
-            "ranked object replay must visibly own `{required}`",
-        );
-    }
-
     let image_entrance = std::fs::read_to_string(image_root.join("src/lib.rs"))
         .expect("read image-emission entrance");
     assert!(
-        image_entrance.contains("ranked_u32_countdown::replay_ranked_u32_countdown(plan)?"),
-        "object construction must route ranked custody through independent replay",
+        image_entrance.contains("function.ranked_u32_countdown.is_some()")
+            && image_entrance
+                .contains("return Err(ObjectError::InvalidRankedCountdown(function.machine))"),
+        "legacy object construction must reject ranked bodies without common replay",
     );
     assert!(
         image_entrance.contains(
@@ -4810,28 +4846,58 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
         "object functions must retain independently replayed ranked custody",
     );
 
-    for (path, validator, encoder) in [
-        (
-            "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64/src/ranked_u32_countdown.rs",
-            "pub fn validate_x86_64_ranked_u32_countdown_in_edi",
-            "encode_ranked_u32_countdown_in_edi(",
-        ),
-        (
-            "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64/src/ranked_u32_countdown.rs",
-            "pub fn validate_aarch64_ranked_u32_countdown_in_w0",
-            "encode_ranked_u32_countdown_in_w0(",
-        ),
+    let common_replay =
+        std::fs::read_to_string(image_root.join("src/function_fragments/replay.rs"))
+            .expect("read retained common replay");
+    assert!(
+        common_replay.contains("Arc<StagedOptimizedRelocationFreeObjectContainer>")
+            && common_replay.contains("artifact.fragment_replay.is_none()")
+            && common_replay.contains("function.ranked_u32_countdown.is_some()")
+            && common_replay.contains("ranked body requires common-pipeline replay evidence")
+            && common_replay
+                .contains("validate_function_fragment_object_artifact(&replay.0, artifact)")
+            && image_entrance
+                .contains("fragment_replay: Option<function_fragments::replay::FragmentReplay>"),
+        "final-image replay must retain the complete common source, not a hash-only admission"
+    );
+    let current_validation =
+        std::fs::read_to_string(image_root.join("src/function_fragments/validation.rs"))
+            .expect("read common independent object validation");
+    assert!(
+        current_validation.contains("source::admit(source)?")
+            && current_validation.contains("actual.custody == expected.custody")
+            && current_validation.contains("actual.cleanup_actions == expected.cleanup_actions")
+            && !current_validation.contains("source::ranked_record("),
+        "ranked object fields must be independently compared, not certified by their producer"
+    );
+    let ranked_input = recursive_rust_source(&root.join(
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked"));
+    let ranked_header = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs")).unwrap();
+    for required in [
+        "verify_module_for_native_ranked_countdown",
+        "verify_module_for_fixed_fuel",
+        "validate_ranked_countdown_entry_fuel",
+        "replay_ranked_graph_matches",
+        "frontier_matches",
     ] {
-        let source = std::fs::read_to_string(root.join(path))
-            .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
-        let validator_body = source
-            .split_once(validator)
-            .map(|(_, tail)| tail)
-            .and_then(|tail| tail.split_once("#[cfg(test)]").map(|(body, _)| body))
-            .expect("ranked ISA validator precedes its tests");
         assert!(
-            !validator_body.contains(encoder),
-            "target-owned ranked validator in {path} must decode bytes without calling `{encoder}`",
+            ranked_input.contains(required),
+            "ranked source admission must retain {required}"
+        );
+    }
+    assert!(
+        ranked_header.contains("target.attachment.is_none()"),
+        "the existing attached ranked publication scope must remain explicit"
+    );
+    for path in [
+        "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64/src/ranked_u32_countdown.rs",
+        "omega-rust/omega/backend/instruction_set_architectures/isa-aarch64/src/ranked_u32_countdown.rs",
+        "omega-rust/omega/backend/machine-emission/src/ranked_countdown.rs",
+    ] {
+        assert!(
+            !root.join(path).exists(),
+            "dedicated ranked physical template must be deleted: {path}"
         );
     }
 }

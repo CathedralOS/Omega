@@ -17,7 +17,15 @@ pub(super) fn replay(
 ) -> Result<(), LegalizationError> {
     let call_plan =
         scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
-    if proposed.structural.is_some() {
+    if proposed.structural != scalar_graph_input::structural_contract(target, abstracted, optimized)
+        || proposed.ranked.as_ref()
+            != match &target.operation {
+                target_operations::TargetOperation::RankedU32Countdown(ranked) => {
+                    Some(&ranked.custody)
+                }
+                _ => None,
+            }
+    {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
     let invalid = Error::NonCanonicalLegalizedPlan;

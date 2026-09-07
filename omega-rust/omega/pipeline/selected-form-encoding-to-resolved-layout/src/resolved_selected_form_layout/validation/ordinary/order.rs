@@ -1,108 +1,89 @@
-use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator};
-
-use super::super::super::OptimizedResolvedSelectedFormLayoutError;
-use super::super::super::SelectedFunctionLayoutPolicy;
+//! Independently reconstruct canonical fallthrough adjacency and complete coverage.
+use super::super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
 use super::Fusion;
+use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator};
 
 pub(super) fn derive<'a>(
     function: &'a SelectedFunction,
-    fusion: Fusion<'_>,
+    _fusion: Fusion<'_>,
     policy: SelectedFunctionLayoutPolicy,
 ) -> Result<Vec<&'a SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
-    let function_has_fusion = fusion.is_some_and(|fusion| {
-        fusion
-            .fusion()
-            .plan()
-            .actions
-            .iter()
-            .any(|action| action.machine == function.machine)
-    });
-    if let [block] = function.blocks.as_slice() {
-        if function.entry_block != block.id
-            || !matches!(block.terminator, SelectedTerminator::Return { .. })
-        {
-            return unsupported(function);
-        }
-        return Ok(vec![block]);
-    }
-    if !matches!(function.blocks.len(), 3 | 4) {
-        return unsupported(function);
-    }
-    let entry = find(function, function.entry_block)?;
-    let (taken, fallthrough) = match (&entry.terminator, policy) {
-        (
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            },
-            SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1
-            | SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-        ) => (when_nonzero, when_zero),
-        (
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            },
-            SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1
-            | SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-        ) if !function_has_fusion => (when_less, when_not_less),
-        _ => return unsupported(function),
-    };
-    if taken.block == fallthrough.block || entry.id == taken.block || entry.id == fallthrough.block
-    {
-        return unsupported(function);
-    }
-    let fallthrough = find(function, fallthrough.block)?;
-    let taken = find(function, taken.block)?;
-    if function.blocks.len() == 4 {
-        let (
-            SelectedTerminator::Jump {
-                successor: left, ..
-            },
-            SelectedTerminator::Jump {
-                successor: right, ..
-            },
-        ) = (&fallthrough.terminator, &taken.terminator)
-        else {
-            return unsupported(function);
-        };
-        if left.block != right.block || [entry.id, fallthrough.id, taken.id].contains(&left.block) {
-            return unsupported(function);
-        }
-        let joined = find(function, left.block)?;
-        if !matches!(joined.terminator, SelectedTerminator::Return { .. }) {
-            return unsupported(function);
-        }
-        return Ok(vec![entry, fallthrough, taken, joined]);
-    }
-    if !matches!(fallthrough.terminator, SelectedTerminator::Return { .. })
-        || !matches!(taken.terminator, SelectedTerminator::Return { .. })
-    {
-        return unsupported(function);
-    }
-    Ok(vec![entry, fallthrough, taken])
-}
-
-fn find(
-    function: &SelectedFunction,
-    id: SelectedBlockId,
-) -> Result<&SelectedBlock, OptimizedResolvedSelectedFormLayoutError> {
-    function
+    let invalid =
+        || OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine);
+    let entry = function
         .blocks
         .iter()
-        .find(|block| block.id == id)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine))
+        .find(|block| block.id == function.entry_block)
+        .ok_or_else(invalid)?;
+    if policy == SelectedFunctionLayoutPolicy::SingleEntryBlockV1
+        && (function.blocks.len() != 1
+            || !matches!(entry.terminator, SelectedTerminator::Return { .. }))
+    {
+        return Err(invalid());
+    }
+    for (position, block) in function.blocks.iter().enumerate() {
+        if function.blocks[..position]
+            .iter()
+            .any(|other| other.id == block.id)
+        {
+            return Err(invalid());
+        }
+        if let Some(destination) = fallthrough(block)
+            && (destination == block.id
+                || !function.blocks.iter().any(|other| other.id == destination))
+        {
+            return Err(invalid());
+        }
+        let incoming = function
+            .blocks
+            .iter()
+            .filter(|source| fallthrough(source) == Some(block.id))
+            .count();
+        if incoming > 1 || (block.id == entry.id && incoming != 0) {
+            return Err(invalid());
+        }
+    }
+    let mut order = Vec::with_capacity(function.blocks.len());
+    let mut next = Some(entry);
+    while let Some(block) = next {
+        if order
+            .iter()
+            .any(|previous: &&SelectedBlock| previous.id == block.id)
+        {
+            return Err(invalid());
+        }
+        order.push(block);
+        next = if let Some(destination) = fallthrough(block) {
+            Some(
+                function
+                    .blocks
+                    .iter()
+                    .find(|candidate| candidate.id == destination)
+                    .ok_or_else(invalid)?,
+            )
+        } else {
+            function.blocks.iter().find(|candidate| {
+                !order.iter().any(|previous| previous.id == candidate.id)
+                    && !function
+                        .blocks
+                        .iter()
+                        .any(|source| fallthrough(source) == Some(candidate.id))
+            })
+        };
+    }
+    if order.len() != function.blocks.len() {
+        return Err(invalid());
+    }
+    Ok(order)
 }
 
-fn unsupported<T>(
-    function: &SelectedFunction,
-) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine))
+fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
+    match &block.terminator {
+        SelectedTerminator::ConditionalBranch { when_zero, .. } => Some(when_zero.block),
+        SelectedTerminator::ConditionalBranchU64LessThan { when_not_less, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { when_not_less, .. } => {
+            Some(when_not_less.block)
+        }
+        SelectedTerminator::Jump { .. } | SelectedTerminator::Return { .. } => None,
+    }
 }

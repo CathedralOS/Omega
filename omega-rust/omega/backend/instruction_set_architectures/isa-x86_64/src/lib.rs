@@ -12,7 +12,6 @@ mod mov_r32_imm32_i64_materialization;
 mod mov_r64_imm32_sign_extended_i64_materialization;
 mod post_handoff_writer;
 mod preservation_storage;
-mod ranked_u32_countdown;
 mod register_model;
 mod selected_form_encoding;
 mod semantic_unit_wrapper_encoding;
@@ -58,7 +57,6 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
 };
-pub use ranked_u32_countdown::*;
 pub use register_model::x86_64_microsoft_register_call_keys;
 pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
