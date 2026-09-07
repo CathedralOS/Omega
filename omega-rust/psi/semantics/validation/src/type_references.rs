@@ -3,7 +3,6 @@ mod generic_arguments;
 mod open_index_expressions;
 
 use constraint_validation::validate_type_constraints_node;
-pub use generic_arguments::validate_exact_const_value_encoding;
 pub(crate) use generic_arguments::{
     const_integer_value_fits_primitive, validate_exact_const_identity,
     validate_exact_typed_structured_const_argument,
@@ -12,6 +11,7 @@ use generic_arguments::{
     machine_argument_name, validate_const_data_argument, validate_generic_argument_bounds,
     validate_machine_data_argument, validate_symbolic_array_length,
 };
+pub use generic_arguments::{validate_closed_const_argument, validate_exact_const_value_encoding};
 pub use open_index_expressions::normalize_open_index_expressions;
 pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 

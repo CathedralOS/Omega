@@ -21,6 +21,7 @@ use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+mod const_arguments;
 mod const_values;
 
 #[derive(Clone)]
@@ -185,6 +186,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             conflicted: false,
         });
     }
+
+    const_arguments::validate_authored(program, &candidates, &callee_states)?;
     if candidates.is_empty() {
         return Ok(());
     }
@@ -407,11 +410,10 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
         types: &mut Vec<(SymbolHandle, typed_trees::name::Identifier)>,
     ) {
         for argument in arguments {
-            if let Some(literal) = &argument.const_literal {
-                let literal = literal.text().to_owned();
-                if !literals.contains(&literal) {
-                    literals.push(literal);
-                }
+            if let Some(literal) = const_arguments::spelling(program, argument)
+                && !literals.contains(&literal)
+            {
+                literals.push(literal);
             }
             if argument.application.is_none()
                 && argument.symbol.is_valid()
@@ -590,12 +592,12 @@ fn collect_machine_proposals_for_callee(
     let mut machine_index = 0usize;
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
-        if let Some(literal) = &selected.const_literal {
+        if let Some(literal) = const_arguments::spelling(program, selected) {
             if const_index < candidate.const_parameters.len()
                 && let Some((handle, _, _)) = program
                     .type_reference_table
                     .named_references()
-                    .find(|(_, symbol, name)| !symbol.is_valid() && *name == literal.text())
+                    .find(|(_, symbol, name)| !symbol.is_valid() && *name == literal)
             {
                 const_proposals.push((callee.candidate_index, const_index, handle));
                 const_index += 1;
@@ -2174,6 +2176,7 @@ fn clone_specialized_machine(
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
 ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Diagnostic> {
+    const_arguments::validate_bindings(source, candidate)?;
     let source_machine = &source.machines()[candidate.machine_index];
     let source_states = source.machine_states(source_machine).to_vec();
     let source_owned = source.machine_owned_data(source_machine).to_vec();
@@ -3232,19 +3235,21 @@ fn forwarded_static_argument_rewrites(
                 .iter()
                 .zip(candidate.const_bindings.iter())
                 .filter_map(|((parameter, _, _), binding)| {
-                    static_const_literal_from_type_reference(program, binding.as_ref().copied()?)
-                        .map(|literal| {
-                            (
-                                *parameter,
-                                StaticMachineArgument {
-                                    path: Box::default(),
-                                    application: None,
-                                    const_literal: Some(literal),
-                                    evidence_projection: None,
-                                    symbol: SymbolHandle::invalid(),
-                                },
-                            )
-                        })
+                    let binding = binding.as_ref().copied()?;
+                    let argument = if let Some(literal) =
+                        static_const_literal_from_type_reference(program, binding)
+                    {
+                        StaticMachineArgument {
+                            path: Box::default(),
+                            application: None,
+                            const_literal: Some(literal),
+                            evidence_projection: None,
+                            symbol: SymbolHandle::invalid(),
+                        }
+                    } else {
+                        static_argument_from_type_reference(program, binding)?
+                    };
+                    Some((*parameter, argument))
                 }),
         )
         .chain(
@@ -3788,6 +3793,7 @@ fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)
 }
 
 fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Result<(), Diagnostic> {
+    const_arguments::validate_bindings(program, candidate)?;
     let canonical_template_contract_bytes =
         canonical_template_contract_bytes(program, candidate.machine_index);
     let template_contract_report_fingerprint =

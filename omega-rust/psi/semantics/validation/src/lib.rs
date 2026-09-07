@@ -112,9 +112,11 @@ use crate::traits::{
     validate_trait_conformance_bounds, validate_trait_requirements,
 };
 use crate::transitions::validate_transition_target_node;
-pub use crate::type_references::validate_exact_const_value_encoding;
 use crate::type_references::{
     TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
+pub use crate::type_references::{
+    validate_closed_const_argument, validate_exact_const_value_encoding,
 };
 pub use default_domains::{OpenInvariantCrashSite, build_open_invariant_crash_sites};
 pub use definition_facts::build_definition_fact_plan;

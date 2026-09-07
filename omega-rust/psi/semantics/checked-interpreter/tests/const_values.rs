@@ -52,3 +52,36 @@ fn structured_const_instances_execute_distinct_integer_and_boolean_fields() {
             scenario.run()
         }");
 }
+
+#[test]
+fn explicit_const_arguments_execute_scalars_arrays_records_and_cases() {
+    assert_seven("data Config { count: u8; enabled: bool; }
+        data Choice { case First(value: u8); case Second(value: u8); }
+        const Values::NEGATIVE: i32 = -2;
+        const Values::CONFIG: Config = Config { enabled: true, count: 3 };
+        const Values::ARRAY: [u8; 2] = [2, 3];
+        const Values::CHOICE: Choice = Choice::Second { value: 4 };
+        machine boolean<const N: bool>() -> bool { N }
+        machine integer<const N: i32>() -> i32 { N }
+        machine record<const N: Config>() -> Config { N }
+        machine array<const N: [u8; 2]>() -> [u8; 2] { N }
+        machine choice<const N: Choice>() -> Choice { N }
+        machine check_choice(selected: Choice) -> bool {
+            transition selected {
+                Choice::First { value } -> false
+                Choice::Second { value } -> (value == 4)
+            }
+        }
+        machine main() -> i32 {
+            let enabled: bool = boolean<true>();
+            let disabled: bool = boolean<false>();
+            let negative: i32 = integer<Values::NEGATIVE>();
+            let config: Config = record<Values::CONFIG>();
+            let items: [u8; 2] = array<Values::ARRAY>();
+            let selected: Choice = choice<Values::CHOICE>();
+            let correct_choice: bool = check_choice(selected);
+            transition enabled && !disabled && negative == -2 && config.enabled && config.count == 3 && items[0] == 2 && items[1] == 3 && correct_choice {
+                true -> 7 false -> 0
+            }
+        }");
+}

@@ -242,7 +242,12 @@ fn lower_item_with_exposure(
                     .encoding,
                 )
             } else {
-                None
+                crate::generic_data::canonicalize_declared_const_definition(
+                    syntax_trees,
+                    definition,
+                )
+                .ok()
+                .map(|value| value.encoding)
             };
             let declared_type = crate::type_reference::lower_type_reference_handle(
                 lowerer,
