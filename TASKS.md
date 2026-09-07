@@ -103,11 +103,18 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 
   Resume native `print_squares` with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  On macOS at `acd0094362`, this reaches Terminal production and rejects
-  `attached Unit closure is missing a checked transitive machine plan` in
-  `checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs`.
-  Next acceptance: produce the exact transitive call plans and run the authored
-  sample with its documented exit and output; preserve its checked text facts.
+  On macOS ARM64 with code checkpoint `473cbe1844`, using `cargo` because `mbx` is unavailable,
+  this exits 100 before execution: `InvalidUnitMachinePlan` names `Main::main`
+  with `attached Unit closure is missing a checked transitive machine plan`.
+  The ordinary Unit planner in
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
+  authored state. Next retain ordered operations across the sample's actual
+  cyclic states using the existing composed-control representation, including
+  field arithmetic, text initialization, and runtime-indexed byte stores.
+  Preserve exact transfers and termination evidence; do not synthesize separate
+  one-state machines. Acceptance remains native execution with the documented
+  exit/output and unchanged checked text facts; the console dependencies below
+  are also required.
 
   Resume the native `cli_mvp` customer at code checkpoint `d4988c6605`.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
