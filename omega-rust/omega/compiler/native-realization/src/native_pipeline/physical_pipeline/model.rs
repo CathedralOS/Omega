@@ -37,64 +37,12 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     pub fn selections(&self) -> optimization_core::OptimizationSelectionIdentity {
         self.function_relative_manifest().record().selections
     }
-    pub fn selected_lowering_completion(
-        &self,
-    ) -> Option<optimization_core::SelectedLoweringOptimizationCompletionIdentity> {
-        self.post_allocation_manifest()
-            .record()
-            .selected_lowering_completion
-    }
-    pub fn post_allocation_machine_optimization(
-        &self,
-    ) -> Option<&post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization>{
-        self.source.post_allocation_machine_optimization()
-    }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn selected_lowering_function_relative_realization(
-        &self,
-    ) -> Option<&machine_emission::StagedSelectedLoweringFunctionRelativeRealization> {
-        self.selected_lowering_for_test()
-    }
-}
-
-impl From<machine_emission::StagedOptimizedUnitFunctionRelativeRealization>
-    for StagedOptimizedVerifiedPhysicalPipeline
-{
-    fn from(realization: machine_emission::StagedOptimizedUnitFunctionRelativeRealization) -> Self {
-        Self {
-            source: realization.into(),
-        }
-    }
 }
 
 impl From<machine_emission::StagedFixedFrameFunctionRelativeRealization>
     for StagedOptimizedVerifiedPhysicalPipeline
 {
     fn from(realization: machine_emission::StagedFixedFrameFunctionRelativeRealization) -> Self {
-        Self {
-            source: realization.into(),
-        }
-    }
-}
-
-impl From<machine_emission::StagedPostAllocationMachineFunctionRelativeRealization>
-    for StagedOptimizedVerifiedPhysicalPipeline
-{
-    fn from(
-        realization: machine_emission::StagedPostAllocationMachineFunctionRelativeRealization,
-    ) -> Self {
-        Self {
-            source: realization.into(),
-        }
-    }
-}
-
-impl From<machine_emission::StagedSelectedLoweringFunctionRelativeRealization>
-    for StagedOptimizedVerifiedPhysicalPipeline
-{
-    fn from(
-        realization: machine_emission::StagedSelectedLoweringFunctionRelativeRealization,
-    ) -> Self {
         Self {
             source: realization.into(),
         }

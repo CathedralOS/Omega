@@ -1,8 +1,5 @@
 use isa_x86_64::x86_64_physical_register_model;
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
-use post_allocation_machine_to_post_allocation_machine::{
-    X86XorZeroInstructionDisposition, X86XorZeroPhysicalWrite,
-};
 use register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
@@ -17,17 +14,14 @@ use semantic_vocabulary::IntegerValue;
 
 use super::{SelectedFormEncodingState, encode_row};
 use crate::SelectedFormMachineDisposition;
-use crate::materialization::MaterializationDisposition;
 
 fn fixture() -> (
     ValidatedPhysicalRegisterModel,
     SelectedInstruction,
     PostAllocationMachineInstruction,
-    X86XorZeroInstructionDisposition,
 ) {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let rax = physical.model().view_named("rax").unwrap();
-    let rflags = physical.model().view_named("rflags").unwrap();
     let instruction = SelectedInstructionId(1);
     let virtual_register = VirtualRegisterId(1);
     let selected = SelectedInstruction {
@@ -84,99 +78,32 @@ fn fixture() -> (
         unit_defs: rax.write_units.clone(),
         unit_clobbers: vec![],
     };
-    let disposition = X86XorZeroInstructionDisposition::XorZeroMaterializationV1 {
-        destination: X86XorZeroPhysicalWrite {
-            instruction,
-            operand: 0,
-            virtual_register,
-            class: rax.class,
-            view: rax.id,
-            storage_units: rax.units.clone(),
-            write_units: rax.write_units.clone(),
-            write_semantics: rax.write_semantics,
-        },
-        rflags_units: rflags.units.clone(),
-        baseline_byte_count: 10,
-        selected_byte_count: 3,
-    };
-    (physical, selected, machine, disposition)
+    (physical, selected, machine)
 }
 
 #[test]
-fn xor_zero_admission_reconstructs_canonical_bytes_and_transformed_flags() {
-    let (physical, selected, machine, disposition) = fixture();
-    let row = encode_row(
-        target::NativeTarget::linux_x64(),
-        &selected,
-        &machine,
-        &physical,
-        None,
-        SelectedFormMachineDisposition::RetainedV1,
-        Some(MaterializationDisposition::X86XorZero(&disposition)),
-    )
-    .unwrap();
-    let SelectedFormEncodingState::Encoded { bytes, footprint } = row.state else {
-        panic!("XOR-zero must own selected bytes")
+fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_dispositions() {
+    let (physical, selected, machine) = fixture();
+    let target = target::NativeTarget::linux_x64();
+    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let SelectedFormEncodingState::Encoded { bytes, .. } = &row.state else {
+        panic!("ordinary materialization must own bytes")
     };
-    assert_eq!(bytes, [0x48, 0x31, 0xc0]);
-    assert!(footprint.register_reads.is_empty());
-    assert_eq!(footprint.register_writes, [machine.operands[0].view]);
-    assert_eq!(
-        footprint.implicit_clobbers,
-        physical.model().view_named("rflags").unwrap().units
+    assert_eq!(bytes, &[0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0]);
+    crate::validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
+    let mut changed = row.clone();
+    changed.machine_disposition = SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 {
+        consumer: SelectedInstructionId(2),
+    };
+    assert!(
+        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
     );
-}
-
-#[test]
-fn xor_zero_admission_rejects_baseline_destination_count_and_flag_corruption() {
-    let (physical, selected, machine, disposition) = fixture();
-    let mut corruptions = Vec::new();
-
-    let mut wrong_baseline = machine.clone();
-    wrong_baseline.alternative.size = MachineSizeKnowledge::ExactBytes(9);
-    corruptions.push((wrong_baseline, disposition.clone()));
-
-    let mut wrong_destination = disposition.clone();
-    let X86XorZeroInstructionDisposition::XorZeroMaterializationV1 { destination, .. } =
-        &mut wrong_destination
-    else {
+    let mut changed = row;
+    let SelectedFormEncodingState::Encoded { bytes, .. } = &mut changed.state else {
         unreachable!()
     };
-    destination.view = physical.model().view_named("rbx").unwrap().id;
-    corruptions.push((machine.clone(), wrong_destination));
-
-    let mut wrong_count = disposition.clone();
-    let X86XorZeroInstructionDisposition::XorZeroMaterializationV1 {
-        selected_byte_count,
-        ..
-    } = &mut wrong_count
-    else {
-        unreachable!()
-    };
-    *selected_byte_count = 4;
-    corruptions.push((machine.clone(), wrong_count));
-
-    let mut wrong_flags = disposition;
-    let X86XorZeroInstructionDisposition::XorZeroMaterializationV1 { rflags_units, .. } =
-        &mut wrong_flags
-    else {
-        unreachable!()
-    };
-    rflags_units.clear();
-    corruptions.push((machine, wrong_flags));
-
-    for (machine, disposition) in corruptions {
-        assert!(
-            encode_row(
-                target::NativeTarget::linux_x64(),
-                &selected,
-                &machine,
-                &physical,
-                None,
-                SelectedFormMachineDisposition::RetainedV1,
-                Some(MaterializationDisposition::X86XorZero(&disposition)),
-            )
-            .is_err()
-        );
-    }
+    bytes[0] ^= 1;
+    assert!(
+        crate::validation::row::validate(target, &selected, &machine, &physical, &changed).is_err()
+    );
 }

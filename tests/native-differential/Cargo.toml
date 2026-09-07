@@ -44,9 +44,7 @@ x86-encoding = { path = "../../omega-rust/omega/backend/instruction_set_architec
 target = { path = "../../omega-rust/omega/representations/target" }
 abstract-operations = { path = "../../omega-rust/omega/representations/abstract-operations" }
 target-operations = { path = "../../omega-rust/omega/representations/target-operations" }
-assigned-target-operations = { path = "../../omega-rust/omega/representations/assigned-target-operations" }
 abstract-operations-to-target-operations = { path = "../../omega-rust/omega/pipeline/abstract-operations-to-target-operations" }
-target-operations-to-assigned-target-operations = { path = "../../omega-rust/omega/pipeline/target-operations-to-assigned-target-operations" }
 machine-emission = { path = "../../omega-rust/omega/backend/machine-emission", features = ["test-support"] }
 machine-code = { path = "../../omega-rust/omega/representations/machine-code" }
 image-emission = { path = "../../omega-rust/omega/backend/images/image-emission", features = ["test-support"] }
@@ -68,7 +66,6 @@ selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pip
 resolved-layout-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/resolved-layout-to-resolved-layout", features = ["test-support"] }
 register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine" }
 post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }
-post-allocation-machine-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine" }
 compiler = { path = "../../omega-rust/omega/compiler/compiler" }
 component-deployment = { path = "../../omega-rust/omega/build/component-deployment" }
 effects = { path = "../../omega-rust/omega/representations/effects" }

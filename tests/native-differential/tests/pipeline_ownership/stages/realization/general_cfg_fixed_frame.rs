@@ -1,4 +1,3 @@
-use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 use machine_code::FunctionFragmentControlProvenance;
 
@@ -69,14 +68,10 @@ fn nonzero_frames_reflow_three_block_returns_through_callable_publication() {
         .unwrap();
         let callable = stage_validated_optimized_ordinary_callable_entry(artifact).unwrap();
         assert_eq!(callable.entry().returns.len(), 2);
-        let StagedOptimizedObjectTextSectionSource::FixedFrame(fixed) =
-            callable.source().source().source()
-        else {
-            panic!("general CFG callable must retain fixed-frame custody")
-        };
+        let fixed = callable.source().source().source();
         assert!(matches!(
-            fixed.manifest().record().source_custody,
-            FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 { application }
+            fixed.manifest().record().frame_application,
+            application
                 if application == application_identity
         ));
     }
@@ -100,40 +95,6 @@ fn independent_replay_rejects_reauthenticated_site_and_branch_corruption() {
                 | FunctionFragmentFrameApplicationError::Aarch64Branch(_, _))
         ));
     }
-}
-
-#[test]
-fn frame_application_rejects_a_non_fixed_fragment_source() {
-    let target = NativeTarget::linux_x64();
-    let (semantic, proof) = conditional_exact_binary_artifact(false);
-    let optimized = optimize_artifact_sections(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        ExplicitOptimizationRequest::new(
-            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
-                .unwrap(),
-            selected_lowering_budget(),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let physical =
-        stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
-            .unwrap();
-    let source = {
-        let source = (physical).into_function_fragment_emission_source();
-        assert!(matches!(
-            source.replay_for_test(),
-            FunctionFragmentReplayInputs::SelectedLowering(_)
-        ));
-        source
-    };
-    let fragments = stage_optimized_function_fragment_emission(source).unwrap();
-    assert!(matches!(
-        stage_function_fragment_frame_application(fragments),
-        Err(FunctionFragmentFrameApplicationError::SourceKindMismatch)
-    ));
 }
 
 #[test]
@@ -187,13 +148,7 @@ fn frame_application_data_outlives_its_producer_and_replay_rejects_rehashed_chan
         assert!(std::ptr::eq(original.as_ref(), applied.application()));
         let source = applied.source().fragments().clone();
         let source_manifest = applied.source().manifest().record().identity;
-        let protocol = applied
-            .source()
-            .source()
-            .frame_protocol()
-            .unwrap()
-            .plan()
-            .clone();
+        let protocol = applied.source().source().frame_protocol().clone();
         let physical = applied
             .source()
             .source()
@@ -302,7 +257,7 @@ fn staged_application(
     assert!(!prologue.is_empty());
     assert!(!epilogue.is_empty());
     let fragments = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::from(realization).into(),
     )
     .unwrap();
     let source_function = fragments.fragments().functions.first().unwrap();

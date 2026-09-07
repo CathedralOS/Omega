@@ -5,17 +5,10 @@ use crate::tests::*;
 
 #[test]
 fn windows_frame_replay_rejects_missing_or_overlapping_shadow_storage() {
-    let selections = OptimizationSelections::new([
-        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
-    ])
-    .unwrap();
-    let staged = physical(4, &selections)
-        .into_post_allocation_machine_for_test()
-        .unwrap();
-    let frame = staged
-        .frame()
-        .expect("calling functions require an explicit frame");
-    let canonical = frame.layout().plan();
+    let selections = OptimizationSelections::new([]).unwrap();
+    let staged = physical(4, &selections).into_fixed_frame_for_test();
+    let frame = staged.frame();
+    let canonical = frame.plan();
     let index = canonical
         .functions
         .iter()
@@ -39,8 +32,8 @@ fn windows_frame_replay_rejects_missing_or_overlapping_shadow_storage() {
     let replay = |plan| {
         validate_target_frame_layout(
             staged.machine(),
-            frame.requirements(),
-            frame.storage(),
+            staged.requirements(),
+            staged.storage(),
             current.register_environment(),
             plan,
         )

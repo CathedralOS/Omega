@@ -1,16 +1,9 @@
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::WrappingIntegerAddConstantsRule;
 use abstract_operations_to_target_operations::*;
-use isa_aarch64::validate_aarch64_shortest_movn_materialization;
-use isa_x86_64::{
-    decode_x86_64_mov_r32_imm32_i64_materialization,
-    decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
-};
-use machine_code::SelectedFormEncodingState;
 use native_realization::*;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::PsiRewritePatch;
-use post_allocation_machine_to_post_allocation_machine::*;
 use post_allocation_machine_to_selected_form_encoding::*;
 use proof_admission::AdmissionProfile;
 use register_environment::*;
@@ -31,41 +24,19 @@ pub(super) fn exercise_x86(case: &CorpusCase, artifact: &CorpusArtifact) {
         "x86 Psi corpus case drifted: {case:?}",
     );
     let machine_artifact = super::psi::immediate_artifact(case.ordinal, artifact.expected, 30_000);
-    let first = run_machine(
-        case,
-        &machine_artifact,
-        NativeTarget::linux_x64(),
-        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
-    );
-    let second = run_machine(
-        case,
-        &machine_artifact,
-        NativeTarget::linux_x64(),
-        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
-    );
+    let first = run_machine(case, &machine_artifact, NativeTarget::linux_x64());
+    let second = run_machine(case, &machine_artifact, NativeTarget::linux_x64());
     assert_eq!(first, second, "x86 corpus case drifted: {case:?}");
-    assert_x86_oracle(&first, artifact.expected);
 
     let sign_extended_expected = i64::from(artifact.expected as u32 as i32) as u64;
     let sign_extended_artifact =
         super::psi::immediate_artifact(case.ordinal, sign_extended_expected, 35_000);
-    let first = run_machine(
-        case,
-        &sign_extended_artifact,
-        NativeTarget::linux_x64(),
-        Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
-    );
-    let second = run_machine(
-        case,
-        &sign_extended_artifact,
-        NativeTarget::linux_x64(),
-        Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
-    );
+    let first = run_machine(case, &sign_extended_artifact, NativeTarget::linux_x64());
+    let second = run_machine(case, &sign_extended_artifact, NativeTarget::linux_x64());
     assert_eq!(
         first, second,
         "x86 sign-extended corpus case drifted: {case:?}"
     );
-    assert_x86_sign_extended_oracle(&first, sign_extended_expected);
 }
 
 pub(super) fn exercise_aarch64(case: &CorpusCase, artifact: &CorpusArtifact) {
@@ -76,20 +47,9 @@ pub(super) fn exercise_aarch64(case: &CorpusCase, artifact: &CorpusArtifact) {
         "AArch64 Psi corpus case drifted: {case:?}",
     );
     let machine_artifact = super::psi::immediate_artifact(case.ordinal, artifact.expected, 40_000);
-    let first = run_machine(
-        case,
-        &machine_artifact,
-        NativeTarget::linux_arm64(),
-        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
-    );
-    let second = run_machine(
-        case,
-        &machine_artifact,
-        NativeTarget::linux_arm64(),
-        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
-    );
+    let first = run_machine(case, &machine_artifact, NativeTarget::linux_arm64());
+    let second = run_machine(case, &machine_artifact, NativeTarget::linux_arm64());
     assert_eq!(first, second, "AArch64 corpus case drifted: {case:?}",);
-    assert_aarch64_oracle(&first, artifact.expected);
 }
 
 #[cfg(any(
@@ -98,25 +58,10 @@ pub(super) fn exercise_aarch64(case: &CorpusCase, artifact: &CorpusArtifact) {
     all(target_os = "macos", target_arch = "aarch64"),
 ))]
 pub(super) fn exercise_host_native(case: &CorpusCase, artifact: &CorpusArtifact) {
-    let (target, optimization) = if cfg!(target_arch = "x86_64") {
-        (
-            NativeTarget::host(),
-            Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
-        )
-    } else {
-        (
-            NativeTarget::host(),
-            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
-        )
-    };
-    let first = run_machine(case, artifact, target, optimization);
-    let second = run_machine(case, artifact, target, optimization);
+    let target = NativeTarget::host();
+    let first = run_machine(case, artifact, target);
+    let second = run_machine(case, artifact, target);
     assert_eq!(first, second, "host-native corpus case drifted: {case:?}");
-    if cfg!(target_arch = "x86_64") {
-        assert_x86_oracle(&first, artifact.expected);
-    } else {
-        assert_aarch64_oracle(&first, artifact.expected);
-    }
     super::native::assert_u64_result(&first.layout, artifact.expected);
 }
 
@@ -141,7 +86,6 @@ struct MachineEvidence {
     post_manifest: selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
     home_custody: StagedOptimizedRegisterHomeCustodyReceipt,
     machine_custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
-    optimization: StagedOptimizedPostAllocationMachineOptimization,
     encoding: StagedOptimizedSelectedFormEncoding,
     layout: StagedOptimizedResolvedSelectedFormLayout,
     physical: register_model::ValidatedPhysicalRegisterModel,
@@ -173,16 +117,14 @@ fn run_machine(
     case: &CorpusCase,
     artifact: &CorpusArtifact,
     target: NativeTarget,
-    machine_rule: Optimization,
 ) -> MachineEvidence {
     assert!(artifact.add_operations.is_empty());
-    let selections = OptimizationSelections::new([machine_rule]).unwrap();
-    let budget = OptimizationWorkBudget::new(10_000, 10_000, 100_000, 10_000, 64).unwrap();
+    let selections = OptimizationSelections::new([]).unwrap();
     let optimized = optimize_artifact_sections(
         &artifact.semantic,
         &artifact.proof,
         &AdmissionProfile::default(),
-        ExplicitOptimizationRequest::new(selections, budget).unwrap(),
+        compiler_baseline_request_v1(&selections),
     )
     .unwrap_or_else(|error| panic!("case {} failed Psi optimization: {error}", case.ordinal));
     assert!(optimized.commits().is_empty());
@@ -212,32 +154,35 @@ fn run_machine(
     let home_custody = homes.custody();
     let machine = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
     let machine_custody = machine.custody().clone();
-    let optimization =
-        stage_optimized_post_allocation_machine_optimization(&homes, &machine).unwrap();
     let selected_stage = homes
         .legality_stage()
         .live_range_stage()
         .liveness_stage()
         .selected_stage();
     let physical = selected_stage.register_environment().physical().clone();
-    let encoding =
-        stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
-            selected_stage.selected(),
-            &machine,
-            &physical, None,
-            Some(&optimization),
-        )
-        .unwrap();
-    let layout =
-        stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
-            selected_stage.selected(),
-            &machine,
-            &physical,
-            &encoding,
-            Some(&optimization),
-        )
-        .unwrap();
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected_stage.selected(),
+        &machine,
+        &physical,
+        None,
+    )
+    .unwrap();
+    let layout = stage_optimized_resolved_selected_form_layout(
+        selected_stage.selected(),
+        &machine,
+        &physical,
+        &encoding,
+    )
+    .unwrap();
 
+    validate_optimized_layout_independent_selected_form_encoding(
+        selected_stage.selected(),
+        &machine,
+        &physical,
+        None,
+        &encoding,
+    )
+    .unwrap();
     MachineEvidence {
         unit,
         identity_bundle,
@@ -248,7 +193,6 @@ fn run_machine(
         post_manifest,
         home_custody,
         machine_custody,
-        optimization,
         encoding,
         layout,
         physical,
@@ -297,83 +241,5 @@ fn assert_sccp(
                     )
                 })
         );
-    }
-}
-
-fn assert_x86_oracle(run: &MachineEvidence, expected: u64) {
-    let StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(materialization) =
-        &run.optimization
-    else {
-        panic!("x86 lane did not select MOV-r32-imm32")
-    };
-    assert_eq!(materialization.materialization().plan().actions.len(), 2);
-    for action in &materialization.materialization().plan().actions {
-        let row = run
-            .encoding
-            .rows()
-            .iter()
-            .find(|row| row.instruction == action.instruction)
-            .unwrap();
-        let SelectedFormEncodingState::Encoded { bytes, .. } = &row.state else {
-            panic!("x86 materialization must own encoded bytes")
-        };
-        let decoded =
-            decode_x86_64_mov_r32_imm32_i64_materialization(&run.physical, bytes).unwrap();
-        assert_eq!(decoded.value_bits(), expected);
-        assert_eq!(action.literal_bits, expected);
-    }
-}
-
-fn assert_x86_sign_extended_oracle(run: &MachineEvidence, expected: u64) {
-    let StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(
-        materialization,
-    ) = &run.optimization
-    else {
-        panic!("x86 sign-extended lane did not select MOV-r64-imm32")
-    };
-    assert_eq!(materialization.materialization().plan().actions.len(), 2);
-    for action in &materialization.materialization().plan().actions {
-        let row = run
-            .encoding
-            .rows()
-            .iter()
-            .find(|row| row.instruction == action.instruction)
-            .unwrap();
-        let SelectedFormEncodingState::Encoded { bytes, .. } = &row.state else {
-            panic!("x86 sign-extended materialization must own encoded bytes")
-        };
-        let decoded =
-            decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(&run.physical, bytes)
-                .unwrap();
-        assert_eq!(decoded.value_bits(), expected);
-        assert_eq!(action.literal_bits, expected);
-    }
-}
-
-fn assert_aarch64_oracle(run: &MachineEvidence, expected: u64) {
-    let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =
-        &run.optimization
-    else {
-        panic!("AArch64 lane did not select MOVN")
-    };
-    assert_eq!(materialization.materialization().plan().actions.len(), 2);
-    for action in &materialization.materialization().plan().actions {
-        let row = run
-            .encoding
-            .rows()
-            .iter()
-            .find(|row| row.instruction == action.instruction)
-            .unwrap();
-        let SelectedFormEncodingState::Encoded { bytes, .. } = &row.state else {
-            panic!("AArch64 materialization must own encoded bytes")
-        };
-        validate_aarch64_shortest_movn_materialization(
-            &run.physical,
-            action.destination.view,
-            IntegerValue::Unsigned(expected.into()),
-            bytes,
-        )
-        .unwrap();
-        assert_eq!(action.literal_bits, expected);
     }
 }

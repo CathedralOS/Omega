@@ -44,7 +44,7 @@ pub(crate) fn derive_scope(
 ) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
     image_emission::validate_function_fragment_object_artifact(source, object)
         .map_err(|_| "fragment publication object failed independent source replay")?;
-    let fragments = source.source().source();
+    let fragments = source.source().source().source();
     let optimized = fragments.source().optimized_target().optimized();
     validate_final_plan(final_plan, optimized.plan(), terminal, object.psi())?;
     if optimized.validation().psi() != terminal

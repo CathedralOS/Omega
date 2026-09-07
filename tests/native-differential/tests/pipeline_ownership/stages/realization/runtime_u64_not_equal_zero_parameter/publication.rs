@@ -26,7 +26,7 @@ fn u64_parameter_not_equal_zero_reaches_linux_object_and_callable_on_both_isas()
         assert_eq!(artifact.source().object().symbols.len(), 1);
         let text = &artifact.source().object().text_section.bytes;
         assert!(!text.is_empty());
-        let emission = artifact.source().source().source();
+        let emission = artifact.source().source().source().source();
         let compare = emission.fragments().functions[0]
             .blocks
             .iter()
@@ -78,18 +78,16 @@ fn u64_parameter_not_equal_zero_reaches_linux_object_and_callable_on_both_isas()
                 );
             }
             target::Architecture::Aarch64 => {
+                let word = u32::from_le_bytes(compare.bytes.as_slice().try_into().unwrap());
+                assert_eq!(word & 0xffff_fc1f, 0xf100_001f);
+                assert_eq!(format!("x{}", (word >> 5) & 31), *name);
+                assert_eq!(compare.provenance.fuel.len(), 2);
                 assert!(
                     text.windows(4).any(|bytes| {
-                        let word = u32::from_le_bytes(bytes.try_into().unwrap());
-                        word & 0xff00_0000 == 0xb500_0000 && format!("x{}", word & 31) == *name
+                        u32::from_le_bytes(bytes.try_into().unwrap()) & 0xff00_001f == 0x5400_0001
                     }),
-                    "AArch64 CBNZ must read the compare's allocated operand"
+                    "AArch64 branches on the comparison flags with B.NE"
                 );
-                assert!(!text.windows(4).any(|bytes| {
-                    u32::from_le_bytes(bytes.try_into().unwrap()) & 0xffff_fc1f == 0xf100_001f
-                }));
-                assert!(compare.bytes.is_empty());
-                assert_eq!(compare.provenance.fuel.len(), 2);
             }
         }
 

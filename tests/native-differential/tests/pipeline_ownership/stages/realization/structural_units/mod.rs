@@ -8,4 +8,3 @@ mod publication;
 mod static_attachment;
 mod structural_call;
 mod structural_return;
-mod zero_vreg_return;

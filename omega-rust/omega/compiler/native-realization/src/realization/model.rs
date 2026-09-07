@@ -92,17 +92,6 @@ impl NativeRealizationInput {
     }
 }
 
-pub(crate) fn physical_evidence_scope(
-    identity_physical_path: bool,
-    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
-) -> native_artifact::NativePhysicalEvidenceScope {
-    if identity_physical_path && checked_scope.is_some() {
-        native_artifact::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
-    } else {
-        native_artifact::NativePhysicalEvidenceScope::Unavailable
-    }
-}
-
 /// Provider-supplied realization input for one Terminal boundary. The exact
 /// requirement comes from admitted execution evidence rather than a caller-
 /// authored numeric boundary ID.
@@ -328,70 +317,5 @@ impl SettledNativeArtifact {
 
     pub fn into_parts(self) -> (NativeArtifact, ValidatedNativeProgramEntrySettlement) {
         (self.artifact, self.program_entry)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::physical_evidence_scope;
-    use crate::tests::fixtures::checked_source::checked;
-    use native_artifact::NativePhysicalEvidenceScope;
-
-    #[test]
-    fn physical_evidence_requires_identity_physical_path_and_exact_d29_custody() {
-        let empty_checked = checked(
-            r#"
-                data Main {}
-                machine Main::launch() {}
-            "#,
-        );
-        let empty =
-            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-                &empty_checked,
-                "Main::launch",
-            )
-            .expect("empty exact D29 scope");
-        assert_eq!(
-            physical_evidence_scope(true, Some(empty.boundary_operator_scope())),
-            NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
-        );
-        assert_eq!(
-            physical_evidence_scope(false, Some(empty.boundary_operator_scope())),
-            NativePhysicalEvidenceScope::Unavailable,
-        );
-
-        let demand_checked = checked(
-            r#"
-                boundary operator == Number::equal(left: i32, right: i32) -> bool;
-
-                machine launch(left: i32, right: i32) -> bool {
-                    left == right
-                }
-            "#,
-        );
-        let [demand] = demand_checked
-            .facts
-            .operators
-            .boundary_applications
-            .as_slice()
-        else {
-            panic!("one exact checked boundary-operator demand")
-        };
-        let mut nonempty_checked = empty_checked.clone();
-        nonempty_checked.facts.operators.boundary_applications = vec![demand.clone()];
-        let nonempty =
-            terminal_production::produce_terminal_artifact_with_checked_boundary_operator_scope(
-                &nonempty_checked,
-                "Main::launch",
-            )
-            .expect("nonempty exact D29 scope");
-        assert_eq!(
-            physical_evidence_scope(true, Some(nonempty.boundary_operator_scope())),
-            NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
-        );
-        assert_eq!(
-            physical_evidence_scope(true, None),
-            NativePhysicalEvidenceScope::Unavailable,
-        );
     }
 }

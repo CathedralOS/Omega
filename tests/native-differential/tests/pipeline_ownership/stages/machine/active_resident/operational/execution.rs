@@ -41,7 +41,10 @@ fn active_resident_rule_is_disabled_without_its_exact_selection() {
         )
         .unwrap();
 
-        assert!(staged.fixed_frame_for_test().is_some());
+        machine_emission::validate_fixed_frame_function_relative_realization(
+            staged.fixed_frame_for_test(),
+        )
+        .unwrap();
         assert_eq!(staged.selections(), selections.identity());
         assert!(
             staged

@@ -9,18 +9,12 @@ pub fn validate_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     selections: &OptimizationPhaseSelections,
     artifact: &ResolvedLayoutOptimization,
 ) -> Result<(), ResolvedLayoutOptimizationError> {
-    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
-        selected,
-        machine,
-        physical,
-        encoding,
-        optimization,
-        baseline,
+    validate_optimized_resolved_selected_form_layout(
+        selected, machine, physical, encoding, baseline,
     )
     .map_err(ResolvedLayoutOptimizationError::Baseline)?;
     if &artifact.selections != selections {
@@ -35,9 +29,6 @@ pub fn validate_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
             }
         }
         (true, Some(relaxation)) => {
-            if optimization.is_some() {
-                return Err(ResolvedLayoutOptimizationError::UnsupportedComposition);
-            }
             validate_optimized_x86_branch_relaxation(
                 selected, machine, physical, encoding, baseline, relaxation,
             )

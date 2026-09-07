@@ -158,12 +158,6 @@ fn ordinary_and_ranked_outputs_own_the_same_representation() {
                 is_ranked
             );
             programs.push(program);
-            assert!(
-                target_operations_to_selected_instructions::is_fragment_publication_program(
-                    &evidence
-                ),
-                "both roles must select the common route even with empty selections"
-            );
             crate::stage_optimized_verified_physical_pipeline(
                 evidence,
                 &optimization_core::PostTerminalOptimizationSelections::default(),

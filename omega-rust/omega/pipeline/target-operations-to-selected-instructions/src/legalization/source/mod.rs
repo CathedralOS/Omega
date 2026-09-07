@@ -3,6 +3,7 @@
 mod custody;
 mod matchers;
 mod ordinary_roster;
+#[cfg(test)]
 mod publication_input;
 mod scalar_graph;
 mod shared;
@@ -12,7 +13,6 @@ use crate::legalization::projected_structural_call_return;
 use matchers::match_structural_unit_form;
 #[cfg(test)]
 pub(crate) use publication_input::accepts as accepts_fragment_publication_input;
-pub(crate) use publication_input::is_fragment_publication_program;
 use shared::*;
 use structural::derive_source_structural_unit_function;
 

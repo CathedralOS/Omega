@@ -72,7 +72,6 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
             .identity()
         );
         assert_eq!(manifest.selected_lowering_selections, empty);
-        assert_eq!(manifest.selected_lowering_completion, None);
         assert_eq!(manifest.allocation_recovery_selections, manifest.selections);
         assert_eq!(manifest.post_allocation_machine_selections, empty);
         assert_eq!(manifest.function_relative_layout_selections, empty);

@@ -8,7 +8,8 @@ use abstract_operations::{AbstractOperation, ValueBinding};
 use abstract_operations_to_abstract_operations::OptimizationRunError;
 use calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
 use optimization_core::{
-    Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    Optimization, OptimizationReportRequest, OptimizationSelections, OptimizationWorkBudget,
+    OptimizationWorkUsage,
 };
 use optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite};
 use proof_admission::{
@@ -31,16 +32,10 @@ use selected_instructions::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use selected_instructions_to_register_homes::{
-    AllocationLegalityError, AllocatorAvailabilityError, FixedViewCopyError, FixedViewCopyPolicy,
-    LiteralFoldPlan, LiteralFoldPolicy, LiveRangeError, LivenessError,
-    PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
-    PostAllocationSelectedTransformation, PressureRematerializationError,
-    PressureRematerializationPolicy, RegisterHomeError, RegisterHomePlan,
-    analyze_allocation_legality, analyze_live_ranges, analyze_liveness, choose_spill_victims,
-    classify_pressure_recovery, fold_selected_incoming_literal, materialize_allocator_availability,
-    register_home_identity, validate_allocation_legality, validate_allocator_availability,
-    validate_fixed_view_copies, validate_literal_fold, validate_live_ranges, validate_liveness,
-    validate_post_allocation_optimization_manifest, validate_register_homes,
+    AllocationLegalityError, FixedViewCopyError, FixedViewCopyPolicy, analyze_live_ranges,
+    analyze_liveness, choose_spill_victims, classify_pressure_recovery,
+    validate_allocation_legality, validate_fixed_view_copies, validate_live_ranges,
+    validate_liveness, validate_post_allocation_optimization_manifest, validate_register_homes,
 };
 use semantic_vocabulary::{
     BlockId, ContractId, DomainSemanticId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,

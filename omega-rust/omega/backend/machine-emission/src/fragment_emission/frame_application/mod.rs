@@ -23,14 +23,11 @@ pub fn stage_function_fragment_frame_application(
     validate_optimized_function_fragment_emission(&source)
         .map_err(FunctionFragmentFrameApplicationError::Source)?;
     let application = {
-        let protocol = source
-            .source()
-            .frame_protocol()
-            .ok_or(FunctionFragmentFrameApplicationError::SourceKindMismatch)?;
+        let protocol = source.source().frame_protocol();
         crate::apply_frame_protocol_to_fragments(
             source.fragments(),
             source.manifest().record().identity,
-            protocol.plan(),
+            protocol,
             source.source().register_environment().physical(),
         )
         .map_err(FunctionFragmentFrameApplicationError::from)?

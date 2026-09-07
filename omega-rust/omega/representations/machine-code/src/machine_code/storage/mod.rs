@@ -5,6 +5,7 @@
 pub mod frame_application;
 pub mod frame_identity;
 pub mod frame_layout;
+pub mod frame_protocol;
 pub mod parameters;
 pub mod scalars;
 pub mod stack;
@@ -13,6 +14,7 @@ pub mod stores;
 pub use frame_application::*;
 pub use frame_identity::*;
 pub use frame_layout::*;
+pub use frame_protocol::*;
 pub use parameters::*;
 pub use scalars::*;
 pub use stack::*;

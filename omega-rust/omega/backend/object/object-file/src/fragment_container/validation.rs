@@ -8,7 +8,8 @@ use crate::{
 pub fn validate_optimized_relocation_free_object_container(
     staged: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<StagedRelocationFreeObjectContainerCustodyReceipt, RelocationFreeObjectContainerError> {
-    staged.source.validate()?;
+    validate_optimized_fixed_frame_text_section(&staged.source)
+        .map_err(RelocationFreeObjectContainerError::Source)?;
     validate_relocation_free_object_from_text(
         staged.source.text_section(),
         staged.source.manifest().record().selections,

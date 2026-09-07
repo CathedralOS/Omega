@@ -82,7 +82,5 @@ fn direct_realization_for(subtract: bool) -> StagedFixedFrameFunctionRelativeRea
         &[],
     )
     .unwrap();
-    (staged).into_fixed_frame_for_test().unwrap_or_else(|| {
-        panic!("the exact rel8 selection must use the direct layout realization route")
-    })
+    (staged).into_fixed_frame_for_test()
 }

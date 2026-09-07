@@ -83,9 +83,7 @@ terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
 bounded-process = { path = "../../tooling/bounded-process" }
 image-emission = { path = "../../backend/images/image-emission" }
 machine-code = { path = "../../representations/machine-code" }
-machine-emission = { path = "../../backend/machine-emission" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
-target-operations-to-assigned-target-operations = { path = "../../pipeline/target-operations-to-assigned-target-operations" }
 executable-installation = { path = "../../backend/runtime/executable-installation" }
 external-roots = { path = "../../backend/runtime/external-roots" }
 provider-planning = { path = "../../build/provider-planning", features = ["installed-writer"] }

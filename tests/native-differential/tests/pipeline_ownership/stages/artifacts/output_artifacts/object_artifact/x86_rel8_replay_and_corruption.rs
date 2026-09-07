@@ -27,11 +27,9 @@ fn optimized_rel8_object_artifact_binds_replays_and_reports_without_authority() 
     assert_eq!(physical_report.text_section(), None);
     assert_eq!(physical_report.object_container(), None);
     assert_eq!(physical_report.object_artifact(), None);
-    let realization = (physical)
-        .into_fixed_frame_for_test()
-        .unwrap_or_else(|| panic!("rel8 must complete its direct realization"));
+    let realization = (physical).into_fixed_frame_for_test();
     let emitted = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::from(realization).into(),
     )
     .unwrap();
     let placed = stage_optimized_fixed_frame_text_section(
@@ -55,6 +53,7 @@ fn optimized_rel8_object_artifact_binds_replays_and_reports_without_authority() 
     assert_eq!(
         artifact.pre_physical_manifest,
         staged
+            .source()
             .source()
             .source()
             .source()

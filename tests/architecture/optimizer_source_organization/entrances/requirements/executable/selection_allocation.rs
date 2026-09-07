@@ -58,26 +58,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn project_post_allocation_optimization_manifest",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-assigned-target-operations/src/assignment/mod.rs",
-        coordination_marker: "pub fn assign_registers",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-assigned-target-operations/src/assignment/function/mod.rs",
-        coordination_marker: "pub(super) fn assign_function",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-assigned-target-operations/src/assignment/function/unit/mod.rs",
-        coordination_marker: "pub(super) fn assign",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-assigned-target-operations/src/assignment/function/unit/foreign_call/mod.rs",
-        coordination_marker: "pub(super) fn assign",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-assigned-target-operations/src/assignment/function/operation_routes.rs",
-        coordination_marker: "pub(super) fn assign_operation",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/mod.rs",
         coordination_marker: "pub(crate) fn derive_source_function_rosters",
     },

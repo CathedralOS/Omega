@@ -7,7 +7,12 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         &semantic,
         &proof,
         &AdmissionProfile::default(),
-        request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        ExplicitOptimizationRequest::new(
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            // Canonical frame custody visits 62 rows even for this no-call leaf.
+            OptimizationWorkBudget::new(128, 128, 128, 128, 128).unwrap(),
+        )
+        .unwrap(),
     )
     .expect("the honest two-Extent Unit leaf must pass PSI optimization custody");
     let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
@@ -27,14 +32,10 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
             .iter()
             .all(|returned| returned.value == WholeFunctionReturnValueEvidence::UnitV1)
     );
-    let framed = source.frame_layout().is_some();
-    assert_eq!(
-        framed,
-        matches!(
-            exit.frame,
-            WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { .. }
-        )
-    );
+    assert!(matches!(
+        exit.frame,
+        WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { .. }
+    ));
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
     assert_eq!(fragments.fragments().functions.len(), 1);
     assert_eq!(
@@ -52,16 +53,11 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         assert_eq!(manifest.statistics.functions, 1);
         assert_eq!(manifest.statistics.remaining_internal_machine_fixups, 0);
     };
-    let object = if framed {
+    let object = {
         let applied = stage_function_fragment_frame_application(fragments).unwrap();
         let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
         check_text(text.text_section(), text.manifest().record());
         validate_optimized_fixed_frame_text_section(&text).unwrap();
-        stage_optimized_relocation_free_object_container(text).unwrap()
-    } else {
-        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
-        check_text(text.text_section(), text.manifest().record());
-        validate_optimized_relocation_free_text_section(&text).unwrap();
         stage_optimized_relocation_free_object_container(text).unwrap()
     };
     assert_eq!(object.object().symbols.len(), 1);

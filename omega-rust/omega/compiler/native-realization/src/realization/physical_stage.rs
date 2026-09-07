@@ -1,17 +1,15 @@
-//! Optimizer module role: executable entrance. Complete physical routing before machine emission.
+//! Complete one physical stage sequence before machine emission.
 
-use crate::realization::callback_machine_code::validate_callback_thunk_assignments;
 use crate::realization::diagnostics::{realization_error, selected_physical_pipeline_failed};
 use crate::realization::model::NativeRealizationCoreRequest;
 use crate::realization::target_stage::NativeTargetStageResult;
 use diagnostics::Diagnostic;
 
-use target_operations_to_selected_instructions::is_fragment_publication_program;
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug)]
-pub(crate) struct OptimizedNativePhysicalStage {
+pub(crate) struct NativePhysicalStageResult {
     pub(crate) physical: crate::StagedOptimizedVerifiedPhysicalPipeline,
     pub(crate) optimized_plan: abstract_operations::AbstractOperationPlan,
     pub(crate) terminal: terminal_psi::TerminalPsiIdentity,
@@ -19,34 +17,13 @@ pub(crate) struct OptimizedNativePhysicalStage {
     pub(crate) final_unit: optimization_core::OptimizationUnitIdentity,
 }
 
-/// One completed physical-routing stage result.
-///
-/// Unit returns and supported scalar bodies share the fragment result with
-/// selected execution. Richer ordinary programs still use baseline assignment
-/// until their ABI, call and control facts reach the same fragment postcondition.
-#[derive(Debug)]
-pub(crate) enum NativePhysicalStageResult {
-    Assigned(assigned_target_operations::AssignedOperationPlanWithNativeCallbacks),
-    Optimized(Box<OptimizedNativePhysicalStage>),
-}
-
 pub(crate) fn lower_realization_physical_stage(
     target_stage: NativeTargetStageResult,
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<NativePhysicalStageResult, Vec<Diagnostic>> {
-    let (target, optimized_target) = target_stage
+    let (_, optimized_target) = target_stage
         .into_parts()
         .map_err(|error| realization_error("target program/evidence join", error))?;
-    // Transitional physical split only. Target production and its
-    // retained translation evidence no longer depend on this selection.
-    if request.optimization_selections.is_empty()
-        && !(is_fragment_publication_program(&optimized_target)
-            && request.compiler_builtins.is_empty()
-            && request.native_callbacks.is_empty()
-            && request.callback_thunks.is_empty())
-    {
-        return assign_current_target(&target, request);
-    }
     let optimized_plan = optimized_target.optimized().plan().clone();
     let optimized_validation = optimized_target.optimized().validation();
     let physical = crate::stage_optimized_verified_physical_pipeline(
@@ -56,29 +33,11 @@ pub(crate) fn lower_realization_physical_stage(
     .map_err(|error| {
         selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
     })?;
-    Ok(NativePhysicalStageResult::Optimized(Box::new(
-        OptimizedNativePhysicalStage {
-            physical,
-            optimized_plan,
-            terminal: optimized_validation.psi(),
-            validation: optimized_validation.identity(),
-            final_unit: optimized_validation.final_unit(),
-        },
-    )))
-}
-
-fn assign_current_target(
-    target: &target_operations::TargetOperationPlanWithNativeCallbacks,
-    request: &NativeRealizationCoreRequest<'_>,
-) -> Result<NativePhysicalStageResult, Vec<Diagnostic>> {
-    let assigned =
-        target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(
-            target,
-        )
-        .map_err(|error| realization_error("ordinary physical assignment", error))?;
-    validate_callback_thunk_assignments(
-        request.callback_thunks,
-        &assigned.native_callback_arguments,
-    )?;
-    Ok(NativePhysicalStageResult::Assigned(assigned))
+    Ok(NativePhysicalStageResult {
+        physical,
+        optimized_plan,
+        terminal: optimized_validation.psi(),
+        validation: optimized_validation.identity(),
+        final_unit: optimized_validation.final_unit(),
+    })
 }

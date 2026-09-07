@@ -44,7 +44,7 @@ pub(super) fn construct_artifact(
     source: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<OptimizedObjectArtifactRecord, OptimizedObjectArtifactError> {
     let terminal_manifest = terminal.manifest();
-    let emission = source.source().source();
+    let emission = source.source().source().source();
     let relative = emission.function_relative_manifest().record();
     let object_manifest = source.manifest().record();
     let mut record = OptimizedObjectArtifactRecord {
@@ -77,7 +77,7 @@ pub(super) fn replay_artifact(
 ) -> Result<OptimizedObjectArtifactRecord, OptimizedObjectArtifactError> {
     let canonical = terminal.manifest();
     let text_stage = source.source();
-    let fragment_stage = text_stage.source();
+    let fragment_stage = text_stage.source().source();
     let realization = fragment_stage.function_relative_manifest().record();
     let object = source.object();
     let mut record = OptimizedObjectArtifactRecord {

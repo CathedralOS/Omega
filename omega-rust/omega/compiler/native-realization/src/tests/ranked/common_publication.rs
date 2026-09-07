@@ -2,16 +2,11 @@
 
 use optimization_core::{Optimization, OptimizationSelections};
 
-pub(super) fn selections(target: target::NativeTarget) -> [OptimizationSelections; 2] {
+pub(super) fn selections(_target: target::NativeTarget) -> [OptimizationSelections; 2] {
     [
         OptimizationSelections::default(),
-        OptimizationSelections::new([match target.architecture {
-            target::Architecture::X86_64 => Optimization::X86SelectXorZeroI64MaterializationV1,
-            target::Architecture::Aarch64 => {
-                Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-            }
-        }])
-        .expect("one target-owned post-Terminal selection"),
+        OptimizationSelections::new([Optimization::CopyPropagation])
+            .expect("one target-owned post-Terminal selection"),
     ]
 }
 
@@ -65,18 +60,10 @@ pub(super) fn publish(
         physical.into_function_fragment_emission_source(),
     )
     .expect("emit ordinary ranked instructions");
-    let text: object_file::StagedOptimizedObjectTextSectionSource =
-        if emitted.source().frame_protocol().is_some() {
-            let applied = machine_emission::stage_function_fragment_frame_application(emitted)
-                .expect("apply checked ranked frame");
-            machine_emission::stage_optimized_fixed_frame_text_section(applied)
-                .expect("place framed ranked text")
-                .into()
-        } else {
-            machine_emission::stage_optimized_relocation_free_text_section(emitted)
-                .expect("place ranked text")
-                .into()
-        };
+    let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+        .expect("apply checked ranked frame");
+    let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+        .expect("place framed ranked text");
     let source = object_file::stage_optimized_relocation_free_object_container(text)
         .expect("place ranked object container");
     let source = std::sync::Arc::new(source);

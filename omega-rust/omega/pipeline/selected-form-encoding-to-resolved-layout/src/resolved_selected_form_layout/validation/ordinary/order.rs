@@ -1,13 +1,11 @@
 //! Independently reconstruct canonical fallthrough adjacency and complete coverage.
 use super::super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
-use super::Fusion;
 use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedTerminator};
 
-pub(super) fn derive<'a>(
-    function: &'a SelectedFunction,
-    _fusion: Fusion<'_>,
+pub(super) fn derive(
+    function: &SelectedFunction,
     policy: SelectedFunctionLayoutPolicy,
-) -> Result<Vec<&'a SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<Vec<&SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
     let invalid =
         || OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine);
     let entry = function

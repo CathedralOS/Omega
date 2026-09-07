@@ -11,22 +11,14 @@ pub use error::FunctionFragmentEmissionManifestDecodeError;
 
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
-    OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
+    PostAllocationOptimizationManifestIdentity,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::{SelectedFormEncodingIdentity, WholeFunctionExitContractIdentity};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentEmissionSourceKind {
-    SelectedLoweringV1,
-    PostAllocationMachineOptimizationV1 { optimization: Optimization },
-    UnitBaselineV1,
-    CanonicalFixedFrameBodyV1,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionStage {
@@ -55,7 +47,6 @@ pub struct FunctionFragmentEmissionStatistics {
 pub struct FunctionFragmentEmissionManifest {
     pub identity: FunctionFragmentEmissionManifestIdentity,
     pub stage: FunctionFragmentEmissionStage,
-    pub source_kind: FunctionFragmentEmissionSourceKind,
     pub source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     pub selections: OptimizationSelectionIdentity,
     pub psi: TerminalPsiIdentity,

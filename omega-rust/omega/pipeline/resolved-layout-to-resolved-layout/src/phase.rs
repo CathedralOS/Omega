@@ -2,13 +2,11 @@
 
 use crate::{stage_optimized_x86_branch_relaxation, x86_rel8_selected};
 use optimization_core::{OptimizationPhaseSelections, OptimizationWorkBudget};
-use post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_form_encoding_to_resolved_layout::{
-    StagedOptimizedResolvedSelectedFormLayout,
-    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
 };
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
@@ -26,25 +24,16 @@ pub fn execute_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     selections: &OptimizationPhaseSelections,
     budget: OptimizationWorkBudget,
 ) -> Result<ResolvedLayoutOptimization, ResolvedLayoutOptimizationError> {
-    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
-        selected,
-        machine,
-        physical,
-        encoding,
-        optimization,
-        baseline,
+    validate_optimized_resolved_selected_form_layout(
+        selected, machine, physical, encoding, baseline,
     )
     .map_err(ResolvedLayoutOptimizationError::Baseline)?;
     let enabled = x86_rel8_selected(selections, baseline.target().architecture)
         .map_err(ResolvedLayoutOptimizationError::Catalog)?;
-    if enabled && optimization.is_some() {
-        return Err(ResolvedLayoutOptimizationError::UnsupportedComposition);
-    }
     let relaxation = if enabled {
         Some(
             stage_optimized_x86_branch_relaxation(
@@ -66,14 +55,7 @@ pub fn execute_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
         relaxation,
     };
     validate_resolved_layout_optimization(
-        selected,
-        machine,
-        physical,
-        encoding,
-        optimization,
-        baseline,
-        selections,
-        &artifact,
+        selected, machine, physical, encoding, baseline, selections, &artifact,
     )?;
     Ok(artifact)
 }

@@ -2,7 +2,4 @@
 
 mod allocation_recovery;
 mod current_program;
-mod manifest_mutation_matrix;
-mod post_allocation_machine;
 mod projection_replay;
-mod selected_lowering;

@@ -12,15 +12,13 @@ mod validation;
 
 pub use error::{FunctionFragmentEmissionError, FunctionFragmentEmissionManifestDecodeError};
 pub use model::{
-    FunctionFragmentEmissionManifest, FunctionFragmentEmissionSourceKind,
-    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
-    FunctionFragmentEmissionUnavailableData, StagedFunctionFragmentEmissionCustodyReceipt,
-    StagedOptimizedFunctionFragmentEmission, ValidatedFunctionFragmentEmissionManifest,
+    FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
+    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
+    StagedFunctionFragmentEmissionCustodyReceipt, StagedOptimizedFunctionFragmentEmission,
+    ValidatedFunctionFragmentEmissionManifest,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use replay::FunctionFragmentReplayInputs;
-#[cfg(not(any(test, feature = "test-support")))]
-pub(crate) use replay::FunctionFragmentReplayInputs;
 pub use source::StagedOptimizedFunctionFragmentEmissionSource;
 
 use compute::compute;

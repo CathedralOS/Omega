@@ -75,4 +75,3 @@ pub fn validate_legalized_operations(
 }
 #[cfg(test)]
 pub(crate) use source::accepts_fragment_publication_input;
-pub(crate) use source::is_fragment_publication_program;

@@ -1,13 +1,12 @@
-//! One exit join over the layout phase's current data and explicit replay evidence.
+//! Optimizer module role: executable entrance. One exit join over the layout phase's current data and explicit replay evidence.
 
 use super::{
     ValidatedWholeFunctionExitContract, WholeFunctionExitContractError as Error,
     WholeFunctionExitLayoutCustody,
 };
-use super::{compute, validation, validation_rules};
+use super::{compute, validation};
 use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
-use post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -25,7 +24,6 @@ pub fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysi
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &ResolvedLayoutOptimization,
     frame: Option<(
@@ -33,15 +31,8 @@ pub fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysi
         &ValidatedTargetFrameProtocolEncoding,
     )>,
 ) -> Result<ValidatedWholeFunctionExitContract, Error> {
-    let custody = validated_layout_custody(
-        selected,
-        machine,
-        physical,
-        encoding,
-        optimization,
-        baseline,
-        layout,
-    )?;
+    let custody =
+        validated_layout_custody(selected, machine, physical, encoding, baseline, layout)?;
     let contract = compute::compute_inner(
         selected,
         machine,
@@ -74,7 +65,6 @@ pub fn validate_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnal
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &ResolvedLayoutOptimization,
     frame: Option<(
@@ -83,15 +73,8 @@ pub fn validate_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnal
     )>,
     contract: &ValidatedWholeFunctionExitContract,
 ) -> Result<(), Error> {
-    let custody = validated_layout_custody(
-        selected,
-        machine,
-        physical,
-        encoding,
-        optimization,
-        baseline,
-        layout,
-    )?;
+    let custody =
+        validated_layout_custody(selected, machine, physical, encoding, baseline, layout)?;
     validation::validate(
         selected,
         machine,
@@ -110,7 +93,6 @@ fn validated_layout_custody<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &ResolvedLayoutOptimization,
 ) -> Result<WholeFunctionExitLayoutCustody, Error> {
@@ -119,7 +101,6 @@ fn validated_layout_custody<S: ValidatedSelectedAnalysis>(
         machine,
         physical,
         encoding,
-        optimization,
         baseline,
         layout.selections(),
         layout,
@@ -131,13 +112,6 @@ fn validated_layout_custody<S: ValidatedSelectedAnalysis>(
             WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
                 relaxation: relaxation.identity(),
             },
-        )
-    } else if let Some(optimization) = optimization {
-        validation_rules::post_allocation_layout_custody(
-            machine,
-            encoding,
-            layout.layout(),
-            optimization,
         )
     } else {
         Ok(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1)

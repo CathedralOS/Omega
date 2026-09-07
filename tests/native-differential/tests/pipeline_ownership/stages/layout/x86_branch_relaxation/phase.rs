@@ -33,7 +33,6 @@ fn layout_phase_replays_exact_selection_current_and_evidence() {
             &machine,
             physical,
             &encoding,
-            None,
             &baseline,
             selections,
             selected_lowering_budget(),
@@ -42,7 +41,7 @@ fn layout_phase_replays_exact_selection_current_and_evidence() {
     };
     let replay = |selections, artifact| {
         validate_resolved_layout_optimization(
-            selected, &machine, physical, &encoding, None, &baseline, selections, artifact,
+            selected, &machine, physical, &encoding, &baseline, selections, artifact,
         )
     };
     let identity = execute(&empty);

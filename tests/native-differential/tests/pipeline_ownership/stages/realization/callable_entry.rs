@@ -3,21 +3,9 @@ use crate::tests::*;
 
 pub(super) fn staged_callable_object_artifact(
     target: NativeTarget,
-    selected_lowering: bool,
 ) -> StagedValidatedOptimizedObjectArtifact {
     let (semantic, proof) = conditional_exact_binary_artifact(false);
-    let layout = match target.architecture {
-        target::Architecture::X86_64 => Optimization::X86RelaxConditionalBranchesToRel8V1,
-        target::Architecture::Aarch64 => {
-            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
-        }
-    };
-    let selections = if selected_lowering {
-        OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate, layout])
-            .unwrap()
-    } else {
-        OptimizationSelections::new([layout]).unwrap()
-    };
+    let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
     let optimized = optimize_artifact_sections(
         &semantic,
         &proof,
@@ -30,21 +18,13 @@ pub(super) fn staged_callable_object_artifact(
             .unwrap();
     let source = {
         let source = (physical).into_function_fragment_emission_source();
-        assert!(matches!(
-            source.replay_for_test(),
-            FunctionFragmentReplayInputs::FixedFrame(_)
-                | FunctionFragmentReplayInputs::PostAllocationMachine(_)
-                | FunctionFragmentReplayInputs::SelectedLowering(_)
-        ));
+        assert_eq!(source.frame_layout(), source.program().frame.as_ref());
         source
     };
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
-    let object = if fragments.source().frame_layout().is_some() {
+    let object = {
         let applied = stage_function_fragment_frame_application(fragments).unwrap();
         let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
-        stage_optimized_relocation_free_object_container(text).unwrap()
-    } else {
-        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
         stage_optimized_relocation_free_object_container(text).unwrap()
     };
     stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
@@ -69,11 +49,9 @@ fn staged_active_resident_callable_object_artifact(
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let realization = (physical).into_fixed_frame_for_test().unwrap_or_else(|| {
-        panic!("the root-build rematerialization selection must retain its owning realization")
-    });
+    let realization = (physical).into_fixed_frame_for_test();
     let fragments = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::from(realization).into(),
     )
     .unwrap();
     let applied = stage_function_fragment_frame_application(fragments).unwrap();
@@ -121,17 +99,10 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let artifact = staged_active_resident_callable_object_artifact(target);
         let object_stage = artifact.source();
         let text_stage = object_stage.source();
-        let StagedOptimizedObjectTextSectionSource::FixedFrame(fixed_text_stage) = text_stage
-        else {
-            panic!("active-resident publication must retain canonical fixed-frame custody")
-        };
+        let fixed_text_stage = text_stage;
         let application = fixed_text_stage.source();
         let fragment_stage = application.source();
-        let FunctionFragmentReplayInputs::FixedFrame(realization) =
-            fragment_stage.source().replay_for_test()
-        else {
-            panic!("object custody must retain the rematerialization realization")
-        };
+        let realization = fragment_stage.source().replay_for_test().fixed_frame();
         let current = realization.allocation().current();
         let rematerialization = realization
             .allocation()
@@ -174,10 +145,6 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
                 .record()
                 .allocation_recovery_selections,
             selections
-        );
-        assert_eq!(
-            fragment_stage.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
         assert_eq!(
             current
@@ -240,10 +207,6 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
             *artifact.manifest().record()
         );
         let artifact_report = optimization_pipeline_report_from_object_artifact(&artifact);
-        assert_eq!(
-            artifact_report.function_fragment().unwrap().source_kind,
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
-        );
         assert!(artifact_report.ordinary_callable_entry().is_none());
 
         let staged = stage_validated_optimized_ordinary_callable_entry(artifact)
@@ -281,10 +244,6 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
             *staged.manifest().record()
         );
         let report = optimization_pipeline_report_from_ordinary_callable_entry(&staged);
-        assert_eq!(
-            report.function_fragment().unwrap().source_kind,
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
-        );
         assert_eq!(
             report.object_container().unwrap().identity,
             staged.source().source().manifest().record().identity
@@ -335,7 +294,7 @@ fn ordinary_callable_entry_replays_target_abi_and_edge_specific_results() {
             MachineRegister::Aarch64X(0),
         ),
     ] {
-        let artifact = staged_callable_object_artifact(target, false);
+        let artifact = staged_callable_object_artifact(target);
         let object_identity = artifact.source().object().identity;
         let object_bytes = artifact.source().container().bytes.clone();
         let staged = stage_validated_optimized_ordinary_callable_entry(artifact)
@@ -381,57 +340,9 @@ fn ordinary_callable_entry_replays_target_abi_and_edge_specific_results() {
 }
 
 #[test]
-fn ordinary_callable_entry_accepts_both_selected_lowering_compositions_and_reports_opaquely() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        std::thread::Builder::new()
-            .name("ordinary-callable-custody-replay".into())
-            .stack_size(4 * 1024 * 1024)
-            .spawn(move || {
-                let staged = stage_validated_optimized_ordinary_callable_entry(
-                    staged_callable_object_artifact(target, true),
-                )
-                .unwrap();
-                let artifact_identity = staged.source().artifact().identity;
-                let container_identity = staged.source().source().container().identity;
-                let container_bytes = staged.source().source().container().bytes.clone();
-                assert_eq!(
-                    validate_optimized_ordinary_callable_entry(&staged).unwrap(),
-                    staged.custody()
-                );
-                let prior = optimization_pipeline_report_from_object_artifact(staged.source());
-                assert!(prior.ordinary_callable_entry().is_none());
-                let report = optimization_pipeline_report_from_ordinary_callable_entry(&staged);
-                assert_eq!(
-                    report.ordinary_callable_entry(),
-                    Some(staged.manifest().record())
-                );
-                assert!(
-                    report
-                        .render_human_text(OptimizationReportRequest::Suppressed)
-                        .is_none()
-                );
-                let text = report
-                    .render_human_text(OptimizationReportRequest::EmitHumanText)
-                    .unwrap();
-                assert!(text.contains("external process entry bridge: required"));
-                assert!(text.contains("publication: unavailable"));
-                assert_eq!(staged.source().artifact().identity, artifact_identity);
-                assert_eq!(
-                    staged.source().source().container().identity,
-                    container_identity
-                );
-                assert_eq!(staged.source().source().container().bytes, container_bytes);
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-}
-
-#[test]
 fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
     let mut staged = stage_validated_optimized_ordinary_callable_entry(
-        staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        staged_callable_object_artifact(NativeTarget::linux_x64()),
     )
     .unwrap();
     staged.entry_mut().returns[0].value = ValueId::new(99_991).unwrap();
@@ -441,7 +352,7 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
     );
 
     let mut staged = stage_validated_optimized_ordinary_callable_entry(
-        staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        staged_callable_object_artifact(NativeTarget::linux_x64()),
     )
     .unwrap();
     staged.entry_mut().parameters[0].storage_units.clear();
@@ -451,7 +362,7 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
     );
 
     let mut staged = stage_validated_optimized_ordinary_callable_entry(
-        staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        staged_callable_object_artifact(NativeTarget::linux_x64()),
     )
     .unwrap();
     staged.entry_mut().semantic_entry_symbol_name = "main".to_owned();
@@ -461,7 +372,7 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
     );
 
     let mut staged = stage_validated_optimized_ordinary_callable_entry(
-        staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        staged_callable_object_artifact(NativeTarget::linux_x64()),
     )
     .unwrap();
     staged.entry_mut().exit_policy = WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1;
@@ -471,7 +382,7 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
     );
 
     let mut staged = stage_validated_optimized_ordinary_callable_entry(
-        staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        staged_callable_object_artifact(NativeTarget::linux_x64()),
     )
     .unwrap();
     staged.manifest_mut().record_mut().return_count += 1;
@@ -481,7 +392,7 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
     );
 
     let mut staged = stage_validated_optimized_ordinary_callable_entry(
-        staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        staged_callable_object_artifact(NativeTarget::linux_x64()),
     )
     .unwrap();
     staged.corrupt_custody_manifest_for_test();
@@ -491,7 +402,7 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
     );
 
     let staged = stage_validated_optimized_ordinary_callable_entry(
-        staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        staged_callable_object_artifact(NativeTarget::linux_x64()),
     )
     .unwrap();
     let mut wrong_magic = staged.entry().encode().unwrap();

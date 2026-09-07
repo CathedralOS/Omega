@@ -6,7 +6,6 @@ pub enum ResolvedLayoutOptimizationError {
     Baseline(OptimizedResolvedSelectedFormLayoutError),
     Catalog(FunctionRelativeLayoutCatalogError),
     Relaxation(OptimizedX86BranchRelaxationError),
-    UnsupportedComposition,
     CurrentProgramMismatch,
     SelectionMismatch,
 }

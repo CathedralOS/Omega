@@ -255,22 +255,17 @@ fn stage(
         )
         .expect("structural target retains provider selection")
     };
-    assert!(target_operations_to_selected_instructions::is_fragment_publication_program(&target));
     let physical = stage_optimized_verified_physical_pipeline(target, post_terminal.selections())
         .expect("shared structural physical pipeline");
     let fragments = stage_optimized_function_fragment_emission(
         physical.into_function_fragment_emission_source(),
     )
     .expect("shared structural fragments");
-    std::sync::Arc::new(if fragments.source().frame_layout().is_some() {
+    std::sync::Arc::new({
         let applied = stage_function_fragment_frame_application(fragments)
             .expect("common structural frame application");
         let text =
             stage_optimized_fixed_frame_text_section(applied).expect("shared structural text");
-        stage_optimized_relocation_free_object_container(text).expect("shared structural object")
-    } else {
-        let text = stage_optimized_relocation_free_text_section(fragments)
-            .expect("shared frameless structural text");
         stage_optimized_relocation_free_object_container(text).expect("shared structural object")
     })
 }

@@ -7,7 +7,6 @@ pub(super) use optimization_core::{
     PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 pub(super) use selected_instructions::SelectedInstructionPlanIdentity;
-pub(super) use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 pub(super) use target::{Architecture, NativeTarget, ObjectFormat};
 
 pub(super) use crate::frame_layout::{
@@ -34,31 +33,22 @@ pub(super) use machine_code::{
     WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
 };
 pub(super) use physical_instructions::PostAllocationMachineOptimizationCustody;
-pub(super) use post_allocation_machine_to_post_allocation_machine::{
-    OptimizedPostAllocationMachineOptimizationError,
-    StagedOptimizedPostAllocationMachineOptimization,
-};
 pub(super) use post_allocation_machine_to_selected_form_encoding::{
     OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
     stage_optimized_layout_independent_selected_form_encoding,
     validate_optimized_layout_independent_selected_form_encoding,
 };
 pub(super) use register_homes_to_post_allocation_machine::{
-    OptimizedPostAllocationMachinePipelineError,
-    StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
+    OptimizedPostAllocationMachinePipelineError, StagedOptimizedPostAllocationMachinePlan,
     validate_optimized_post_allocation_machine_plan_custody,
 };
 pub(super) use resolved_layout_to_resolved_layout::{
-    OptimizedX86BranchRelaxationError, ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
-    StagedOptimizedX86BranchRelaxation, execute_resolved_layout_optimization,
-    validate_resolved_layout_optimization,
+    ResolvedLayoutOptimization, ResolvedLayoutOptimizationError, StagedOptimizedX86BranchRelaxation,
 };
 pub(super) use selected_form_encoding_to_resolved_layout::{
     OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
     stage_optimized_resolved_selected_form_layout,
-    validate_optimized_resolved_selected_form_layout,
 };
-pub(super) use selected_instructions_to_register_homes::StagedOptimizedPostSelectedLoweringHomeCustodyReceipt;
 pub(super) use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPolicy,
     ValidatedAllocatedCalleeSavedRequirements, stage_allocated_callee_saved_requirements,

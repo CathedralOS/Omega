@@ -1,9 +1,5 @@
 use abstract_operations_to_target_operations::LoweringError;
-
-use machine_emission::{
-    FunctionRelativeOptimizationRealizationError, OptimizedUnitFunctionRelativeRealizationError,
-};
-use post_allocation_machine_to_post_allocation_machine::OptimizedPostAllocationMachineOptimizationError;
+use machine_emission::FunctionRelativeOptimizationRealizationError;
 use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
 use target_operations_to_selected_instructions::OptimizedSelectionPipelineError;
 
@@ -19,30 +15,18 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     Selection(OptimizedSelectionPipelineError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
-    PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
-    PostAllocationMachineRuleCatalog(
-        post_allocation_machine_to_post_allocation_machine::PostAllocationMachineRuleCatalogError,
-    ),
-    SelectedLoweringRuleCatalog(
-        selected_instructions_to_register_homes::SelectedLoweringRuleCatalogError,
-    ),
     AllocationRecoveryRuleCatalog(
         selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError,
     ),
     FunctionRelativeLayoutRuleCatalog(
         resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError,
     ),
-    UnitFunctionRelativeRealization(OptimizedUnitFunctionRelativeRealizationError),
-    UnsupportedPhysicalPhaseComposition,
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
 impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized verified physical staging failed: {self:?}"
-        )
+        write!(formatter, "common physical staging failed: {self:?}")
     }
 }
 

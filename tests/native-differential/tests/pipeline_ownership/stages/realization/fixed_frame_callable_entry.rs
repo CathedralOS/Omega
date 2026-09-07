@@ -1,6 +1,5 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 #[test]
 fn fixed_frame_rejects_a_machine_from_another_allocation_before_encoding() {
@@ -88,7 +87,7 @@ fn fixed_frame_retains_original_allocation_and_rejects_current_program_substitut
             ));
             assert!(
                 stage_optimized_function_fragment_emission(
-                    FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+                    FunctionFragmentReplayInputs::from(realization).into(),
                 )
                 .is_err()
             );
@@ -125,7 +124,7 @@ fn staged_fixed_frame_callable(
         })
         .unwrap();
     let fragments = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::from(realization).into(),
     )
     .unwrap();
     let applied = stage_function_fragment_frame_application(fragments).unwrap();
@@ -149,24 +148,9 @@ fn fixed_frame_source_reaches_ordinary_callable_on_both_isas() {
             validate_optimized_ordinary_callable_entry(&callable).unwrap(),
             callable.custody()
         );
-        let StagedOptimizedObjectTextSectionSource::FixedFrame(fixed) =
-            callable.source().source().source()
-        else {
-            panic!("ordinary callable must retain fixed-frame text custody")
-        };
-        assert_eq!(
-            fixed.manifest().record().source_custody,
-            FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 { application }
-        );
-        assert_eq!(
-            fixed.source().source().manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
-        );
+        let fixed = callable.source().source().source();
+        assert_eq!(fixed.manifest().record().frame_application, application);
         let report = optimization_pipeline_report_from_ordinary_callable_entry(&callable);
-        assert_eq!(
-            report.function_fragment().unwrap().source_kind,
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
-        );
         assert_eq!(
             report.ordinary_callable_entry().unwrap().entry,
             callable.entry().identity

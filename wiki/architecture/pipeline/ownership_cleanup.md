@@ -11,8 +11,10 @@ wrappers, compatibility exports, special cases, and more intermediate stages.
 
 ## Preservation rule: behavior, not implementation
 
-Preserve the language contract, working program behavior, target ABI, ownership,
-proof, effects, resource bounds, and independently checked publication. Do not
+Preserve the language contract, target ABI, ownership, proof, effects, resource
+bounds, and independently checked publication for every admitted program.
+An obstructive implementation may be deleted before its supported cases are
+rebuilt; those cases must reject explicitly, not silently change behavior. Do not
 preserve internal APIs, crate boundaries, example-specific IRs, recursive backend
 payloads, receipt arrangements, or implementation-shaped tests merely because
 they exist. Existing documentation describes constraints only where those
@@ -94,63 +96,55 @@ Sweep all Omega and Psi representations, not just the last one touched.
 - Ordinary consumers read current data. Historical inputs needed for replay
   remain explicit evidence, not the route to finding the current program.
 
+`ResolvedMachineProgram` owns its frame layout and frame protocol alongside
+instructions, allocation, encoding, and resolved layout. Emission reads those
+current fields directly; backend validation retains separate evidence and
+compares the complete program during replay.
+
 **Acceptance:** every root is obvious, public program data can outlive its
 producer, and ordinary consumers no longer walk producer ancestry. Moving
 files without fixing those dependencies does not complete the move.
 
 ## 3. Delete the alternate physical pipeline
 
-Start at `omega-rust/omega/compiler/native-realization/src/realization/physical_stage.rs`:
-`NativePhysicalStageResult::Assigned | Optimized` still selects competing
-assignment/emission implementations.
-The remaining assigned families include callbacks and unsupported scalar/structural
-ABI and body forms. Ranked countdowns already use the common graph, including
-empty selections; do not restore their deleted assigned or ISA-template route.
+The compiler has one physical sequence. Empty optimization selections do not
+choose another allocator, emitter, or publication implementation. Selected
+rewrites consume and produce the current representation on that sequence.
 
-Define the destination's current program and stage contracts first. Implement
-them directly, replacing either existing route where necessary. Empty selection
-is identity execution within that sequence, not a different compiler. A wrapper
-around both implementations, or a third path beside them, is not convergence.
+The assigned pipeline and its recursive assigned-program representation are
+deleted. The physical coordinator no longer chooses between Unit, fixed-frame,
+selected-lowering, or post-allocation-history carriers. Machine emission receives
+one validated frame realization. Optimization history is evidence, not a
+selector for program shape.
 
-The replacement must have:
+The unused post-allocation optimizer is removed together with the downstream
+rule-specific encoding/layout/exit dispatch. A future optimization phase must
+transform the current machine representation, not choose a new carrier per rule.
 
-- Ordinary ordered instructions and control edges, with explicit value,
-  argument, result, call, memory, relocation, and semantic identities. Delete
-  example-specific call forms and admission paths that obstruct this model;
-  do not grow a new recipe for each combination of type, caller, and arity.
-- Explicit ABI transport for supported scalar widths and signedness, Boolean
-  values, register and stack arguments, results, and call clobbers. An existing
-  register-only U64 slice is a test case, not the architecture.
-- One owner of complete frame planning: local and spill storage, saved registers,
-  incoming/outgoing stack arguments, alignment, and required ABI areas such as
-  Windows shadow space. Stack accesses retain their actual role and effects;
-  ABI argument storage is not disguised as allocator spill storage.
-- A deliberate stage for resolving frame references before their bytes are
-  emitted. Scratch preservation, argument snapshots, copy scheduling, and frame
-  geometry are planned data, not decisions hidden inside byte emission.
-- Independent validation of the replacement's semantics and resource claims.
-  Reusing an old producer to certify its replacement is not independent replay.
+Do not restore either fallback to regain an unsupported case. Unsupported
+instructions and ABI transports reject at their owning stage until implemented
+in the common graph. In particular, callback and FMA transport formerly using
+the assigned route are not available through the current compiler coordinator.
+Selected-lowering and post-allocation rewrite choices whose implementations
+required alternate carriers reject explicitly; they are not silently ignored.
+The language contract remains unchanged.
 
-Existing selected and post-allocation roots may be reused or reshaped; their
-current fields and schemas are not requirements. Recursive assigned expressions
-and complete assigned Unit bodies must not survive as opaque executable payloads
-inside the new graph. Unmatched instructions may remain unchanged by a selected
-rewrite; they may not skip common allocation, effect validation, layout or
-encoding.
+This structural replacement does not claim parity with the deleted backend.
+Retired implementation-specific Rust suites are removed with their APIs;
+authored language cases, independent validators, and common-pipeline behavior
+controls remain. Git retains the old implementation for reference. Restoring a
+behavior means implementing it in the single sequence, not migrating another
+special-purpose pipeline alongside it.
 
-Preserve ordinary, ranked-countdown, callback and Unit structural-scalar
-behavior through selection, allocation, machine optimization, layout and
-emission. Reimplement this behavior in coherent families, then delete their
-superseded algorithms, carriers, adapters, and obsolete structural tests. The
-previous route can serve as a temporary comparison oracle from Git; it must not
-become a permanent fallback. Required call, control, or ABI support belongs to
-this replacement, not to an indefinitely deferred prerequisite board. Unrelated
-new language/backend features remain outside this cleanup.
+The destination must retain ordinary ordered instructions and control edges,
+explicit ABI transport, one complete frame plan, and independent semantic,
+resource, and publication validation. Recursive assigned expressions and whole
+Unit bodies cannot return as opaque payloads inside selected instructions.
 
-**Acceptance:** empty/nonempty selections and those existing program forms reach
-native publication through the common graph. No supported behavior is removed
-to make the routes appear unified. Target and authority distinctions remain
-explicit inside their proper stages.
+**Acceptance:** the old implementation and its dispatch carriers are absent;
+empty and supported nonempty selections use the same stage sequence and
+publication checks. Unsupported behavior is explicit. Remaining ownership
+moves and behavior work must not delay deleting obsolete routes.
 
 ## 4. Deliver optimized portable Psi
 

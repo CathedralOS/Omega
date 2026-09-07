@@ -27,6 +27,7 @@ fn selected(
         .source()
         .source()
         .source()
+        .source()
         .selected_plan()
         .functions
         .iter()

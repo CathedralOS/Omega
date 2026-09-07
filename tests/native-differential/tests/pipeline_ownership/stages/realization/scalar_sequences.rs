@@ -100,12 +100,6 @@ fn exact_scalar_sequences_reach_shared_native_publication() {
                 let post_terminal = optimized.selections().project_post_terminal();
                 let target_program =
                     lower_optimized_to_target_operations(optimized, target).unwrap();
-                assert!(
-                    target_operations_to_selected_instructions::is_fragment_publication_program(
-                        &target_program
-                    ),
-                    "ordinary exact scalar DAGs must not select the Assigned route"
-                );
                 let physical = stage_optimized_verified_physical_pipeline(
                     target_program,
                     post_terminal.selections(),
@@ -115,17 +109,8 @@ fn exact_scalar_sequences_reach_shared_native_publication() {
                     physical.into_function_fragment_emission_source(),
                 )
                 .unwrap();
-                let text: StagedOptimizedObjectTextSectionSource =
-                    if fragments.source().frame_protocol().is_some() {
-                        let applied = stage_function_fragment_frame_application(fragments).unwrap();
-                        stage_optimized_fixed_frame_text_section(applied)
-                            .unwrap()
-                            .into()
-                    } else {
-                        stage_optimized_relocation_free_text_section(fragments)
-                            .unwrap()
-                            .into()
-                    };
+                let applied = stage_function_fragment_frame_application(fragments).unwrap();
+                let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
                 let source = stage_optimized_relocation_free_object_container(text).unwrap();
                 let source = std::sync::Arc::new(source);
                 let object =

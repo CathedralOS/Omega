@@ -1,10 +1,4 @@
-use crate::FunctionFragmentReplayInputs;
-use crate::{
-    validate_fixed_frame_function_relative_realization,
-    validate_optimized_unit_function_relative_realization,
-    validate_post_allocation_machine_function_relative_realization_custody,
-    validate_selected_lowering_function_relative_realization_custody,
-};
+use crate::validate_fixed_frame_function_relative_realization;
 use machine_code::FunctionFragmentEmissionPlan;
 
 use super::error::FunctionFragmentEmissionError;
@@ -16,24 +10,8 @@ use super::source::StagedOptimizedFunctionFragmentEmissionSource;
 pub(super) fn validate_source(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<(), FunctionFragmentEmissionError> {
-    match source.replay() {
-        FunctionFragmentReplayInputs::SelectedLowering(realization) => {
-            validate_selected_lowering_function_relative_realization_custody(realization)
-                .map_err(FunctionFragmentEmissionError::Source)?;
-        }
-        FunctionFragmentReplayInputs::PostAllocationMachine(realization) => {
-            validate_post_allocation_machine_function_relative_realization_custody(realization)
-                .map_err(FunctionFragmentEmissionError::Source)?;
-        }
-        FunctionFragmentReplayInputs::UnitBaseline(realization) => {
-            validate_optimized_unit_function_relative_realization(realization)
-                .map_err(FunctionFragmentEmissionError::UnitSource)?;
-        }
-        FunctionFragmentReplayInputs::FixedFrame(realization) => {
-            validate_fixed_frame_function_relative_realization(realization)
-                .map_err(FunctionFragmentEmissionError::Source)?;
-        }
-    }
+    validate_fixed_frame_function_relative_realization(source.replay().fixed_frame())
+        .map_err(FunctionFragmentEmissionError::Source)?;
     source.validate_current()?;
     let expected_allocation_recovery = source
         .optimized_target()

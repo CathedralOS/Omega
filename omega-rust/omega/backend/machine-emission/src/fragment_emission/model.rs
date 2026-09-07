@@ -7,9 +7,8 @@ use std::sync::Arc;
 
 use super::source::StagedOptimizedFunctionFragmentEmissionSource;
 pub use machine_code::{
-    FunctionFragmentEmissionManifest, FunctionFragmentEmissionSourceKind,
-    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
-    FunctionFragmentEmissionUnavailableData,
+    FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
+    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

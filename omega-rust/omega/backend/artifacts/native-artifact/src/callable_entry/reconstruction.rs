@@ -8,7 +8,7 @@ pub(super) fn reconstruct(
     let artifact = source.artifact();
     let object_stage = source.source();
     let object = object_stage.object();
-    let fragment = object_stage.source().source();
+    let fragment = object_stage.source().source().source();
     let route = fragment.source();
     let module = route.verified_input().context().module();
     let machine = module

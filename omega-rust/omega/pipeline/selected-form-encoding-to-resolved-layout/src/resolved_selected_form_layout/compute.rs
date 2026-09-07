@@ -3,16 +3,14 @@ use std::collections::BTreeMap;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization;
 use post_allocation_machine_to_selected_form_encoding::{
-    StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
-    validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
+    StagedOptimizedSelectedFormEncoding,
+    validate_optimized_layout_independent_selected_form_encoding,
 };
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
 use super::model::StagedOptimizedResolvedSelectedFormLayout;
-use super::optimization::{validate_layout_byte_savings, validate_optimization_custody};
 use super::ordinary::{instructions, layout, select};
 use machine_code::{ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity};
 
@@ -21,32 +19,15 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
+    validate_optimized_layout_independent_selected_form_encoding(
         selected,
         machine,
         physical,
         pre_layout.program().frame.as_ref(),
-        optimization,
         pre_layout,
     )
     .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
-    let normalized = validate_optimization_custody(machine, pre_layout, optimization)?;
-    let fusion = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(_)
-        | StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(_)
-        | StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(_)
-        | StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(_)
-        | StagedOptimizedPostAllocationMachineOptimization::X86XorZero(_) => None,
-    });
-    let copy_elision = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
-            Some(elision)
-        }
-        _ => None,
-    });
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
     if pre_layout.selected() != selected.selected_identity()
@@ -54,7 +35,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.functions.len()
-        || pre_layout.post_allocation_machine_optimization() != normalized
+        || pre_layout.post_allocation_machine_optimization().is_some()
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
@@ -98,8 +79,6 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             &function_pre_rows,
             &machine_rows,
             physical,
-            fusion,
-            copy_elision,
             policy,
         )?);
     }
@@ -115,7 +94,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         selected_root,
         machine_root,
         pre_layout_root,
-        normalized,
+        None,
         target,
         policy,
         &functions,
@@ -124,22 +103,11 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         selected: selected_root,
         machine: machine_root,
         pre_layout: pre_layout_root,
-        post_allocation_machine_optimization: normalized,
+        post_allocation_machine_optimization: None,
         target,
         policy,
         identity,
         functions,
     });
-    if let Some(custody) = normalized {
-        let baseline_encoding = stage_optimized_layout_independent_selected_form_encoding(
-            selected,
-            machine,
-            physical,
-            pre_layout.program().frame.as_ref(),
-        )
-        .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
-        let baseline = compute(selected, machine, physical, &baseline_encoding, None)?;
-        validate_layout_byte_savings(&baseline, &artifact, custody)?;
-    }
     Ok(artifact)
 }

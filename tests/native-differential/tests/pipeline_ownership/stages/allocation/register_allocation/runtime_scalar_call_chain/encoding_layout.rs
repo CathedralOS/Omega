@@ -459,13 +459,9 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             Ok(realization.manifest().record().clone())
         );
         let fragments = stage_optimized_function_fragment_emission(
-            FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+            FunctionFragmentReplayInputs::from(realization).into(),
         )
         .unwrap();
-        assert_eq!(
-            fragments.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
-        );
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&fragments.manifest().record().encode()),
             Ok(fragments.manifest().record().clone())
@@ -505,10 +501,8 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
         crate::tests::text_placement_checks::fixed(&text);
         validate_optimized_fixed_frame_text_section(&text).unwrap();
         assert_eq!(
-            text.manifest().record().source_custody,
-            FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
-                application: frame_application,
-            }
+            text.manifest().record().frame_application,
+            frame_application
         );
         assert_eq!(text.text_section().resolved_internal_machine_calls.len(), 3);
         assert_eq!(
@@ -549,14 +543,14 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
         );
         text.text_section_mut().resolved_internal_machine_calls[0].displacement -= 1;
-        let source_custody = text.manifest().record().source_custody;
-        text.manifest_mut().record_mut().source_custody =
-            FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1;
+        let frame_application = text.manifest().record().frame_application;
+        text.manifest_mut().record_mut().frame_application =
+            FunctionFragmentFrameApplicationIdentity::from_bytes([0x91; 32]);
         assert_eq!(
             validate_optimized_fixed_frame_text_section(&text),
             Err(RelocationFreeTextSectionPlacementError::ManifestMismatch)
         );
-        text.manifest_mut().record_mut().source_custody = source_custody;
+        text.manifest_mut().record_mut().frame_application = frame_application;
         text.corrupt_custody_frame_application_for_test();
         assert_eq!(
             validate_optimized_fixed_frame_text_section(&text),

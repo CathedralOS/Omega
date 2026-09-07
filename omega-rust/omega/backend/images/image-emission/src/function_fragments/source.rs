@@ -3,25 +3,25 @@
 use super::Error;
 use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
-use object_file::{
-    StagedOptimizedObjectTextSectionSource, StagedOptimizedRelocationFreeObjectContainer,
-};
+use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
 
 pub(super) fn fragments(
     source: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> &FunctionFragmentEmissionPlan {
-    match source.source() {
-        StagedOptimizedObjectTextSectionSource::Direct(text) => text.source().fragments(),
-        StagedOptimizedObjectTextSectionSource::FixedFrame(text) => text.source().fragments(),
-    }
+    source.source().source().fragments()
 }
 
 pub(super) fn function(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     machine: MachineId,
 ) -> Result<(&AbstractFunction, &target_operations::TargetFunction), Error> {
-    let current = source.source().source().source().optimized_target();
+    let current = source
+        .source()
+        .source()
+        .source()
+        .source()
+        .optimized_target();
     let mut abstracted = current
         .optimized()
         .plan()
@@ -50,14 +50,8 @@ pub(super) fn frame(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     machine: MachineId,
 ) -> Result<Option<&FunctionTargetFrameLayout>, Error> {
-    let Some(layout) = source.source().source().source().frame_layout() else {
-        return Ok(None);
-    };
-    let mut rows = layout
-        .plan()
-        .functions
-        .iter()
-        .filter(|row| row.machine == machine);
+    let layout = source.source().source().source().source().frame_layout();
+    let mut rows = layout.functions.iter().filter(|row| row.machine == machine);
     match (rows.next(), rows.next()) {
         (Some(row), None) => Ok(Some(row)),
         _ => Err(Error::Mismatch(
@@ -78,19 +72,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             "shared image publication requires a nonempty 64-bit function roster",
         ));
     }
-    let current = source.source().source().source();
-    let has_frame = current.frame_layout().is_some();
-    if has_frame != current.frame_protocol().is_some()
-        || has_frame
-            != matches!(
-                source.source(),
-                StagedOptimizedObjectTextSectionSource::FixedFrame(_)
-            )
-    {
-        return Err(Error::Mismatch(
-            "shared text does not apply its exact frame",
-        ));
-    }
+    let current = source.source().source().source().source();
     for fragment in &fragments.functions {
         let (abstracted, targeted) = function(source, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);

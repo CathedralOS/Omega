@@ -107,16 +107,11 @@ fn realize_core(
         terminal_artifact_identity,
         &request,
     )?;
-    let initial_physical_evidence_scope = super::model::physical_evidence_scope(
-        request.optimization_selections.is_empty(),
-        checked_scope,
-    );
     let emitted = emit_realization_object(
         input,
         installation,
         &settlements,
         boundary_application_coverage.as_ref(),
-        initial_physical_evidence_scope,
         &request,
     )?;
     assemble_requested_native_artifact(

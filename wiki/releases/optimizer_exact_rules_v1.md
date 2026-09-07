@@ -19,41 +19,26 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedIncomingU12ExactAddImmediate` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingU12ExactAddImmediate` | Required |
 | `X86RelaxConditionalBranchesToRel8V1` | FunctionRelativeLayout | x86-64 | Experimental | `--disable-optimization X86RelaxConditionalBranchesToRel8V1` | Required |
 | `SelectedIncomingU12ExactSubtractImmediate` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingU12ExactSubtractImmediate` | Required |
-| `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` | Required |
 | `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` | AllocationRecovery | Target-independent | Experimental | `--disable-optimization SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` | Required |
 | `ActiveResidentImmediateU64MultiUseRematerializationV1` | AllocationRecovery | Target-independent | Experimental | `--disable-optimization ActiveResidentImmediateU64MultiUseRematerializationV1` | Required |
-| `Aarch64SelectShortestMovnSeededI64MaterializationV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64SelectShortestMovnSeededI64MaterializationV1` | Required |
-| `X86SelectXorZeroI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectXorZeroI64MaterializationV1` | Required |
-| `X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | Required |
-| `X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | Required |
-| `Aarch64ElideSameViewCopyI64BeforeReturnV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64ElideSameViewCopyI64BeforeReturnV1` | Required |
-| `Aarch64ElideSameViewCopyI64BeforeCompareZeroV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64ElideSameViewCopyI64BeforeCompareZeroV1` | Required |
-| `Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1` | Required |
-| `Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s
-owning source vocabulary and applicability from each rule-owning stage catalog.
+owning source vocabulary and applicability from each surviving rule-owning stage catalog.
+Retired post-allocation machine rewrite spellings are rejected by native realization
+and are not rollout entries.
 A missing, duplicate, renamed, rephased, retargeted, or broad alias row fails
 the repository gate.
 
 ## Supported composition policy
 
 - Any explicit subset of the six Psi suites may run in canonical phase order.
-- Both selected-lowering rules may be selected together.
-- Selected lowering may precede one target-compatible post-allocation rule, or
-  x86-64 function-relative branch relaxation.
-- One allocation-recovery rule may run alone; active-resident immediate-U64
-  multi-use rematerialization may also precede AArch64 MOVN materialization or
-  x86 XOR-zero or either exact x86 imm32 materialization rule on its matching
-  target.
-- One post-allocation machine rule may run at a time and cannot compose with
-  function-relative layout.
-- Same-view copy elision does not compose with fixed-view allocation recovery;
-  the currently produced fixed-view copy has a different shared-entry shape and
-  is rejected explicitly.
-- Psi selections are orthogonal overlays and do not alter physical-route
-  admission.
+- One allocation-recovery rule may precede the canonical frame and layout stages.
+- x86-64 branch relaxation runs in the resolved-layout phase.
+- Selected-lowering and retired post-allocation machine rewrite selections are
+  rejected by the native pipeline. Remaining selected-lowering catalog entries
+  describe isolated rule support, not native publication support.
+- Psi selections do not choose another physical realization route.
 
 Unsupported or wrong-target compositions fail before physical optimization;
 they never silently drop a selected rule.

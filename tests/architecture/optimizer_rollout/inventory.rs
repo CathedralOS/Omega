@@ -9,7 +9,6 @@ const SELECTION_SOURCE: &str =
     "omega-rust/omega/representations/optimization-core/src/selection.rs";
 const SELECTED_LOWERING_CATALOG: &str = "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs";
 const ALLOCATION_RECOVERY_CATALOG: &str = "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/catalog.rs";
-const POST_ALLOCATION_CATALOG: &str = "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/catalog.rs";
 const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs";
 const INVENTORY_START: &str = "<!-- exact-rule-inventory:start -->";
 const INVENTORY_END: &str = "<!-- exact-rule-inventory:end -->";
@@ -93,6 +92,11 @@ fn canonical_rules(audit: &mut Audit) -> BTreeMap<String, CanonicalRule> {
             .trim_start_matches("phase: ")
             .trim_end_matches(',')
             .to_owned();
+        // Retired physical-rewrite spellings remain decode/rejection vocabulary,
+        // not supported executable rules eligible for rollout.
+        if phase == "PostAllocationMachine" {
+            continue;
+        }
         let applicability = catalog_applicability(audit, &name, &phase);
         if rules
             .insert(
@@ -134,7 +138,6 @@ fn catalog_applicability(audit: &mut Audit, name: &str, phase: &str) -> String {
     let catalog = match phase {
         "SelectedLowering" => SELECTED_LOWERING_CATALOG,
         "AllocationRecovery" => ALLOCATION_RECOVERY_CATALOG,
-        "PostAllocationMachine" => POST_ALLOCATION_CATALOG,
         "FunctionRelativeLayout" => FUNCTION_RELATIVE_LAYOUT_CATALOG,
         unknown => {
             audit.violations.insert(format!(

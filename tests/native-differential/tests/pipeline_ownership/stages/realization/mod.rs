@@ -5,8 +5,6 @@ mod callable_entry_mutation_matrix;
 mod current_allocation;
 mod exit_replay;
 mod fixed_frame_callable_entry;
-mod function_relative;
-mod function_relative_manifest_mutation_matrix;
 mod general_cfg_fixed_frame;
 mod runtime_integer_equal_conditional;
 mod runtime_integer_less_or_equal_conditional;

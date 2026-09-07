@@ -11,14 +11,13 @@ use target::{Architecture, NativeTarget};
 use super::{
     DeferredControlEncodingReason, OptimizedSelectedFormEncodingError,
     SelectedFormDecodedFootprint, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormMachineDisposition, materialization::MaterializationDisposition,
+    SelectedFormMachineDisposition,
 };
 
-mod aarch64_movn;
 mod scalar_call;
-mod x86_mov_r32_imm32;
-mod x86_mov_r64_imm32_sign_extended;
-mod x86_xor_zero;
+
+#[cfg(test)]
+mod tests;
 
 pub(super) fn encode_row(
     target: NativeTarget,
@@ -26,25 +25,13 @@ pub(super) fn encode_row(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     address: Option<machine_code::ResolvedPhysicalAddress>,
-    machine_disposition: SelectedFormMachineDisposition,
-    materialization: Option<MaterializationDisposition<'_>>,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
     let architecture = target.architecture;
-    validate_machine_disposition(
-        architecture,
-        selected,
-        machine,
-        physical,
-        &machine_disposition,
-    )?;
     let alternative = machine.alternative.key;
-    let state = match (selected.kind, materialization) {
-        (
-            kind @ (SelectedInstructionKind::Load64 { .. }
-            | SelectedInstructionKind::Store64 { .. }
-            | SelectedInstructionKind::FrameAddress { .. }),
-            materialization,
-        ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
+    let state = match selected.kind {
+        kind @ (SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::FrameAddress { .. }) => {
             if target != NativeTarget::windows_x64() {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
@@ -85,129 +72,32 @@ pub(super) fn encode_row(
                 }),
             }
         }
-        (
-            kind @ (SelectedInstructionKind::CallI64 { .. }
-            | SelectedInstructionKind::CallUnit { .. }),
-            materialization,
-        ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
+        kind @ (SelectedInstructionKind::CallI64 { .. }
+        | SelectedInstructionKind::CallUnit { .. }) => {
             scalar_call::encode(target, selected.id, kind, machine, physical)?
         }
-        (
-            kind @ SelectedInstructionKind::MaterializeI64 { .. },
-            Some(MaterializationDisposition::Aarch64Movn(disposition)),
-        ) => aarch64_movn::encode(architecture, selected, kind, machine, physical, disposition)?,
-        (
-            kind @ SelectedInstructionKind::MaterializeI64 { .. },
-            Some(MaterializationDisposition::X86XorZero(disposition)),
-        ) => x86_xor_zero::encode(architecture, selected, kind, machine, physical, disposition)?,
-        (
-            kind @ SelectedInstructionKind::MaterializeI64 { .. },
-            Some(MaterializationDisposition::X86MovR32Imm32(disposition)),
-        ) => {
-            x86_mov_r32_imm32::encode(architecture, selected, kind, machine, physical, disposition)?
-        }
-        (
-            kind @ SelectedInstructionKind::MaterializeI64 { .. },
-            Some(MaterializationDisposition::X86MovR64Imm32SignExtended(disposition)),
-        ) => x86_mov_r64_imm32_sign_extended::encode(
+        SelectedInstructionKind::ConditionalBranchNonZero
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump => SelectedFormEncodingState::DeferredControl {
+            reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
+        },
+        kind => encode_scalar(
             architecture,
-            selected,
+            selected.id,
             kind,
+            alternative,
             machine,
             physical,
-            disposition,
         )?,
-        (
-            SelectedInstructionKind::ConditionalBranchNonZero
-            | SelectedInstructionKind::ConditionalBranchU64LessThan
-            | SelectedInstructionKind::ConditionalBranchI64LessThan
-            | SelectedInstructionKind::Jump,
-            materialization,
-        ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
-            SelectedFormEncodingState::DeferredControl {
-                reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-            }
-        }
-        (kind, materialization)
-            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
-        {
-            encode_scalar(
-                architecture,
-                selected.id,
-                kind,
-                alternative,
-                machine,
-                physical,
-            )?
-        }
-        _ => {
-            return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(selected.id));
-        }
     };
     Ok(SelectedFormEncodingRow {
         instruction: selected.id,
         alternative,
-        machine_disposition,
+        machine_disposition: SelectedFormMachineDisposition::RetainedV1,
         state,
         address,
     })
-}
-
-fn integer_bits(value: semantic_vocabulary::IntegerValue) -> Option<u64> {
-    match value {
-        semantic_vocabulary::IntegerValue::Signed(value) => {
-            i64::try_from(value).ok().map(|value| value as u64)
-        }
-        semantic_vocabulary::IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
-    }
-}
-
-fn validate_machine_disposition(
-    architecture: Architecture,
-    selected: &SelectedInstruction,
-    machine: &PostAllocationMachineInstruction,
-    physical: &ValidatedPhysicalRegisterModel,
-    disposition: &SelectedFormMachineDisposition,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let valid = match disposition {
-        SelectedFormMachineDisposition::RetainedV1 => true,
-        SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer } => {
-            architecture == Architecture::Aarch64
-                && matches!(selected.kind, SelectedInstructionKind::CompareI64Zero)
-                && *consumer != selected.id
-        }
-        SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
-            compare,
-            source_read,
-        } => {
-            let view = physical
-                .model()
-                .views
-                .iter()
-                .find(|view| view.id == source_read.view);
-            architecture == Architecture::Aarch64
-                && matches!(
-                    selected.kind,
-                    SelectedInstructionKind::ConditionalBranchNonZero
-                )
-                && machine.operands.is_empty()
-                && *compare == source_read.source_instruction
-                && *compare != selected.id
-                && source_read.operand == 0
-                && view.is_some_and(|view| {
-                    view.class == source_read.class && view.units == source_read.units
-                })
-        }
-        SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer } => {
-            architecture == Architecture::Aarch64
-                && matches!(selected.kind, SelectedInstructionKind::CopyI64)
-                && *consumer != selected.id
-        }
-    };
-    if !valid {
-        return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(selected.id));
-    }
-    Ok(())
 }
 
 fn encode_scalar(
@@ -315,6 +205,3 @@ fn validate_size(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

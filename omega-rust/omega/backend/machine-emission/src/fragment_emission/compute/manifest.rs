@@ -4,8 +4,7 @@ use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use crate::FunctionRelativeOptimizationRealizationManifest;
 
 use super::super::{
-    FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
-    FunctionFragmentEmissionSourceKind, FunctionFragmentEmissionStage,
+    FunctionFragmentEmissionError, FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
     FunctionFragmentEmissionUnavailableData, ValidatedFunctionFragmentEmissionManifest,
 };
 use crate::function_fragment_emission_statistics;
@@ -13,7 +12,6 @@ use crate::function_fragment_emission_statistics;
 pub(super) fn seal(
     fragments: FunctionFragmentEmissionPlan,
     source: &FunctionRelativeOptimizationRealizationManifest,
-    source_kind: FunctionFragmentEmissionSourceKind,
 ) -> Result<super::Emission, FunctionFragmentEmissionError> {
     let statistics = function_fragment_emission_statistics(&fragments)?;
     let stage = if statistics.unresolved_internal_machine_fixups == 0 {
@@ -21,19 +19,12 @@ pub(super) fn seal(
     } else {
         FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
     };
-    Ok(seal_with_statistics(
-        fragments,
-        source,
-        source_kind,
-        stage,
-        statistics,
-    ))
+    Ok(seal_with_statistics(fragments, source, stage, statistics))
 }
 
 fn seal_with_statistics(
     fragments: FunctionFragmentEmissionPlan,
     source: &FunctionRelativeOptimizationRealizationManifest,
-    source_kind: FunctionFragmentEmissionSourceKind,
     stage: FunctionFragmentEmissionStage,
     statistics: super::super::FunctionFragmentEmissionStatistics,
 ) -> super::Emission {
@@ -41,7 +32,6 @@ fn seal_with_statistics(
     let mut record = FunctionFragmentEmissionManifest {
         identity: FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"pending"),
         stage,
-        source_kind,
         source_realization: source.identity,
         selections: source.selections,
         psi: fragments.psi,

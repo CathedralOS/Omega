@@ -36,15 +36,7 @@ fn ordered_scalar_calls_reach_native_publication() {
             Sequence::EqualConstants,
             Sequence::InterleavedCallees,
         ] {
-            for choices in [
-                Vec::new(),
-                vec![Optimization::CopyPropagation],
-                vec![if target.architecture == target::Architecture::X86_64 {
-                    Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
-                } else {
-                    Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-                }],
-            ] {
+            for choices in [Vec::new(), vec![Optimization::CopyPropagation]] {
                 let selections = OptimizationSelections::new(choices).unwrap();
                 let source = std::sync::Arc::new(staged(target, sequence, &selections));
                 let object =
@@ -123,6 +115,7 @@ fn fragment_publication_scope_rejects_a_different_program_or_object() {
                 .is_err()
         );
         let current = source
+            .source()
             .source()
             .source()
             .source()

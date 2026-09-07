@@ -164,7 +164,7 @@ Omega/
 |       |-- representations/                             # Durable, target-independent carriers and evidence.
 |       |   |-- [CRATE] target/
 |       |   |-- [CRATE] calling-conventions/
-|       |   |-- [CRATE] {abstract,target,legalized,assigned-target}-operations/
+|       |   |-- [CRATE] {abstract,target,legalized}-operations/
 |       |   |-- [CRATE] selected-instructions/
 |       |   |-- [CRATE] machine-code/
 |       |   |-- [CRATE] {register-model,optimization-core,optimization-unit}/
@@ -179,11 +179,9 @@ Omega/
 |       |   |-- [CRATE] selected-instructions-to-selected-instructions/
 |       |   |-- [CRATE] selected-instructions-to-register-homes/
 |       |   |-- [CRATE] register-homes-to-post-allocation-machine/
-|       |   |-- [CRATE] post-allocation-machine-to-post-allocation-machine/
 |       |   |-- [CRATE] post-allocation-machine-to-selected-form-encoding/
 |       |   |-- [CRATE] selected-form-encoding-to-resolved-layout/
-|       |   |-- [CRATE] resolved-layout-to-resolved-layout/
-|       |   `-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
+|       |   `-- [CRATE] resolved-layout-to-resolved-layout/
 |       |
 |       |-- semantics/
 |       |   `-- [CRATE] optimization-unit-semantics/       # Independent unit and rewrite checks.
@@ -418,12 +416,10 @@ keeps the compiler-owned build protocol independent of whether std exists.
 ### Backend
 
 - Production backend lowering begins at `terminal-psi-to-abstract-operations`,
-  then proceeds through ordinary `omega-*` operation, selection, allocation,
+  then proceeds through operation, selection, allocation,
   machine-code, object, and image owners.
-- The bounded `target-operations-to-assigned-target-operations` route is
-  a temporary continuation for unsupported physical slices. It must converge
-  into the selected-instruction continuation rather than become a second
-  pipeline.
+- Every admitted native program uses the selected-instruction continuation.
+  Unsupported physical forms reject; there is no assigned-program fallback.
 - The retired StateGraph/control-flow backend has been deleted. Reintroducing a
   source-shaped backend fallback is an architecture violation.
 - `machine-emission` produces production machine code, and
@@ -435,10 +431,9 @@ keeps the compiler-owned build protocol independent of whether std exists.
   `selected-instructions-to-register-homes` consumes that result, assigns homes,
   and owns allocation-pressure recovery. Effect facts are not another program output;
   `register-homes-to-post-allocation-machine` constructs the machine plan;
-  `post-allocation-machine-to-post-allocation-machine` owns its opt-in rewrites.
-  No construction stage depends on a later optimizer. The bounded target-to-assigned
-  publication adapter is not a substitute for either owner and must disappear
-  once the selected physical conveyor has complete operation coverage.
+  `post-allocation-machine-to-selected-form-encoding` encodes it before layout.
+  No construction stage depends on a later optimizer. The old rule-specific
+  post-allocation optimizer and target-to-assigned continuation are deleted.
 - `backend/instruction_set_architectures/*` owns ISA definitions and encodings.
   Only AArch64 and x86_64 exist today. Shared lowering policy belongs in shared
   backend crates.

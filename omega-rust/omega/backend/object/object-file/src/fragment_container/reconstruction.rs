@@ -2,7 +2,7 @@
 use super::*;
 
 pub(super) fn construct_manifest(
-    source: &StagedOptimizedObjectTextSectionSource,
+    source: &StagedOptimizedFixedFrameTextSection,
     object: &RelocationFreeObjectPlan,
     container: &RelocationFreeObjectContainer,
 ) -> Result<ValidatedFunctionFragmentObjectContainerManifest, RelocationFreeObjectContainerError> {

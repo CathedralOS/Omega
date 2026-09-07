@@ -25,5 +25,5 @@ pub(super) fn compute(
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);
     }
-    manifest::seal(fragments, source_manifest, source.source_kind())
+    manifest::seal(fragments, source_manifest)
 }

@@ -20,7 +20,6 @@ fn staged_fixed_view_allocation_recovery_realization(
     (stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
         .unwrap())
     .into_fixed_frame_for_test()
-    .expect("fixture must complete allocation recovery")
 }
 
 #[test]

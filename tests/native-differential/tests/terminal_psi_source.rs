@@ -10,18 +10,7 @@ use abstract_operations::{
     AbstractParameter, ValueBinding,
 };
 use abstract_operations_to_target_operations::lower_to_target_operations;
-#[cfg(unix)]
-use artifacts::external_root_manifest_json;
-use assigned_target_operations::{
-    AssignedBooleanControl, AssignedIntegerControl, AssignedOperation,
-};
 use calling_conventions::CallSignature;
-#[cfg(unix)]
-use calling_conventions::{
-    ArrivalContextId, ArrivalContextStackDomain, CallingPolicy, MachineStateSet, RegisterSet,
-    StackDomainRef, StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
-    validate_entry_stack_domain_closure,
-};
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest,
@@ -36,7 +25,7 @@ use component_deployment::{
 };
 #[cfg(unix)]
 use component_publication::InstalledRunnableComponent;
-use component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
+use component_publication::RunnableComponentEraLedger;
 use effects::{
     ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
     ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile, ExecutionScope,
@@ -55,39 +44,18 @@ use extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
     ExtentRootGrant, MappingEraId,
 };
-#[cfg(unix)]
-use external_roots::{
-    AdapterStackRealizationOrigin, ArrivalStackRealizationOrigin, ExternalRootCandidate,
-    ExternalRootId, FixedFuelProviderSummary, FuelProvisionId, FuelValidationReceiptId,
-    LogicalFuelResourceColumn, MachineStateResourceColumn, NestingRelationId,
-    OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId, ProviderFuelSummaryId,
-    ProviderPlanId, ProviderStackSummary, RootAdmission, RootAdmissionId, RootProviderId,
-    RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
-    StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
-    bind_direct_generated_entry_stack_realization, bind_installed_entry_fuel,
-    bind_installed_entry_stack, compose_bound_entry_stack_epochs, compose_fixed_fuel,
-    validate_external_root, validate_installed_entry_fuel, validate_installed_entry_stack,
-};
 use external_roots::{
     ComponentProgressDemandIdentity, InstalledProviderOccurrenceId, InstalledRootLedger,
     ProgressProfileEstablishmentAttestation, ProgressProfileEstablishmentReceiptId,
     ProgressProfileGrantInvocationId, ProviderOccurrenceInstallationReceipt,
     ProviderOccurrenceInstallationReceiptId, ProviderOccurrencePlanBinding,
 };
-use image_emission::{
-    ObjectArtifact, bind_installed_artifact, build_installation_record, build_object_artifact,
-    decode_installation_record, derive_stack_demand, emit_executable_image,
-    encode_installation_record,
-};
+use image_emission::ObjectArtifact;
 #[cfg(unix)]
-use image_emission::{
-    derive_installation_stack_demand, emit_object_container, installation_fingerprint,
-    validate_installation_record,
-};
+use image_emission::installation_fingerprint;
 use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
-use machine_emission::emit_machine_code;
 use native_realization::{
     NativeProviderSettlement as ComponentProviderSettlement, realize_native_artifact,
 };
@@ -99,15 +67,12 @@ use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
 };
-#[cfg(unix)]
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use target::NativeTarget;
 use target_operations::{
     LinuxExitGroupI32Realization, TargetBooleanControl, TargetBooleanExpression,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation,
 };
-use target_operations_to_assigned_target_operations::assign_registers;
 use terminal_codec::{
     DebugSubject, build_artifact_manifest, decode_debug_map, decode_module, decode_proof_bundle,
     encode_debug_map, encode_module, encode_proof_bundle, terminal_psi_identity,
@@ -130,7 +95,6 @@ use terminal_verifier::{VerifiedTerminalModule, verify_module};
 
 #[cfg(unix)]
 use std::{
-    process::Command,
     sync::atomic::{AtomicU64, Ordering},
     time::SystemTime,
 };
@@ -391,26 +355,15 @@ fn target_integer_crash_leaves(operation: &TargetOperation) -> Vec<(EdgeId, Cras
     output
 }
 
-fn assert_guarded_crash_emits(verified: &VerifiedTerminalModule<'_>) {
-    let abstract_operations = lower_verified_artifact(verified)
-        .expect("guarded crash should cross the source-independent Omega boundary");
+fn assert_guarded_crash_lowers(verified: &VerifiedTerminalModule<'_>) {
+    let plan = lower_artifact_sections(
+        &encode_module(verified.module()).expect("encode verified crash module"),
+        &encode_proof_bundle(verified.proof_bundle()).expect("encode verified crash proof"),
+        &AdmissionProfile::default(),
+    )
+    .expect("lower verified crash module");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
-            .expect("guarded crash should select as recursive terminal control");
-        let assigned =
-            assign_registers(&target_operations).expect("guarded crash control should assign");
-        let emitted = emit_machine_code(&assigned).expect("guarded crash control should emit");
-        let fault = match target.architecture {
-            target::Architecture::X86_64 => &[0x0f, 0x0b][..],
-            target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
-        };
-        assert!(
-            emitted.functions[0]
-                .bytes
-                .windows(fault.len())
-                .any(|window| window == fault),
-            "guarded crash machine code must retain its selected fault leaf"
-        );
+        lower_to_target_operations(&plan, target).expect("lower crash target control");
     }
 }
 
@@ -576,124 +529,6 @@ fn install_terminal_object(
         install_validated(validated, authority, receipt).expect("terminal code installation"),
         entry,
     )
-}
-
-#[test]
-fn source_terminal_installation_publishes_only_with_retained_code_custody() {
-    let checked = compile_to_checked(&source_canary(), None)
-        .expect("terminal-Psi source canary should compile");
-    assert!(
-        checked.component_progress().is_none(),
-        "targetless source canary publishes no build-bound progress manifest"
-    );
-    let lowered = lower_machine(&checked, "terminal_constant")
-        .expect("accepted source slice should lower to terminal Psi");
-    let verified = verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("source-produced terminal Psi should verify");
-    let abstract_operations = lower_artifact_sections(
-        &encode_module(verified.module()).expect("terminal semantics encode"),
-        &encode_proof_bundle(verified.proof_bundle()).expect("terminal proof encodes"),
-        &AdmissionProfile::default(),
-    )
-    .expect("verified source artifact should lower without frontend state");
-    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
-        .expect("source terminal operations should select for the host");
-    let assigned = assign_registers(&target_operations).expect("source terminal homes assign");
-    let machine_code = emit_machine_code(&assigned).expect("source terminal machine code emits");
-    let object =
-        build_object_artifact(&machine_code).expect("source terminal machine code forms an object");
-    let image = emit_executable_image(&object, 3)
-        .expect("source terminal object emits an executable image");
-    let entry_offset = u64::try_from(object.entry_function().text_offset)
-        .expect("terminal entry offset fits installation geometry");
-    let (mut installed, _) =
-        install_terminal_object(&object, object.text_bytes().to_vec(), entry_offset);
-    let installed_identity = installed.identity();
-    let artifact_identity = installed.artifact();
-    let installation = build_installation_record(
-        &image,
-        ProfileDecisionId::new(0x53a0).expect("source publication profile decision"),
-    )
-    .expect("source terminal image has canonical installation metadata");
-    let installation = decode_installation_record(
-        &encode_installation_record(&installation).expect("source installation record encodes"),
-    )
-    .expect("source installation record decodes");
-    let mut roots =
-        InstalledRootLedger::claim(&mut installed).expect("source terminal installation registry");
-    roots
-        .seal_provider_occurrence_closure(checked.selected_provider_plans(), [])
-        .expect("empty selected-provider closure");
-    let artifact = bind_installed_artifact(object, image, installation, installed)
-        .expect("source terminal join consumes exact installed-code custody");
-    let runnable = bind_installed_runnable_component(artifact, roots, None)
-        .expect("progress-free source terminal artifact is runnable");
-
-    let tcb_acceptance = |identity: u64| {
-        evaluate_executable_tcb_profile(
-            &ExecutableTcbManifest {
-                known_entries: Vec::new(),
-                completeness: ScopeCompleteness::Complete {
-                    scope: ExecutionScope::CallerAddressSpace,
-                    selected_provider_closure_report_identity: identity,
-                    opaque_closure_evidence: Vec::new(),
-                    runtime_closure_evidence: Vec::new(),
-                },
-            },
-            &ExecutableTcbProfile {
-                name: format!("source-terminal-publication-{identity}"),
-                scope: ExecutionScope::CallerAddressSpace,
-                allow_static_current_artifact_checked_bodies: true,
-                exact_allowances: Vec::new(),
-                incomplete_scope: IncompleteScopePolicy::Reject,
-            },
-        )
-        .expect("source terminal TCB acceptance")
-    };
-    let mut lifecycle = RunnableComponentEraLedger::new(
-        ComponentEraEntryLedger::new(
-            ComponentEraLedgerId::from_normalized_identity(0x53a1)
-                .expect("source terminal lifecycle ledger"),
-            "SourceTerminalBinding/v1".into(),
-            "terminal_constant".into(),
-            1,
-            tcb_acceptance(0x53a2),
-        )
-        .expect("source terminal lifecycle"),
-    );
-    let candidate = ComponentEraCandidate {
-        era_identity: 1,
-        artifact_occurrence_digest: runnable
-            .installed_artifact()
-            .installed()
-            .occurrence_digest(),
-        artifact_instance_compatibility_report_identity: installed_identity.normalized_identity(),
-        binding_contract_identity: "SourceTerminalBinding/v1".into(),
-        entry_contract_identity: "terminal_constant".into(),
-        entry_plan_identity: "source-terminal-entry-plan".into(),
-        entry_plan_admission_receipt_identity: "source-terminal-entry-plan-receipt".into(),
-        executable_tcb_acceptance: tcb_acceptance(0x53a3),
-    };
-    let publication = ComponentEraPublicationReceipt::from_runtime(
-        0x53a4,
-        lifecycle.lifecycle(),
-        &candidate,
-        true,
-        false,
-    );
-    lifecycle
-        .publish(candidate, publication, runnable)
-        .expect("source terminal artifact publishes one runnable era");
-    let retained = lifecycle
-        .retained_component(1)
-        .expect("published source terminal era retains installation custody");
-    assert_eq!(retained.installed_code(), installed_identity);
-    assert_eq!(retained.artifact(), artifact_identity);
-    assert!(retained.progress().is_none());
 }
 
 #[test]
@@ -946,27 +781,41 @@ fn selected_preterminal_optimizers_rejoin_one_native_pipeline() {
 }
 
 #[test]
-fn lower_only_optimizer_source_rejoins_the_existing_native_pipeline() {
+fn retired_selected_lowering_rejects_before_native_publication() {
     let checked = compile_to_checked(
         &selected_lowering_optimizer_source_canary(),
         Some("linux_x64"),
     )
-    .expect("lower-only optimizer source should reach checked compilation");
-    let candidate = stage_terminal_component(
+    .expect("selected-lowering source remains valid through checking");
+    let entry = checked
+        .selected_program_entry_machine()
+        .expect("selected entry");
+    let lowered = lower_machine(&checked, entry).expect("source still produces Terminal Psi");
+    verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("retiring a physical rewrite must not change Terminal admission");
+    let errors = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
         3,
         &AdmissionProfile::default(),
         &[],
     )
-    .expect("the validated return-only selected-lowering cohort should use native production");
-    candidate
-        .native_artifact()
-        .validate()
-        .expect("selected-lowering native custody must replay");
-    assert_eq!(candidate.object().entry(), candidate.stack_demand().entry());
-    assert_eq!(candidate.object().functions().len(), 1);
-    assert!(!candidate.image().output().bytes.is_empty());
+    .expect_err("a retired selected-lowering phase must not produce a native candidate");
+    assert!(
+        errors.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("UnconsumedPostTerminalPhase(SelectedLowering)")
+                && diagnostic
+                    .message
+                    .contains("no alternate compiler route was run and no output was installed")
+        }),
+        "{errors:?}"
+    );
 }
 
 #[test]
@@ -1375,438 +1224,6 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             .validate()
             .expect("compiler progress transaction should retain replayable custody");
     }
-}
-
-#[cfg(target_os = "macos")]
-fn run_host_executable_image(bytes: &[u8]) -> i32 {
-    use std::os::unix::fs::PermissionsExt;
-
-    let directory = fresh_scratch_directory("omega-native-source-image");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let executable_path = directory.join("omega-program");
-    std::fs::write(&executable_path, bytes).expect("write direct source terminal image");
-    let mut permissions = std::fs::metadata(&executable_path)
-        .expect("source terminal image metadata")
-        .permissions();
-    permissions.set_mode(0o755);
-    std::fs::set_permissions(&executable_path, permissions)
-        .expect("mark source terminal image executable");
-    Command::new(&executable_path)
-        .status()
-        .expect("execute direct source terminal image")
-        .code()
-        .expect("direct source terminal image exited normally")
-}
-
-#[cfg(unix)]
-fn run_host_machine_code(bytes: &[u8]) -> i32 {
-    let directory = fresh_scratch_directory("omega-native");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _main\n.p2align 2\n_main:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl main\n.type main,@function\nmain:\n.byte {bytes}\n.size main, .-main\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    std::fs::write(&assembly_path, assembly).expect("write native linker harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected terminal machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal native canary")
-        .code()
-        .expect("terminal native canary exited normally")
-}
-
-#[cfg(unix)]
-fn run_host_machine_code_with_nine_u8(bytes: &[u8], first: u8, second: u8, ninth: u8) -> i32 {
-    let directory = fresh_scratch_directory("omega-native-nine-parameter");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = format!(
-        "#include <stdint.h>\n\
-extern uint8_t entry(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);\n\
-int main(void) {{ return entry({first}, {second}, 3, 4, 5, 6, 7, 8, {ninth}); }}\n"
-    );
-    std::fs::write(&assembly_path, assembly).expect("write parameter assembly harness");
-    std::fs::write(&driver_path, driver).expect("write parameter C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected parameter terminal machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal parameter canary")
-        .code()
-        .expect("terminal parameter canary exited normally")
-}
-
-#[cfg(unix)]
-fn run_host_machine_code_with_two_u64(bytes: &[u8], left: u64, right: u64) -> i32 {
-    let directory = fresh_scratch_directory("omega-native-integer-equality");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = format!(
-        "#include <stdint.h>\n\
-extern uint8_t entry(uint64_t, uint64_t);\n\
-int main(void) {{ return entry({left}ULL, {right}ULL); }}\n"
-    );
-    std::fs::write(&assembly_path, assembly).expect("write integer-equality assembly harness");
-    std::fs::write(&driver_path, driver).expect("write integer-equality C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected integer-equality terminal machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal integer-equality canary")
-        .code()
-        .expect("terminal integer-equality canary exited normally")
-}
-
-#[cfg(unix)]
-fn host_machine_code_with_two_u64_matches(
-    bytes: &[u8],
-    left: u64,
-    right: u64,
-    expected: u64,
-) -> bool {
-    let directory = fresh_scratch_directory("omega-native-integer-result");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = format!(
-        "#include <stdint.h>\n\
-extern uint64_t entry(uint64_t, uint64_t);\n\
-int main(void) {{ return entry({left}ULL, {right}ULL) == {expected}ULL ? 0 : 1; }}\n"
-    );
-    std::fs::write(&assembly_path, assembly).expect("write integer-result assembly harness");
-    std::fs::write(&driver_path, driver).expect("write integer-result C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected integer-result terminal machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal integer-result canary")
-        .success()
-}
-
-#[cfg(unix)]
-fn run_host_machine_code_with_nine_bool(bytes: &[u8]) -> i32 {
-    let directory = fresh_scratch_directory("omega-native-nine-boolean");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = "#include <stdbool.h>\n\
-extern bool entry(bool, bool, bool, bool, bool, bool, bool, bool, bool);\n\
-int main(void) { return entry(false, false, false, false, false, false, false, false, true); }\n";
-    std::fs::write(&assembly_path, assembly).expect("write Boolean assembly harness");
-    std::fs::write(&driver_path, driver).expect("write Boolean C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected Boolean terminal machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal Boolean canary")
-        .code()
-        .expect("terminal Boolean canary exited normally")
-}
-
-#[cfg(unix)]
-fn run_host_machine_code_with_bool(bytes: &[u8], value: bool) -> i32 {
-    let directory = fresh_scratch_directory("omega-native-boolean-not");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = format!(
-        "#include <stdbool.h>\nextern bool entry(bool);\nint main(void) {{ return entry({}); }}\n",
-        if value { "true" } else { "false" }
-    );
-    std::fs::write(&assembly_path, assembly).expect("write Boolean-not assembly harness");
-    std::fs::write(&driver_path, driver).expect("write Boolean-not C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected Boolean-not terminal machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal Boolean-not canary")
-        .code()
-        .expect("terminal Boolean-not canary exited normally")
-}
-
-#[cfg(unix)]
-fn run_host_machine_code_with_two_bools(bytes: &[u8], left: bool, right: bool) -> i32 {
-    let directory = fresh_scratch_directory("omega-native-boolean-equality");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = format!(
-        "#include <stdbool.h>\nextern bool entry(bool, bool);\nint main(void) {{ return entry({}, {}); }}\n",
-        if left { "true" } else { "false" },
-        if right { "true" } else { "false" },
-    );
-    std::fs::write(&assembly_path, assembly).expect("write Boolean-equality assembly harness");
-    std::fs::write(&driver_path, driver).expect("write Boolean-equality C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected Boolean-equality machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal Boolean-equality canary")
-        .code()
-        .expect("terminal Boolean-equality canary exited normally")
-}
-
-#[cfg(unix)]
-fn run_host_machine_code_with_three_bools(
-    bytes: &[u8],
-    first: bool,
-    second: bool,
-    third: bool,
-) -> i32 {
-    let directory = fresh_scratch_directory("omega-native-boolean-control-expression");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = format!(
-        "#include <stdbool.h>\nextern bool entry(bool, bool, bool);\nint main(void) {{ return entry({}, {}, {}); }}\n",
-        if first { "true" } else { "false" },
-        if second { "true" } else { "false" },
-        if third { "true" } else { "false" },
-    );
-    std::fs::write(&assembly_path, assembly)
-        .expect("write Boolean-control-expression assembly harness");
-    std::fs::write(&driver_path, driver).expect("write Boolean-control-expression C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected Boolean-control-expression machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal Boolean-control-expression canary")
-        .code()
-        .expect("terminal Boolean-control-expression canary exited normally")
-}
-
-#[cfg(unix)]
-fn run_host_machine_code_with_conditional_u8(
-    bytes: &[u8],
-    condition: bool,
-    when_true: u8,
-    when_false: u8,
-) -> i32 {
-    let directory = fresh_scratch_directory("omega-native-conditional");
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let assembly = if cfg!(target_os = "macos") {
-        format!(".text\n.globl _entry\n.p2align 2\n_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl entry\n.type entry,@function\nentry:\n.byte {bytes}\n.size entry, .-entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    };
-    let driver = format!(
-        "#include <stdbool.h>\n#include <stdint.h>\n\
-extern uint8_t entry(bool, uint8_t, uint8_t);\n\
-int main(void) {{ return entry({}, {when_true}, {when_false}); }}\n",
-        if condition { "true" } else { "false" }
-    );
-    std::fs::write(&assembly_path, assembly).expect("write conditional assembly harness");
-    std::fs::write(&driver_path, driver).expect("write conditional C harness");
-    let link = Command::new("cc")
-        .arg(&assembly_path)
-        .arg(&driver_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .output()
-        .expect("invoke host C linker driver");
-    assert!(
-        link.status.success(),
-        "host linker rejected conditional terminal machine code:\n{}",
-        String::from_utf8_lossy(&link.stderr)
-    );
-    Command::new(&executable_path)
-        .status()
-        .expect("execute terminal conditional canary")
-        .code()
-        .expect("terminal conditional canary exited normally")
 }
 
 #[cfg(unix)]

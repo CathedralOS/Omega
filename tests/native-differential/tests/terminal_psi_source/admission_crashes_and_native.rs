@@ -222,38 +222,11 @@ fn boolean_result_graph_retains_guarded_crash_exit() {
             when_false.control.as_ref(),
             TargetBooleanControl::ReturnImmediate { value: true, .. }
         ));
-
-        let assigned = assign_registers(&target_operations)
-            .expect("guarded Boolean crash control should assign");
-        let AssignedOperation::ReturnBooleanConditionalControl { when_true, .. } =
-            &assigned.functions[0].operation
-        else {
-            panic!("assigned Boolean control should retain its shape");
-        };
-        assert!(matches!(
-            when_true.control.as_ref(),
-            AssignedBooleanControl::Crash {
-                cause: CrashCause::Trap,
-                ..
-            }
-        ));
-        let emitted = emit_machine_code(&assigned).expect("guarded Boolean crash should emit");
-        let branch_to_false_over_fault = match target.architecture {
-            target::Architecture::X86_64 => &[0x0f, 0x84, 0x02, 0x00, 0x00, 0x00, 0x0f, 0x0b][..],
-            target::Architecture::Aarch64 => &[0x40, 0x00, 0x00, 0x34, 0x00, 0x00, 0x20, 0xd4][..],
-        };
-        assert!(
-            emitted.functions[0]
-                .bytes
-                .windows(branch_to_false_over_fault.len())
-                .any(|window| window == branch_to_false_over_fault),
-            "the false return arm must branch over the true crash leaf"
-        );
     }
 }
 
 #[test]
-fn native_lowering_preserves_every_reachable_crash_leaf() {
+fn target_lowering_preserves_every_reachable_crash_leaf() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("two-leaf crash source canary should compile");
     let lowered = lower_machine(&checked, "terminal_two_crash_leaves")
@@ -315,27 +288,6 @@ fn native_lowering_preserves_every_reachable_crash_leaf() {
         for (edge, _) in &leaves {
             assert!(function.provenance.edges.contains(edge));
         }
-
-        let assigned = assign_registers(&target_operations)
-            .expect("two-leaf conditional control should assign");
-        let emitted = emit_machine_code(&assigned).expect("two crash leaves should emit");
-        let emitted_function = &emitted.functions[0];
-        for (edge, _) in &leaves {
-            assert!(emitted_function.provenance.edges.contains(edge));
-        }
-        let fault = match target.architecture {
-            target::Architecture::X86_64 => &[0x0f, 0x0b][..],
-            target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
-        };
-        assert_eq!(
-            emitted_function
-                .bytes
-                .windows(fault.len())
-                .filter(|window| *window == fault)
-                .count(),
-            2,
-            "one native fault instruction must remain for each reachable crash leaf"
-        );
     }
 }
 
@@ -441,32 +393,6 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             when_false.control.as_ref(),
             TargetIntegerControl::Return { .. }
         ));
-
-        let assigned = assign_registers(&target_operations)
-            .expect("guarded integer crash control should assign");
-        let AssignedOperation::ReturnIntegerConditionalControl { when_true, .. } =
-            &assigned.functions[0].operation
-        else {
-            panic!("assigned integer control should retain its shape");
-        };
-        assert!(matches!(
-            when_true.control.as_ref(),
-            AssignedIntegerControl::Crash {
-                cause: CrashCause::Trap,
-                ..
-            }
-        ));
-        let emitted = emit_machine_code(&assigned).expect("guarded integer crash should emit");
-        let fault = match target.architecture {
-            target::Architecture::X86_64 => &[0x0f, 0x0b][..],
-            target::Architecture::Aarch64 => &[0x00, 0x00, 0x20, 0xd4][..],
-        };
-        assert!(
-            emitted.functions[0]
-                .bytes
-                .windows(fault.len())
-                .any(|window| window == fault)
-        );
     }
     let integer_guarded_trap = lower_machine(&checked, "terminal_integer_guarded_trap")
         .expect("exact-type integer comparison should open a guarded crash branch");
@@ -540,7 +466,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         let mut meter = TerminalFuelMeter::unbounded();
         assert_eq!(execution.resume(&mut meter).unwrap(), expected);
     }
-    assert_guarded_crash_emits(&integer_guarded_verified);
+    assert_guarded_crash_lowers(&integer_guarded_verified);
     let transitive_trap = lower_machine(&checked, "terminal_transitive_guarded_trap")
         .expect("a transitive integer conjunction should lower as short-circuit control");
     assert_eq!(transitive_trap.semantic_module.machines[0].blocks.len(), 4);
@@ -598,7 +524,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
         assert_eq!(execution.resume(&mut meter).unwrap(), expected);
         assert_eq!(meter.usage().total_units(), expected_units);
     }
-    assert_guarded_crash_emits(&transitive_verified);
+    assert_guarded_crash_lowers(&transitive_verified);
     let implied_trap = lower_machine(&checked, "terminal_implied_guarded_trap")
         .expect("structurally implied guard coverage should reach terminal production");
     let implied_verified = verify_module(
@@ -620,7 +546,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             crashes
         );
     }
-    assert_guarded_crash_emits(&implied_verified);
+    assert_guarded_crash_lowers(&implied_verified);
     let lowered = lower_machine(&checked, "terminal_abort")
         .expect("an unconditional published crash should lower");
     let explicit_true = lower_machine(&checked, "terminal_explicit_true_abort")
@@ -690,10 +616,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
                 && frontier_lower_bound.is_empty()
         ));
 
-        for (target, expected_bytes) in [
-            (NativeTarget::linux_x64(), &[0x0f, 0x0b][..]),
-            (NativeTarget::linux_arm64(), &[0x00, 0x00, 0x20, 0xd4][..]),
-        ] {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let target_operations = lower_to_target_operations(&abstract_operations, target)
                 .expect("unconditional crash should select");
             assert!(matches!(
@@ -707,25 +630,13 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
                     && site_guard.is_empty()
                     && frontier_lower_bound.is_empty()
             ));
-            let assigned = assign_registers(&target_operations)
-                .expect("unconditional crash should require no register homes");
-            assert!(matches!(
-                &assigned.functions[0].operation,
-                AssignedOperation::Crash { cause, .. } if *cause == expected_cause
-            ));
-            let emitted = emit_machine_code(&assigned).expect("unconditional crash should emit");
-            assert_eq!(emitted.functions[0].bytes, expected_bytes);
-            assert_eq!(
-                emitted.functions[0].provenance.edges,
-                vec![EdgeId::new(1).unwrap()]
-            );
         }
     }
 }
 
 #[cfg(unix)]
 #[test]
-fn interpreted_terminal_source_matches_emitted_host_machine_code() {
+fn interpreted_terminal_source_matches_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi source canary should compile");
     let lowered = lower_machine(&checked, "terminal_constant")
@@ -796,7 +707,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         })
     );
     meter.replenish(1).unwrap();
-    let interpreted = match execution.resume(&mut meter).unwrap() {
+    let _interpreted = match execution.resume(&mut meter).unwrap() {
         TerminalExecutionStatus::Complete(value) => value,
         TerminalExecutionStatus::SponsorExhausted(_) => {
             panic!("one replenished unit should complete the source canary")
@@ -823,483 +734,6 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     );
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified terminal Psi should lower without source state");
-    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("constant terminal requirements should select for the host");
-    let assigned = assign_registers(&target_operations).expect("host target homes should assign");
-    let machine_code = emit_machine_code(&assigned).expect("host machine code should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("source-produced machine code should form an owned object artifact");
-    assert_eq!(object_artifact.psi(), original_identity);
-    let terminal_stack_demand = derive_stack_demand(&object_artifact, object_artifact.entry())
-        .expect("source-produced terminal stack closure");
-    let alternate_same_architecture_target = match (
-        object_artifact.target().architecture,
-        object_artifact.target().object_format,
-    ) {
-        (target::Architecture::X86_64, target::ObjectFormat::Elf) => NativeTarget::windows_x64(),
-        (target::Architecture::X86_64, _) => NativeTarget::linux_x64(),
-        (target::Architecture::Aarch64, target::ObjectFormat::MachO) => NativeTarget::linux_arm64(),
-        (target::Architecture::Aarch64, _) => NativeTarget::macos_arm64(),
-    };
-    let alternate_target_operations =
-        lower_to_target_operations(&abstract_operations, alternate_same_architecture_target)
-            .expect("same semantics should select for another same-architecture object format");
-    let alternate_assigned = assign_registers(&alternate_target_operations)
-        .expect("alternate same-architecture target homes should assign");
-    let alternate_machine_code =
-        emit_machine_code(&alternate_assigned).expect("alternate target machine code should emit");
-    let alternate_object = build_object_artifact(&alternate_machine_code)
-        .expect("alternate target should retain an exact object artifact");
-    let alternate_stack_demand = derive_stack_demand(&alternate_object, alternate_object.entry())
-        .expect("alternate target should derive the same-shaped stack closure");
-    assert_eq!(
-        alternate_stack_demand.target().architecture,
-        terminal_stack_demand.target().architecture
-    );
-    assert_ne!(
-        alternate_stack_demand.target(),
-        terminal_stack_demand.target(),
-        "the stack-demand replay test requires distinct full native targets"
-    );
-    assert_eq!(alternate_stack_demand.psi(), terminal_stack_demand.psi());
-    assert_eq!(
-        alternate_stack_demand.entry(),
-        terminal_stack_demand.entry()
-    );
-    assert_eq!(
-        alternate_stack_demand.ceiling_bytes(),
-        terminal_stack_demand.ceiling_bytes()
-    );
-    assert_eq!(
-        alternate_stack_demand.stack_alignment(),
-        terminal_stack_demand.stack_alignment()
-    );
-    assert_eq!(
-        alternate_stack_demand.contributing_machines(),
-        terminal_stack_demand.contributing_machines(),
-        "the substituted demand must differ only by its full native target"
-    );
-    let entry = object_artifact.entry_function();
-    assert_eq!(
-        entry.provenance.operations,
-        [
-            OperationId::new(1).expect("entry constant"),
-            OperationId::new(2).expect("return constant"),
-        ]
-    );
-    assert_eq!(
-        entry.provenance.edges,
-        [
-            EdgeId::new(1).expect("jump edge"),
-            EdgeId::new(2).expect("return edge"),
-        ]
-    );
-    let entry_bytes = entry.bytes(&object_artifact).to_vec();
-    let entry_offset = u64::try_from(entry.text_offset).expect("terminal entry offset");
-    let (installed_code, entry_stub) = install_terminal_object(
-        &object_artifact,
-        object_artifact.text_bytes().to_vec(),
-        entry_offset,
-    );
-    let wrong_entry =
-        EntryStubId::from_normalized_identity(0x5302).expect("different entry stub identity");
-    let error = bind_installed_entry_fuel(
-        fixed_fuel.clone(),
-        &object_artifact,
-        &installed_code,
-        wrong_entry,
-    )
-    .expect_err("terminal fuel binding must reject a different installed entry");
-    assert!(error.0.contains("selected installed entry"));
-    let installed_fixed_fuel = bind_installed_entry_fuel(
-        fixed_fuel.clone(),
-        &object_artifact,
-        &installed_code,
-        entry_stub,
-    )
-    .expect("terminal fuel theorem should bind the exact installed source artifact");
-
-    validate_installed_entry_fuel(&installed_fixed_fuel, &installed_code, entry_stub)
-        .expect("external-root recheck should accept the exact installed code and entry");
-    assert!(
-        validate_installed_entry_fuel(&installed_fixed_fuel, &installed_code, wrong_entry).is_err(),
-        "external-root recheck must reject a different selected entry"
-    );
-    let fuel_summary_identity =
-        ProviderFuelSummaryId::from_normalized_identity(0x5100).expect("fuel summary identity");
-    let certified_summary = FixedFuelProviderSummary::from_entry(
-        fuel_summary_identity,
-        RootProviderId::from_normalized_identity(0x5200).expect("root provider identity"),
-        installed_fixed_fuel,
-        BTreeSet::new(),
-    );
-    let certified_demand = compose_fixed_fuel(fuel_summary_identity, [&certified_summary])
-        .expect("installed terminal Psi should supply its hard-root local fuel demand");
-    assert_eq!(certified_demand.schedule(), fixed_fuel.schedule());
-    assert_eq!(certified_demand.units(), fixed_fuel.ceiling_units());
-    assert!(
-        certified_demand.provider_receipts().is_empty(),
-        "a recomputable terminal-Psi certificate is not an opaque provider receipt"
-    );
-    let mut changed_bytes = object_artifact.text_bytes().to_vec();
-    changed_bytes[0] ^= 1;
-    let (changed_code, changed_entry) =
-        install_terminal_object(&object_artifact, changed_bytes, entry_offset);
-    assert!(
-        bind_installed_entry_fuel(
-            fixed_fuel.clone(),
-            &object_artifact,
-            &changed_code,
-            changed_entry,
-        )
-        .is_err(),
-        "terminal fuel evidence must reject different installed bytes"
-    );
-    let wrong_offset = if entry_offset == 0 { 4 } else { 0 };
-    let (wrong_entry_code, wrong_entry) = install_terminal_object(
-        &object_artifact,
-        object_artifact.text_bytes().to_vec(),
-        wrong_offset,
-    );
-    assert!(
-        bind_installed_entry_fuel(
-            fixed_fuel.clone(),
-            &object_artifact,
-            &wrong_entry_code,
-            wrong_entry,
-        )
-        .is_err(),
-        "terminal fuel evidence must reject a stub at the wrong function offset"
-    );
-
-    drop(machine_code);
-    drop(target_operations);
-    drop(abstract_operations);
-    drop(verified);
-    drop(semantic_module);
-    drop(proof_bundle);
-
-    let object = emit_object_container(&object_artifact);
-    assert_eq!(object.psi, original_identity);
-    assert_eq!(&object.output.bytes[..8], b"OMGOBJ\0\0");
-    assert_eq!(object.output.text_bytes, object_artifact.text_bytes().len());
-    assert_eq!(object.output.relocations, 0);
-    let image = emit_executable_image(&object_artifact, 3)
-        .expect("source-produced owned artifact should emit a standalone host image");
-    assert_eq!(image.psi(), original_identity);
-    assert_eq!(
-        image.output().final_text_bytes,
-        object_artifact.text_bytes()
-    );
-    assert!(
-        image
-            .output()
-            .executable_regions
-            .unclassified_gaps
-            .is_empty()
-    );
-    let installation = build_installation_record(
-        &image,
-        ProfileDecisionId::new(1).expect("source installation profile decision"),
-    )
-    .expect("source image should produce a typed installation record");
-    validate_installation_record(&installation, &image)
-        .expect("installation record should bind the exact source image");
-    let installation_bytes =
-        encode_installation_record(&installation).expect("canonical installation bytes");
-    let decoded_installation = decode_installation_record(&installation_bytes)
-        .expect("canonical installation record should decode");
-    assert_eq!(decoded_installation, installation);
-    let decoded_stack_demand =
-        derive_installation_stack_demand(&decoded_installation, &image, object_artifact.entry())
-            .expect("decoded installation should reproduce its stack closure");
-    assert_eq!(decoded_stack_demand, terminal_stack_demand);
-
-    // A leaf may have a zero-byte internal closure; external-root admission
-    // still needs a nonzero adapter/provision. Exercise the completed bridge
-    // with a source-produced internal-call closure whose emitter-derived
-    // demand is nonzero.
-    let call_checked = compile_to_checked(&source_canary(), None)
-        .expect("terminal call source canary should compile");
-    let call_lowered = lower_machine(&call_checked, "terminal_call_forward")
-        .expect("source internal call should lower to terminal Psi");
-    let call_verified = verify_module(
-        &call_lowered.semantic_module,
-        &call_lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("source internal-call terminal Psi should verify");
-    let call_fuel = derive_fixed_entry_fuel(&call_verified, call_lowered.semantic_module.entry)
-        .expect("source internal-call closure should have fixed fuel");
-    let call_abstract = lower_verified_artifact(&call_verified)
-        .expect("source internal-call closure should cross the Omega boundary");
-    let call_target = lower_to_target_operations(&call_abstract, NativeTarget::host())
-        .expect("source internal call should select for the host");
-    let call_assigned = assign_registers(&call_target).expect("source call homes should assign");
-    let call_machine_code =
-        emit_machine_code(&call_assigned).expect("source internal call should emit");
-    let object_artifact =
-        build_object_artifact(&call_machine_code).expect("source internal-call object artifact");
-    let call_image =
-        emit_executable_image(&object_artifact, 3).expect("source internal-call executable image");
-    let call_installation = build_installation_record(
-        &call_image,
-        ProfileDecisionId::new(2).expect("call installation profile"),
-    )
-    .expect("source internal-call installation record");
-    let call_installation_bytes =
-        encode_installation_record(&call_installation).expect("call installation bytes");
-    let decoded_call_installation =
-        decode_installation_record(&call_installation_bytes).expect("call installation decode");
-    let decoded_stack_demand = derive_installation_stack_demand(
-        &decoded_call_installation,
-        &call_image,
-        object_artifact.entry(),
-    )
-    .expect("decoded call installation should reproduce its stack closure");
-    assert!(decoded_stack_demand.ceiling_bytes() > 0);
-    let entry_offset =
-        u64::try_from(object_artifact.entry_function().text_offset).expect("call entry offset");
-    let (mut installed_code, entry_stub) = install_terminal_object(
-        &object_artifact,
-        object_artifact.text_bytes().to_vec(),
-        entry_offset,
-    );
-    let wrong_entry =
-        EntryStubId::from_normalized_identity(0x5302).expect("different entry stub identity");
-    let installed_fuel =
-        bind_installed_entry_fuel(call_fuel, &object_artifact, &installed_code, entry_stub)
-            .expect("source call fuel should bind exact installed entry");
-    let fuel_summary_identity = ProviderFuelSummaryId::from_normalized_identity(0x6100).unwrap();
-    let certified_summary = FixedFuelProviderSummary::from_entry(
-        fuel_summary_identity,
-        RootProviderId::from_normalized_identity(0x5200).unwrap(),
-        installed_fuel,
-        BTreeSet::new(),
-    );
-    let certified_demand = compose_fixed_fuel(fuel_summary_identity, [&certified_summary])
-        .expect("source call fixed-fuel composition");
-
-    let installed_stack = bind_installed_entry_stack(
-        &decoded_stack_demand,
-        &object_artifact,
-        &installed_code,
-        entry_stub,
-    )
-    .expect("decoded terminal stack demand should bind exact installed bytes and entry");
-    validate_installed_entry_stack(&installed_stack, &installed_code, entry_stub)
-        .expect("installed terminal stack demand should revalidate");
-    assert!(
-        validate_installed_entry_stack(&installed_stack, &installed_code, wrong_entry).is_err(),
-        "terminal stack evidence must reject a different selected entry"
-    );
-
-    let root_identity = ExternalRootId::from_normalized_identity(0x6000).unwrap();
-    let root_provider =
-        RootProviderId::from_normalized_identity(0x5200).expect("root provider identity");
-    let relation_identity = NestingRelationId::from_normalized_identity(0x6001).unwrap();
-    let boundary = evaluate_ordinary_boundary_entry_plan(
-        CallingPolicy::native_for_target(object_artifact.target()),
-        &CallSignature {
-            parameters: vec![calling_conventions::ValueShape::integer(1, 1)],
-            result: Some(calling_conventions::ValueShape::integer(1, 1)),
-        },
-    )
-    .expect("host external-root boundary");
-    let stack_summary = ProviderStackSummary::from_entry(
-        root_identity,
-        root_provider,
-        boundary.plan().state.stack,
-        installed_stack,
-    );
-    let bound_stack = bind_direct_generated_entry_stack_realization(
-        &stack_summary,
-        &boundary,
-        &installed_code,
-        entry_stub,
-        validate_entry_stack_domain_closure(
-            boundary.plan().state.stack,
-            vec![ArrivalContextStackDomain {
-                context: ArrivalContextId::new(1).expect("arrival context"),
-                domain: StackDomainRef::Interrupted,
-            }],
-        )
-        .expect("host entry stack-domain closure"),
-    )
-    .expect("direct generated entry should derive its epoch realization");
-    let composed_stack = compose_bound_entry_stack_epochs(
-        &StackNestingRelation {
-            identity: relation_identity,
-            edges: BTreeSet::new(),
-        },
-        [&bound_stack],
-    )
-    .expect("terminal stack evidence should enter artifact-wide composition");
-    let stack_input = composed_stack
-        .input(root_identity)
-        .expect("root stack input");
-    assert!(matches!(
-        stack_input.body_evidence(),
-        external_roots::StackLocalEvidence::TerminalEntry(binding)
-            if binding.entry() == entry_stub
-                && binding.installed_code() == installed_code.identity()
-    ));
-    assert_eq!(
-        stack_input.realization_evidence().arrival_origin(),
-        ArrivalStackRealizationOrigin::NoHardwareArrival
-    );
-    assert_eq!(
-        stack_input.realization_evidence().adapter_origin(),
-        AdapterStackRealizationOrigin::None
-    );
-    assert_eq!(
-        stack_input.realization_evidence().validation_receipt(),
-        None
-    );
-    let stack_ceiling = composed_stack
-        .demand(root_identity)
-        .expect("root stack demand")
-        .domains()
-        .map(|(_, demand)| demand.bytes)
-        .max()
-        .expect("direct entry has one stack domain");
-
-    let trust_receipt = TrustReceiptId::from_normalized_identity(0x6002).unwrap();
-    let candidate = ExternalRootCandidate {
-        identity: root_identity,
-        entry: entry_stub,
-        provider: root_provider,
-        provider_plan: ProviderPlanId::from_normalized_identity(
-            effects::provider_plan::ProviderPlan::default().report_fingerprint(),
-        )
-        .unwrap(),
-        provider_plan_digest: effects::provider_plan::ProviderPlan::default().identity_digest(),
-        requirement_identity: "TerminalRoot::entry".into(),
-        entry_claims: Vec::new(),
-        acknowledgement_parameter_index: None,
-        interrupt_mask_guard_claim: None,
-        service_reach: external_roots::ResolvedRootServiceReach::from_selected_provider_closure(
-            Vec::new(),
-            Vec::new(),
-            &effects::SelectedProviderPlanFacts::default(),
-        )
-        .expect("empty root service reach"),
-        effects: BTreeSet::new(),
-        trust_receipts: BTreeSet::from([trust_receipt]),
-        nesting_relation: relation_identity,
-        acknowledgement_policy: None,
-        stack: StackResourceColumn {
-            ceiling_bytes: stack_ceiling,
-            realization: composed_stack,
-            validation_receipt: StackValidationReceiptId::from_normalized_identity(0x6004).unwrap(),
-        },
-        logical_fuel: LogicalFuelResourceColumn {
-            schedule: certified_demand.schedule(),
-            provision: FuelProvisionId::from_normalized_identity(0x6005).unwrap(),
-            ceiling_units: certified_demand.units(),
-            realization: certified_demand.clone(),
-            validation_receipt: FuelValidationReceiptId::from_normalized_identity(0x6006).unwrap(),
-        },
-        machine_state: MachineStateResourceColumn {
-            realization: StateFootprintEvidence::new(
-                RegisterSet::new([]),
-                MachineStateSet::empty(),
-            ),
-            validation_receipt: StateValidationReceiptId::from_normalized_identity(0x6007).unwrap(),
-        },
-        component_pins: BTreeSet::new(),
-    };
-    let validated_root = validate_external_root(candidate.clone(), &boundary)
-        .expect("terminal-backed root validation");
-    let provider_execution = ProviderExecution::from_admitted_provider(
-        ProviderExecutionId::from_normalized_identity(0x6008).unwrap(),
-        &validated_root,
-        Some(OpaqueProviderExitAssurance::HardwareIsolation {
-            validation_receipt: trust_receipt,
-        }),
-    )
-    .expect("terminal-backed provider execution");
-    let slot = RootSlotAuthority::from_admitted_owner(
-        RootSlotId::from_normalized_identity(0x6009).unwrap(),
-        RootSlotOwnerId::from_normalized_identity(0x600a).unwrap(),
-    );
-    let admission = RootAdmission::from_admitted_provider(
-        RootAdmissionId::from_normalized_identity(0x600b).unwrap(),
-        &validated_root,
-        &provider_execution,
-        &installed_code,
-        &slot,
-        [trust_receipt],
-    )
-    .expect("terminal-backed root admission");
-    let mut ledger =
-        InstalledRootLedger::claim(&mut installed_code).expect("canonical root ledger");
-    let _installed_sponsor_root = ledger
-        .install(&installed_code, validated_root, slot, admission)
-        .expect("terminal stack evidence should reach the installed-root report");
-    let root_record = ledger.record(root_identity).expect("installed root record");
-    assert_eq!(
-        root_record
-            .stack
-            .realization
-            .input(root_identity)
-            .expect("installed root stack input")
-            .pure()
-            .body_wcsu_bytes,
-        decoded_stack_demand.ceiling_bytes()
-    );
-    assert!(matches!(
-        root_record
-            .stack
-            .realization
-            .input(root_identity)
-            .expect("reported root stack input")
-            .body_evidence(),
-        external_roots::StackLocalEvidence::TerminalEntry(binding)
-            if binding.artifact() == installed_code.artifact()
-    ));
-    let root_report = external_root_manifest_json(&ledger);
-    assert!(root_report.contains("\"origin\": \"entry\""));
-    assert!(root_report.contains("\"arrival_origin\": \"no_hardware_arrival\""));
-    assert!(root_report.contains("\"adapter_origin\": \"none\""));
-    assert!(root_report.contains("\"contributing_machines\": ["));
-
-    let manifest_module = decode_module(&canonical_bytes)
-        .expect("redecode semantic bytes after image realization state is dropped");
-    let manifest_proof = decode_proof_bundle(&canonical_proof_bytes)
-        .expect("redecode proof bytes after image realization state is dropped");
-    let installed_manifest = build_artifact_manifest(
-        &manifest_module,
-        &manifest_proof,
-        &optimization,
-        Some(&installation_bytes),
-        None,
-    )
-    .expect("typed installation bytes should enter the artifact manifest");
-    validate_artifact_manifest(
-        &manifest_module,
-        &manifest_proof,
-        &optimization,
-        Some(&installation_bytes),
-        None,
-        installed_manifest,
-    )
-    .expect("installed artifact manifest should recompute from canonical sections");
-    assert_eq!(installed_manifest.semantic(), original_identity);
-    assert!(installed_manifest.installation().is_some());
-    assert_ne!(installed_manifest.identity(), artifact_manifest.identity());
-
-    let expected_exit = match interpreted {
-        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
-            value: IntegerValue::Signed(value),
-            ..
-        }) => i32::try_from(value).expect("source canary exit fits i32"),
-        other => panic!("source canary returned unexpected value {other:?}"),
-    };
-    assert_eq!(run_host_machine_code(&entry_bytes), expected_exit);
-    #[cfg(target_os = "macos")]
-    assert_eq!(
-        run_host_executable_image(&image.output().bytes),
-        expected_exit
-    );
 }

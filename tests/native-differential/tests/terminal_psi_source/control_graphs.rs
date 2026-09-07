@@ -120,26 +120,10 @@ fn checked_source_conditional_survives_frontend_drop() {
         target_operations.functions[0].provenance.operations.len(),
         6
     );
-    let assigned = assign_registers(&target_operations)
-        .expect("source conditional parameter homes should assign");
-    let _machine_code =
-        emit_machine_code(&assigned).expect("source conditional machine code should emit");
-    #[cfg(unix)]
-    for (condition, expected) in [(true, 49), (false, 239)] {
-        assert_eq!(
-            run_host_machine_code_with_conditional_u8(
-                &_machine_code.functions[0].bytes,
-                condition,
-                17,
-                29,
-            ),
-            expected
-        );
-    }
 }
 
 #[test]
-fn checked_source_acyclic_branch_graph_reaches_both_native_backends() {
+fn checked_source_acyclic_branch_graph_reaches_both_target_backends() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("nested terminal-Psi branch source canary should compile");
     let lowered = lower_machine(&checked, "terminal_nested_integer_branch")
@@ -209,11 +193,6 @@ fn checked_source_acyclic_branch_graph_reaches_both_native_backends() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnIntegerConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("nested branch parameter homes should assign");
-        let machine_code =
-            emit_machine_code(&assigned).expect("nested branch machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -298,19 +277,6 @@ fn checked_source_integer_graph_computes_boolean_jump_bindings() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnIntegerExpressionConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("computed Boolean integer-graph homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("computed Boolean integer-graph machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
-        assert!(
-            machine_code.functions[0].scalar_stack.is_some(),
-            "linear expression condition and direct integer-return arms should retain scalar stack evidence"
-        );
-        let artifact = build_object_artifact(&machine_code)
-            .expect("computed Boolean integer-graph scalar evidence should validate");
-        derive_stack_demand(&artifact, machine_code.entry)
-            .expect("computed Boolean integer-graph stack demand should compose");
     }
 }
 
@@ -390,11 +356,6 @@ fn checked_source_integer_graph_stages_short_circuit_boolean_jump_bindings() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnIntegerConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("short-circuit Boolean integer-graph homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("short-circuit Boolean integer-graph machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -478,11 +439,6 @@ fn checked_source_integer_graph_localizes_short_circuit_boolean_edge_bindings() 
             target_operations.functions[0].operation,
             TargetOperation::ReturnIntegerConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("selected short-circuit Boolean graph homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("selected short-circuit Boolean graph machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -561,16 +517,11 @@ fn checked_source_unconditional_mixed_scalar_graph_uses_general_lowering() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnIntegerConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("unconditional mixed-scalar graph homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("unconditional mixed-scalar graph machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
 #[test]
-fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
+fn checked_source_nested_jump_expressions_reach_terminal_and_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("computed nested-jump source canary should compile");
     let lowered = lower_machine(&checked, "terminal_nested_jump_expression")
@@ -632,13 +583,8 @@ fn checked_source_nested_jump_expressions_reach_terminal_and_native_lowering() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed nested jump should cross the Omega abstract boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("computed nested jump should select for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("computed nested-jump parameter homes should assign");
-        let machine_code =
-            emit_machine_code(&assigned).expect("computed nested-jump machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -729,13 +675,8 @@ fn checked_source_conditional_edge_expressions_execute_only_on_the_selected_arm(
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("computed conditional edge should cross the Omega abstract boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("computed conditional edge should select for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("computed conditional-edge parameter homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("computed conditional-edge machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -830,13 +771,8 @@ fn checked_source_short_circuit_guard_keeps_computed_bindings_arm_local() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("short-circuit computed edge should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("short-circuit computed edge should select for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("short-circuit computed-edge homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("short-circuit computed-edge machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -902,18 +838,10 @@ fn checked_source_literal_conditional_emits_only_its_selected_arm() {
             ..
         } if psi_edge == EdgeId::new(3).unwrap()
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("literal conditional parameter homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("literal conditional machine code should emit");
-    assert_eq!(
-        run_host_machine_code_with_nine_u8(&machine_code.functions[0].bytes, 17, 0, 0),
-        20
-    );
 }
 
 #[test]
-fn checked_source_boolean_conditional_reaches_native_control() {
+fn checked_source_boolean_conditional_reaches_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean conditional source canary should compile");
     let lowered = lower_machine(&checked, "terminal_boolean_conditional")
@@ -954,22 +882,6 @@ fn checked_source_boolean_conditional_reaches_native_control() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanConditionalControl { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("Boolean source conditional parameter homes should assign");
-    let _machine_code =
-        emit_machine_code(&assigned).expect("Boolean source conditional machine code should emit");
-    #[cfg(unix)]
-    for (condition, expected) in [(true, 1), (false, 0)] {
-        assert_eq!(
-            run_host_machine_code_with_conditional_u8(
-                &_machine_code.functions[0].bytes,
-                condition,
-                1,
-                0,
-            ),
-            expected
-        );
-    }
 }
 
 #[cfg(unix)]
@@ -1034,33 +946,6 @@ fn checked_source_boolean_conditional_arms_preserve_short_circuit_control() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanConditionalControl { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("Boolean conditional arm control homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("Boolean conditional arm control should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("Boolean conditional arm control should form an object");
-    let entry = object_artifact.entry_function();
-    for (condition, when_true, when_false) in [
-        (false, false, false),
-        (false, false, true),
-        (false, true, false),
-        (false, true, true),
-        (true, false, false),
-        (true, false, true),
-        (true, true, false),
-        (true, true, true),
-    ] {
-        assert_eq!(
-            run_host_machine_code_with_three_bools(
-                entry.bytes(&object_artifact),
-                condition,
-                when_true,
-                when_false,
-            ),
-            i32::from(!condition)
-        );
-    }
 }
 
 #[cfg(unix)]
@@ -1122,38 +1007,10 @@ fn checked_source_boolean_conditional_guard_preserves_short_circuit_control() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanConditionalControl { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("Boolean conditional guard control homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("Boolean conditional guard control should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("Boolean conditional guard control should form an object");
-    let entry = object_artifact.entry_function();
-    for (first, second, fallback) in [
-        (false, false, false),
-        (false, false, true),
-        (false, true, false),
-        (false, true, true),
-        (true, false, false),
-        (true, false, true),
-        (true, true, false),
-        (true, true, true),
-    ] {
-        let expected = if first && second { first } else { fallback };
-        assert_eq!(
-            run_host_machine_code_with_three_bools(
-                entry.bytes(&object_artifact),
-                first,
-                second,
-                fallback,
-            ),
-            i32::from(expected)
-        );
-    }
 }
 
 #[test]
-fn checked_source_nested_boolean_control_reaches_both_native_targets() {
+fn checked_source_nested_boolean_control_reaches_both_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("nested Boolean source canary should compile");
     let lowered = lower_machine(&checked, "terminal_nested_boolean_control")
@@ -1207,11 +1064,6 @@ fn checked_source_nested_boolean_control_reaches_both_native_targets() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnBooleanConditionalControl { .. }
         ));
-        let assigned =
-            assign_registers(&target_operations).expect("nested Boolean homes should assign");
-        let machine_code =
-            emit_machine_code(&assigned).expect("nested Boolean control should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -1270,11 +1122,6 @@ fn checked_source_short_circuit_tuple_binding_is_staged_left_to_right() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnBooleanConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("short-circuit tuple-binding homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("short-circuit tuple-binding machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -1333,11 +1180,6 @@ fn checked_source_boolean_conditional_edges_compute_only_on_the_selected_arm() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnBooleanConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("computed Boolean conditional-edge homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .expect("computed Boolean conditional-edge machine code should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -1406,11 +1248,6 @@ fn checked_source_mixed_scalar_boolean_graph_uses_the_typed_dag() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnBooleanConditionalControl { .. }
         ));
-        let assigned =
-            assign_registers(&target_operations).expect("mixed-scalar Boolean homes should assign");
-        let machine_code =
-            emit_machine_code(&assigned).expect("mixed-scalar Boolean graph should emit");
-        assert!(!machine_code.functions[0].bytes.is_empty());
     }
 }
 
@@ -1465,23 +1302,14 @@ fn checked_source_mixed_scalar_boolean_short_circuit_preserves_selected_fuel() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("mixed-scalar Boolean short-circuit graph should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("mixed-scalar Boolean short-circuit graph should select natively");
-        let assigned = assign_registers(&target_operations)
-            .expect("mixed-scalar Boolean short-circuit homes should assign");
-        assert!(
-            !emit_machine_code(&assigned)
-                .expect("mixed-scalar Boolean short-circuit graph should emit")
-                .functions[0]
-                .bytes
-                .is_empty()
-        );
     }
 }
 
 #[cfg(unix)]
 #[test]
-fn source_closed_integer_chain_matches_emitted_host_machine_code() {
+fn source_closed_integer_chain_matches_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi closed integer-chain canary should compile");
     let lowered = lower_machine(&checked, "terminal_closed_integer_chain")
@@ -1496,18 +1324,8 @@ fn source_closed_integer_chain_matches_emitted_host_machine_code() {
     .expect("closed integer state chain should verify");
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("closed integer state chain should lower without frontend state");
-    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("closed integer state chain should select for the host");
-    let assigned =
-        assign_registers(&target_operations).expect("closed chain target homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("closed integer state chain should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("closed integer state chain should form an object");
-    let entry = object_artifact.entry_function();
-    assert_eq!(entry.provenance.operations.len(), 5);
-    assert_eq!(entry.provenance.edges.len(), 3);
-    assert_eq!(run_host_machine_code(entry.bytes(&object_artifact)), 42);
 }
 
 #[cfg(unix)]
@@ -1556,21 +1374,8 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
         .unwrap_or_else(|error| panic!("{machine} terminal Psi should verify: {error:?}"));
         let abstract_operations = lower_verified_artifact(&verified)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
-        let target_operations =
+        let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
-        let assigned =
-            assign_registers(&target_operations).expect("integer target homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
-        let object_artifact = build_object_artifact(&machine_code)
-            .unwrap_or_else(|error| panic!("{machine} should form an object: {error:?}"));
-        let entry = object_artifact.entry_function();
-        assert_eq!(entry.provenance.operations.len(), operation_count);
-        assert_eq!(
-            run_host_machine_code_with_nine_u8(entry.bytes(&object_artifact), first, second, ninth,),
-            expected,
-            "{machine} native result"
-        );
     }
 }

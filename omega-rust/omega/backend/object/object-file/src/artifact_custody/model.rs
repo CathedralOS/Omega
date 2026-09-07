@@ -249,7 +249,12 @@ impl StagedValidatedOptimizedObjectArtifact {
     /// The plan remains joined to its opaque optimized-target and provider
     /// installation custody; this is not a detached selected artifact.
     pub fn selected_plan(&self) -> &selected_instructions::SelectedInstructionPlan {
-        self.source.source().source().source().selected_plan()
+        self.source
+            .source()
+            .source()
+            .source()
+            .source()
+            .selected_plan()
     }
 
     #[cfg(any(test, feature = "test-support"))]

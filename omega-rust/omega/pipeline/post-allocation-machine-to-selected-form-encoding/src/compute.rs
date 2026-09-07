@@ -1,19 +1,13 @@
-use post_allocation_machine_to_post_allocation_machine::{
-    Aarch64CbnzInstructionDisposition, Aarch64SameViewCopyInstructionDisposition,
-};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedInstruction, SelectedTerminator};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use crate::{
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-};
+use crate::StagedOptimizedPostAllocationMachinePlan;
 
 use super::{
     OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
     SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormMachineDisposition, custody::validate_optimization_roots,
-    materialization::MaterializationPlan, row_encoding::encode_row,
+    row_encoding::encode_row,
 };
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
@@ -21,7 +15,6 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
 ) -> Result<SelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
     crate::frame_address::validate_frame_root(machine, frame)?;
@@ -31,115 +24,27 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     if machine.physical_register_model != physical.identity() {
         return Err(OptimizedSelectedFormEncodingError::PhysicalModelMismatch);
     }
-    let post_allocation_machine_optimization = optimization
-        .map(|optimization| validate_optimization_roots(selected, staged, physical, optimization))
-        .transpose()?;
-    let fusion = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
-        _ => None,
-    });
-    let copy_elision = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
-            Some(elision)
-        }
-        _ => None,
-    });
-    let materialization = MaterializationPlan::from_optimization(optimization);
     let selected_plan = selected.selected_plan();
     if selected_plan.functions.len() != machine.functions.len() {
         return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
     }
     let mut rows = Vec::new();
-    for (function_index, (selected_function, machine_function)) in selected_plan
-        .functions
-        .iter()
-        .zip(&machine.functions)
-        .enumerate()
+    for (selected_function, machine_function) in
+        selected_plan.functions.iter().zip(&machine.functions)
     {
         if selected_function.machine != machine_function.machine
             || selected_function.blocks.len() != machine_function.blocks.len()
         {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
-        let fusion_function = fusion
-            .map(|fusion| {
-                fusion
-                    .fusion()
-                    .plan()
-                    .functions
-                    .get(function_index)
-                    .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
-            })
-            .transpose()?;
-        let materialization_function = materialization
-            .map(|materialization| materialization.function(function_index))
-            .transpose()?;
-        let copy_elision_function = copy_elision
-            .map(|elision| {
-                elision
-                    .elision()
-                    .plan()
-                    .functions
-                    .get(function_index)
-                    .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
-            })
-            .transpose()?;
-        if fusion_function.is_some_and(|row| row.machine != selected_function.machine) {
-            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
-        }
-        if materialization_function.is_some_and(|row| {
-            !row.matches(selected_function.machine, selected_function.blocks.len())
-        }) {
-            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
-        }
-        if copy_elision_function.is_some_and(|row| row.machine != selected_function.machine) {
-            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
-        }
-        for (block_index, (selected_block, machine_block)) in selected_function
+        for (selected_block, machine_block) in selected_function
             .blocks
             .iter()
             .zip(&machine_function.blocks)
-            .enumerate()
         {
             if selected_block.id != machine_block.block
                 || selected_block.instructions.len() + 1 != machine_block.instructions.len()
             {
-                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
-            }
-            let fusion_block = fusion_function
-                .map(|function| {
-                    function
-                        .blocks
-                        .get(block_index)
-                        .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
-                })
-                .transpose()?;
-            let materialization_block = materialization_function
-                .map(|function| function.block(block_index))
-                .transpose()?;
-            let copy_elision_block = copy_elision_function
-                .map(|function| {
-                    function
-                        .blocks
-                        .get(block_index)
-                        .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
-                })
-                .transpose()?;
-            if fusion_block.is_some_and(|row| {
-                row.block != selected_block.id
-                    || row.instructions.len() != machine_block.instructions.len()
-            }) {
-                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
-            }
-            if materialization_block.is_some_and(|row| {
-                !row.matches(selected_block.id, machine_block.instructions.len())
-            }) {
-                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
-            }
-            if copy_elision_block.is_some_and(|row| {
-                row.block != selected_block.id
-                    || row.instructions.len() != machine_block.instructions.len()
-            }) {
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
             for (index, machine_instruction) in machine_block.instructions.iter().enumerate() {
@@ -151,70 +56,12 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                 if selected_instruction.id != machine_instruction.instruction {
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
-                let disposition = fusion_block
-                    .map(|block| {
-                        block
-                            .instructions
-                            .get(index)
-                            .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)
-                    })
-                    .transpose()?;
-                if disposition.is_some_and(|row| row.instruction != selected_instruction.id) {
-                    return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
-                }
-                let materialization_disposition = materialization_block
-                    .map(|block| block.disposition(index, selected_instruction.id))
-                    .transpose()?;
-                let copy_elision_disposition = copy_elision_block
-                    .map(|block| {
-                        block
-                            .instructions
-                            .get(index)
-                            .filter(|row| row.instruction == selected_instruction.id)
-                            .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)
-                    })
-                    .transpose()?;
-                let machine_disposition = match (disposition, copy_elision_disposition) {
-                    (Some(row), None) => match &row.disposition {
-                        Aarch64CbnzInstructionDisposition::RetainedV1 => {
-                            SelectedFormMachineDisposition::RetainedV1
-                        }
-                        Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer } => {
-                            SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 {
-                                consumer: *consumer,
-                            }
-                        }
-                        Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
-                            compare,
-                            source_read,
-                        } => SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
-                            compare: *compare,
-                            source_read: source_read.clone(),
-                        },
-                    },
-                    (None, Some(row)) => match &row.disposition {
-                        Aarch64SameViewCopyInstructionDisposition::RetainedV1 => {
-                            SelectedFormMachineDisposition::RetainedV1
-                        }
-                        Aarch64SameViewCopyInstructionDisposition::ElidedSameViewCopyI64V1 {
-                            consumer,
-                        } => SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 {
-                            consumer: *consumer,
-                        },
-                    },
-                    (None, None) => SelectedFormMachineDisposition::RetainedV1,
-                    (Some(_), Some(_)) => {
-                        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-                    }
-                };
                 rows.push(encode_row(
                     selected_plan.target,
                     selected_instruction,
                     machine_instruction,
                     physical,
                     crate::frame_address::resolve(machine_function, frame, machine_instruction)?,
-                    machine_disposition,
-                    materialization_disposition,
                 )?);
             }
         }
@@ -225,7 +72,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     let mut program = SelectedFormEncoding {
         selected: selected_root,
         machine: machine_root,
-        post_allocation_machine_optimization,
+        post_allocation_machine_optimization: None,
         identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
         rows,
         frame: frame.cloned(),

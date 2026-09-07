@@ -11,18 +11,16 @@ pub(super) fn validate(
 ) -> Result<FunctionFragmentFrameApplicationReceipt, FunctionFragmentFrameApplicationError> {
     validate_optimized_function_fragment_emission(&staged.source)
         .map_err(FunctionFragmentFrameApplicationError::Source)?;
-    let protocol = staged
-        .source
-        .source()
-        .frame_protocol()
-        .ok_or(FunctionFragmentFrameApplicationError::SourceKindMismatch)?;
-    if staged.application.frame_protocol != protocol.receipt().identity() {
+    let protocol = staged.source.source().frame_protocol();
+    if staged.application.frame_protocol
+        != machine_code::target_frame_protocol_encoding_identity(protocol)
+    {
         return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
     }
     crate::validate_frame_protocol_application(
         staged.source.fragments(),
         staged.source.manifest().record().identity,
-        protocol.plan(),
+        protocol,
         staged.source.source().register_environment().physical(),
         &staged.application,
     )?;

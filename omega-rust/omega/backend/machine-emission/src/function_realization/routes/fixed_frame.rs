@@ -42,7 +42,6 @@ pub fn stage_fixed_frame_function_relative_realization(
         &machine,
         physical,
         &encoding,
-        None,
         &baseline_layout,
         &current
             .selections()
@@ -55,7 +54,6 @@ pub fn stage_fixed_frame_function_relative_realization(
         &machine,
         physical,
         &encoding,
-        None,
         &baseline_layout,
         &layout_optimization,
         Some((frame.layout(), frame.protocol())),
@@ -126,7 +124,6 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.machine,
         physical,
         &staged.encoding,
-        None,
         &staged.baseline_layout,
         &current
             .selections()
@@ -146,7 +143,6 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.machine,
         physical,
         &staged.encoding,
-        None,
         &staged.baseline_layout,
         &staged.layout_optimization,
         Some((frame.layout(), frame.protocol())),

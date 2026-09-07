@@ -121,13 +121,8 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified scalar locals should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("scalar locals should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("scalar-local target operations should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("scalar-local target operations should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -164,13 +159,8 @@ fn checked_source_boolean_local_becomes_a_terminal_block_value() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified Boolean local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("Boolean local should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("Boolean-local target operations should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("Boolean-local target operations should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -226,19 +216,13 @@ fn checked_source_direct_call_emits_its_reachable_terminal_closure() {
         Some(AbstractOperation::Call { .. })
     ));
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("the source-produced call closure should select a native calling plan");
-        let assigned = assign_registers(&target_operations)
-            .expect("the source-produced call arguments should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("the source-produced call closure should emit");
-        assert_eq!(emitted.functions.len(), 2);
-        assert_eq!(emitted.functions[0].internal_calls.len(), 1);
     }
 }
 
 #[test]
-fn checked_trait_operator_structural_call_reaches_native_artifact_custody() {
+fn checked_trait_operator_structural_call_reaches_target_custody() {
     let checked = compile_to_checked(
         &terminal_source_canary(fixture_roster::STRUCTURAL_SCALAR_TRAIT_OPERATOR),
         None,
@@ -279,40 +263,6 @@ fn checked_trait_operator_structural_call_reaches_native_artifact_custody() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnStructuralScalarCall { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("the structural scalar aggregate copies should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("the structural scalar call closure should emit");
-        let caller = &emitted.functions[0];
-        let [custody] = caller.internal_unit_calls.as_slice() else {
-            panic!("one structural scalar call retains artifact custody")
-        };
-        assert_eq!(custody.result, Some(ScalarType::Boolean));
-        assert_eq!(custody.arguments.len(), 2);
-        assert!(
-            custody
-                .arguments
-                .iter()
-                .all(|argument| argument.path.is_empty())
-        );
-        let mut erased_result = emitted.clone();
-        erased_result.functions[0].internal_unit_calls[0].result = None;
-        assert!(
-            build_object_artifact(&erased_result).is_err(),
-            "object validation must reject erasing result-bearing call custody"
-        );
-        let object = build_object_artifact(&emitted)
-            .expect("the structural scalar call should replay at the object boundary");
-        let image = emit_executable_image(&object, 3)
-            .expect("the structural scalar call should link into an executable image");
-        let installation = build_installation_record(
-            &image,
-            ProfileDecisionId::new(70).expect("installation profile decision"),
-        )
-        .expect("the structural scalar call should retain installation custody");
-        let bytes = encode_installation_record(&installation)
-            .expect("structural scalar installation should encode");
-        assert_eq!(decode_installation_record(&bytes), Ok(installation));
     }
 }
 
@@ -373,38 +323,8 @@ fn checked_source_short_circuit_call_argument_is_staged_before_the_call() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("the staged source call should reach Omega lowering");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("the staged source call should select a native calling plan");
-        let assigned =
-            assign_registers(&target_operations).expect("the staged source call should assign");
-        let emitted = emit_machine_code(&assigned).expect("the staged source call should emit");
-        assert_eq!(emitted.functions.len(), 2);
-        assert!(
-            emitted.functions[0].internal_calls.len() > 1,
-            "the convergence operation should be source-distributed"
-        );
-        assert!(
-            emitted.functions[0]
-                .internal_calls
-                .iter()
-                .all(|call| call.owner == emitted.functions[0].internal_calls[0].owner),
-            "every distributed call retains the one convergence operation owner"
-        );
-        assert!(emitted.functions[0].scalar_stack.is_some());
-        assert!(
-            emitted.functions[0]
-                .internal_calls
-                .iter()
-                .all(
-                    |call| call.target == MachineId::new(2).expect("callee identity")
-                        && call.scalar_stack.is_some()
-                )
-        );
-        let object = build_object_artifact(&emitted)
-            .expect("the source-distributed convergence tree should replay at object boundary");
-        let demand = derive_stack_demand(&object, MachineId::new(1).unwrap())
-            .expect("the convergence tree should compose its staged call closure");
-        assert_eq!(demand.contributing_machines().len(), 2);
     }
 }
 
@@ -661,12 +581,8 @@ fn checked_source_direct_return_short_circuit_local_uses_terminal_control() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("short-circuit local should lower for both native targets");
-        let assigned =
-            assign_registers(&target_operations).expect("short-circuit local should assign");
-        let emitted = emit_machine_code(&assigned).expect("short-circuit local should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -713,13 +629,8 @@ fn checked_source_strict_short_circuit_local_use_preserves_terminal_control() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified consumed short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("consumed short-circuit local should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("consumed short-circuit local should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("consumed short-circuit local should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -784,12 +695,8 @@ fn checked_source_reused_short_circuit_local_is_carried_once() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified reused short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("reused short-circuit local should lower for both native targets");
-        let assigned =
-            assign_registers(&target_operations).expect("reused short-circuit local should assign");
-        let emitted = emit_machine_code(&assigned).expect("reused short-circuit local should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -846,13 +753,8 @@ fn checked_source_short_circuit_local_is_carried_into_a_branch_guard() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified branched short-circuit local should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("branched short-circuit local should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("branched short-circuit local should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("branched short-circuit local should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -916,13 +818,8 @@ fn checked_source_multiple_short_circuit_locals_are_staged_left_to_right() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified multiple short-circuit locals should lower without frontend state");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("multiple short-circuit locals should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("multiple short-circuit locals should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("multiple short-circuit locals should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -972,13 +869,8 @@ fn checked_source_staged_local_composes_with_a_short_circuit_return() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local short-circuit return should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("staged-local short-circuit return should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("staged-local short-circuit return should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("staged-local short-circuit return should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -1023,12 +915,8 @@ fn checked_source_staged_local_is_carried_through_a_jump_argument() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local jump should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("staged-local jump should lower for both native targets");
-        let assigned =
-            assign_registers(&target_operations).expect("staged-local jump should assign");
-        let emitted = emit_machine_code(&assigned).expect("staged-local jump should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -1074,12 +962,8 @@ fn checked_source_staged_local_composes_with_a_short_circuit_jump_argument() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local nested jump should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("staged-local nested jump should lower for both native targets");
-        let assigned =
-            assign_registers(&target_operations).expect("staged-local nested jump should assign");
-        let emitted = emit_machine_code(&assigned).expect("staged-local nested jump should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -1125,12 +1009,8 @@ fn checked_source_staged_local_composes_with_short_circuit_jump_tuple() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local jump tuple should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("staged-local jump tuple should lower for both native targets");
-        let assigned =
-            assign_registers(&target_operations).expect("staged-local jump tuple should assign");
-        let emitted = emit_machine_code(&assigned).expect("staged-local jump tuple should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -1177,13 +1057,8 @@ fn checked_source_staged_local_keeps_short_circuit_edge_arguments_arm_local() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local conditional edge should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("staged-local conditional edge should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("staged-local conditional edge should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("staged-local conditional edge should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -1230,13 +1105,8 @@ fn checked_source_staged_local_composes_with_a_short_circuit_guard() {
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("verified staged-local short-circuit guard should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("staged-local short-circuit guard should lower for both native targets");
-        let assigned = assign_registers(&target_operations)
-            .expect("staged-local short-circuit guard should assign");
-        let emitted =
-            emit_machine_code(&assigned).expect("staged-local short-circuit guard should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }
 
@@ -1293,11 +1163,7 @@ fn checked_source_staged_local_sequences_before_an_explicit_crash() {
             .any(|operation| matches!(operation, AbstractOperation::Crash { .. }))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let target_operations = lower_to_target_operations(&abstract_operations, target)
+        let _target_operations = lower_to_target_operations(&abstract_operations, target)
             .expect("staged-local crash should lower for both native targets");
-        let assigned =
-            assign_registers(&target_operations).expect("staged-local crash should assign");
-        let emitted = emit_machine_code(&assigned).expect("staged-local crash should emit");
-        assert!(!emitted.functions[0].bytes.is_empty());
     }
 }

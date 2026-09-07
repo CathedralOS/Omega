@@ -65,8 +65,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements/tests/mod.rs",
             "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements/tests/exact_evidence.rs",
             "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements/tests/fixtures.rs",
-            "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements/tests/literal_arguments.rs",
-            "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements/tests/zero_argument_import.rs",
         ],
     },
     SemanticLadder {
@@ -80,27 +78,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/backend/machine-emission/src/function_realization/codec/rendering.rs",
             "omega-rust/omega/backend/machine-emission/src/function_realization/codec/cursor.rs",
             "omega-rust/omega/backend/machine-emission/src/function_realization/codec/error.rs",
-        ],
-    },
-    SemanticLadder {
-        family: "function-relative realization mutation tests",
-        paths: &[
-            "tests/native-differential/tests/pipeline_ownership/stages/realization/function_relative_manifest_mutation_matrix/mod.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/realization/function_relative_manifest_mutation_matrix/fixture.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/realization/function_relative_manifest_mutation_matrix/manifest_fields.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/realization/function_relative_manifest_mutation_matrix/manifest_wire.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/realization/function_relative_manifest_mutation_matrix/wire_offsets.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/realization/function_relative_manifest_mutation_matrix/custody.rs",
-        ],
-    },
-    SemanticLadder {
-        family: "hosted post-allocation publication matrix",
-        paths: &[
-            "tests/native-differential/tests/pipeline_ownership/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/mod.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/cases.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/realization.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/artifacts.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/tests/wrong_architecture.rs",
         ],
     },
     SemanticLadder {

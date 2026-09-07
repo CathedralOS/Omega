@@ -629,7 +629,6 @@ route:
 | Which physical phase composition runs next? | `compiler/native-realization/src/native_pipeline/physical_pipeline/mod.rs` |
 | Which exact post-Terminal abstract-operation passes and local rules are enabled? | `abstract-operations-to-abstract-operations/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
 | Which selected-lowering or allocation-recovery rule is enabled? | `selected-instructions-to-register-homes/src/rewrites/<phase>/mod.rs` -> adjacent `catalog.rs` |
-| Which post-allocation machine rule is enabled for the ISA? | `post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
 | How are recorded policy decisions admitted for offline work? | `optimization-policy-offline/src/corpus/mod.rs` -> `capture.rs`, `validate.rs`, `identity.rs`, `split.rs` |
 | Where does the non-authoritative reference policy train and evaluate? | `optimization-policy-offline/src/reference_policy/mod.rs` -> `training/`, `evaluation/`, `codec/` |
 
@@ -644,7 +643,6 @@ omega-rust/omega/
     pipeline/optimization/            # injected vocabulary and checked handoff
     compiler/optimization/            # admission, rollback, native realization
   representations/
-    assigned-target-operations/ # concrete assigned-operation carrier taxonomy
     optimization-core/       # one exact-name descriptor, selections, identities
     optimization-unit/       # complete input model, reconstruction, rewrite custody
     register-model/          # register views, units, aliases, ABI facts
@@ -652,14 +650,11 @@ omega-rust/omega/
   pipeline/
     abstract-operations-to-abstract-operations/
                                       # post-Terminal abstract-operation analyses and rewrites
-    post-allocation-machine-to-post-allocation-machine/        # post-allocation symbolic-machine optimization stage
     selected-instructions-to-register-homes/                 # physical analyses, allocation, recovery rules
     terminal-psi-to-abstract-operations/
                                       # artifact, optimizer-unit, provider, and lowering entrances
     abstract-operations-to-target-operations/
                                       # settlement, per-result, and lowering-family entrances
-    target-operations-to-assigned-target-operations/
-                                      # temporary compatibility assignment families
     target-operations-to-selected-instructions/
                                       # legalization and selection stage entrances
   semantics/
