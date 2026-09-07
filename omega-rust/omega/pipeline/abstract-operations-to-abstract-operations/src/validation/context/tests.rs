@@ -48,10 +48,10 @@ fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
             provider_identity: "forged-provider".into(),
             candidate_identity: "forged-candidate".into(),
             candidate: unit.functions[0].machine,
-            signature: terminal_psi::ProviderUnitSignature {
+            signature: terminal_psi::ProviderSignature {
                 parameters: Vec::new(),
             },
-            refinement: terminal_psi::ProviderUnitRefinement {
+            refinement: terminal_psi::ProviderRefinement {
                 positional_parameters: Vec::new(),
                 required_domains: Vec::new(),
                 realized_service_ceiling: Vec::new(),

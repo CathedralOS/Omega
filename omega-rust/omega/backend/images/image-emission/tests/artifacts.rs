@@ -753,10 +753,10 @@ fn legacy_internal_call_rejects_an_installed_provider_origin_with_unchanged_byte
             provider_identity: "provider".into(),
             candidate_identity: "candidate".into(),
             candidate: call.target,
-            signature: terminal_psi::ProviderUnitSignature {
+            signature: terminal_psi::ProviderSignature {
                 parameters: Vec::new(),
             },
-            refinement: terminal_psi::ProviderUnitRefinement {
+            refinement: terminal_psi::ProviderRefinement {
                 positional_parameters: Vec::new(),
                 required_domains: Vec::new(),
                 realized_service_ceiling: Vec::new(),

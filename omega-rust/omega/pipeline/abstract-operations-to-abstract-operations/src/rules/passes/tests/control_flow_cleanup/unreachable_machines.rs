@@ -96,10 +96,10 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
             provider_identity: "root-test-provider".into(),
             candidate_identity: "root-test-candidate".into(),
             candidate: MachineId::new(102).unwrap(),
-            signature: terminal_psi::ProviderUnitSignature {
+            signature: terminal_psi::ProviderSignature {
                 parameters: Vec::new(),
             },
-            refinement: terminal_psi::ProviderUnitRefinement {
+            refinement: terminal_psi::ProviderRefinement {
                 positional_parameters: Vec::new(),
                 required_domains: Vec::new(),
                 realized_service_ceiling: Vec::new(),

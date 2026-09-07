@@ -63,7 +63,7 @@ fn installed_provider_plan() -> (
         provider_identity: "ProgramProvider".into(),
         candidate_identity: "ProgramProvider::enter".into(),
         candidate: callee,
-        signature: terminal_psi::ProviderUnitSignature {
+        signature: terminal_psi::ProviderSignature {
             parameters: vec![terminal_psi::ProviderSignatureParameter {
                 position: 0,
                 is_self: false,
@@ -74,7 +74,7 @@ fn installed_provider_plan() -> (
                 projected_qualifications: Vec::new(),
             }],
         },
-        refinement: terminal_psi::ProviderUnitRefinement {
+        refinement: terminal_psi::ProviderRefinement {
             positional_parameters: vec![terminal_psi::ProviderParameterRefinement {
                 boundary_index: 0,
                 candidate_index: 0,
@@ -250,10 +250,10 @@ fn installed_scalar_provider_plan() -> (
         provider_identity: "PingProvider".into(),
         candidate_identity: "PingProvider::ping_value".into(),
         candidate,
-        signature: terminal_psi::ProviderUnitSignature {
+        signature: terminal_psi::ProviderSignature {
             parameters: Vec::new(),
         },
-        refinement: terminal_psi::ProviderUnitRefinement {
+        refinement: terminal_psi::ProviderRefinement {
             positional_parameters: Vec::new(),
             required_domains: Vec::new(),
             realized_service_ceiling: Vec::new(),

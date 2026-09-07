@@ -202,7 +202,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
         provider_identity: "UefiProgramProvider".into(),
         candidate_identity: "UefiProgramProvider::enter".into(),
         candidate: id(2),
-        signature: terminal_psi::ProviderUnitSignature {
+        signature: terminal_psi::ProviderSignature {
             parameters: function
                 .parameters
                 .iter()
@@ -217,7 +217,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
                 })
                 .collect(),
         },
-        refinement: terminal_psi::ProviderUnitRefinement {
+        refinement: terminal_psi::ProviderRefinement {
             positional_parameters: vec![
                 terminal_psi::ProviderParameterRefinement {
                     boundary_index: 0,

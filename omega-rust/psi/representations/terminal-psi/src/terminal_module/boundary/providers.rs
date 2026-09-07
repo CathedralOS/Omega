@@ -6,7 +6,7 @@ use semantic_vocabulary::{
     BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
 
-/// One exact checked provider candidate for a Unit boundary requirement.
+/// One exact checked provider candidate for a boundary requirement.
 ///
 /// The candidate body is an ordinary terminal machine. The extra row binds it
 /// to the requirement and records the structured signature/refinement witness
@@ -22,12 +22,14 @@ pub struct ProviderCandidateConformance {
     /// `CheckedAdapter` row. The dense `candidate` ID is artifact-local.
     pub candidate_identity: String,
     pub candidate: MachineId,
-    pub signature: ProviderUnitSignature,
-    pub refinement: ProviderUnitRefinement,
+    pub signature: ProviderSignature,
+    pub refinement: ProviderRefinement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProviderUnitSignature {
+pub struct ProviderSignature {
+    /// Structural parameter correspondence. Scalar parameters and the result
+    /// are joined directly between the boundary and candidate declarations.
     pub parameters: Vec<ProviderSignatureParameter>,
 }
 
@@ -49,7 +51,7 @@ pub struct ProviderParameterRefinement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProviderUnitRefinement {
+pub struct ProviderRefinement {
     /// Complete dense positional correspondence between requirement and
     /// candidate parameters. Reordering cannot hide behind equal types.
     pub positional_parameters: Vec<ProviderParameterRefinement>,

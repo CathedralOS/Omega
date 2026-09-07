@@ -7,9 +7,8 @@ use semantic_vocabulary::{BoundaryMachineId, ClaimId, FuelScheduleIdentity, Oper
 use target_operations::TargetOperationPlan;
 use terminal_psi::{
     BoundaryMachineDeclaration, CompletionReceipt, EntryClaim, ProviderCandidateConformance,
-    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
-    ProviderUnitSignature, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration,
+    ProviderParameterRefinement, ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
 };
 
 pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
@@ -78,7 +77,7 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
         provider_identity: "UefiProgramProvider".into(),
         candidate_identity: "UefiProgramProvider::enter".into(),
         candidate: callee,
-        signature: ProviderUnitSignature {
+        signature: ProviderSignature {
             parameters: caller_parameters
                 .iter()
                 .map(|parameter| ProviderSignatureParameter {
@@ -92,7 +91,7 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
                 })
                 .collect(),
         },
-        refinement: ProviderUnitRefinement {
+        refinement: ProviderRefinement {
             positional_parameters: vec![
                 ProviderParameterRefinement {
                     boundary_index: 0,

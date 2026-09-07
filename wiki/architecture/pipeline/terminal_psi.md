@@ -232,6 +232,29 @@ checked reachable scalar source (for example, a later scalar-bearing Service
 forwarding or computed-source rung); it must not be simulated by weakening the
 incoming-parameter join.
 
+Provider conformance also admits plain, unqualified affine structural results.
+Validation joins the existing boundary and candidate result declarations by
+type, multiplicity, and qualifications; candidate projected qualifications must
+be empty. `ProviderSignature` and `ProviderRefinement` retain parameter and
+refinement custody without copying result signatures into the wire format.
+The candidate's result place and each caller's operation-result place remain
+distinct identities. Structural candidates with claims, content guarantees,
+root introductions, or nonempty callable preconditions, postconditions, and
+crash contracts remain outside this admission slice.
+The existing affine-return rules still require the candidate to return its sole
+owned structural parameter from an empty identity body; provider conformance
+does not widen those body rules.
+
+The interpreter dispatches an explicitly installed structural provider through
+the ordinary structural-call continuation. It transfers actual input custody,
+executes the selected candidate, and establishes the caller's result only after
+the provider's successful fuel-charged return. Suspension does not invoke a
+host result producer or repeat the provider call. Projected consumers retain
+the same residual complement as an ordinary result producer. Checked-source
+provider discovery, Omega installation-call admission, and native boundary
+result storage still require their own result-aware extensions; this Terminal
+admission does not authorize those later stages.
+
 For a target-selected attached `ProgramEntry`, the compiler now retains the
 first Fused root-establishment receipt beside Terminal. It derives one row per
 direct `Service<R> in Bound` receiver field only after exact provider
