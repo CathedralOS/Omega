@@ -19,6 +19,7 @@ beside code; completed work belongs in Git, not current reference material.
   [boundary calls](spec/terminal-psi/boundary_calls.md),
   [byte views](spec/terminal-psi/byte_views.md),
   [structural access and stores](spec/terminal-psi/structural_access.md),
+  [loan resources and compatibility](spec/terminal-psi/loans.md),
   [dynamic dispatch](spec/terminal-psi/dynamic_dispatch.md),
   [observations](spec/terminal-psi/observations.md), and
   [encoding](spec/terminal-psi/encoding.md),

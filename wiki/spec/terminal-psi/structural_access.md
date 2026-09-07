@@ -4,6 +4,9 @@ Structural parameters and call arguments retain referent type, logical place,
 access, multiplicity, and qualifications independently. Physical pointer
 equivalence does not make their permissions interchangeable.
 
+[Loan resources and compatibility](loans.md) specifies formation, reborrow
+lineage, and restoration separately from these permitted operations.
+
 ## Referent identity
 
 Every borrowed argument denotes the original referent throughout its valid
