@@ -270,6 +270,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
             })
         });

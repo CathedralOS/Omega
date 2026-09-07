@@ -58,9 +58,37 @@ pub(crate) fn validate_usage(
         return unsupported("Unit structural result binding disagrees with its producer");
     }
     let mut consumed = false;
-    let mut anonymous_shared = false;
+    let mut disposed = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
     for (operation_index, operation) in caller.operations.iter().enumerate() {
+        if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            coordinate,
+            affine_discards,
+        } = operation
+        {
+            for discard in affine_discards {
+                if discard.source
+                    != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    })
+                {
+                    continue;
+                }
+                if consumed
+                    || disposed
+                    || producer.discard
+                    || !discard.path.is_empty()
+                    || discard.type_identity != result.type_identity
+                    || producer.coordinate.call_ordinal == 0
+                    || producer.coordinate.statement_index != coordinate.statement_index
+                    || operation_index <= producer.operation_index
+                {
+                    return unsupported("call continuation does not own this intact result");
+                }
+                disposed = true;
+            }
+            continue;
+        }
         let (CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             structural_arguments,
@@ -104,7 +132,8 @@ pub(crate) fn validate_usage(
                 result.statement_index == coordinate.statement_index
                     && coordinate.call_ordinal < producer.coordinate.call_ordinal
             };
-            if consumed || operation_index <= producer.operation_index || !source_order {
+            if consumed || disposed || operation_index <= producer.operation_index || !source_order
+            {
                 return unsupported(
                     "Unit structural result is consumed before production or twice",
                 );
@@ -139,44 +168,27 @@ pub(crate) fn validate_usage(
             }
             if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                 && producer.coordinate.call_ordinal != 0
-            {
-                if anonymous_shared
-                    || producer.operation_index != 0
-                    || operation_index != 1
-                    || producer.coordinate.statement_index != 0
-                    || producer.coordinate.call_ordinal != 1
-                    || !producer.discard
-                    || coordinate.statement_index != 0
+                && (producer.coordinate.call_ordinal != 1
+                    || producer.discard
                     || coordinate.call_ordinal != 0
                     || !matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { scalar_arguments, structural_arguments, .. }
                         if scalar_arguments.is_empty() && structural_arguments.len() == 1)
-                    || !matches!(
-                        caller.operations.as_slice(),
-                        [
-                            _,
-                            _,
-                            CheckedUnitEffectOperationPlan::ReturnUnit {
-                                statement_index: 1,
-                                ..
-                            }
-                        ]
-                    )
-                {
-                    return unsupported(
-                        "anonymous shared result has no dying Unit call continuation",
-                    );
-                }
-                anonymous_shared = true;
+                    || !matches!(caller.operations.get(operation_index + 1),
+                        Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate: cleanup, affine_discards })
+                            if cleanup == coordinate && affine_discards.len() == 1
+                                && affine_discards[0].source == argument.source))
+            {
+                return unsupported("anonymous shared result has no dying Unit call continuation");
             }
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
     }
-    if (projected_paths.is_empty() && producer.discard == consumed)
+    if (projected_paths.is_empty() && producer.discard == (consumed || disposed))
         || (!projected_paths.is_empty() && producer.discard)
         || (producer.coordinate.call_ordinal != 0
             && !consumed
             && projected_paths.is_empty()
-            && !anonymous_shared)
+            && !disposed)
     {
         return unsupported(
             "Unit structural result cleanup disagrees with its final consuming use",

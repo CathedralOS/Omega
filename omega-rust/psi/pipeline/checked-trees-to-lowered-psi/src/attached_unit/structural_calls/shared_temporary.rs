@@ -14,7 +14,10 @@ pub(super) fn validate(
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
     let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
-    let [StatementNode::Call(call)] = checked.statement_table.statements(state.statement_nodes)
+    let Some(StatementNode::Call(call)) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(consumer.statement_index as usize)
     else {
         return unsupported("anonymous shared result requires one authored Unit call");
     };
@@ -52,7 +55,12 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "anonymous shared result has a stale captured call span",
             ))?;
-    if calls.len() != 2 {
+    if calls
+        .iter()
+        .filter(|call| call.statement_index == consumer.statement_index as usize)
+        .count()
+        != 2
+    {
         return unsupported("anonymous shared result has additional captured calls");
     }
     let call_source = |coordinate: checked_trees::CheckedUnitCallCoordinate| {
@@ -131,4 +139,81 @@ pub(super) fn validate(
         return unsupported("anonymous shared result permission sequence has extra events");
     }
     Ok(())
+}
+
+pub(crate) fn validate_cleanup(
+    checked: &CheckedTrees,
+    caller: &CheckedUnitEffectMachinePlan,
+    operation_index: usize,
+) -> Result<(), LoweringError> {
+    let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+        coordinate,
+        affine_discards,
+    } = &caller.operations[operation_index]
+    else {
+        return unsupported("call continuation cleanup entry is absent");
+    };
+    let Some(CheckedUnitEffectOperationPlan::CallUnit {
+        coordinate: call,
+        structural_arguments,
+        ..
+    }) = operation_index
+        .checked_sub(1)
+        .and_then(|previous| caller.operations.get(previous))
+    else {
+        return unsupported("call cleanup does not immediately follow its consumer");
+    };
+    let ([discard], [argument]) = (affine_discards.as_slice(), structural_arguments.as_slice())
+    else {
+        return unsupported("call cleanup requires an exact temporary argument list");
+    };
+    if call != coordinate
+        || argument.source != discard.source
+        || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        || !argument.path.is_empty()
+        || !discard.path.is_empty()
+        || argument.type_identity != discard.type_identity
+    {
+        return unsupported("call cleanup substituted its consumer or result");
+    }
+    let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
+        return unsupported("call cleanup requires an expression-owned result");
+    };
+    let mut producers = caller.operations[..operation_index]
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return,
+                ..
+            } if result.binding_ordinal == binding_ordinal => {
+                Some((*coordinate, result, *discard_result_on_return))
+            }
+            _ => None,
+        });
+    let (producer, result, discard_on_return) = producers.next().ok_or(
+        LoweringError::Unsupported("call cleanup has no result producer"),
+    )?;
+    if producers.next().is_some()
+        || discard_on_return
+        || producer.call_ordinal == 0
+        || producer.statement_index != coordinate.statement_index
+        || result.type_identity != discard.type_identity
+    {
+        return unsupported("call cleanup has no unique continuing owner");
+    }
+    let source =
+        crate::call_source_custody::authored::locate_source(checked, caller.state, producer)?;
+    let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = source.source_site
+    else {
+        return unsupported("call cleanup lost its expression-owned source");
+    };
+    validate(checked, caller, producer, *coordinate, expression)
 }

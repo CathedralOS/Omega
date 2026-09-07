@@ -143,8 +143,19 @@ pub(super) fn validate_unit_operation_sequence(
     let mut coordinates = Vec::new();
     let mut next_scalar_binding = 0_u32;
     let mut next_structural_binding = 0_u32;
-    for operation in &machine.operations[..machine.operations.len() - 1] {
+    for (operation_index, operation) in machine.operations[..machine.operations.len() - 1]
+        .iter()
+        .enumerate()
+    {
         let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
+                if !matches!(operation_index.checked_sub(1).and_then(|previous| machine.operations.get(previous)),
+                    Some(CheckedUnitEffectOperationPlan::CallUnit { coordinate: call, .. }) if call == coordinate)
+                {
+                    return unsupported("call cleanup has no immediately preceding completed call");
+                }
+                continue;
+            }
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
                 statement_index,
                 declaration_ordinal,

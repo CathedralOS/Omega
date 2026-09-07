@@ -7,6 +7,7 @@ use checked_trees::statement::StatementNode;
 mod result_uses;
 mod shared_temporary;
 pub(super) use result_uses::{validate_consumer, validate_usage};
+pub(super) use shared_temporary::validate_cleanup;
 
 fn target(
     checked: &CheckedTrees,

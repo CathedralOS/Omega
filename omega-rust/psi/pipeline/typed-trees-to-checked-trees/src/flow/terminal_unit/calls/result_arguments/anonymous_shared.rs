@@ -1,4 +1,4 @@
-//! A final shared call must retain and then dispose the actual temporary owner.
+//! A shared call retains and then disposes the actual temporary owner.
 
 use super::*;
 
@@ -11,13 +11,14 @@ pub(super) fn validate(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<()> {
     let source_state = crate::find_state(program, state)?;
-    let [StatementNode::Call(_)] = program
+    let StatementNode::Call(_) = program
         .statement_table
         .statements(source_state.statement_nodes)
+        .get(consumer.statement_index)?
     else {
         return None;
     };
-    if consumer.statement_index != 0 || consumer.call_ordinal != 0 {
+    if consumer.call_ordinal != 0 {
         return None;
     }
     let target = program.machines().iter().find(|target| {
@@ -35,14 +36,21 @@ pub(super) fn validate(
         return None;
     }
     let flow = state_flow(facts, machine, state)?;
-    let calls = facts.flow.control.calls.span(flow.calls)?;
-    if calls.len() != 2 || calls.iter().any(|call| call.statement_index != 0) {
+    let calls = facts
+        .flow
+        .control
+        .calls
+        .span(flow.calls)?
+        .iter()
+        .filter(|call| call.statement_index == consumer.statement_index)
+        .collect::<Vec<_>>();
+    if calls.len() != 2 {
         return None;
     }
     let producer = calls
         .iter()
         .find(|call| call.call_ordinal == 1 && call.authored_expression == expression)?;
-    let source = crate::find_call_site(program, machine, state, 0, 0)?;
+    let source = crate::find_call_site(program, machine, state, consumer.statement_index, 0)?;
     let [argument] = crate::call_site_argument_expressions(program, &source) else {
         return None;
     };
@@ -52,12 +60,12 @@ pub(super) fn validate(
         return None;
     }
     let producer_source = PermissionEventSource::Call {
-        statement_index: 0,
+        statement_index: consumer.statement_index,
         call_ordinal: 1,
         target_symbol: producer.target_symbol,
     };
     let consumer_source = PermissionEventSource::Call {
-        statement_index: 0,
+        statement_index: consumer.statement_index,
         call_ordinal: 0,
         target_symbol: consumer.target_symbol,
     };
