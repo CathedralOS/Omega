@@ -20,7 +20,7 @@ data Adder {
 }
 
 machine Adder::fletcher(
-    &mut self,
+    &self,
     s: &[i32 in Wrapping],
     sum1: i32 in Wrapping,
     sum2: i32 in Wrapping

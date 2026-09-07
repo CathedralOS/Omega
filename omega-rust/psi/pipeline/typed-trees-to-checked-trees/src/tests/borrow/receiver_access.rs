@@ -35,6 +35,39 @@ fn reject_assignment(source: &str, root: &str) {
 }
 
 #[test]
+fn projected_receiver_and_live_slice_require_compatible_access() {
+    for (receiver, accepted) in [("&self", true), ("&mut self", false)] {
+        let source = format!(
+            "data Reader {{ bytes: [u8; 4]; }}
+             data Container {{ reader: Reader; }}
+             machine Reader::observe({receiver}, bytes: &[u8]) -> u8 {{
+                 transition bytes.len > 0 {{
+                     true -> (bytes[0])
+                     false -> 0
+                 }}
+             }}
+             machine Container::check(&mut self) -> u8 {{
+                 let view: &[u8] = self.reader.bytes.as_slice();
+                 self.reader.observe(view)
+             }}"
+        );
+        if accepted {
+            check_source(&source).expect("shared receiver and shared slice may overlap");
+        } else {
+            let diagnostics = reject_source(&source);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(
+                        "receives mutable receiver while local borrow `view` is still active"
+                    )),
+                "an unused exclusive receiver still conflicts with its field's shared view: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn shared_self_direct_field_write_rejects() {
     reject_assignment(
         r#"

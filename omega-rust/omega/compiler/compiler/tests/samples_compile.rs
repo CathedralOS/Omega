@@ -697,6 +697,11 @@ fn text_padding_accepts_its_projected_text_argument() {
 }
 
 #[test]
+fn fletcher_checksum_checks_its_slice_iteration() {
+    assert_authored_entry_cohort("text", &["fletcher_checksum"]);
+}
+
+#[test]
 fn rendering_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("rendering", EXPLICIT_ENTRY_RENDERING_SAMPLES);
 }
