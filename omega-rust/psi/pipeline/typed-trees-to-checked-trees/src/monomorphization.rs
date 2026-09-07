@@ -21,9 +21,11 @@ use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+mod candidate;
 mod const_arguments;
 mod const_values;
 mod result_locals;
+mod saved_calls;
 
 #[derive(Clone)]
 struct Candidate {
@@ -103,93 +105,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     // discovers no further ordinary specialization.
     result_locals::refresh(program);
     materialize_static_argument_types(program);
-    let mut candidates = Vec::new();
-    let mut callee_states = Vec::new();
-    let mut all_type_parameter_symbols = Vec::new();
-
-    for (machine_index, machine) in program.machines().iter().enumerate() {
-        let parameters = program.machine_type_parameters(machine);
-        if parameters.is_empty() {
-            continue;
-        }
-        let mut type_parameters = Vec::new();
-        let mut parameter_bounds = Vec::new();
-        let mut const_parameters = Vec::new();
-        let mut machine_parameters = Vec::new();
-        let evidence_parameters = machine
-            .conformance_bounds
-            .iter()
-            .filter(|bound| bound.binder.is_some())
-            .cloned()
-            .collect::<Vec<_>>();
-        for parameter in parameters {
-            match &parameter.kind {
-                TypeParameterKind::Type => {
-                    type_parameters.push((parameter.symbol, parameter.name.as_str().to_owned()));
-                    parameter_bounds.push(validation::declared_property_requirements(
-                        &parameter.bounds,
-                    ));
-                }
-                TypeParameterKind::Machine { contract } => {
-                    let signature = program
-                        .machine_parameter_contract_view(contract)
-                        .expect(
-                            "typed machine-parameter contract must retain a valid requirement identity",
-                        )
-                        .signature();
-                    machine_parameters.push((
-                        parameter.symbol,
-                        parameter.name.as_str().to_owned(),
-                        signature.clone(),
-                    ));
-                }
-                TypeParameterKind::Const { type_reference } => const_parameters.push((
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    *type_reference,
-                )),
-                // Proposition parameters are currently legal only on trait
-                // abstraction surfaces, never on executable machines.
-                TypeParameterKind::Proposition { .. } => {}
-            }
-        }
-        all_type_parameter_symbols.extend(type_parameters.iter().cloned());
-
-        let candidate_index = candidates.len();
-        let states = program.machine_states(machine);
-        for state in states {
-            callee_states.push(CalleeState {
-                symbol: state.symbol,
-                name: state.name.as_str().to_owned(),
-                candidate_index,
-                return_type: state.return_type,
-                parameter_types: program
-                    .state_parameters(state)
-                    .iter()
-                    .map(|parameter| parameter.type_reference)
-                    .collect(),
-            });
-        }
-        candidates.push(Candidate {
-            machine_index,
-            template_symbol: machine.symbol,
-            template_name: machine.name.as_str().to_owned(),
-            state_symbols: states.iter().map(|state| state.symbol).collect(),
-            type_bindings: vec![None; type_parameters.len()],
-            const_bindings: vec![None; const_parameters.len()],
-            machine_bindings: vec![None; machine_parameters.len()],
-            evidence_bindings: vec![None; evidence_parameters.len()],
-            type_parameters,
-            parameter_bounds,
-            conformance_bounds: machine.conformance_bounds.clone(),
-            const_parameters,
-            machine_parameters,
-            evidence_parameters,
-            inferred_conformance_arguments: Vec::new(),
-            selected_bound_applications: Vec::new(),
-            conflicted: false,
-        });
-    }
+    let mut candidates = candidate::collect(program);
+    let callee_states = candidate::callees(program, &candidates);
+    let all_type_parameter_symbols = candidates
+        .iter()
+        .flat_map(|candidate| candidate.type_parameters.iter().cloned())
+        .collect::<Vec<_>>();
 
     const_arguments::validate_authored(program, &candidates, &callee_states)?;
     if candidates.is_empty() {
@@ -2149,6 +2070,15 @@ fn rewrite_selected_call(program: &mut TypedTrees, site: CallSite, target: Symbo
     let target_name = state_by_symbol(program, target)
         .map(|state| state.name.clone())
         .expect("cloned specialization state");
+    rewrite_selected_call_with_name(program, site, target, target_name);
+}
+
+fn rewrite_selected_call_with_name(
+    program: &mut TypedTrees,
+    site: CallSite,
+    target: SymbolHandle,
+    target_name: typed_trees::name::Identifier,
+) {
     match site {
         CallSite::Statement(handle) => {
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {

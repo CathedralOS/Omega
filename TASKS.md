@@ -618,14 +618,6 @@ Owners include
   Reject non-Unit initializers for explicitly Unit-typed locals: typing retains
   `let result: () = scalar_call();` as authored, but initializer compatibility
   checking still admits the scalar result. Keep inferred temporaries distinct.
-  Reconcile saved provider calls after the provider has already specialized
-  through an ordinary call. Witness: a generic provider returns `endpoint<2>()`,
-  whose declared result is `u64[0..=N]`; calling the provider directly with an
-  `i32` parameter and selecting it for a `bool` requirement restores stale
-  endpoint static arguments and fails range checking. Reuse ordinary call
-  selection on the saved body and match its exact tuple to the live instance;
-  never copy an already-instantiated provider's potentially binding-dependent
-  calls into another tuple. Acceptance: both provider uses check independently.
   Transport dependent and public-trait call-result bounds into subslice proofs
   through their actual call-entry and public requirement identities, not caller
   fields or private realization types.
