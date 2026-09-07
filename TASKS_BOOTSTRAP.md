@@ -59,23 +59,26 @@ Rust remains a comparator, not bootstrap authority. Optimization matters where
 measured execution or audit feasibility requires it, not as an unbounded
 prerequisite to every lower-rung milestone.
 
-## Next decision - whole-chain complexity
+## Next decision - measured complexity follow-through
 
-- **BOOTSTRAP-COMPLEXITY-REVIEW.** Before further infrastructure expansion,
-  review the current compiler/checker route against the human audit objective.
-  Owners: `bootstrap/3_delta/compiler/implementation/{normalization,checking/names}/`,
-  `bootstrap/2_gamma/{evaluator,derivation_checker,beta_encoding}/`, and the
-  retained concatenative inventories in the Gamma/Delta READMEs.
-  Measure actual Epsilon lowering demand before choosing the 255-depth
-  workaround or a larger coherent Gamma profile. Compare source, invariants,
-  proof obligations, storage, and validation costs, not line counts alone.
-  For the checker, map the complete Beta encoder, independent owner root, and
-  source-owned certificate producer still required; use a bounded feasibility
-  probe to test the design's full-subject cost before another helper family.
-  Identify legacy consumers before proposing deletion.
-  Acceptance: evidence-backed keep/simplify/defer/remove recommendations and a
-  bounded next execution, audit-reduction, or proof milestone for user direction.
-  Do not build an alternative language or delete unreviewed machinery here.
+- **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
+  [measured cost review](wiki/design_briefs/bootstrap_cost_review.md) before
+  expanding infrastructure. Owners remain Delta normalization/name checking,
+  Gamma evaluator/checker/Beta definitions, and the retained comparison routes.
+  Current Epsilon demand does not justify more depth machinery; retain deep-source
+  conformance until a simpler implementation or owner-approved scope replaces it.
+  Compare name-checking storage costs against actual customer pressure, separately
+  from maximum-boundary controls. Map unique legacy assertions to selected gates
+  before removing the old execution routes and their adapters together.
+  For P1, specify the complete encoder's state/recursion and shared proof-composition
+  strategy, then cost a contiguous sequence covering operands, trivia, assertions,
+  and exact endpoints before another helper family. The existing whole-subject
+  list probe is a prerequisite measurement, not full-certificate feasibility.
+  Acceptance: a bounded simplification/retirement plan and evidence that the
+  proposed proof route can plausibly reduce total audit burden, with extrapolated
+  cost distinguished from actual full-subject checks. Return for user direction
+  if the strategy is not justified; do not build an alternative language or
+  delete unreviewed machinery.
 
 ## P1 - Gamma checker and first complete encoding proof
 
