@@ -2136,6 +2136,10 @@ premise, and requires the exact-subtract evidence before constructing resumable
   integer-tagged pointer. Assignment and physical replay independently derive
   its referent shape and native pointer placement from retained declarations;
   coordinated value-shape or placement substitutions reject.
+  Checked-source export retains fixed and nested primitive arrays inside the
+  receiver, including exact lengths and integer, Boolean, or IEEE float element
+  types. Primitive leaves remain scalar declarations, not synthetic records;
+  array-bearing receivers use the same reference ABI and empty owned frontier.
   Assignment accepts only the target-prescribed rank register. The ordinary selected-instruction
   path stays closed, while a disjoint unoptimized route emits the exact Linux
   x86-64 and AArch64 countdown bodies from assigned custody. The machine-code

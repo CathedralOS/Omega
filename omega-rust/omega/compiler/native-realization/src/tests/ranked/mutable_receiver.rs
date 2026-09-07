@@ -34,6 +34,23 @@ fn ranked_mutable_receiver_with_wide_record_survives_native_replays() {
     assert_ranked_receiver_replays(&source, calling_conventions::ValueShape::integer(24, 8));
 }
 
+#[test]
+fn ranked_mutable_receiver_with_primitive_arrays_survives_native_replays() {
+    for (field_type, bytes, alignment) in [
+        ("[u64; 3]", 24, 8),
+        ("[[u16; 3]; 2]", 12, 2),
+        ("[bool; 5]", 5, 1),
+        ("[f64; 3]", 24, 8),
+    ] {
+        let source =
+            RANKED_RECEIVER_COUNTDOWN_SOURCE.replace("value: i32", &format!("value: {field_type}"));
+        assert_ranked_receiver_replays(
+            &source,
+            calling_conventions::ValueShape::integer(bytes, alignment),
+        );
+    }
+}
+
 fn assert_ranked_receiver_replays(source: &str, referent: calling_conventions::ValueShape) {
     let checked = checked(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
