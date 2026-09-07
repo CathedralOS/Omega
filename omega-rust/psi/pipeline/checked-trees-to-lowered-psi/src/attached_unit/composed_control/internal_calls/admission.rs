@@ -1,6 +1,7 @@
-//! Source-bound ordinary Unit roots; shared Unit lowering admits their bodies.
+//! Source-bound Unit roots; shared Unit lowering admits their complete bodies.
 
 use super::*;
+use crate::attached_unit::bodies::UnitBody;
 
 pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     checked: &'a CheckedTrees,
@@ -8,7 +9,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     operation: &CheckedUnitEffectOperationPlan,
     plans: &'a checked_trees::CheckedUnitEffectPlans,
-    targets: &mut Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
+    targets: &mut Vec<(UnitBody<'a>, String)>,
 ) -> Result<(), LoweringError> {
     crate::call_source_custody::validate_operation(checked, root, state.state, operation)?;
     let CheckedUnitEffectOperationPlan::CallUnit {
@@ -37,21 +38,22 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     if *target_machine == root {
         return unsupported("composed internal Unit call is recursive");
     }
-    let target = unique_unit_machine(plans, *target_machine)?;
-    if target.state != *target_state
-        || target.contract_report_fingerprint != *target_contract_report_fingerprint
-        || !checked_unit_target_reach_matches(*service_reach, target.contract_service_reach)
-        || !target.structural_parameters.is_empty()
-        || !target.entry_claims.is_empty()
+    let target = UnitBody::find(plans, *target_machine)?;
+    let entry = target.entry()?;
+    if entry.state != *target_state
+        || entry.contract_report_fingerprint != *target_contract_report_fingerprint
+        || !checked_unit_target_reach_matches(*service_reach, entry.contract_service_reach)
+        || !entry.structural_parameters.is_empty()
+        || !entry.entry_claims.is_empty()
     {
         return unsupported("composed internal Unit call disagrees with its checked target");
     }
-    let identity = checked_terminal_machine_name(checked, target.machine)?.to_owned();
-    if !targets
-        .iter()
-        .any(|(candidate, _)| candidate.machine == target.machine)
-    {
-        targets.push((target, identity));
+    let identity = checked_terminal_machine_name(checked, entry.machine)?.to_owned();
+    for (candidate, _) in targets.iter() {
+        if candidate.entry()?.machine == entry.machine {
+            return Ok(());
+        }
     }
+    targets.push((target, identity));
     Ok(())
 }

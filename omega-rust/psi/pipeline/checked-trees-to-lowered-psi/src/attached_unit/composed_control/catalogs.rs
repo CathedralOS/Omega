@@ -1,6 +1,7 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
 
 use super::*;
+use crate::attached_unit::bodies::UnitBody;
 use crate::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,
     collect_service_summary, lower_program_local_root_introductions, lower_selected_unit_services,
@@ -34,7 +35,7 @@ fn lower_composed_services(
     service_reach: ServiceReachSummary,
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    internal_targets: &[(&checked_trees::CheckedUnitEffectMachinePlan, String)],
+    internal_targets: &[(UnitBody<'_>, String)],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     let facts = &checked.facts.service_reaches;
     let mut selected = Vec::new();
@@ -63,11 +64,12 @@ fn lower_composed_services(
         )?;
     }
     for (target, _) in internal_targets {
+        let entry = target.entry()?;
         collect_installation_machine_contract_services(
             checked,
-            target.machine,
-            target.contract_service_reach,
-            target.service_reach,
+            entry.machine,
+            entry.contract_service_reach,
+            target.service_reach(),
             &mut selected,
         )?;
     }
@@ -112,7 +114,7 @@ pub(crate) fn lower_dynamic_catalogs(
     plan: &checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    internal_targets: &[(&checked_trees::CheckedUnitEffectMachinePlan, String)],
+    internal_targets: &[(UnitBody<'_>, String)],
 ) -> Result<ComposedCatalogs, LoweringError> {
     let contract_service_reach = checked
         .facts
@@ -142,7 +144,7 @@ fn lower_catalogs(
     service_reach: ServiceReachSummary,
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    admitted_internal_targets: &[(&checked_trees::CheckedUnitEffectMachinePlan, String)],
+    admitted_internal_targets: &[(UnitBody<'_>, String)],
 ) -> Result<ComposedCatalogs, LoweringError> {
     if !admitted_internal_targets.is_empty() {
         return internal_calls::catalogs::lower(
@@ -178,7 +180,7 @@ fn lower_catalogs(
     type_roots.extend(
         admitted_internal_targets
             .iter()
-            .filter_map(|(target, _)| target.attachment_type_identity.clone()),
+            .filter_map(|(target, _)| target.attachment().map(str::to_owned)),
     );
     let (structural_types, type_ids) = lower_unit_structural_type_roots(checked, &type_roots)?;
     let (services, service_ids) = lower_composed_services(

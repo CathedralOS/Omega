@@ -3640,7 +3640,7 @@ Provider-field receivers rejoin the exact attached storage declaration through
 the existing inherited-field mapping; missing or conflicting receiver stamps
 cannot be recovered from their spelling during publication.
 
-The composed root and its ordinary callees select one type, boundary, service,
+The composed root and its Unit callees select one type, boundary, service,
 and helper catalog before assigning identities. Scalar helpers shared by root
 operands and callee bodies have one machine identity. The root graph consumes the
 shared identity counters and is inserted before proof finalization; independently
@@ -3649,6 +3649,20 @@ replaces the former parameterless-only composed target emitter.
 The exact source-to-machine map survives dispatch, so callee suspension,
 conformance, and float-source metadata are selected with their actual owners
 rather than treating the composed root as the entire source closure.
+
+Ordinary callers can also invoke the existing three-state composed Unit family.
+Both checked body catalogs are pruned together to a complete call graph; a
+missing transitive body removes upstream callers from either catalog. Lowering
+borrows each body's actual entry signature and operations, allocates shared
+machine/header identities, then emits each authored body once. A composed callee
+uses the same three-state emitter as a composed root and returns normally to its
+caller; states are not converted into synthetic machines. Nested ordinary and
+composed calls share scalar helper identities and proof obligations. Whole-root
+linear arguments retain their call transfer, state-entry claim aliases, and
+selected boundary settlement. Calls from composed leaves still require
+scalar-only targets without runtime entry requirements. Larger composed shapes
+remain supported only through their existing root routes; this integration does
+not widen state-edge operands, borrowed-view custody, or loop ranking.
 
 Closed-sum continuations retain the structural-result boundary and its exact
 case/payload transfer independently of their ordinary callees. Calls within a
@@ -6627,7 +6641,9 @@ caller substitution are not yet represented in Terminal. A contracted source
 Do not inject a body SSA value into the parameter-only contract scope or add
 an unrelated length parameter as a replacement for the view's actual extent.
 
-The current ordinary Unit call closure consumes one-state plans. A separate
+The Unit call closure now includes ordinary bodies and the existing three-state
+composed family. The writer still needs its free provider/view signature and
+slice-ranked body admitted through that shared catalog. A separate
 multistate plan is insufficient until calls, structural/scalar transfers,
 byte-view operations, effect ordering, and ranking survive Terminal production
 and its independent consumers together. Empty/nonempty raw bytes, both newline

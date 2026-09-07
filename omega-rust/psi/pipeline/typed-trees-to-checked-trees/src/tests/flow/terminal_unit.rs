@@ -4,6 +4,7 @@ use checked_trees::{
 };
 
 mod boundary_result_operands;
+mod callable_composed;
 mod calls;
 mod cleanup;
 mod composed_call_arguments;

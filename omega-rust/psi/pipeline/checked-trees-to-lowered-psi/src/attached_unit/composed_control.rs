@@ -1,6 +1,7 @@
 //! Exact composed Unit control routed by checked topology.
 use super::*;
 mod admission;
+pub(super) mod callable;
 mod catalogs;
 mod closed_sum;
 mod custody;
@@ -12,6 +13,7 @@ mod prefixed_control;
 mod routing;
 mod scalar_calls;
 pub(crate) use crate::machine_dispatch::SourceMappedLowered;
+pub(super) use admission::admit_composed_unit_control as admit_callable;
 pub(crate) use catalogs::ComposedCatalogs;
 
 pub(crate) fn lower_composed_unit_control_machine(

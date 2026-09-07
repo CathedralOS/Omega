@@ -20,11 +20,6 @@ pub(super) fn emit_composed_unit_control(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut scalar_values = entry_parameters.clone();
-    let mut scalar_value_types = entry_parameters
-        .iter()
-        .map(|parameter| parameter.scalar_type)
-        .collect::<Vec<_>>();
     let mut next_place = catalogs.next_place;
     let structural_parameters = lower_unit_parameters(
         &entry.structural_parameters,
@@ -32,6 +27,37 @@ pub(super) fn emit_composed_unit_control(
         &catalogs.domain_ids,
         &mut next_place,
     )?;
+    catalogs.next_value = next_value;
+    catalogs.next_place = next_place;
+    let (machine, occurrences) = emit_callable_body(
+        checked,
+        plan,
+        admitted,
+        machine_id(1),
+        entry_parameters,
+        structural_parameters,
+        &mut catalogs,
+    )?;
+    finish_module(plan.machine, vec![machine], catalogs, occurrences)
+}
+
+pub(in crate::attached_unit) fn emit_callable_body(
+    checked: &CheckedTrees,
+    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
+    admitted: admission::AdmittedComposedUnit<'_>,
+    terminal_machine: MachineId,
+    entry_parameters: Vec<ValueDeclaration>,
+    structural_parameters: Vec<StructuralParameterDeclaration>,
+    catalogs: &mut catalogs::ComposedCatalogs,
+) -> Result<(TerminalMachine, Vec<LoweredSourceCallOccurrence>), LoweringError> {
+    let entry = admitted.entry;
+    let mut next_value = catalogs.next_value;
+    let mut next_place = catalogs.next_place;
+    let mut scalar_values = entry_parameters.clone();
+    let mut scalar_value_types = entry_parameters
+        .iter()
+        .map(|parameter| parameter.scalar_type)
+        .collect::<Vec<_>>();
     let claims = super::super::claims::lower_unit_entry_claims(
         plan.machine,
         entry.state,
@@ -129,7 +155,7 @@ pub(super) fn emit_composed_unit_control(
             plan.machine,
             state,
             *block,
-            &mut catalogs,
+            catalogs,
             &structural_parameters,
             &claim_bindings,
             &[],
@@ -159,8 +185,8 @@ pub(super) fn emit_composed_unit_control(
         &provider_boundaries,
         &mut next_place,
     )?;
-    let machine = TerminalMachine {
-        id: machine_id(1),
+    let mut machine = TerminalMachine {
+        id: terminal_machine,
         attachment: Some(attachment),
         parameters: entry_parameters,
         structural_parameters: structural_parameters.clone(),
@@ -191,19 +217,23 @@ pub(super) fn emit_composed_unit_control(
         entry: state_ids[0],
         blocks,
         contract: MachineContract {
-            id: contract_id(1),
+            id: contract_id(terminal_machine.get()),
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
         },
     };
-    finish_module(
-        plan.machine,
-        vec![machine],
-        catalogs,
-        source_call_occurrences,
-    )
+    machine.contract.crash_routes =
+        lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
+    machine.blocks.sort_by_key(|block| block.id);
+    machine.structural_places.sort_by_key(|place| place.id);
+    catalogs.next_value = next_value;
+    catalogs.next_place = next_place;
+    catalogs.next_block = next_block;
+    catalogs.next_operation = next_operation;
+    catalogs.next_edge = next_edge;
+    Ok((machine, source_call_occurrences))
 }
 
 pub(crate) fn emit_call_leaf(

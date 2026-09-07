@@ -230,75 +230,110 @@ pub(crate) fn build_checked_unit_effect_plans(
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
+    // Both catalogs contain complete admitted bodies. Resolve ordinary calls
+    // against their joint entry roster, then prune both sides to a fixed point:
+    // an invalid composed leaf must also retire its ordinary upstream callers.
     loop {
-        let checked_symbols = candidates
+        let entries = candidates
             .iter()
-            .map(|plan| plan.machine)
+            .map(|plan| (plan.machine, plan.state))
+            .chain(composed_machines.iter().map(|plan| {
+                (
+                    plan.machine,
+                    plan.states
+                        .first()
+                        .map_or(SymbolHandle::invalid(), |state| state.state),
+                )
+            }))
             .collect::<Vec<_>>();
-        let old_len = candidates.len();
-        candidates.retain(|plan| {
-            plan.operations.iter().all(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
-                    checked_symbols.contains(target_machine)
-                }
-                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                    boundary_symbols.contains(target_machine)
-                }
-                CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
-                    boundary_symbols.contains(target_machine)
-                }
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    target_machine, ..
-                } => boundary_symbols.contains(target_machine),
-                CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                    scalar_targets::is_available(program, facts, plan, operation)
-                }
-                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => facts
-                    .flow
-                    .terminal_structural_returns
-                    .claim_free_affine_for_machine(*target_machine)
-                    .is_some(),
-                // Exact realization custody was already joined by selected
-                // execution before this plan was minted.
-                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => true,
-                CheckedUnitEffectOperationPlan::PortWrite { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
+        let unique_entries = entries
+            .iter()
+            .filter(|(machine, state)| {
+                machine.is_valid()
+                    && state.is_valid()
+                    && entries
+                        .iter()
+                        .filter(|(candidate, _)| candidate == machine)
+                        .count()
+                        == 1
             })
+            .copied()
+            .collect::<Vec<_>>();
+        let old_lengths = (candidates.len(), composed_machines.len());
+        candidates.retain(|plan| {
+            unique_entries.contains(&(plan.machine, plan.state))
+                && plan.operations.iter().all(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::CallUnit {
+                        target_machine,
+                        target_state,
+                        ..
+                    } => unique_entries.contains(&(*target_machine, *target_state)),
+                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+                        boundary_symbols.contains(target_machine)
+                    }
+                    CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                        target_machine, ..
+                    } => boundary_symbols.contains(target_machine),
+                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        target_machine,
+                        ..
+                    } => boundary_symbols.contains(target_machine),
+                    CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
+                        scalar_targets::is_available(program, facts, plan, operation)
+                    }
+                    CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => facts
+                        .flow
+                        .terminal_structural_returns
+                        .claim_free_affine_for_machine(*target_machine)
+                        .is_some(),
+                    // Exact realization custody was already joined by selected
+                    // execution before this plan was minted.
+                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
+                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
+                        ..
+                    } => true,
+                    CheckedUnitEffectOperationPlan::PortWrite { .. }
+                    | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                    | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                    | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
+                })
         });
-        if candidates.len() == old_len {
+        composed_machines.retain(|plan| {
+            unique_entries
+                .iter()
+                .any(|(machine, _)| *machine == plan.machine)
+                && plan
+                    .states
+                    .iter()
+                    .flat_map(|state| &state.operations)
+                    .all(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::CallUnit {
+                            target_machine,
+                            target_state,
+                            ..
+                        } => unique_entries.contains(&(*target_machine, *target_state)),
+                        CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+                            boundary_symbols.contains(target_machine)
+                        }
+                        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                            target_machine,
+                            ..
+                        } => boundary_symbols.contains(target_machine),
+                        _ => false,
+                    })
+        });
+        if (candidates.len(), composed_machines.len()) == old_lengths {
             break;
         }
     }
-    let checked_symbols = candidates
-        .iter()
-        .map(|plan| plan.machine)
-        .collect::<Vec<_>>();
-    composed_machines.retain(|plan| {
-        plan.states
-            .iter()
-            .flat_map(|state| &state.operations)
-            .all(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
-                    checked_symbols.contains(target_machine)
-                }
-                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                    boundary_symbols.contains(target_machine)
-                }
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    target_machine, ..
-                } => boundary_symbols.contains(target_machine),
-                _ => false,
-            })
-    });
     let mut retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
