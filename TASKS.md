@@ -174,7 +174,7 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   missing package-root policy. This is a completed slow-route observation,
   not a timeout or evidence of native execution.
 
-  The downstream native `cli_mvp` probe with production checkpoint `dcb4aafd58`
+  The downstream native `cli_mvp` probe with production checkpoint `cbad71e423`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -195,10 +195,10 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
   length and guarded head/tail observations at selected edges, and
   slice-decrease evidence.
-  Continue native descriptor creation/transport, indexed reads, and subslice
-  realization from the scalar byte-length leaf in
-  `tests/native-differential/tests/terminal_byte_views.rs`. It consumes one
-  shared parameter through the ordinary native pipeline; it does not yet
+  Continue native descriptor creation/transport and subslice realization from
+  the byte-observation leaves in `tests/native-differential/tests/terminal_byte_views.rs`.
+  They measure and read one shared parameter with runtime `u64` indices guarded
+  by the exact view's length, through the ordinary native pipeline. They do not yet
   materialize a literal descriptor, pass one through an Omega helper, or execute
   the writer. Retain the exact slice-decrease and source-place evidence when
   joining these dependencies.
