@@ -72,42 +72,28 @@ prerequisite to every lower-rung milestone.
   conformance until a simpler implementation or owner-approved scope replaces it.
   Map unique legacy assertions to selected gates before removing the old
   execution routes and their adapters together.
-  For P1, resolve the combined encoder cost in
-  `bootstrap/2_gamma/beta_encoding/`: the measured capacity and normalized
-  forward-fold recipes cannot fit together unchanged under the current budget.
-  Do not adopt the per-byte Word counter or raise work just enough for the
-  identity-fold diagnostic. Continue the bounded
-  [connected-component experiment](wiki/design_briefs/bootstrap_cost_review.md#next-experiment-connected-components-not-a-partial-beta-dialect)
-  by consolidating one complete admission-encoder design and request/work/storage
-  ledger. The [whole-route comparison](wiki/design_briefs/bootstrap_cost_review.md#whole-route-comparison-real-state-and-coherent-provisions)
-  identifies remaining byte-step, collection, ASCII/count, operand/dispatch,
-  assertion, output, and finalization costs. Model the actual encoder state,
-  which need not retain the diagnostic tokenizer's complete token history.
-  P1's admission result need not reproduce rejected process traces or diagnostic
-  payloads; language diagnostics and invalid/exhausted distinctions stay intact.
-  Keep new helper families and provision changes paused until this consolidated
-  comparison supports a plausible complete route; do not substitute more
-  isolated probes. Larger profiles remain a candidate, not an established fit.
-  Do not build a full certificate with the current linked-list scan recipe
-  under 8 MiB: its traversal records alone exceed that extent. Do not promote
-  another permanent helper family without this comparison, call the diagnostic
-  `encode_Beta`, or map unimplemented valid Beta cases to Reject.
-  Acceptance needs a full-subject estimate with state-sharing assumptions and
-  total definition/proof cost, not just a checked small sequence. Keep direct
-  counting versus the shape intermediary in that whole-route comparison.
-  Resume evidence against `efe1898f29` on macOS arm64: applying the existing
-  normalized balanced-fold recipe to source-emitted lexical states yields a
-  partial traversal scenario far above the current work provision. This is a
-  read-only cost census, not an executed full fold or a checked encoding claim.
-  Exact identities, costs, and diagnostic invocation are in the cost review;
-  this scratch experiment is not a retained repository entrypoint. Factoring
-  regresses on the checked literal; its full-certificate cost remains unmeasured.
-  The actual `encode_Beta(S, limits) = Success(T)` probe also has not run and has no
-  repository command yet: complete definitions, owner-root reconstruction, and
-  the source-owned producer remain missing.
-  The existing representation and fold probes are prerequisite measurements, not
-  full-certificate feasibility; do not promote unchecked source lengths or
-  independent chunk budgets into proof premises.
+  For P1 in `bootstrap/2_gamma/beta_encoding/`, use the consolidated
+  [complete encoder candidate](wiki/design_briefs/beta_encoder_plan.md), not
+  another isolated helper probe. It removes completed-token/output histories
+  from incoming state and accounts explicitly for fragment composition, exact
+  emission counts, all Beta cases, limits, failures, EOF, and owner custody.
+  The full numerical request/work/storage ledger remains missing: actual
+  equations, integrated proof recipes, and encoder-state sharing have not been
+  established. Do not select a larger profile from the partial costs.
+  **Scope pause:** ask the user whether to continue with one complete definition
+  package/integrated recipe as the next unit, or defer this strategy while
+  retaining the open P1 obligation. Until that direction, do not implement more
+  helper families or change provisions. This is not an owner-language blocker.
+  Resume evidence against `c727cd624a` on macOS arm64: source/algebra review
+  projects 4,494,082 work for the existing repeated output-successor recipe
+  alone without cross-fact reuse; this is neither a full proof nor a lower bound.
+  Earlier whole-source representation, capacity, lexical-state, and fold evidence
+  remains in the linked cost review. The actual
+  `encode_Beta(S, limits) = Success(T)` probe has not run and has no repository
+  command: complete definitions, owner-root reconstruction, and source-owned
+  production remain missing. No partial diagnostic or unimplemented valid case
+  may stand in for that root; no unchecked length or independent chunk budget
+  may become a premise.
   Acceptance: a bounded simplification/retirement plan and evidence that the
   proposed proof route can plausibly reduce total audit burden, with extrapolated
   cost distinguished from actual full-subject checks. Return for user direction
