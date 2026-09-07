@@ -7,9 +7,8 @@
 /samples/*/build_win/
 /tests/omega/*/*/build/
 
-# Claude Code local worktrees and settings; shared skills are tracked
+# Claude Code local worktrees, settings, and skill link; canonical skills are in .agents
 .claude/*
-!.claude/skills/
 
 # Codex temporary worktrees are repository-local and never versioned
 .codex/worktrees/
