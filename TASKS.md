@@ -551,8 +551,12 @@ Owners include
   `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`.
   `print_squares`'s `narrow_u32_to_u8_wrapping` result publishes no result range
   and its remaining conversion policy supplies no selected byte-class fact.
-  `print_squares` and `caesar_cipher` additionally need the class to survive
-  loop state edges. An ASCII byte can corrupt an arbitrary Utf8 buffer, so Utf8
+  `caesar_cipher` needs selected indexed field reads for `self.text[self.i]`
+  and byte-range evidence through its wrapping addition and policy-erasing cast.
+  The scalar producer in `values/scalar.rs` has no indexed-read form; unchanged
+  literal contents must bound every possible selected byte, not one guessed
+  loop index. Preserve exact source storage and invalidate those bounds after
+  overlapping writes. An ASCII byte can corrupt an arbitrary Utf8 buffer, so Utf8
   membership alone can never justify the preservation rule. Acceptance:
   `text_samples_compile_from_authored_program_entry_bindings` is green for
   `caesar_cipher`.

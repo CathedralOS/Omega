@@ -5,6 +5,7 @@ use facts::ScalarValue;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;
+mod fields;
 pub(super) use arguments::capture_argument;
 
 #[cfg(test)]
@@ -16,6 +17,7 @@ mod tests;
 pub(super) struct StateValues {
     state: SymbolHandle,
     values: Vec<(SymbolHandle, ScalarValue)>,
+    fields: Vec<fields::FieldValue>,
 }
 
 fn reachable(
@@ -42,6 +44,7 @@ fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
         .iter_mut()
         .find(|row| row.state == incoming.state)
     {
+        changed |= fields::meet(&mut previous.fields, &incoming.fields);
         for (parameter, value) in &mut previous.values {
             let next = incoming
                 .values
@@ -56,6 +59,7 @@ fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
         }
     } else {
         changed = true;
+        ctx.new_state_field_input_height += fields::height(&incoming.fields);
         ctx.state_value_inputs.push(incoming);
     }
     if changed && ctx.built_state_value_inputs.contains(&state) {
@@ -73,6 +77,7 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
                 .iter()
                 .map(|state| StateValues {
                     state: state.symbol,
+                    fields: Vec::new(),
                     values: program
                         .state_parameters(state)
                         .iter()
@@ -187,11 +192,21 @@ pub(super) fn record_transition(
         };
         values.push((parameter.symbol, value));
     }
+    let fields = fields::capture(
+        program,
+        semantic,
+        ctx,
+        machine,
+        state,
+        destination,
+        contexts,
+    );
     join(
         ctx,
         StateValues {
             state: destination.symbol,
             values,
+            fields,
         },
     );
 }
@@ -241,6 +256,7 @@ pub(super) fn record_invocation(
         ctx,
         StateValues {
             state: destination.symbol,
+            fields: Vec::new(),
             values: program
                 .state_parameters(destination)
                 .iter()
@@ -252,7 +268,7 @@ pub(super) fn record_invocation(
 }
 
 pub(super) fn append_entry_context(
-    _program: &typed_trees::TypedTrees,
+    program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     ctx: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
@@ -269,6 +285,7 @@ pub(super) fn append_entry_context(
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
     };
+    fields::append(program, semantic, &input.fields, machine, state, point);
     for (parameter, value) in &input.values {
         if *value == ScalarValue::Unknown {
             continue;

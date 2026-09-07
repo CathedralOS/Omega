@@ -219,7 +219,15 @@ pub(super) fn append_element_replacement_predicates(
         .filter(|predicate| predicate.is_subslice_preserving())
     {
         if !predicate.holds_for(&[byte])
-            || !carrier_proves_predicate(program, semantic, &active_facts, carrier, predicate)
+            || !carrier_proves_predicate(
+                program,
+                semantic,
+                &active_facts,
+                machine_symbol,
+                state_symbol,
+                carrier,
+                predicate,
+            )
         {
             continue;
         }
@@ -288,14 +296,28 @@ fn carrier_proves_predicate(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     active: &[Fact],
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
     carrier: PlaceHandle,
     predicate: crate::field_domain::ByteSequencePredicate,
 ) -> bool {
+    // State inputs use one attached storage root; authored accesses may still
+    // use the current self parameter or an inherited field root.
+    let canonical = |place| {
+        let mut place =
+            canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
+        normalize_attached_place_root(program, machine_symbol, state_symbol, &mut place);
+        place.root = normalized_event_place_root(program, place.root);
+        Some(place)
+    };
+    let Some(carrier) = canonical(carrier) else {
+        return false;
+    };
     active.iter().any(|fact| {
         let FactPlace::Place(place) = fact.place else {
             return false;
         };
-        if !semantic.places_equal(place, carrier) {
+        if canonical(place).as_ref() != Some(&carrier) {
             return false;
         }
         match fact.payload {
