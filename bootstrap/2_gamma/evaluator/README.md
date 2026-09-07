@@ -12,10 +12,11 @@ observation, memory partition, and current gaps are fixed by
 
 Function rows remain in authored order. A separate sorted row-pointer index
 supports exact-name binary search for census, validation, and execution.
-Its 524,288 bytes fit beside 65,536 rows in the private
-`0x04000000..0x04300000` function partition. The enlarged census admits
-Delta's authored definitions together with generated runtime helpers beyond
-the former 4,096-row ceiling. Duplicate precedence, the `main` pointer, and
+Its 16 MiB fit beside 2,097,152 rows in the private
+`0x04000000..0x0a000000` function partition. The request's source extent bounds
+completed declarations below that capacity; see the profile's byte-count
+argument. This covers authored definitions and every generated helper without
+an independent census refusal. Duplicate precedence, the `main` pointer, and
 first-declaration application ownership are unchanged. The index adds neither
 an AST nor a Gamma operation. The addressed Beta source and
 selected Beta compiler are the only reconstruction route; no host label

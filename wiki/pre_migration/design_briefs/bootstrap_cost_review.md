@@ -754,9 +754,9 @@ There are distinct engineering choices, not a language prohibition:
   With the 63,504-byte checker, the latter leaves 16,713,708 bytes of sealed input.
   A larger checker request requires rederiving ground/index/memo and allocation
   bounds, not only editing admission's constant. A larger Gamma request can
-  potentially move into its unused `[0x04300000,0x0e000000)` interval (157 MiB),
-  rather than enlarge native memory just for framing. In-place growth has only
-  2 MiB before the environment region. Any move needs containment, source/tape
+  potentially move into its unused `[0x0a000000,0x0e000000)` interval (64 MiB),
+  rather than enlarge native memory just for framing. The current environment
+  begins at request end, leaving no in-place growth. Any move needs containment, source/tape
   identity, and exact/adjacent outcome checks.
 - The current pair arena supports at most 675,017 work under the blanket ledger.
   Tighter allocation accounting must cover every successful, rejected, and

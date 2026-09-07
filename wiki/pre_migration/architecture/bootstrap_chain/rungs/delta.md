@@ -74,8 +74,8 @@ implementation. Census also owns D30's 32,768 authored function-row provision:
 duplicates reject before provision, and a fresh 32,769th name produces
 `Incomplete` resource code 4 at its name-token start, limit/requested
 32,768/32,769. Complete grammar/depth checks run earlier; declaration types run
-later. This logical count excludes generated helpers and does not establish
-admission under Gamma's separate 65,536-function bound.
+later. This logical count excludes generated helpers. Gamma's physical function
+table is separately bounded by its complete request extent.
 Declaration traversal follows authored order; each parameter
 conflict precedes its own annotation, parameters precede the result type, and
 the whole declaration phase precedes all bodies. Grammar also owns D30's
