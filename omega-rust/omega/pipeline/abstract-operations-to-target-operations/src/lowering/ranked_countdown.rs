@@ -2,7 +2,7 @@
 
 use super::scalar::scalar_shape;
 use super::shared::*;
-use super::structural_layout::structural_shape;
+use super::structural_layout::{structural_parameter_shape, structural_shape};
 
 pub(super) fn lower(
     ranked: &RankedNativeAbstractOperationPlan,
@@ -270,10 +270,6 @@ pub(super) fn lower(
         .collect::<BTreeMap<_, _>>();
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let pointer_shape = ValueShape::integer(
-        u16::try_from(target.pointer_size).map_err(|_| invalid())?,
-        u16::try_from(target.pointer_alignment).map_err(|_| invalid())?,
-    );
     let structural_shapes = function
         .structural_parameters
         .iter()
@@ -284,13 +280,7 @@ pub(super) fn lower(
                 &mut shape_cache,
                 &mut active,
             )?;
-            Ok::<ValueShape, LoweringError>(
-                if parameter.access == StructuralAccess::MutableBorrow {
-                    pointer_shape
-                } else {
-                    referent
-                },
-            )
+            Ok::<ValueShape, LoweringError>(structural_parameter_shape(referent, parameter.access))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let signature = CallSignature {

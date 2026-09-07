@@ -68,7 +68,7 @@ fn ranked_receiver_countdown_uses_one_persistent_pointer_custody_row() {
     assert!(replay.is_self);
     assert_eq!(
         replay.multiplicity,
-        terminal_psi::StructuralMultiplicity::Affine
+        terminal_psi::StructuralMultiplicity::Unrestricted
     );
     assert_eq!(replay.access, terminal_psi::StructuralAccess::MutableBorrow);
 
@@ -87,8 +87,21 @@ fn ranked_receiver_countdown_uses_one_persistent_pointer_custody_row() {
         assert_eq!(parameter.access, replay.access);
         assert_eq!(
             parameter.shape,
-            calling_conventions::ValueShape::integer(8, 8)
+            calling_conventions::ValueShape::borrowed_reference(4, 4)
         );
+        let receiver_register = if target == NativeTarget::linux_x64() {
+            MachineRegister::X86Rsi
+        } else {
+            MachineRegister::Aarch64X(1)
+        };
+        assert!(matches!(parameter.placement.locations.as_slice(),
+            [calling_conventions::ValueLocation::Indirect {
+                pointer: calling_conventions::IndirectPointerLocation::Register(register),
+                copy_stack_byte_offset: None,
+                byte_size: 4,
+                alignment: 4,
+            }] if *register == receiver_register
+        ));
         assert_eq!(countdown.call_plan.parameters[1], parameter.placement);
         assert!(countdown.cleanup_actions.is_empty());
         assert!(
@@ -180,6 +193,30 @@ fn ranked_countdown_target_lowering_preserves_exact_custody_and_abi() {
                 .structural_frontiers
                 .edge_exit(covered.edge)
         );
+    }
+}
+
+#[test]
+fn ranked_receiver_shape_tracks_referent_size_and_alignment() {
+    for (field, bytes, alignment) in [
+        ("value: u8;", 1, 1),
+        ("value: u64;", 8, 8),
+        ("first: u64; second: u64; third: u64;", 24, 8),
+    ] {
+        let source = RECEIVER_COUNTDOWN_SOURCE.replace("value: i32;", field);
+        let ranked = ranked_abstract_from(&source);
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let lowered = lower_ranked_to_target_operations(&ranked, target).unwrap();
+            let TargetOperation::RankedU32Countdown(countdown) = &lowered.functions[0].operation
+            else {
+                panic!("ranked receiver")
+            };
+            assert_eq!(
+                countdown.structural_parameters[0].shape,
+                calling_conventions::ValueShape::borrowed_reference(bytes, alignment),
+                "{field} keeps its referent dimensions, not pointer dimensions"
+            );
+        }
     }
 }
 

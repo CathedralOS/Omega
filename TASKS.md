@@ -409,11 +409,12 @@ Owners include
   write-only non-reading, and register/stack pointer passing work on both Linux
   targets. Independently formed or substituted access/shape/placement pairs
   reject; replace the hand-built mutable/direct-copy fixture with a reference
-  case or a rejection control. Repair the ranked-receiver regression in
-  `abstract-operations-to-target-operations/src/tests/ranked_countdown.rs` to
-  assert the reference's usage multiplicity and pointer ABI rather than the
-  referent's affine multiplicity and value shape. Do not claim copy equivalence
-  merely because a following callee sees the staged write.
+  case or a rejection control. Do not claim copy equivalence merely because a
+  following callee sees the staged write.
+  Extend ranked checked-source structural export to receivers containing
+  primitive arrays; a fixed `[u64; 3]` field currently hits the attached-Unit-only
+  primitive-root fence. Acceptance: the canonical ranked artifact retains the
+  array referent and its reference ABI without requiring a record wrapper.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   without allowing propositions to create or amplify authority. Extend symbolic

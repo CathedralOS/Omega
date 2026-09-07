@@ -19,6 +19,14 @@ use terminal_psi::{
 use crate::{EmissionError, exact_partial_cleanup_partition};
 use layout::Layouts;
 
+/// Reuse finite material-layout replay without exposing its projection state.
+pub(crate) fn replay_finite_material_shape(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    root: StructuralTypeId,
+) -> Option<calling_conventions::ValueShape> {
+    Layouts::for_material(declarations)?.shape(root)
+}
+
 pub(super) fn validate_projected_cleanup(
     body: &AssignedUnitBody,
     owner: Option<MachineId>,

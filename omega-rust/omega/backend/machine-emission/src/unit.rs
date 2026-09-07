@@ -35,6 +35,7 @@ mod structural_homes;
 pub(crate) mod structural_scalar;
 mod write_only_primitive_store;
 
+pub(super) use affine_cleanup::replay_finite_material_shape;
 use dynamic::{emit_dynamic_call, emit_stored_descriptor, emit_stored_dynamic_call};
 use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
 use installed_provider::emit_installed_provider_scalar_call;

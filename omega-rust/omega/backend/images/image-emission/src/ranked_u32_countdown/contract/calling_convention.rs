@@ -42,10 +42,7 @@ pub(super) fn replay_calling_and_structural_contract(
     let persistent_receiver =
         replay_structural.is_self && replay_structural.access == StructuralAccess::MutableBorrow;
     let expected_structural_shape = if persistent_receiver {
-        ValueShape::integer(
-            u16::try_from(target.pointer_size).ok()?,
-            u16::try_from(target.pointer_alignment).ok()?,
-        )
+        ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment)
     } else {
         referent_shape
     };
@@ -62,6 +59,7 @@ pub(super) fn replay_calling_and_structural_contract(
         || structural_parameter.multiplicity != replay_structural.multiplicity
         || structural_parameter.access != replay_structural.access
         || (!affine_owned && !persistent_receiver)
+        || (persistent_receiver && record.structural_types != replay.structural_types)
         || structural_parameter.shape != expected_structural_shape
         || structural != &structural_parameter.placement
         || record
@@ -82,7 +80,7 @@ pub(super) fn replay_calling_and_structural_contract(
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![expected_rank, structural_parameter.shape],
+            parameters: vec![expected_rank, expected_structural_shape],
             result: None,
         },
     )
