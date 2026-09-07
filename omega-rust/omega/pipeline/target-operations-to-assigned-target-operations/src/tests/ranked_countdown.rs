@@ -90,7 +90,7 @@ fn ranked_receiver_assignment_replays_semantic_identity_and_pointer_placement() 
         assert_eq!(physical.structural_type, replay.structural_type);
         assert_eq!(physical.multiplicity, replay.multiplicity);
         assert_eq!(physical.access, replay.access);
-        assert_eq!(physical.shape, ValueShape::integer(8, 8));
+        assert_eq!(physical.shape, ValueShape::borrowed_reference(4, 4));
         assert!(countdown.cleanup_actions.is_empty());
 
         let mut forged = target_plan.clone();
@@ -100,6 +100,65 @@ fn ranked_receiver_assignment_replays_semantic_identity_and_pointer_placement() 
         };
         candidate.structural_parameters[0].access = terminal_psi::StructuralAccess::Owned;
         let source = candidate.custody.graph.initial_value;
+        assert_eq!(
+            assign_registers(&forged),
+            Err(AssignmentError::RankedCountdownAbiMismatch(source))
+        );
+    }
+}
+
+#[test]
+fn ranked_receiver_assignment_rejects_coherent_shape_and_placement_substitution() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = ranked_target_from(RANKED_RECEIVER_COUNTDOWN_SOURCE, target);
+        for shape in [
+            ValueShape::integer(8, 8),
+            ValueShape::integer(4, 4),
+            ValueShape::borrowed_reference(8, 8),
+            ValueShape::borrowed_reference(4, 2),
+        ] {
+            let mut forged = target_plan.clone();
+            let TargetOperation::RankedU32Countdown(candidate) = &mut forged.functions[0].operation
+            else {
+                panic!("ranked receiver")
+            };
+            candidate.call_plan = calling_conventions::evaluate_call_plan(
+                calling_conventions::CallingPolicy::native_for_target(target),
+                &calling_conventions::CallSignature {
+                    parameters: vec![ValueShape::integer(4, 4), shape],
+                    result: None,
+                },
+            )
+            .unwrap();
+            candidate.structural_parameters[0].shape = shape;
+            candidate.structural_parameters[0].placement =
+                candidate.call_plan.parameters[1].clone();
+            let source = candidate.custody.graph.initial_value;
+            assert_eq!(
+                assign_registers(&forged),
+                Err(AssignmentError::RankedCountdownAbiMismatch(source)),
+                "the supplied ABI cannot authorize {shape:?} for the retained receiver"
+            );
+        }
+        let mut forged = target_plan;
+        let TargetOperation::RankedU32Countdown(candidate) = &mut forged.functions[0].operation
+        else {
+            panic!("ranked receiver")
+        };
+        let source = candidate.custody.graph.initial_value;
+        let calling_conventions::ValueLocation::Indirect { pointer, .. } =
+            &mut candidate.call_plan.parameters[1].locations[0]
+        else {
+            panic!("reference ABI")
+        };
+        *pointer = calling_conventions::IndirectPointerLocation::Register(
+            if target == NativeTarget::linux_x64() {
+                MachineRegister::X86Rdx
+            } else {
+                MachineRegister::Aarch64X(2)
+            },
+        );
+        candidate.structural_parameters[0].placement = candidate.call_plan.parameters[1].clone();
         assert_eq!(
             assign_registers(&forged),
             Err(AssignmentError::RankedCountdownAbiMismatch(source))

@@ -2122,9 +2122,14 @@ premise, and requires the exact-subtract evidence before constructing resumable
   the certificate, and compares every retained frontier row. Representation
   crates therefore do not import semantic-layer authority merely to make an
   in-memory producer result unforgeable. Target lowering replays the exact
-  graph,
-  affine-owned structural parameter, exit cleanup, and ABI placement;
-  assignment accepts only the target-prescribed rank register. The ordinary selected-instruction
+  graph, affine-owned structural parameter or persistent mutable receiver,
+  exit cleanup, and ABI placement. A receiver retains the reference's usage
+  multiplicity, an empty owned cleanup frontier, and the existing
+  `BorrowedReference` shape with the referent's size/alignment rather than an
+  integer-tagged pointer. Assignment and physical replay independently derive
+  its referent shape and native pointer placement from retained declarations;
+  coordinated value-shape or placement substitutions reject.
+  Assignment accepts only the target-prescribed rank register. The ordinary selected-instruction
   path stays closed, while a disjoint unoptimized route emits the exact Linux
   x86-64 and AArch64 countdown bodies from assigned custody. The machine-code
   carrier retains the semantic custody, complete ABI/structural inputs, and

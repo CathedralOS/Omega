@@ -1,5 +1,6 @@
 //! Physical ownership for the exact ranked `u32` countdown carrier.
 
+use super::unit::structural_scalar::{declaration_map, structural_value_shape};
 use crate::assignment::placement::require_register_architecture;
 use crate::assignment::shared::*;
 
@@ -46,12 +47,24 @@ pub(super) fn assign(
         && replay_parameter.access == terminal_psi::StructuralAccess::Owned;
     let persistent_receiver = replay_parameter.is_self
         && replay_parameter.access == terminal_psi::StructuralAccess::MutableBorrow;
-    let pointer_shape = ValueShape::integer(
-        u16::try_from(target.pointer_size)
-            .map_err(|_| AssignmentError::RankedCountdownAbiMismatch(source))?,
-        u16::try_from(target.pointer_alignment)
-            .map_err(|_| AssignmentError::RankedCountdownAbiMismatch(source))?,
-    );
+    let invalid = || AssignmentError::RankedCountdownAbiMismatch(source);
+    let expected_shape = if persistent_receiver {
+        let declarations = declaration_map(&countdown.custody.semantic_replay.structural_types)
+            .ok_or_else(invalid)?;
+        let referent = structural_value_shape(replay_parameter.structural_type, &declarations)
+            .ok_or_else(invalid)?;
+        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    } else {
+        structural_parameter.shape
+    };
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![ValueShape::integer(4, 4), expected_shape],
+            result: None,
+        },
+    )
+    .map_err(|_| invalid())?;
     if rank_home != expected_rank_home
         || placement.shape != ValueShape::integer(4, 4)
         || countdown.call_plan.parameters.len() != 1 + countdown.structural_parameters.len()
@@ -64,8 +77,13 @@ pub(super) fn assign(
         || structural_parameter.structural_type != replay_parameter.structural_type
         || structural_parameter.multiplicity != replay_parameter.multiplicity
         || structural_parameter.access != replay_parameter.access
+        || structural_parameter.projected_qualifications
+            != replay_parameter.projected_qualifications
         || (!affine_owned && !persistent_receiver)
-        || (persistent_receiver && structural_parameter.shape != pointer_shape)
+        || structural_parameter.shape != expected_shape
+        || countdown.call_plan != expected_call_plan
+        || (persistent_receiver
+            && countdown.structural_types != countdown.custody.semantic_replay.structural_types)
         || (affine_owned
             && countdown.cleanup_actions.as_slice()
                 != [terminal_psi::TerminalAffineCleanupAction::DiscardRoot(

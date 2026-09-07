@@ -315,14 +315,24 @@ fn validate(
         && replay_structural.access == StructuralAccess::Owned;
     let persistent_receiver =
         replay_structural.is_self && replay_structural.access == StructuralAccess::MutableBorrow;
-    let pointer_shape = ValueShape::integer(
-        u16::try_from(target.pointer_size).map_err(|_| invalid())?,
-        u16::try_from(target.pointer_alignment).map_err(|_| invalid())?,
-    );
+    let expected_structural_shape = if persistent_receiver {
+        let declarations = &countdown.custody.semantic_replay.structural_types;
+        if countdown.structural_types != *declarations {
+            return Err(invalid());
+        }
+        let referent = crate::unit::replay_finite_material_shape(
+            declarations,
+            replay_structural.structural_type,
+        )
+        .ok_or_else(invalid)?;
+        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    } else {
+        structural.shape
+    };
     let expected_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![ValueShape::integer(4, 4), structural.shape],
+            parameters: vec![ValueShape::integer(4, 4), expected_structural_shape],
             result: None,
         },
     )
@@ -332,7 +342,7 @@ fn validate(
         || structural.multiplicity != replay_structural.multiplicity
         || structural.access != replay_structural.access
         || (!affine_owned && !persistent_receiver)
-        || (persistent_receiver && structural.shape != pointer_shape)
+        || structural.shape != expected_structural_shape
         || countdown.call_plan != expected_call_plan
         || countdown.call_plan.parameters[1] != structural.placement
         || !countdown
