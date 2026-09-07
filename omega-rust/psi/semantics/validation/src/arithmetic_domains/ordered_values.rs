@@ -270,6 +270,10 @@ fn build_operand(
             })
         }
         ExpressionNode::Call(call) => {
+            // Reject non-value calls before deriving whole-program summaries.
+            // Shape eligibility grants no purity: the complete candidate check
+            // below still consumes both summaries for every admitted call.
+            crate::denotational_calls::plain_value_call_target(program, call)?;
             let operational = crate::infer_operational_may(program);
             let reaches = crate::infer_service_reaches(program, &operational);
             let (_, entry) = crate::denotational_calls::normal_return_call_candidate(

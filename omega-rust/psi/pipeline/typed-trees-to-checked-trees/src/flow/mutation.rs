@@ -29,7 +29,7 @@ pub(crate) fn call_mutated_places(
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
-    state_mutation_summaries: &mut StateMutationSummaryCache,
+    state_mutation_summaries: &StateMutationSummaryCache,
 ) -> Option<Vec<CanonicalPlace>> {
     let site = find_call_site(
         program,
@@ -65,7 +65,7 @@ pub(crate) fn call_write_accesses(
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
-    state_mutation_summaries: &mut StateMutationSummaryCache,
+    state_mutation_summaries: &StateMutationSummaryCache,
 ) -> Vec<CanonicalPlace> {
     call_write_places(
         program,
@@ -85,7 +85,7 @@ fn call_write_places(
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
-    state_mutation_summaries: &mut StateMutationSummaryCache,
+    state_mutation_summaries: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
 ) -> Option<Vec<CanonicalPlace>> {
     let summarized_places = instantiate_known_call_mutation_summary_places(

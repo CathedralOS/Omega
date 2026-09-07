@@ -295,14 +295,14 @@ fn stored_aggregate_call_storage_and_access_routes_are_distinct() {
         .expect("borrow state");
     let calls = borrow.calls.span_or_empty(borrow_state.calls);
     assert_eq!(calls.len(), 1);
-    let mut cache = crate::flow::StateMutationSummaryCache::default();
+    let cache = crate::flow::StateMutationSummaryCache::default();
     let storage = crate::flow::call_mutated_places(
         &program,
         machine.symbol,
         state.symbol,
         &borrow,
         &calls[0],
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
     assert_eq!(
@@ -318,7 +318,7 @@ fn stored_aggregate_call_storage_and_access_routes_are_distinct() {
         state.symbol,
         &borrow,
         &calls[0],
-        &mut cache,
+        &cache,
     );
     assert_eq!(
         access
@@ -351,14 +351,14 @@ fn aggregate_literal_storage_origins_reach_direct_and_transitive_calls() {
             .expect("borrow state");
         let calls = borrow.calls.span_or_empty(borrow_state.calls);
         assert_eq!(calls.len(), 1);
-        let mut cache = crate::flow::StateMutationSummaryCache::default();
+        let cache = crate::flow::StateMutationSummaryCache::default();
         let storage = crate::flow::call_mutated_places(
             &program,
             machine.symbol,
             state.symbol,
             &borrow,
             &calls[0],
-            &mut cache,
+            &cache,
         )
         .expect("literal storage origin is complete");
         assert_eq!(

@@ -34,6 +34,9 @@ pub(crate) fn check_indexed_accesses(
 ) -> Result<(), Vec<Diagnostic>> {
     let field_lengths = fixed_array_field_lengths(program);
     let mut diagnostics = Vec::new();
+    // All states and their branch snapshots query the same immutable program
+    // and borrow facts. Build the shared summary only on its first demand.
+    let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
 
     for machine in program.machines() {
         let state_argument_facts =
@@ -42,6 +45,7 @@ pub(crate) fn check_indexed_accesses(
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
         for state in program.machine_states(machine) {
             let mut facts = RangeFacts::new(&field_lengths);
+            facts.mutation_summaries = std::borrow::Cow::Borrowed(&mutation_summaries);
             facts.checked_operators = Some(operators);
             facts.checked_borrows = Some(borrows);
             // State parameters are stable named places for the duration of

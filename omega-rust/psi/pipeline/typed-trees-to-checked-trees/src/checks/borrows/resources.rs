@@ -798,7 +798,7 @@ fn plan_reborrow_restored_call_uses(
     }
 
     let mut certificates = Vec::new();
-    let mut mutation_summaries = crate::flow::StateMutationSummaryCache::default();
+    let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
     for (child_index, child) in reborrows.iter().enumerate() {
         let ParentResourceIndex::Direct(parent_index) = installation[child_index] else {
             continue;
@@ -1114,7 +1114,7 @@ fn plan_reborrow_restored_call_uses(
             child.state_symbol,
             borrow,
             borrow_call,
-            &mut mutation_summaries,
+            &mutation_summaries,
         );
         let [mutated_place] = mutated_places.as_slice() else {
             continue;

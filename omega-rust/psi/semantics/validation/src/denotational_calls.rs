@@ -10,7 +10,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod normal_return;
-pub(crate) use normal_return::normal_return_call_candidate;
+pub(crate) use normal_return::{normal_return_call_candidate, plain_value_call_target};
 
 pub(crate) fn has_observation_free_checked_closure(
     program: &TypedTrees,

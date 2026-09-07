@@ -673,14 +673,14 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
     );
     let target_state = target_state.expect("target state");
     assert_eq!(target_state.name.as_str(), "touch_unrelated");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let mutated_places = call_mutated_places(
         &typed,
         main_machine.symbol,
         main_state.symbol,
         &borrow,
         touch_unrelated_borrow_call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
     assert_eq!(

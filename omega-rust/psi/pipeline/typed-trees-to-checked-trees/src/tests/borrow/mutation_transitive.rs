@@ -134,15 +134,8 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
     let [call] = facts.calls.span_or_empty(borrow_state.calls) else {
         panic!("one helper call")
     };
-    let mut cache = StateMutationSummaryCache::default();
-    let writes = call_mutated_places(
-        &program,
-        caller.symbol,
-        state.symbol,
-        &facts,
-        call,
-        &mut cache,
-    );
+    let cache = StateMutationSummaryCache::default();
+    let writes = call_mutated_places(&program, caller.symbol, state.symbol, &facts, call, &cache);
     let Some(expected_paths) = expected_paths else {
         assert!(
             writes.as_ref().is_none_or(|paths| !paths.is_empty()),
@@ -241,7 +234,7 @@ fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
         })
         .collect();
     let facts = build_borrow_facts(&program);
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     for name in ["Main::good", "Main::forward", "Main::bad"] {
         let machine = program
             .machines()
@@ -258,14 +251,8 @@ fn boundary_storage_fallback_keeps_receiver_and_exclusive_argument_reach() {
         let [call] = facts.calls.span_or_empty(borrow_state.calls) else {
             panic!("one boundary call")
         };
-        let writes = call_mutated_places(
-            &program,
-            machine.symbol,
-            state.symbol,
-            &facts,
-            call,
-            &mut cache,
-        );
+        let writes =
+            call_mutated_places(&program, machine.symbol, state.symbol, &facts, call, &cache);
         if name == "Main::bad" {
             assert!(
                 writes.is_none(),
@@ -350,14 +337,14 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
     let [first, _unknown, second] = facts.calls.span_or_empty(borrow_state.calls) else {
         panic!("two receiver calls around an unknown prefix")
     };
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let first_writes = call_mutated_places(
         &program,
         machine.symbol,
         state.symbol,
         &facts,
         first,
-        &mut cache,
+        &cache,
     );
     assert_eq!(
         first_writes,
@@ -372,7 +359,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
         state.symbol,
         &facts,
         second,
-        &mut cache,
+        &cache,
     );
     assert!(
         second_writes.is_none(),
@@ -385,7 +372,7 @@ fn opaque_call_fallback_rebases_known_aliases_and_rejects_unknown_prefixes() {
             state.symbol,
             &facts,
             call,
-            &mut cache,
+            &cache,
         );
         assert_eq!(
             accesses,
@@ -446,7 +433,7 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     let facts = build_borrow_facts(&program);
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     for (name, expected_paths) in [
         (
             "exercise",
@@ -497,15 +484,9 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                     segments,
                 }]
             };
-            let writes = call_mutated_places(
-                &program,
-                machine.symbol,
-                state.symbol,
-                &facts,
-                call,
-                &mut cache,
-            )
-            .expect("complete storage frame");
+            let writes =
+                call_mutated_places(&program, machine.symbol, state.symbol, &facts, call, &cache)
+                    .expect("complete storage frame");
             assert_eq!(writes, expected, "{name} call {index}");
             let mut expected_accesses = expected;
             if name == "exercise" {
@@ -537,7 +518,7 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                 state.symbol,
                 &facts,
                 call,
-                &mut cache,
+                &cache,
             );
             assert_eq!(accesses, expected_accesses, "{name} access {index}");
         }
@@ -617,14 +598,14 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
     let [relay_call, observe_call] = facts.calls.span_or_empty(borrow_state.calls) else {
         panic!("exercise should retain exactly two calls")
     };
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let relay_writes = call_mutated_places(
         &program,
         exercise.symbol,
         exercise_state.symbol,
         &facts,
         relay_call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
     let observe_writes = call_mutated_places(
@@ -633,7 +614,7 @@ fn transitive_internal_frames_distinguish_exact_and_empty_may_write_sets() {
         exercise_state.symbol,
         &facts,
         observe_call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -705,14 +686,14 @@ fn bijective_recursive_frame_reaches_its_finite_fixed_point() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("rotate call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let writes = call_mutated_places(
         &program,
         exercise.symbol,
         exercise_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 

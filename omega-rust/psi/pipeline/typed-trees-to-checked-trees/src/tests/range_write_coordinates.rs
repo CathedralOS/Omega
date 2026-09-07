@@ -367,7 +367,7 @@ fn transitive_write_selectors_require_builtin_arithmetic_meaning() {
                 state.symbol,
                 &borrows,
                 call,
-                &mut crate::flow::StateMutationSummaryCache::default(),
+                &crate::flow::StateMutationSummaryCache::default(),
             );
             if precise {
                 let writes = writes.expect("complete builtin writes");

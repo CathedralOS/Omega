@@ -52,14 +52,14 @@ fn write_only_immutable_local_range_bounds_retain_exact_element_window() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -121,14 +121,14 @@ fn write_only_fixed_copy_record_range_call_retains_exact_element_window() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -193,14 +193,14 @@ fn write_only_fixed_copy_sum_range_call_retains_atomic_element_window() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -261,14 +261,14 @@ fn write_only_nested_fixed_array_range_call_retains_atomic_outer_window() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -331,14 +331,14 @@ fn write_only_fixed_copy_record_call_retains_exact_literal_index() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -400,14 +400,14 @@ fn write_only_dynamic_copy_record_call_retains_collection_coarse_mutation() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -470,14 +470,14 @@ fn write_only_dynamic_byte_slice_call_retains_collection_coarse_mutation() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -560,14 +560,14 @@ fn write_only_record_field_call_retains_exact_common_field() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -674,14 +674,14 @@ fn write_only_nested_copy_record_leaf_call_retains_one_exact_common_field_path()
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -785,14 +785,14 @@ fn write_only_copy_sum_call_retains_atomic_root_and_field_paths() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -906,14 +906,14 @@ fn write_only_nested_fixed_byte_array_field_call_retains_exact_ordered_field_pat
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -1021,14 +1021,14 @@ fn write_only_nested_fixed_byte_element_call_retains_fields_and_exact_index() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -1137,14 +1137,14 @@ fn write_only_nested_dynamic_byte_call_retains_fields_and_collection_coarse_inde
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -1256,14 +1256,14 @@ fn write_only_nested_fixed_byte_range_call_retains_fields_and_exact_window() {
         .span_or_empty(borrow_state.calls)
         .first()
         .expect("forwarding call");
-    let mut cache = StateMutationSummaryCache::default();
+    let cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         forward.symbol,
         forward_state.symbol,
         &facts,
         call,
-        &mut cache,
+        &cache,
     )
     .expect("complete storage frame");
 
@@ -1398,14 +1398,14 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
     let facts = build_borrow_facts(&program);
     let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
     let call = facts.calls.span(state.calls).unwrap()[0].clone();
-    let mut state_mutation_summary_cache = StateMutationSummaryCache::default();
+    let state_mutation_summary_cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         machine_symbol,
         state_symbol,
         &facts,
         &call,
-        &mut state_mutation_summary_cache,
+        &state_mutation_summary_cache,
     )
     .expect("complete storage frame");
 
@@ -1518,14 +1518,14 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
     let facts = build_borrow_facts(&program);
     let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
     let call = facts.calls.span(state.calls).unwrap()[0].clone();
-    let mut state_mutation_summary_cache = StateMutationSummaryCache::default();
+    let state_mutation_summary_cache = StateMutationSummaryCache::default();
     let places = call_mutated_places(
         &program,
         machine_symbol,
         state_symbol,
         &facts,
         &call,
-        &mut state_mutation_summary_cache,
+        &state_mutation_summary_cache,
     )
     .expect("complete storage frame");
 
