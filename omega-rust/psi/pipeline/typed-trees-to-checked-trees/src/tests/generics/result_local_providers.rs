@@ -4,15 +4,21 @@ use typed_trees::statement::StatementNode;
 
 #[test]
 fn selected_provider_clone_refreshes_result_local_without_new_ordinary_specialization() {
-    check_selected_provider_result_local(false);
+    check_selected_provider_result_local(false, false);
 }
 
 #[test]
 fn selected_provider_clone_retains_exact_calls_among_ordinary_specializations() {
-    check_selected_provider_result_local(true);
+    check_selected_provider_result_local(true, false);
 }
 
-fn check_selected_provider_result_local(additional_endpoint: bool) {
+#[test]
+fn selected_provider_replays_calls_after_an_ordinary_provider_instantiation() {
+    check_selected_provider_result_local(false, true);
+    check_selected_provider_result_local(true, true);
+}
+
+fn check_selected_provider_result_local(additional_endpoint: bool, direct_provider: bool) {
     let source = r#"
         pub data GenericMath {}
         pub boundary operator GenericMath::measure<Element>(value: Element) -> u64;
@@ -32,6 +38,11 @@ fn check_selected_provider_result_local(additional_endpoint: bool) {
         source.replace("{ endpoint<2>() }", "{ _ = endpoint<5>(); endpoint<2>() }")
     } else {
         source.to_owned()
+    };
+    let source = if direct_provider {
+        source.replace("machine exercise(value: i32) -> u64", "machine direct(value: i32) -> u64 { GenericProvider::measure(value) } machine exercise(value: bool) -> u64")
+    } else {
+        source
     };
     let typed = typed_source(&source).expect("type the provider's inferred tail-call local");
     let requirement_operator = typed
@@ -74,7 +85,7 @@ fn check_selected_provider_result_local(additional_endpoint: bool) {
 
     assert_eq!(
         checked.machine_specializations.len(),
-        if additional_endpoint { 3 } else { 2 }
+        2 + usize::from(additional_endpoint) + usize::from(direct_provider)
     );
     let endpoint_specialization = checked
         .machine_specializations
@@ -90,7 +101,10 @@ fn check_selected_provider_result_local(additional_endpoint: bool) {
     let provider_specialization = checked
         .machine_specializations
         .iter()
-        .find(|specialization| specialization.template == realization_machine)
+        .find(|specialization| {
+            specialization.template == realization_machine
+                && specialization.instance != realization_machine
+        })
         .expect("one selected provider clone");
     assert_ne!(provider_specialization.instance, realization_machine);
     assert!(

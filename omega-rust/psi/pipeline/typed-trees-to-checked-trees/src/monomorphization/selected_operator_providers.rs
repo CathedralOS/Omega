@@ -30,7 +30,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             continue;
         };
         let template_machine = source.machines()[machine_index].clone();
-        retain_selected_ordinary_calls(&mut source, program, &template_machine);
+        saved_calls::replay(&mut source, program, &template_machine);
         let Some(operator) =
             typed_trees::operator::declaration_by_symbol(&source, request.requirement_operator)
                 .cloned()
@@ -74,7 +74,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         if applications.is_empty() {
             continue;
         }
-        let template = selected_operator_candidate(&source, machine_index);
+        let template = candidate::from_machine(&source, machine_index);
         let mut concrete = Vec::<(SpecializationKey, Candidate)>::new();
         for application in applications {
             let application = copy_application_types(program, &mut source, &application);
@@ -252,71 +252,6 @@ fn has_materialized_specialization(
         })
 }
 
-fn selected_operator_candidate(program: &TypedTrees, machine_index: usize) -> Candidate {
-    let machine = &program.machines()[machine_index];
-    let parameters = program.machine_type_parameters(machine);
-    let mut type_parameters = Vec::new();
-    let mut parameter_bounds = Vec::new();
-    let mut const_parameters = Vec::new();
-    let mut machine_parameters = Vec::new();
-    for parameter in parameters {
-        match &parameter.kind {
-            TypeParameterKind::Type => {
-                type_parameters.push((parameter.symbol, parameter.name.as_str().to_owned()));
-                parameter_bounds.push(validation::declared_property_requirements(
-                    &parameter.bounds,
-                ));
-            }
-            TypeParameterKind::Const { type_reference } => const_parameters.push((
-                parameter.symbol,
-                parameter.name.as_str().to_owned(),
-                *type_reference,
-            )),
-            TypeParameterKind::Machine { contract } => {
-                let signature = program
-                    .machine_parameter_contract_view(contract)
-                    .expect("typed machine parameter has a contract")
-                    .signature();
-                machine_parameters.push((
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    signature.clone(),
-                ));
-            }
-            TypeParameterKind::Proposition { .. } => {}
-        }
-    }
-    let evidence_parameters = machine
-        .conformance_bounds
-        .iter()
-        .filter(|bound| bound.binder.is_some())
-        .cloned()
-        .collect::<Vec<_>>();
-    Candidate {
-        machine_index,
-        template_symbol: machine.symbol,
-        template_name: machine.name.as_str().to_owned(),
-        state_symbols: program
-            .machine_states(machine)
-            .iter()
-            .map(|state| state.symbol)
-            .collect(),
-        type_bindings: vec![None; type_parameters.len()],
-        const_bindings: vec![None; const_parameters.len()],
-        machine_bindings: vec![None; machine_parameters.len()],
-        evidence_bindings: vec![None; evidence_parameters.len()],
-        type_parameters,
-        parameter_bounds,
-        conformance_bounds: machine.conformance_bounds.clone(),
-        const_parameters,
-        machine_parameters,
-        evidence_parameters,
-        inferred_conformance_arguments: Vec::new(),
-        selected_bound_applications: Vec::new(),
-        conflicted: false,
-    }
-}
-
 fn selected_operator_candidate_for_application(
     program: &TypedTrees,
     template: &Candidate,
@@ -376,85 +311,6 @@ fn selected_operator_candidate_for_application(
         }
     }
     Ok(candidate)
-}
-
-/// The saved provider graph predates ordinary specialization. Its original
-/// call occurrences still exist in the live graph, where selection has already
-/// chosen an exact state and erased the static arguments. Preserve that result
-/// before copying the body; a concrete target alone does not close an old call.
-fn retain_selected_ordinary_calls(
-    source: &mut TypedTrees,
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) {
-    // Once the provider itself is instantiated, its live calls can depend on
-    // that instance's bindings rather than the still-universal saved body.
-    let Some(current) = program
-        .machines()
-        .iter()
-        .find(|current| current.symbol == machine.symbol)
-    else {
-        return;
-    };
-    if program.machine_type_parameters(current).is_empty() {
-        return;
-    }
-    let selected_states = program
-        .machine_specializations
-        .iter()
-        .filter_map(|specialization| {
-            let template = source
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.template)?;
-            let instance = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.instance)?;
-            Some(
-                source
-                    .machine_states(template)
-                    .iter()
-                    .zip(program.machine_states(instance))
-                    .map(|(template, instance)| (template.symbol, instance.symbol)),
-            )
-        })
-        .flatten()
-        .collect::<Vec<_>>();
-    let mut expressions = Vec::new();
-    let statements = source
-        .machine_states(machine)
-        .iter()
-        .flat_map(|state| statement_span_handles(state.statement_nodes))
-        .collect::<Vec<_>>();
-    for handle in statements {
-        let statement = source.statement_table.statement(handle);
-        for root in executable_statement_expression_roots(source, statement) {
-            collect_expression_tree(source, root, &mut expressions);
-        }
-        if let StatementNode::Call(original) = source.statement_table.statement_mut(handle)
-            && let StatementNode::Call(selected) = program.statement_table.statement(handle)
-            && selected.machine_arguments.is_empty()
-            && selected.static_requirement_dispatch.is_none()
-            && selected_states.contains(&(original.target_symbol, selected.target_symbol))
-        {
-            original.target_symbol = selected.target_symbol;
-            original.target = selected.target.clone();
-            original.machine_arguments = Box::default();
-        }
-    }
-    for handle in expressions {
-        if let ExpressionNode::Call(original) = source.expression_table.expression_mut(handle)
-            && let ExpressionNode::Call(selected) = program.expression_table.expression(handle)
-            && selected.machine_arguments.is_empty()
-            && selected.static_requirement_dispatch.is_none()
-            && selected_states.contains(&(original.target_symbol, selected.target_symbol))
-        {
-            original.target_symbol = selected.target_symbol;
-            original.target = selected.target.clone();
-            original.machine_arguments = Box::default();
-        }
-    }
 }
 
 fn const_identity_type_reference(
@@ -526,7 +382,7 @@ fn selected_operator_applications(
     }
 }
 
-fn executable_statement_expression_roots(
+pub(super) fn executable_statement_expression_roots(
     program: &TypedTrees,
     statement: &StatementNode,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
