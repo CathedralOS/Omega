@@ -1,0 +1,15 @@
+(def derivation_conclude ((context Int) (last Int) (session Int)) Int
+  (let frame Int (formed_frame (grounded_theory (derivation_grounded context)))
+    (let owner_left Int (- (admission_proposition_end frame) 8)
+      (let left Int
+        (derivation_require session (layout_word owner_left)
+          (layout_word (+ last 8)) (+ last 8))
+        (if (eq (first left) 6)
+          (let right Int
+            (derivation_require (comparison_session (second left))
+              (layout_word (+ owner_left 4)) (layout_word (+ last 12)) (+ last 12))
+            (if (eq (first right) 6)
+              (pair 7 (pair (formation_index_count (derivation_proofs context))
+                (comparison_steps (comparison_session (second right)))))
+              right))
+          left)))))

@@ -7,8 +7,8 @@ separate [physical layout traversal](LAYOUT.md) and
 [conservative theory formation](FORMATION.md), followed by
 [ground-term validation](GROUND.md). [Structural comparison](COMPARISON.md)
 operates on that validated input, and [checked substitution](SUBSTITUTION.md)
-checks one stated unfolding. Derivation coordination and the complete proof
-checker remain unimplemented.
+checks one stated unfolding. [Explicit proof checking](CHECKING.md) validates all
+rows and the final owner root under its combined generic execution provision.
 **Framed is not proof acceptance.** No canonical checker
 entry or accepted artifact is supplied by this layer.
 
@@ -79,8 +79,9 @@ The initial provision is 8 MiB, leaving room within the selected Gamma
 evaluator's 16 MiB request for checker source and framing. This is a private
 implementation provision, adjustable with measured certificate requirements;
 it does not restrict the calculus. Its exact and adjacent extents are tested.
-The future complete checker must publish and validate its source-size and
-underlying-evaluator requirements as well as its own full resource profile.
+The [generic checking profile](CHECKING.md#complete-generic-execution-provision)
+accounts for source framing and underlying evaluator requirements. The artifact
+owner must still measure the full Beta certificate under its exact entry/profile.
 An outer evaluator refusal, trap, or host timeout is not an admission result.
 
 ## Private representation
@@ -94,5 +95,5 @@ do not preserve earlier partial section cursors as valid custody.
 The production entrance and helpers live in `implementation/`, selected by
 `implementation.gamma.sources`. Tests provide their own explicit diagnostic
 entry; no host script extracts, parses, or replaces production functions.
-There is no production proof-accepting `main` until theory formation, derivation
-checking, exact-root comparison, and complete failure handling exist.
+The generic `check_derivation` entrance supplies an owned proof result, but there
+is no artifact-admitting production `main` or accepted Beta certificate here.

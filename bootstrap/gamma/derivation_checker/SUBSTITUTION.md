@@ -109,5 +109,6 @@ These are adjustable implementation provisions, not language or calculus laws.
 If the real certificate needs more, change the work/storage profile together
 and rerun boundary controls; an outer evaluator trap is never a checker result.
 The full Beta certificate has not yet established that these provisions fit it.
-Proof indexing, rule coordination, and final-root enforcement still need to
-join this cumulative accounting before any proof-accepting entry is introduced.
+[Proof checking](CHECKING.md) joins its indexing, rule coordination, and
+final-root enforcement to this same cumulative accounting. Its generic Checked
+result does not establish the full Beta artifact's authority or acceptance.

@@ -1,6 +1,13 @@
 # Gamma derivation checker implementation
 
-The complete proof checker is unfinished.
+[checker.gamma](implementation/checker.gamma) is the generic proof entrance:
+admit the ground context, check every explicit proof row, then require the final
+equation to match the owner root. Its `derivation/` helpers own indexed premise
+custody, individual rules, and final-root checking. One comparison session carries
+all post-admission work through the request. `Checked` establishes only that
+supplied ground equality under the supplied theory, not artifact authority.
+The full Beta definition package and encoding certificate remain unfinished.
+
 [ground.gamma](implementation/ground.gamma) is the ground-term entrance:
 form the theory, check owner terms and root sorts, then check witness terms.
 Its helpers keep owner and witness identities separate and validate applications
@@ -19,8 +26,8 @@ Structural difference is not a rejection of a derivable equality.
 [substitution.gamma](implementation/substitution.gamma) checks a stated function
 clause using syntax-derived bindings, an explicit pending stack, and a separate
 invocation-local template memo. It shares cumulative work with ground comparison
-without inserting theory equalities into the structural memo. Proof-row
-coordination and the other rules remain separate work.
+without inserting theory equalities into the structural memo. The proof
+coordinator uses these operations only for the explicit supplied rules.
 
 Outer admission returns `Framed`, `Rejected`, or `Incomplete`. Inner traversal
 returns `Layout` only after checking all physical fields; neither success grants
@@ -29,13 +36,14 @@ theory validity, subject authority, or proof acceptance. Theory checking returns
 terms, proof rows, root equality, or the authority of a Beta theory. Ground
 checking returns `Grounded` only after validating both term tables and the
 owner root's references/sorts; it does not establish the equality. There is
-deliberately no proof-accepting production `main`. The
+deliberately no artifact-admitting production `main`. The
 [outer](../../../tests/gamma/derivation-admission/README.md),
 [layout](../../../tests/gamma/derivation-layout/README.md),
 [formation](../../../tests/gamma/derivation-formation/README.md),
 [ground](../../../tests/gamma/derivation-ground/README.md),
-[comparison](../../../tests/gamma/derivation-comparison/README.md), and
-[substitution](../../../tests/gamma/derivation-substitution/README.md) gates supply
+[comparison](../../../tests/gamma/derivation-comparison/README.md),
+[substitution](../../../tests/gamma/derivation-substitution/README.md), and
+[checking](../../../tests/gamma/derivation-checking/README.md) gates supply
 separate diagnostic entries and exercise the actual ordinary-Gamma source.
 
 The [inner format](FORMAT.md) specifies the theory, clause-local templates,
@@ -47,8 +55,10 @@ failure order, and the component's work/allocation bounds. The
 through that stage. The [comparison contract](COMPARISON.md) specifies syntax
 comparison and source-owned session threading. The
 [substitution contract](SUBSTITUTION.md) specifies clause matching, binding custody,
-and charged template traversal. Derivation coordination, final root enforcement,
-and the complete resource profile remain unfinished.
+and charged template traversal. The [checking contract](CHECKING.md) specifies
+proof rules, final-root enforcement, soundness under the formed theory, and the
+combined generic resource profile. Artifact-specific measurements and acceptance
+remain unfinished.
 The [implementation design](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
 owns conservative definition formation, explicit derivation checks, exact-root
 comparison, and a complete certificate for the selected Gamma evaluator's

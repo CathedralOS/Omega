@@ -1,0 +1,10 @@
+; Physical layout has already restricted rule tags to these five shapes.
+(def derivation_rule ((record Int) (identity Int) (left Int) (right Int)
+  (context Int) (session Int)) Int
+  (let rule Int (layout_word (+ record 4))
+    (if (eq rule 1) (derivation_reflexivity record session)
+      (if (eq rule 2) (derivation_symmetry record identity context session)
+        (if (eq rule 3) (derivation_transitivity record identity context session)
+          (if (eq rule 4)
+            (derivation_congruence record identity left right context session)
+            (derivation_unfolding record session)))))))

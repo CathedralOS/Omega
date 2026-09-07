@@ -1,0 +1,15 @@
+; A physically indexed future row is not a premise. Guard before lookup.
+(def derivation_premise ((context Int) (identity Int) (coordinate Int)) Int
+  (let reference Int (layout_word coordinate)
+    (if (if (lt reference 1) 1 (lt (- identity 1) reference)) 0
+      (formation_index_lookup (derivation_proofs context) reference))))
+
+(def derivation_require ((session Int) (left Int) (right Int) (coordinate Int)) Int
+  (derivation_requirement_result
+    (compare_ground_terms session left right coordinate coordinate) coordinate))
+
+; Return only true Compared or a terminal failure; never pass false to the scan.
+(def derivation_requirement_result ((result Int) (coordinate Int)) Int
+  (if (eq (first result) 6)
+    (if (comparison_equal (second result)) result (admission_rejected 12 coordinate))
+    result))

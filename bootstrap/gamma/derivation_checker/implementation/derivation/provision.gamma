@@ -1,0 +1,19 @@
+(def derivation_provision ((grounded Int) (table Int) (count Int)) Int
+  (let reserved Int (comparison_reserve (comparison_start grounded) (+ count 1) table)
+    (if (eq (first reserved) 6)
+      (derivation_rows (+ table 4) count 1 0
+        (pair grounded (formation_index table)) (comparison_session (second reserved)))
+      reserved)))
+
+; One shared proof context pair is covered by the proof-index reservation.
+(def derivation_grounded ((context Int)) Int
+  (first context))
+
+(def derivation_proofs ((context Int)) Int
+  (second context))
+
+(def derivation_proof_count ((payload Int)) Int
+  (first payload))
+
+(def derivation_steps ((payload Int)) Int
+  (second payload))

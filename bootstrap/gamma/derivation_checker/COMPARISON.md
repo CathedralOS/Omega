@@ -19,8 +19,8 @@ fields; they do not authorize reads or change term identity.
 The caller initializes once per checked request and threads each returned session
 into the next call. Gamma's immutable pairs do not enforce linear use: reusing
 an old session or starting another would repeat allocations without retaining
-the cumulative counter. The complete proof-checking coordinator must enforce
-this invariant. Neither sessions nor their internal fields are certificate data.
+the cumulative counter. The [proof coordinator](CHECKING.md) enforces this
+invariant. Neither sessions nor their internal fields are certificate data.
 After a rejected or incomplete result, abandon the request; there is no returned
 continuation to resume as though the failed comparison succeeded.
 
@@ -102,8 +102,8 @@ Host watchdogs and outer evaluator failures are not owned comparison outcomes.
 [Checked substitution](SUBSTITUTION.md) shares this counter and adds positive
 bulk reservations for clause scans and template indexes; a bulk refusal reports
 the exact `used+amount`, which may exceed the limit by more than one.
-Its local memo is separate from the ground memo. Proof processing still needs
-to join this cumulative accounting.
+Its local memo is separate from the ground memo. [Proof processing](CHECKING.md)
+also charges its index, rows, and ordered congruence premises to this counter.
 
 ## Private results and diagnostics
 

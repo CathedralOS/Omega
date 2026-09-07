@@ -1,0 +1,10 @@
+(def derivation_symmetry ((record Int) (identity Int) (context Int) (session Int)) Int
+  (let premise Int (derivation_premise context identity (+ record 16))
+    (if (eq premise 0) (admission_rejected 12 (+ record 16))
+      (let left Int
+        (derivation_require session (layout_word (+ record 8))
+          (layout_word (+ premise 12)) (+ record 8))
+        (if (eq (first left) 6)
+          (derivation_require (comparison_session (second left))
+            (layout_word (+ record 12)) (layout_word (+ premise 8)) (+ record 12))
+          left)))))

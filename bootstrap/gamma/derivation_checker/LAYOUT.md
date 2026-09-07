@@ -86,9 +86,9 @@ allocates three pairs; layout success wraps its existing payload in one pair,
 while a subsequent inner failure allocates four rejection pairs. Thus this
 component uses at most seven pairs, without per-word or per-row allocation.
 All row loops consume bounded input; nesting follows the fixed wire grammar,
-not arbitrary input-provided recursion. The complete checker must separately
-budget its future indexes, formation, comparisons, substitutions, and proof
-state; this physical traversal does not establish that full profile.
+not arbitrary input-provided recursion. The [complete generic profile](CHECKING.md)
+separately budgets indexes, formation, comparisons, substitutions, and proof
+state; this physical traversal alone does not establish that full profile.
 
 ## Deliberately deferred checks
 

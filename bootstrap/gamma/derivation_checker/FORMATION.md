@@ -135,7 +135,8 @@ terminal outcomes. This is below 18,874,496 pairs for the admitted extents,
 within the selected Gamma arena of 40,265,318. Scalar field validation must not
 allocate a result tuple per visit. Balanced-tree recursion follows logarithmic
 index height; row, argument, constructor, and pass scans are tail calls.
-The complete proof checker must account for additional stages separately.
+The [complete generic checking ledger](CHECKING.md#complete-generic-execution-provision)
+accounts for the additional stages without resetting cumulative allocation.
 The [ground-term stage](GROUND.md#work-allocation-and-depth) accounts for its
 indexes and checking state cumulatively with this formation ledger.
 

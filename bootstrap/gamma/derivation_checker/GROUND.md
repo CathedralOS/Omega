@@ -80,8 +80,9 @@ uses at most four. Thus this stage adds at most `3N+10` cumulative pairs. Togeth
 with formation's actual ledger, the request uses at most
 `2W+3N+32S+26`, where `W` and `S` retain their formation meanings. This is below
 7,864,346 pairs under the independent admitted bounds, within the selected Gamma
-arena of 40,265,318. Unreachable pairs still count. Later comparison, substitution,
-and proof stages need their own combined accounting before accepting proofs.
+arena of 40,265,318. Unreachable pairs still count. The
+[combined checking ledger](CHECKING.md#complete-generic-execution-provision)
+includes later comparison, substitution, and proof stages.
 The provisions remain adjustable implementation choices, not calculus laws.
 The [comparison session](COMPARISON.md#work-and-allocation-provision) adds its
 completed-pair memo and pending frames to this cumulative allocation ledger.

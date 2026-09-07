@@ -2,8 +2,8 @@
 
 [Checker contract](proof_kernel.md) | [Beta encoding](../../../bootstrap/beta/LANGUAGE.md)
 
-This specifies an implementation direction for the missing ordinary-Gamma
-derivation checker. It is not an accepted checker, certificate, or new admission
+This specifies the ordinary-Gamma ground-equality checker design.
+It is not an accepted checker artifact, certificate, or new admission
 of the Gamma evaluator. The [inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
 assigns concrete wire fields; [executable theory formation](../../../bootstrap/gamma/derivation_checker/FORMATION.md)
 checks conservative definitions under a bounded component profile.
@@ -13,8 +13,10 @@ closed applications and owner-root sorts with separate witness custody.
 uses completed-pair memoization and an explicit pending stack.
 [Checked template substitution](../../../bootstrap/gamma/derivation_checker/SUBSTITUTION.md)
 checks stated unfolding with separate binding-scoped memoization and shared work.
-Explicit derivation coordination, the complete checker soundness argument, and
-certificate measurements remain acceptance work.
+[Explicit proof checking](../../../bootstrap/gamma/derivation_checker/CHECKING.md)
+checks every row and the owner root, with a generic soundness argument and
+combined resource ledger. The full Beta theory, certificate measurements, and
+artifact acceptance remain open.
 
 ## First complete subject
 
