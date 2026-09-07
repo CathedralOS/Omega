@@ -54,7 +54,13 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         position: u32,
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
-        self.bounds(&self.field(position, path)?.0)
+        let (place, reference) = self.field(position, path)?;
+        self.bounds(&place).or_else(|| {
+            // An exact typed structural field still has its complete carrier
+            // range when no narrower value snapshot is live. This is not a
+            // declaration-derived domain membership or initialization proof.
+            primitive_range(self.program.primitive_type_reference(reference)?)
+        })
     }
 
     fn indexed_field(

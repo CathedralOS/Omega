@@ -311,6 +311,11 @@ pub enum CheckedScalarExpression {
         operand: Box<CheckedScalarExpression>,
         range: CheckedIntegerRange,
     },
+    /// Selected modular conversion at the target width, never an Exact proof.
+    IntegerWrappingCast {
+        primitive_type: typed_trees::types::PrimitiveType,
+        operand: Box<CheckedScalarExpression>,
+    },
     /// A selected trapping conversion, not a proof of exactness or termination.
     /// Known representable inputs may supply a conditional normal-return fact;
     /// runtime consumers must retain the policy or reject this form.

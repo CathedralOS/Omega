@@ -101,6 +101,14 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-domain field
   obligations must be proved, not bypassed to restore sample acceptance.
 
+  Resume native `print_squares` with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
+  and `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
+  On macOS at `acd0094362`, this reaches Terminal production and rejects
+  `attached Unit closure is missing a checked transitive machine plan` in
+  `checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs`.
+  Next acceptance: produce the exact transitive call plans and run the authored
+  sample with its documented exit and output; preserve its checked text facts.
+
   `samples_with_documented_exit_run_correctly` is separately red for all 136
   documented-exit samples; before the borrowed-self retry below, 86 failed
   native Terminal production in `checked-trees-to-lowered-psi` and the rest
@@ -546,21 +554,6 @@ Owners include
   unknown inputs, effectful nested arguments, nonlocal storage, and remaining
   cast policies beyond selected normal-return scalar snapshots consumed by
   `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`.
-  `print_squares`'s `narrow_u32_to_u8_wrapping` result publishes no result range
-  and its remaining conversion policy supplies no selected byte-class fact.
-
-  Resume `print_squares` with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares` and
-  `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  On Windows at this checkpoint (trial base `fee9ab5aca`), this still rejects
-  `self.out`'s Utf8 obligation on `itoa_loop`, before native execution.
-  `values/scalar.rs::construct_integer_cast` does not select the wrapping
-  narrowing operation, and `flow/transfers/scalar_values.rs::capture_call`
-  requires exact argument snapshots rather than interval-only arguments.
-  Next acceptance: preserve the selected conversion's live result bounds through
-  the field write so this exact probe reaches checked semantics; retain the
-  negative byte-class controls. The direct CLI additionally stops in std
-  package checking on console/filesystem bounds, so use the focused probe above
-  to distinguish this customer from that separate dependency.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,

@@ -135,6 +135,22 @@ fn integer(
             }
             (*primitive_type, bounds)
         }
+        Expression::IntegerWrappingCast {
+            primitive_type,
+            operand,
+        } => {
+            let (_, bounds) = integer(operand, source)?;
+            let carrier = primitive_range(*primitive_type)?;
+            // Modular conversion is not monotone across a wrapping boundary.
+            (
+                *primitive_type,
+                if contains(&carrier, &bounds) {
+                    bounds
+                } else {
+                    carrier
+                },
+            )
+        }
         Expression::IntegerTrappingCast {
             primitive_type,
             operand,
@@ -227,7 +243,7 @@ pub(crate) fn contains(outer: &IntegerRange, inner: &IntegerRange) -> bool {
         && inner.maximum <= outer.maximum
 }
 
-fn primitive_range(primitive: PrimitiveType) -> Option<IntegerRange> {
+pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<IntegerRange> {
     let (signed, bits) = match primitive {
         PrimitiveType::I8 => (true, 8),
         PrimitiveType::I16 => (true, 16),

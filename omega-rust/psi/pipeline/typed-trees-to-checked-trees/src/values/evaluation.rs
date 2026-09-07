@@ -158,6 +158,14 @@ fn integer(
             let (source, value) = integer(operand, resolve_binding)?;
             Some((target, source.widen_value_to(target, value)?))
         }
+        CheckedScalarExpression::IntegerWrappingCast {
+            primitive_type,
+            operand,
+        } => {
+            let target = integer_type(*primitive_type)?;
+            let (_, value) = integer(operand, resolve_binding)?;
+            Some((target, wrapping_cast_value(*primitive_type, value)?))
+        }
         CheckedScalarExpression::IntegerTrappingCast {
             primitive_type,
             operand,
@@ -312,6 +320,26 @@ fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
         }
     };
     IntegerType::new(sign, bits).ok()
+}
+
+/// Fixed-width integer casts retain the low target bits and interpret those
+/// bits with the target signedness. The caller has admitted the source value.
+fn wrapping_cast_value(target: PrimitiveType, value: IntegerValue) -> Option<IntegerValue> {
+    let bits = match value {
+        IntegerValue::Signed(value) => value as u128,
+        IntegerValue::Unsigned(value) => value,
+    };
+    Some(match target {
+        PrimitiveType::I8 => IntegerValue::Signed(i128::from(bits as i8)),
+        PrimitiveType::I16 => IntegerValue::Signed(i128::from(bits as i16)),
+        PrimitiveType::I32 => IntegerValue::Signed(i128::from(bits as i32)),
+        PrimitiveType::I64 => IntegerValue::Signed(i128::from(bits as i64)),
+        PrimitiveType::U8 => IntegerValue::Unsigned(u128::from(bits as u8)),
+        PrimitiveType::U16 => IntegerValue::Unsigned(u128::from(bits as u16)),
+        PrimitiveType::U32 => IntegerValue::Unsigned(u128::from(bits as u32)),
+        PrimitiveType::U64 => IntegerValue::Unsigned(u128::from(bits as u64)),
+        _ => return None,
+    })
 }
 
 fn admitted_integer(scalar_type: IntegerType, value: &BigInt) -> Option<IntegerValue> {

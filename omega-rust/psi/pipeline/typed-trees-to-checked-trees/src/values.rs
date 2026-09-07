@@ -13,7 +13,9 @@ mod expression;
 mod snapshots;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use evaluation::{BoundScalarValues, ScalarValueSource};
-pub(crate) use snapshots::{PlaceScalarValues, literal_at_place, scalar_value_at_place};
+pub(crate) use snapshots::{
+    PlaceScalarValues, integer_bounds_at_place, literal_at_place, scalar_value_at_place,
+};
 mod scalar;
 mod statement;
 mod transition;
@@ -48,6 +50,7 @@ pub(crate) fn mutable_scalar_parameter_type(
     .then_some(primitive)
 }
 
+pub(crate) use scalar::scalar_qualified_call_expression;
 pub(crate) use scalar::{
     build_checked_scalar_computation_plans, build_checked_scalar_expression_plans,
     lower_integer_contract_predicate, lower_integer_parameter_range_requirements,

@@ -892,6 +892,9 @@ pub(super) fn lower_checked_scalar_expression(
         CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
             unsupported("indexed structural scalar reads require runtime realization")
         }
+        CheckedScalarExpression::IntegerWrappingCast { .. } => {
+            unsupported("checked wrapping conversion requires runtime policy realization")
+        }
         CheckedScalarExpression::IntegerTrappingCast { .. } => {
             unsupported("checked trapping conversion requires runtime policy realization")
         }

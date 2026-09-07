@@ -707,6 +707,11 @@ fn caesar_cipher_preserves_its_declared_text_carrier() {
 }
 
 #[test]
+fn print_squares_preserves_its_declared_text_carrier() {
+    assert_authored_entry_cohort("basics", &["print_squares"]);
+}
+
+#[test]
 fn rendering_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("rendering", EXPLICIT_ENTRY_RENDERING_SAMPLES);
 }

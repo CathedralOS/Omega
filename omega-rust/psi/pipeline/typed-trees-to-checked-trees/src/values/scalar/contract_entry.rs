@@ -212,6 +212,7 @@ impl EntryOperands<'_> {
             }
             CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::IntegerTrappingCast { .. }
+            | CheckedScalarExpression::IntegerWrappingCast { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 self.scalar(left)?;
