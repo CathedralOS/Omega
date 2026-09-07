@@ -8,6 +8,7 @@ use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 mod calls;
 mod lengths;
 mod meanings;
+mod state_aliases;
 
 pub(crate) use calls::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress,
@@ -75,8 +76,8 @@ pub fn prove_ranking_range_edge(
 
 /// An exact state telescope over the entry witness. The parameter list follows
 /// non-self formal order and names the entry symbol represented by each slot.
-/// Entry parameters may be absent or repeated; neither supplies an arithmetic
-/// alias. Every input needed by the rank and its bounds must remain unambiguous.
+/// Entry parameters may be absent or repeated. Required scalar copies carry an
+/// equality invariant checked at every arrival; ancestry alone is not equality.
 #[derive(Clone, Copy)]
 pub struct RankingRangeState<'program> {
     pub state: &'program State,
@@ -250,7 +251,10 @@ fn prove_edge(
     }) {
         return None;
     }
+    let required_symbols =
+        state_aliases::required_symbols(program, machine, range, measure, premises)?;
     let mut bindings = integer_bindings(program, state)?;
+    let mut alias_comparisons = Vec::new();
     if let Some(entry_parameters) = entry_parameters {
         for (parameter, entry_symbol) in parameters
             .iter()
@@ -263,6 +267,7 @@ fn prove_edge(
                 .take(2)
                 .count()
                 != 1
+                && !required_symbols.contains(entry_symbol)
             {
                 // The two current slots remain independent. Do not choose a
                 // copy or infer equality from their shared entry ancestry.
@@ -278,11 +283,44 @@ fn prove_edge(
                 continue;
             };
             let value = binding.value.clone();
+            if let Some(existing) = bindings
+                .iter()
+                .find(|binding| binding.symbol == *entry_symbol)
+            {
+                let (
+                    StrictArithmeticBindingValue::Atom {
+                        identity: existing, ..
+                    },
+                    StrictArithmeticBindingValue::Atom {
+                        identity: current, ..
+                    },
+                ) = (&existing.value, &value)
+                else {
+                    return None;
+                };
+                if existing != current {
+                    alias_comparisons.push((
+                        BinaryOperator::Equal,
+                        Polynomial::atom(existing.clone()),
+                        Polynomial::atom(current.clone()),
+                    ));
+                }
+                continue;
+            }
             bindings.push(StrictArithmeticSymbolBinding {
                 symbol: *entry_symbol,
                 value,
             });
         }
+    }
+    // Equality is a graph invariant only with complete source and destination
+    // coverage. An omitted auxiliary input cannot silently drop its copies'
+    // arrival obligations and become an equality premise in the next state.
+    if required_symbols.iter().any(|symbol| {
+        !bindings.iter().any(|binding| binding.symbol == *symbol)
+            || destination.is_some_and(|destination| !destination.entry_parameters.contains(symbol))
+    }) {
+        return None;
     }
     let mut engine = Engine::strict_with_symbol_bindings(program, machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
@@ -356,6 +394,7 @@ fn prove_edge(
             Vec::new()
         };
     let mut comparisons = auxiliary.clone();
+    comparisons.extend(alias_comparisons);
     comparisons.extend(length_bindings.iter().map(|(_, identity)| {
         (
             BinaryOperator::GreaterOrEqual,
@@ -447,6 +486,7 @@ fn prove_edge(
                 .take(2)
                 .count()
                 != 1
+                && !required_symbols.contains(&source_symbol)
         }) {
             // No first/last-wins substitution for duplicated destinations.
             // apply_argument_map rejects an omitted atom if the proof uses it.
@@ -481,7 +521,19 @@ fn prove_edge(
         let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
             return None;
         };
-        substitutions.insert(identity.clone(), engine.normalize(*argument)?);
+        let actual = engine.normalize(*argument)?;
+        if let Some(existing) = substitutions.get(identity) {
+            // Source copies remain independent atoms. Their established
+            // equality may prove this arrival, but destination copies never
+            // become hypotheses for their own equality obligation.
+            if !engine.requires_unsatisfiable
+                && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)
+            {
+                return None;
+            }
+        } else {
+            substitutions.insert(identity.clone(), actual);
+        }
     }
     let next_rank = inductive_judgment::apply_argument_map(&rank, &substitutions)?;
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
@@ -705,6 +757,16 @@ fn validate_mapping(
             || entry.is_const
             || parameter.is_mutable
             || parameter.is_const
+            || parameters
+                .iter()
+                .filter(|candidate| candidate.symbol == parameter.symbol)
+                .take(2)
+                .count()
+                != 1
+            || (state.symbol != root.symbol
+                && root_parameters
+                    .iter()
+                    .any(|entry| entry.symbol == parameter.symbol))
             || (state.symbol == root.symbol && parameter.symbol != *entry_symbol)
             || exact_integer_parameter(program, entry.type_reference)
                 != exact_integer_parameter(program, parameter.type_reference)

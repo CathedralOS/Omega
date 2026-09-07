@@ -1,5 +1,97 @@
 use super::*;
 
+#[test]
+fn state_aliases_cannot_reuse_root_or_sibling_formal_symbols() {
+    let mut program = typed(
+        "machine walk(left: u32, right: u32) -> u32 { transition { _ -> next(right, left) } state next(first: u32, second: u32) { first } }",
+    );
+    let machine = program.machines()[0].clone();
+    let root = program.machine_states(&machine)[0].clone();
+    let state = program.machine_states(&machine)[1].clone();
+    let root_parameters = program.state_parameters(&root);
+    let mapping = [root_parameters[1].symbol, root_parameters[0].symbol];
+    assert!(validate_mapping(&program, &machine, &state, &mapping).is_some());
+    let original = program.state_parameters(&state)[0].symbol;
+    for forged in [mapping[1], program.state_parameters(&state)[1].symbol] {
+        program.state_parameters.span_mut_or_empty(state.parameters)[0].symbol = forged;
+        assert!(validate_mapping(&program, &machine, &state, &mapping).is_none());
+    }
+    program.state_parameters.span_mut_or_empty(state.parameters)[0].symbol = original;
+    assert!(validate_mapping(&program, &machine, &state, &mapping).is_some());
+}
+
+#[test]
+fn missing_auxiliary_source_alias_cannot_skip_destination_copy_equality() {
+    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+    let program = typed(
+        r#"
+        machine walk(remaining: u32 [0..=5], step: u32)
+        requires step > 0;
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition { _ -> drop(remaining) }
+            state drop(pending: u32 [0..=5]) {
+                transition { _ -> next(pending, 0, 1) }
+            }
+            state next(left: u32, first: u32, second: u32) { left }
+        }
+    "#,
+    );
+    let machine = &program.machines()[0];
+    let states = program.machine_states(machine);
+    let root = &states[0];
+    let source = &states[1];
+    let destination = &states[2];
+    let parameters = program.state_parameters(root);
+    let custody = program
+        .ranking_expression_custody_for(machine.symbol)
+        .unwrap();
+    let subject = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            matches!(node, ExpressionNode::Name(name) if name.symbol == parameters[0].symbol)
+                .then_some(handle)
+        })
+        .unwrap();
+    let StatementNode::Transition(transition) =
+        &program.statement_table.statements(source.statement_nodes)[0]
+    else {
+        panic!("one arrival");
+    };
+    let TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(transition.target)
+    else {
+        panic!("named arrival");
+    };
+    assert!(
+        prove_ranking_range_transition(
+            &program,
+            machine,
+            custody.rank_range.unwrap(),
+            RankingRangeMeasure::Single(subject),
+            RankingRangePremises::EntryInvariant,
+            RankingRangeState {
+                state: source,
+                entry_parameters: &[parameters[0].symbol]
+            },
+            RankingRangeState {
+                state: destination,
+                entry_parameters: &[
+                    parameters[0].symbol,
+                    parameters[1].symbol,
+                    parameters[1].symbol
+                ]
+            },
+            &[],
+            &[],
+            program.statement_table.expression_handles(*arguments),
+        )
+        .is_none()
+    );
+}
+
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

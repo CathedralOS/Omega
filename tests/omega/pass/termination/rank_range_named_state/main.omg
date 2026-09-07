@@ -7,10 +7,10 @@ machine Main::main() -> u32 {
 machine Main::walk(remaining: u32 [0..=5])
 terminates by remaining in 0..=5;
 -> u32 {
-    transition { _ -> iterate(remaining) }
-    state iterate(pending: u32 [0..=5]) {
-        transition pending > 0 {
-            true -> iterate(pending - 1)
+    transition { _ -> iterate(remaining, remaining) }
+    state iterate(pending: u32 [0..=5], copy: u32 [0..=5]) {
+        transition pending > 0 && copy > 0 {
+            true -> iterate(pending - 1, copy - 1)
             false -> pending
         }
     }
