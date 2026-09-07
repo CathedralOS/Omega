@@ -133,16 +133,20 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   establish which decisions the caller must supply, without granting std implicit
   authority or fabricating acceptance. Acceptance: the same CLI route recovers
   explicit policy against its current conflicts and reaches native production.
-  The inner sample harness bypasses this review/policy route. Recheck the
-  corresponding macOS ARM64 command on that host; only Windows was verified.
+  The macOS ARM64 route also reaches this policy boundary with the production
+  sources at `60b02a9fff`: `CARGO_INCREMENTAL=0 cargo run -p omega -- --target
+  macos_arm64 --build-dir build/cli-mvp-final samples/cli/basics/cli_mvp/main.omg`.
+  Inspect it with `omega audit packages --project samples/cli/basics/cli_mvp
+  --target macos_arm64 --details`. The inner sample harness bypasses this
+  review/policy route.
 
   The downstream native `cli_mvp` probe at code checkpoint `9f93744f34` remains red.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
   execution: `InvalidUnitMachinePlan` names `ConsoleNativeProvider::write_line`
-  with a missing checked transitive machine plan. After the earlier review
-  failure is fixed, retain selected-edge tail descriptors for the
+  with a missing checked transitive machine plan. After the policy step,
+  retain selected-edge tail descriptors for the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.

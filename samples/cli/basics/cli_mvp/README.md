@@ -54,7 +54,8 @@ local-project package review route. Keep its result separate from the outer comm
 
 ## Trace the actual route
 
-The Windows outer CLI probe completes fresh checked package review, then stops with
+The Windows and macOS outer CLI probes complete fresh checked package review,
+then stop with
 `fresh package review has blocking rows but no explicit --package-root-policy`.
 This is a policy boundary before accepted native production. The compiler-library
 sample test bypasses it and stops later at the missing Terminal writer body.
@@ -66,11 +67,16 @@ requires an explicit file bound to the current reconstructed conflicts; std has
 no implicit authority. Do not supply blanket acceptance merely to advance the
 example. The next assignment and tested revision remain on the execution board.
 
+Use `omega audit packages --project samples/cli/basics/cli_mvp
+--target macos_arm64 --details` to inspect the current macOS package findings;
+select `windows_x86_64` for the Windows closure.
+
 The existing focused review probe is
 `mbx nextest run -p package-manager --test standard_library_package_resolution --no-fail-fast -E 'test(=real_standard_library_has_a_complete_ordinary_review_entry)'`.
-It selects the Linux x64 source profile even on Windows, so it is an inner
-comparison rather than Windows acceptance. The actual CLI command remains the
-outer check through package review, policy, native production, and execution.
+It selects the Linux x64 source profile on every host. Its macOS pass is a source
+review check, not native Linux execution or another target's acceptance. The
+actual CLI command remains the outer check through package review, policy,
+native production, and execution.
 
 | Step | Owning code and required result |
 | --- | --- |
