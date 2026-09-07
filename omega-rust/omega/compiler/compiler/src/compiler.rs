@@ -25,9 +25,8 @@ pub use package::{
     report_checked_compilation_observations, retained_terminal_report_from_checked_package,
 };
 pub use report::{
-    CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt, FinalRealizationEvidenceError, OptimizationRollbackReceipt,
-    ProductionArtifactIdentity, ProductionCompilationManifest,
+    CompileOutputKind, CompileReport, ExecutablePublicationReceipt, FinalRealizationEvidenceError,
+    OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedNativeArtifact,
 };
 pub use request::{

@@ -111,8 +111,8 @@ fn native_inventory_compact_coordinates_are_report_only_and_publication_keeps_th
     assert!(
         publication.contains("inventory_digest: image::PlacedExecutableRegionInventoryDigest",)
             && publication.contains("digest.update(inventory_digest.as_bytes());")
-            && publication.contains("flat.inventory_digest == bundle.inventory_digest"),
-        "native publication and bundle replay must retain the strong image-inventory digest"
+            && publication.contains("self.inventory_digest,"),
+        "native publication and flat receipt replay must retain the strong image-inventory digest"
     );
     assert!(
         publication.contains("inventory_report_fingerprint: u64")

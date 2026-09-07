@@ -211,7 +211,6 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         compiler::CompileOutputKind::RetainedNativeArtifact
     );
     assert!(native.executable_publication().is_none());
-    assert!(native.app_bundle_publication().is_none());
     assert!(native.checked_native_executable_path().is_none());
     let artifact = native
         .retained_native_artifact()
