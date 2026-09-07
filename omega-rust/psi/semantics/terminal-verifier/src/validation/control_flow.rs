@@ -134,8 +134,16 @@ pub(super) fn validate_control_flow(
     }
     if order.len() != blocks.len() {
         if representation_backedges.is_empty()
-            && validate_unranked_scalar_cycle(machine, blocks, value_types, &globally_defined)
-                .is_ok()
+            && validate_unranked_effectful_unit_cycle(
+                module,
+                machine,
+                machines,
+                boundary_machines,
+                blocks,
+                value_types,
+                &globally_defined,
+            )
+            .is_ok()
         {
             return Ok(());
         }
@@ -378,22 +386,59 @@ pub(super) fn validate_control_flow(
 
 /// Admit the first unranked cyclic execution slice. With no local definitions,
 /// block parameters, or structural custody, the cycle's scalar environment is
-/// the machine parameter telescope at every block. This is a real cyclic graph
-/// path; broader cycles still require the SCC and fixed-point analyses below it.
-fn validate_unranked_scalar_cycle(
+/// the machine parameter telescope at every block. Unit effects are safe in
+/// this slice because they publish no cross-block value or ownership state;
+/// broader cycles still require the SCC and fixed-point analyses below it.
+fn validate_unranked_effectful_unit_cycle(
+    module: &TerminalModule,
     machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    boundary_machines: &[BoundaryMachineDeclaration],
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     value_types: &BTreeMap<ValueId, ScalarType>,
     globally_defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
     if !machine.structural_parameters.is_empty()
-        || blocks
-            .values()
-            .any(|block| !block.parameters.is_empty() || !block.operations.is_empty())
+        || blocks.values().any(|block| !block.parameters.is_empty())
     {
         return Err(ModuleError::ControlCycle(machine.entry));
     }
     for block in blocks.values() {
+        for operation in &block.operations {
+            let admissible = match &operation.kind {
+                OperationKind::PortWrite { .. } => true,
+                OperationKind::BoundaryCall {
+                    structural_arguments,
+                    completion_receipts,
+                    ..
+                } => structural_arguments.is_empty() && completion_receipts.is_empty(),
+                OperationKind::CallUnit {
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                } => {
+                    structural_arguments.is_empty()
+                        && claim_transfers.is_empty()
+                        && requirement_obligations.is_empty()
+                        && crash_continuations.is_empty()
+                }
+                _ => false,
+            };
+            if !matches!(&operation.result, OperationResult::Unit) || !admissible {
+                return Err(ModuleError::ControlCycle(machine.entry));
+            }
+            validate_operation_operands(
+                module,
+                machine,
+                operation,
+                machines,
+                boundary_machines,
+                value_types,
+                globally_defined,
+            )?;
+        }
         match &block.terminator {
             Terminator::Jump {
                 edge,
