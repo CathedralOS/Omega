@@ -3,7 +3,7 @@
 use super::super::*;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-mod named_states;
+mod state_edges;
 
 pub(super) fn prove(
     program: &typed_trees::TypedTrees,
@@ -87,7 +87,7 @@ pub(super) fn prove(
             return false;
         }
     }
-    states.len() == 1 || named_states::prove(program, machine, range, measure, frames.as_ref())
+    states.len() == 1 || state_edges::prove(program, machine, range, measure, frames.as_ref())
 }
 
 fn preserved_entry_prefix<'program>(
