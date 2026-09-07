@@ -62,6 +62,21 @@ happen to traverse arrays. ABI copies materialize only the owned subtree being
 transferred; this is not a borrowed-referent copy. No-code residual cleanup emits
 neither instructions nor liveness-dependent loops.
 
+## Scalar cleanup tails
+
+Native scalar-return lowering preserves the result across executable cleanup and,
+on AArch64, preserves the return link. Physical replay checks the exact frame,
+stores, loads, calls, stack ceiling, and result lifetime on every path. No-code
+cleanup positions remain semantically ordered without inventing target calls.
+
+A shared Boolean convergence tail retains source-ordered decisions, joins from
+nonfinal leaves, final-leaf fallthrough, and one physical cleanup tail. A direct
+field read binds the source place and field identity to its native interval;
+replay reconstructs field type/offset, source home, live stack depth, and exact
+load/normalization bytes. Opaque field identity is not layout authority.
+Admission of a comparison or field leaf is not general nested structural access
+or arbitrary cleanup composition.
+
 ## Ranked native admission
 
 Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).

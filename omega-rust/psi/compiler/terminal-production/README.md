@@ -210,6 +210,37 @@ fact at another position is not evidence. Conditional whole-parameter cleanup
 has its own bounded structural-control producer. It is not admission of nominal,
 projected, claim-bearing, or mixed-root cleanup on arbitrary control-flow edges.
 
+## Scalar returns with cleanup
+
+Source production retains the authored scalar/structural parameter partition:
+separate dense namespaces, disjoint and complete authored-position maps, and
+source-ordered immutable primitive bindings. Every initializer and return rejoins
+its checked expression and statement coordinate. Structural custody is never a
+scalar parameter; cleanup refers to actual structural places.
+
+Short-circuit locals and returns become explicit decision blocks. Some bounded
+families distribute later work into leaves; shared-convergence families instead
+bind a typed Boolean parameter and use one cleanup tail. Both preserve selective
+evaluation, dominance, and the complete cleanup stream on each normal return.
+Neither construction implies general effectful locals, arbitrary multi-state
+custody, or mixed projected/nominal cleanup support.
+
+The nominal subset composes no-code roots and eligible cleanup targets in reverse
+authored order, retaining contextual target premises against each exact root.
+Scalar values and the return link must survive executable cleanup. The bounded
+shared tail accepts supported parameter/constant Boolean trees, an optional exact
+direct Boolean field, and classified integer-comparison leaves. Its field case
+requires a remaining Boolean parameter; nested/second fields, field-only trees,
+and arbitrary call/effect mixtures need further support.
+
+The proof producer enters through
+[nonzero_divisor_certificate.rs](../../pipeline/checked-trees-to-lowered-psi/src/nonzero_divisor_certificate.rs),
+despite that file's narrower historical name. It consumes machine requirements
+and independently reconstructed pre-operation facts, then emits kernel-checked
+certificates for canonical integer goals. The operation's own later result
+equation is unavailable. Source sufficient-form classification cannot substitute
+for this certificate or the receiving artifact verifier.
+
 ## Structural results and suspension
 
 The [call/outcome contract](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
