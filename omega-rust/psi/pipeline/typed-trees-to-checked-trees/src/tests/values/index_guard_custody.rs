@@ -162,3 +162,80 @@ fn independent_builtin_conjuncts_keep_their_index_evidence() {
         );
     }
 }
+
+#[test]
+fn byte_length_literal_guards_keep_their_selected_meaning() {
+    for (declaration, accepted) in [
+        ("", true),
+        (
+            "operator > f64::unrelated(left: f64, right: f64) -> bool;",
+            true,
+        ),
+        (
+            "operator > u64::custom(left: u64, right: u64) -> bool;",
+            false,
+        ),
+    ] {
+        check(
+            &format!(
+                "{declaration}
+                machine read(items: &[u8]) -> u8 {{
+                    transition items.len > 0 {{ true -> (items[0]) false -> 0 }}
+                }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn computed_index_guards_keep_their_selected_meaning() {
+    for (declaration, accepted) in [
+        ("", true),
+        (
+            "operator < f64::unrelated(left: f64, right: f64) -> bool;",
+            true,
+        ),
+        (
+            "operator < u64::custom(left: u64, right: u64) -> bool;",
+            false,
+        ),
+        (
+            "operator - u64::custom(left: u64, right: u64) -> u64;",
+            false,
+        ),
+    ] {
+        check(
+            &format!(
+                "{declaration}
+                data Main {{ items: [u8; 16]; depth: u64; }}
+                machine Main::read(&mut self) {{
+                    transition self.depth >= 2 && self.depth - 2 < 16 {{
+                        true -> read_item() false -> {{}}
+                    }}
+                    state read_item(&mut self) {{
+                        let value: u8 = self.items[self.depth - 2];
+                    }}
+                }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
+fn nominal_len_fields_keep_their_declared_carrier() {
+    check(
+        "operator < i32::custom(left: i32, right: i32) -> bool;
+        data Main { len: i32; items: [u8; 4]; }
+        machine Main::read(&mut self) {
+            transition self.len >= 0 && self.len < 4 {
+                true -> read_item() false -> {}
+            }
+            state read_item(&mut self) {
+                let value: u8 = self.items[self.len];
+            }
+        }",
+        false,
+    );
+}

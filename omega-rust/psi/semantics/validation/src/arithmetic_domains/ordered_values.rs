@@ -347,7 +347,7 @@ fn integer_meaning(
 /// collection type. A same-spelled nominal record field/accessor is not this
 /// operation. The member need not own a field symbol: structural collections
 /// have no authored field declaration to serve as their length identity.
-pub(super) fn collection_length_receiver(
+pub(crate) fn collection_length_receiver(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
