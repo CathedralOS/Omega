@@ -67,4 +67,5 @@ pub use recursion::{
     CertificateObligation, RecursiveComponentAcceptance, RecursiveComponentCertificate,
     RecursiveComponentError, RecursiveComponentObligation, RecursiveEdgeCertificate,
     RecursiveEdgeObligation, verify_recursive_component,
+    verify_recursive_component_with_machine_parameters,
 };

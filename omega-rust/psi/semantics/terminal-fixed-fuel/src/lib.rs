@@ -274,6 +274,7 @@ pub fn derive_ranked_countdown_entry_fuel(
     let component = machine
         .ranked_scc
         .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
         .ok_or(FixedFuelError::NotRankedCountdown(entry))?;
     let [covered] = component.covered_cyclic_edges.as_slice() else {
         return Err(FixedFuelError::NotRankedCountdown(entry));
@@ -455,6 +456,7 @@ fn exact_ranked_u32_machine<'module>(
     let component = machine_semantics
         .ranked_scc
         .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
         .ok_or(FixedFuelError::NotRankedCountdown(machine))?;
     derive_ranked_countdown_entry_fuel(verified, machine)?;
     let u32_type =

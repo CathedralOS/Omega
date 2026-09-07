@@ -6,7 +6,10 @@ use super::*;
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, and frontier checks after this fence.
 pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bool {
-    if machine.ranked_scc.is_some()
+    if machine
+        .ranked_scc
+        .as_ref()
+        .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
         || machine.result.structural().is_some()
         || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()

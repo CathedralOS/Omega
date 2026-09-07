@@ -74,7 +74,7 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
     module.suspension_call_plans = vec![plan];
 
     let bytes = encode_module(&module).expect("suspension plan encodes");
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -104,7 +104,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -112,7 +112,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "31ee3edd760fbe010bbd5eecb653c588048fd8210a6107cecd41988a253c0191"
+        "a017c1faa089d9d7edce64d3679fd59553d17dbf3eae96a31eb549c4f5ec5646"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -125,7 +125,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -229,7 +229,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -246,6 +246,92 @@ fn ranked_countdown_round_trips_in_current_terminal_identity() {
         decode_module(&stale_format),
         Err(CodecError::UnsupportedFormatMarker(33))
     );
+}
+
+#[test]
+fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverage() {
+    let mut module = ranked_countdown_fixture();
+    let countdown_identity = semantic_fingerprint(&module).unwrap();
+    let rank_type = module.machines[0]
+        .ranked_scc
+        .as_ref()
+        .unwrap()
+        .as_unsigned_countdown()
+        .unwrap()
+        .rank_type;
+    let cycle = terminal_psi::TerminalNaturalCycle {
+        rank_type,
+        ranks: vec![
+            terminal_psi::TerminalBlockNaturalRank {
+                block: block_id(901),
+                value: value_id(902),
+            },
+            terminal_psi::TerminalBlockNaturalRank {
+                block: block_id(902),
+                value: value_id(902),
+            },
+        ],
+        edges: vec![
+            terminal_psi::TerminalNaturalRankEdge {
+                edge: edge_id(901),
+                source: block_id(901),
+                target: block_id(902),
+                successor_rank: value_id(902),
+                comparison: terminal_psi::TerminalNaturalRankComparison::Preserving,
+            },
+            terminal_psi::TerminalNaturalRankEdge {
+                edge: edge_id(903),
+                source: block_id(902),
+                target: block_id(901),
+                successor_rank: value_id(906),
+                comparison: terminal_psi::TerminalNaturalRankComparison::Strict,
+            },
+        ],
+    };
+    module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
+    let bytes = encode_module(&module).expect("natural ranking representation encodes");
+    assert_eq!(&bytes[8..12], &[79, 0, 85, 0]);
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_ne!(semantic_fingerprint(&module).unwrap(), countdown_identity);
+    let mut stale = bytes;
+    stale[8..10].copy_from_slice(&78_u16.to_le_bytes());
+    assert_eq!(
+        decode_module(&stale),
+        Err(CodecError::UnsupportedFormatMarker(78))
+    );
+
+    let mut reordered_ranks = cycle.clone();
+    reordered_ranks.ranks.reverse();
+    let mut duplicate_rank = cycle.clone();
+    duplicate_rank.ranks[1].block = duplicate_rank.ranks[0].block;
+    let mut reordered_edges = cycle.clone();
+    reordered_edges.edges.reverse();
+    let mut missing_edge = cycle.clone();
+    missing_edge.edges.pop();
+    let mut redirected_edge = cycle.clone();
+    redirected_edge.edges[1].target = block_id(903);
+    let mut missing_rank_value = cycle.clone();
+    missing_rank_value.ranks[0].value = value_id(999);
+    let mut wrong_successor_rank = cycle.clone();
+    wrong_successor_rank.edges[1].successor_rank = value_id(905);
+    for malformed in [
+        reordered_ranks,
+        duplicate_rank,
+        reordered_edges,
+        missing_edge,
+        redirected_edge,
+        missing_rank_value,
+        wrong_successor_rank,
+    ] {
+        let mut changed = module.clone();
+        changed.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![malformed]));
+        assert!(encode_module(&changed).is_err());
+    }
+    for components in [Vec::new(), vec![cycle.clone(), cycle]] {
+        let mut changed = module.clone();
+        changed.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(components));
+        assert!(encode_module(&changed).is_err());
+    }
 }
 
 #[test]
@@ -991,7 +1077,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1004,7 +1090,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1039,7 +1125,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -2870,10 +2956,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&79_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&80_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(79))
+        Err(CodecError::UnsupportedFormatMarker(80))
     );
 
     let mut stale_format = bytes.clone();
@@ -3649,7 +3735,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 79_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -4367,30 +4453,32 @@ fn ranked_countdown_fixture() -> TerminalModule {
         id: initial,
         scalar_type: scalar,
     }];
-    machine.ranked_scc = Some(TerminalRankedScc {
-        header,
-        rank_parameter: rank,
-        rank_type: integer,
-        lower_bound: IntegerValue::Unsigned(0),
-        upper_bound: IntegerValue::Unsigned(u128::from(u32::MAX)),
-        covered_cyclic_edges: vec![TerminalRankedSccEdge {
-            edge: backedge,
-            source: decrement,
-            target: header,
-            guard: TerminalRankedGuard::UnsignedParameterPositive {
-                block: header,
-                edge: guard_edge,
-                condition,
-                parameter: rank,
-            },
-            successor_argument: TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                argument_index: 0,
-                argument: next,
-                source_parameter: rank,
-                target_parameter: rank,
-            },
-        }],
-    });
+    machine.ranked_scc = Some(TerminalRankedScc::UnsignedCountdown(
+        terminal_psi::TerminalUnsignedCountdownScc {
+            header,
+            rank_parameter: rank,
+            rank_type: integer,
+            lower_bound: IntegerValue::Unsigned(0),
+            upper_bound: IntegerValue::Unsigned(u128::from(u32::MAX)),
+            covered_cyclic_edges: vec![TerminalRankedSccEdge {
+                edge: backedge,
+                source: decrement,
+                target: header,
+                guard: TerminalRankedGuard::UnsignedParameterPositive {
+                    block: header,
+                    edge: guard_edge,
+                    condition,
+                    parameter: rank,
+                },
+                successor_argument: TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                    argument_index: 0,
+                    argument: next,
+                    source_parameter: rank,
+                    target_parameter: rank,
+                },
+            }],
+        },
+    ));
     machine.entry = preheader;
     machine.blocks = vec![
         Block {

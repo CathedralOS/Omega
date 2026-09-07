@@ -12,7 +12,11 @@ pub(super) fn replay_ranked_graph_matches(
     custody: &RankedU32CountdownCustody,
 ) -> bool {
     let graph = custody.graph;
-    let Some(ranked) = machine.ranked_scc.as_ref() else {
+    let Some(ranked) = machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+    else {
         return false;
     };
     let [covered] = ranked.covered_cyclic_edges.as_slice() else {

@@ -125,6 +125,7 @@ pub(super) fn scalar_terminal_artifact(
         module.machines[0].contract.requires.push(goal.clone());
         ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,

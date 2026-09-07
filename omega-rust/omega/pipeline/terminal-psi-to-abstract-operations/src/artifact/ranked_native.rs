@@ -66,13 +66,14 @@ pub(super) fn lower_decoded_native_ranked_countdown(
     }
 
     let machine = entry_machine(module)?;
-    let ranked_scc =
-        machine
-            .ranked_scc
-            .clone()
-            .ok_or(ArtifactLoweringError::RankedNativeCustody(
-                "entry machine has no ranked SCC",
-            ))?;
+    let ranked_scc = machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+        .cloned()
+        .ok_or(ArtifactLoweringError::RankedNativeCustody(
+            "entry machine has no ranked SCC",
+        ))?;
     let structural_frontiers = native
         .structural_frontiers()
         .machine(machine.id)
@@ -191,6 +192,7 @@ fn extract_countdown_graph(
     let ranked = machine
         .ranked_scc
         .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
         .ok_or(ArtifactLoweringError::RankedNativeCustody(
             "entry machine has no ranked SCC",
         ))?;

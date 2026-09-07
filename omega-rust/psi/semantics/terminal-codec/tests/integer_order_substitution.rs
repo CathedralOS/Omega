@@ -31,6 +31,7 @@ fn versioned_order_substitution_keeps_tag_and_exact_strictness() {
         let requirements = [relation.clone(), equality.clone()];
         let bundle = ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation: ObligationId::new(1).unwrap(),
@@ -55,7 +56,7 @@ fn versioned_order_substitution_keeps_tag_and_exact_strictness() {
             }],
         };
         let bytes = encode_proof_bundle(&bundle).unwrap();
-        assert_eq!(&bytes[8..10], &29_u16.to_le_bytes());
+        assert_eq!(&bytes[8..10], &30_u16.to_le_bytes());
         assert_eq!(
             bytes[60], 11,
             "order substitution retains its versioned payload tag"

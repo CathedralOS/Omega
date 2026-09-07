@@ -415,6 +415,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
         proof_admission::lift_fixed_integer_relation(&reconstructed[0].semantic_axioms[0]).unwrap();
     let proof = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

@@ -120,6 +120,7 @@ pub(in crate::flow::terminal_unit) fn finish(
     let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
     Some(CheckedComposedUnitControlMachinePlan {
         machine: machine.symbol,
+        slice_length_ranks: Vec::new(),
         attachment_type_identity,
         provider_attachment_requirements,
         body_qualifications,

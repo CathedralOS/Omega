@@ -122,6 +122,7 @@ pub(super) fn verified_exact_add_unit_with_right(
     };
     let proof = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

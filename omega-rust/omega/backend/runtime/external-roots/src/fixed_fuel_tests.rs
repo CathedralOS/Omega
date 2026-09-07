@@ -32,8 +32,8 @@ use terminal_fixed_fuel::{
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
     TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
-    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, TerminalUnsignedCountdownScc,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{
     ObligationEvidence, ProofBundle, reconstruct_interpretable_operation_obligations,
@@ -339,31 +339,33 @@ fn ranked_terminal_fixture() -> TerminalModule {
                 id: initial,
                 scalar_type: scalar,
             }],
-            ranked_scc: Some(TerminalRankedScc {
-                header,
-                rank_parameter: rank,
-                rank_type: integer,
-                lower_bound: IntegerValue::Unsigned(0),
-                upper_bound: integer.maximum_value(),
-                covered_cyclic_edges: vec![TerminalRankedSccEdge {
-                    edge: backedge,
-                    source: decrement,
-                    target: header,
-                    guard: TerminalRankedGuard::UnsignedParameterPositive {
-                        block: header,
-                        edge: guard_edge,
-                        condition,
-                        parameter: rank,
-                    },
-                    successor_argument:
-                        TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                            argument_index: 0,
-                            argument: next,
-                            source_parameter: rank,
-                            target_parameter: rank,
+            ranked_scc: Some(TerminalRankedScc::UnsignedCountdown(
+                TerminalUnsignedCountdownScc {
+                    header,
+                    rank_parameter: rank,
+                    rank_type: integer,
+                    lower_bound: IntegerValue::Unsigned(0),
+                    upper_bound: integer.maximum_value(),
+                    covered_cyclic_edges: vec![TerminalRankedSccEdge {
+                        edge: backedge,
+                        source: decrement,
+                        target: header,
+                        guard: TerminalRankedGuard::UnsignedParameterPositive {
+                            block: header,
+                            edge: guard_edge,
+                            condition,
+                            parameter: rank,
                         },
-                }],
-            }),
+                        successor_argument:
+                            TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                                argument_index: 0,
+                                argument: next,
+                                source_parameter: rank,
+                                target_parameter: rank,
+                            },
+                    }],
+                },
+            )),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -562,6 +564,7 @@ fn ranked_terminal_proof(module: &TerminalModule) -> ProofBundle {
             }),
         }],
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
     }
 }

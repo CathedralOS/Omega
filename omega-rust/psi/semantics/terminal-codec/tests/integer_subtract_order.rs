@@ -69,7 +69,7 @@ fn subtraction_order_roundtrips_both_citations_and_rejects_stale_format() {
             let (context, premises, proof) = fixture(sign, width);
             let original = bundle(proof.clone());
             let bytes = encode_proof_bundle(&original).unwrap();
-            assert_eq!(&bytes[8..10], &29_u16.to_le_bytes());
+            assert_eq!(&bytes[8..10], &30_u16.to_le_bytes());
             let decoded = decode_proof_bundle(&bytes).unwrap();
             assert_eq!(decoded, original);
             let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {

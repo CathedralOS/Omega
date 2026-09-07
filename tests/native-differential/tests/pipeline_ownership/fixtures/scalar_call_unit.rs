@@ -115,6 +115,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
     edit(&mut module);
     let proof = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };

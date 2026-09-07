@@ -19,6 +19,11 @@ pub(super) fn validate_ranked_scc(
     let Some(component) = &machine.ranked_scc else {
         return Ok(BTreeSet::new());
     };
+    let Some(component) = component.as_unsigned_countdown() else {
+        // Natural component topology and rank substitution are checked after
+        // ordinary full-graph dominance and successor validation.
+        return Ok(BTreeSet::new());
+    };
     let invalid = || ModuleError::InvalidRankedScc(machine.id);
     if super::block_views::has_bindings(machine) {
         return Err(invalid());

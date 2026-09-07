@@ -5,6 +5,7 @@ mod ranking;
 
 pub(crate) use graph::named_transition_target_state_index;
 pub(crate) use ranking::proven_nat_countdown_sccs;
+pub(crate) use ranking::proven_slice_length_ranks;
 
 use crate::labels::machine_name;
 use diagnostics::Diagnostic;

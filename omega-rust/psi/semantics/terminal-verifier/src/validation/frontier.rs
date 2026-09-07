@@ -890,7 +890,11 @@ pub(super) fn validate_structural_frontier(
             require_snapshot_match(block, established, &frontier.snapshot())?;
         }
     }
-    if let Some(component) = &machine.ranked_scc {
+    if let Some(component) = machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranking| ranking.as_unsigned_countdown())
+    {
         for row in &component.covered_cyclic_edges {
             let established = snapshots
                 .block_entries

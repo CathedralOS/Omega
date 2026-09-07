@@ -24,6 +24,16 @@ fn id<T: PsiSemanticId>(raw: u64) -> T {
     T::new(raw).expect("test ids are nonzero")
 }
 
+#[test]
+fn legacy_result_path_format_cannot_transport_natural_ranking() {
+    let mut module = unit_module();
+    module.machines[0].ranked_scc = Some(terminal_psi::TerminalRankedScc::Natural(Vec::new()));
+    assert_eq!(
+        encode_legacy_result_path_raw(&module),
+        Err(crate::CodecError::InvalidTag("TerminalRankedScc", 2)),
+    );
+}
+
 fn unit_module() -> TerminalModule {
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
@@ -179,7 +189,7 @@ fn structural_block_module() -> TerminalModule {
 fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
     let module = structural_block_module();
     let bytes = encode_module(&module).expect("borrowed block bindings encode");
-    assert_eq!(&bytes[8..12], &[78, 0, 84, 0]);
+    assert_eq!(&bytes[8..12], &[79, 0, 85, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -219,7 +229,7 @@ fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
             super::semantic_fingerprint(&module).unwrap()
         );
     }
-    for (offset, marker) in [(8, 77_u16), (8, 79), (10, 83), (10, 85)] {
+    for (offset, marker) in [(8, 78_u16), (8, 80), (10, 84), (10, 86)] {
         let mut stale = bytes.clone();
         stale[offset..offset + 2].copy_from_slice(&marker.to_le_bytes());
         assert!(decode_module(&stale).is_err());
@@ -334,8 +344,8 @@ fn v56_v59_reconstructs_absent_result_path_rosters_as_current_empty_rows() {
     assert_eq!(decode_module(&legacy), Ok(module.clone()));
 
     let current = encode_module(&module).expect("current result-path bytes");
-    assert_eq!(&current[8..10], &78_u16.to_le_bytes());
-    assert_eq!(&current[10..12], &84_u16.to_le_bytes());
+    assert_eq!(&current[8..10], &79_u16.to_le_bytes());
+    assert_eq!(&current[10..12], &85_u16.to_le_bytes());
 
     let mut crossed_pair = legacy;
     crossed_pair[10..12].copy_from_slice(&72_u16.to_le_bytes());

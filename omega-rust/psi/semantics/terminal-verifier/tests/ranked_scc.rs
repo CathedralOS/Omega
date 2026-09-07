@@ -86,31 +86,33 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                 scalar_type: scalar,
             }],
             structural_parameters: Vec::new(),
-            ranked_scc: Some(TerminalRankedScc {
-                header,
-                rank_parameter: rank,
-                rank_type: integer,
-                lower_bound: IntegerValue::Unsigned(0),
-                upper_bound: integer.maximum_value(),
-                covered_cyclic_edges: vec![TerminalRankedSccEdge {
-                    edge: backedge,
-                    source: decrement,
-                    target: header,
-                    guard: TerminalRankedGuard::UnsignedParameterPositive {
-                        block: header,
-                        edge: guard_edge,
-                        condition,
-                        parameter: rank,
-                    },
-                    successor_argument:
-                        TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                            argument_index: 0,
-                            argument: next,
-                            source_parameter: rank,
-                            target_parameter: rank,
+            ranked_scc: Some(TerminalRankedScc::UnsignedCountdown(
+                terminal_psi::TerminalUnsignedCountdownScc {
+                    header,
+                    rank_parameter: rank,
+                    rank_type: integer,
+                    lower_bound: IntegerValue::Unsigned(0),
+                    upper_bound: integer.maximum_value(),
+                    covered_cyclic_edges: vec![TerminalRankedSccEdge {
+                        edge: backedge,
+                        source: decrement,
+                        target: header,
+                        guard: TerminalRankedGuard::UnsignedParameterPositive {
+                            block: header,
+                            edge: guard_edge,
+                            condition,
+                            parameter: rank,
                         },
-                }],
-            }),
+                        successor_argument:
+                            TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                                argument_index: 0,
+                                argument: next,
+                                source_parameter: rank,
+                                target_parameter: rank,
+                            },
+                    }],
+                },
+            )),
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -383,6 +385,7 @@ fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
             }),
         }],
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
     }
 }
@@ -600,7 +603,12 @@ fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
     assert_eq!(native.proof_bundle(), &proof);
     assert_eq!(native.reconstructed_obligations().obligations().len(), 1);
     assert_eq!(native.accepted_facts().len(), 1);
-    let header = module.machines[0].ranked_scc.as_ref().unwrap().header;
+    let header = module.machines[0]
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+        .unwrap()
+        .header;
     let header_frontier = native
         .structural_frontiers()
         .machine(module.entry)
@@ -717,7 +725,12 @@ fn ranked_countdown_rejects_a_cycle_body_that_changes_structural_custody() {
     let mut module = ranked_countdown();
     let place = add_loop_preserved_affine_parameter(&mut module);
     let machine = &mut module.machines[0];
-    let header = machine.ranked_scc.as_ref().unwrap().header;
+    let header = machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+        .unwrap()
+        .header;
     let Terminator::Conditional { when_true, .. } = &mut machine.blocks[1].terminator else {
         panic!("countdown header must select the cycle path")
     };
@@ -743,6 +756,7 @@ fn ranked_countdown_rejects_false_arithmetic_without_inventing_a_missing_rank() 
     let rank = forwards_original.machines[0]
         .ranked_scc
         .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
         .unwrap()
         .rank_parameter;
     let decrement = &mut forwards_original.machines[0].blocks[2];
@@ -792,3 +806,6 @@ mod unranked_bindings;
 
 #[path = "ranked_scc/unranked_views.rs"]
 mod unranked_views;
+
+#[path = "ranked_scc/natural_stale_observations.rs"]
+mod natural_stale_observations;

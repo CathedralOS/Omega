@@ -20,6 +20,9 @@ mod scalars;
 #[path = "unit_state_graph/tails.rs"]
 mod tails;
 
+#[path = "unit_state_graph/ranking.rs"]
+mod ranking;
+
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: u8) reaches Output; }
     machine relay(bytes: &[u8], selected: bool, marker: u8) reaches Output {

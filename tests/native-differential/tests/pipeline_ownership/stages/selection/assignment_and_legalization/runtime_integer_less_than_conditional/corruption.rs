@@ -17,6 +17,7 @@ fn reflexive_less_than_uses_one_semantic_parameter_in_the_ordinary_graph() {
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(&ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     })

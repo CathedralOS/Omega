@@ -215,13 +215,16 @@ pub(super) fn build(
     if !provider_attachment_requirements.is_empty() {
         return None;
     }
-    composed_control::finish_state_graph(
+    let mut plan = composed_control::finish_state_graph(
         facts,
         machine,
         attachment,
         provider_attachment_requirements,
         planned,
-    )
+    )?;
+    plan.slice_length_ranks =
+        crate::checks::termination::proven_slice_length_ranks(program, machine).unwrap_or_default();
+    Some(plan)
 }
 
 fn prefix_initializers(

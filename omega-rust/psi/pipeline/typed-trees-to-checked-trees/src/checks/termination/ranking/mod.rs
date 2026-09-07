@@ -234,6 +234,52 @@ fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128
     }
 }
 
+/// Retain the existing slice-length judgment's exact subjects for shared
+/// state-graph production. This does not establish Terminal ranking authority.
+pub(crate) fn proven_slice_length_ranks(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<Vec<checked_trees::CheckedStateSliceLengthRank>> {
+    let witness = machine.termination_plan.implementation_witness.as_ref()?;
+    if witness.view_path != "Slice::Length"
+        || !witness.view_arguments.is_empty()
+        || witness.rank_range.is_some()
+        || !matches!(
+            machine_decrease_outcome(program, machine),
+            DecreaseOutcome::Proven
+        )
+    {
+        return None;
+    }
+    let subjects = resolve_machine_witness_subjects(program, machine)?;
+    let [subject] = subjects.as_slice() else {
+        return None;
+    };
+    let adjacency = graph::machine_adjacency(program, machine);
+    let states = program.machine_states(machine);
+    let mut ranks = Vec::new();
+    for component in graph::strongly_connected_components(&adjacency)
+        .into_iter()
+        .filter(|component| graph::component_is_cyclic(&adjacency, component))
+    {
+        for position in component {
+            let state = states.get(position)?;
+            let parameter = patterns::parameter_matched_by_expression(program, state, *subject)?;
+            let parameter_position = program
+                .state_parameters(state)
+                .iter()
+                .position(|candidate| candidate.symbol == parameter.symbol)?;
+            ranks.push(checked_trees::CheckedStateSliceLengthRank {
+                state: state.symbol,
+                parameter: parameter.symbol,
+                parameter_position: u32::try_from(parameter_position).ok()?,
+            });
+        }
+    }
+    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
+    (!ranks.is_empty()).then_some(ranks)
+}
+
 pub(super) fn machine_decrease_outcome(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,

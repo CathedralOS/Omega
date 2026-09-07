@@ -26,7 +26,7 @@ fn length_operation(operation: u64, value: u64, source: u64) -> Operation {
     }
 }
 
-fn view_cycle() -> TerminalModule {
+pub(super) fn view_cycle() -> TerminalModule {
     let mut module = ranked_countdown_with_width(64);
     let structural_type = id(1, StructuralTypeId::new);
     module.structural_types.push(StructuralTypeDeclaration {

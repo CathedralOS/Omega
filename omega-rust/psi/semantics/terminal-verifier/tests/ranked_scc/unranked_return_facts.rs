@@ -118,6 +118,7 @@ fn return_equality_certificate(value: u64) -> ProofBundle {
             }),
         }],
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
     }
 }

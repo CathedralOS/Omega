@@ -2,8 +2,12 @@
 
 use super::{ProofCodecError, proof_bundle_fingerprint};
 use proof_admission::AcceptedFactRoute;
-use terminal_psi::{TerminalModule, TerminalRankedGuard, TerminalRankedSuccessorArgument};
-use terminal_verifier::{VerifiedNativeRankedTerminalModule, VerifiedTerminalModule};
+use terminal_psi::{
+    TerminalModule, TerminalRankedGuard, TerminalRankedScc, TerminalRankedSuccessorArgument,
+};
+use terminal_verifier::{
+    AcceptedControlCycle, VerifiedNativeRankedTerminalModule, VerifiedTerminalModule,
+};
 
 /// Render the review view from the exact bundle and trust closures retained by
 /// a successful terminal-Psi verification. This deliberately accepts a
@@ -16,6 +20,7 @@ pub fn render_verified_proof_synopsis(
         verified.proof_bundle(),
         verified.accepted_facts(),
         verified.accepted_recursive_components(),
+        verified.accepted_control_cycles(),
         verified.module(),
         false,
     )
@@ -34,6 +39,7 @@ pub fn render_verified_native_ranked_countdown_synopsis(
         verified.proof_bundle(),
         verified.accepted_facts(),
         verified.accepted_recursive_components(),
+        verified.accepted_control_cycles(),
         verified.module(),
         true,
     )
@@ -43,6 +49,7 @@ fn render_verified_proof_synopsis_body(
     proof_bundle: &terminal_verifier::ProofBundle,
     accepted_facts: &[proof_admission::AcceptedFact],
     recursive_components: &[proof_admission::RecursiveComponentAcceptance],
+    control_cycles: &[AcceptedControlCycle],
     module: &TerminalModule,
     render_ranked_countdowns: bool,
 ) -> Result<String, ProofCodecError> {
@@ -136,6 +143,7 @@ fn render_verified_proof_synopsis_body(
         }
     }
     render_verified_recursive_components(&mut output, module, recursive_components);
+    render_verified_control_cycles(&mut output, module, control_cycles);
     if render_ranked_countdowns {
         render_verified_ranked_countdowns(&mut output, module);
     }
@@ -202,11 +210,77 @@ fn render_verified_recursive_components(
     }
 }
 
+fn render_verified_control_cycles(
+    output: &mut String,
+    module: &TerminalModule,
+    acceptances: &[AcceptedControlCycle],
+) {
+    use std::fmt::Write;
+
+    for accepted in acceptances {
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == accepted.machine)
+            .expect("verified control component retains its exact machine");
+        let Some(TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
+            unreachable!("verified control component retains natural ranking rows");
+        };
+        let component = components
+            .iter()
+            .find(|component| {
+                terminal_verifier::control_cycle_identity(machine, component) == accepted.component
+            })
+            .expect("verified control component retains its exact identity and ranks");
+        let acceptance = &accepted.acceptance;
+        writeln!(
+            output,
+            "control-cycle {} machine {} certificate {} relation {} rank-type {:?}",
+            accepted.component,
+            machine.id,
+            acceptance.certificate,
+            acceptance.ranking_relation,
+            component.rank_type,
+        )
+        .expect("writing a synopsis to a String cannot fail");
+        for rank in &component.ranks {
+            writeln!(output, "  rank block {} value {}", rank.block, rank.value)
+                .expect("writing a synopsis to a String cannot fail");
+        }
+        for edge in &component.edges {
+            writeln!(
+                output,
+                "  rank-edge {} source {} target {} successor-rank {} comparison {:?}",
+                edge.edge, edge.source, edge.target, edge.successor_rank, edge.comparison,
+            )
+            .expect("writing a synopsis to a String cannot fail");
+        }
+        writeln!(
+            output,
+            "  well-founded obligation {} route {:?}",
+            acceptance.well_foundedness.obligation, acceptance.well_foundedness.route,
+        )
+        .expect("writing a synopsis to a String cannot fail");
+        for fact in &acceptance.decreases {
+            writeln!(
+                output,
+                "  rank-comparison obligation {} goal {:?} route {:?}",
+                fact.obligation, fact.proposition, fact.route,
+            )
+            .expect("writing a synopsis to a String cannot fail");
+        }
+    }
+}
+
 fn render_verified_ranked_countdowns(output: &mut String, module: &TerminalModule) {
     use std::fmt::Write;
 
     for machine in &module.machines {
-        let Some(component) = &machine.ranked_scc else {
+        let Some(component) = machine
+            .ranked_scc
+            .as_ref()
+            .and_then(|ranking| ranking.as_unsigned_countdown())
+        else {
             continue;
         };
         writeln!(

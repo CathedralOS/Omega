@@ -24,7 +24,11 @@ fn source_countdown_yields_one_revision_bound_exact_trip_count() {
     let [summary] = analysis.loops() else {
         panic!("one counted loop")
     };
-    let ranked = module.machines[0].ranked_scc.as_ref().unwrap();
+    let ranked = module.machines[0]
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+        .unwrap();
     assert_eq!(analysis.snapshot().revision, session.unit().identity);
     assert_eq!(analysis.snapshot().terminal_psi, session.unit().psi);
     assert_eq!(

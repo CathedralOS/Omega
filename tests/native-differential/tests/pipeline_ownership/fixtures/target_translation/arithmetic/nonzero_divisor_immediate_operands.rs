@@ -204,6 +204,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
     };
     let proof = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

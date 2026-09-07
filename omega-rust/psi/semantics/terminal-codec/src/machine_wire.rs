@@ -6,9 +6,10 @@
 //! the parent codec.
 
 use terminal_psi::{
-    EntryClaim, StructuralPlaceDeclaration, TerminalMachine, TerminalMachineResult,
-    TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
-    ValueDeclaration,
+    EntryClaim, StructuralPlaceDeclaration, TerminalBlockNaturalRank, TerminalMachine,
+    TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge,
+    TerminalRankedSuccessorArgument, TerminalUnsignedCountdownScc, ValueDeclaration,
 };
 
 use super::content_wire::{
@@ -34,6 +35,9 @@ use super::{
     encode_structural_place_kind,
 };
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn encode_machine_for_result_paths(
     writer: &mut Writer,
     machine: &TerminalMachine,
@@ -43,6 +47,11 @@ pub(super) fn encode_machine_for_result_paths(
     encode_optional_id(writer, machine.attachment);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
     encode_structural_parameters(writer, &machine.structural_parameters)?;
+    if result_path_format != ResultPathWireFormat::Current
+        && matches!(machine.ranked_scc, Some(TerminalRankedScc::Natural(_)))
+    {
+        return Err(CodecError::InvalidTag("TerminalRankedScc", 2));
+    }
     encode_ranked_scc(writer, machine.ranked_scc.as_ref())?;
     match &machine.result {
         TerminalMachineResult::Unit => writer.u8(0),
@@ -127,6 +136,11 @@ pub(super) fn decode_machine_for_result_paths(
     let parameters = decode_declarations(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let ranked_scc = decode_ranked_scc(reader)?;
+    if result_path_format != ResultPathWireFormat::Current
+        && matches!(ranked_scc, Some(TerminalRankedScc::Natural(_)))
+    {
+        return Err(CodecError::InvalidTag("TerminalRankedScc", 2));
+    }
     let result = match reader.u8()? {
         0 => TerminalMachineResult::Unit,
         1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
@@ -204,9 +218,36 @@ fn encode_ranked_scc(
     writer: &mut Writer,
     ranked_scc: Option<&TerminalRankedScc>,
 ) -> Result<(), CodecError> {
-    let Some(component) = ranked_scc else {
+    let Some(ranking) = ranked_scc else {
         writer.u8(0);
         return Ok(());
+    };
+    let component = match ranking {
+        TerminalRankedScc::UnsignedCountdown(component) => component,
+        TerminalRankedScc::Natural(components) => {
+            writer.u8(2);
+            writer.len("natural cycle components", components.len())?;
+            for component in components {
+                encode_integer_type(writer, component.rank_type);
+                writer.len("natural block ranks", component.ranks.len())?;
+                for rank in &component.ranks {
+                    writer.id(rank.block);
+                    writer.id(rank.value);
+                }
+                writer.len("natural rank edges", component.edges.len())?;
+                for edge in &component.edges {
+                    writer.id(edge.edge);
+                    writer.id(edge.source);
+                    writer.id(edge.target);
+                    writer.id(edge.successor_rank);
+                    writer.u8(match edge.comparison {
+                        TerminalNaturalRankComparison::Preserving => 1,
+                        TerminalNaturalRankComparison::Strict => 2,
+                    });
+                }
+            }
+            return Ok(());
+        }
     };
     writer.u8(1);
     writer.id(component.header);
@@ -298,15 +339,49 @@ fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc
                     successor_argument,
                 })
             })?;
-            Ok(Some(TerminalRankedScc {
-                header,
-                rank_parameter,
-                rank_type,
-                lower_bound,
-                upper_bound,
-                covered_cyclic_edges,
-            }))
+            Ok(Some(TerminalRankedScc::UnsignedCountdown(
+                TerminalUnsignedCountdownScc {
+                    header,
+                    rank_parameter,
+                    rank_type,
+                    lower_bound,
+                    upper_bound,
+                    covered_cyclic_edges,
+                },
+            )))
         }
+        2 => Ok(Some(TerminalRankedScc::Natural(decode_counted(
+            reader,
+            |reader| {
+                Ok(TerminalNaturalCycle {
+                    rank_type: decode_integer_type(reader)?,
+                    ranks: decode_counted(reader, |reader| {
+                        Ok(TerminalBlockNaturalRank {
+                            block: reader.id("BlockId")?,
+                            value: reader.id("ValueId")?,
+                        })
+                    })?,
+                    edges: decode_counted(reader, |reader| {
+                        Ok(TerminalNaturalRankEdge {
+                            edge: reader.id("EdgeId")?,
+                            source: reader.id("BlockId")?,
+                            target: reader.id("BlockId")?,
+                            successor_rank: reader.id("ValueId")?,
+                            comparison: match reader.u8()? {
+                                1 => TerminalNaturalRankComparison::Preserving,
+                                2 => TerminalNaturalRankComparison::Strict,
+                                tag => {
+                                    return Err(CodecError::InvalidTag(
+                                        "TerminalNaturalRankComparison",
+                                        tag,
+                                    ));
+                                }
+                            },
+                        })
+                    })?,
+                })
+            },
+        )?))),
         tag => Err(CodecError::InvalidTag("TerminalRankedScc", tag)),
     }
 }
