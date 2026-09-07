@@ -11,7 +11,7 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | --- | --- | --- |
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
 | Delta name construction | Shared-prefix cursors save 275,352 pairs/11,014,080 bytes over root-rebuilding seeks on the current Epsilon subject; both produce the same complete receipt. | Retain the existing implementation without expansion. Customer capacity alone does not require it; preserve separate conformance obligations before considering removal. |
-| Generic Gamma checker | Full-source byte-capacity evidence checks at 547,817 work through shared shapes; direct counting offers a simpler definition path at greater proof cost. | Compare complete envelope/scanner composition before selecting a representation; capacity alone is not encoding or ASCII validity. |
+| Generic Gamma checker | Capacity checks at 547,817 work; the normalized forward state-fold recipe costs another 681,724 even with identity byte steps. | Separate capacity and scanner passes do not fit the current provision. Cost the combined encoder and a coherent resource provision before adopting either representation. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
 | Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eight remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
@@ -453,6 +453,88 @@ independent production root reconstruction, and the source-owned certificate
 producer remain missing. These scratch recipes are not production authority or
 a new retained framework. Measurements are macOS arm64 with overlapping checks,
 not controlled timing comparisons or allocation peaks; Windows was not run.
+
+### Forward state threading: reject the recipe's budget premise
+
+At `06b76d3eb68963c4e4c8ed8903b686ebc921fc34`, a temporary ordinary-Gamma
+emitter isolates traversal from byte semantics with this total definition:
+
+```text
+scan(Empty, state) = state
+scan(Leaf(byte), state) = state
+scan(Join(left, right), state) = scan(right, scan(left, state))
+```
+
+The two recursive Source arguments are unchanged immediate children; changing
+the state argument is legal under the existing calculus. The scratch State sort
+has one nullary constructor, Unit. This deliberately does **no scanning**: it
+proves neither byte classification, tokenization, encoding, nor capacity. The
+diagnostic root is only `scan(S, Unit) = Unit`, using the entire raw subject and
+the same binary splitting/interning rule as above. Identity byte steps permit
+maximal normalized-state reuse for this recipe, so a resource failure is useful
+before authoring real scanner helpers.
+
+Each distinct Leaf uses one Unfold (10 units including proof indexing). Each
+distinct Join uses Unfold (26), binary Cong (11), two Trans (14), and four
+indexing units: 55 total. Cong rewrites `scan(right, scan(left, Unit))` to
+`scan(right, Unit)` using the left equality and a shared Ref for the right
+Source. Each distinct right-source Ref adds four units including indexing;
+request setup and final-root comparisons add five.
+
+| Raw subject | Request bytes | Terms | Proof rows | Recipe work |
+| --- | ---: | ---: | ---: | ---: |
+| Empty | 3,464 | 3 | 1 | 14 |
+| `a` | 3,484 | 4 | 1 | 15 |
+| `ab` | 3,748 | 10 | 7 | 84 |
+| `abab` | 3,932 | 13 | 12 | 143 |
+| All 256 byte values | 70,804 | 1,534 | 1,531 | 17,610 |
+| Complete 46,484-byte source | 2,116,340 | 35,824 | 54,632 | 681,724 |
+
+The source has 11,865 distinct joins, 76 distinct leaves, and 7,096 distinct
+right-source references, giving `55*11865 + 10*76 + 4*7096 + 5 = 681724`.
+This is a constructed recipe cost, not an observed successful full check.
+The first five requests check at exactly the stated row/work counts; the
+256-byte case takes 5.733 seconds. Changing the two-byte proof's final endpoint
+to its initial scan application rejects with code 12 at coordinate 3,736.
+The emitted theory is 3,336 bytes, SHA-256
+`6822f1a2766b177986e92ccacb23d8a3564350fa278a74e648681cbaf517387f`;
+the checker diagnostic retains the preceding subsection's identity.
+
+The complete request returns owned Incomplete (tag 2, code 4, coordinate
+2,063,720, limit 655,360, requested 655,361) in 233.215 seconds. Thus the actual
+checker confirms exhaustion, not success at the constructed 681,724 cost. All
+listed observations return process status zero with empty stderr on macOS
+arm64. The initial scratch emitter attempt returned raw evaluator status 250,
+not a checker verdict: its 256-step non-tail constructor-writing loop exceeded
+the call-context provision once its callers were included. Making that loop
+tail-recursive fixed the emitter without changing any provision.
+No allocation peak or Windows runtime result is claimed.
+
+This is **not a lower bound for all certificates**. A different fixed recipe
+can unfold the right subtree with the symbolic state `scan(left, state)`, then
+compose two Trans without Cong or Ref. Its local Join cost is 43, but memoization
+now needs both source and state identities. A raw-term census on this subject
+finds 46,483 Join instances and 46,484 Leaf instances: 2,463,614 work with five
+setup/final units. That alternative was counted, not checker-executed; other
+mixed or fused recipes are not ruled out.
+
+**Disposition:** do not promote the normalized forward-fold recipe as fitting
+the present whole-request budget. Capacity via shapes leaves only 107,543 units;
+the scanner's Join rows alone require 652,575. Sharing physical source terms
+does not share equality rows headed by different functions. Adding the separate
+diagnostic totals is not an exact combined-certificate cost: setup, shared
+facts, root composition, and a fused definition may change it. Nevertheless,
+these separate-pass recipes cannot fit together unchanged.
+
+Before another permanent helper family, cost a contiguous real encoder example
+with operands, trivia, assertions, and endpoints, and estimate **one combined**
+ASCII/capacity/encoding request. Compare fused traversal against separate passes
+under a coherent larger work/input/allocation provision; the private limits
+are adjustable, not language laws. Raising work merely enough for this no-op
+fold would not establish encoding feasibility. Keep the complete error-valued
+root, raw-byte coverage, and cumulative budget intact. This measurement adds
+no production definition, checker rule, runtime provision, or retained probe
+framework. Complete encoding and its source-owned producer remain unimplemented.
 
 ## Legacy route: retirement must follow its consumers
 
