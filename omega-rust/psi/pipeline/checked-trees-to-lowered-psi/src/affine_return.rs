@@ -233,6 +233,7 @@ pub(super) fn lower_claim_free_affine_return_machines(
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: Vec::new(),

@@ -27,6 +27,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
         block,
         TerminalMachineResult::Unit,
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -115,6 +116,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         block,
         TerminalMachineResult::Unit,
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -269,6 +271,7 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
         caller_block,
         TerminalMachineResult::Structural(result(caller_result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: caller_block,
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -405,6 +408,7 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
     }];
     callee_machine.entry = callee_block;
     callee_machine.blocks = vec![Block {
+        structural_parameters: Vec::new(),
         id: callee_block,
         parameters: Vec::new(),
         operations: Vec::new(),

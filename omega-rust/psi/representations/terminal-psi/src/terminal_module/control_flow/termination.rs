@@ -1,5 +1,6 @@
 use crate::{
-    CrashPredicateTerm, NominalAffineCleanup, StructuralAffineDiscard, TerminalAffineCleanupAction,
+    CrashPredicateTerm, NominalAffineCleanup, StructuralAffineDiscard, StructuralArgument,
+    TerminalAffineCleanupAction,
 };
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId,
@@ -12,6 +13,8 @@ pub enum Terminator {
         edge: EdgeId,
         target: BlockId,
         arguments: Vec<ValueId>,
+        /// Positional bindings for the target block's structural parameters.
+        structural_arguments: Vec<StructuralArgument>,
         /// Exact no-code affine discards performed after edge fuel and outgoing
         /// scalar materialization, in reverse parameter declaration order.
         trivial_affine_discards: Vec<PlaceId>,
@@ -137,12 +140,14 @@ impl Terminator {
 }
 
 /// One ordered conditional successor and its simultaneous block-parameter
-/// bindings. The bindings are the current scalar edge-action vocabulary.
+/// scalar and structural bindings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SuccessorEdge {
     pub edge: EdgeId,
     pub target: BlockId,
     pub arguments: Vec<ValueId>,
+    /// Positional bindings for the target block's structural parameters.
+    pub structural_arguments: Vec<StructuralArgument>,
     /// Exact no-code affine discards committed only when this successor is
     /// selected, in reverse parameter declaration order.
     pub trivial_affine_discards: Vec<PlaceId>,

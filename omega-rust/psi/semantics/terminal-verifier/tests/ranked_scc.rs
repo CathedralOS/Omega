@@ -121,10 +121,12 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
             entry: preheader,
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: preheader,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: preheader_edge,
                         target: header,
                         arguments: vec![initial],
@@ -133,6 +135,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
                         id: rank,
@@ -164,12 +167,14 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: guard_edge,
                             target: decrement,
                             arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: exit_edge,
                             target: done,
                             arguments: Vec::new(),
@@ -178,6 +183,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: decrement,
                     parameters: Vec::new(),
                     operations: vec![
@@ -205,6 +211,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: backedge,
                         target: header,
                         arguments: vec![next],
@@ -213,6 +220,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: done,
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -247,18 +255,21 @@ fn unranked_scalar_cycle() -> TerminalModule {
     machine.entry = entry;
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition,
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: id(10, EdgeId::new),
                     target: entry,
                     arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: id(11, EdgeId::new),
                     target: done,
                     arguments: Vec::new(),
@@ -267,6 +278,7 @@ fn unranked_scalar_cycle() -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: done,
             parameters: Vec::new(),
             operations: Vec::new(),

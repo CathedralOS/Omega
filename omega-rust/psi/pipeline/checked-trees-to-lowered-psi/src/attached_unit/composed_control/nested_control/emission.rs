@@ -78,6 +78,7 @@ pub(super) fn emit(
         source_call_occurrences.append(&mut operations.source_calls);
         blocks.append(&mut evaluation.blocks);
         blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: evaluation.current,
             parameters: evaluation.parameters,
             operations: operations[evaluation.operation_start..].to_vec(),
@@ -181,6 +182,7 @@ fn successor(
     next_edge: &mut u64,
 ) -> Result<SuccessorEdge, LoweringError> {
     Ok(SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments,

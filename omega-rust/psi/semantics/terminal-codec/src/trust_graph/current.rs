@@ -1,8 +1,8 @@
 //! Exact source-bound construction of the current migration trust graph.
 use super::{
-    BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE,
-    BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
-    TERMINAL_BYTE_EXTENT_SOURCE,
+    BYTE_BLOCK_BINDINGS_SOURCE, BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
+    BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
+    PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -41,7 +41,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-77-vocabulary-83"
+    "root:canonical-terminal-bytes-format-78-vocabulary-84"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -456,6 +456,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ("terminal-semantics/structural_effect/byte_extent.rs", TERMINAL_BYTE_EXTENT_SOURCE),
                     ("terminal-verifier/verification/reconstruction/operation_facts/byte_extent.rs", BYTE_EXTENT_RECONSTRUCTION_SOURCE),
                     ("terminal-verifier/validation/control_flow.rs", BYTE_VIEW_DOMINANCE_SOURCE),
+                    ("terminal-verifier/validation/block_views.rs", BYTE_BLOCK_BINDINGS_SOURCE),
                     ("terminal-verifier/validation/frontier.rs", BYTE_VIEW_FRONTIER_SOURCE),
                     ("terminal-verifier/validation/structural_operations.rs", BYTE_VIEW_ARGUMENTS_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_read.rs", BYTE_READ_VALIDATION_SOURCE),

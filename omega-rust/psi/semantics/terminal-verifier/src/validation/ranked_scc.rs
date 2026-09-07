@@ -20,6 +20,9 @@ pub(super) fn validate_ranked_scc(
         return Ok(BTreeSet::new());
     };
     let invalid = || ModuleError::InvalidRankedScc(machine.id);
+    if super::block_views::has_bindings(machine) {
+        return Err(invalid());
+    }
     let entry = blocks.get(&machine.entry).copied().ok_or_else(invalid)?;
     let header = blocks.get(&component.header).copied().ok_or_else(invalid)?;
     if machine.entry == component.header
@@ -77,6 +80,7 @@ pub(super) fn validate_ranked_scc(
         arguments,
         trivial_affine_discards,
         residual_affine_discards,
+        structural_arguments: _,
     } = &source.terminator
     else {
         return Err(invalid());

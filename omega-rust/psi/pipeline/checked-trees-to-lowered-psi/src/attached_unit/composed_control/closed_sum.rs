@@ -334,6 +334,7 @@ fn emit(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut source_calls = entry_operations.source_calls;
     blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: state_ids[0],
         parameters: Vec::new(),
         operations: entry_operations.operations,

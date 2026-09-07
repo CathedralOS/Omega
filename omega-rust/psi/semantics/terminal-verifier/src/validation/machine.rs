@@ -35,6 +35,9 @@ pub(super) fn validate_machine(
             });
         }
         let root = match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::BlockParameter { block, position } => {
+                StructuralRootKey::BlockParameter(block, position)
+            }
             semantic_vocabulary::StructuralPlaceKind::Parameter { position, .. } => {
                 StructuralRootKey::Parameter(position)
             }
@@ -839,7 +842,7 @@ pub(super) fn validate_machine(
             block: machine.entry,
         });
     };
-    if !entry.parameters.is_empty() {
+    if !entry.parameters.is_empty() || !entry.structural_parameters.is_empty() {
         return Err(ModuleError::EntryBlockCannotHaveParameters(machine.entry));
     }
 

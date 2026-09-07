@@ -127,6 +127,7 @@ fn byte_operation_fence(subslice: bool) {
         projected_qualifications: Vec::new(),
     }];
     let successor = |edge, block| SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(block),
         arguments: Vec::new(),
@@ -137,6 +138,7 @@ fn byte_operation_fence(subslice: bool) {
     // verification still requires the entry length and true edge to dominate it.
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -160,6 +162,7 @@ fn byte_operation_fence(subslice: bool) {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: vec![
@@ -192,6 +195,7 @@ fn byte_operation_fence(subslice: bool) {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -380,6 +384,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![

@@ -103,6 +103,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -191,6 +192,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
             content_partition_compositions: Vec::new(),
             entry: block_id(3),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(3),
                 parameters: Vec::new(),
                 operations: Vec::new(),

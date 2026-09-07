@@ -2598,6 +2598,7 @@ fn program_local_root_module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: semantic_vocabulary::BlockId::new(1).expect("block identity"),
             blocks: vec![terminal_psi::Block {
+                structural_parameters: Vec::new(),
                 id: semantic_vocabulary::BlockId::new(1).expect("block identity"),
                 parameters: Vec::new(),
                 operations: Vec::new(),

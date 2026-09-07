@@ -27,12 +27,14 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         scalar_type,
     };
     let successor = |id, block| SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: EdgeId::new(id).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     let leaf = |block, operation, result, edge, literal| Block {
+        structural_parameters: Vec::new(),
         id: BlockId::new(block).unwrap(),
         parameters: Vec::new(),
         operations: vec![Operation {
@@ -64,6 +66,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         entry: BlockId::new(1).unwrap(),
         blocks: vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 operations: vec![Operation {

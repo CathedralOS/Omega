@@ -46,8 +46,6 @@ pub(in crate::attached_unit) struct AdmittedGraph<'a> {
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
     pub(in crate::attached_unit::composed_control) internal_targets:
         Vec<(crate::attached_unit::bodies::UnitBody<'a>, String)>,
-    /// State-local views retain invocation or selected-edge descriptor identities.
-    pub(super) views: views::ViewBindings,
 }
 
 pub(in crate::attached_unit::composed_control) fn admit<'a>(
@@ -312,7 +310,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             _ => return unsupported("Unit graph terminator disagrees with authored state"),
         }
     }
-    let views = views::bindings(plan)?;
+    topology::validate(plan)?;
     let states = plan.states.iter().collect::<Vec<_>>();
     let (boundaries, internal_targets) =
         super::super::admission::retain_call_targets(checked, plan.machine, &states)?;
@@ -329,6 +327,5 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     Ok(AdmittedGraph {
         boundaries,
         internal_targets,
-        views,
     })
 }

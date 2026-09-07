@@ -70,6 +70,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
@@ -233,6 +234,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
             entry,
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: join,
                     parameters: vec![
                         declaration(join_a, scalar_type),
@@ -254,6 +256,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: left_block,
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -265,6 +268,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(521).unwrap(),
                         target: join,
                         arguments: vec![left_a, zero],
@@ -273,6 +277,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -285,12 +290,14 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(522).unwrap(),
                             target: left_block,
                             arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(523).unwrap(),
                             target: right_block,
                             arguments: Vec::new(),
@@ -299,6 +306,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: right_block,
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -310,6 +318,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(525).unwrap(),
                         target: join,
                         arguments: vec![right_a, zero],

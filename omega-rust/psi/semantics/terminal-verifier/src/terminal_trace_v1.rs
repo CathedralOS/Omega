@@ -425,6 +425,7 @@ mod tests {
                 entry: block,
                 blocks: vec![Block {
                     id: block,
+                    structural_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator,

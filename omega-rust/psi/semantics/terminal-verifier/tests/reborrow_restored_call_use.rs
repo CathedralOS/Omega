@@ -135,6 +135,7 @@ fn restored_call_use_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(1, BlockId::new),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id(1, BlockId::new),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -181,6 +182,7 @@ fn restored_call_use_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(2, BlockId::new),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id(2, BlockId::new),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -315,6 +317,7 @@ fn exact_two_and_three_member_shared_freeze_cohorts_validate_and_fence_roster_dr
         content_partition_compositions: Vec::new(),
         entry: id(3, BlockId::new),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: id(3, BlockId::new),
             parameters: Vec::new(),
             operations: Vec::new(),

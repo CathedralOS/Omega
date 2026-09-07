@@ -1204,6 +1204,17 @@ pub(super) fn validate_structural_arguments(
                         return None;
                     }
                     match place.kind {
+                        StructuralPlaceKind::BlockParameter { .. }
+                            if argument.path.is_empty()
+                                && argument.access == StructuralAccess::SharedBorrow
+                                && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                                    || (unit_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
+                        {
+                            super::block_views::parameter(caller, argument.place).map(|parameter| (
+                                parameter.structural_type, parameter.multiplicity, parameter.access,
+                                parameter.qualifications.as_slice(), parameter.projected_qualifications.as_slice(),
+                            ))
+                        }
                         StructuralPlaceKind::OperationResult { .. }
                             if argument.path.is_empty()
                                 && argument.access == StructuralAccess::SharedBorrow
@@ -2023,6 +2034,10 @@ pub(crate) fn structural_argument_canonical_prefix(
         .iter()
         .find_map(|parameter| {
             (parameter.place == argument.place).then_some(parameter.structural_type)
+        })
+        .or_else(|| {
+            super::block_views::parameter(caller, argument.place)
+                .map(|parameter| parameter.structural_type)
         })
         .or_else(|| {
             caller

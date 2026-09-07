@@ -186,6 +186,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
             content_partition_compositions: Vec::new(),
             entry: block_id(900),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(900),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -302,6 +303,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         content_partition_compositions: Vec::new(),
         entry: block_id(901),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(901),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -1399,18 +1401,21 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
     callee.contract.crash_routes = vec![route];
     callee.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(4),
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(3),
                     target: block_id(4),
                     arguments: Vec::new(),
@@ -1419,6 +1424,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -1429,6 +1435,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
             operations: vec![
@@ -1618,6 +1625,7 @@ fn unit_fixture() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(900),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(900),
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -1681,6 +1689,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block,
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -2041,6 +2050,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(901),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(901),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -2077,6 +2087,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(902),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(902),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -2125,6 +2136,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(903),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(903),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -2240,6 +2252,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(700),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(700),
                     parameters: Vec::new(),
                     operations: vec![
@@ -2293,6 +2306,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(701),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(701),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -2453,6 +2467,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
             entry: block_id(1),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -2466,6 +2481,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: edge_id(1),
                         target: block_id(2),
                         arguments: vec![value_id(1)],
@@ -2474,6 +2490,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
                         id: value_id(2),
@@ -2565,6 +2582,7 @@ fn call_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![
@@ -2607,6 +2625,7 @@ fn call_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),

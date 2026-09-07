@@ -243,18 +243,21 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 blocks,
             );
             blocks[block_index] = Some(Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: block_parameters,
                 operations: all_operations[operation_start..operation_end].to_vec(),
                 terminator: Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: true_edge,
                         target: when_true.block,
                         arguments: when_true.arguments,
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: false_edge,
                         target: when_false.block,
                         arguments: when_false.arguments,
@@ -315,6 +318,7 @@ fn emit_reserved_boolean_value_blocks(
                     value,
                 },
                 LoweredBooleanDecisionExit::Jump { target } => Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge,
                     target,
                     arguments: vec![value],
@@ -367,12 +371,14 @@ fn emit_reserved_boolean_value_blocks(
                 Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: true_edge,
                         target: when_true,
                         arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: false_edge,
                         target: when_false,
                         arguments: Vec::new(),
@@ -384,6 +390,7 @@ fn emit_reserved_boolean_value_blocks(
         }
     };
     blocks[block_index] = Some(Block {
+        structural_parameters: Vec::new(),
         id: block,
         parameters: block_parameters,
         operations: all_operations[operation_start..operation_end].to_vec(),
@@ -515,6 +522,7 @@ pub(super) fn emit_reserved_boolean_tuple_stage_blocks(
             arguments.push(value);
             (
                 Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge,
                     target: next_stage,
                     arguments,
@@ -569,12 +577,14 @@ pub(super) fn emit_reserved_boolean_tuple_stage_blocks(
                 Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: true_edge,
                         target: when_true,
                         arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: false_edge,
                         target: when_false,
                         arguments: Vec::new(),
@@ -586,6 +596,7 @@ pub(super) fn emit_reserved_boolean_tuple_stage_blocks(
         }
     };
     blocks[block_index] = Some(Block {
+        structural_parameters: Vec::new(),
         id: block,
         parameters: block_parameters,
         operations: all_operations[operation_start..operation_end].to_vec(),

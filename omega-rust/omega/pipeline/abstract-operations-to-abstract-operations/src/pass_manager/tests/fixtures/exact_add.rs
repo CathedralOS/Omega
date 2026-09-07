@@ -77,6 +77,7 @@ pub(super) fn verified_exact_add_unit_with_right(
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![

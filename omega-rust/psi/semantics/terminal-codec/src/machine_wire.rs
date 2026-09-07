@@ -57,6 +57,14 @@ pub(super) fn encode_machine_for_result_paths(
     }
     writer.len("structural places", machine.structural_places.len())?;
     for place in &machine.structural_places {
+        if result_path_format != ResultPathWireFormat::Current
+            && matches!(
+                place.kind,
+                semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. }
+            )
+        {
+            return Err(CodecError::InvalidTag("StructuralPlaceKind", 8));
+        }
         writer.id(place.id);
         encode_structural_place_kind(writer, place.kind);
     }
@@ -128,10 +136,17 @@ pub(super) fn decode_machine_for_result_paths(
     let count = reader.count()?;
     let mut structural_places = Vec::new();
     for _ in 0..count {
-        structural_places.push(StructuralPlaceDeclaration {
-            id: reader.id("PlaceId")?,
-            kind: decode_structural_place_kind(reader)?,
-        });
+        let id = reader.id("PlaceId")?;
+        let kind = decode_structural_place_kind(reader)?;
+        if result_path_format != ResultPathWireFormat::Current
+            && matches!(
+                kind,
+                semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. }
+            )
+        {
+            return Err(CodecError::InvalidTag("StructuralPlaceKind", 8));
+        }
+        structural_places.push(StructuralPlaceDeclaration { id, kind });
     }
     let entry_claims = decode_counted(reader, |reader| {
         Ok(EntryClaim {

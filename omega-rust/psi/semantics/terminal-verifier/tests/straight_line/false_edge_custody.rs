@@ -53,18 +53,21 @@ fn module(with_alias_hop: bool) -> TerminalModule {
     machine.entry = block(1);
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block(1),
             parameters: Vec::new(),
             operations: vec![constant(1, 3, 0), comparison(2, 5, 1), comparison(3, 6, 2)],
             terminator: Terminator::Conditional {
                 condition: value(5),
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge(1),
                     target: block(2),
                     arguments: vec![value(1)],
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge(2),
                     target: block(3),
                     arguments: vec![value(1)],
@@ -73,6 +76,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block(2),
             parameters: vec![declaration(10)],
             operations: Vec::new(),
@@ -86,10 +90,12 @@ fn module(with_alias_hop: bool) -> TerminalModule {
     let divisor = if with_alias_hop { 14 } else { 11 };
     if with_alias_hop {
         machine.blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: block(3),
             parameters: vec![declaration(11)],
             operations: Vec::new(),
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: edge(4),
                 target: block(4),
                 arguments: vec![value(11)],
@@ -99,6 +105,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
         });
     }
     machine.blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block(if with_alias_hop { 4 } else { 3 }),
         parameters: vec![declaration(divisor)],
         operations: vec![
@@ -222,6 +229,7 @@ fn false_edge_only_fact_cannot_escape_a_reconverged_join() {
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("single incoming proof verifies");
     module.machines[0].blocks[1].terminator = Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge: edge(6),
         target: block(4),
         arguments: vec![value(10)],

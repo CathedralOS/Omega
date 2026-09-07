@@ -125,6 +125,7 @@ pub(super) fn live_exact_add_zero_verified() -> VerifiedPsiOptimizationUnit {
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -181,6 +182,7 @@ pub(super) fn live_exact_divide_by_one_verified() -> VerifiedPsiOptimizationUnit
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -241,6 +243,7 @@ pub(super) fn live_exact_multiply_by_zero_verified() -> VerifiedPsiOptimizationU
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -297,6 +300,7 @@ pub(super) fn live_exact_zero_dividend_verified() -> VerifiedPsiOptimizationUnit
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -369,6 +373,7 @@ pub(super) fn live_exact_zero_value_shift_verified() -> VerifiedPsiOptimizationU
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -437,6 +442,7 @@ pub(super) fn live_exact_signed_negative_one_shift_right_verified() -> VerifiedP
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -498,6 +504,7 @@ pub(super) fn live_exact_self_subtract_verified() -> VerifiedPsiOptimizationUnit
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -541,6 +548,7 @@ pub(super) fn live_exact_self_division_or_remainder_verified(
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -659,6 +667,7 @@ pub(super) fn live_exact_remainder_by_unit_verified(
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations,
@@ -722,6 +731,7 @@ pub(super) fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsi
             block,
             machine_result,
             vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![

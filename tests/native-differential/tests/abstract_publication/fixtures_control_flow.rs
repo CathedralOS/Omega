@@ -10,6 +10,7 @@ pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationU
         entry_block,
         TerminalMachineResult::Unit,
         vec![Block {
+            structural_parameters: Vec::new(),
             id: entry_block,
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -36,6 +37,7 @@ pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationU
         content_partition_compositions: Vec::new(),
         entry: private_block,
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: private_block,
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -66,10 +68,12 @@ pub(super) fn adjacent_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
             TerminalMachineResult::Unit,
             vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_054).unwrap(),
                         target,
                         arguments: Vec::new(),
@@ -78,6 +82,7 @@ pub(super) fn adjacent_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: target,
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -116,18 +121,21 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
         TerminalMachineResult::Scalar(boolean(result)),
         vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_512).unwrap(),
                         target: predecessor,
                         arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_513).unwrap(),
                         target: sibling,
                         arguments: Vec::new(),
@@ -136,6 +144,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: descendant,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -153,6 +162,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: target,
                 parameters: vec![boolean(target_parameter)],
                 operations: vec![Operation {
@@ -163,6 +173,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                     },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_517).unwrap(),
                     target: descendant,
                     arguments: Vec::new(),
@@ -171,6 +182,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: sibling,
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -181,6 +193,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: predecessor,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -189,6 +202,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                     kind: OperationKind::BooleanNot { operand: incoming },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_519).unwrap(),
                     target,
                     arguments: vec![predecessor_value],
@@ -223,18 +237,21 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
         TerminalMachineResult::Unit,
         vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_069).unwrap(),
                         target: left,
                         arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_070).unwrap(),
                         target: right,
                         arguments: Vec::new(),
@@ -243,6 +260,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: left,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -251,6 +269,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                     kind: OperationKind::BooleanConstant { value: true },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_072).unwrap(),
                     target,
                     arguments: Vec::new(),
@@ -259,6 +278,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: right,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -267,6 +287,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                     kind: OperationKind::BooleanConstant { value: false },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_074).unwrap(),
                     target,
                     arguments: Vec::new(),
@@ -275,6 +296,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: target,
                 parameters: Vec::new(),
                 operations: Vec::new(),

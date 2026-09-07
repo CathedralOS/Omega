@@ -563,6 +563,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![
@@ -614,6 +615,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),

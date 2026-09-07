@@ -758,6 +758,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -1815,10 +1816,12 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
     });
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: edge_id(2),
                 target: block_id(3),
                 arguments: vec![value_id(10)],
@@ -1827,6 +1830,7 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
                 id: value_id(12),
@@ -1889,18 +1893,21 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
     });
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(10),
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: vec![value_id(10)],
                     trivial_affine_discards: vec![place_id(2)],
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(3),
                     target: block_id(4),
                     arguments: vec![value_id(10)],
@@ -1909,6 +1916,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
                 id: value_id(12),
@@ -1922,6 +1930,7 @@ fn conditional_commits_only_the_selected_affine_cleanup_after_edge_charge() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: vec![ValueDeclaration {
                 id: value_id(13),
@@ -2698,6 +2707,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![
@@ -2794,6 +2804,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![
@@ -2966,6 +2977,7 @@ fn effect_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![
@@ -3028,6 +3040,7 @@ fn effect_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -3216,6 +3229,7 @@ fn payloadless_call_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -3299,6 +3313,7 @@ fn unit_module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -3426,6 +3441,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(92),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(92),
             parameters: Vec::new(),
             operations: vec![
@@ -3602,6 +3618,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(96),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(96),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -3782,6 +3799,7 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(97),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(97),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -3880,18 +3898,21 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
     }];
     caller_machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(10),
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(1),
                     target: block_id(2),
                     arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: Vec::new(),
@@ -3900,6 +3921,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -3924,6 +3946,7 @@ fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -4045,6 +4068,7 @@ fn nominal_affine_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -4076,6 +4100,7 @@ fn nominal_affine_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -4764,6 +4789,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(3),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -4812,6 +4838,7 @@ fn two_helper_nominal_affine_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(4),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -4915,6 +4942,7 @@ fn partial_affine_field_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -4975,6 +5003,7 @@ fn partial_affine_field_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(2),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -5081,6 +5110,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -5185,6 +5215,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(2),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),

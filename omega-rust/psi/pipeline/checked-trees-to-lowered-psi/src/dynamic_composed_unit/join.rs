@@ -103,18 +103,21 @@ pub(super) fn lower(
     };
     let caller_blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(1),
                 when_true: terminal_psi::SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(1),
                     target: block_id(2),
                     arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: terminal_psi::SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: Vec::new(),
@@ -571,6 +574,7 @@ fn branch_block(
     kind: OperationKind,
 ) -> Block {
     Block {
+        structural_parameters: Vec::new(),
         id: block,
         parameters: Vec::new(),
         operations: vec![Operation {

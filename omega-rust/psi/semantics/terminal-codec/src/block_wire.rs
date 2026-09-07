@@ -26,6 +26,9 @@ use super::scalar_wire::{
 use super::structural_result_wire::{
     ResultPathWireFormat, decode_operation_result, encode_operation_result,
 };
+use super::structural_signature_wire::{
+    decode_structural_parameters, encode_structural_parameters,
+};
 use super::wire::{Reader, Writer};
 use super::{
     CodecError, decode_affine_cleanup_action, decode_counted, decode_ids, decode_optional_id,
@@ -45,6 +48,13 @@ pub(super) fn encode_block_for_result_paths(
 ) -> Result<(), CodecError> {
     writer.id(block.id);
     encode_declarations(writer, "block parameters", &block.parameters)?;
+    if result_path_format == ResultPathWireFormat::Current {
+        encode_structural_parameters(writer, &block.structural_parameters)?;
+    } else if !block.structural_parameters.is_empty() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "legacy format cannot encode structural block parameters",
+        ));
+    }
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
         writer.id(operation.id);
@@ -638,6 +648,7 @@ pub(super) fn encode_block_for_result_paths(
             edge,
             target,
             arguments,
+            structural_arguments,
             trivial_affine_discards,
             residual_affine_discards,
         } => {
@@ -652,6 +663,13 @@ pub(super) fn encode_block_for_result_paths(
             writer.len("jump arguments", arguments.len())?;
             for argument in arguments {
                 writer.id(*argument);
+            }
+            if result_path_format == ResultPathWireFormat::Current {
+                encode_structural_arguments(writer, structural_arguments)?;
+            } else if !structural_arguments.is_empty() {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "legacy format cannot encode structural jump arguments",
+                ));
             }
             writer.len(
                 "jump trivial affine discards",
@@ -763,8 +781,8 @@ pub(super) fn encode_block_for_result_paths(
         } => {
             writer.u8(3);
             writer.id(*condition);
-            encode_successor_edge(writer, when_true)?;
-            encode_successor_edge(writer, when_false)?;
+            encode_successor_edge(writer, when_true, result_path_format)?;
+            encode_successor_edge(writer, when_false, result_path_format)?;
         }
         Terminator::StructuralCase { source, cases } => {
             writer.u8(9);
@@ -823,6 +841,11 @@ pub(super) fn decode_block_for_result_paths(
 ) -> Result<Block, CodecError> {
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
+    let structural_parameters = if result_path_format == ResultPathWireFormat::Current {
+        decode_structural_parameters(reader)?
+    } else {
+        Vec::new()
+    };
     let operation_count = reader.count()?;
     let mut operations = Vec::new();
     for _ in 0..operation_count {
@@ -1231,6 +1254,11 @@ pub(super) fn decode_block_for_result_paths(
                 edge,
                 target,
                 arguments,
+                structural_arguments: if result_path_format == ResultPathWireFormat::Current {
+                    decode_structural_arguments(reader)?
+                } else {
+                    Vec::new()
+                },
                 trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
                 residual_affine_discards: if tag == 10 {
                     let residuals = decode_counted(reader, |reader| {
@@ -1256,8 +1284,8 @@ pub(super) fn decode_block_for_result_paths(
         },
         3 => Terminator::Conditional {
             condition: reader.id("ValueId")?,
-            when_true: decode_successor_edge(reader)?,
-            when_false: decode_successor_edge(reader)?,
+            when_true: decode_successor_edge(reader, result_path_format)?,
+            when_false: decode_successor_edge(reader, result_path_format)?,
         },
         4 => {
             let edge = reader.id("EdgeId")?;
@@ -1333,6 +1361,7 @@ pub(super) fn decode_block_for_result_paths(
     Ok(Block {
         id,
         parameters,
+        structural_parameters,
         operations,
         terminator,
     })
@@ -1368,10 +1397,12 @@ mod tests {
 
     fn jump_block(residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>) -> Block {
         Block {
+            structural_parameters: Vec::new(),
             id: id(1),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: id(2),
                 target: id(3),
                 arguments: vec![id(4)],
@@ -1382,10 +1413,15 @@ mod tests {
     }
 
     #[test]
-    fn root_only_jump_retains_its_exact_wire_encoding() {
+    fn root_only_jump_retains_its_exact_legacy_wire_encoding() {
         let block = jump_block(Vec::new());
         let mut writer = Writer::default();
-        encode_block(&mut writer, &block).unwrap();
+        encode_block_for_result_paths(
+            &mut writer,
+            &block,
+            ResultPathWireFormat::LegacyWithoutResultPaths,
+        )
+        .unwrap();
         let bytes = writer.finish();
         let expected = [
             1_u64.to_le_bytes().as_slice(),
@@ -1401,7 +1437,13 @@ mod tests {
         ]
         .concat();
         assert_eq!(bytes, expected);
-        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
+        assert_eq!(
+            decode_block_for_result_paths(
+                &mut Reader::new(&bytes),
+                ResultPathWireFormat::LegacyWithoutResultPaths,
+            ),
+            Ok(block)
+        );
     }
 
     #[test]
@@ -1421,7 +1463,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
-        assert_eq!(bytes[16], 10);
+        assert_eq!(bytes[20], 10);
         let mut reader = Reader::new(&bytes);
         let decoded = decode_block(&mut reader).unwrap();
         assert_eq!(decoded, block);
@@ -1436,7 +1478,7 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &jump_block(Vec::new())).unwrap();
         let mut bytes = writer.finish();
-        bytes[16] = 10;
+        bytes[20] = 10;
         bytes.extend(0_u32.to_le_bytes());
         assert_eq!(
             decode_block(&mut Reader::new(&bytes)),
@@ -1446,6 +1488,7 @@ mod tests {
 
     fn structural_call_block() -> Block {
         Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1484,6 +1527,7 @@ mod tests {
     #[test]
     fn write_only_primitive_store_uses_exact_stable_wire_fields() {
         let block = Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1502,15 +1546,15 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).expect("write-only primitive store block encodes");
         let bytes = writer.finish();
-        assert_eq!(bytes[24], 0, "Unit OperationResult wire tag");
-        assert_eq!(bytes[25], 43, "WriteOnlyPrimitiveStore wire tag");
+        assert_eq!(bytes[28], 0, "Unit OperationResult wire tag");
+        assert_eq!(bytes[29], 43, "WriteOnlyPrimitiveStore wire tag");
         assert_eq!(
-            &bytes[26..34],
+            &bytes[30..38],
             &id::<PlaceId>(3).get().to_le_bytes(),
             "destination is the first exact operation field",
         );
         assert_eq!(
-            &bytes[34..42],
+            &bytes[38..46],
             &id::<semantic_vocabulary::ValueId>(4).get().to_le_bytes(),
             "source value is the second exact operation field",
         );
@@ -1519,7 +1563,7 @@ mod tests {
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid = bytes;
-        invalid[25] = 255;
+        invalid[29] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid)),
             Err(CodecError::InvalidTag("OperationKind", 255)),
@@ -1529,6 +1573,7 @@ mod tests {
     #[test]
     fn structural_scalar_field_operations_use_exact_stable_wire_fields() {
         let store = Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1549,19 +1594,19 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &store).expect("structural scalar-field store encodes");
         let bytes = writer.finish();
-        assert_eq!(bytes[25], 46, "StructuralScalarFieldStore wire tag");
-        assert_eq!(&bytes[26..34], &id::<PlaceId>(3).get().to_le_bytes());
-        assert_eq!(&bytes[34..38], &1_u32.to_le_bytes());
-        assert_eq!(bytes[38], 1, "Field structural-path segment wire tag");
+        assert_eq!(bytes[29], 46, "StructuralScalarFieldStore wire tag");
+        assert_eq!(&bytes[30..38], &id::<PlaceId>(3).get().to_le_bytes());
+        assert_eq!(&bytes[38..42], &1_u32.to_le_bytes());
+        assert_eq!(bytes[42], 1, "Field structural-path segment wire tag");
         assert_eq!(
-            &bytes[47..55],
+            &bytes[51..59],
             &id::<StructuralFieldId>(4).get().to_le_bytes()
         );
-        assert_eq!(&bytes[55..63], &id::<ValueId>(5).get().to_le_bytes());
+        assert_eq!(&bytes[59..67], &id::<ValueId>(5).get().to_le_bytes());
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(store));
 
         let mut invalid_path = bytes;
-        invalid_path[38] = 255;
+        invalid_path[42] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_path)),
             Err(CodecError::InvalidTag("StructuralPathSegment", 255)),
@@ -1569,6 +1614,7 @@ mod tests {
 
         let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
         let read = Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(7),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1609,6 +1655,7 @@ mod tests {
     #[test]
     fn byte_sequence_length_wire_binds_exact_source_and_result() {
         let block = Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1646,9 +1693,12 @@ mod tests {
             )
             .is_err()
         );
+        // Legacy blocks omit the structural-parameter count after the empty
+        // scalar-parameter roster. Keep the rejected operation in that envelope.
+        let legacy_bytes = [&bytes[..12], &bytes[16..]].concat();
         assert_eq!(
             decode_block_for_result_paths(
-                &mut Reader::new(&bytes),
+                &mut Reader::new(&legacy_bytes),
                 ResultPathWireFormat::LegacyWithoutResultPaths
             ),
             Err(CodecError::InvalidTag("OperationKind", 55))
@@ -1677,6 +1727,7 @@ mod tests {
     #[test]
     fn byte_sequence_subslice_wire_binds_each_operand_and_structural_result() {
         let block = Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1748,6 +1799,7 @@ mod tests {
     #[test]
     fn byte_sequence_read_wire_binds_all_operands_and_rejects_legacy_decode() {
         let block = Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1791,9 +1843,12 @@ mod tests {
             )
             .is_err()
         );
+        // Remove only the new empty structural-parameter count so rejection
+        // reaches the unsupported read operation in the legacy envelope.
+        let legacy_bytes = [&bytes[..12], &bytes[16..]].concat();
         assert_eq!(
             decode_block_for_result_paths(
-                &mut Reader::new(&bytes),
+                &mut Reader::new(&legacy_bytes),
                 ResultPathWireFormat::LegacyWithoutResultPaths
             ),
             Err(CodecError::InvalidTag("OperationKind", 56))
@@ -1810,6 +1865,7 @@ mod tests {
     #[test]
     fn structural_scalar_call_round_trips_scalar_arguments() {
         let block = Block {
+            structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1855,25 +1911,25 @@ mod tests {
         encode_block(&mut writer, &block).expect("structural call block encodes");
         let bytes = writer.finish();
 
-        // Block id + parameter count + operation count + operation id.
-        assert_eq!(bytes[24], 2, "structural OperationResult wire tag");
+        // Block id + scalar/structural parameter counts + operation count + operation id.
+        assert_eq!(bytes[28], 2, "structural OperationResult wire tag");
         // The fixture has no qualifications and one whole-root claim, so the
         // operation-kind tag follows its fixed-width result metadata here.
-        assert_eq!(bytes[66], 41, "CallStructural wire tag");
+        assert_eq!(bytes[70], 41, "CallStructural wire tag");
 
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_block(&mut reader), Ok(block));
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid_result = bytes.clone();
-        invalid_result[24] = 3;
+        invalid_result[28] = 3;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_result)),
             Err(CodecError::InvalidTag("OperationResult", 3))
         );
 
         let mut invalid_call = bytes;
-        invalid_call[66] = 255;
+        invalid_call[70] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_call)),
             Err(CodecError::InvalidTag("OperationKind", 255))

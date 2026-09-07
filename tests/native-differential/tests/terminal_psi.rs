@@ -51,6 +51,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         entry: BlockId::new(1).expect("entry"),
         blocks: vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(1).expect("entry"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -64,6 +65,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                     },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1).expect("jump"),
                     target: BlockId::new(2).expect("exit"),
                     arguments: vec![constant],
@@ -72,6 +74,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(2).expect("exit"),
                 parameters: vec![ValueDeclaration {
                     id: forwarded,
@@ -372,6 +375,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(90).expect("entry"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(90).expect("entry"),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -491,6 +495,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(10).expect("entry"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(10).expect("entry"),
             parameters: Vec::new(),
             operations: Vec::new(),

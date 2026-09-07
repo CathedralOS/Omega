@@ -171,6 +171,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(10),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(10),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -231,6 +232,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(20),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(20),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -362,6 +364,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(10),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(10),
             parameters: Vec::new(),
             operations: vec![
@@ -431,6 +434,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(20),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(20),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -467,6 +471,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(30),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(30),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -583,6 +588,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         entry: block_id(10),
         blocks: vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: block_id(10),
                 parameters: Vec::new(),
                 operations: vec![
@@ -665,10 +671,12 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: block_id(11),
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(102),
                     target: block_id(13),
                     arguments: vec![value_id(20)],
@@ -677,10 +685,12 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: block_id(12),
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(103),
                     target: block_id(13),
                     arguments: vec![value_id(if asymmetric { 21 } else { 20 })],
@@ -689,6 +699,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: block_id(13),
                 parameters: vec![value(30)],
                 operations: vec![
@@ -931,6 +942,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(20),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(20),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -989,6 +1001,7 @@ fn scalar_operation(id: u64, result: ValueDeclaration, kind: OperationKind) -> O
 
 fn successor(edge: u64, target: u64) -> SuccessorEdge {
     SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(target),
         arguments: Vec::new(),

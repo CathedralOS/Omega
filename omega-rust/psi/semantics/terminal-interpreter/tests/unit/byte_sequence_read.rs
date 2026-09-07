@@ -43,6 +43,7 @@ pub(super) fn finish(edge: u64) -> Terminator {
 
 pub(super) fn successor(edge: u64, block: u64) -> SuccessorEdge {
     SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(block),
         arguments: Vec::new(),
@@ -104,6 +105,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
     }];
     helper.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: vec![
@@ -133,6 +135,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
             operations: vec![
@@ -151,6 +154,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
             terminator: finish(4),
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -307,6 +311,7 @@ fn byte_read_rejects_duplicate_obligations_and_guard_facts_from_other_paths() {
     let operations = std::mem::take(&mut joined.machines[1].blocks[1].operations);
     for (position, edge) in [(1, 4), (2, 5)] {
         joined.machines[1].blocks[position].terminator = Terminator::Jump {
+            structural_arguments: Vec::new(),
             edge: edge_id(edge),
             target: block_id(5),
             arguments: Vec::new(),
@@ -315,6 +320,7 @@ fn byte_read_rejects_duplicate_obligations_and_guard_facts_from_other_paths() {
         };
     }
     joined.machines[1].blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
         operations,
@@ -479,6 +485,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
         match mutation {
             0 => {
                 module.machines[1].blocks[0].terminator = Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: Vec::new(),
@@ -532,7 +539,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
 fn byte_read_wire_rejects_tampered_operands_and_stale_vocabulary() {
     let module = guarded_module(vec![0xff], 0);
     let semantic = encode_module(&module).unwrap();
-    assert_eq!(&semantic[10..12], &83_u16.to_le_bytes());
+    assert_eq!(&semantic[10..12], &84_u16.to_le_bytes());
     let mut stale = semantic.clone();
     stale[10..12].copy_from_slice(&82_u16.to_le_bytes());
     assert!(decode_module(&stale).is_err());

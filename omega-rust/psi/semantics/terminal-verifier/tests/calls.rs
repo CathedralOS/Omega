@@ -815,6 +815,7 @@ fn boundary_call_module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![
@@ -899,6 +900,7 @@ fn provider_candidate_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(2),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -966,6 +968,7 @@ fn call_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![
@@ -1018,6 +1021,7 @@ fn call_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -1128,6 +1132,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -1201,6 +1206,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: vec![Operation {

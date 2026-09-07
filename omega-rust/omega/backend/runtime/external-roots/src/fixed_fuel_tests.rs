@@ -244,10 +244,12 @@ fn terminal_fixture() -> TerminalModule {
             entry: block,
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(0x7203).expect("jump edge identity"),
                         target: final_block,
                         arguments: Vec::new(),
@@ -256,6 +258,7 @@ fn terminal_fixture() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: final_block,
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -369,10 +372,12 @@ fn ranked_terminal_fixture() -> TerminalModule {
             entry: preheader,
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: preheader,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: preheader_edge,
                         target: header,
                         arguments: vec![initial],
@@ -381,6 +386,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
                         id: rank,
@@ -412,12 +418,14 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: guard_edge,
                             target: decrement,
                             arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: exit_edge,
                             target: done,
                             arguments: Vec::new(),
@@ -426,6 +434,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: decrement,
                     parameters: Vec::new(),
                     operations: vec![
@@ -453,6 +462,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                         },
                     ],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: backedge,
                         target: header,
                         arguments: vec![next],
@@ -461,6 +471,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: done,
                     parameters: Vec::new(),
                     operations: Vec::new(),

@@ -35,10 +35,12 @@ impl Evaluation {
         let parameters = declarations(&types, next_value)?;
         let continuation = block_id(allocate_dense(next_block)?);
         self.blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: continuation,
                 arguments: values.iter().map(|value| value.id).collect(),
@@ -271,10 +273,12 @@ impl Evaluation {
             parameters.push(declarations(&state.parameter_types, next_value)?);
         }
         self.blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: *targets.get(entry_index).ok_or(LoweringError::Unsupported(
                     "call computation entry is absent",
@@ -446,6 +450,7 @@ fn emit_state(
             target,
             arguments: outgoing,
         } => Terminator::Jump {
+            structural_arguments: Vec::new(),
             edge: edge_id(allocate_dense(next_edge)?),
             target: *targets.get(*target).ok_or(LoweringError::Unsupported(
                 "call computation target is absent",
@@ -467,6 +472,7 @@ fn emit_state(
             Terminator::Conditional {
                 condition,
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(allocate_dense(next_edge)?),
                     target: *targets
                         .get(*when_true_target)
@@ -475,6 +481,7 @@ fn emit_state(
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(allocate_dense(next_edge)?),
                     target: *targets
                         .get(*when_false_target)
@@ -491,6 +498,7 @@ fn emit_state(
         }
     };
     blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block,
         parameters: block_parameters,
         operations: operations[operation_start..].to_vec(),

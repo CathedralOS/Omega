@@ -19,6 +19,8 @@ pub(super) fn lower_terminator(
             arguments,
             trivial_affine_discards,
             residual_affine_discards,
+            // The common lowering entrance rejects structural arguments.
+            structural_arguments: _,
         } => {
             let target_block =
                 blocks

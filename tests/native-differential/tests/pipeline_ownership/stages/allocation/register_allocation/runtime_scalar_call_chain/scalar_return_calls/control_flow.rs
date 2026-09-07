@@ -107,12 +107,14 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     let middle = &mut module.machines[1];
     middle.parameters.push(declaration(28_106));
     let successor = |raw| SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge(raw),
         target: block(raw),
         arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     let arm = |raw, literal| Block {
+        structural_parameters: Vec::new(),
         id: block(raw),
         parameters: Vec::new(),
         operations: vec![
@@ -129,6 +131,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             },
         ],
         terminator: Terminator::Jump {
+            structural_arguments: Vec::new(),
             edge: edge(raw + 1),
             target: block(28_170),
             arguments: vec![value(raw + 1)],
@@ -138,6 +141,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     };
     middle.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: middle.entry,
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -160,6 +164,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
         arm(28_150, 37),
         arm(28_160, 41),
         Block {
+            structural_parameters: Vec::new(),
             id: block(28_170),
             parameters: vec![declaration(28_170)],
             operations: Vec::new(),

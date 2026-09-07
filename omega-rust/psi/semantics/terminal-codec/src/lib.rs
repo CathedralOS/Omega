@@ -120,7 +120,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 77;
+const FORMAT_MARKER: u16 = 78;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -514,6 +514,43 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
             return malformed("machine has an unknown attachment type");
         }
         validate_structural_parameters(module, &machine.structural_parameters)?;
+        for block in &machine.blocks {
+            validate_structural_parameters(module, &block.structural_parameters)?;
+            if block.id == machine.entry && !block.structural_parameters.is_empty() {
+                return malformed("entry block cannot declare structural parameters");
+            }
+            for (position, parameter) in block.structural_parameters.iter().enumerate() {
+                if parameter.position as usize != position || parameter.is_self {
+                    return malformed(
+                        "structural block parameters require dense positions and no self",
+                    );
+                }
+                if !machine.structural_places.iter().any(|place| {
+                    place.id == parameter.place
+                        && place.kind
+                            == StructuralPlaceKind::BlockParameter {
+                                block: block.id,
+                                position: parameter.position,
+                            }
+                }) {
+                    return malformed(
+                        "structural block parameter place disagrees with its declaration",
+                    );
+                }
+            }
+        }
+        for place in &machine.structural_places {
+            if let StructuralPlaceKind::BlockParameter { block, position } = place.kind {
+                let parameter = machine
+                    .blocks
+                    .iter()
+                    .find(|candidate| candidate.id == block)
+                    .and_then(|candidate| candidate.structural_parameters.get(position as usize));
+                if parameter.is_none_or(|parameter| parameter.place != place.id) {
+                    return malformed("structural block place has no matching parameter");
+                }
+            }
+        }
         validate_provider_attachment_foundation(module, machine)?;
         require_known_services(module, &machine.published_service_ceiling)?;
         for parameter in &machine.structural_parameters {
@@ -1784,6 +1821,14 @@ fn structural_place_type(
                     return None;
                 }
                 match declaration.kind {
+                    StructuralPlaceKind::BlockParameter { block, position } => machine
+                        .blocks
+                        .iter()
+                        .find(|candidate| candidate.id == block)?
+                        .structural_parameters
+                        .get(position as usize)
+                        .filter(|parameter| parameter.place == place)
+                        .map(|parameter| parameter.structural_type),
                     StructuralPlaceKind::ByteSequenceLiteral {
                         structural_type, ..
                     }
@@ -2114,6 +2159,11 @@ fn encode_obligation_ids(
 
 fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) {
     match kind {
+        StructuralPlaceKind::BlockParameter { block, position } => {
+            writer.u8(8);
+            writer.id(block);
+            writer.u32(position);
+        }
         StructuralPlaceKind::Parameter { position, is_self } => {
             writer.u8(1);
             writer.u32(position);
@@ -2251,6 +2301,10 @@ fn decode_structural_place_kind(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralPlaceKind, CodecError> {
     Ok(match reader.u8()? {
+        8 => StructuralPlaceKind::BlockParameter {
+            block: reader.id("BlockId")?,
+            position: reader.u32()?,
+        },
         1 => StructuralPlaceKind::Parameter {
             position: reader.u32()?,
             is_self: reader.boolean()?,
@@ -2298,6 +2352,30 @@ mod structural_place_wire_tests {
     }
 
     #[test]
+    fn block_parameter_place_encodes_exact_block_and_dense_position() {
+        let kind = StructuralPlaceKind::BlockParameter {
+            block: id(17),
+            position: 0,
+        };
+        let mut writer = Writer::default();
+        encode_structural_place_kind(&mut writer, kind);
+        let bytes = writer.finish();
+        assert_eq!(
+            bytes,
+            [&[8][..], &17_u64.to_le_bytes(), &0_u32.to_le_bytes(),].concat()
+        );
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_place_kind(&mut reader), Ok(kind));
+        assert_eq!(reader.remaining(), 0);
+        let mut zero_block = bytes.clone();
+        zero_block[1..9].fill(0);
+        assert!(decode_structural_place_kind(&mut Reader::new(&zero_block)).is_err());
+        for length in 0..bytes.len() {
+            assert!(decode_structural_place_kind(&mut Reader::new(&bytes[..length])).is_err());
+        }
+    }
+
+    #[test]
     fn operation_result_place_uses_stable_wire_tag_six() {
         let kind = StructuralPlaceKind::OperationResult {
             producer: id::<OperationId>(1),
@@ -2313,10 +2391,10 @@ mod structural_place_wire_tests {
         assert_eq!(reader.remaining(), 0);
 
         let mut invalid = bytes;
-        invalid[0] = 8;
+        invalid[0] = 9;
         assert_eq!(
             decode_structural_place_kind(&mut Reader::new(&invalid)),
-            Err(CodecError::InvalidTag("StructuralPlaceKind", 8))
+            Err(CodecError::InvalidTag("StructuralPlaceKind", 9))
         );
     }
 }

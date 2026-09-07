@@ -13,6 +13,7 @@ pub(super) fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
             block,
             TerminalMachineResult::Unit,
             vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
@@ -66,6 +67,7 @@ pub(super) fn dead_wrapping_add_verified() -> VerifiedPsiOptimizationUnit {
             block,
             TerminalMachineResult::Unit,
             vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![

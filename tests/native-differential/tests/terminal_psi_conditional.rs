@@ -279,10 +279,12 @@ fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
     let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].entry = BlockId::new(8).unwrap();
     module.machines[0].blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: BlockId::new(8).unwrap(),
         parameters: Vec::new(),
         operations: Vec::new(),
         terminator: Terminator::Jump {
+            structural_arguments: Vec::new(),
             edge: EdgeId::new(8).unwrap(),
             target: BlockId::new(1).unwrap(),
             arguments: Vec::new(),
@@ -831,18 +833,21 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition: ValueId::new(1).unwrap(),
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             arguments: vec![ValueId::new(2).unwrap()],
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(3).unwrap()],
@@ -851,6 +856,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: vec![declaration(5, integer)],
                     operations: Vec::new(),
@@ -861,6 +867,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(3).unwrap(),
                     parameters: vec![declaration(6, integer)],
                     operations: Vec::new(),
@@ -923,6 +930,7 @@ fn conditional_call_arm_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(4).unwrap(),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(4).unwrap(),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -996,18 +1004,21 @@ fn conditional_shared_tail_module() -> TerminalModule {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition: ValueId::new(1).unwrap(),
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             arguments: vec![ValueId::new(2).unwrap()],
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(3).unwrap()],
@@ -1016,6 +1027,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: vec![declaration(4, integer)],
                     operations: vec![Operation {
@@ -1027,6 +1039,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(3).unwrap(),
                         target: BlockId::new(4).unwrap(),
                         arguments: vec![ValueId::new(6).unwrap()],
@@ -1035,6 +1048,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(3).unwrap(),
                     parameters: vec![declaration(5, integer)],
                     operations: vec![Operation {
@@ -1046,6 +1060,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(4).unwrap(),
                         target: BlockId::new(4).unwrap(),
                         arguments: vec![ValueId::new(7).unwrap()],
@@ -1054,6 +1069,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(4).unwrap(),
                     parameters: vec![declaration(8, integer)],
                     operations: vec![Operation {
@@ -1135,18 +1151,21 @@ fn nested_constant_conditional_module() -> TerminalModule {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition: ValueId::new(1).unwrap(),
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             arguments: vec![ValueId::new(2).unwrap()],
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(3).unwrap()],
@@ -1155,6 +1174,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: vec![declaration(4, integer)],
                     operations: vec![Operation {
@@ -1168,12 +1188,14 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     terminator: Terminator::Conditional {
                         condition: ValueId::new(5).unwrap(),
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(3).unwrap(),
                             target: BlockId::new(4).unwrap(),
                             arguments: vec![ValueId::new(4).unwrap()],
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(4).unwrap(),
                             target: BlockId::new(5).unwrap(),
                             arguments: vec![ValueId::new(4).unwrap()],
@@ -1182,6 +1204,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(3).unwrap(),
                     parameters: vec![declaration(6, integer)],
                     operations: Vec::new(),
@@ -1192,6 +1215,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(4).unwrap(),
                     parameters: vec![declaration(7, integer)],
                     operations: vec![Operation {
@@ -1209,6 +1233,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(5).unwrap(),
                     parameters: vec![declaration(9, integer)],
                     operations: vec![Operation {
@@ -1284,12 +1309,14 @@ fn nested_boolean_conditional_module() -> TerminalModule {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition: ValueId::new(1).unwrap(),
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             arguments: vec![
@@ -1300,6 +1327,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             arguments: vec![ValueId::new(5).unwrap()],
@@ -1308,18 +1336,21 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: vec![declaration(6), declaration(7), declaration(8)],
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition: ValueId::new(6).unwrap(),
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(3).unwrap(),
                             target: BlockId::new(4).unwrap(),
                             arguments: vec![ValueId::new(7).unwrap()],
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(4).unwrap(),
                             target: BlockId::new(5).unwrap(),
                             arguments: vec![ValueId::new(8).unwrap()],
@@ -1328,6 +1359,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(3).unwrap(),
                     parameters: vec![declaration(9)],
                     operations: Vec::new(),
@@ -1338,6 +1370,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(4).unwrap(),
                     parameters: vec![declaration(11)],
                     operations: Vec::new(),
@@ -1348,6 +1381,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(5).unwrap(),
                     parameters: vec![declaration(12)],
                     operations: Vec::new(),

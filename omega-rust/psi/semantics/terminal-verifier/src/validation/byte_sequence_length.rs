@@ -60,6 +60,11 @@ pub(super) fn validate_source(
             }
             parameter.structural_type
         }
+        StructuralPlaceKind::BlockParameter { .. } => {
+            super::block_views::parameter(machine, source)
+                .ok_or_else(&invalid)?
+                .structural_type
+        }
         StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         } => {

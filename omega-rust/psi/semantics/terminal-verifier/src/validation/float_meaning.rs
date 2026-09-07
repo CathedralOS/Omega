@@ -352,6 +352,7 @@ mod tests {
         let block = module.machines[0].entry;
         module.machines[0].blocks = vec![Block {
             id: block,
+            structural_parameters: Vec::new(),
             parameters: vec![ValueDeclaration {
                 id: semantic_id(3, ValueId::new),
                 scalar_type: ScalarType::IeeeFloat(format),

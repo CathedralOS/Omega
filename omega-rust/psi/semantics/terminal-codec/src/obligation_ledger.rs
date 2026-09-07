@@ -430,6 +430,7 @@ mod tests {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
                     operations: Vec::new(),

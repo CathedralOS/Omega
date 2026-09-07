@@ -217,16 +217,23 @@ fn tail_transfer_cannot_be_replaced_with_an_unchanged_parameter() {
 }
 
 #[test]
-fn different_descriptors_at_a_join_remain_explicitly_unsupported() {
+fn different_descriptors_at_a_join_preserve_the_selected_view() {
     let source = SOURCE
         .replace("false -> empty()", "false -> empty(bytes)")
-        .replace("state empty()", "state empty(bytes: &[u8])");
-    let checked = checked(&source);
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect_err("different incoming descriptors require structural block bindings");
-    assert!(
-        format!("{error:?}").contains("structural descriptor rebinding"),
-        "{error:?}"
+        .replace(
+            "state empty() { }",
+            "state empty(bytes: &[u8]) { Output::write(bytes, 4i32); }",
+        );
+    assert_eq!(
+        effects(&source),
+        vec![
+            (b"AB".to_vec(), 128),
+            (b"B".to_vec(), 65),
+            (Vec::new(), 4),
+            (Vec::new(), 90),
+            (Vec::new(), 4),
+            (b"last".to_vec(), 3),
+        ],
     );
 }
 

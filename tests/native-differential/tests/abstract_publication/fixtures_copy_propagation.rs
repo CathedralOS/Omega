@@ -18,6 +18,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
             TerminalMachineResult::Scalar(declaration(result)),
             vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -28,6 +29,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_038).unwrap(),
                         target: exit,
                         arguments: vec![constant],
@@ -36,6 +38,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: exit,
                     parameters: vec![declaration(forwarded)],
                     operations: Vec::new(),
@@ -72,6 +75,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
         TerminalMachineResult::Scalar(boolean(caller_result)),
         vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: caller_entry,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -85,6 +89,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
                     },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_609).unwrap(),
                     target: caller_exit,
                     arguments: vec![call_result],
@@ -93,6 +98,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: caller_exit,
                 parameters: vec![boolean(forwarded)],
                 operations: Vec::new(),
@@ -119,6 +125,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
         content_partition_compositions: Vec::new(),
         entry: callee_entry,
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: callee_entry,
             parameters: Vec::new(),
             operations: vec![Operation {

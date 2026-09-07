@@ -273,34 +273,23 @@ fn checked_scalar_and_view_edges_reject_other_same_typed_source_parameters() {
 }
 
 #[test]
-fn distinct_incoming_view_roots_require_descriptor_rebinding() {
+fn distinct_views_survive_intermediate_states_and_rejoin() {
     let source = source_with_alternative_inputs().replace(
         "false -> second(bytes, marker)",
         "false -> second(other, marker)",
     );
-    let mut checked = checked(&source);
     assert_eq!(
-        graph(&mut checked).states.len(),
-        4,
-        "source has a checked graph"
+        output(&checked(&source)),
+        vec![
+            (b"\x80A".to_vec(), 7),
+            (b"\x80A".to_vec(), 1),
+            (b"\x80A".to_vec(), 7),
+            (Vec::new(), 9),
+            (b"different".to_vec(), 2),
+            (b"different".to_vec(), 9),
+            (b"last".to_vec(), 3),
+        ]
     );
-    let CheckedComposedUnitControlTerminatorPlan::Conditional {
-        when_true,
-        when_false,
-        ..
-    } = &graph(&mut checked).states[0].terminator
-    else {
-        panic!("entry conditional");
-    };
-    assert_eq!(
-        when_true.transfers[0].source,
-        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
-    );
-    assert_eq!(
-        when_false.transfers[0].source,
-        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
-    );
-    rejected(&checked, "descriptor rebinding");
 }
 
 #[test]

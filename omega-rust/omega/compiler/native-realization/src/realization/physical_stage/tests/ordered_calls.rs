@@ -311,6 +311,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
             });
         }
         machine.blocks = vec![Block {
+            structural_parameters: Vec::new(),
             id: machine.entry,
             parameters: Vec::new(),
             operations,

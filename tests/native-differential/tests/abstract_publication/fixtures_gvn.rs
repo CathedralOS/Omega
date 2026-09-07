@@ -16,6 +16,7 @@ pub(super) fn local_cse_verified() -> VerifiedPsiOptimizationUnit {
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -60,6 +61,7 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -139,6 +141,7 @@ pub(super) fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationU
         block,
         TerminalMachineResult::Scalar(declaration(result)),
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             operations: vec![
@@ -207,6 +210,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
         TerminalMachineResult::Scalar(declaration(result)),
         vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: child,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -221,6 +225,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -229,6 +234,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
                     kind: OperationKind::IntegerBitwiseNot { operand },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_371).unwrap(),
                     target: child,
                     arguments: Vec::new(),
@@ -284,6 +290,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
         TerminalMachineResult::Scalar(declaration(result, result_integer)),
         vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: join,
                 parameters: vec![declaration(join_input, integer)],
                 operations: vec![Operation {
@@ -308,6 +315,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: left,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -331,6 +339,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                     },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_466).unwrap(),
                     target: join,
                     arguments: vec![left_input],
@@ -339,6 +348,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: if proof_certified || compatible_policy {
@@ -355,12 +365,14 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 terminator: Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_467).unwrap(),
                         target: left,
                         arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_468).unwrap(),
                         target: right,
                         arguments: Vec::new(),
@@ -369,6 +381,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: right,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -392,6 +405,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                     },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_470).unwrap(),
                     target: join,
                     arguments: vec![right_input],

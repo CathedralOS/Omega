@@ -5,6 +5,7 @@
 //! execution state; no source or checked-tree representation crosses this
 //! boundary.
 
+mod block_bindings;
 mod byte_sequence_view;
 mod effect_results;
 use byte_sequence_view::ByteSequenceView;
@@ -3274,6 +3275,7 @@ impl TerminalExecution {
                 Terminator::Jump {
                     target,
                     arguments,
+                    structural_arguments,
                     trivial_affine_discards,
                     residual_affine_discards,
                     ..
@@ -3311,19 +3313,8 @@ impl TerminalExecution {
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
                     }
-                    let target_block = self
-                        .blocks
-                        .get(target)
-                        .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-                    let transferred = arguments
-                        .iter()
-                        .map(|argument| {
-                            self.values
-                                .get(argument)
-                                .copied()
-                                .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    let bindings =
+                        self.prepare_block_bindings(*target, arguments, structural_arguments)?;
                     for discard in residual_affine_discards {
                         self.live_affine_frontier.remove(discard);
                     }
@@ -3340,9 +3331,7 @@ impl TerminalExecution {
                         }
                         remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
-                    for (parameter, value) in target_block.parameters.iter().zip(transferred) {
-                        self.values.insert(parameter.id, value);
-                    }
+                    bindings.commit(self);
                     self.current = *target;
                     self.next_operation = 0;
                 }
@@ -3363,20 +3352,11 @@ impl TerminalExecution {
                     if let Err(error) = meter.charge_edge(successor.edge, &terminator) {
                         return meter_status(error);
                     }
-                    let target_block = self
-                        .blocks
-                        .get(&successor.target)
-                        .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-                    let transferred = successor
-                        .arguments
-                        .iter()
-                        .map(|argument| {
-                            self.values
-                                .get(argument)
-                                .copied()
-                                .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    let bindings = self.prepare_block_bindings(
+                        successor.target,
+                        &successor.arguments,
+                        &successor.structural_arguments,
+                    )?;
                     for place in &successor.trivial_affine_discards {
                         if self.structural_values.remove(place).is_none() {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -3385,9 +3365,7 @@ impl TerminalExecution {
                         }
                         remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
-                    for (parameter, value) in target_block.parameters.iter().zip(transferred) {
-                        self.values.insert(parameter.id, value);
-                    }
+                    bindings.commit(self);
                     self.current = successor.target;
                     self.next_operation = 0;
                 }

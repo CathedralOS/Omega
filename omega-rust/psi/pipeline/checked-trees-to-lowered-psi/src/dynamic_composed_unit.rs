@@ -367,6 +367,7 @@ fn lower_dynamic_composed_unit_machine(
                     content_partition_compositions: Vec::new(),
                     entry: caller_block,
                     blocks: vec![Block {
+                        structural_parameters: Vec::new(),
                         id: caller_block,
                         parameters: Vec::new(),
                         operations: caller_operations,
@@ -1612,6 +1613,7 @@ fn materialize_forwarded_helper_for_source(
         content_partition_compositions: Vec::new(),
         entry: ids.block,
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: ids.block,
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -2084,6 +2086,7 @@ fn materialize_dynamic_realizations(
                 content_partition_compositions: Vec::new(),
                 entry: block,
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
                     operations,

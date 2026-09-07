@@ -73,6 +73,7 @@ pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<
             content_partition_compositions: Vec::new(),
             entry,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: vec![
@@ -168,6 +169,7 @@ pub(crate) fn integer_bitwise_not_immediate_return_artifact(
             content_partition_compositions: Vec::new(),
             entry,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: vec![
@@ -262,6 +264,7 @@ pub(crate) fn integer_widen_immediate_return_artifact() -> (Vec<u8>, Vec<u8>) {
             content_partition_compositions: Vec::new(),
             entry,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: vec![
@@ -357,6 +360,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
             content_partition_compositions: Vec::new(),
             entry,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: vec![

@@ -72,6 +72,7 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -199,6 +200,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
@@ -320,6 +322,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![

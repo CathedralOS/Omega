@@ -358,6 +358,7 @@ fn verified_unit() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizati
             content_partition_compositions: Vec::new(),
             entry: id(102, BlockId::new),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: id(102, BlockId::new),
                 parameters: Vec::new(),
                 operations: Vec::new(),

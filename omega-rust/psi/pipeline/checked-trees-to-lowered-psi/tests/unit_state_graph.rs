@@ -11,6 +11,9 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 #[path = "unit_state_graph/cases.rs"]
 mod cases;
 
+#[path = "unit_state_graph/bindings.rs"]
+mod bindings;
+
 #[path = "unit_state_graph/scalars.rs"]
 mod scalars;
 
