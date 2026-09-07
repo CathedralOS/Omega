@@ -603,9 +603,6 @@ Owners include
   caller-specific snapshots beyond immutable scalar formal comparisons, including
   a callee's borrowed collection length in caller-side requirement proofs; carry
   those facts into nested exact-cast obligations without rereading arguments.
-  Reject non-Unit initializers for explicitly Unit-typed locals: typing retains
-  `let result: () = scalar_call();` as authored, but initializer compatibility
-  checking still admits the scalar result. Keep inferred temporaries distinct.
   Transport dependent and public-trait call-result bounds into subslice proofs
   through their actual call-entry and public requirement identities, not caller
   fields or private realization types.
