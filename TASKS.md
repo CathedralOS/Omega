@@ -946,7 +946,9 @@ Owners include
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   while keeping deployment/update policy in Cathedral. Componentization must
   bind exact imports, exports, services, mappings, stack demand, leases, and
-  installed provider closure. Until that carrier is complete, every
+  installed provider closure under the
+  [component publication contract](wiki/spec/build/component_publication.md).
+  Until that carrier is complete, every
   `Independent` selection fails at one explicit fence.
 
 - **FFIVAL.** After the generic callback/runtime path closes, run the Windows

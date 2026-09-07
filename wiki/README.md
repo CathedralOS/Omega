@@ -24,7 +24,10 @@ beside code; completed work belongs in Git, not current reference material.
   [mathematical proof values](spec/terminal-psi/mathematical_values.md), and
   [integer certificates](spec/terminal-psi/integer_certificates.md).
 - Resources: [logical work](spec/resources/logical_work.md) and
-  [storage](spec/resources/storage.md).
+  [storage](spec/resources/storage.md),
+  [content custody](spec/resources/content_custody.md), and
+  [placed access](spec/resources/placed_access.md).
+- Build products: [native products and component publication](spec/build/component_publication.md).
 
 Only the migrated subjects above have specification owners so far.
 The [migration index](pre_migration/README.md) identifies the remaining source
