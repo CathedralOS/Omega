@@ -512,6 +512,24 @@ pub(super) fn analyze(
             // range. Left shift separately retains F8's count obligation
             // below; proving a legal count never authorizes value overflow.
             let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
+            if effective_domain == ArithmeticDomain::Exact
+                && operator == BinaryOperator::Subtract
+                && left.primitive == right.primitive
+                && left
+                    .primitive
+                    .is_some_and(|primitive| integer_bit_width(primitive).is_some())
+                && guard_narrowing::has_builtin_bound_arithmetic(
+                    program, machine, state, expression,
+                )
+                && ordered_values::same_place(program, machine, state, binary.left, binary.right)
+            {
+                // Both children were checked above. Cancellation establishes
+                // this result, never the safety of an overflowing child.
+                interval = Interval {
+                    low: Some(0),
+                    high: Some(0),
+                };
+            }
             let policy_bridge = integer_policy_primitive(operator).map(|primitive| {
                 numerics::integer_policy::integer_policy_bridge(primitive, effective_domain)
             });

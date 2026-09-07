@@ -19,7 +19,7 @@ requires lower <= pending && pending <= upper;
 terminates by pending;
 -> u64 {
     transition pending > lower {
-        true -> self.first(lower, pending - 1, upper * 1)
+        true -> self.first(lower, pending - 1, upper + (pending - pending))
         false -> pending
     }
 }

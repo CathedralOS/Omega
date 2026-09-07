@@ -396,6 +396,33 @@ pub(super) fn record(
     }
 }
 
+/// Two reads of the same resolved place at one subtraction have equal values.
+/// This local identity needs no entry premise or arithmetic re-analysis.
+pub(super) fn same_place(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    if ![left, right].into_iter().all(|expression| {
+        matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+        )
+    }) {
+        return false;
+    }
+    let Some(state) = state else {
+        return false;
+    };
+    let Some(left) = operand(program, machine, state, left) else {
+        return false;
+    };
+    matches!(left, Operand::Place { .. })
+        && operand(program, machine, state, right).is_some_and(|right| left == right)
+}
+
 pub(super) fn subtract_floor(
     program: &TypedTrees,
     machine: &Machine,
