@@ -692,6 +692,11 @@ fn format_number_preserves_its_declared_text_carrier() {
 }
 
 #[test]
+fn text_padding_accepts_its_projected_text_argument() {
+    assert_authored_entry_cohort("text", &["text_padding"]);
+}
+
+#[test]
 fn rendering_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("rendering", EXPLICIT_ENTRY_RENDERING_SAMPLES);
 }

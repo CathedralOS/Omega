@@ -1,6 +1,32 @@
 use super::super::*;
 
 #[test]
+fn implicit_shared_array_field_views_keep_argument_loan_conflicts() {
+    for (destination, accepted) in [("carrier.other", true), ("carrier.bytes", false)] {
+        let source = format!(
+            "data Carrier {{ bytes: [u8; 4]; other: [u8; 4]; }}
+             machine use_view(bytes: &[u8], output: &mut [u8; 4]) {{}}
+             machine check(carrier: &mut Carrier) {{
+                 use_view(carrier.bytes, &mut {destination});
+             }}"
+        );
+        let result = super::checks::check_program(&source);
+        if accepted {
+            result.unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        } else {
+            let diagnostics =
+                result.expect_err("a shared view cannot overlap the mutable argument");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("both mutable and read-only")),
+                "{diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn collects_exact_write_only_argument_access_kind() {
     let source = r#"
         machine sink(value: &write i32) {

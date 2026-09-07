@@ -101,12 +101,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-domain field
   obligations must be proved, not bypassed to restore sample acceptance.
 
-  The text cohort still needs projected byte-array arguments to satisfy
-  `write_line(text: &[u8])` in `caesar_cipher` and `text_padding`; validation
-  currently reports the member-access argument as incompatible. `fletcher_checksum`
-  additionally retains a local slice loan across a mutable receiver call and
-  needs the exact argument-loan origin and lifetime joined there. Own these in
-  call typing/loan transport rather than weakening the sample declarations.
+  `fletcher_checksum` retains a local slice loan across a mutable receiver call
+  and needs the exact argument-loan origin and lifetime joined there. Own this
+  in call-loan transport rather than weakening the sample declarations.
   `caesar_cipher`'s replacement-byte class and loop transport remain part of
   `NOMINAL-FIELD-FLOW` below.
 

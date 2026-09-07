@@ -35,8 +35,45 @@ pub(super) fn member_matches_reference(
     // The existing implicit shared borrow of an owned field still needs that
     // field's actual type. Member syntax alone cannot match an arbitrary referee.
     *required_access == ReferenceAccess::Shared
-        && program.normalized_type_identity(actual)
+        && (program.normalized_type_identity(actual)
             == program.normalized_type_identity(*required_referee)
+            || owned_array_projects_to_slice(program, actual, *required_referee))
+}
+
+/// Shape correspondence for a shared view, not a loan or a domain proof.
+/// Carrier qualifications may be forgotten by a plain view; element identities
+/// and qualifications are unchanged, and no required view constraint is inferred.
+fn owned_array_projects_to_slice(
+    program: &TypedTrees,
+    mut actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::Slice {
+        element_type: required_element,
+    } = program.type_reference_table.type_reference(required)
+    else {
+        return false;
+    };
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(actual)
+    {
+        actual = *base_type;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type: actual_element,
+        ..
+    } = program.type_reference_table.type_reference(actual)
+    else {
+        return false;
+    };
+    program
+        .type_reference_table
+        .contains_type_reference(*actual_element)
+        && program
+            .type_reference_table
+            .contains_type_reference(*required_element)
+        && program.normalized_type_identity(*actual_element)
+            == program.normalized_type_identity(*required_element)
 }
 
 fn declared_value_type(
