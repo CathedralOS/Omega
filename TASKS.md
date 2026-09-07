@@ -180,13 +180,17 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   missing package-root policy. This is a completed slow-route observation,
   not a timeout or evidence of native execution.
 
-  The downstream native `cli_mvp` probe at `4e90b46d56` remains red.
-  On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
+  The downstream native `cli_mvp` probe with production checkpoint `b1c823eadd`
+  passes Terminal production but remains red. On macOS ARM64,
+  `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution: `InvalidStructuralArgumentPath { operation: OperationId(5), argument_index: 0 }`.
-  Trace that exact argument through `terminal-verifier/src/validation/structural_operations.rs`
-  and its checked/lowered structural operand; preserve source and type custody.
+  execution: `Verification(Module(NonExecutableRankedScc(MachineId(3))))`.
+  `terminal-psi-to-abstract-operations/src/artifact/native.rs` routes every ranked
+  module into the restricted unsigned-countdown realization; the writer instead
+  uses natural slice-decrease evidence. Complete its native byte-view operations
+  and control transfers with the corresponding authority path, not fabricated
+  countdown or fixed-fuel evidence and not a weakened gate.
   Terminal production retains authored boundary calls; native provider selection
   owns adapter realization, independently of interpreter dispatch. Complete the
   [borrowed-byte writer closure](omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
@@ -212,10 +216,7 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   transitional; retain a borrowed `self` unconditionally once the entry bridge
   passes the `ProgramEntry` loan as structural parameter 0, under
   `ENTRY-CONTENT-ROOTS` and
-  `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. The projected byte-field
-  argument still needs the carrier transport below: `resolve_structural_path`
-  in `terminal-verifier` walks only `Structural` fields, while `pause` is a
-  `ByteSequence(BoundedOwned)` field. Receiver-store sequences still need
+  `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. Receiver-store sequences still need
   aggregate replacements and foreign-result assignments: `win64_direct_aggregate_import_compile`
   combines scalar writes, an aggregate replacement, and a foreign-result
   assignment. Extend the checked Unit statement sequence without dropping
@@ -226,8 +227,8 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   capacity, and live-length writeback separately from the borrowed-view
   parameter. `terminal-interpreter::resolve_structural_arguments` and Omega's
   `abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
-  also reject byte-field projections; accepting them in the verifier alone
-  does not implement the call. Bounded inline storage and borrowed descriptors
+  still reject byte-field projections; canonical transport and verifier admission
+  do not implement the call. Bounded inline storage and borrowed descriptors
   have different layouts. Add runtime buffer support to the interpreter and
   an admitted `read_line` realization through native emission and installation
   replay; each target's `console_impl.omg` declares a bodyless intrinsic.
