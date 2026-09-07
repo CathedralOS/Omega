@@ -106,17 +106,17 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   At code checkpoint `6e0afc54a4` on Windows x64, this still exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
-  The verifier admits the bounded scalar-only and Unit-effect unranked
+  The verifier admits scalar computations, immutable byte views, and Unit-effect unranked
   `Conditional`/`Jump` cycles in
   `terminal-verifier/src/validation/control_flow.rs`; their focused
   `ranked_scc` checks pass, but the source producer does not reach Terminal
   validation yet.
   The ordinary Unit planner in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
-  authored state. Shared acyclic graphs retain scalar prefixes and calls, but
+  authored state. Shared unranked graphs retain scalar prefixes and calls, but
   aggregate construction and interleaved writes still need shared body lowering.
-  Producer widening alone cannot close this: general cyclic validation
-  and execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
+  Producer widening alone cannot close this: mutable/owned cyclic validation
+  and native execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
   runtime-indexed byte stores; do not synthesize separate one-state machines.
   Main's unranked cycles do not need an invented termination witness.
@@ -165,8 +165,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   slice-decrease evidence.
   Carry the derived-view extent equations and checked integer subtraction-order
   certificates into the generic ranking proof for the actual cyclic edges.
-  Native whole-byte-view layout,
-  length, indexed reads, and subslice realization are also still missing.
+  Native whole-byte-view layout, length, indexed reads, and subslice realization
+  are also still missing.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.

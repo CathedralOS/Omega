@@ -618,13 +618,25 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
     let mut execution = TerminalExecution::start_artifact(
         &encode_module(&changed).unwrap(),
         &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
-        &AdmissionProfile::default(), &[],
-    ).unwrap();
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .unwrap();
     let mut meter = TerminalFuelMeter::with_allowance(100);
-    assert!(matches!(execution.resume(&mut meter).unwrap(), TerminalExecutionStatus::SponsorExhausted(_)));
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
     let prefix = execution.effects().to_vec();
-    assert_eq!(prefix.len(), 3, "only the first relay runs before its endless final state");
+    assert_eq!(
+        prefix.len(),
+        3,
+        "only the first relay runs before its endless final state"
+    );
     meter.replenish(100).unwrap();
-    assert!(matches!(execution.resume(&mut meter).unwrap(), TerminalExecutionStatus::SponsorExhausted(_)));
+    assert!(matches!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
     assert_eq!(execution.effects(), prefix);
 }

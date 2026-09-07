@@ -153,12 +153,30 @@ fn a_ranked_writer_cannot_silently_become_an_unranked_loop() {
         "machine relay(bytes: &[u8]) reaches Output {",
         "machine relay(bytes: &[u8]) terminates by bytes -> Slice::Length; reaches Output {",
     );
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter").is_err());
+    let error = checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter")
+        .expect_err("free ranking evidence must survive selection before lowering");
+    assert!(
+        matches!(
+            error,
+            checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                "Unit-effect member has an invalid checked terminal selection"
+            )
+        ),
+        "{error:?}"
+    );
     let attached = source
         .replace("machine relay(", "data Writer {} machine Writer::relay(")
         .replace("        relay(\"", "        Writer::relay(\"");
+    let error = checked_trees_to_lowered_psi::lower_machine(&checked(&attached), "Root::enter")
+        .expect_err("attached ranking evidence must survive the shared graph route");
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&checked(&attached), "Root::enter").is_err()
+        matches!(
+            error,
+            checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                "Unit graph ranking certificate is not retained"
+            )
+        ),
+        "{error:?}"
     );
 }
 
