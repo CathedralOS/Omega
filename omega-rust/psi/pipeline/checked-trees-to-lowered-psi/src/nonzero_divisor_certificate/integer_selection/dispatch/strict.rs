@@ -6,7 +6,18 @@ use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm,
 use super::super::super::integer_evidence::{closed_integer_relation, projected_facts};
 use super::super::exact;
 
+mod subtract;
+
 pub(super) fn prove(
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    prove_without_subtract(goal, assumptions, semantic_axioms)
+        .or_else(|| subtract::prove(goal, assumptions, semantic_axioms))
+}
+
+fn prove_without_subtract(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],

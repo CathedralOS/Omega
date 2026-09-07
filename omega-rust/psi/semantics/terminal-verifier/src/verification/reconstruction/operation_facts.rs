@@ -16,6 +16,7 @@ use super::super::call_composition::compose_call_operation;
 use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner};
 
 mod boolean_polarity;
+mod byte_extent;
 
 #[derive(Clone, Copy)]
 pub(super) enum OperationFactPurpose {
@@ -104,6 +105,9 @@ pub(super) fn append_operation(
         }
         if let Some(equation) = observation.local_equation() {
             axioms.push(equation.clone());
+        }
+        if let Some(equation) = byte_extent::length_equation(machine, &observation)? {
+            axioms.push(equation);
         }
         return Ok(());
     }

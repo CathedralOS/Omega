@@ -1,7 +1,8 @@
 //! Exact source-bound construction of the current migration trust graph.
 use super::{
-    BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
-    BYTE_VIEW_FRONTIER_SOURCE,
+    BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE,
+    BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+    TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -51,7 +52,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-28"
+    "root:canonical-proof-calculus-format-29"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -129,6 +130,10 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                 ("proof-admission/lib.rs", PROOF_ADMISSION_LIB_SOURCE),
                 ("proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
                 (
+                    "proof-admission/proof/subtract_order.rs",
+                    PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+                ),
+                (
                     "proof-admission/proof/order_discreteness.rs",
                     PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE,
                 ),
@@ -177,7 +182,7 @@ fn proof_admission_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust product-local proof admission and judgment checker",
-        "rust-proof-admission-v11",
+        "rust-proof-admission-v12",
         "proof-admission",
         "portable proof bundle acceptance",
         "The current Rust admission checker remains trusted until the independent low-rung checker closes the diamond.",
@@ -206,6 +211,10 @@ fn proof_admission_node() -> TrustDependencyNode {
                 PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
             ),
             ("proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
+            (
+                "proof-admission/proof/subtract_order.rs",
+                PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+            ),
             (
                 "proof-admission/proof/order_discreteness.rs",
                 PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE,
@@ -444,6 +453,8 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice) {
                 exact_sources.extend([
                     ("terminal-verifier/validation/byte_sequence_subslice.rs", BYTE_SUBSLICE_VALIDATION_SOURCE),
+                    ("terminal-semantics/structural_effect/byte_extent.rs", TERMINAL_BYTE_EXTENT_SOURCE),
+                    ("terminal-verifier/verification/reconstruction/operation_facts/byte_extent.rs", BYTE_EXTENT_RECONSTRUCTION_SOURCE),
                     ("terminal-verifier/validation/control_flow.rs", BYTE_VIEW_DOMINANCE_SOURCE),
                     ("terminal-verifier/validation/frontier.rs", BYTE_VIEW_FRONTIER_SOURCE),
                     ("terminal-verifier/validation/structural_operations.rs", BYTE_VIEW_ARGUMENTS_SOURCE),

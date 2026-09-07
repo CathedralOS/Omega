@@ -164,6 +164,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
   length and guarded head/tail observations at selected edges, and
   slice-decrease evidence.
+  Carry the derived-view extent equations and checked integer subtraction-order
+  certificates into the generic ranking proof for the actual cyclic edges.
   Changing structural state-edge bindings and repeated-producer descriptor
   rebinding remain necessary for that loop; native whole-byte-view layout,
   length, indexed reads, and subslice realization are also still missing.

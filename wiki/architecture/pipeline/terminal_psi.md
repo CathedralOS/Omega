@@ -220,6 +220,15 @@ ownership frontier. Sibling or later producers do not justify a use. The view
 cannot yet be returned as a structural machine result; that route rejects
 until its byte descriptor can be retained across the return.
 
+Measuring an established subslice exposes the exact equation
+`measured_length = end - start`, using the producer's original `u64` endpoints.
+Reconstruction joins the measured descriptor to its validated defining operation
+and introduces this equation only at the later length read. It does not replace
+either subslice bounds obligation, summarize a chain of operations, or infer
+strict descent. A different source, sibling producer, or future producer cannot
+supply the equation. The local semantics helper and descriptor join are included
+in the byte-operation trust-source identities.
+
 The interpreter retains shared immutable byte backing and checked view bounds;
 deriving a tail does not copy its bytes. Invocation binding and caller-frame
 restoration preserve those descriptors. One executed subslice costs one
@@ -5177,9 +5186,9 @@ that alternative appended to the enclosing assumptions and requires the same
 conclusion in every branch. Discharged local assumptions are not ambient
 requirements in the acceptance record. This permits signed division to use
 both nonzero signs while independently proving the `MIN / -1` exclusion.
-The current proof vocabulary uses proof-bundle format 28, canonical
-proof-calculus trust root 28, proof-system marker 2, and Rust admission kernel
-v11. `EqualitySymmetry` reverses one independently proved scalar
+The current proof vocabulary uses proof-bundle format 29, canonical
+proof-calculus trust root 29, proof-system marker 2, and Rust admission kernel
+v12. `EqualitySymmetry` reverses one independently proved scalar
 equality, retaining its exact child citation. This lets canonical contract
 equalities participate in either direction without inventing an equality or
 depending on runtime value identity ordering.
@@ -5219,6 +5228,18 @@ equality substitution to transport that fact to an evaluated endpoint such as
 zero in a full byte range; the canonical subslice goal remains unchanged.
 Format 28 adds primitive tag 4 and rejects format 27 proof bundles as stale.
 Semantic module format 77 and vocabulary 83 are unchanged.
+
+`IntegerSubtractOrder` proves `result < original` from two independently checked
+premises: `result = original - decrement` and `0 < decrement`. It accepts only
+exact fixed-integer subtraction with matching types and operand identities;
+wrapping subtraction, a nonstrict positivity bound, or redirected endpoints do
+not qualify. This is a general integer law, not a slice-ranking assertion.
+The producer selects existing equations and proves positivity with ordinary
+literal, equality, or discrete-order rules. The kernel traverses both citations.
+Format 29 adds proof tag 20 and rejects format 28 bundles; the module format,
+vocabulary, and proof-system marker are unchanged. Guarded tail extent can thus
+prove strict descent through a serialized certificate, while cyclic descriptor
+bindings and the generic ranking consumer remain separate work.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -6673,6 +6694,13 @@ must use the selected edge's evaluation order. The emitted byte and optional
 newline precede normal return to the caller. Source slice-decrease checking
 in `validation/src/slice_ranking.rs` already checks the guarded `[1..]` route;
 executable ranking must retain that proof, not substitute a private countdown.
+
+An established tail's length read now supplies its exact endpoint difference.
+The ordinary `IntegerSubtractOrder` certificate proves strict decrease from
+that equation and a proved positive start. Serialized Terminal execution tests
+this obligation as a read of the original view at the tail's length; zero start
+does not prove descent, and positive start does not waive the earlier bounds.
+Integrating these facts with the cyclic ranking certificate remains necessary.
 
 A source `requires bytes.len > 0` is not a substitute for retaining the
 selected body guard: contract-level byte-length observations and their exact

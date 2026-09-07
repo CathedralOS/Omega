@@ -64,6 +64,13 @@ pub enum ProofRule {
     IntegerOrderDiscreteness {
         relation: Box<ProofNode>,
     },
+    /// From result = original - decrement and 0 < decrement, conclude
+    /// result < original. Both premises are independently checked; only
+    /// exact fixed-integer subtraction is covered.
+    IntegerSubtractOrder {
+        difference: Box<ProofNode>,
+        positive: Box<ProofNode>,
+    },
     IntegerLessOrEqualTransitivity {
         left_less_or_equal_middle: Box<ProofNode>,
         middle_less_or_equal_right: Box<ProofNode>,

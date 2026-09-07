@@ -33,6 +33,7 @@ pub enum AcceptedProofRule {
     EqualitySymmetry,
     IntegerOrderWeakening,
     IntegerOrderDiscreteness,
+    IntegerSubtractOrder,
     IntegerLessOrEqualTransitivity,
     IntegerOrderSubstitution,
     IntegerAffineBound,
@@ -189,6 +190,7 @@ pub fn accept_certificate_with_machine_parameters(
 }
 
 mod order_discreteness;
+mod subtract_order;
 mod traversal;
 use traversal::check_node;
 
@@ -427,6 +429,19 @@ fn check_node_locally(
                 }
                 _ => Err(ProofError::RulePremiseMismatch("equality transitivity")),
             }
+        }
+        ProofRule::IntegerSubtractOrder {
+            difference,
+            positive,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerSubtractOrder);
+            subtract_order::check(
+                &difference.conclusion,
+                &positive.conclusion,
+                &proof.conclusion,
+            )
         }
         ProofRule::IntegerOrderDiscreteness { relation } => {
             acceptance
