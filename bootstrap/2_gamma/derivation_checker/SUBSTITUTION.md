@@ -78,7 +78,7 @@ context/ground memo and consumed work `used+amount`. Exhaustion returns resource
 Invalid amounts precede exhaustion. Neither amounts nor sessions are untrusted
 wire state. Zero reservations cannot create uncharged result carriers.
 
-The existing 262,144-unit provision now covers both ground comparisons and
+The 655,360-unit provision covers both ground comparisons and
 substitution work in the same session. Resource 4 is `checking_work`; the numeric
 code and `comparison_steps` accessor remain unchanged. Each template visit and
 resume, including the terminal empty resume, reserves one unit before work.
@@ -87,13 +87,14 @@ session. The original unfolding left coordinate owns these work refusals;
 clause-scan reservation uses the clause coordinate. No reset or old-session reuse
 is allowed between calls, even after Compared false. Stop after owned failure.
 
-Every charged unit permits at most 96 cumulative Gamma pairs. A bulk reservation
-uses four result/session pairs. The `T+1` reservation covers its result, the
-`3T-1` index pairs, and bounded invocation context. Template memo insertion uses
-at most 78 pairs; frame/session/result carriers must fit the remaining 18 pairs
-of that transition. Ground comparison charges separately. The fixed 128-pair
-allowance is once per request, not once per unfolding. The combined upper bound
-remains `7,864,346 + 262,144*96 + 128 = 33,030,298` pairs, below the selected
+The [amortized traversal bound](COMPARISON.md#amortized-allocation-argument)
+allows 48 cumulative pairs per unit plus one bounded unfinished-prefix deficit;
+it does not claim each individual transition allocates at most 48. A bulk
+reservation uses four result/session pairs. The `T+1` reservation covers its
+result, the `3T-1` index pairs, and bounded invocation context. Ground comparison
+charges separately without resetting credit. The fixed 128-pair allowance is
+once per request, including the deficit, not once per unfolding. The combined
+upper bound is `7,864,346 + 655,360*48 + 128 = 39,321,754` pairs, below the selected
 40,265,318-pair arena, including unreachable allocations.
 
 The implementation's clause walk is scalar-only; a case-mismatch rejection adds

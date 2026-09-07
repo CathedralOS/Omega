@@ -10,13 +10,13 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | --- | --- | --- |
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
 | Delta name construction | Shared-prefix cursors save 275,352 pairs/11,014,080 bytes over root-rebuilding seeks on the current Epsilon subject; both produce the same complete receipt. | Retain the existing implementation without expansion. Customer capacity alone does not require it; preserve separate conformance obligations before considering removal. |
-| Generic Gamma checker | Shared trees reduce whole-source/tape comparison to 61,529 work units; a simple source-shape fold still needs a predicted 534,538 and exhausts the 262,144 limit. | Review coherent work/allocation provision and source-bound accounting before further encoder helper families; neither probe proves encoding. |
+| Generic Gamma checker | Shared trees reduce whole-source/tape comparison to 61,529 work units; the source-shape fold checks at 534,538 under a coherently raised 655,360-unit provision. | Cost source-bound capacity accounting and the encoder before further helper families; neither probe proves encoding. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
 | Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eight remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
-No production implementation, private capacity, language contract, or trusted
-assumption changed in this review. It adds one optional diagnostic alongside the
-existing theory gate, not a new framework, compiler stage, or accepted artifact.
+The resource follow-through below changes one private checker limit after an
+allocation audit; no language contract, evaluator capacity, or trusted assumption
+changes. Diagnostics are feasibility evidence, not an accepted artifact.
 
 ## Metrics that determine the next step
 
@@ -293,7 +293,7 @@ trusted arithmetic, assembler primitive, unchecked length, chunk-level budget
 reset, or narrowed root follows from this engineering result. The complete
 certificate remains open, and its auditability advantage remains unproven.
 
-### Binary trees: smaller representation, insufficient work provision
+### Binary trees: smaller representation and a coherent work provision
 
 A scratch measurement at `c6b832590d7c36a2f9ded6a49ccf6180c9f0d37c`
 uses the same complete source/tape subjects and unchanged 63,504-byte checker.
@@ -323,7 +323,7 @@ shape(Join(left, right)) = ShapeJoin(shape(left), shape(right))
 
 Both recursive arguments are unchanged immediate constructor children, as the
 existing calculus requires. Each distinct leaf uses one Unfold row; each distinct
-join uses Unfold, binary Cong, and Trans, sharing child equalities. The independent
+join uses Unfold, binary Cong, and Trans, sharing child equalities. The owner-section
 diagnostic root is `shape(source) = expected_shape`. This connects an equation to
 the raw source structure, but proves neither its capacity nor Beta encoding.
 The typed vocabulary is 3,376 bytes. The complete source contains 76 distinct byte
@@ -348,16 +348,32 @@ leaf costs eight units including proof indexing, each join 45, plus five setup
 units. All observed invocations return process status 0 and empty stderr on macOS
 arm64; Windows was not run. No allocation peak was measured.
 
-**Disposition:** tree sharing merits further costing, not immediate adoption.
-Even this simple full-source fold exceeds the current work provision. Applying
-the published conservative ledger to its predicted work gives
+Applying the then-published conservative ledger to the full fold gives
 `7,864,346 + 534,538*96 + 128 = 59,180,122` pairs, above Gamma's 40,265,318-pair
-provision. Audit whether the allocation bound can be tightened across all request
-paths, or provision a coherent larger work/storage profile, before more encoder
-helpers. A balanced tree's depth alone is not a source-length proof: capacity
+provision. The follow-through audited all comparison/substitution branches:
+memo insertions are paired with cheaper traversal transitions, so charging each
+unit as a worst-case insertion overstates cumulative allocation. The
+[amortized argument](../../bootstrap/2_gamma/derivation_checker/COMPARISON.md#amortized-allocation-argument)
+bounds allocation at 48 pairs per unit plus a fixed allowance covering unfinished
+traversals and terminal failures. Raising work to 655,360 therefore bounds the
+entire request at 39,321,754 pairs without enlarging Gamma's arena.
+
+With only that production constant changed, the same 1,670,848-byte shape request
+checks successfully: 35,671 proof rows, exactly 534,538 work, in 208.152 seconds.
+The five smaller folds and changed two-byte endpoint control also retain their
+exact observations. The 3,376-byte emitted theory retains SHA-256
+`18dfb59785f754692d47256f57a18746f646c0753a9026c54fb4010687488c52`;
+the checker diagnostic remains 63,504 bytes, now SHA-256
+`8c91eefacbbd4517fa58e83da2fc96e35adb005bed6fc0f2296858ceb46537ce`.
+The full fold ran alongside regression checks on macOS arm64; this is not a
+controlled timing comparison or measured allocation peak. No Windows run is claimed.
+
+**Disposition:** the structural-fold resource obstacle is resolved; tree sharing
+still needs a full encoder cost case before adoption. A balanced tree's depth
+alone is not a source-length proof: capacity
 requires a checked relation to its full shape and the owner's exact bytes.
 An ordered tree scanner and numeric bound remain uncosted. No checker rule,
-production representation, resource limit, or trusted boundary changed; the
+production representation, or trusted boundary changed; the
 temporary emitters and fixed proof recipes are not retained as a new framework.
 
 ## Legacy route: retirement must follow its consumers

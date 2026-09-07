@@ -1,6 +1,6 @@
 ; Right root1 selects invalid-ID precedence; root2 selects adjacent work refusal.
 (def comparison_test_execute ((grounded Int)) Int
-  (let result Int (comparison_test_repeat (comparison_start grounded) 1 1 4097 8195 131072)
+  (let result Int (comparison_test_repeat (comparison_start grounded) 1 1 4097 8195 327680)
     (let observed Int (comparison_test_observe result)
       (if (eq (first result) 6)
         (let operand Int

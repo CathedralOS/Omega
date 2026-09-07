@@ -38,7 +38,7 @@
 (def comparison_session ((payload Int)) Int
   (second payload))
 
-(def comparison_limit () Int 262144)
+(def comparison_limit () Int 655360)
 
 (def comparison_exhausted ((coordinate Int) (used Int)) Int
   (admission_incomplete 4 coordinate (comparison_limit) (+ used 1)))

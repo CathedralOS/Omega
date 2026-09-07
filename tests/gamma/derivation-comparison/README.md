@@ -29,9 +29,9 @@ The source-owned entries are:
 | `witness` | Left owner root versus last global identity, repeated and reversed. |
 | `retention` | Fixed `(6,7)`, `(3,4)`, `(6,7)`, `(4,3)`; cumulative 6/8/12/16 steps prove child memo retention and no false-parent memo. |
 | `invalid` | Checked root values 1/2/3 select test operands 0/N+1/1; one failing call at literal caller coordinates 701/709. |
-| `budget` | 131,072 same-ID calls reach 262,144; right root1 selects invalid IDs, root2 the next valid call. Publishes exact-bound result, then failure. |
-| `resume` | 131,071 same-ID calls and one head mismatch reach 262,143; the next visit fits but terminal resume refuses. |
-| `pending` | 131,071 same-ID calls, then two distinct unary parents with one shared child; parent and child visits fit, pending-parent resume refuses. |
+| `budget` | 327,680 same-ID calls reach 655,360; right root1 selects invalid IDs, root2 the next valid call. Publishes exact-bound result, then failure. |
+| `resume` | 327,679 same-ID calls and one head mismatch reach 655,359; the next visit fits but terminal resume refuses. |
+| `pending` | 327,679 same-ID calls, then two distinct unary parents with one shared child; parent and child visits fit, pending-parent resume refuses. |
 
 Every returned session is threaded forward. No call continues after failure or
 restarts a session within a request. Invalid identities are checked before

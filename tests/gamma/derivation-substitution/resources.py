@@ -9,24 +9,24 @@ def cases():
                      left=selector, right=1, entry="bulk")
     for name, selector, expected in (
         ("small_bulk", 7, compared(1, 1)),
-        ("exact_bulk", 5, compared(1, 262144)),
-        ("adjacent_bulk", 6, failure(907, 4, 2, 262144, 262145)),
-        ("maximum_valid_amount", 4, failure(907, 4, 2, 262144, 2147483647)),
+        ("exact_bulk", 5, compared(1, 655360)),
+        ("adjacent_bulk", 6, failure(907, 4, 2, 655360, 655361)),
+        ("maximum_valid_amount", 4, failure(907, 4, 2, 655360, 2147483647)),
     ):
         yield vector(name, expected, (ZERO,) * 8, left=selector, entry="bulk")
-    yield vector("bulk_requested_exceeds_u31", failure(907, 4, 2, 262144, 2147483648),
+    yield vector("bulk_requested_exceeds_u31", failure(907, 4, 2, 655360, 2147483648),
                  (ZERO,) * 8, left=4, right=3, entry="bulk")
     for selector in (1, 2, 3):
         yield vector(f"invalid_amount_before_exhaustion_{selector}", failure(907, 11),
                      (ZERO,) * 8, left=selector, right=2, entry="bulk")
-    yield vector("positive_amount_after_exhaustion", failure(907, 4, 2, 262144, 262145),
+    yield vector("positive_amount_after_exhaustion", failure(907, 4, 2, 655360, 655361),
                  (ZERO,) * 8, left=7, right=2, entry="bulk")
     owners = (ZERO, record(2, 1, 1, 1), ZERO, ZERO, ZERO, ZERO)
     for selector, name, expected in (
-        (1, "exact_unfold_then_adjacent", compared(1, 262144) + failure(907, 4, 2, 262144, 262145)),
-        (2, "after_variable_before_terminal_resume", failure(901, 4, 2, 262144, 262145)),
-        (3, "template_index_bulk_refuses_exact_sum", failure(901, 4, 2, 262144, 262146)),
-        (4, "clause_reservation_owns_coordinate", failure(903, 4, 2, 262144, 262145)),
+        (1, "exact_unfold_then_adjacent", compared(1, 655360) + failure(907, 4, 2, 655360, 655361)),
+        (2, "after_variable_before_terminal_resume", failure(901, 4, 2, 655360, 655361)),
+        (3, "template_index_bulk_refuses_exact_sum", failure(901, 4, 2, 655360, 655362)),
+        (4, "clause_reservation_owns_coordinate", failure(903, 4, 2, 655360, 655361)),
         (5, "invalid_left_before_exhausted_unfold", failure(901, 9)),
         (6, "invalid_right_before_exhausted_unfold", failure(902, 9)),
     ):

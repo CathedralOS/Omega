@@ -38,7 +38,7 @@ closure or entry requires a fresh audit.
 
 ## Checked finite requests
 
-The generic checker and its diagnostic source are unchanged: 63,504 bytes under
+The generic checker diagnostic is 63,504 bytes under
 the [existing checking profile](../derivation_checker/CHECKING.md).
 The emitted theory has `S=8, C=284, A=12, F=57, W=23284`; its formation work
 estimate is 111,996. Every supplied clause and proof row is checked, including
@@ -66,7 +66,7 @@ ground-comparison transitions; none of its eight fields is an unchecked byte cop
 The largest request is 165,128 bytes and the largest ground table has 1,552
 rows, both in the round-trip batch. Including checker source and framing gives
 228,636 bytes. Across these finite families, the generic cumulative pair bound
-is at most `51506 + 137781 * 96 + 128 = 13278610`, below the selected arena's
+is at most `51506 + 137781 * 48 + 128 = 6665122`, below the selected arena's
 40,265,318 pairs. Each vector is a separate evaluator invocation; these figures
 do not claim that unrelated certificates can reset accounting mid-request.
 Malformed Word arities and semantic corruptions must publish exact owned
@@ -74,7 +74,7 @@ rejections. A timeout, evaluator failure, or short observation is not a verdict.
 
 The counter cases explicitly compose carry selection and increment through
 ordinary proof rules. The maximum-Word case proves Overflow, not a resource
-refusal or a wrapped successful value. These finite requests fit the unchanged
+refusal or a wrapped successful value. These finite requests fit the current
 checking profile; they do not establish the cost of a full-source certificate.
 
 Ordering cases compare all 256 nibble pairs, literal byte priority examples,

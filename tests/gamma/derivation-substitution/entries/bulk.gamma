@@ -5,7 +5,7 @@
       (if (eq selector 1)
         (substitution_test_observe (comparison_reserve (comparison_start grounded) amount 907))
         (let prior Int (comparison_reserve (comparison_start grounded)
-          (if (eq selector 2) 262144 1) 905)
+          (if (eq selector 2) 655360 1) 905)
           (if (eq (first prior) 6)
             (substitution_test_observe (comparison_reserve
               (comparison_session (second prior)) amount 907))
@@ -16,6 +16,6 @@
     (if (eq selector 2) -1
       (if (eq selector 3) 2147483648
         (if (eq selector 4) 2147483647
-          (if (eq selector 5) 262144
-            (if (eq selector 6) 262145
+          (if (eq selector 5) 655360
+            (if (eq selector 6) 655361
               (if (eq selector 7) 1 -9223372036854775808))))))))
