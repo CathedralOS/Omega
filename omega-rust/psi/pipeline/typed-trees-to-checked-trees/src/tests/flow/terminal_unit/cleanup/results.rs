@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod anonymous;
+
 #[test]
 fn partial_result_cleanup_retains_exact_producer_root_and_residual() {
     for (producer, parameters, initializer, reaches) in [

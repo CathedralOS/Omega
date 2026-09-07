@@ -19,10 +19,7 @@ pub(super) fn argument(
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     let projected = !place.segments.is_empty();
     let path = if projected {
-        if !allow_projection
-            || access != CheckedStructuralAccess::Owned
-            || !matches!(place.root, facts::PlaceRoot::Symbol(_))
-        {
+        if !allow_projection || access != CheckedStructuralAccess::Owned {
             return None;
         }
         projected_argument_path_with_identity(
@@ -102,7 +99,19 @@ pub(super) fn argument(
         // Ordinary and boundary affine producers own anonymous results.
         // Rejoin their exact captured
         // preorder coordinate; the shared sequencer executes it in postorder.
-        facts::PlaceRoot::Expression(source) if source == expression => {
+        facts::PlaceRoot::Expression(source) if source == expression || projected => {
+            if projected
+                && crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    call.statement_index,
+                    expression,
+                )
+                .as_ref()
+                    != Some(place)
+            {
+                return None;
+            }
             if usize::try_from(result.statement_index).ok()? != call.statement_index {
                 return None;
             }

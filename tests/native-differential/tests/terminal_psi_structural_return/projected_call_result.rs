@@ -25,12 +25,32 @@ fn free_unit_callers_retain_projected_result_cleanup_without_an_attachment() {
 }
 
 fn check(carrier: &str, first: &str, second: Option<&str>, byte_size: u16, attached: bool) {
+    check_source(carrier, first, second, byte_size, attached, false);
+}
+
+#[test]
+fn anonymous_affine_result_projections_retain_native_storage_and_cleanup() {
+    for attached in [false, true] {
+        check_source("Pair", "result.right", None, 16, attached, true);
+        check_source("[Token; 2]", "result[1]", None, 16, attached, true);
+        check_source("[Token; 1]", "result[0]", None, 8, attached, true);
+    }
+}
+
+fn check_source(
+    carrier: &str,
+    first: &str,
+    second: Option<&str>,
+    byte_size: u16,
+    attached: bool,
+    anonymous: bool,
+) {
     let root = if attached { "Root::" } else { "" };
     let sink = if attached { "Sink::" } else { "" };
     let second_call = second
         .map(|value| format!("{sink}take({value});"))
         .unwrap_or_default();
-    let source = format!(
+    let mut source = format!(
         "data Token {{ value: u64; }}
         data Pair {{ left: Token; right: Token; }}
         data Root {{}} data Sink {{}}
@@ -41,6 +61,14 @@ fn check(carrier: &str, first: &str, second: Option<&str>, byte_size: u16, attac
             {sink}take({first}); {second_call}
         }}"
     );
+    if anonymous {
+        assert!(second.is_none());
+        let producer = format!("{root}forward(value)");
+        source = source
+            .replace(&format!("let result: {carrier} = {producer};"), "")
+            .replace("result.", &format!("{producer}."))
+            .replace("result[", &format!("{producer}["));
+    }
     let tokens = Lexer::new(&source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = lower_syntax_trees(&syntax).unwrap();

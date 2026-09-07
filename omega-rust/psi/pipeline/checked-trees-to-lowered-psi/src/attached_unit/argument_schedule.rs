@@ -2,7 +2,6 @@
 //! changing checked call coordinates or inventing source-local bindings.
 
 use super::*;
-use checked_trees::expression::ExpressionNode;
 
 pub(super) enum Step {
     Ordinary(usize),
@@ -150,12 +149,9 @@ fn append(
             .ok_or(LoweringError::Unsupported(
                 "nested structural argument has no authored position",
             ))?;
-        if !matches!(
-            checked.expression_table.expression(expression),
-            ExpressionNode::Call(_)
-        ) {
+        let Some(expression) = parameters::expression_producer(checked, expression) else {
             continue;
-        }
+        };
         let mut producers = group.clone().filter(|producer| matches!(
             &plan.operations[*producer],
             CheckedUnitEffectOperationPlan::StructuralCall { source_site, .. }

@@ -580,8 +580,9 @@ Owners include
   boundary call-result residual cleanup, including result homes
   and projected copies;
   whole-result disposal does not cover a projected result's residuals.
-  Extend source production to anonymous
-  projected helper-result operands. Extend the
+  Extend anonymous projected helper-result operands beyond one final ordinary
+  Unit consumer: preserve each temporary's dying call continuation across
+  later statements, multiple producers, and other argument effects. Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local
   roots and mixed live-root schedules, preserving maximal untouched subtrees,

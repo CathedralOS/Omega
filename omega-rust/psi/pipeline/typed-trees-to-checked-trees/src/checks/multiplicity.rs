@@ -2850,7 +2850,8 @@ fn apply_statement_permission_production(
             (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
                 .then(|| facts.flow.control.calls.span_or_empty(state.calls))
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .to_vec();
     let mut statement_moves = moves
         .iter()
         .filter(|event| event_statement_index(event.source) == Some(statement_index))
@@ -2877,9 +2878,10 @@ fn apply_statement_permission_production(
         if matches!(event.root, facts::PlaceRoot::Expression(_)) {
             temporary_results::append_whole_affine_transfer(
                 program,
+                facts,
                 machine_symbol,
                 state_symbol,
-                calls,
+                &calls,
                 event,
                 permission_events,
             );
