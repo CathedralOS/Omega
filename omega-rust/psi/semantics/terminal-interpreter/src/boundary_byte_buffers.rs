@@ -52,9 +52,46 @@ pub(super) struct BoundaryArguments {
     pub(super) bytes: Vec<Option<Vec<u8>>>,
     pub(super) buffers: Vec<TerminalBoundaryByteBuffer>,
     bindings: Vec<BoundaryByteBufferBinding>,
+    byte_sequences: Vec<Option<ByteSequenceBinding>>,
 }
 
 impl BoundaryArguments {
+    /// Provider bodies borrow the live field binding, not the staged external
+    /// buffers. Nested boundary calls commit backing; provider return must not
+    /// restore the pre-call snapshot.
+    pub(super) fn into_call_arguments(
+        self,
+        parameters: &[StructuralParameterDeclaration],
+    ) -> Result<StructuralCallArguments, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        bind_structural_arguments(parameters, &self.values)?;
+        if parameters.len() != self.byte_sequences.len() {
+            return Err(invalid());
+        }
+        let mut byte_sequences = BTreeMap::new();
+        for (parameter, binding) in parameters.iter().zip(self.byte_sequences) {
+            let Some(binding) = binding else {
+                continue;
+            };
+            let access = match &binding {
+                ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
+                ByteSequenceBinding::MutableField { .. } => StructuralAccess::MutableBorrow,
+            };
+            if parameter.access != access
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || byte_sequences.insert(parameter.place, binding).is_some()
+            {
+                return Err(invalid());
+            }
+        }
+        Ok(StructuralCallArguments {
+            values: self.values,
+            byte_sequences,
+        })
+    }
+
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
     /// Check every binding before committing either fields or the result.
     pub(super) fn validate_writeback(&self) -> Result<(), TerminalInterpretError> {
@@ -89,6 +126,38 @@ impl TerminalExecution {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
+        let mut resolved = self.prepare_boundary_arguments(parameters, arguments)?;
+        for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {
+            match binding {
+                None => resolved.bytes.push(None),
+                Some(ByteSequenceBinding::Immutable(view)) => {
+                    resolved.bytes.push(Some(view.bytes().to_vec()));
+                }
+                Some(ByteSequenceBinding::MutableField {
+                    field, capacity, ..
+                }) => {
+                    let bytes = self
+                        .structural_byte_sequence_fields
+                        .get(field)
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?
+                        .bytes();
+                    resolved.bytes.push(Some(bytes.to_vec()));
+                    resolved.buffers.push(TerminalBoundaryByteBuffer {
+                        argument_index,
+                        capacity: *capacity,
+                        bytes: bytes.to_vec(),
+                    });
+                }
+            }
+        }
+        Ok(resolved)
+    }
+
+    pub(super) fn prepare_boundary_arguments(
+        &self,
+        parameters: &[StructuralParameterDeclaration],
+        arguments: &[StructuralArgument],
+    ) -> Result<BoundaryArguments, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if parameters.len() != arguments.len() {
             return Err(invalid());
@@ -98,6 +167,7 @@ impl TerminalExecution {
             bytes: Vec::with_capacity(arguments.len()),
             buffers: Vec::new(),
             bindings: Vec::new(),
+            byte_sequences: Vec::with_capacity(arguments.len()),
         };
         for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
         {
@@ -116,70 +186,31 @@ impl TerminalExecution {
                 {
                     return Err(invalid());
                 }
-                let Some((StructuralPathSegment::Field(identity), prefix)) =
-                    argument.path.split_last()
-                else {
-                    return Err(invalid());
-                };
-                let mut parent = resolve_structural_arguments(
-                    &self.structural_types,
-                    &self.structural_values,
-                    &[StructuralArgument {
-                        place: argument.place,
-                        path: prefix.to_vec(),
-                        access: argument.access,
-                    }],
-                )?
-                .pop()
-                .ok_or_else(invalid)?;
-                let declaration = self
-                    .structural_types
-                    .get(&parent.structural_type)
-                    .ok_or_else(invalid)?;
-                let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                    return Err(invalid());
-                };
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())
-                    .ok_or_else(invalid)?;
-                let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
+                let ByteSequenceBinding::MutableField {
+                    field: destination,
                     capacity,
-                }) = field.field_type
+                    referent,
+                    ..
+                } = &binding
                 else {
                     return Err(invalid());
-                };
-                let destination = StructuralByteSequenceRuntimeField {
-                    parent: StructuralRuntimePlace::from(&parent),
-                    field: field.id,
                 };
                 let bytes = self
                     .structural_byte_sequence_fields
-                    .get(&destination)
+                    .get(destination)
                     .ok_or_else(invalid)?
                     .bytes();
-                if bytes.len() as u128 > u128::from(capacity) {
+                if bytes.len() as u128 > u128::from(*capacity) {
                     return Err(invalid());
                 }
-                // Present the boundary parameter type, retaining the original
-                // referent and full field path for alias/custody checks.
-                parent.structural_type = parameter.structural_type;
-                parent.qualifications.clear();
-                parent
-                    .path
-                    .push(StructuralPathSegment::Field(identity.clone()));
-                resolved.values.push(parent);
-                resolved.bytes.push(Some(bytes.to_vec()));
-                resolved.buffers.push(TerminalBoundaryByteBuffer {
-                    argument_index,
-                    capacity,
-                    bytes: bytes.to_vec(),
-                });
+                resolved.values.push(referent.clone());
                 resolved.bindings.push(BoundaryByteBufferBinding {
                     argument_index,
-                    capacity,
-                    field: destination,
+                    capacity: *capacity,
+                    field: destination.clone(),
                 });
+                resolved.byte_sequences.push(Some(binding));
             } else {
                 let values = resolve_structural_arguments(
                     &self.structural_types,
@@ -191,17 +222,98 @@ impl TerminalExecution {
                     std::slice::from_ref(argument),
                     &values,
                 )?;
-                resolved.bytes.push(
-                    bytes
-                        .remove(&parameter.place)
-                        .map(|view| view.bytes().to_vec()),
-                );
+                let binding = bytes.remove(&parameter.place);
+                resolved.byte_sequences.push(binding);
                 resolved.values.extend(values);
             }
         }
         Ok(resolved)
     }
+    fn resolve_mutable_boundary_binding(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+    ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if argument.path.is_empty() {
+            let value = self
+                .structural_values
+                .get(&argument.place)
+                .ok_or_else(invalid)?;
+            if value.structural_type != parameter.structural_type {
+                return Err(invalid());
+            }
+            let binding = self
+                .byte_sequence_values
+                .get(&argument.place)
+                .ok_or_else(invalid)?;
+            binding.validate_mutable_referent(&self.structural_types, value)?;
+            return Ok(binding.clone());
+        }
+        let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
+        else {
+            return Err(invalid());
+        };
+        let mut parent = resolve_structural_arguments(
+            &self.structural_types,
+            &self.structural_values,
+            &[StructuralArgument {
+                place: argument.place,
+                path: prefix.to_vec(),
+                access: argument.access,
+            }],
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        let declaration = self
+            .structural_types
+            .get(&parent.structural_type)
+            .ok_or_else(invalid)?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return Err(invalid());
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.identity == *identity && !field.relevance.is_erased())
+            .ok_or_else(invalid)?;
+        let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
+            field.field_type
+        else {
+            return Err(invalid());
+        };
+        let destination = StructuralByteSequenceRuntimeField {
+            parent: StructuralRuntimePlace::from(&parent),
+            field: field.id,
+        };
+
+        let parent_type = parent.structural_type;
+        // Present the boundary parameter type, retaining the original
+        // referent and full field path for alias/custody checks.
+        parent.structural_type = parameter.structural_type;
+        parent.qualifications.clear();
+        parent
+            .path
+            .push(StructuralPathSegment::Field(identity.clone()));
+
+        let binding = ByteSequenceBinding::MutableField {
+            field: destination,
+            capacity,
+            parent_type,
+            referent: parent,
+        };
+        binding.validate_mutable_referent(
+            &self.structural_types,
+            match &binding {
+                ByteSequenceBinding::MutableField { referent, .. } => referent,
+                ByteSequenceBinding::Immutable(_) => return Err(invalid()),
+            },
+        )?;
+        Ok(binding)
+    }
 }
+
+#[cfg(test)]
+mod binding_tests;
 
 #[cfg(test)]
 mod tests {

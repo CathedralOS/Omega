@@ -281,8 +281,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   do not implement the call. Bounded inline storage and borrowed descriptors
   have different layouts. Use the source-produced `boundary_byte_buffers`
   regressions in `checked-trees-to-lowered-psi/src/tests/` as the writeback
-  oracle for field/array destinations; checked provider-body dispatch of
-  mutable byte views still needs forwarding. Implement the checked line adapter
+  oracle for field/array destinations, including installed checked providers
+  and fuel suspension. Interpreter forwarding retains a frame-owned mutable
+  field binding; source correspondence rejoins an exact authored `&mut [u8]`
+  parameter reborrow without granting ordinary inline-storage conversion.
+  Implement the checked line adapter
   over the settled native byte leaves; each target's `console_impl.omg` currently
   declares bodyless `read_line` instead.
   Native byte input still needs matching Linux runtime evidence and a Windows

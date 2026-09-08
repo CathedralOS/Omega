@@ -61,9 +61,13 @@ impl TerminalExecution {
         let source_value = self.structural_values.get(source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
         )?;
-        let bytes = self.byte_sequence_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
+        let bytes = self
+            .byte_sequence_values
+            .get(source)
+            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                *source,
+            ))?
+            .immutable()?;
         let machine = self.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
@@ -114,7 +118,8 @@ impl TerminalExecution {
             self.byte_sequence_values.get(&result.place),
         ) {
             (None, None) => {}
-            (Some(previous), Some(_)) if *previous == destination => {}
+            (Some(previous), Some(super::ByteSequenceBinding::Immutable(_)))
+                if *previous == destination => {}
             _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
         }
         // subslice snapshots the checked window and clones its Arc, not bytes.
@@ -122,7 +127,8 @@ impl TerminalExecution {
         let view = bytes
             .subslice(start, end)
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        self.byte_sequence_values.insert(result.place, view);
+        self.byte_sequence_values
+            .insert(result.place, super::ByteSequenceBinding::Immutable(view));
         self.structural_values.insert(result.place, destination);
         Ok(())
     }

@@ -82,7 +82,11 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        let bytes = self.byte_sequence_values.get(source).ok_or_else(invalid)?;
+        let bytes = self
+            .byte_sequence_values
+            .get(source)
+            .ok_or_else(invalid)?
+            .immutable()?;
         if bytes.len() as u128 != *length {
             return Err(invalid());
         }

@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::{BlockId, PlaceId, ValueId};
 use terminal_psi::{ByteSequenceCarrier, StructuralArgument, StructuralTypeShape};
 
-use super::byte_sequence_view::ByteSequenceView;
+use super::byte_sequence_binding::ByteSequenceBinding;
 use super::{
     TerminalExecution, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
     bind_arguments, bind_structural_arguments,
@@ -17,7 +17,7 @@ mod tests;
 pub(super) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
-    byte_sequences: BTreeMap<PlaceId, ByteSequenceView>,
+    byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
 }
 
 impl BlockBindings {
@@ -67,6 +67,7 @@ impl TerminalExecution {
         {
             if usize::try_from(parameter.position).ok() != Some(position)
                 || parameter.is_self
+                || parameter.access != terminal_psi::StructuralAccess::SharedBorrow
                 || !matches!(
                     self.structural_types.get(&parameter.structural_type),
                     Some(declaration)
