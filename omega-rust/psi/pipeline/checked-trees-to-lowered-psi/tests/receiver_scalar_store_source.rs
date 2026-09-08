@@ -161,6 +161,181 @@ fn typed_from_source(source: &str) -> typed_trees::TypedTrees {
     lower_symbol_resolved_trees(&resolved).expect("type receiver store")
 }
 
+#[test]
+fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowed_call() {
+    let source = r#"
+        data Pair { saved: u64; current: u64; }
+        machine reset(value: &mut u64) -> u64 { value = 0; 7 }
+        machine Pair::replace(&mut self) {
+            let mut scratch: u64 = 41;
+            let before: u64 = scratch;
+            let returned: u64 = reset(&mut scratch);
+            self.saved = before;
+            self.current = scratch;
+        }
+    "#;
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
+        .expect("local snapshot and current storage field assignments check");
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "Pair::replace")
+        .expect("field stores receive immutable bindings and primitive storage independently");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(
+        terminal_codec::encode_module(&module).unwrap(),
+        artifact.semantic_bytes()
+    );
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let [receiver] = entry.structural_parameters.as_slice() else {
+        panic!("one receiver");
+    };
+    assert!(receiver.is_self);
+    assert_eq!(receiver.access, StructuralAccess::MutableBorrow);
+    let [block] = entry.blocks.as_slice() else {
+        panic!("one source state");
+    };
+    let locals = block
+        .operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishPrimitiveLocal { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(locals.len(), 1);
+    let local = locals[0].result.structural().unwrap().place;
+    let calls = block
+        .operations
+        .iter()
+        .enumerate()
+        .filter(|(_, operation)| {
+            matches!(operation.kind, OperationKind::CallStructuralScalar { .. })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1);
+    let reads = block
+        .operations
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, operation)| {
+            let OperationKind::PrimitiveScalarRead { source } = operation.kind else {
+                return None;
+            };
+            assert_eq!(source, local);
+            Some((ordinal, operation.result.scalar().unwrap().id))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(reads.len(), 2);
+    assert!(reads[0].0 < calls[0].0 && calls[0].0 < reads[1].0);
+    assert_ne!(
+        reads[0].1, reads[1].1,
+        "snapshot and later storage read have distinct values"
+    );
+    let stores = block
+        .operations
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, operation)| {
+            let OperationKind::StructuralScalarFieldStore {
+                destination,
+                path,
+                field,
+                value,
+            } = &operation.kind
+            else {
+                return None;
+            };
+            assert_eq!(*destination, receiver.place);
+            assert!(path.is_empty());
+            assert!(ordinal > calls[0].0, "both field writes occur after reset");
+            Some((*field, *value))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(stores.len(), 2);
+    assert_eq!(
+        stores[0].1, reads[0].1,
+        "saved field receives the pre-call snapshot"
+    );
+    assert_eq!(
+        stores[1].1, reads[1].1,
+        "current field receives a post-call read"
+    );
+    let receiver_type = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == receiver.structural_type)
+        .unwrap();
+    let StructuralTypeShape::Record { fields } = &receiver_type.shape else {
+        panic!("Pair fields");
+    };
+    for ((field, _), identity) in stores.iter().zip(["saved", "current"]) {
+        assert_eq!(
+            fields
+                .iter()
+                .find(|candidate| candidate.id == *field)
+                .unwrap()
+                .identity,
+            identity
+        );
+    }
+
+    // Field backing is private; exact stored operands are checked above.
+    // Execution additionally checks primitive reads, calls, and field writes
+    // complete under suspension without replaying a committed operation.
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 71,
+            structural_type: receiver.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .unwrap();
+    let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
+    let mut complete = false;
+    for _ in 0..32 {
+        match execution.resume(&mut meter).unwrap() {
+            TerminalExecutionStatus::Complete(result) => {
+                assert_eq!(result, TerminalExecutionResult::Unit);
+                complete = true;
+                break;
+            }
+            TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
+            other => panic!("unexpected field-store execution status {other:?}"),
+        }
+    }
+    assert!(complete);
+    for operation in module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+    {
+        let usage = meter
+            .usage()
+            .at(terminal_fuel::FuelChargeSite::Operation(operation.id))
+            .unwrap();
+        assert_eq!(
+            usage.executions(),
+            1,
+            "operation {:?} must not replay",
+            operation.id
+        );
+        assert_eq!(usage.units(), 1);
+    }
+}
+
 fn assert_receiver_store(
     machine_name: &str,
     expected_path: &[StructuralPathSegment],

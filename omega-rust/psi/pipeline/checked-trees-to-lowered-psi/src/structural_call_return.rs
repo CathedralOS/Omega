@@ -194,6 +194,7 @@ pub(super) fn lower_structural_call_return_machine(
         &[],
         &[],
         &[],
+        &[],
     )?;
     let caller = TerminalMachine {
         id: machine_id(1),

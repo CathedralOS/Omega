@@ -874,8 +874,9 @@ Owners include
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
   extend the ordinary borrowed primitive-store call route to checked computation
-  operands and its shared Terminal closure. Establish real mutable primitive
-  local referents and propagate writes to later reads. Preserve the authored
+  operands and its shared Terminal closure, reusing ordinary Unit primitive
+  local establishment and storage reads. Realize their native storage and
+  borrowed-call observations without substituting snapshots. Preserve the authored
   guard and structural payload; the generated hop currently rejects the range.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted

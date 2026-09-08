@@ -238,6 +238,12 @@ pub(super) fn emit_boolean_expression(
         }
         LoweredBooleanReturnExpression::Parameter { position }
         | LoweredBooleanReturnExpression::Local { position } => parameters[*position].id,
+        LoweredBooleanReturnExpression::PrimitiveRead { source } => emit_scalar_leaf(
+            OperationKind::PrimitiveScalarRead { source: *source },
+            ScalarType::Boolean,
+            next_value_identity,
+            operations,
+        ),
         LoweredBooleanReturnExpression::StructuralField { source, field } => {
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity
@@ -629,6 +635,15 @@ pub(super) fn emit_direct_expression(
     operations: &mut OperationBuffer,
 ) -> ValueId {
     match expression {
+        LoweredDirectExpression::PrimitiveRead {
+            source,
+            scalar_type,
+        } => emit_scalar_leaf(
+            OperationKind::PrimitiveScalarRead { source: *source },
+            *scalar_type,
+            next_value_identity,
+            operations,
+        ),
         LoweredDirectExpression::StructuralField {
             source,
             field,

@@ -87,6 +87,16 @@ pub(super) fn build_structural_scalar_field_store_sequence(
                 u32::try_from(statement_index)
                     .ok()
                     .and_then(|statement_index| {
+                        if let Some(store) = super::primitive_store::build_primitive_store_at(
+                            program,
+                            facts,
+                            state,
+                            structural_parameters,
+                            statement_index,
+                            assignment,
+                        ) {
+                            return Some(store);
+                        }
                         build_structural_field_store_at(
                             program,
                             facts,

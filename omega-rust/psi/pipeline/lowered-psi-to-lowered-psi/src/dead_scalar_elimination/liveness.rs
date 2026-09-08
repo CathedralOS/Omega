@@ -88,6 +88,9 @@ pub(super) fn eliminate(
 /// The exhaustive match forces new operation variants to declare that fact.
 fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
     match operation {
+        // This pass never removes structural storage. A primitive read has no
+        // scalar operand, but remains an observation even when its result dies.
+        O::PrimitiveScalarRead { .. } => {}
         O::StructuralByteSequenceFieldByteStore {
             index,
             value,
@@ -148,9 +151,9 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             right,
             addend,
         } => values.extend([*left, *right, *addend]),
-        O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
-            values.push(*value)
-        }
+        O::EstablishPrimitiveLocal { value }
+        | O::WriteOnlyPrimitiveStore { value, .. }
+        | O::StructuralScalarFieldStore { value, .. } => values.push(*value),
         O::BoundaryCall { arguments, .. } => values.extend(arguments),
         O::Call {
             arguments,
@@ -221,5 +224,24 @@ mod tests {
         let mut pending = Vec::new();
         assert!(inputs(&operation, &mut pending));
         assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn primitive_storage_initialization_demands_its_value_and_reads_remain_observations() {
+        let initializer = ValueId::new(1).unwrap();
+        let establishment = O::EstablishPrimitiveLocal { value: initializer };
+        let read = O::PrimitiveScalarRead {
+            source: PlaceId::new(1).unwrap(),
+        };
+        let mut pending = Vec::new();
+        assert!(inputs(&establishment, &mut pending));
+        assert_eq!(pending, vec![initializer]);
+        pending.clear();
+        assert!(inputs(&read, &mut pending));
+        assert!(pending.is_empty());
+        assert!(!terminal_semantics::is_unconditionally_total_scalar(
+            &establishment
+        ));
+        assert!(!terminal_semantics::is_unconditionally_total_scalar(&read));
     }
 }

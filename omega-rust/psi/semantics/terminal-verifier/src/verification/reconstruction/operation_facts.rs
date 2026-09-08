@@ -54,6 +54,13 @@ pub(super) fn append_operation(
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::EstablishPrimitiveLocal { .. } = &operation.kind
+        && let Some(result) = operation.result.structural()
+    {
+        axioms.retain(|proposition| {
+            !crate::validation::proposition_observes_places(proposition, &[result.place])
+        });
+    }
     if let OperationKind::WriteOnlyPrimitiveStore { destination, .. }
     | OperationKind::StructuralScalarFieldStore { destination, .. }
     | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
@@ -226,6 +233,8 @@ pub(super) fn append_operation(
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::EstablishPrimitiveLocal { .. }
+        | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }

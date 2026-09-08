@@ -82,6 +82,16 @@ pub(super) fn validate_call_source(
             .ok_or(LoweringError::Unsupported(
                 "scalar wrapper parameter has no exact authored argument",
             ))?;
+        if primitive_locals::validate_argument_source(
+            checked,
+            caller,
+            *coordinate,
+            authored.source_target,
+            argument,
+            expression,
+        )? {
+            continue;
+        }
         if validate_constructed_local(
             checked,
             caller,

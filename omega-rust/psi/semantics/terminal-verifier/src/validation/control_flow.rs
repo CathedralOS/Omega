@@ -21,6 +21,7 @@ pub(super) fn validate_control_flow(
         .collect::<BTreeSet<_>>();
     let mut definition_blocks = BTreeMap::new();
     let mut borrowed_view_definitions = BTreeMap::new();
+    let mut primitive_local_definitions = BTreeMap::new();
     for block in blocks.values() {
         for parameter in &block.structural_parameters {
             borrowed_view_definitions.insert(parameter.place, block.id);
@@ -29,6 +30,11 @@ pub(super) fn validate_control_flow(
             definition_blocks.insert(parameter.id, block.id);
         }
         for operation in &block.operations {
+            if let Some(result) = operation.result.structural()
+                && super::primitive_storage::local_result(machine, result.place).is_some()
+            {
+                primitive_local_definitions.insert(result.place, block.id);
+            }
             if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind
             {
                 borrowed_view_definitions.insert(destination, block.id);
@@ -212,6 +218,12 @@ pub(super) fn validate_control_flow(
                 (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
             })
             .collect::<BTreeSet<_>>();
+        let mut available_primitives = primitive_local_definitions
+            .iter()
+            .filter_map(|(place, definition)| {
+                (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
+            })
+            .collect::<BTreeSet<_>>();
         available_views.extend(
             block
                 .structural_parameters
@@ -220,6 +232,7 @@ pub(super) fn validate_control_flow(
         );
         for operation in &block.operations {
             super::byte_sequence_subslice::validate_uses(machine, operation, &available_views)?;
+            super::primitive_storage::validate_uses(machine, operation, &available_primitives)?;
             validate_operation_operands(
                 module,
                 machine,
@@ -231,6 +244,11 @@ pub(super) fn validate_control_flow(
             )?;
             if let Some(result) = operation.result.scalar() {
                 defined.insert(result.id);
+            }
+            if let Some(result) = operation.result.structural()
+                && primitive_local_definitions.contains_key(&result.place)
+            {
+                available_primitives.insert(result.place);
             }
             if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind
             {

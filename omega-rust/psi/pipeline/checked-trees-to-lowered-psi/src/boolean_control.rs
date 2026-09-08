@@ -128,6 +128,7 @@ pub(super) fn lower_boolean_value_decision(
             })
         }
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
@@ -632,6 +633,7 @@ pub(super) fn build_scalar_conditional_target(
                 _ => None,
             },
             LoweredDirectExpression::IntegerLiteral { .. }
+            | LoweredDirectExpression::PrimitiveRead { .. }
             | LoweredDirectExpression::StructuralField { .. }
             | LoweredDirectExpression::ByteSequenceLength { .. }
             | LoweredDirectExpression::ByteSequenceRead { .. }

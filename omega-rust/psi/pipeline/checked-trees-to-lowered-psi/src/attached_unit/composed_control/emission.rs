@@ -268,6 +268,7 @@ pub(crate) fn emit_call_leaf(
 ) -> Result<(Vec<Block>, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
+        primitive_storage: Vec::new(),
         scalar_bindings: None,
         structural_fields: Vec::new(),
         structural_parameters: Vec::new(),
@@ -499,6 +500,7 @@ pub(super) fn emit_boundary_call_operation(
         type_ids,
         structural_types,
         &expected_claim_arguments,
+        &[],
     )?;
     let arguments = super::super::argument_evaluation::validated_values(
         scalar_values,
@@ -535,6 +537,7 @@ pub(super) fn emit_boundary_call_operation(
                 &[],
                 &[],
                 byte_argument_places,
+                &[],
             )?,
             completion_receipts: completion_receipts
                 .iter()

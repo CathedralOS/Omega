@@ -569,7 +569,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            15
+            17
         );
         assert_eq!(
             graph
@@ -579,7 +579,31 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 60);
+        assert_eq!(OperationSemanticRow::ALL.len(), 62);
+        for (tag, identity) in [
+            (
+                OperationSemanticTag::EstablishPrimitiveLocal,
+                "schema:operation:establish-primitive-local",
+            ),
+            (
+                OperationSemanticTag::PrimitiveScalarRead,
+                "schema:operation:primitive-scalar-read",
+            ),
+        ] {
+            let row = OperationSemanticRow::ALL
+                .iter()
+                .find(|row| row.tag() == tag)
+                .expect("primitive storage semantic row");
+            assert_eq!(row.identity(), identity);
+            let node = graph
+                .nodes()
+                .iter()
+                .find(|node| node.identity() == identity)
+                .expect("primitive storage trust node");
+            assert_eq!(node.kind(), TrustDependencyKind::StructuralEffectSchema);
+            assert_eq!(node.status(), TrustDependencyStatus::TrustedJudgment);
+            assert_eq!(node.version(), "terminal-structural-effect-v1-unproved");
+        }
         let descriptor_store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::StoreDynamicDescriptor)
@@ -609,7 +633,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            50
+            52
         );
         assert_eq!(
             OperationSemanticRow::ALL

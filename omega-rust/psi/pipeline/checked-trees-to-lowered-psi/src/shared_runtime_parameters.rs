@@ -403,6 +403,7 @@ pub(super) fn shared_boolean_runtime_parameters(
             Some(parameters)
         }
         LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::Equal { .. } => None,
     }
@@ -422,6 +423,7 @@ fn shared_integer_runtime_parameters_with_shells(
     match expression {
         LoweredDirectExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => None,

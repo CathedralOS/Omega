@@ -200,6 +200,7 @@ pub(super) fn validate_machine(
                 operation.kind,
                 OperationKind::EstablishPayloadlessCase { .. }
                     | OperationKind::EstablishAffineScalarRecord { .. }
+                    | OperationKind::EstablishPrimitiveLocal { .. }
             ) {
                 validate_unit_operation_static(module, machine, machines, operation)?;
                 continue;
@@ -318,6 +319,16 @@ pub(super) fn validate_machine(
                 result.scalar_type,
             )?;
             match operation.kind.clone() {
+                OperationKind::PrimitiveScalarRead { source } => {
+                    if super::primitive_storage::read_type(module, machine, operation.id, source)?
+                        != result.scalar_type
+                    {
+                        return Err(ModuleError::InvalidPrimitiveScalarRead {
+                            operation: operation.id,
+                            place: source,
+                        });
+                    }
+                }
                 OperationKind::StructuralByteSequenceFieldLength { .. } => {
                     super::structural_byte_sequence_fields::validate(module, machine, operation)?;
                 }
@@ -354,6 +365,7 @@ pub(super) fn validate_machine(
                 | OperationKind::EstablishPayloadlessCase { .. }
                 | OperationKind::ByteSequenceSubslice { .. }
                 | OperationKind::EstablishAffineScalarRecord { .. }
+                | OperationKind::EstablishPrimitiveLocal { .. }
                 | OperationKind::StoreDynamicDescriptor { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. }

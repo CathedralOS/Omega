@@ -41,6 +41,7 @@ pub(super) fn checked_provider_attachment_requirements(
                 operation,
                 CheckedUnitEffectOperationPlan::CallUnit { .. }
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }

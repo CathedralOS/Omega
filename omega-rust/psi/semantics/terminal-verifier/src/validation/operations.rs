@@ -98,31 +98,34 @@ pub(super) fn validate_operation_operands(
         }
         return Ok(());
     }
+    if let OperationKind::EstablishPrimitiveLocal { value } = operation.kind {
+        require_defined(value, value_types, defined)?;
+        let expected =
+            super::primitive_storage::validate_establishment(module, machine, operation)?;
+        let actual = value_types[&value];
+        if actual != expected {
+            return Err(ModuleError::PrimitiveLocalValueTypeMismatch {
+                operation: operation.id,
+                expected,
+                actual,
+            });
+        }
+        return Ok(());
+    }
+    if let OperationKind::PrimitiveScalarRead { source } = operation.kind {
+        let expected = super::primitive_storage::read_type(module, machine, operation.id, source)?;
+        if operation.result.scalar().map(|result| result.scalar_type) != Some(expected) {
+            return Err(ModuleError::InvalidPrimitiveScalarRead {
+                operation: operation.id,
+                place: source,
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::WriteOnlyPrimitiveStore { destination, value } = operation.kind {
         require_defined(value, value_types, defined)?;
-        let structural_type = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == destination)
-            .map(|parameter| parameter.structural_type)
-            .ok_or(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
-                operation: operation.id,
-                place: destination,
-            })?;
-        let expected = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .and_then(|declaration| match declaration.shape {
-                StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),
-                _ => None,
-            })
-            .ok_or(
-                ModuleError::WriteOnlyPrimitiveStoreRequiresPrimitiveScalar {
-                    operation: operation.id,
-                    structural_type,
-                },
-            )?;
+        let expected =
+            super::primitive_storage::store_type(module, machine, operation.id, destination)?;
         let actual = value_types[&value];
         if actual != expected {
             return Err(ModuleError::WriteOnlyPrimitiveStoreValueTypeMismatch {
@@ -664,6 +667,8 @@ pub(super) fn validate_operation_operands(
         OperationKind::SaturatingIntegerDivide { .. } => None,
         OperationKind::SaturatingIntegerRemainder { .. } => None,
         OperationKind::Call { .. }
+        | OperationKind::EstablishPrimitiveLocal { .. }
+        | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }

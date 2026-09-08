@@ -84,9 +84,24 @@ and receipt, unless installation supplies physical isolation evidence.
 
 ## Store vocabulary
 
+An initialized primitive local uses an unrestricted, unqualified, claim-free
+`OperationResult` place. `EstablishPrimitiveLocal` consumes an exactly typed SSA
+initializer and establishes the referent; `PrimitiveScalarRead` produces a
+fresh scalar observation of an established local or readable primitive borrow.
+Establishment must dominate every local use. A read is not equality with the
+initializer or a previous read: intervening stores and calls can change storage.
+
+Each execution of establishment creates a fresh referent, including loop reentry
+and nested activations of the same machine. Locals remain live through borrowed
+calls and suspension; dead activation-local backing is reclaimed without affine
+cleanup. This admitted local form cannot escape by owned transfer or structural
+return. Shared, mutable, and write-only loans retain their usual compatibility
+and access restrictions. Establishment and reads each cost one logical operation
+unit, charged before execution.
+
 | Operation | Retained subject |
 | --- | --- |
-| `WriteOnlyPrimitiveStore` | Destination structural parameter and already-defined, exactly typed SSA value. The primitive referent is not represented as a synthetic record. |
+| `WriteOnlyPrimitiveStore` | Destination primitive parameter or established primitive local and already-defined, exactly typed SSA value. The referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination parameter, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
@@ -94,7 +109,8 @@ and receipt, unless installation supplies physical isolation evidence.
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.
 The admitted primitive-store form has an unrestricted, unqualified, claim-free
-mutable or write-only root. Field-store admission independently checks the
+mutable or write-only parameter, or an established owned primitive local.
+Field-store admission independently checks the
 complete parameter declaration, path, field, access, qualifications/claims,
 scalar type, and dominating definition. Integer and Boolean field observations
 remain distinct operations and require readable access.

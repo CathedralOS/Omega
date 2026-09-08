@@ -9,6 +9,7 @@ use checked_trees::statement::{
 mod computation_calls;
 pub(super) mod direct_calls;
 mod parameters;
+mod storage_reads;
 pub(crate) use computation_calls::validate_computation_calls;
 pub(super) use parameters::parameter_storage;
 
@@ -280,13 +281,22 @@ pub(super) fn locate(
                                     {
                                         return None;
                                     }
-                                    let primitive = program
-                                        .primitive_type_reference(parameter.type_reference)?;
-                                    supported_mutable_parameter(primitive).then_some((
-                                        assignment.value,
-                                        parameter.symbol,
-                                        primitive,
-                                    ))
+                                    let (reference, borrowed_store) = match program
+                                        .type_reference_table
+                                        .type_reference(parameter.type_reference)
+                                    {
+                                        checked_trees::types::TypeReferenceNode::Reference {
+                                            access:
+                                                language_semantics::ReferenceAccess::Mutable
+                                                | language_semantics::ReferenceAccess::WriteOnly,
+                                            referee,
+                                            ..
+                                        } => (*referee, true),
+                                        _ => (parameter.type_reference, false),
+                                    };
+                                    let primitive = program.primitive_type_reference(reference)?;
+                                    (borrowed_store || supported_mutable_parameter(primitive))
+                                        .then_some((assignment.value, parameter.symbol, primitive))
                                 })
                         })
                 }
@@ -430,7 +440,8 @@ pub(super) fn validate_pure(
             "pure scalar plan disagrees with its authored expression or destination",
         );
     }
-    validate_namespace(checked, binding)
+    validate_namespace(checked, binding)?;
+    storage_reads::validate(checked, binding, &source)
 }
 
 pub(crate) fn validate_namespace(

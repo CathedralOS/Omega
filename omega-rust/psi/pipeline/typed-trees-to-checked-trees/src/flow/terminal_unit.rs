@@ -308,6 +308,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                     | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                     | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
@@ -377,6 +378,17 @@ pub(crate) fn build_checked_unit_effect_plans(
                         .filter_map(|local| local.construction.as_ref())
                         .map(|element| element.root_type_identity.as_str()),
                 )
+                .chain(
+                    plan.operations
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                                type_identity,
+                                ..
+                            } => Some(type_identity.as_str()),
+                            _ => None,
+                        }),
+                )
         }))
         .chain(composed_machines.iter().flat_map(|plan| {
             plan.attachment_type_identity
@@ -393,6 +405,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                         .operations
                         .iter()
                         .filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                                type_identity,
+                                ..
+                            } => Some(type_identity.as_str()),
                             CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                                 result,
                                 ..

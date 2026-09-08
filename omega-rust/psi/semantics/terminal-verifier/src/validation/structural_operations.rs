@@ -165,55 +165,10 @@ pub(super) fn validate_unit_operation_static(
 ) -> Result<(), ModuleError> {
     match &operation.kind {
         OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
-            let invalid = || ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
-                operation: operation.id,
-                place: *destination,
-            };
-            let parameter = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *destination)
-                .ok_or_else(invalid)?;
-            let place = machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == *destination)
-                .ok_or_else(invalid)?;
-            if !matches!(
-                place.kind,
-                StructuralPlaceKind::Parameter { position, is_self }
-                    if position == parameter.position && is_self == parameter.is_self
-            ) || !matches!(
-                parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == *destination)
-                || machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == *destination)
-            {
-                return Err(invalid());
-            }
-            let declaration = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)
-                .ok_or(ModuleError::UnknownStructuralType(
-                    parameter.structural_type,
-                ))?;
-            if !matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
-                return Err(
-                    ModuleError::WriteOnlyPrimitiveStoreRequiresPrimitiveScalar {
-                        operation: operation.id,
-                        structural_type: parameter.structural_type,
-                    },
-                );
-            }
+            super::primitive_storage::store_type(module, machine, operation.id, *destination)?;
+        }
+        OperationKind::EstablishPrimitiveLocal { .. } => {
+            super::primitive_storage::validate_establishment(module, machine, operation)?;
         }
         OperationKind::StructuralScalarFieldStore {
             destination,
@@ -536,10 +491,11 @@ pub(super) fn validate_unit_operation_static(
                     actual,
                 });
             }
-            // Construction-local loans remain separate. Whole affine call
-            // results and immutable byte views may supply shared reads. The
-            // common source validator checks their shape; frontier and view
-            // dominance validation retain their exact producer custody.
+            // Construction-local loans remain separate. Initialized primitive
+            // locals may supply whole loans; affine call results and immutable
+            // byte views may supply shared reads. The common source validator
+            // checks shape and access; frontier and dominance validation retain
+            // exact producer custody.
             if let Some((argument_index, argument)) =
                 structural_arguments
                     .iter()
@@ -550,6 +506,9 @@ pub(super) fn validate_unit_operation_static(
                                 .structural_parameters
                                 .iter()
                                 .any(|parameter| parameter.place == argument.place)
+                            && !(argument.path.is_empty()
+                                && super::primitive_storage::local_result(machine, argument.place)
+                                    .is_some())
                             && !(argument.access == StructuralAccess::SharedBorrow
                                 && (is_structural_call_result(machine, argument.place)
                                     || (argument.path.is_empty()
@@ -1226,6 +1185,18 @@ pub(super) fn validate_structural_arguments(
                         return None;
                     }
                     match place.kind {
+                        StructuralPlaceKind::OperationResult { .. }
+                            if ordinary_call
+                                && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                && argument.path.is_empty()
+                                && argument.access != StructuralAccess::Owned
+                                && super::primitive_storage::local_result(caller, argument.place).is_some() =>
+                        {
+                            let result = super::primitive_storage::local_result(caller, argument.place)?;
+                            super::primitive_storage::scalar_type(module, result.structural_type)?;
+                            Some((result.structural_type, StructuralMultiplicity::Unrestricted,
+                                StructuralAccess::Owned, &[][..], &[][..]))
+                        }
                         StructuralPlaceKind::BlockParameter { .. }
                             if argument.path.is_empty()
                                 && argument.access == StructuralAccess::SharedBorrow

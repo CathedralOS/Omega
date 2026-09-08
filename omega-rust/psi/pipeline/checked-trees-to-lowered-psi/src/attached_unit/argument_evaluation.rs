@@ -4,6 +4,7 @@ use super::*;
 use checked_trees::CheckedCallScalarArgument;
 
 pub(crate) struct Evaluation {
+    pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
     /// Other callers retain the ordinary dense source-prefix mapping.
     pub scalar_bindings: Option<crate::scalar_bindings::ScalarBindings>,
@@ -59,6 +60,7 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
             structural_parameters: Vec::new(),
@@ -166,6 +168,7 @@ impl Evaluation {
             .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(source_value_count))
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_fields(&self.structural_fields);
+        let source_bindings = source_bindings.with_primitive_storage(&self.primitive_storage);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,

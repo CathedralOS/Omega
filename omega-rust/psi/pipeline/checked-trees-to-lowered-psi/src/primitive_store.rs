@@ -9,6 +9,29 @@ pub(super) fn validate_assignment(
     destination: &CheckedUnitStructuralParameterPlan,
     value: &CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
+    let parameter = checked
+        .state_parameters(state)
+        .get(destination.position as usize)
+        .ok_or(LoweringError::Unsupported(
+            "primitive store lost its authored destination",
+        ))?;
+    validate_symbol_assignment(
+        checked,
+        state_symbol,
+        statement_index,
+        parameter.symbol,
+        value,
+    )
+}
+
+pub(super) fn validate_symbol_assignment(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    destination: symbols::SymbolHandle,
+    value: &CheckedScalarExpression,
+) -> Result<(), LoweringError> {
     use checked_trees::{expression::ExpressionNode, statement::StatementNode};
     let (_, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
     let Some(StatementNode::Assignment(assignment)) = checked
@@ -18,19 +41,13 @@ pub(super) fn validate_assignment(
     else {
         return unsupported("primitive store has no authored assignment");
     };
-    let parameter = checked
-        .state_parameters(state)
-        .get(destination.position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "primitive store lost its authored destination",
-        ))?;
     let ExpressionNode::Name(target) = checked.expression_table.expression(assignment.target)
     else {
         return unsupported("primitive store destination is not a direct parameter");
     };
-    if !parameter.symbol.is_valid()
-        || target.symbol != parameter.symbol
-        || target.head_symbol != parameter.symbol
+    if !destination.is_valid()
+        || target.symbol != destination
+        || target.head_symbol != destination
         || checked
             .expression_table
             .name_path_members(target.members)
@@ -52,7 +69,7 @@ pub(super) fn validate_assignment(
             "primitive store lost its unique RHS binding",
         ))?;
     if binding.expression != assignment.value
-        || binding.destination != parameter.symbol
+        || binding.destination != destination
         || expression != value
     {
         return unsupported("primitive store RHS differs from its authored assignment");
@@ -144,14 +161,32 @@ pub(super) fn emit(
     if value.scalar_type() != *destination_type {
         return unsupported("write-only store value type disagrees with its destination");
     }
+    emit_value(
+        destination.place,
+        *destination_type,
+        &value,
+        scalar_values,
+        next_value,
+        operations,
+    )
+}
+
+pub(super) fn emit_value(
+    destination: PlaceId,
+    destination_type: ScalarType,
+    value: &LoweredDirectExpression,
+    scalar_values: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<OperationKind, LoweringError> {
+    if value.scalar_type() != destination_type || direct_expression_contains_short_circuit(value) {
+        return unsupported("primitive store RHS has an incompatible type or unexpanded control");
+    }
     let source_types = scalar_values
         .iter()
         .map(|value| value.scalar_type)
         .collect::<Vec<_>>();
-    validate_direct_parameter_types(&value, &source_types)?;
-    let value = emit_direct_expression(&value, scalar_values, next_value, operations);
-    Ok(OperationKind::WriteOnlyPrimitiveStore {
-        destination: destination.place,
-        value,
-    })
+    validate_direct_parameter_types(value, &source_types)?;
+    let value = emit_direct_expression(value, scalar_values, next_value, operations);
+    Ok(OperationKind::WriteOnlyPrimitiveStore { destination, value })
 }

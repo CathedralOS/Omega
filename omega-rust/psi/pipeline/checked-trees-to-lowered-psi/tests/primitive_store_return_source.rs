@@ -187,7 +187,7 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
             2 | 3 => {
                 let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index,
-                    destination_parameter_index,
+                    destination,
                     ..
                 } = &mut plan.effects[0]
                 else {
@@ -196,7 +196,9 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
                 if mutation == 2 {
                     *statement_index = 1;
                 } else {
-                    *destination_parameter_index = 1;
+                    *destination = checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                        parameter_index: 1,
+                    };
                 }
             }
             4 => plan.return_statement_ordinal = 0,

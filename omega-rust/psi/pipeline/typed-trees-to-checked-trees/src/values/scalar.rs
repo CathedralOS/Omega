@@ -2354,14 +2354,16 @@ pub(crate) fn lower_unit_scalar_argument(
     let mut locals = Vec::new();
     for statement in prefix {
         let StatementNode::LocalData(local) = statement else {
-            return None;
+            continue;
         };
-        if local.is_mutable || !local.initial_value.is_valid() {
+        let Some(primitive_type) = program.primitive_type_reference(local.type_reference) else {
+            continue;
+        };
+        if !local.initial_value.is_valid() {
             return None;
         }
-        let primitive_type = program.primitive_type_reference(local.type_reference)?;
         locals.push(ScalarLocal {
-            is_mutable: false,
+            is_mutable: local.is_mutable,
             symbol: local.symbol,
             name: local.name.as_str().to_owned(),
             primitive_type,

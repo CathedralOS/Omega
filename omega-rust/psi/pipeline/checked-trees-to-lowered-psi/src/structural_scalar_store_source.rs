@@ -8,6 +8,7 @@ pub(super) fn validate(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
+    crate::attached_unit::primitive_locals::validate_roster(checked, plan)?;
     let (machine, state) = crate::scalar_source_custody::authored_state(checked, plan.state)?;
     if machine.symbol != plan.machine {
         return unsupported("structural scalar store has a different authored machine");
@@ -131,13 +132,34 @@ pub(super) fn validate(
     for operation in &plan.operations {
         if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,
-            destination_parameter_index,
+            destination,
             value,
         } = operation
         {
+            if let checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } = destination {
+                crate::attached_unit::primitive_locals::source(
+                    checked,
+                    plan,
+                    *symbol,
+                    *statement_index,
+                )?;
+                crate::primitive_store::validate_symbol_assignment(
+                    checked,
+                    plan.state,
+                    *statement_index,
+                    *symbol,
+                    value,
+                )?;
+                continue;
+            }
+            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+                destination
+            else {
+                return unsupported("primitive store has no destination");
+            };
             let destination = plan
                 .structural_parameters
-                .get(*destination_parameter_index as usize)
+                .get(*parameter_index as usize)
                 .ok_or(LoweringError::Unsupported(
                     "primitive store destination is absent",
                 ))?;
@@ -377,5 +399,15 @@ pub(crate) fn validate_assignment(
             "structural scalar store RHS binding drifted from its authored assignment",
         );
     }
-    crate::scalar_source_custody::validate_namespace(checked, binding)
+    let primitive_type = store
+        .value
+        .primitive_type()
+        .ok_or(LoweringError::Unsupported(
+            "structural scalar store RHS has no retained primitive carrier",
+        ))?;
+    crate::scalar_source_custody::validate_pure(
+        checked,
+        binding,
+        terminal_scalar_type(primitive_type)?,
+    )
 }

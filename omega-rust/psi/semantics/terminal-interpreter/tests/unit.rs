@@ -43,6 +43,9 @@ use terminal_verifier::{
 #[path = "unit/indexed_structural_store.rs"]
 mod indexed_structural_store;
 
+#[path = "unit/primitive_locals.rs"]
+mod primitive_locals;
+
 #[path = "unit/cyclic_receiver.rs"]
 mod cyclic_receiver;
 

@@ -1,4 +1,4 @@
-//! Authored-order immutable scalar and structural bindings in one Unit state.
+//! Authored-order scalar bindings, primitive storage, and structural bindings.
 
 use super::*;
 
@@ -118,6 +118,10 @@ pub(in crate::flow::terminal_unit) fn build(
             StatementNode::Assignment(_) => {
                 let store = stores.next()?;
                 let ordinal = match &store {
+                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                        statement_index,
+                        ..
+                    } => *statement_index,
                     CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                         store.statement_index
                     }
@@ -136,16 +140,54 @@ pub(in crate::flow::terminal_unit) fn build(
                 continue;
             }
             StatementNode::LocalData(local) => {
-                if local.is_mutable
-                    || !program
-                        .expression_table
-                        .expression_is_valid(local.initial_value)
+                if !program
+                    .expression_table
+                    .expression_is_valid(local.initial_value)
                 {
                     return None;
                 }
                 local_count = local_count.checked_add(1)?;
                 if let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
                 {
+                    if local.is_mutable {
+                        if !matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(local.type_reference),
+                            TypeReferenceNode::Named { .. }
+                        ) {
+                            return None;
+                        }
+                        let (binding, value) =
+                            facts.values.scalar_expressions.bound_expression_at(
+                                state.symbol,
+                                statement_index,
+                                CheckedScalarExpressionRole::StorageInitializer,
+                            )?;
+                        if binding.expression != local.initial_value
+                            || binding.destination != local.symbol
+                            || crate::values::scalar_expression_type(value) != Some(primitive_type)
+                            || !super::super::primitive_store::scalar_custody_is_exact(
+                                program,
+                                facts,
+                                state,
+                                binding,
+                                value,
+                                primitive_type,
+                            )
+                            || matches!(value, CheckedScalarExpression::Boolean(expression) if checked_boolean_contains_short_circuit(expression))
+                        {
+                            return None;
+                        }
+                        operations.push(CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                            statement_index,
+                            symbol: local.symbol,
+                            type_identity: shapes.add_type(local.type_reference, &binders, &[])?,
+                            primitive_type,
+                            value: value.clone(),
+                        });
+                        continue;
+                    }
                     let binding_ordinal = u32::try_from(scalar_count).ok()?;
                     scalar_count = scalar_count.checked_add(1)?;
                     if !matches!(
@@ -172,6 +214,9 @@ pub(in crate::flow::terminal_unit) fn build(
                         primitive_type,
                     })
                 } else {
+                    if local.is_mutable {
+                        return None;
+                    }
                     let (mut result, symbol) = checked_unit_structural_result_local(
                         program,
                         shapes,

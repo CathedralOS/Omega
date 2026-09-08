@@ -1211,6 +1211,8 @@ impl CheckedCallScalarArgument {
 pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Dense index into the caller's structural parameter list.
     Parameter { parameter_index: u32 },
+    /// Exact initialized mutable primitive storage in the caller state.
+    PrimitiveLocal { symbol: SymbolHandle },
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
@@ -1254,7 +1256,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 Some(parameter_index)
             }
-            CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
@@ -1267,7 +1270,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
@@ -1280,7 +1284,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
@@ -1293,7 +1298,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                 Some(binding_ordinal)
             }
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
@@ -1304,7 +1310,8 @@ impl CheckedUnitStructuralArgumentPlan {
     pub fn byte_sequence_literal(&self) -> Option<&[u8]> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -1509,8 +1516,24 @@ pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub value: CheckedScalarExpression,
 }
 
+/// Primitive store custody stays separate from immutable scalar bindings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedPrimitiveStoreDestination {
+    Parameter { parameter_index: u32 },
+    Local { symbol: SymbolHandle },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
+    /// Establish initialized mutable storage at its authored declaration.
+    /// Later reads and borrows name the symbol, never the initializer value.
+    EstablishPrimitiveLocal {
+        statement_index: u32,
+        symbol: SymbolHandle,
+        type_identity: String,
+        primitive_type: PrimitiveType,
+        value: CheckedScalarExpression,
+    },
     /// Normal edge after the named call completes. Cleanup belongs to this
     /// continuation, not the caller's final return or a synthetic source call.
     CallContinuationCleanup {
@@ -1709,15 +1732,12 @@ pub enum CheckedUnitEffectOperationPlan {
         value: u8,
         service_reach: ServiceReachSummary,
     },
-    /// Replace one whole unrestricted primitive through an exact write-only
-    /// structural parameter. The checked scalar expression is retained so
-    /// later lowering can emit its ordinary scalar producer before the store;
-    /// the first admitted producer rung restricts this to a landed integer,
-    /// IEEE float, Boolean literal, or one exact fixed-integer scalar
-    /// parameter.
+    /// Replace one whole unrestricted primitive through an exclusive borrowed
+    /// parameter or initialized mutable local. Evaluate the retained scalar
+    /// expression against current storage before committing the write.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
-        destination_parameter_index: u32,
+        destination: CheckedPrimitiveStoreDestination,
         value: CheckedScalarExpression,
     },
     /// Replace one relevant primitive field through an exact common-field

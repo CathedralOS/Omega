@@ -2,6 +2,10 @@ use crate::shared::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    /// Initialized primitive locals have no native storage realization yet.
+    UnsupportedPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),
+    /// Primitive storage observations have no native read realization yet.
+    UnsupportedPrimitiveScalarRead(semantic_vocabulary::OperationId),
     SemanticIdentity(CodecError),
     /// Abstract block entries cannot retain borrowed-view descriptor bindings yet.
     UnsupportedStructuralBlockParameters {

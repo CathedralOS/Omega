@@ -53,6 +53,14 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             }
         }
         match operation.kind.clone() {
+            OperationKind::EstablishPrimitiveLocal { value } => {
+                writer.u8(61);
+                writer.id(value);
+            }
+            OperationKind::PrimitiveScalarRead { source } => {
+                writer.u8(62);
+                writer.id(source);
+            }
             OperationKind::ByteSequenceSubslice {
                 source,
                 start,
@@ -879,6 +887,12 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 obligation: reader.id("ObligationId")?,
             },
             55 => OperationKind::ByteSequenceLength {
+                source: reader.id("PlaceId")?,
+            },
+            61 => OperationKind::EstablishPrimitiveLocal {
+                value: reader.id("ValueId")?,
+            },
+            62 => OperationKind::PrimitiveScalarRead {
                 source: reader.id("PlaceId")?,
             },
             43 => OperationKind::WriteOnlyPrimitiveStore {
@@ -1722,6 +1736,69 @@ mod tests {
     }
 
     #[test]
+    fn primitive_local_wire_tags_and_identities_are_exact_and_truncation_rejects() {
+        let operations = [
+            Operation {
+                id: id::<OperationId>(31),
+                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    place: id(23),
+                    structural_type: id(7),
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishPrimitiveLocal { value: id(11) },
+            },
+            Operation {
+                id: id::<OperationId>(32),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: id(47),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::PrimitiveScalarRead { source: id(23) },
+            },
+        ];
+        // The empty block rosters precede the operation ID and its typed result.
+        for (operation, (tag, tag_offset, operand)) in operations
+            .into_iter()
+            .zip([(61, 58, 11_u64), (62, 38, 23_u64)])
+        {
+            let block = Block {
+                id: id(1),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                operations: vec![operation],
+                terminator: Terminator::ReturnUnit {
+                    edge: id(13),
+                    trivial_affine_discards: Vec::new(),
+                },
+            };
+            let mut writer = Writer::default();
+            encode_block(&mut writer, &block).unwrap();
+            let bytes = writer.finish();
+            assert_eq!(bytes[tag_offset], tag);
+            assert_eq!(
+                &bytes[tag_offset + 1..tag_offset + 9],
+                &operand.to_le_bytes()
+            );
+            let mut reader = Reader::new(&bytes);
+            let decoded = decode_block(&mut reader).unwrap();
+            assert_eq!(decoded, block);
+            assert_eq!(reader.remaining(), 0);
+            let mut writer = Writer::default();
+            encode_block(&mut writer, &decoded).unwrap();
+            assert_eq!(writer.finish(), bytes);
+            for prefix_length in 0..bytes.len() {
+                assert!(decode_block(&mut Reader::new(&bytes[..prefix_length])).is_err());
+            }
+            let mut zero_operand = bytes;
+            zero_operand[tag_offset + 1..tag_offset + 9].fill(0);
+            assert!(decode_block(&mut Reader::new(&zero_operand)).is_err());
+        }
+    }
+
+    #[test]
     fn byte_field_store_roundtrips_every_identity_and_rejects_truncation() {
         let block = Block {
             structural_parameters: Vec::new(),
@@ -1860,10 +1937,10 @@ mod tests {
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
         let mut unknown = bytes.clone();
-        unknown[position] = 61;
+        unknown[position] = 63;
         assert_eq!(
             decode_block(&mut Reader::new(&unknown)),
-            Err(CodecError::InvalidTag("OperationKind", 61))
+            Err(CodecError::InvalidTag("OperationKind", 63))
         );
         for length in 0..bytes.len() {
             assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());

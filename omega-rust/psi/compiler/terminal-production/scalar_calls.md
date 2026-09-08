@@ -91,10 +91,17 @@ checks observable callee/caller writes, returned values, suspension without repl
 and rejection of substituted borrowed actuals or callee custody. Both store owners
 rejoin their exact authored assignment and RHS namespace; a direct call initializer
 must retain its invocation even when its result is unused.
+Ordinary Unit statement sequences establish mutable primitive locals as real
+referents, separately from scalar inputs and immutable result bindings.
+Borrowed calls mutate that storage; subsequent reads observe the current value,
+while an earlier immutable snapshot retains its original value. Local assignments
+use the same primitive-store operation as reference parameters. Source replay
+retains declaration, initializer, destination, borrow occurrence, and read identity.
+The interpreter uses fresh activation-local identities and preserves them across
+fuel suspension. Primitive-local establishment and reads still require native
+realization; unsupported native lowering rejects explicitly.
 Mixed scalar/structural computation nodes still need borrowed operand staging and
-the same call-closure integration. An authored mutable primitive local also needs
-real referent establishment/read support; current scalar SSA bindings alone cannot
-provide a borrowed place whose mutation affects later reads.
+the same call-closure integration before the guarded customer below can close.
 
 ## One complete call closure
 
