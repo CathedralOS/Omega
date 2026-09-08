@@ -14,6 +14,51 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
+fn verified_mutable_byte_view_write_rejects_unrealized_state_bindings() {
+    let source = r#"
+        machine put(out: &mut [u8], byte: u8) {
+            transition out.len > 0 {
+                true -> store(out, byte)
+                false -> done()
+            }
+            state store(out: &mut [u8], byte: u8) { out[0] = byte; }
+            state done() {}
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "put")
+        .expect("guarded write lowers to Terminal");
+    let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof_bytes = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let profile = AdmissionProfile::default();
+    terminal_verifier::verify_module(&terminal.semantic_module, &terminal.proof_bundle, &profile)
+        .expect("write has independently verified bounds");
+    for result in [
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).map(|_| ()),
+        lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
+            .map(|_| ()),
+        lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
+            .map(|_| ()),
+    ] {
+        // This source reaches the earlier state-binding fence, before the
+        // separate per-operation ByteSequenceWrite realization fence.
+        assert!(
+            matches!(
+                result,
+                Err(ArtifactLoweringError::Lowering(
+                    LoweringError::UnsupportedStructuralSuccessorArguments { machine, .. }
+                )) if machine == terminal.semantic_module.entry
+            ),
+            "a verified mutable view cannot lose its write during projection: {result:?}"
+        );
+    }
+}
+
+#[test]
 fn verified_bounded_byte_field_replacement_rejects_before_native_projection() {
     for literal in ["XXX", "X", ""] {
         let source = format!(

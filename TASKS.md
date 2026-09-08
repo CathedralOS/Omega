@@ -283,6 +283,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   writable range; the reader changes neither its extent nor owner live length.
   No resizable output descriptor or allocator feature is a prerequisite.
 
+  Continue from the guarded mutable-view write primitive in
+  `checked-trees-to-lowered-psi/src/byte_sequence_write.rs`: preserve exact
+  source operands, explicit exclusive state transfers, current same-view bounds,
+  and original field backing. Regression command (macOS ARM64, Cargo fallback):
+  `cargo nextest run -p checked-trees-to-lowered-psi --lib byte_sequence_write
+  --no-fail-fast --no-tests fail`. The source fixture checks empty/nonempty
+  field-backed calls and fuel suspension; it is not raw-array or line-reader
+  acceptance. Next dependencies are raw fixed-array initialization/view
+  introduction, mutable write-loop admission with multi-arrival extent evidence,
+  payload-bearing line outcomes, and native view/store custody. Native lowering
+  still rejects the primitive; do not substitute legacy owner replacement.
+
   Implement shared checked line assembly over `read_byte` with bounded indexed
   writes, or an exact conforming target provider. Preserve source place, path,
   borrowed extent, returned prefix/count, and once-only effects through Psi,

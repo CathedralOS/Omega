@@ -199,6 +199,7 @@ pub(super) fn validate_control_flow(
         dominators
     };
 
+    let mutable_views = super::block_views::mutable_availability(module, machine);
     for block_id in order {
         let block = blocks
             .get(&block_id)
@@ -230,8 +231,18 @@ pub(super) fn validate_control_flow(
                 .iter()
                 .map(|parameter| parameter.place),
         );
+        if let Some(mutable) = mutable_views.get(&block_id) {
+            available_views
+                .retain(|place| !super::block_views::is_mutable_parameter(machine, *place));
+            available_views.extend(mutable.iter().copied());
+        }
         for operation in &block.operations {
-            super::byte_sequence_subslice::validate_uses(machine, operation, &available_views)?;
+            super::byte_sequence_subslice::validate_uses(
+                module,
+                machine,
+                operation,
+                &available_views,
+            )?;
             super::primitive_storage::validate_uses(machine, operation, &available_primitives)?;
             validate_operation_operands(
                 module,

@@ -129,6 +129,23 @@ fn build_structural_field_store_at(
     selected_result: bool,
     exact_sequence_frame: bool,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    if let Some(write) = structural_parameters.iter().find_map(|destination| {
+        let parameter = program
+            .state_parameters(state)
+            .get(destination.position as usize)?;
+        build_byte_view_write(
+            program,
+            facts,
+            machine,
+            state,
+            destination,
+            parameter,
+            statement_index,
+            assignment,
+        )
+    }) {
+        return Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(write));
+    }
     let [destination] = structural_parameters else {
         return None;
     };
@@ -543,6 +560,70 @@ fn build_structural_field_store_at(
             value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
         },
     ))
+}
+
+fn build_byte_view_write(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    destination: &CheckedUnitStructuralParameterPlan,
+    parameter: &typed_trees::signature::StateParameter,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<checked_trees::CheckedByteSequenceWritePlan> {
+    if destination.is_self
+        || destination.access != CheckedStructuralAccess::MutableBorrow
+        || destination.multiplicity != Multiplicity::Unrestricted
+        || !destination.qualifications.is_empty()
+        || destination.fused_service_erasure.is_some()
+        || byte_sequence_carrier(program, parameter.type_reference, &[])
+            != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+        || !validation::place_has_builtin_coordinates(
+            program,
+            machine,
+            Some(state),
+            assignment.target,
+        )
+    {
+        return None;
+    }
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(assignment.target)
+    else {
+        return None;
+    };
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index as usize,
+        indexed.collection,
+    )?;
+    if place.root != facts::PlaceRoot::Symbol(parameter.symbol) || !place.segments.is_empty() {
+        return None;
+    }
+    let (index_binding, index) = facts.values.scalar_expressions.bound_expression_at(
+        state.symbol,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentIndex,
+    )?;
+    let (value_binding, value) = facts.values.scalar_expressions.bound_expression_at(
+        state.symbol,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentValue,
+    )?;
+    if index_binding.expression != indexed.index
+        || value_binding.expression != assignment.value
+        || crate::values::scalar_expression_type(index) != Some(PrimitiveType::U64)
+        || crate::values::scalar_expression_type(value) != Some(PrimitiveType::U8)
+    {
+        return None;
+    }
+    Some(checked_trees::CheckedByteSequenceWritePlan {
+        statement_index,
+        destination_parameter_position: destination.position,
+        index: index.clone(),
+        value: value.clone(),
+    })
 }
 
 fn authored_scalar_position(dense_position: usize) -> Option<u32> {

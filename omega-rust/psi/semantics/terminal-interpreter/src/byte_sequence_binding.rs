@@ -1,4 +1,4 @@
-//! Frame-owned byte arguments distinguish immutable values from boundary loans.
+//! Frame-owned byte arguments distinguish immutable values from field loans.
 
 use super::*;
 
@@ -86,6 +86,31 @@ impl TerminalExecution {
             .machines
             .get(&callee)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee))?;
+        if machine.result == TerminalMachineResult::Unit
+            && machine
+                .structural_parameters
+                .iter()
+                .zip(arguments)
+                .any(|(parameter, argument)| {
+                    !argument.path.is_empty()
+                        && parameter.access == StructuralAccess::MutableBorrow
+                        && self
+                            .structural_types
+                            .get(&parameter.structural_type)
+                            .is_some_and(|declaration| {
+                                declaration.shape
+                                    == StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                    )
+                            })
+                })
+        {
+            // Share only exact referent preparation. External buffer staging and
+            // replacement are not part of an ordinary Unit call.
+            return self
+                .prepare_boundary_arguments(&machine.structural_parameters, arguments)?
+                .into_call_arguments(&machine.structural_parameters);
+        }
         let values = resolve_structural_arguments(
             &self.structural_types,
             &self.structural_values,

@@ -308,6 +308,12 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
+            CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: write.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
                 return unsupported("Unit machine contains a nonfinal Unit return");
             }

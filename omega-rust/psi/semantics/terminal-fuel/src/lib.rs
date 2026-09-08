@@ -40,6 +40,7 @@ impl TerminalFuelSchedule {
             | OperationKind::EstablishByteSequenceLiteral { .. }
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ByteSequenceRead { .. }
+            | OperationKind::ByteSequenceWrite { .. }
             | OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
             | OperationKind::EstablishAffineScalarRecord { .. }

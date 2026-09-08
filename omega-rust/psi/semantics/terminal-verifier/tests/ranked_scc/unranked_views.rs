@@ -7,6 +7,8 @@ use terminal_psi::{
 
 #[path = "unranked_views/byte_source_access.rs"]
 mod byte_source_access;
+#[path = "unranked_views/mutable_write.rs"]
+mod mutable_write;
 
 fn view_argument(place: u64) -> StructuralArgument {
     StructuralArgument {

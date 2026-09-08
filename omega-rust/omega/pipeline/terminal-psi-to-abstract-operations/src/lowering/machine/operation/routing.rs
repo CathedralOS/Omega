@@ -40,6 +40,9 @@ pub(super) fn lower(
         OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
             Err(LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(operation.id))
         }
+        OperationKind::ByteSequenceWrite { .. } => {
+            Err(LoweringError::UnsupportedByteSequenceWrite(operation.id))
+        }
         OperationKind::StructuralByteSequenceFieldStore { .. } => Err(
             LoweringError::UnsupportedStructuralByteSequenceFieldStore(operation.id),
         ),

@@ -58,6 +58,7 @@ fn selected_roots(
                     scalar_arguments, ..
                 } => scalar_arguments,
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_) => {
                     continue;
                 }

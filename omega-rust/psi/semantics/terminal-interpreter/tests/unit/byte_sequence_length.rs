@@ -116,8 +116,8 @@ fn literal_lengths_are_exact_u64_and_meter_once_across_resume() {
 #[test]
 fn byte_sequence_length_artifact_rejects_stale_vocabulary() {
     let semantic = encode_module(&literal_module(vec![0xff])).unwrap();
-    assert_eq!(&semantic[10..12], &88_u16.to_le_bytes());
-    for generation in [87_u16, 89] {
+    assert_eq!(&semantic[10..12], &89_u16.to_le_bytes());
+    for generation in [87_u16, 88, 90] {
         let mut stale = semantic.clone();
         stale[10..12].copy_from_slice(&generation.to_le_bytes());
         assert!(decode_module(&stale).is_err());
@@ -168,14 +168,10 @@ fn verifier_rejects_wrong_length_result_and_unknown_or_unestablished_source() {
 }
 
 #[test]
-fn parameter_length_requires_whole_shared_borrowed_view_and_real_contents() {
+fn parameter_length_requires_whole_readable_borrowed_view_and_real_contents() {
     let base = parameter_module();
     terminal_verifier::validate_module_representation(&base).unwrap();
-    for access in [
-        StructuralAccess::Owned,
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-    ] {
+    for access in [StructuralAccess::Owned, StructuralAccess::WriteOnlyBorrow] {
         let mut module = base.clone();
         module.machines[0].structural_parameters[0].access = access;
         assert!(terminal_verifier::validate_module_representation(&module).is_err());
@@ -190,6 +186,13 @@ fn parameter_length_requires_whole_shared_borrowed_view_and_real_contents() {
         assert!(terminal_verifier::validate_module_representation(&module).is_err());
         assert!(encode_module(&module).is_err());
     }
+    // Mutable access admits metadata, not immutable read/subslice semantics or
+    // an opaque host identity standing in for an initialized mutable binding.
+    let mut mutable = base.clone();
+    mutable.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    terminal_verifier::validate_module_representation(&mutable).unwrap();
+    let mutable_bytes = encode_module(&mutable).unwrap();
+    assert_eq!(decode_module(&mutable_bytes).unwrap(), mutable);
     let semantic = encode_module(&base).unwrap();
     let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact_with_structural_arguments(

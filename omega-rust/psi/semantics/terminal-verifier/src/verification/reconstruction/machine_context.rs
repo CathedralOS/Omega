@@ -24,6 +24,7 @@ impl<'a> MachineReconstructionContext<'a> {
                     &operation.kind,
                     OperationKind::Call { .. }
                         | OperationKind::ByteSequenceRead { .. }
+        | OperationKind::ByteSequenceWrite { .. }
                         | OperationKind::ByteSequenceSubslice { .. }
                         | OperationKind::StructuralByteSequenceFieldStore { .. }
                         | OperationKind::StructuralByteSequenceFieldByteStore { .. }

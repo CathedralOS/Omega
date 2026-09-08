@@ -63,6 +63,7 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }

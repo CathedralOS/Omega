@@ -75,6 +75,20 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.id(length);
                 writer.id(obligation);
             }
+            OperationKind::ByteSequenceWrite {
+                destination,
+                index,
+                value,
+                length,
+                obligation,
+            } => {
+                writer.u8(63);
+                writer.id(destination);
+                writer.id(index);
+                writer.id(value);
+                writer.id(length);
+                writer.id(obligation);
+            }
             OperationKind::ByteSequenceRead {
                 source,
                 index,
@@ -877,6 +891,13 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 source: reader.id("PlaceId")?,
                 start: reader.id("ValueId")?,
                 end: reader.id("ValueId")?,
+                length: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            },
+            63 => OperationKind::ByteSequenceWrite {
+                destination: reader.id("PlaceId")?,
+                index: reader.id("ValueId")?,
+                value: reader.id("ValueId")?,
                 length: reader.id("ValueId")?,
                 obligation: reader.id("ObligationId")?,
             },
@@ -1937,10 +1958,60 @@ mod tests {
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
         let mut unknown = bytes.clone();
-        unknown[position] = 63;
+        unknown[position] = 64;
         assert_eq!(
             decode_block(&mut Reader::new(&unknown)),
-            Err(CodecError::InvalidTag("OperationKind", 63))
+            Err(CodecError::InvalidTag("OperationKind", 64))
+        );
+        for length in 0..bytes.len() {
+            assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());
+        }
+    }
+
+    #[test]
+    fn byte_sequence_write_wire_binds_all_operands_and_unit_result() {
+        let block = Block {
+            structural_parameters: Vec::new(),
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(2),
+                result: OperationResult::Unit,
+                kind: OperationKind::ByteSequenceWrite {
+                    destination: id::<PlaceId>(4),
+                    index: id::<ValueId>(5),
+                    value: id::<ValueId>(6),
+                    length: id::<ValueId>(7),
+                    obligation: id::<ObligationId>(8),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(9),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        let position = bytes.iter().position(|byte| *byte == 63).unwrap();
+        for (operand, expected) in [4_u64, 5, 6, 7, 8].into_iter().enumerate() {
+            let start = position + 1 + operand * 8;
+            assert_eq!(&bytes[start..start + 8], &expected.to_le_bytes());
+            let mut zero = bytes.clone();
+            zero[start..start + 8].fill(0);
+            assert!(decode_block(&mut Reader::new(&zero)).is_err());
+            let mut changed = bytes.clone();
+            changed[start..start + 8].copy_from_slice(&99_u64.to_le_bytes());
+            let decoded = decode_block(&mut Reader::new(&changed)).unwrap();
+            assert_ne!(decoded.operations[0].kind, block.operations[0].kind);
+            assert_eq!(decoded.operations[0].result, OperationResult::Unit);
+        }
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
+        let mut unknown = bytes.clone();
+        unknown[position] = 64;
+        assert_eq!(
+            decode_block(&mut Reader::new(&unknown)),
+            Err(CodecError::InvalidTag("OperationKind", 64))
         );
         for length in 0..bytes.len() {
             assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());

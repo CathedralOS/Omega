@@ -152,7 +152,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
         };
 
         let bytes = encode_module(&module).expect("primitive local module encodes");
-        assert_eq!(&bytes[8..12], &[82, 0, 88, 0]);
+        assert_eq!(&bytes[8..12], &[83, 0, 89, 0]);
         let decoded = decode_module(&bytes).expect("primitive local module decodes");
         assert_eq!(decoded, module);
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
@@ -163,7 +163,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
             decode_module(&stale),
             Err(super::CodecError::UnsupportedFormatMarker(81))
         );
-        stale[8..10].copy_from_slice(&82_u16.to_le_bytes());
+        stale[8..10].copy_from_slice(&super::FORMAT_MARKER.to_le_bytes());
         stale[10..12].copy_from_slice(&87_u16.to_le_bytes());
         assert_eq!(
             decode_module(&stale),
@@ -252,7 +252,7 @@ fn structural_block_module() -> TerminalModule {
 fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
     let module = structural_block_module();
     let bytes = encode_module(&module).expect("borrowed block bindings encode");
-    assert_eq!(&bytes[8..12], &[82, 0, 88, 0]);
+    assert_eq!(&bytes[8..12], &[83, 0, 89, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -292,7 +292,7 @@ fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
             super::semantic_fingerprint(&module).unwrap()
         );
     }
-    for (offset, marker) in [(8, 81_u16), (8, 83), (10, 87), (10, 89)] {
+    for (offset, marker) in [(8, 82_u16), (8, 84), (10, 88), (10, 90)] {
         let mut stale = bytes.clone();
         stale[offset..offset + 2].copy_from_slice(&marker.to_le_bytes());
         assert!(decode_module(&stale).is_err());
@@ -326,5 +326,133 @@ fn structural_block_bindings_reject_malformed_parameter_coordinates() {
         assert!(encode_module(&module).is_err());
         let malformed = crate::module_wire::encode_raw(&module).unwrap();
         assert!(decode_module(&malformed).is_err());
+    }
+}
+
+fn unit_byte_field_module() -> TerminalModule {
+    let mut module = unit_module();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: id(1),
+            identity: "BytesView".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        },
+        StructuralTypeDeclaration {
+            id: id(2),
+            identity: "ByteOwner".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: id(31),
+                    identity: "bytes".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::ByteSequence(
+                        ByteSequenceCarrier::BoundedOwned { capacity: 3 },
+                    ),
+                }],
+            },
+        },
+    ];
+    let mut root = borrowed_parameter(1, 0);
+    root.access = StructuralAccess::MutableBorrow;
+    root.structural_type = id(2);
+    module.machines[0].structural_parameters = vec![root];
+    module.machines[0].structural_places = vec![StructuralPlaceDeclaration {
+        id: id(1),
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    let mut callee = module.machines[0].clone();
+    callee.id = id(2);
+    callee.contract.id = id(2);
+    callee.structural_parameters[0].structural_type = id(1);
+    callee.structural_parameters[0].place = id(2);
+    callee.structural_places[0].id = id(2);
+    callee.entry = id(2);
+    callee.blocks[0].id = id(2);
+    callee.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: id(2),
+        trivial_affine_discards: Vec::new(),
+    };
+    module.machines[0].blocks[0].operations = vec![Operation {
+        id: id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: callee.id,
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: id(1),
+                path: vec![terminal_psi::StructuralPathSegment::Field("bytes".into())],
+                access: StructuralAccess::MutableBorrow,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+    module.machines.push(callee);
+    module
+}
+
+#[test]
+fn unit_mutable_byte_field_presentation_round_trips_exact_owner_and_field() {
+    let module = unit_byte_field_module();
+    let bytes = encode_module(&module).expect("exact Unit-call byte field presentation");
+    assert_eq!(decode_module(&bytes), Ok(module));
+    assert_eq!(
+        encode_module(&decode_module(&bytes).unwrap()).unwrap(),
+        bytes
+    );
+}
+
+#[test]
+fn unit_mutable_byte_field_presentation_rejects_wrong_field_access_and_view_type() {
+    for mutation in 0..5 {
+        let mut module = unit_byte_field_module();
+        let baseline = encode_module(&module).expect("hostile control starts lawful");
+        assert_eq!(decode_module(&baseline), Ok(module.clone()));
+        match mutation {
+            0 | 1 => {
+                let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape
+                else {
+                    unreachable!()
+                };
+                if mutation == 0 {
+                    fields[0].field_type = terminal_psi::StructuralFieldType::Scalar(
+                        semantic_vocabulary::ScalarType::Boolean,
+                    );
+                } else {
+                    fields[0].relevance = terminal_psi::BindingRelevance::Erased;
+                }
+            }
+            2 => {
+                module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow
+            }
+            3 => {
+                module.structural_types[0].shape =
+                    StructuralTypeShape::Record { fields: Vec::new() }
+            }
+            _ => {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &mut module.machines[0].blocks[0].operations[0].kind
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].path =
+                    vec![terminal_psi::StructuralPathSegment::Field("missing".into())];
+            }
+        }
+        assert!(
+            encode_module(&module).is_err(),
+            "encoder mutation {mutation}"
+        );
+        let bytes = crate::module_wire::encode_raw(&module).unwrap();
+        assert!(
+            decode_module(&bytes).is_err(),
+            "decoder mutation {mutation}"
+        );
     }
 }

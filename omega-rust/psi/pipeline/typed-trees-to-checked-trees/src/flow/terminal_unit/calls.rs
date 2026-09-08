@@ -1503,6 +1503,26 @@ pub(super) fn ordinary_projected_call_is_supported(
         && caller_parameter
             .is_some_and(|parameter| parameter.multiplicity == Multiplicity::Unrestricted)
         && arguments[0].access == CheckedStructuralAccess::SharedBorrow;
+    let mutable_byte_subloan_path = (field_path || literal_indexed_field_path)
+        && !result_projection
+        && caller_parameter.is_some_and(|parameter| {
+            parameter.access == CheckedStructuralAccess::MutableBorrow
+                && parameter.qualifications.is_empty()
+        })
+        && arguments[0].access == CheckedStructuralAccess::MutableBorrow
+        && target_source_parameters
+            .iter()
+            .filter(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            })
+            .all(|parameter| {
+                structural_access_for_type_reference(program, parameter.type_reference)
+                    == Some(CheckedStructuralAccess::MutableBorrow)
+                    && byte_sequence_carrier(program, parameter.type_reference, &[])
+                        == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            });
     if caller_source_parameters.len() != 1 && !write_only_subloan_path && !result_projection {
         return false;
     }
@@ -1510,6 +1530,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         && !allow_field_path_projection
         && !write_only_subloan_path
         && !shared_subloan_path
+        && !mutable_byte_subloan_path
     {
         return false;
     }
@@ -1517,6 +1538,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         && !write_only_subloan_path
         && !shared_subloan_path
         && !owned_affine_projection
+        && !mutable_byte_subloan_path
     {
         return false;
     }
@@ -1567,7 +1589,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    if write_only_subloan_path || shared_subloan_path {
+    if write_only_subloan_path || shared_subloan_path || mutable_byte_subloan_path {
         let [target_parameter] = target_parameters.as_slice() else {
             return false;
         };
@@ -1579,7 +1601,7 @@ pub(super) fn ordinary_projected_call_is_supported(
                 || crate::checks::type_multiplicity(program, target_parameter.type_reference)
                     == Multiplicity::Unrestricted)
             && program.machine_states(caller_machine).len() == 1
-            && program.machine_states(target_machine).len() == 1
+            && (mutable_byte_subloan_path || program.machine_states(target_machine).len() == 1)
             && caller_parameters[0].qualifications.is_empty();
     }
 
@@ -2141,6 +2163,36 @@ pub(super) fn structural_call_arguments(
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
         let path = match place.segments.as_slice() {
             [] => Vec::new(),
+            segments
+                if !segments.is_empty()
+                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && caller_parameters[source_index].access
+                        == CheckedStructuralAccess::MutableBorrow
+                    && caller_parameters[source_index].qualifications.is_empty()
+                    && structural_access_for_type_reference(program, target.type_reference)?
+                        == CheckedStructuralAccess::MutableBorrow
+                    && byte_sequence_carrier(program, target.type_reference, &[])
+                        == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                    && segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                        )
+                    }) =>
+            {
+                let (projected_type, path) =
+                    projected_argument_path(program, caller_state.symbol, statement_index, &place)?;
+                if !boundary_argument_presentation_is_admitted(
+                    program,
+                    projected_type,
+                    target.type_reference,
+                    &target_identity,
+                ) {
+                    return None;
+                }
+                path
+            }
             segments
                 if allow_field_path_projection
                     && allow_fixed_index_projection

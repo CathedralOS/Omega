@@ -105,6 +105,7 @@ unit, charged before execution.
 | `StructuralScalarFieldStore` | Destination parameter, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
+| `ByteSequenceWrite` | Whole mutable borrowed view, exact runtime `u64` index, `u8` value, current same-view length observation, and index obligation. It needs no synthetic record or field identity. |
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.

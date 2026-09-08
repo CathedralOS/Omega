@@ -20,8 +20,9 @@ cleanup and simultaneous successor installation. Affine inputs move once;
 Unrestricted descriptors remain reusable. Rebinding changes the descriptor place,
 not its referent or field backing. Missing/duplicate owners and transfer/discard
 overlap reject before mutation. Fuel suspension preserves the uncommitted edge.
-This whole plain-owned route does not admit partial/qualified owners or mutable
-borrowed block parameters.
+This whole plain-owned route does not admit partial/qualified owners. Exact
+unqualified mutable byte-view block parameters retain an existing field loan;
+other mutable borrowed block parameters remain unsupported.
 
 ## Calls and work
 
@@ -58,7 +59,10 @@ byte-field realization.
 The current migration path lets an initialized bounded byte field supply an
 unqualified mutable boundary parameter. The boundary-specific resolver
 retains the original referent, complete record/array path, and capacity; it does
-not make bounded storage interchangeable with views at ordinary calls.
+not make bounded storage generally interchangeable with views. The exact
+mutable field-to-byte-view presentation is also available to ordinary Unit
+helpers on the verifier's admitted field-only paths; it retains the same field
+loan rather than copying or owning bytes. Missing backing still rejects.
 `TerminalEffectHandler::handle_effect_with_byte_buffers` receives the pre-call
 bytes and stages whole live-sequence replacements through
 `TerminalBoundaryByteBuffer::replace`. Oversized replacements reject without
@@ -74,9 +78,19 @@ through ordinary helpers or reborrow it at another boundary. Each external call
 observes the current backing and commits to the original field; returning from
 the provider does not restore its entry snapshot. Calls and fuel suspension
 retain the binding's exact referent, record/array path, and capacity. An equal
-opaque identity without that binding supplies no mutable loan. Immutable-view
-operations still require immutable bindings. Native byte-field forwarding and
+opaque identity without that binding supplies no mutable loan. Byte reads and
+subslice operations still require immutable bindings. Native byte-field forwarding and
 `read_line` realization remain separate dependencies.
+
+Fixed-view length and indexed writes use the exact existing mutable field loan
+at a machine or block parameter. Length means the current live extent, never
+capacity. A write validates the typed index, byte, and saved length against that
+extent before changing one byte; it cannot resize storage or alter owner length.
+State transfers capture the original referent binding before fuel and commit,
+reject aliasing mutable arguments, and preserve writes through calls and suspension.
+Shared immutable backing detaches on mutation, preserving sibling values and
+the destination's untouched suffix. External boundary replacement remains its
+separate existing contract.
 
 The settled [bounded-input contract](../../../../wiki/spec/resources/bounded_input.md)
 does not use this owner-replacement behavior: it writes within a supplied slice

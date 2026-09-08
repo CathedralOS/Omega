@@ -168,3 +168,8 @@ native integer/Boolean stores and scalar results do not imply general IEEE or
 aggregate support. Recheck the relevant producer and receiving admission before
 extending a shape; successful descriptor transport alone is not executable
 reference preservation.
+
+Whole mutable byte-view `ByteSequenceWrite` is a distinct Terminal operation,
+not an owned primitive-field store. This consumer explicitly rejects it with
+`UnsupportedByteSequenceWrite` until exact native view/write custody is realized.
+Successful Terminal verification or interpretation does not imply native support.

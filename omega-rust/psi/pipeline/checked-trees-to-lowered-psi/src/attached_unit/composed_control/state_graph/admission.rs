@@ -151,14 +151,22 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             else {
                 return unsupported("Unit graph borrowed parameter is not a byte slice");
             };
-            if *access != language_core::ReferenceAccess::Shared
-                || checked.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
+            if !matches!(
+                *access,
+                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+            ) || checked.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
                 || source.is_self
                 || source.is_const
-                || source.is_mutable
+                || source.is_mutable != (*access == language_core::ReferenceAccess::Mutable)
                 || parameter.is_self
                 || parameter.multiplicity != Multiplicity::Unrestricted
-                || parameter.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || parameter.access
+                    != match *access {
+                        language_core::ReferenceAccess::Mutable => {
+                            checked_trees::CheckedStructuralAccess::MutableBorrow
+                        }
+                        _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                    }
                 || !parameter.qualifications.is_empty()
                 || parameter.fused_service_erasure.is_some()
                 || checked.normalized_type_identity(*referee).as_str() != parameter.type_identity

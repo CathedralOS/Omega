@@ -54,6 +54,7 @@ fn lower_composed_services(
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
             _ => return unsupported("composed Unit control contains a non-call operation"),

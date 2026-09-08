@@ -3,6 +3,9 @@ use semantic_vocabulary::EdgeId;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
 
+#[cfg(test)]
+mod write_tests;
+
 fn place(ordinal: u64) -> PlaceId {
     PlaceId::new(ordinal).unwrap()
 }
@@ -164,21 +167,22 @@ fn enter_provider(execution: &mut TerminalExecution) {
         StructuralPathSegment::FixedIndex(1),
         StructuralPathSegment::Field("bytes".into()),
     ];
-    // Ordinary calls do not convert inline storage to a view.
-    assert!(
-        execution
-            .prepare_structural_call_arguments(
-                MachineId::new(2).unwrap(),
-                std::slice::from_ref(&actual)
-            )
-            .is_err()
-    );
+    let ordinary = execution
+        .prepare_structural_call_arguments(
+            MachineId::new(2).unwrap(),
+            std::slice::from_ref(&actual),
+        )
+        .unwrap();
     let prepared = execution
         .prepare_boundary_arguments(&[parameter(11)], std::slice::from_ref(&actual))
         .unwrap();
     assert!(prepared.bytes.is_empty());
     assert!(prepared.buffers.is_empty());
     let prepared = prepared.into_call_arguments(&[parameter(2)]).unwrap();
+    assert_eq!(ordinary.values, prepared.values);
+    ordinary.byte_sequences[&place(2)]
+        .validate_mutable_referent(&execution.structural_types, &prepared.values[0])
+        .unwrap();
     execution
         .begin_unit_call(
             MachineId::new(2).unwrap(),

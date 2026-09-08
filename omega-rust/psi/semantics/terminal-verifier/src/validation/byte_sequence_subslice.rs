@@ -103,12 +103,24 @@ pub(super) fn validate(
 /// Block-local views and exact borrowed results need dominance. Other structural
 /// operations retain their existing ownership/frontier admission rules.
 pub(super) fn validate_uses(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let require = |place| {
         if (borrowed_result(machine, place).is_some()
+            || machine.structural_parameters.iter().any(|parameter| {
+                parameter.place == place
+                    && parameter.access == StructuralAccess::MutableBorrow
+                    && module.structural_types.iter().any(|declaration| {
+                        declaration.id == parameter.structural_type
+                            && declaration.shape
+                                == StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                )
+                    })
+            })
             || super::block_views::parameter(machine, place).is_some()
             || machine.structural_places.iter().any(|declaration| {
                 declaration.id == place
@@ -134,6 +146,7 @@ pub(super) fn validate_uses(
         | OperationKind::ByteSequenceRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldStore { source, .. }
         | OperationKind::ByteSequenceSubslice { source, .. } => require(*source),
+        OperationKind::ByteSequenceWrite { destination, .. } => require(*destination),
         OperationKind::CallUnit {
             structural_arguments,
             ..
@@ -147,6 +160,10 @@ pub(super) fn validate_uses(
             ..
         }
         | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructural {
             structural_arguments,
             ..
         } => {

@@ -16,6 +16,10 @@ impl RangeFacts<'_> {
         let StatementNode::Assignment(assignment) = statement else {
             return;
         };
+        // A builtin byte-element write changes contents, not the descriptor.
+        // Capture only extent metadata still available after RHS evaluation;
+        // never resurrect facts invalidated by an effectful RHS.
+        let extent = self.mutable_byte_view_extent(program, machine, state, assignment.target);
         let target = program.expression_table.display_name(assignment.target);
         let writes = (!self.expression_dependencies.is_empty())
             .then(|| {
@@ -36,9 +40,67 @@ impl RangeFacts<'_> {
                 || (!preserved.iter().any(|label| label == name)
                     && write_affects_bound(name, &target))
         });
+        if let Some((collection, minimum, exact)) = extent {
+            if let Some(minimum) = minimum {
+                self.prove_minimum_length(collection.clone(), minimum);
+            }
+            if let Some(exact) = exact {
+                self.prove_exact_length(collection, exact);
+            }
+        }
         // A saved Boolean expression is not a persistent proof of its old
         // operands after a direct assignment any more than after a call.
         self.boolean_locals.clear();
+    }
+
+    fn mutable_byte_view_extent(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        target: typed_trees::expression::ExpressionHandle,
+    ) -> Option<(String, Option<i64>, Option<i64>)> {
+        use typed_trees::{expression::ExpressionNode, types::TypeReferenceNode};
+        if !crate::checks::ranges::indexes::is_builtin_scalar_index(
+            program, machine, state, self, target,
+        ) {
+            return None;
+        }
+        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+            return None;
+        };
+        let ExpressionNode::Name(name) = program.expression_table.expression(indexed.collection)
+        else {
+            return None;
+        };
+        let parameter = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == name.symbol)?;
+        let TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Mutable,
+            ..
+        } = program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            return None;
+        };
+        let TypeReferenceNode::Slice { element_type } =
+            program.type_reference_table.type_reference(*referee)
+        else {
+            return None;
+        };
+        if program.primitive_type_reference(*element_type)
+            != Some(typed_trees::types::PrimitiveType::U8)
+        {
+            return None;
+        }
+        let collection = program.expression_table.display_name(indexed.collection);
+        let minimum = self.minimum_length(&collection);
+        let exact = self.exact_length(&collection);
+        Some((collection, minimum, exact))
     }
 
     /// A complete call frame includes both caller storage and overlapping live

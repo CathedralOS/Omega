@@ -28,6 +28,10 @@ pub(super) fn validate(
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
             structural_arguments,
             ..
+        }
+        | CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
         } => structural_arguments,
         _ => return Ok(()),
     };
@@ -67,15 +71,17 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "mutable boundary bytes have no authored argument",
             ))?;
-        let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) else {
-            return unsupported("mutable boundary bytes lost their authored borrow");
+        let (target, access) = match checked.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
+            ExpressionNode::Name(_)
+                if matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }) =>
+            {
+                (expression, language_core::ReferenceAccess::Mutable)
+            }
+            _ => return unsupported("mutable boundary bytes lost their authored borrow"),
         };
-        let source = projected_receivers::store_destination(
-            checked,
-            machine.symbol,
-            state.symbol,
-            borrow.target,
-        )?;
+        let source =
+            projected_receivers::store_destination(checked, machine.symbol, state.symbol, target)?;
         let parameter = argument
             .source_parameter_index()
             .and_then(|parameter_index| caller_parameters.get(parameter_index as usize))
@@ -88,7 +94,7 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "mutable boundary bytes lost their authored source parameter",
             ))?;
-        if borrow.access != language_core::ReferenceAccess::Mutable
+        if access != language_core::ReferenceAccess::Mutable
             || argument.access != CheckedStructuralAccess::MutableBorrow
             || source_parameter.symbol != source.root
             || (source.path.is_empty() && !is_mutable_byte_view(source_parameter))

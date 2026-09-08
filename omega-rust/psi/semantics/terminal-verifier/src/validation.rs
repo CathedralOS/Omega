@@ -31,6 +31,7 @@ mod block_views;
 mod byte_sequence_length;
 mod byte_sequence_read;
 mod byte_sequence_subslice;
+mod byte_sequence_write;
 mod call_graph;
 mod conformance_applications;
 mod content;
@@ -1124,3 +1125,5 @@ fn insert_unique<T: Ord + Copy>(
     }
     Ok(())
 }
+
+pub(crate) use structural_byte_sequence_fields::view_length_is_current;

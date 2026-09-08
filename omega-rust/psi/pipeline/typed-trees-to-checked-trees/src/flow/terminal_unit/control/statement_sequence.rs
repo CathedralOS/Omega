@@ -118,6 +118,9 @@ pub(in crate::flow::terminal_unit) fn build(
             StatementNode::Assignment(_) => {
                 let store = stores.next()?;
                 let ordinal = match &store {
+                    CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => {
+                        store.statement_index
+                    }
                     CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                         statement_index,
                         ..

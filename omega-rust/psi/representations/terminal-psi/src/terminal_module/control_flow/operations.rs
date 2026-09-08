@@ -201,7 +201,7 @@ pub enum OperationKind {
         destination: PlaceId,
         bytes: Vec<u8>,
     },
-    /// Observe the exact byte count of one whole immutable borrowed view.
+    /// Observe the exact byte count of one whole borrowed view (shared or mutable).
     /// The result is unsigned 64-bit; the source place and its custody remain unchanged.
     ByteSequenceLength {
         source: PlaceId,
@@ -211,6 +211,15 @@ pub enum OperationKind {
     ByteSequenceRead {
         source: PlaceId,
         index: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
+    /// Replace one existing byte through an exclusive mutable view, without
+    /// changing its extent. The exact length observation proves index < length.
+    ByteSequenceWrite {
+        destination: PlaceId,
+        index: ValueId,
+        value: ValueId,
         length: ValueId,
         obligation: ObligationId,
     },

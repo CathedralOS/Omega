@@ -48,13 +48,15 @@ pub(super) fn build(
                 || if parameter.is_self {
                     parameter.access != CheckedStructuralAccess::MutableBorrow
                 } else {
-                    parameter.access != CheckedStructuralAccess::SharedBorrow
-                        || byte_sequence_carrier(
-                            program,
-                            program.state_parameters(state)[parameter.position as usize]
-                                .type_reference,
-                            &[],
-                        ) != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                    !matches!(
+                        parameter.access,
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                    ) || byte_sequence_carrier(
+                        program,
+                        program.state_parameters(state)[parameter.position as usize].type_reference,
+                        &[],
+                    ) != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
                 }
         }) {
             return None;
@@ -152,6 +154,7 @@ pub(super) fn build(
                                 && argument.access == CheckedStructuralAccess::MutableBorrow)
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 _ => return None,

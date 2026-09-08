@@ -227,3 +227,17 @@ pub(crate) fn replacement_length_equation(
     }
     Ok(None)
 }
+
+/// Whole mutable-view writes retain their exact observation across every path.
+/// Calls that may change the original referent invalidate an earlier extent.
+pub(crate) fn view_length_is_current(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    producer: OperationId,
+    operation: OperationId,
+    destination: PlaceId,
+) -> bool {
+    unchanged_since(machine, producer, operation, |candidate| {
+        changes_length(module, machine, destination, &[], candidate)
+    })
+}

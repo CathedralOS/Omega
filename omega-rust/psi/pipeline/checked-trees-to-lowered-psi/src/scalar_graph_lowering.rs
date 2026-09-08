@@ -953,9 +953,10 @@ pub(super) fn lower_checked_scalar_expression(
     lower_checked_scalar_expression_with_parameters(expression, &[], &[], &[])
 }
 
-fn immutable_byte_parameter(
+fn byte_observation_parameter(
     position: u32,
     parameters: &[(u32, StructuralParameterDeclaration)],
+    length_only: bool,
 ) -> Result<PlaceId, LoweringError> {
     let parameter = parameters
         .iter()
@@ -965,10 +966,13 @@ fn immutable_byte_parameter(
         .ok_or(LoweringError::Unsupported(
             "byte observation has no exact structural parameter",
         ))?;
-    if parameter.access != StructuralAccess::SharedBorrow
+    if !(parameter.access == StructuralAccess::SharedBorrow
+        || (length_only && parameter.access == StructuralAccess::MutableBorrow))
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
     {
-        return unsupported("byte observation requires a whole immutable view parameter");
+        return unsupported(
+            "byte observation requires an exact whole view with access for this observation",
+        );
     }
     Ok(parameter.place)
 }
@@ -982,7 +986,11 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { parameter_position } => {
             Ok(LoweredDirectExpression::ByteSequenceLength {
-                source: immutable_byte_parameter(*parameter_position, structural_parameters)?,
+                source: byte_observation_parameter(
+                    *parameter_position,
+                    structural_parameters,
+                    true,
+                )?,
                 scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
             })
         }
@@ -1149,7 +1157,8 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             if !path.is_empty() || *primitive_type != PrimitiveType::U8 {
                 return unsupported("indexed reads require a whole byte-view parameter");
             }
-            let source = immutable_byte_parameter(*parameter_position, structural_parameters)?;
+            let source =
+                byte_observation_parameter(*parameter_position, structural_parameters, false)?;
             let index = lower_checked_scalar_expression_with_parameters(
                 index,
                 structural_parameters,

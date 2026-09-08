@@ -96,6 +96,12 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             value,
             length,
             ..
+        }
+        | O::ByteSequenceWrite {
+            index,
+            value,
+            length,
+            ..
         } => {
             values.extend([*index, *value, *length]);
         }
@@ -212,6 +218,26 @@ mod tests {
         let mut pending = Vec::new();
         assert!(inputs(&operation, &mut pending));
         assert_eq!(pending, vec![index, value, length]);
+    }
+
+    #[test]
+    fn mutable_byte_view_write_retains_its_effect_and_scalar_operands() {
+        let index = ValueId::new(1).unwrap();
+        let value = ValueId::new(2).unwrap();
+        let length = ValueId::new(3).unwrap();
+        let operation = O::ByteSequenceWrite {
+            destination: PlaceId::new(1).unwrap(),
+            index,
+            value,
+            length,
+            obligation: ObligationId::new(1).unwrap(),
+        };
+        let mut pending = Vec::new();
+        assert!(inputs(&operation, &mut pending));
+        assert_eq!(pending, vec![index, value, length]);
+        assert!(!terminal_semantics::is_unconditionally_total_scalar(
+            &operation
+        ));
     }
 
     #[test]

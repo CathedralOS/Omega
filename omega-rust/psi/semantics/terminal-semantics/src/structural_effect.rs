@@ -34,6 +34,8 @@ pub enum StructuralEffectCustody {
     ExactStructuralByteSequenceField,
     ExactByteSequenceLiteral,
     ExactImmutableByteView,
+    ExactMutableByteView,
+    ExactByteViewMetadata,
     ExactLiveBooleanField,
     ExactLiveIntegerField,
     ExactPublishedService,
@@ -54,6 +56,7 @@ pub enum StructuralEffectAction {
     EstablishByteSequencePlace,
     ReadByteSequenceLength,
     ReadByteSequence,
+    WriteByteSequence,
     EstablishByteSequenceSubslice,
     ReadBooleanField,
     ReadIntegerField,
@@ -157,6 +160,7 @@ const fn structural_effect_leaf(
                 StructuralEffectGoalShape::ByteLengthWithinFieldCapacity
             }
             StructuralEffectAction::ReadByteSequence
+            | StructuralEffectAction::WriteByteSequence
             | StructuralEffectAction::StoreByteSequenceFieldByte => {
                 StructuralEffectGoalShape::ByteIndexInBounds
             }
@@ -176,7 +180,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self {
             tag: OperationSemanticTag::EstablishPrimitiveLocal,
             schema: structural_effect_leaf(
@@ -248,10 +252,20 @@ impl StructuralEffectSemanticRow {
             ),
         },
         Self {
+            tag: OperationSemanticTag::ByteSequenceWrite,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Unit,
+                StructuralEffectCustody::ExactMutableByteView,
+                StructuralEffectAction::WriteByteSequence,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
+        Self {
             tag: OperationSemanticTag::ByteSequenceLength,
             schema: structural_effect_leaf(
                 StructuralEffectResultShape::ByteCount,
-                StructuralEffectCustody::ExactImmutableByteView,
+                StructuralEffectCustody::ExactByteViewMetadata,
                 StructuralEffectAction::ReadByteSequenceLength,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
@@ -371,6 +385,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::EstablishPayloadlessCase
             | OperationSemanticTag::EstablishByteSequenceLiteral
             | OperationSemanticTag::ByteSequenceLength
+            | OperationSemanticTag::ByteSequenceWrite
             | OperationSemanticTag::ByteSequenceRead
             | OperationSemanticTag::ByteSequenceSubslice
             | OperationSemanticTag::BooleanStructuralField
@@ -430,6 +445,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::EstablishByteSequenceLiteral,
         OperationSemanticTag::ByteSequenceLength,
         OperationSemanticTag::ByteSequenceRead,
+        OperationSemanticTag::ByteSequenceWrite,
         OperationSemanticTag::ByteSequenceSubslice,
         OperationSemanticTag::BooleanStructuralField,
         OperationSemanticTag::IntegerStructuralField,
@@ -504,6 +520,13 @@ pub enum StructuralEffectObservation {
         result: ValueId,
         obligation: ObligationId,
     },
+    ByteSequenceWrite {
+        destination: PlaceId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     ByteSequenceSubslice {
         source: PlaceId,
         start: ValueId,
@@ -545,6 +568,12 @@ impl StructuralEffectObservation {
             // destination field capacity before ordinary leaf processing.
             Self::ByteSequenceFieldStored { .. } => None,
             Self::ByteSequenceFieldByteStored {
+                index,
+                length,
+                obligation,
+                ..
+            }
+            | Self::ByteSequenceWrite {
                 index,
                 length,
                 obligation,
@@ -593,6 +622,7 @@ impl StructuralEffectObservation {
             | Self::ScalarFieldStored { .. }
             | Self::ByteSequencePlaceEstablished { .. }
             | Self::ByteSequenceLengthRead { .. }
+            | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceSubslice { .. }
             | Self::IntegerFieldRead { .. }
@@ -623,6 +653,7 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishByteSequenceSubslice => {
             OperationSemanticTag::ByteSequenceSubslice
         }
+        StructuralEffectAction::WriteByteSequence => OperationSemanticTag::ByteSequenceWrite,
         StructuralEffectAction::ReadByteSequence => OperationSemanticTag::ByteSequenceRead,
         StructuralEffectAction::ReadByteSequenceLength => OperationSemanticTag::ByteSequenceLength,
         StructuralEffectAction::StorePrimitive => OperationSemanticTag::WriteOnlyPrimitiveStore,
@@ -653,6 +684,7 @@ fn validate_structural_effect_schema(
             StructuralEffectGoalShape::ByteRangeInBounds
         }
         StructuralEffectAction::ReadByteSequence
+        | StructuralEffectAction::WriteByteSequence
         | StructuralEffectAction::StoreByteSequenceFieldByte => {
             StructuralEffectGoalShape::ByteIndexInBounds
         }
@@ -708,9 +740,16 @@ fn validate_structural_effect_schema(
                     && schema.frontier
                         == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
             }
+            StructuralEffectAction::WriteByteSequence => {
+                schema.result == StructuralEffectResultShape::Unit
+                    && schema.custody == StructuralEffectCustody::ExactMutableByteView
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier
+                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+            }
             StructuralEffectAction::ReadByteSequenceLength => {
                 schema.result == StructuralEffectResultShape::ByteCount
-                    && schema.custody == StructuralEffectCustody::ExactImmutableByteView
+                    && schema.custody == StructuralEffectCustody::ExactByteViewMetadata
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
                         == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
@@ -917,6 +956,22 @@ pub fn structural_effect_leaf_observation_in(
             index: *index,
             length: *length,
             result: operation.result.expect_scalar().id,
+            obligation: *obligation,
+        },
+        (
+            StructuralEffectAction::WriteByteSequence,
+            OperationKind::ByteSequenceWrite {
+                destination,
+                index,
+                value,
+                length,
+                obligation,
+            },
+        ) => StructuralEffectObservation::ByteSequenceWrite {
+            destination: *destination,
+            index: *index,
+            value: *value,
+            length: *length,
             obligation: *obligation,
         },
         (
@@ -1274,7 +1329,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 17);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 18);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
@@ -1288,6 +1343,7 @@ mod tests {
                 OperationSemanticTag::StructuralByteSequenceFieldStore,
                 OperationSemanticTag::ByteSequenceSubslice,
                 OperationSemanticTag::ByteSequenceRead,
+                OperationSemanticTag::ByteSequenceWrite,
                 OperationSemanticTag::ByteSequenceLength,
                 OperationSemanticTag::WriteOnlyPrimitiveStore,
                 OperationSemanticTag::StructuralScalarFieldStore,
@@ -1339,6 +1395,47 @@ mod tests {
         assert_eq!(
             store.frontier(),
             StructuralEffectFrontierPolicy::RequiresAndKeepsWriteOnlyPrimitivePlace,
+        );
+    }
+
+    #[test]
+    fn byte_write_retains_mutable_custody_unit_and_exact_bounds_goal() {
+        let operation = Operation {
+            id: OperationId::new(5).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::ByteSequenceWrite {
+                destination: PlaceId::new(1).unwrap(),
+                index: ValueId::new(2).unwrap(),
+                value: ValueId::new(6).unwrap(),
+                length: ValueId::new(3).unwrap(),
+                obligation: ObligationId::new(4).unwrap(),
+            },
+        };
+        let schema = structural_effect_semantic_row(&operation.kind)
+            .unwrap()
+            .unwrap()
+            .schema();
+        assert_eq!(schema.goal(), StructuralEffectGoalShape::ByteIndexInBounds);
+        assert_eq!(schema.result(), StructuralEffectResultShape::Unit);
+        assert_eq!(
+            schema.custody(),
+            StructuralEffectCustody::ExactMutableByteView
+        );
+        assert_eq!(schema.fuel(), StructuralEffectFuelPolicy::ConsumeOne);
+        let observation = structural_effect_leaf_observation(&operation)
+            .unwrap()
+            .unwrap();
+        assert!(observation.local_equation().is_none());
+        let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        assert_eq!(
+            observation.canonical_obligation(),
+            Some((
+                ObligationId::new(4).unwrap(),
+                Proposition::LessThan(
+                    ScalarTerm::value(ValueId::new(2).unwrap(), count_type),
+                    ScalarTerm::value(ValueId::new(3).unwrap(), count_type),
+                ),
+            ))
         );
     }
 
