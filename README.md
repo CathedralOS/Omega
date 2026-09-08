@@ -16,7 +16,7 @@ These contracts make questions about program behavior part of checking:
 Omega is being built for software where failure is costly—from aircraft systems
 to OS kernels—without sacrificing performance.
 
-Its first major application is **Cathedral**, an operating system being developed
+Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed
 alongside the language. Cathedral puts the design to work on kernel problems:
 managing memory, controlling hardware, and running untrusted software.
 
