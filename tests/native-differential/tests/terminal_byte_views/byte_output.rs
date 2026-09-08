@@ -11,6 +11,8 @@ use terminal_psi::{
 };
 #[path = "byte_output/derived_unit.rs"]
 mod derived_unit;
+#[path = "byte_output/scalar_transfers.rs"]
+mod scalar_transfers;
 #[path = "byte_output/unit_calls.rs"]
 mod unit_calls;
 #[path = "byte_output/unit_control.rs"]

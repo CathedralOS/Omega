@@ -31,6 +31,17 @@ become fictional source values. Compiler condition tests, copies and address
 work do not invent Psi operations or logical charges. Returns retain their exact
 Unit/scalar role, result constraint where applicable, and edge fuel.
 
+Acyclic Unit graphs use this same transport for `u8`, `u32`, `u64`, `i64` and
+materialized Boolean block arguments. Exact block/value/type references are
+available only in their defining block and dominated successors; each arrival
+retains its own ordered bindings, even when both conditional arms have the same
+target. A transferred integer does not inherit byte-length observation custody.
+The allocator currently requires every connected argument/destination group to
+share a legal register home. Interfering arrivals still reject with
+`UnsupportedEdgeTransfer`; general edge-copy realization is not implemented.
+Computed Boolean comparisons remain branch predicates until value materialization
+is implemented; structural descriptor transfers and ranked control are separate.
+
 Structural argument snapshots, loads/stores, frame addresses and calls use
 ordinary virtual instructions with exact slot/access/call metadata. Copying an
 owned referent into a distinct ABI temporary and forwarding a borrowed pointer

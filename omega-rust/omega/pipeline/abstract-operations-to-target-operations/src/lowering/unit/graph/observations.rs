@@ -191,6 +191,17 @@ fn scalar_values(
         .map(|(value, known)| {
             let scalar_type = known.scalar_type();
             let expression = match *known {
+                KnownUnitInteger::BlockParameter {
+                    block,
+                    value,
+                    scalar_type,
+                } => TargetIntegerExpression::BlockParameter(
+                    target_operations::TargetScalarBlockValue {
+                        block,
+                        value,
+                        scalar_type: ScalarType::Integer(scalar_type),
+                    },
+                ),
                 KnownUnitInteger::Parameter {
                     parameter_index, ..
                 } => {

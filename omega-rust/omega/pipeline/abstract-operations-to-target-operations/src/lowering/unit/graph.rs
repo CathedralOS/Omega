@@ -2,6 +2,7 @@
 use super::super::shared::*;
 use super::scalar_call::KnownUnitInteger;
 mod observations;
+mod transfers;
 use target_operations::{
     TargetScalarBlockParameter, TargetUnitBlock, TargetUnitGraph, TargetUnitSuccessor,
     TargetUnitTerminator,
@@ -12,6 +13,7 @@ struct LiveDefinitions {
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     boolean_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    boolean_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     lengths: BTreeMap<ValueId, PlaceId>,
 }
@@ -24,6 +26,8 @@ impl LiveDefinitions {
             .retain(|value, definition| other.booleans.get(value) == Some(definition));
         self.boolean_homes
             .retain(|value, definition| other.boolean_homes.get(value) == Some(definition));
+        self.boolean_parameters
+            .retain(|value, definition| other.boolean_parameters.get(value) == Some(definition));
         self.views
             .retain(|place, definition| other.views.get(place) == Some(definition));
         self.lengths
@@ -58,6 +62,7 @@ pub(super) fn lower(
             return Err(LoweringError::DuplicateValue(parameter.value));
         }
     }
+    transfers::validate_parameters(function, &mut definitions)?;
     for operation in &function.operations {
         let result = match operation {
             AbstractOperation::IntegerConstant { result, .. }
@@ -95,8 +100,9 @@ pub(super) fn lower(
     if entries.is_empty()
         || entries[0].operation_offset != 0
         || entries.iter().any(|entry| {
-            !entry.parameters.is_empty()
-                && (entry.block != function.entry || entry.parameters != function.parameters)
+            entry.block == function.entry
+                && !entry.parameters.is_empty()
+                && entry.parameters != function.parameters
         })
     {
         return Err(invalid());
@@ -128,23 +134,17 @@ pub(super) fn lower(
             } if cleanup_actions.is_empty() => Vec::new(),
             AbstractOperation::Jump {
                 target,
-                bindings,
                 trivial_affine_discards,
                 residual_affine_discards,
                 ..
-            } if bindings.is_empty()
-                && trivial_affine_discards.is_empty()
-                && residual_affine_discards.is_empty() =>
-            {
+            } if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty() => {
                 vec![*target]
             }
             AbstractOperation::Conditional {
                 when_true,
                 when_false,
                 ..
-            } if when_true.bindings.is_empty()
-                && when_false.bindings.is_empty()
-                && when_true.trivial_affine_discards.is_empty()
+            } if when_true.trivial_affine_discards.is_empty()
                 && when_false.trivial_affine_discards.is_empty() =>
             {
                 vec![when_true.target, when_false.target]
@@ -175,6 +175,7 @@ pub(super) fn lower(
         integers: super::setup::integer_parameters(function.machine, &prepared.scalar_parameters)?,
         booleans: BTreeMap::new(),
         boolean_homes: BTreeMap::new(),
+        boolean_parameters: BTreeMap::new(),
         views: BTreeMap::new(),
         lengths: BTreeMap::new(),
     };
@@ -189,6 +190,9 @@ pub(super) fn lower(
             }
             live
         };
+        if position != entry_position {
+            transfers::enter(&entries[position], &mut live);
+        }
         let range = ranges[position].clone();
         let mut operations = Vec::new();
         let provenance = &mut block_provenance[position];
@@ -205,6 +209,7 @@ pub(super) fn lower(
                 provenance,
             )?;
         }
+        transfers::validate_successors(&function.operations[range.end - 1], function, &live)?;
         let terminator = terminator(
             &function.operations[range.end - 1],
             function,
@@ -350,6 +355,7 @@ fn lower_operation(
                 &live.integers,
                 &BTreeMap::new(),
                 &live.booleans,
+                &live.boolean_parameters,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 operations,
@@ -433,6 +439,8 @@ fn terminator(
                 }
             } else if let Some(home) = live.boolean_homes.get(condition) {
                 TargetBooleanExpression::ScalarHome(*home)
+            } else if let Some(parameter) = live.boolean_parameters.get(condition) {
+                TargetBooleanExpression::BlockParameter(*parameter)
             } else {
                 return Err(invalid());
             };

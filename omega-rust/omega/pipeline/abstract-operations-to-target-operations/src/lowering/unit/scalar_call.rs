@@ -13,6 +13,11 @@ pub(super) enum KnownUnitInteger {
         value: IntegerValue,
     },
     Home(TargetUnitScalarHomeRequirement),
+    BlockParameter {
+        block: BlockId,
+        value: ValueId,
+        scalar_type: IntegerType,
+    },
 }
 
 impl KnownUnitInteger {
@@ -24,6 +29,7 @@ impl KnownUnitInteger {
                 ScalarType::Integer(integer) => integer,
                 _ => unreachable!("known Unit integer home retains an integer type"),
             },
+            Self::BlockParameter { scalar_type, .. } => scalar_type,
         }
     }
 
@@ -51,6 +57,17 @@ impl KnownUnitInteger {
                 value,
             },
             Self::Home(home) => TargetUnitScalarArgumentSource::Home(home),
+            Self::BlockParameter {
+                block,
+                value,
+                scalar_type,
+            } => TargetUnitScalarArgumentSource::BlockParameter(
+                target_operations::TargetScalarBlockValue {
+                    block,
+                    value,
+                    scalar_type: ScalarType::Integer(scalar_type),
+                },
+            ),
         }
     }
 }

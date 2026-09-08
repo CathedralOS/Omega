@@ -50,16 +50,24 @@ order independently of its topological traversal. The common target-to-selected
 reader independently checks this graph against source before constructing the
 existing legalized/selected graph. The target-only family receipt does not claim
 this coverage; its legacy continuation check still rejects linear graph sources
-that match that older family. Nonempty block argument transfers and cycles
-remain separately rejected until their native transport and
-authority are joined.
+that match that older family. Scalar block arguments retain their destination
+block, value identity and type, independently of function ABI parameters and
+operation-result homes. Each edge preserves the complete ordered bindings;
+joins introduce destination-owned values rather than substituting one arrival's
+expression. The existing selected graph retains these as parallel transfers.
+Native allocation currently realizes only transfers whose argument/destination
+groups can share one legal register home; interfering groups reject rather than
+lose an arrival. General edge-copy realization remains a downstream dependency.
+Structural block transfers and cycles remain separately rejected until their
+native transport and authority are joined.
 The node set includes scalar constants, integer widening, immutable byte length
 and read observations, integer comparisons, subslice establishments and ordinary
 Unit calls. Views must be exact shared parameters or dominating establishments;
 their length-observation identity is retained separately from scalar residence.
 Comparisons define Boolean homes for conditions rather than repeating their
-producer at the edge. Computed Boolean Unit-call arguments remain unsupported;
-the existing parameter/constant Boolean call forms are unchanged.
+producer at the edge. Boolean parameters and constants can cross block edges;
+computed comparison results still require native value materialization before
+they can be transferred or passed as Unit-call arguments.
 Abstract lowering preserves entry parameter metadata that exactly repeats the
 function parameters, but this is not native admission: optimization-unit
 validation still requires empty entry block parameters.

@@ -128,6 +128,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                         } => semantic_vocabulary::ScalarTerm::integer(scalar_type, value).is_err(),
                         TargetUnitScalarArgumentSource::BooleanImmediate { .. } => true,
                         TargetUnitScalarArgumentSource::Home(home) => home.shape != *shape,
+                        TargetUnitScalarArgumentSource::BlockParameter(_) => true,
                     }
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));

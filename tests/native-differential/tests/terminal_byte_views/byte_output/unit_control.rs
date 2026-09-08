@@ -3,7 +3,7 @@ use super::*;
 use semantic_vocabulary::BlockId;
 use terminal_psi::SuccessorEdge;
 
-fn conditional_unit_byte_output_module() -> TerminalModule {
+pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
     let mut module = unit_calls::unit_byte_output_calls_module();
     let caller = module.machines.last_mut().unwrap();
     let selector = ValueId::new(104).unwrap();

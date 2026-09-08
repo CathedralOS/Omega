@@ -16,9 +16,11 @@ pub enum TargetBoundaryResult {
     Structural(TargetStructuralHomeRequirement),
 }
 
-/// Exact source of one scalar argument in an attached-Unit body.
+/// Exact source of one scalar argument in an ordered Unit body or graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetUnitScalarArgumentSource {
+    /// A destination-owned scalar block parameter, not an incoming ABI slot.
+    BlockParameter(crate::TargetScalarBlockValue),
     /// One incoming Unit-function scalar parameter. The surrounding
     /// `TargetUnitBody::scalar_parameters` roster owns its exact physical
     /// placement; this occurrence retains the nominal parameter join.
@@ -50,6 +52,7 @@ pub enum TargetUnitScalarArgumentSource {
 impl TargetUnitScalarArgumentSource {
     pub const fn source_value(self) -> ValueId {
         match self {
+            Self::BlockParameter(parameter) => parameter.value,
             Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
             Self::BooleanImmediate { source_value, .. } => source_value,
@@ -59,6 +62,7 @@ impl TargetUnitScalarArgumentSource {
 
     pub const fn scalar_type(self) -> ScalarType {
         match self {
+            Self::BlockParameter(parameter) => parameter.scalar_type,
             Self::Parameter { scalar_type, .. } => scalar_type,
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::BooleanImmediate { .. } => ScalarType::Boolean,

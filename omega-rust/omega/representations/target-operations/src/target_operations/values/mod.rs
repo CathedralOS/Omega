@@ -13,3 +13,5 @@ mod boolean;
 pub use boolean::*;
 mod integer;
 pub use integer::*;
+mod block_value;
+pub use block_value::TargetScalarBlockValue;

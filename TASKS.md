@@ -193,8 +193,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
   and source-place evidence when joining these dependencies.
-  Join the ordinary Unit graph's activation-local descriptors in
-  `target-operations-to-selected-instructions/src/selection/` to block transfers,
+  Scalar block transfers now reach native publication when allocation can give
+  each connected argument/destination group one legal home. General edge copies
+  remain missing: the paired and same-target fixtures in
+  `terminal_byte_views/byte_output/scalar_transfers.rs` reach selected validation
+  but reject with `UnsupportedEdgeTransfer { function: 1, edge: 111 }`.
+  `selected-instructions-to-register-homes/src/assignment/home_assignment/`
+  currently ties those groups; physical lowering emits no edge copies. Preserve
+  interference checks while implementing exact parallel-copy custody, then make
+  both fixtures publish and execute their selected output plus continuation.
+  Extend the ordinary Unit graph's block transfers to activation-local descriptors
+  in `target-operations-to-selected-instructions/src/selection/`,
   retaining original backing, exact bounds and single fuel settlement. Carry
   the descriptor's actual producer and local frame residence through publication,
   not an invented incoming placement or copy of backing bytes. Reuse

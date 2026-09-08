@@ -77,6 +77,7 @@ pub(super) fn lower_field_store(
                 .copied()
                 .ok_or(LoweringError::UnknownValue(value.value))?;
             let exact_source = match known_value {
+                KnownUnitInteger::BlockParameter { .. } => false,
                 KnownUnitInteger::Parameter {
                     parameter_index,
                     scalar_type,

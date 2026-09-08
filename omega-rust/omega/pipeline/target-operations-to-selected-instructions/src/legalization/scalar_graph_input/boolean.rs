@@ -1,4 +1,4 @@
-//! Boolean predicates form branch suffixes; literals also feed calls and stores.
+//! Boolean predicates form branch suffixes; materialized values also cross Unit edges.
 use super::*;
 use optimization_unit::OptimizationBlock;
 
@@ -34,6 +34,14 @@ pub(super) fn validate(
             && !function.parameters.iter().any(|parameter| {
                 parameter.value == value && parameter.scalar_type == ScalarType::Boolean
             })
+            && !(function.result == AbstractFunctionResult::Unit
+                && function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.parameters)
+                    .any(|parameter| {
+                        parameter.value == value && parameter.scalar_type == ScalarType::Boolean
+                    }))
         {
             return Err(invalid);
         }
@@ -56,6 +64,20 @@ pub(super) fn validate(
                             AbstractOperation::StructuralScalarFieldStore { value, .. }
                             | AbstractOperation::WriteOnlyPrimitiveStore { value, .. }
                             if value.value == result && value.scalar_type == ScalarType::Boolean)
+                        || (function.result == AbstractFunctionResult::Unit
+                            && matches!(
+                                &consumer.operation,
+                                AbstractOperation::Jump { .. }
+                                    | AbstractOperation::Conditional { .. }
+                            )
+                            && consumer
+                                .successors
+                                .iter()
+                                .flat_map(|successor| &successor.bindings)
+                                .any(|binding| {
+                                    binding.argument == result
+                                        && binding.scalar_type == ScalarType::Boolean
+                                }))
                 })
             {
                 return Err(invalid);

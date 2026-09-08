@@ -58,7 +58,7 @@ fn jump(identity: u64) -> AbstractOperation {
         residual_affine_discards: Vec::new(),
     }
 }
-fn fixture(
+pub(super) fn fixture(
     native: NativeTarget,
 ) -> (
     abstract_operations::AbstractOperationPlan,
