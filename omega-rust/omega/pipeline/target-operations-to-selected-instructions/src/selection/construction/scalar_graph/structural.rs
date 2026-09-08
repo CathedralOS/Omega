@@ -430,11 +430,7 @@ fn byte_sequence_read(
     )?;
     builder.emit(
         SelectedInstructionKind::Load8Indexed,
-        builder
-            .constraints
-            .keys
-            .load8_indexed
-            .ok_or_else(invalid)?,
+        builder.constraints.keys.load8_indexed.ok_or_else(invalid)?,
         &[pointer, index_register, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
