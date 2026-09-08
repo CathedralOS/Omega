@@ -65,6 +65,23 @@ exact projection/transfer events and machine-local claim IDs survive the scalar
 result. General projected/linear results, mixed temporary consumers, and richer
 construction remain separate from whole plain-owned result support.
 
+The structural scalar-return body plan also retains an ordered effect prefix.
+One direct primitive-reference assignment followed by a scalar return uses the
+same checked store and Terminal emission as a Unit body. Free bodies have no
+fabricated attachment. The current prefix accepts an exclusive primitive borrow
+and a literal or direct scalar-parameter RHS; it neither discards the borrow nor
+turns the store into a scalar-producing operation. Its complete authored statement
+roster, destination, RHS, and return coordinates are rejoined before emission.
+Authored contracts, published crash routes, and constrained input/result types
+remain unsupported on this prefix until their exact contracts are carried too.
+The source-to-artifact execution regression is
+[`primitive_store_return_source.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/primitive_store_return_source.rs):
+`cargo nextest run -p checked-trees-to-lowered-psi --test primitive_store_return_source --no-fail-fast`.
+This establishes the body of an operand callee such as
+`machine reset(value: &mut u64) -> u64 { value = 0; 0 }`.
+Calling it from a mixed scalar/structural computation still needs exact borrowed
+operand staging, storage propagation, and shared call-closure integration.
+
 ## One complete call closure
 
 Ordinary and composed Unit catalogs are pruned together: an unavailable transitive
@@ -103,3 +120,36 @@ origin/snapshot transport, structural returned-call integration, and broader
 computed-argument coverage stay on [STATE-LOCAL-VALUE-FRONTIER](../../../../TASKS.md).
 Retire older flat guarded-argument normalization as those paths acquire complete
 computation plans; do not describe a source classifier as finished execution.
+
+## Guarded primitive-reference operand
+
+This continuation customer still fails source checking at its rank range. Save
+it as `main.omg` and run `omega --check --target macos_arm64 main.omg`:
+
+```omega
+machine reset(value: &mut u64) -> u64 { value = 0; 0 }
+
+data Limits {
+    limit: u64;
+    divisor: u64 [3..=5];
+}
+
+machine walk(remaining: u64 [0..=5], limits: Limits, marker: u64)
+terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor + 6);
+-> u64 {
+    let mut scratch: u64 = 0;
+    transition remaining > 0 {
+        true -> walk(remaining - 1, limits, reset(&mut scratch))
+        false -> remaining
+    }
+}
+```
+
+The existing argument hoist splits the edge into a rank-preserving hop and a
+decrement without its co-located guard. Integrate the primitive-store callee
+with checked structural operand computations and their shared Terminal closure,
+then retire the hoist for the supported route independently of ranking annotations.
+Keep the original guard, mutable local, and exact `limits` forwarding. Adding
+provenance around generated states or suppressing normalization without executing
+the checked computations does not close this customer. After source checking,
+verify call selection, operand order, mutations, and descent through Terminal.

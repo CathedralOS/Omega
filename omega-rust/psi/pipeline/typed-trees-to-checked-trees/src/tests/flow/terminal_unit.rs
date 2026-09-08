@@ -17,6 +17,7 @@ mod free_scalar_parameters;
 mod nested_boundary_results;
 mod receiver_stores;
 mod returns;
+mod returns_primitive_effects;
 mod scalar_boundary_targets;
 mod scalar_sequences;
 mod shared_convergence;

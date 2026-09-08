@@ -383,8 +383,15 @@ pub(super) fn lower_selected_machine(
         .terminal_structural_scalar_returns
         .for_machine(selection.machine)
     {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("structural scalar return plan requires an attached signature");
+        let expected_signature = if plan.attachment_type_identity.is_some() {
+            CheckedTerminalSignatureEligibility::Attached
+        } else {
+            CheckedTerminalSignatureEligibility::Eligible
+        };
+        if selection.signature != expected_signature {
+            return unsupported(
+                "structural scalar return plan disagrees with its selected signature",
+            );
         }
         return routed_machine(
             lower_structural_scalar_return_machine(checked, plan),

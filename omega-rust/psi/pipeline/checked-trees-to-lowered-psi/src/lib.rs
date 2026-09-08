@@ -121,6 +121,7 @@ mod control_cycle_proofs;
 mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;
+mod primitive_store;
 mod proof_recursion;
 mod quotient_correspondence;
 mod reborrow_restored_call_use;

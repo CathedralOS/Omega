@@ -178,7 +178,7 @@ pub(super) fn lower_unit_structural_types_including(
                             "selected structural-scalar Unit operation has no exact type catalog owner",
                         );
                     };
-                    roots.push(realization.attachment_type_identity.clone());
+                    roots.extend(realization.attachment_type_identity.clone());
                     roots.extend(
                         realization
                             .structural_parameters
