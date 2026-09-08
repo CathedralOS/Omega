@@ -46,10 +46,10 @@ source-visible fields or addresses.
 
 ## Plan and occurrence validation
 
-The reusable `CallPlan` fingerprint identifies an ABI recipe. A distinct
-boundary-plan application commitment binds the exact requirement, complete
-ordered native telescope, nominal parameter-to-placement rows, and callback
-materializations. Equal register layouts cannot hide a reordered telescope.
+[Calling-plan identity](calling_plans.md#identity-and-selection) distinguishes
+the reusable physical recipe from its nominal boundary application. Callback
+materializations participate in the latter; equal register layouts cannot hide
+a reordered telescope.
 
 Keep the callback's inbound plan separate from the registrar's outbound plan.
 Join each binder/requirement/destination to exactly one private function and

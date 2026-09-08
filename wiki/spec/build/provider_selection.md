@@ -30,7 +30,9 @@ nominal/static identities. A facade may compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
-Binding identities are normalized evaluated values. A bodyless leaf uses `via`
+Binding identities are normalized evaluated values; the requirement owns its
+[calling-policy application](calling_plans.md#identity-and-selection).
+A bodyless leaf uses `via`
 only for payload its declaration and target cannot derive. Compiler intrinsics
 are selected from exact declaration, signature, and target. The complete binding
 producer closure and result enter final admission. Changing a typed foreign

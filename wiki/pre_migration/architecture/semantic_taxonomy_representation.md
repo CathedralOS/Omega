@@ -330,7 +330,7 @@ identity. Opaque executable providers either supply an admitted
 Local dynamic descriptors, per-requirement operational envelopes, object
 safety, and the no-cross-component rule are settled in
 [chapter 14](../../language_guide/chapter_14_traits.md) and
-[calling plans](../design_briefs/calling_plans.md).
+[Terminal dynamic dispatch](../../spec/terminal-psi/dynamic_dispatch.md).
 
 ### Named conformance map
 

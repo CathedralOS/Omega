@@ -213,7 +213,7 @@ Machine calls inside Omega use Omega calling rules — the internal convention
 is compiler-sovereign, never stated, never observable, free to change any
 release. Conventions exist only at **boundaries**.
 
-As detailed in `design_briefs/calling_plans.md`, a calling
+As specified by [boundary calling plans](../spec/build/calling_plans.md), a calling
 convention is a **layout over the register file + stack frame** and gets the
 layout treatment — a per-ABI policy (stated or computed, audited against the
 psABI document) produces a validated **CallPlan** from a signature: per-param
