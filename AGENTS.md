@@ -153,11 +153,13 @@ omega refresh-samples [samples-dir]
 Git pins. It does not refresh selectors or sandbox later program execution.
 `run` and `inspect-terminal` do not support this flag.
 
-Compiling writes numbered phase artifacts (`00_timings.txt` through
-`14_finalization.txt`) into an ignored `build/` beside the entrypoint, or
-`--build-dir`. **That directory is the primary debugging surface** — read
-`06_validation.txt`, `08_proof.txt`, `09_backend_plan.txt`, and
-`12_emission.txt` before instrumenting compiler code.
+Compiler observations normally go into an ignored `build/` beside the
+entrypoint, or `--build-dir`. **Read the available phase reports before
+instrumenting compiler code.** Their set depends on the requested product and
+observation policy; `--output-only` suppresses auxiliary reports, not checking.
+The [compiler observation owner](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
+documents the current writer and required records rather than a fixed numbered
+artifact inventory here.
 
 `OMEGA_LIBRARY_ROOT` overrides the bundled `source/library/` root when testing
 an alternate toolchain layout.
