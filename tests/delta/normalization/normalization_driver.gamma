@@ -1,5 +1,5 @@
 ; Private raw-source diagnostic for the production profile-1 normalizer.
-; Five u32 words report authored count/height, normalized count/height, and
+; Five u32 words report initial definition count/height, normalized count/height, and
 ; the maximum parameter count among appended helper definitions.
 ; The selected unmarked Gamma evaluator appends main's final scalar byte 0.
 (def main () Int

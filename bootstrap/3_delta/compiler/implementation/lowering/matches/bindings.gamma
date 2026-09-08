@@ -4,19 +4,44 @@
   ((count Int) (nodes Int) (locals Int) (payload Int)) Int
   (lowering_match_binding_nodes 0 count nodes locals payload 0))
 
-; A row is (pair binder-atom projection). Successive payload tails share their
-; immutable second-projection nodes while retaining the exact emitted spelling.
+; Inline walks fit one Gamma body; wider payloads use the shared tail walker.
+; Width 256 needs at most 255 projections. This is a lowering choice, not arity.
+(def lowering_inline_projection_width () Int 256)
+
+; A row is (pair binder-atom projection). Small payloads share immutable tails.
+; Wide payloads retain the original payload atom and one indexed call per field.
 (def lowering_match_binding_nodes
   ((index Int) (count Int) (nodes Int) (locals Int) (tail Int) (reversed Int)) Int
   (if (eq index count)
     (pair locals reversed)
     (let binder Int (gamma_binding (first nodes))
-      (let projection Int
-        (if (eq (+ index 1) count) tail (gamma_first tail))
-        (lowering_match_binding_nodes (+ index 1) count (second nodes)
-          (lowering_bind locals binder)
-          (if (eq (+ index 1) count) tail (gamma_second tail))
-          (pair (pair binder projection) reversed))))))
+      (let wide Int (lt (lowering_inline_projection_width) count)
+        (let field_tail Int
+          (if wide
+            (gamma_call (gamma_word 7365668 3) 2
+              (pair tail (pair (gamma_integer index) 0)))
+            tail)
+          (let projection Int
+            (if (eq (+ index 1) count) field_tail (gamma_first field_tail))
+            (lowering_match_binding_nodes (+ index 1) count (second nodes)
+              (lowering_bind locals binder)
+              (if wide tail
+                (if (eq (+ index 1) count) tail (gamma_second tail)))
+              (pair (pair binder projection) reversed))))))))
+
+; Ordinary Gamma: (def $dp ((p Int) (i Int)) Int
+;   (if (eq i 0) p ($dp (second p) (- i 1))))
+; All call-site indices are in 0..arity-1 of a statically matched payload.
+(def lowering_projection_definition () Int
+  (let name Int (gamma_word 7365668 3)
+    (let payload Int (gamma_generated 112 0)
+      (let index Int (gamma_generated 105 0)
+        (gamma_definition name 2 (pair payload (pair index 0))
+          (gamma_if (gamma_eq index (gamma_integer 0)) payload
+            (gamma_call name 2
+              (pair (gamma_second payload)
+                (pair (gamma_call (gamma_word 45 1) 2
+                  (pair index (pair (gamma_integer 1) 0))) 0)))))))))
 
 (def lowering_match_wrap_bindings
   ((remaining Int) (reversed Int) (body Int)) Int

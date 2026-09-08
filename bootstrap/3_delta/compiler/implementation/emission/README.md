@@ -88,9 +88,12 @@ not unique immutable pairs. Thus sharing cannot conceal a larger printed tree.
 
 The [lowering templates](../lowering/README.md) place each authored expression
 child once. Checked arithmetic binds operands instead of copying their trees;
-match selectors retain each arm body once. The only superlinear expansion is
-the [pattern projection spine](../lowering/matches/bindings.gamma): a pattern
-with `k` binders prints at most a quadratic number of `first`/`second` calls.
+match selectors retain each arm body once. An inlined
+[pattern projection spine](../lowering/matches/bindings.gamma) with `k` binders
+prints at most a quadratic number of `first`/`second` calls. Only widths through
+256 use that inline form; wider patterns use linear call-site structure and
+one shared height-three projection definition. The following conservative
+quadratic envelope still bounds both forms, including that fixed definition.
 All pattern binders together consume distinct source tokens, so
 `sum(k) <= N` and `sum(k*k) <= N*N`. A conservative inventory allows 128
 node/atom occurrences per remaining source token/expression and `4*k*k` per

@@ -4,7 +4,7 @@ PAYLOAD = b"A\x00\x80\xff"
 
 
 def fixtures():
-    # name, source, application status/output, helpers required, authored count,
+    # name, source, application status/output, extraction required, initial definitions,
     # exact maximum height when fixed, pre-normalization receipt SHA256.
     cases = []
     identity = b"(def main ((source Bytes)) Bytes source)\n"
@@ -40,15 +40,23 @@ def fixtures():
     cases.append(("checked guard below deep branches", source, 0, PAYLOAD,
                   True, 2, None, None))
 
-    for width, name in ((128, "wide payload bindings"), (300, "wide constructor and payload")):
+    for width, name in ((128, "wide payload bindings"), (256, "last inline payload width"),
+                        (257, "first shared projection width"),
+                        (300, "wide constructor and payload")):
         types = b" ".join([b"Int"] * (width - 1) + [b"Bytes"])
         binders = b" ".join(f"field{index}".encode() for index in range(width))
-        values = b" ".join([b"0"] * (width - 1) + [b"source"])
+        arguments = [b"0"] * (width - 1) + [b"source"]
+        arguments[0] = b"7"
+        arguments[width // 2] = b"8"
+        values = b" ".join(arguments)
         source = (b"(data Wide (Empty) (Wide " + types + b"))\n"
                   b"(def extract ((value Wide)) Bytes (match value (Empty (bytes_empty)) "
-                  b"((Wide " + binders + b") field" + str(width - 1).encode() + b")))\n"
+                  b"((Wide " + binders + b") (if (eq field0 7) (if (eq field"
+                  + str(width // 2).encode() + b" 8) field" + str(width - 1).encode()
+                  + b" (bytes_empty)) (bytes_empty)))))\n"
                   b"(def main ((source Bytes)) Bytes (extract (Wide " + values + b")))\n")
-        cases.append((name, source, 0, PAYLOAD, True, 2, None, None))
+        cases.append((name, source, 0, PAYLOAD, True,
+                      2 + (width > 256), None, None))
 
     branch = b"(if 1 " * 260 + b"shared" + b" (bytes_empty))" * 260
     source = (b"(def main ((source Bytes)) Bytes (bytes_concat "
@@ -110,4 +118,10 @@ def fixtures():
               b"(if (eq (score 1) 1024) source (bytes_empty)))\n")
     cases.append(("profile depth preserves checked arithmetic", source,
                   0, PAYLOAD, True, 2, None, None, None))
+    source = (b"(data Wide (Wide" + b" Int" * 2048 + b"))\n"
+              b"(def select ((value Wide)) Int (match value ((Wide "
+              + b" ".join(f"field{index:04}".encode() for index in range(2048))
+              + b") field2047)))\n(def main ((source Bytes)) Bytes source)\n")
+    cases.append(("2048-field compiler completion", source, 0, PAYLOAD, True, 3,
+                  None, "3c6ec03bc2882a5c80101bfd08a50bbe444eb61fc3ad8362e6d8cdbaa01d7d79", None))
     return cases

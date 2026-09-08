@@ -3,12 +3,12 @@
 Run `sh tests/delta/lowering-plan/run.sh` from the repository root. The private
 Gamma prefix invokes production `prepare_admitted_source(0)` with raw Delta
 source. The complete frontend and expanded-Gamma planner finish before it
-publishes any diagnostic bytes. It reports each authored function body's
-height as unsigned little-endian u32, in declaration order, followed by the
+publishes any diagnostic bytes. It reports each initial Gamma definition's
+body height as unsigned little-endian u32, in definition order, followed by the
 unmarked evaluator's final scalar byte `00`. This is not DCREQ, DCOUT, or a
 generated application envelope.
 
-The 13 authored controls pin expression-list height: atoms have height zero;
+The 15 authored controls pin expression-list height: atoms have height zero;
 applications and lets add one to their maximum expression-child height.
 Function signatures, call heads, and binder/type atoms add no levels. Fixtures
 cover ordinary calls, let bodies, branching, checked arithmetic guards, raw
@@ -16,6 +16,9 @@ arithmetic, constructor product spines, payload projections, and nested mixed
 payload matches. The three-let checked arithmetic expansion has height 7.
 Nested right additions reach 265, a 128-binder payload match reaches 258, and
 ordinary calls reach 1,023 at the admitted Delta expression-depth boundary.
+Widths 256 and 257 retain heights `(256, 514, 0)` and `(3, 257, 261, 0)`
+respectively: the latter includes one shared projection definition before the
+authored functions. Two wide data owners still install only that one helper.
 
 Expected heights are manually derived fixture facts. The host only constructs
 the authored bytes, frames execution, and compares the diagnostic bytes; it

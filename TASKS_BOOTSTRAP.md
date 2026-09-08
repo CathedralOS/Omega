@@ -138,15 +138,10 @@ prerequisite to every lower-rung milestone.
   Gamma emission. The current Epsilon source plus a diagnostic entry already
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
-  Resume evidence against `904f62f3d0` plus the evaluator identity pinned in
-  [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md), macOS arm64:
-  `sh tests/delta/generated-function-census/run.sh --normalization` compiles
-  five authored functions with 65,536 extracted helpers to the unchanged
-  3,066,611-byte receipt, then executes it with exact binary input/output.
-  The former evaluator refused that receipt during census. The selected
-  function table fits every framed source by the profile's source-byte bound.
-  Canonical Delta closure SHA-256
-  remains `2479e20b073df10c03cb00a22e415246451219ac3242acf53cf2b242449f9176`.
+  Resume evidence on macOS arm64, canonical Delta closure SHA-256
+  `43e47663179a42eaf1b89821185c0ea9a7a66bdb3279778db971ca5a3e906220`
+  and the evaluator identity pinned in
+  [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
   `sh tests/epsilon/checking/run.sh` reconstructs the unchanged 707,983-byte
   receipt and passes all 60 checking judgments with the selected evaluator.
   Follow the [selected producer's resource ownership](bootstrap/3_delta/compiler/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
@@ -156,14 +151,20 @@ prerequisite to every lower-rung milestone.
   [normalization audit](bootstrap/3_delta/compiler/implementation/normalization/README.md)
   gives source-level height and static-environment arguments, including helper
   captures; `sh tests/delta/normalization/run.sh` exercises successful compilation
-  and execution at source depth 1,024. These are not checked edge certificates.
+  and execution at source depth 1,024 and payload width 2,048. The latter source
+  now compiles in 134.6 seconds after shared projection lowering; the baseline
+  exceeded 300 seconds, not an observed heap exhaustion. These are not checked
+  edge certificates.
   The [emission occurrence argument](bootstrap/3_delta/compiler/implementation/emission/README.md#reachable-byte-count-bound)
   separately bounds intermediate and complete byte counts below `2^62`;
   synthetic overflowing metadata is not an admitted-source refusal case.
-  Next acceptance: witness and classify the remaining compiler-execution
-  resource gap using full admitted source, not injected counters. Trace the
-  first evaluator exhaustion to its actual allocation owner and required DCOUT
-  observation before choosing an implementation change. Distinguish cumulative
+  Next acceptance: witness and classify any remaining compiler-execution
+  resource gap using full admitted source, not injected counters. Next probe
+  (unrun): a balanced checked-arithmetic forest whose lowered bodies already
+  fit height 255, isolating cumulative plan allocation from helper extraction.
+  If it exhausts the evaluator, trace the allocation owner and governing
+  observation contract before changing implementation or provision; do not
+  assume a Gamma-owned failure is a DCOUT frame. Distinguish cumulative
   compiler allocation from final receipt size; no host-synthesized frames or
   invented Alpha slot/label/fixup allocations. Application runtime exhaustion
   remains separate, not a static promise of unlimited execution.
