@@ -209,13 +209,26 @@ fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
     row.alternatives[0].key.family = MachineAlternativeFamily::ByteViewAddress;
     row.provenance.operations = vec![OperationId::new(313).unwrap()];
     source.identity = pre_allocation_machine_effect_identity(&source);
-    assert_eq!(PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(), source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
+        source
+    );
     let mut changed = source.clone();
-    changed.functions[0].blocks[0].instructions[0].provenance.operations[0] = OperationId::new(317).unwrap();
-    assert_ne!(pre_allocation_machine_effect_identity(&changed), source.identity);
+    changed.functions[0].blocks[0].instructions[0]
+        .provenance
+        .operations[0] = OperationId::new(317).unwrap();
+    assert_ne!(
+        pre_allocation_machine_effect_identity(&changed),
+        source.identity
+    );
     changed = source.clone();
-    changed.functions[0].blocks[0].instructions[0].alternatives[0].key.family = MachineAlternativeFamily::ExactAddI64;
-    assert_ne!(pre_allocation_machine_effect_identity(&changed), source.identity);
+    changed.functions[0].blocks[0].instructions[0].alternatives[0]
+        .key
+        .family = MachineAlternativeFamily::ExactAddI64;
+    assert_ne!(
+        pre_allocation_machine_effect_identity(&changed),
+        source.identity
+    );
 }
 
 #[test]
