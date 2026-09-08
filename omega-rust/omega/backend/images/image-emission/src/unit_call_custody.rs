@@ -49,14 +49,17 @@ pub(super) fn validate_unit_affine_scalar_records(
             .filter(|call| call.operation_ordinal > record.operation_ordinal)
             .flat_map(|call| &call.arguments)
             .filter(|argument| {
+                let Some(source_placement) = argument.source.placement() else {
+                    return false;
+                };
                 argument.place == record.result.place
                     && argument.path.is_empty()
                     && argument.access == terminal_psi::StructuralAccess::Owned
                     && argument.root_structural_type == record.result.structural_type
                     && argument.structural_type == record.result.structural_type
                     && argument.shape == record.shape
-                    && argument.source.shape == record.shape
-                    && argument.source.locations.is_empty()
+                    && source_placement.shape == record.shape
+                    && source_placement.locations.is_empty()
                     && argument.source_byte_offset == 0
                     && argument.source_location.stack_byte_offset() == Some(0)
             })
@@ -264,6 +267,9 @@ pub(super) fn exact_write_only_projection(
     destination: &machine_code::UnitParameterRecord,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
+    let Some(source_placement) = argument.source.placement() else {
+        return false;
+    };
     if !argument
         .path
         .iter()
@@ -318,8 +324,8 @@ pub(super) fn exact_write_only_projection(
         && source.shape
             == ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment)
         && argument.source_byte_offset == byte_offset
-        && argument.source == source.source
-        && argument.source.shape == source.shape
+        && *source_placement == source.source
+        && source_placement.shape == source.shape
         && source
             .location
             .stack_byte_offset()
@@ -850,13 +856,16 @@ pub(super) fn validate_internal_unit_call_custody(
             .zip(&expected_plan.parameters[scalar_count..])
             .enumerate()
             .any(|(argument_index, (argument, destination))| {
+                let Some(source_placement) = argument.source.placement() else {
+                    return true;
+                };
                 let parameter_source = parameter_homes
                     .iter()
                     .find(|home| home.place == argument.place)
                     .is_some_and(|home| {
                         argument.root_structural_type == home.structural_type
-                            && argument.source == home.source
-                            && argument.source.shape == home.shape
+                            && *source_placement == home.source
+                            && source_placement.shape == home.shape
                             && home.location.stack_byte_offset().is_some_and(|offset| argument.source_location.stack_byte_offset() == Some(offset))
                             && (argument.path.is_empty()
                                 || projected_home.is_some_and(|projected| {
@@ -878,8 +887,8 @@ pub(super) fn validate_internal_unit_call_custody(
                                 && argument.structural_type == structural_type.id
                                 && argument.shape
                                     == calling_conventions::ValueShape::integer(0, 1)
-                                && argument.source.shape == argument.shape
-                                && argument.source.locations.is_empty()
+                                && source_placement.shape == argument.shape
+                                && source_placement.locations.is_empty()
                                 && argument.destination.shape == argument.shape
                                 && argument.destination.locations.is_empty()
                                 && argument.source_location.stack_byte_offset() == Some(0)
@@ -925,8 +934,8 @@ pub(super) fn validate_internal_unit_call_custody(
                             && argument.access == terminal_psi::StructuralAccess::Owned
                             && argument.root_structural_type == argument.structural_type
                             && argument.shape == record.shape
-                            && argument.source.shape == record.shape
-                            && argument.source.locations.is_empty()
+                            && source_placement.shape == record.shape
+                            && source_placement.locations.is_empty()
                             && argument.source_location.stack_byte_offset() == Some(0)
                             && record.result.multiplicity
                                 == terminal_psi::StructuralMultiplicity::Affine
@@ -956,7 +965,7 @@ pub(super) fn validate_internal_unit_call_custody(
                     && argument.byte_count == 0
                     && argument.bytes.is_empty()
                     && argument.shape == calling_conventions::ValueShape::integer(0, 1)
-                    && argument.source.locations.is_empty()
+                    && source_placement.locations.is_empty()
                     && argument.destination.locations.is_empty();
                 argument.destination != *destination
                     || argument.call_stack_bytes != expected_call_stack_bytes
@@ -983,11 +992,11 @@ pub(super) fn validate_internal_unit_call_custody(
                     || argument
                         .source_byte_offset
                         .checked_add(u32::from(argument.shape.byte_size))
-                        .is_none_or(|end| end > u32::from(argument.source.shape.byte_size))
+                        .is_none_or(|end| end > u32::from(source_placement.shape.byte_size))
                     || match argument.path.as_slice() {
                         [] => {
                             argument.source_byte_offset != 0
-                                || argument.source.shape != argument.shape
+                                || source_placement.shape != argument.shape
                                 || argument.root_structural_type != argument.structural_type
                                 || argument.fixed_array_length.is_some()
                                 || argument.element_stride.is_some()
@@ -1023,8 +1032,8 @@ pub(super) fn validate_internal_unit_call_custody(
                                 || u64::from(stride).checked_mul(*index)
                                     != Some(u64::from(argument.source_byte_offset))
                                 || u64::from(stride).checked_mul(length)
-                                    != Some(u64::from(argument.source.shape.byte_size))
-                                || argument.source.shape.alignment != argument.shape.alignment
+                                    != Some(u64::from(source_placement.shape.byte_size))
+                                || source_placement.shape.alignment != argument.shape.alignment
                         }
                         [
                             terminal_psi::StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
@@ -1061,8 +1070,8 @@ pub(super) fn validate_internal_unit_call_custody(
                                 || *inner >= u64::from(inner_length)
                                 || Some(argument.source_byte_offset) != expected_offset
                                 || outer_stride.checked_mul(2)
-                                    != Some(u32::from(argument.source.shape.byte_size))
-                                || argument.source.shape.alignment != argument.shape.alignment
+                                    != Some(u32::from(source_placement.shape.byte_size))
+                                || source_placement.shape.alignment != argument.shape.alignment
                         }
                         path @ [terminal_psi::StructuralPathSegment::Field(_), ..]
                             if path.iter().all(|segment| {
@@ -1289,13 +1298,14 @@ pub(super) fn expected_projected_copy_bytes(
     target: NativeTarget,
     argument: &machine_code::InternalUnitCallArgumentRecord,
 ) -> Option<Vec<u8>> {
+    let source_placement = argument.source.placement()?;
     if argument.access == terminal_psi::StructuralAccess::Owned
         && argument.shape.class == calling_conventions::ValueClass::Integer
     {
         return projected_copy::expected_owned_projected_copy_bytes(target, argument);
     }
     if argument.shape.class == calling_conventions::ValueClass::BorrowedReference
-        && argument.source.shape.class == calling_conventions::ValueClass::BorrowedReference
+        && source_placement.shape.class == calling_conventions::ValueClass::BorrowedReference
     {
         let [
             calling_conventions::ValueLocation::Indirect {
@@ -1407,7 +1417,7 @@ pub(super) fn expected_projected_copy_bytes(
             let destination = x86_terminal_register(*register)?;
             let mut bytes = Vec::new();
             if matches!(
-                argument.source.locations.as_slice(),
+                source_placement.locations.as_slice(),
                 [calling_conventions::ValueLocation::Indirect { .. }]
             ) {
                 expected_x86_stack_load(&mut bytes, 11, home, 8)?;
@@ -1428,7 +1438,7 @@ pub(super) fn expected_projected_copy_bytes(
             let destination = aarch64_terminal_register(*register)?;
             let mut instructions = Vec::new();
             if matches!(
-                argument.source.locations.as_slice(),
+                source_placement.locations.as_slice(),
                 [calling_conventions::ValueLocation::Indirect { .. }]
             ) {
                 instructions.push(expected_aarch64_stack_load(9, home, 8)?);

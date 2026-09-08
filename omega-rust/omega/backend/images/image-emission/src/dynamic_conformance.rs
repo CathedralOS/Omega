@@ -552,6 +552,7 @@ fn validate_stored_argument(
         caller: function.machine,
         operation: call.psi_operation,
     };
+    let placement = argument.source.placement().ok_or_else(invalid)?;
     if argument.place != source.place
         || argument.access != source.access
         || argument.path != source.path
@@ -561,7 +562,7 @@ fn validate_stored_argument(
         || argument.source_byte_offset != source.source_byte_offset
         || argument.source_location.stack_byte_offset()
             != Some(call.establishment.descriptor_home_byte_offset)
-        || target_operations::TargetStructuralArgumentSource::Placement(argument.source.clone())
+        || target_operations::TargetStructuralArgumentSource::Placement(placement.clone())
             != source.source
         || argument.destination != source.destination
         || argument.bytes.len() != argument.byte_count
@@ -836,6 +837,7 @@ fn validate_argument(
         operation: call.psi_operation,
     };
     let argument = &call.argument;
+    let placement = argument.source.placement().ok_or_else(invalid)?;
     if argument.place != call.rebound_instance.source.place
         || argument.access != call.rebound_instance.source.access
         || argument.path != call.rebound_instance.source.path
@@ -844,7 +846,7 @@ fn validate_argument(
         || argument.shape != call.rebound_instance.source.shape
         || argument.source_byte_offset != call.rebound_instance.source.source_byte_offset
         || argument.source_location.stack_byte_offset() != Some(call.descriptor_home_byte_offset)
-        || target_operations::TargetStructuralArgumentSource::Placement(argument.source.clone())
+        || target_operations::TargetStructuralArgumentSource::Placement(placement.clone())
             != call.rebound_instance.source.source
         || argument.destination != call.rebound_instance.source.destination
         || argument.bytes.len() != argument.byte_count

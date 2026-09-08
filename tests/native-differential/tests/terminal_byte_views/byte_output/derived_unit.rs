@@ -2,6 +2,9 @@
 use super::*;
 use semantic_vocabulary::{BlockId, ContractId, MachineId};
 
+#[path = "derived_unit/publication.rs"]
+mod publication;
+
 fn output_call(identity: u64, argument: ValueId) -> Operation {
     Operation {
         id: OperationId::new(identity).unwrap(),
@@ -235,17 +238,10 @@ fn derived_view_unit_output_executes_raw_suffix_head_then_continuation() {
         any(target_arch = "x86_64", target_arch = "aarch64")
     ))]
     {
-        let module = derived_unit_output_module();
-        let staged = stage_derived_unit_output(NativeTarget::host(), &module);
-        let text = staged.text_section();
-        let entry = text
-            .functions
-            .iter()
-            .find(|function| function.machine == module.entry)
-            .unwrap();
+        let (image, entry_offset) = publication::published_image(NativeTarget::host());
         native_function::assert_c_text(
-            &text.bytes,
-            entry.section_offset.try_into().unwrap(),
+            &image.output().final_text_bytes,
+            entry_offset,
             r#"
             #include <stdint.h>
             #include <stddef.h>

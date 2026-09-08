@@ -1,5 +1,6 @@
 //! Structural signature and call records projected from ordinary function data.
 mod byte_output;
+mod established_views;
 mod validation;
 use super::{Error, attribution, host, source};
 use crate::{ObjectBoundarySettlement, ObjectFunction};
@@ -8,8 +9,8 @@ use legalized_operations::{LegalizedCallUnitSource, LegalizedScalarArgument};
 use machine_code::{
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitCallSource,
     InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
-    SemanticCodeAttribution, SemanticCodeSite, StructuralSourceLocation, UnitParameterHomeRecord,
-    UnitParameterRecord,
+    InternalUnitStructuralArgumentSourceRecord, SemanticCodeAttribution, SemanticCodeSite,
+    StructuralSourceLocation, UnitParameterHomeRecord, UnitParameterRecord,
 };
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use selected_instructions::{
@@ -300,12 +301,19 @@ pub(super) fn populate(
             let LegalizedScalarArgument::Structural { target, .. } = argument else {
                 return Err(Error::Unsupported("Unit call scalar publication"));
             };
-            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
-                &target.source
-            else {
-                return Err(Error::Unsupported(
-                    "Unit argument requires incoming placement",
-                ));
+            let (argument_source, location) = match &target.source {
+                target_operations::TargetStructuralArgumentSource::Placement(placement) => (
+                    InternalUnitStructuralArgumentSourceRecord::Placement(placement.clone()),
+                    source_location(selected, target.place)?,
+                ),
+                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation,
+                } => (
+                    InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+                        psi_operation: *psi_operation,
+                    },
+                    established_views::location(source, selected, target, *psi_operation)?,
+                ),
             };
             let (code_offset, byte_count) =
                 if target.access == terminal_psi::StructuralAccess::Owned {
@@ -323,11 +331,11 @@ pub(super) fn populate(
                 structural_type: target.structural_type,
                 shape: target.shape,
                 source_byte_offset: target.source_byte_offset,
-                source_location: source_location(selected, target.place)?,
+                source_location: location,
                 call_stack_bytes: frame_bytes,
                 fixed_array_length: target.fixed_array_length,
                 element_stride: target.element_stride,
-                source: placement.clone(),
+                source: argument_source,
                 destination: target.destination.clone(),
                 code_offset,
                 byte_count,

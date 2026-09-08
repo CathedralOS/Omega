@@ -8,7 +8,8 @@ use calling_conventions::{
     ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use machine_code::{
-    InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord, StructuralSourceLocation,
+    InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord,
+    InternalUnitStructuralArgumentSourceRecord, StructuralSourceLocation,
 };
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
@@ -117,8 +118,7 @@ fn combined_plan(function: &InstalledFunction, target: target::NativeTarget) -> 
 }
 
 pub(super) fn function_is_exact(record: &InstallationRecord, function: &InstalledFunction) -> bool {
-    if function.unit_parameters.is_empty()
-        || function.unit_parameters.len() != function.unit_parameter_homes.len()
+    if function.unit_parameters.len() != function.unit_parameter_homes.len()
         || function.unit_body
         || function.unit_affine_cleanup.is_some()
         || !function.unit_continuations.is_empty()
@@ -344,27 +344,57 @@ pub(super) fn call_is_exact(
         selected_instruction = Some(instruction);
     }
     for (argument, destination) in call.arguments.iter().zip(&callee.unit_parameter_homes) {
-        let Some(source) = function
-            .unit_parameter_homes
-            .iter()
-            .find(|home| home.place == argument.place)
-        else {
-            return false;
+        let source_matches = match &argument.source {
+            InternalUnitStructuralArgumentSourceRecord::Placement(placement) => {
+                let Some(source) = function
+                    .unit_parameter_homes
+                    .iter()
+                    .find(|home| home.place == argument.place)
+                else {
+                    return false;
+                };
+                argument.root_structural_type == source.structural_type
+                    && *placement == source.source
+                    && argument.source_location == source.location
+                    && (argument.access == source.access
+                        || source.access == StructuralAccess::MutableBorrow
+                            && argument.access == StructuralAccess::WriteOnlyBorrow)
+                    && argument
+                        .source_byte_offset
+                        .checked_add(u32::from(argument.shape.byte_size))
+                        .is_some_and(|end| end <= u32::from(source.shape.byte_size))
+                    && (!argument.path.is_empty()
+                        || argument.source_byte_offset == 0
+                            && argument.structural_type == source.structural_type
+                            && argument.shape == source.shape)
+            }
+            InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { psi_operation } => {
+                let attribution_count = record
+                    .semantic_code_attribution
+                    .iter()
+                    .filter(|row| {
+                        row.machine == function.machine
+                            && row.attribution.site
+                                == machine_code::SemanticCodeSite::Operation(*psi_operation)
+                    })
+                    .count();
+                // The admitted image retains exact producer/slot/physical replay.
+                // Numeric instruction offsets do not establish CFG dominance.
+                attribution_count == 1
+                    && local_view_source_is_exact(argument, stack.active_frame_bytes)
+            }
         };
-        if argument.root_structural_type != source.structural_type || argument.source != source.source
-            || argument.source_location != source.location || argument.structural_type != destination.structural_type
+        if !source_matches
+            || argument.structural_type != destination.structural_type
             || argument.access != destination.access || argument.shape != destination.shape
             || argument.destination != destination.source
-            || !(argument.access == source.access || source.access == StructuralAccess::MutableBorrow && argument.access == StructuralAccess::WriteOnlyBorrow)
             || argument.fixed_array_length.is_some() || argument.element_stride.is_some()
             || argument.call_stack_bytes != stack.active_frame_bytes
             || argument.code_offset != call.code_offset || argument.byte_count != call.byte_count
             || argument.bytes.len() != call.byte_count
-            || argument.source_byte_offset.checked_add(u32::from(argument.shape.byte_size))
-                .is_none_or(|end| end > u32::from(source.shape.byte_size))
+            || argument.shape.alignment == 0
             || !argument.source_byte_offset.is_multiple_of(u32::from(argument.shape.alignment))
             || argument.path.iter().any(|segment| matches!(segment, StructuralPathSegment::Field(field) if field.is_empty()))
-            || argument.path.is_empty() && (argument.source_byte_offset != 0 || argument.structural_type != source.structural_type || argument.shape != source.shape)
             || !outgoing_pointer_fits(&argument.destination, stack.active_frame_bytes) {
             return false;
         }
@@ -393,6 +423,25 @@ pub(super) fn call_is_exact(
             })
 }
 
+/// Shape only: exact slot ownership and initialized contents come from image replay.
+fn local_view_source_is_exact(
+    argument: &machine_code::InternalUnitCallArgumentRecord,
+    frame_bytes: u32,
+) -> bool {
+    let StructuralSourceLocation::Stack { byte_offset } = argument.source_location else {
+        return false;
+    };
+    argument.access == StructuralAccess::SharedBorrow
+        && argument.path.is_empty()
+        && argument.root_structural_type == argument.structural_type
+        && argument.shape == ValueShape::borrowed_reference(16, 8)
+        && argument.source_byte_offset == 0
+        && byte_offset.is_multiple_of(8)
+        && byte_offset
+            .checked_add(16)
+            .is_some_and(|end| end <= frame_bytes)
+}
+
 fn outgoing_pointer_fits(placement: &ValuePlacement, frame_bytes: u32) -> bool {
     match pointer_location(placement) {
         Some(IndirectPointerLocation::Register(_)) => true,
@@ -408,6 +457,70 @@ fn outgoing_pointer_fits(placement: &ValuePlacement, frame_bytes: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn established_descriptor_shape_uses_real_aligned_local_storage() {
+        let shape = ValueShape::borrowed_reference(16, 8);
+        let plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+            &CallSignature {
+                parameters: vec![shape],
+                result: None,
+            },
+        )
+        .unwrap();
+        let argument = machine_code::InternalUnitCallArgumentRecord {
+            place: semantic_vocabulary::PlaceId::new(2).unwrap(),
+            access: StructuralAccess::SharedBorrow,
+            path: Vec::new(),
+            root_structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            shape,
+            source_byte_offset: 0,
+            source_location: StructuralSourceLocation::Stack { byte_offset: 16 },
+            call_stack_bytes: 32,
+            fixed_array_length: None,
+            element_stride: None,
+            source: InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+                psi_operation: semantic_vocabulary::OperationId::new(10).unwrap(),
+            },
+            destination: plan.parameters[0].clone(),
+            code_offset: 40,
+            byte_count: 5,
+            bytes: vec![0; 5],
+        };
+        assert!(local_view_source_is_exact(&argument, 32));
+        assert!(!local_view_source_is_exact(&argument, 31));
+        for mutation in 0..9 {
+            let mut changed = argument.clone();
+            match mutation {
+                0 => changed.access = StructuralAccess::Owned,
+                1 => changed.shape = ValueShape::integer(16, 8),
+                2 => changed.source_byte_offset = 8,
+                3 => changed.path.push(StructuralPathSegment::FixedIndex(0)),
+                4 => {
+                    changed.root_structural_type =
+                        semantic_vocabulary::StructuralTypeId::new(2).unwrap()
+                }
+                5 => changed.source_location = StructuralSourceLocation::Stack { byte_offset: 17 },
+                6 => changed.source_location = StructuralSourceLocation::Stack { byte_offset: 24 },
+                7 => {
+                    changed.source_location = StructuralSourceLocation::Stack {
+                        byte_offset: u32::MAX - 7,
+                    }
+                }
+                _ => {
+                    changed.source_location = StructuralSourceLocation::IncomingBorrowedPointer {
+                        location: pointer_location(&plan.parameters[0]).unwrap(),
+                    }
+                }
+            }
+            assert!(
+                !local_view_source_is_exact(&changed, 32),
+                "mutation {mutation}"
+            );
+        }
+    }
 
     #[test]
     fn borrowed_pointer_shapes_keep_incoming_stack_distinct_from_local_copies() {

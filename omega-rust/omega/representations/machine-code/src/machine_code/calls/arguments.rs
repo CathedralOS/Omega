@@ -34,15 +34,45 @@ pub struct InternalUnitCallArgumentRecord {
     pub call_stack_bytes: u32,
     pub fixed_array_length: Option<u64>,
     pub element_stride: Option<u32>,
-    pub source: ValuePlacement,
+    pub source: InternalUnitStructuralArgumentSourceRecord,
     pub destination: ValuePlacement,
     pub code_offset: usize,
     pub byte_count: usize,
     /// Immutable bytes for this exact argument transfer. Legacy owned arguments
-    /// retain their copy prefix. An incoming borrowed-pointer source instead
+    /// retain their copy prefix. A borrowed-pointer or established-view source instead
     /// retains the selected call instruction; independently retained physical
     /// replay establishes preceding pointer transport without copying the referent.
     pub bytes: Vec<u8>,
+}
+
+/// Structural source identity is distinct from the descriptor's physical residence.
+/// Incoming ABI placements cannot describe activation-local descriptor bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InternalUnitStructuralArgumentSourceRecord {
+    Placement(ValuePlacement),
+    /// The enclosing place and this producer identify the selected local slot;
+    /// `source_location` records its resolved frame residence. Retained replay
+    /// establishes contents, bounds, and transport to the call operand.
+    EstablishedByteView {
+        psi_operation: OperationId,
+    },
+}
+
+impl InternalUnitStructuralArgumentSourceRecord {
+    /// Returns ABI placement only for an incoming source; local descriptors
+    /// retain their actual frame residence in the enclosing argument record.
+    pub fn placement(&self) -> Option<&ValuePlacement> {
+        match self {
+            Self::Placement(placement) => Some(placement),
+            Self::EstablishedByteView { .. } => None,
+        }
+    }
+}
+
+impl From<ValuePlacement> for InternalUnitStructuralArgumentSourceRecord {
+    fn from(placement: ValuePlacement) -> Self {
+        Self::Placement(placement)
+    }
 }
 
 /// Exact semantic and physical source of one attached-Unit scalar argument.

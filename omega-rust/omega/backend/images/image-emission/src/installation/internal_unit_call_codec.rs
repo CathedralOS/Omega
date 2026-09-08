@@ -1,11 +1,11 @@
-//! Canonical format-80 codec for one installed internal Unit-call row.
+//! Canonical codec for one installed internal Unit-call row.
 //!
 //! Call ordering, stack composition, and custody validation remain in the
 //! installation parent. This child owns only the exact call-row bytes.
 
 use machine_code::{
     InternalStructuralCallResult, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
-    InternalUnitScalarCallArgumentRecord,
+    InternalUnitScalarCallArgumentRecord, InternalUnitStructuralArgumentSourceRecord,
 };
 use semantic_vocabulary::{ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use target_operations::CallSiteOwner;
@@ -34,6 +34,42 @@ pub(super) fn encode_internal_unit_calls(
         encode_internal_unit_call(bytes, call)?;
     }
     Ok(())
+}
+
+fn encode_structural_source(
+    bytes: &mut Vec<u8>,
+    source: &InternalUnitStructuralArgumentSourceRecord,
+) -> Result<(), InstallationError> {
+    match source {
+        InternalUnitStructuralArgumentSourceRecord::Placement(placement) => {
+            bytes.push(0);
+            encode_direct_placement(bytes, placement)?;
+        }
+        InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { psi_operation } => {
+            bytes.push(1);
+            push_u64(bytes, psi_operation.get());
+        }
+    }
+    Ok(())
+}
+
+fn decode_structural_source(
+    reader: &mut Reader<'_>,
+) -> Result<InternalUnitStructuralArgumentSourceRecord, InstallationError> {
+    match reader.u8()? {
+        0 => Ok(InternalUnitStructuralArgumentSourceRecord::Placement(
+            decode_direct_placement(reader)?,
+        )),
+        1 => Ok(
+            InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+                psi_operation: OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            },
+        ),
+        tag => Err(InstallationError::InvalidInternalUnitStructuralSourceTag(
+            tag,
+        )),
+    }
 }
 
 fn encode_internal_unit_call(
@@ -176,7 +212,7 @@ fn encode_internal_unit_call(
                 ));
             }
         }
-        encode_direct_placement(bytes, &argument.source)?;
+        encode_structural_source(bytes, &argument.source)?;
         encode_direct_placement(bytes, &argument.destination)?;
         push_u64(
             bytes,
@@ -482,7 +518,7 @@ fn decode_internal_unit_call(
         } else {
             (None, None)
         };
-        let source = decode_direct_placement(reader)?;
+        let source = decode_structural_source(reader)?;
         let destination = decode_direct_placement(reader)?;
         let code_offset = usize::try_from(reader.u64()?)
             .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
@@ -711,6 +747,45 @@ fn decode_structural_result(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn structural_sources_keep_established_producers_distinct_from_abi_placements() {
+        let established = InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+            psi_operation: OperationId::new(0x0102_0304_0506_0708).unwrap(),
+        };
+        let mut bytes = Vec::new();
+        encode_structural_source(&mut bytes, &established).unwrap();
+        assert_eq!(bytes, [1, 8, 7, 6, 5, 4, 3, 2, 1]);
+        for source in [
+            established,
+            calling_conventions::ValuePlacement {
+                shape: calling_conventions::ValueShape::borrowed_reference(16, 8),
+                locations: vec![calling_conventions::ValueLocation::Register {
+                    register: calling_conventions::MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                }],
+            }
+            .into(),
+        ] {
+            let mut bytes = Vec::new();
+            encode_structural_source(&mut bytes, &source).unwrap();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_structural_source(&mut reader).unwrap(), source);
+            assert_eq!(reader.remaining(), 0);
+            for length in 0..bytes.len() {
+                assert!(decode_structural_source(&mut Reader::new(&bytes[..length])).is_err());
+            }
+        }
+        assert_eq!(
+            decode_structural_source(&mut Reader::new(&[1, 0, 0, 0, 0, 0, 0, 0, 0])),
+            Err(InstallationError::ZeroInternalUnitCallIdentity),
+        );
+        assert_eq!(
+            decode_structural_source(&mut Reader::new(&[2])),
+            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(2)),
+        );
+    }
 
     fn affine_result() -> InternalStructuralCallResult {
         let structural_type = StructuralTypeId::new(7).unwrap();

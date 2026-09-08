@@ -197,7 +197,7 @@ pub(super) fn call_is_exact(
             || argument.fixed_array_length.is_some()
             || argument.element_stride.is_some()
             || argument.source_location != home.location
-            || argument.source != home.source
+            || argument.source.placement() != Some(&home.source)
             || argument.destination != destination.source
             || argument.call_stack_bytes != stack.active_frame_bytes
             || argument.byte_count == 0

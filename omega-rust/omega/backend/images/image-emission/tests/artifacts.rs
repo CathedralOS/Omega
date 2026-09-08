@@ -2343,10 +2343,9 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
-    // This fixture contains no borrowed-pointer rows. Its format-88 payload
-    // differs from format 87 only in the marker. The predecessor golden was
-    // reproduced at base 0736c2d70a; the former checked-in expectation was stale
-    // from format 83. Reconstruct framing independently of the production helper.
+    // This fixture contains no structural call arguments. Its format-89 payload
+    // differs from format 88 only in the marker. Reconstruct framing independently
+    // of the production helper and pin both versions.
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -2356,24 +2355,24 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         format!("{:x}", digest.finalize())
     };
     let mut predecessor_payload = bytes.clone();
-    predecessor_payload[8..10].copy_from_slice(&87_u16.to_le_bytes());
+    predecessor_payload[8..10].copy_from_slice(&88_u16.to_le_bytes());
     assert_eq!(
         independent_fingerprint(&predecessor_payload),
-        "a61e3cef0395823c258158d97a2ab819b8e34caa4212a189c5655e374f58ffa4"
+        "a82feb82c212d16a57d20aa2e79dac02ca5341af96fab21028f2bba11123ee59"
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
-        Err(InstallationError::UnsupportedFormatMarker(87))
+        Err(InstallationError::UnsupportedFormatMarker(88))
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "a82feb82c212d16a57d20aa2e79dac02ca5341af96fab21028f2bba11123ee59"
+        "a2d123016bce5e646d0fdac679f5ccd53cd3c09afbfe0d26e326260a36972a4a"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "a82feb82c212d16a57d20aa2e79dac02ca5341af96fab21028f2bba11123ee59"
+        "a2d123016bce5e646d0fdac679f5ccd53cd3c09afbfe0d26e326260a36972a4a"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a

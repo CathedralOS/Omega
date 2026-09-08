@@ -159,11 +159,6 @@ pub(in crate::function_fragments) fn validate_function(
             let LegalizedScalarArgument::Structural { target, .. } = expected else {
                 return Err(invalid());
             };
-            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
-                &target.source
-            else {
-                return Err(invalid());
-            };
             if target.access == terminal_psi::StructuralAccess::Owned {
                 validate_copy(selected, fragment, contract.operation, target.place, actual)?;
             } else if actual.code_offset != host(call_span.offset)?
@@ -174,18 +169,40 @@ pub(in crate::function_fragments) fn validate_function(
                 // prefix. Retained physical replay owns the pointer preparation.
                 return Err(invalid());
             }
-            let mut roots = parameters
-                .iter()
-                .filter(|parameter| parameter.target.place == target.place);
-            let root = roots.next().ok_or_else(invalid)?;
-            if roots.next().is_some() {
-                return Err(invalid());
+            match (&target.source, &actual.source) {
+                (
+                    target_operations::TargetStructuralArgumentSource::Placement(placement),
+                    InternalUnitStructuralArgumentSourceRecord::Placement(actual_placement),
+                ) if placement == actual_placement => {
+                    let mut roots = parameters
+                        .iter()
+                        .filter(|parameter| parameter.target.place == target.place);
+                    let root = roots.next().ok_or_else(invalid)?;
+                    if roots.next().is_some() {
+                        return Err(invalid());
+                    }
+                    validate_incoming_location(
+                        root.target.access,
+                        &root.target.placement,
+                        actual.source_location,
+                    )?;
+                }
+                (
+                    target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                        psi_operation,
+                    },
+                    InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+                        psi_operation: actual_operation,
+                    },
+                ) if psi_operation == actual_operation => {
+                    if actual.source_location
+                        != established_views::location(source, selected, target, *psi_operation)?
+                    {
+                        return Err(invalid());
+                    }
+                }
+                _ => return Err(invalid()),
             }
-            validate_incoming_location(
-                root.target.access,
-                &root.target.placement,
-                actual.source_location,
-            )?;
             if actual.place != target.place
                 || actual.access != target.access
                 || actual.path != target.path
@@ -196,7 +213,6 @@ pub(in crate::function_fragments) fn validate_function(
                 || actual.call_stack_bytes != frame_bytes
                 || actual.fixed_array_length != target.fixed_array_length
                 || actual.element_stride != target.element_stride
-                || actual.source != *placement
                 || actual.destination != target.destination
             {
                 return Err(invalid());
