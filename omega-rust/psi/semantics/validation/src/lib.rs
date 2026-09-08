@@ -1223,7 +1223,13 @@ fn validate_state_statement_node(
                 exact_integer_casts,
             );
             if let Some(written) = direct_written {
-                value_env.invalidate_written_paths(&written);
+                value_env.invalidate_assignment_paths(
+                    program,
+                    machine,
+                    current_state,
+                    assignment.target,
+                    &written,
+                );
             } else {
                 value_env.clear();
             }

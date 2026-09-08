@@ -49,6 +49,11 @@ const PROOF_BUNDLE_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/verification/proof_bundle.rs");
 const RECONSTRUCTION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/verification/reconstruction.rs");
+const PATH_FACTS_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/verification/reconstruction/path_facts.rs");
+const DISCRETE_PATH_FACTS_SOURCE: &[u8] = include_bytes!(
+    "../../terminal-verifier/src/verification/reconstruction/path_facts/discrete.rs"
+);
 const SUBSTITUTION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/verification/substitution.rs");
 const PROOF_ADMISSION_LIB_SOURCE: &[u8] = include_bytes!("../../proof-admission/src/lib.rs");

@@ -4,8 +4,9 @@ use super::{
     BYTE_FIELD_ACCESS_VALIDATION_SOURCE, BYTE_FIELD_FRESHNESS_SOURCE,
     BYTE_FIELD_STORE_VALIDATION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
     BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
-    BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE, LITERAL_FOUNDATION_SOURCE,
-    MACHINE_WIRE_SOURCE, PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+    BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE, DISCRETE_PATH_FACTS_SOURCE,
+    LITERAL_FOUNDATION_SOURCE, MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE,
+    PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
     PROOF_CODEC_VALIDATION_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
@@ -431,6 +432,14 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 ),
             };
             let mut exact_sources = vec![
+                (
+                    "terminal-verifier/verification/reconstruction/path_facts.rs",
+                    PATH_FACTS_SOURCE,
+                ),
+                (
+                    "terminal-verifier/verification/reconstruction/path_facts/discrete.rs",
+                    DISCRETE_PATH_FACTS_SOURCE,
+                ),
                 (
                     "terminal-verifier/validation.rs",
                     VERIFIER_VALIDATION_SOURCE,

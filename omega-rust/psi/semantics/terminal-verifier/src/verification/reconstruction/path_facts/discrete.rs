@@ -1,6 +1,39 @@
 //! Exact consequences of a branch predicate over a fixed discrete carrier.
 
-use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm};
+use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm, ScalarType};
+
+/// A strict relation between two fixed-carrier values excludes each outer
+/// endpoint. This is a current branch consequence, not an entry invariant.
+pub(super) fn strict_carrier_bounds(proposition: &Proposition) -> Option<[Proposition; 2]> {
+    let Proposition::LessThan(left, right) = proposition else {
+        return None;
+    };
+    let (
+        ScalarTerm::Value {
+            scalar_type: ScalarType::Integer(left_type),
+            ..
+        },
+        ScalarTerm::Value {
+            scalar_type: ScalarType::Integer(right_type),
+            ..
+        },
+    ) = (left, right)
+    else {
+        return None;
+    };
+    if left_type != right_type
+        || left_type.carrier() != IntegerCarrier::Fixed
+        || left_type.is_address()
+    {
+        return None;
+    }
+    let minimum = ScalarTerm::integer(*left_type, left_type.minimum_value()).ok()?;
+    let maximum = ScalarTerm::integer(*left_type, left_type.maximum_value()).ok()?;
+    Some([
+        Proposition::LessOrEqual(left.clone(), adjacent(&maximum, false)?),
+        Proposition::LessOrEqual(adjacent(&minimum, true)?, right.clone()),
+    ])
+}
 
 pub(super) fn strict_bound(proposition: &Proposition) -> Option<Proposition> {
     let Proposition::LessThan(left, right) = proposition else {

@@ -32,7 +32,9 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || !(persistent_receiver(module, parameter)
-                        || (parameter.access == StructuralAccess::SharedBorrow
+                        || ((parameter.access == StructuralAccess::SharedBorrow
+                            || (parameter.access == StructuralAccess::MutableBorrow
+                                && machine.result == TerminalMachineResult::Unit))
                             && module.structural_types.iter().any(|declaration| {
                                 declaration.id == parameter.structural_type
                                     && matches!(
@@ -194,6 +196,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     operation.result.scalar().is_some()
                 }
                 OperationKind::StructuralScalarFieldStore { .. }
+                | OperationKind::ByteSequenceWrite { .. }
                 | OperationKind::StructuralByteSequenceFieldStore { .. }
                 | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. } => {

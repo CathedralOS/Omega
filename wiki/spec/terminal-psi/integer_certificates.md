@@ -38,6 +38,13 @@ consequences, not arithmetic search or alternative operation goals. They obey
 successor substitution and all-path premise availability. Integer complement
 laws do not apply to IEEE comparisons.
 
+A strict branch order `left < right` between fixed-integer SSA values of the
+same carrier also excludes its endpoints: `left <= MAX - 1` and
+`MIN + 1 <= right`. The verifier derives these consequences from the selected
+predicate and declared carrier, with checked endpoint arithmetic. They supply
+neither a relation for another value nor a fact on a different arrival. Existing
+endpoint certificates can then prove a one-step increment or decrement safe.
+
 ## Elementary certificate rules
 
 Every child proof is checked independently. Typed identities and unchanged

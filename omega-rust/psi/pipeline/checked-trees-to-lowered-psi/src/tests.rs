@@ -32,6 +32,7 @@ mod attached_unit_cases;
 mod boundary_byte_buffers;
 mod byte_extent;
 mod byte_sequence_write;
+mod byte_write_loop;
 mod composed_operand_catalogs;
 mod composed_unit_claims;
 mod composed_unit_internal_calls;

@@ -3,6 +3,7 @@ use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
 mod bitwise_integer_bounds;
 mod byte_subslice_arguments;
+mod byte_write_bounds;
 mod call_computations;
 mod call_result_relations;
 mod exact_cancellation;
