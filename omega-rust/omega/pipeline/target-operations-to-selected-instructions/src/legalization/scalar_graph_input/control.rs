@@ -15,6 +15,11 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Unit,
         ) if cleanup_actions.is_empty()
+            || (super::read_byte::cleanup(function, cleanup_actions)
+                && node.ownership
+                    == [optimization_unit::OwnershipEvent::Cleanup(
+                        cleanup_actions.clone(),
+                    )])
             || (ranked
                 && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(

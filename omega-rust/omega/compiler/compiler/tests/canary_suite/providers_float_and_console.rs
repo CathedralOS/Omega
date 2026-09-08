@@ -2469,6 +2469,34 @@ fn runtime_console_byte_read_return_catalog_replays_both_linux_targets() {
         let artifact = compilation
             .retained_native_artifact()
             .expect("read-byte compilation retains native artifact");
+        artifact
+            .validate()
+            .expect("read-byte artifact independently replays");
+        let read_results = artifact
+            .object()
+            .boundary_settlements()
+            .iter()
+            .filter_map(|row| row.settlement.native_result.structural())
+            .collect::<Vec<_>>();
+        assert_eq!(read_results.len(), 1);
+        let result = read_results[0];
+        assert_eq!(
+            result.layout.shape,
+            calling_conventions::ValueShape::integer(8, 4)
+        );
+        assert!(result.home_byte_offset.is_multiple_of(4));
+        let cleanup = artifact
+            .object()
+            .functions()
+            .iter()
+            .find_map(|function| function.unit_affine_cleanup.as_ref())
+            .expect("owned byte result retains its final cleanup");
+        assert_eq!(
+            cleanup.actions,
+            [terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                result.result.place
+            )]
+        );
         assert!(artifact.image().boundary_settlements().iter().any(|row| {
             row.settlement.execution
                 == native_realization::BoundaryExecutionRecord::CompilerBuiltin(

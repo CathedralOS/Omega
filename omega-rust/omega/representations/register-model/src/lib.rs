@@ -199,6 +199,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub address_offset: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
+    pub hosted_read_byte: Option<RegisterConstraintKey>,
     pub hosted_write_byte_i32: Option<RegisterConstraintKey>,
     pub hosted_exit_process_i32: Option<RegisterConstraintKey>,
     /// Target-owned resultless call keys indexed by argument count, including zero.
@@ -1626,6 +1627,7 @@ mod tests {
             address_offset: Some(instruction_key(35)),
             store64: Some(instruction_key(31)),
             frame_address: Some(instruction_key(32)),
+            hosted_read_byte: None,
             hosted_write_byte_i32: None,
             hosted_exit_process_i32: None,
             call_unit: vec![RegisterConstraintKey {
@@ -1703,6 +1705,10 @@ mod tests {
         }
 
         for changed_keys in [
+            TargetRegisterEnvironmentConstraintKeys {
+                hosted_read_byte: Some(keys.materialize_i64),
+                ..keys.clone()
+            },
             TargetRegisterEnvironmentConstraintKeys {
                 store: None,
                 ..keys.clone()

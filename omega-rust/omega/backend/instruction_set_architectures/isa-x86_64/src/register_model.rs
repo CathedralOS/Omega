@@ -43,6 +43,11 @@ pub const X86_64_HOSTED_EXIT_PROCESS_I32: RegisterConstraintKey = RegisterConstr
     variant: 715,
 };
 
+pub const X86_64_HOSTED_READ_BYTE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 717,
+};
+
 pub const X86_64_HOSTED_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 704,
@@ -290,7 +295,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 55] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 56] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -412,6 +417,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 55] = [
     X86_64_BITS_TO_FLOAT64,
     X86_64_LOAD32,
     X86_64_HOSTED_EXIT_PROCESS_I32,
+    X86_64_HOSTED_READ_BYTE,
 ];
 
 struct ModelBuilder {
@@ -1096,6 +1102,28 @@ pub fn x86_64_register_constraint_catalog(
         id: RegisterConstraintId(0),
         key: X86_64_HOSTED_WRITE_BYTE_I32,
         operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+        implicit_uses: {
+            let mut units = view("rsp").units.clone();
+            units.extend(view("rip").units.iter().copied());
+            units.sort_unstable();
+            units.dedup();
+            units
+        },
+        implicit_defs: Vec::new(),
+        clobbers: {
+            let mut units = Vec::new();
+            for name in ["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"] {
+                units.extend(view(name).units.iter().copied());
+            }
+            units.sort_unstable();
+            units.dedup();
+            units
+        },
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_HOSTED_READ_BYTE,
+        operands: Vec::new(),
         implicit_uses: {
             let mut units = view("rsp").units.clone();
             units.extend(view("rip").units.iter().copied());

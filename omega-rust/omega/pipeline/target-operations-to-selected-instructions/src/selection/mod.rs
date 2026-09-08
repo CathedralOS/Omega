@@ -9,6 +9,7 @@ mod established_view_input;
 mod identity;
 mod literal_storage_input;
 mod model;
+mod read_result_input;
 mod scalar_call_abi;
 mod shared;
 mod validation;

@@ -77,6 +77,78 @@ fn fixture() -> (
 }
 
 #[test]
+fn read_byte_result_requires_structural_identity_and_exact_eight_byte_home() {
+    let (mut function, mut frame, mut instruction) = fixture();
+    let slot = function.local_storage_slots[0].id;
+    function.local_storage_slots[0].byte_size = 8;
+    function.local_storage_slots[0].alignment = 4;
+    frame.functions[0].local_storage_slots[0].size_bytes = 8;
+    frame.functions[0].local_storage_slots[0].alignment_bytes = 4;
+    instruction.address = Some(Address::HostedReadByte { slot });
+    let resolved = resolve(&function, Some(&frame), &instruction)
+        .unwrap()
+        .unwrap();
+    validate_address(&function, Some(&frame), &instruction, Some(resolved)).unwrap();
+    for mutation in 0..8 {
+        let mut changed_function = function.clone();
+        let mut changed_frame = frame.clone();
+        let mut changed_instruction = instruction.clone();
+        let mut candidate = resolved;
+        match mutation {
+            0 => candidate.displacement = 4,
+            1 => {
+                let wrong_slot = LocalStorageSlotId::Boundary {
+                    operation: OperationId::new(3).unwrap(),
+                };
+                changed_function.local_storage_slots[0].id = wrong_slot;
+                changed_frame.functions[0].local_storage_slots[0].id = wrong_slot;
+                changed_instruction.address = Some(Address::HostedReadByte { slot: wrong_slot });
+                candidate.symbolic = changed_instruction.address.unwrap();
+            }
+            2 => {
+                changed_function.local_storage_slots[0].byte_size = 4;
+                changed_frame.functions[0].local_storage_slots[0].size_bytes = 4;
+            }
+            3 => {
+                changed_function.local_storage_slots[0].alignment = 8;
+                changed_frame.functions[0].local_storage_slots[0].alignment_bytes = 8;
+            }
+            4 => changed_frame.functions[0].frame_size_bytes = 7,
+            5 => changed_frame.functions[0].local_storage_slots[0].frame_offset_bytes = 1,
+            6 => changed_function
+                .local_storage_slots
+                .push(function.local_storage_slots[0].clone()),
+            _ => {
+                changed_frame.functions[0].local_storage_slots[0].id =
+                    LocalStorageSlotId::Structural {
+                        operation: OperationId::new(3).unwrap(),
+                        place: PlaceId::new(7).unwrap(),
+                    }
+            }
+        }
+        if mutation != 0 {
+            assert!(
+                resolve(
+                    &changed_function,
+                    Some(&changed_frame),
+                    &changed_instruction
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            validate_address(
+                &changed_function,
+                Some(&changed_frame),
+                &changed_instruction,
+                Some(candidate)
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn incoming_pointer_slots_bind_entry_bias_frame_size_and_parameter_identity() {
     let (function, mut frame, mut instruction) = fixture();
     let slot = FrameStorageSlotId::Incoming {

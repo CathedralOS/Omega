@@ -29,6 +29,9 @@ pub struct PostAllocationMachineInstruction {
 /// Address semantics remain symbolic until a validated frame is supplied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalAddressOperation {
+    HostedReadByte {
+        slot: selected_instructions::LocalStorageSlotId,
+    },
     HostedWriteByteI32 {
         slot: selected_instructions::LocalStorageSlotId,
     },

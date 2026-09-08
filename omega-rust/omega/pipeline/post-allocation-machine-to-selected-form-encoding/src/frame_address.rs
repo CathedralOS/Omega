@@ -212,6 +212,31 @@ pub(super) fn resolve(
             }
             u32::try_from(start).map_err(|_| Error::ArtifactMismatch)?
         }
+        Address::HostedReadByte { slot } => {
+            if !matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Structural { .. }
+            ) {
+                return Err(Error::ArtifactMismatch);
+            }
+            let geometry = function_geometry(function, frame)?;
+            let (start, size, limit, _) =
+                slot_region(function, geometry, FrameStorageSlotId::Local(slot))?;
+            let source = function
+                .local_storage_slots
+                .iter()
+                .find(|entry| entry.id == slot)
+                .ok_or(Error::ArtifactMismatch)?;
+            if size != 8
+                || source.alignment != 4
+                || !start.is_multiple_of(4)
+                || start.checked_add(8).is_none_or(|end| end > limit)
+                || start > i32::MAX as u64
+            {
+                return Err(Error::ArtifactMismatch);
+            }
+            u32::try_from(start).map_err(|_| Error::ArtifactMismatch)?
+        }
         Address::Load8Indexed { .. } => 0,
         Address::Load64 { byte_offset, .. }
         | Address::Load32 { byte_offset, .. }
@@ -323,6 +348,33 @@ pub(super) fn validate_address(
                 || size != 1
                 || source.alignment != 1
                 || offset.checked_add(1).is_none_or(|end| end > limit)
+                || offset > i32::MAX as u64
+            {
+                return Err(Error::ArtifactMismatch);
+            }
+            Ok(())
+        }
+        Address::HostedReadByte { slot } => {
+            if !matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Structural { .. }
+            ) {
+                return Err(Error::ArtifactMismatch);
+            }
+            let geometry = function_geometry(function, frame)?;
+            let (start, size, limit, _) =
+                slot_region(function, geometry, FrameStorageSlotId::Local(slot))?;
+            let source = function
+                .local_storage_slots
+                .iter()
+                .find(|entry| entry.id == slot)
+                .ok_or(Error::ArtifactMismatch)?;
+            let offset = u64::from(candidate.displacement);
+            if offset != start
+                || size != 8
+                || source.alignment != 4
+                || !offset.is_multiple_of(4)
+                || offset.checked_add(8).is_none_or(|end| end > limit)
                 || offset > i32::MAX as u64
             {
                 return Err(Error::ArtifactMismatch);

@@ -19,6 +19,7 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
 
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        hosted_read_byte: Some(instruction(33)),
         hosted_write_byte_i32: Some(instruction(24)),
         hosted_exit_process_i32: Some(instruction(32)),
         load64: Some(instruction(20)),

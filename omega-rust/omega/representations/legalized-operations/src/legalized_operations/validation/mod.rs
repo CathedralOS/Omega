@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Representation-owned validation for retained legalized-operation values.
 mod call_source;
+mod read_byte;
 mod scalar_calls;
 use crate::{LegalizedCallSourceError, LegalizedScalarCall};
 use optimization_unit::OwnershipEvent;

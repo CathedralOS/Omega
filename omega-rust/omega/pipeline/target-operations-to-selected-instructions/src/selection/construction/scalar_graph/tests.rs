@@ -1,6 +1,7 @@
 //! Projection controls over raw graph data; no source-admission receipt is invented.
 use super::*;
 mod borrowed_calls;
+mod byte_input;
 mod byte_output;
 mod byte_views;
 mod control;

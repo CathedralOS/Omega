@@ -52,13 +52,14 @@ pub enum MachineSemanticKind {
     FrameAddress,
     CallUnit,
     ByteViewAddress,
+    HostedReadByte,
     HostedWriteByteI32,
     Store,
     AddressOffset,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 32] = [
+    pub const ALL: [Self; 33] = [
         Self::HostedExitProcessI32,
         Self::Load32,
         Self::Float32ToBits,
@@ -88,6 +89,7 @@ impl MachineSemanticKind {
         Self::FrameAddress,
         Self::CallUnit,
         Self::ByteViewAddress,
+        Self::HostedReadByte,
         Self::HostedWriteByteI32,
         Self::Store,
         Self::AddressOffset,
@@ -125,6 +127,7 @@ pub enum MachineAlternativeFamily {
     FrameAddress,
     CallUnit,
     ByteViewAddress,
+    HostedReadByte,
     HostedWriteByteI32,
     Store,
     AddressOffset,
@@ -139,6 +142,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::Float64ToBits => Self::Float64ToBits,
             MachineSemanticKind::BitsToFloat32 => Self::BitsToFloat32,
             MachineSemanticKind::BitsToFloat64 => Self::BitsToFloat64,
+            MachineSemanticKind::HostedReadByte => Self::HostedReadByte,
             MachineSemanticKind::HostedWriteByteI32 => Self::HostedWriteByteI32,
             MachineSemanticKind::Store => Self::Store,
             MachineSemanticKind::AddressOffset => Self::AddressOffset,
@@ -208,6 +212,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Initialize an eight-byte structural home and read stdin into its i32 payload.
+    HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
     HostedWriteByteV1,
     WritePointerV1,
@@ -219,6 +225,7 @@ pub enum MachineMemoryEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineTrapBehavior {
     HostedExitReturnedV1,
+    HostedReadFailureV1,
     HostedWriteFailureV1,
     NeverV1,
     MayArchitecturalFaultV1,
@@ -298,6 +305,10 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Zero eight frame bytes, read stdin into payload at offset four, and set the tag at zero.
+    HostedReadByteV1 {
+        stack_pointer: RegisterViewId,
+    },
     /// Write one frame byte, then let the selected host kernel read it for stdout.
     HostedWriteByteV1 {
         stack_pointer: RegisterViewId,
@@ -346,6 +357,8 @@ pub enum MachineEncodedStackEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedTrapBehavior {
     HostedExitReturnedV1,
+    /// Architectural faults remain possible; syscall results other than zero or one trap.
+    HostedReadFailureV1,
     /// Architectural faults remain possible; a nonpositive syscall result traps.
     HostedWriteFailureV1,
     NeverV1,
@@ -355,6 +368,7 @@ pub enum MachineEncodedTrapBehavior {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedControlEffect {
     HostedExitOrTrapV1,
+    HostedReadReturnOrTrapV1,
     HostedWriteReturnOrTrapV1,
     FallThroughV1,
     ConditionalRelativeBranchV1,

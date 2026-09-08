@@ -12,7 +12,7 @@ mod register_model;
 pub use register_model::AARCH64_LOAD32;
 pub use register_model::{
     AARCH64_BITS_TO_FLOAT32, AARCH64_BITS_TO_FLOAT64, AARCH64_FLOAT32_TO_BITS,
-    AARCH64_FLOAT64_TO_BITS,
+    AARCH64_FLOAT64_TO_BITS, AARCH64_HOSTED_READ_BYTE,
 };
 pub use register_model::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
@@ -56,6 +56,10 @@ pub use register_model::{
 };
 pub use register_model::{
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
+};
+pub use selected_form_encoding::hosted_read_byte::{
+    decode_aarch64_selected_hosted_read_byte, encode_aarch64_selected_hosted_read_byte_form,
+    validate_aarch64_selected_hosted_read_byte_form,
 };
 pub use selected_form_encoding::hosted_write_byte::decode_aarch64_selected_hosted_write_byte_i32;
 pub use selected_form_encoding::{

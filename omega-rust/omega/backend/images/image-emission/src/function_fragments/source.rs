@@ -228,12 +228,16 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::LegalizedCallUnitSource::InstalledProvider { .. })),
                 AbstractOperation::Return {
                     cleanup_actions, ..
-                }
-                | AbstractOperation::ReturnUnit {
-                    cleanup_actions, ..
                 } => match ranked {
                     Some(ranked) => cleanup_actions == &ranked.cleanup_actions,
                     None => cleanup_actions.is_empty(),
+                },
+                AbstractOperation::ReturnUnit {
+                    cleanup_actions, ..
+                } => match ranked {
+                    Some(ranked) => cleanup_actions == &ranked.cleanup_actions,
+                    None => cleanup_actions.is_empty()
+                        || super::structural::read_result_cleanup_actions_match(abstracted, selected, cleanup_actions),
                 },
                 AbstractOperation::IntegerEqual { .. }
                 | AbstractOperation::IntegerLessThan { .. }

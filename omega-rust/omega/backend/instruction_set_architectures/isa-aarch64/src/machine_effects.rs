@@ -64,6 +64,11 @@ pub fn aarch64_machine_effect_catalog(
                         Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch
                     });
                 }
+                if semantic == MachineSemanticKind::HostedReadByte {
+                    return Ok(
+                        crate::selected_form_encoding::hosted_read_byte::declaration(constraint),
+                    );
+                }
                 if semantic == MachineSemanticKind::HostedWriteByteI32 {
                     return Ok(
                         crate::selected_form_encoding::hosted_write_byte::declaration(
@@ -123,6 +128,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        hosted_read_byte: (target == NativeTarget::linux_arm64())
+            .then_some(crate::AARCH64_HOSTED_READ_BYTE),
         hosted_exit_process_i32: if target == NativeTarget::linux_arm64() {
             Some(crate::AARCH64_HOSTED_EXIT_PROCESS_I32)
         } else if target == NativeTarget::macos_arm64() {
@@ -286,6 +293,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::Store => (vec![0, 1], vec![]),
         MachineSemanticKind::FrameAddress => (vec![], vec![0]),
         MachineSemanticKind::HostedExitProcessI32
+        | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
@@ -402,6 +410,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             maximum_bytes: Some(16),
         },
         MachineSemanticKind::HostedExitProcessI32
+        | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")

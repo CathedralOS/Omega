@@ -20,6 +20,7 @@ pub(super) use custody::validate_unit_custody;
 mod byte_views;
 mod header;
 mod hosted_scalar;
+pub(super) mod read_byte;
 pub(super) use hosted_scalar::hosted_execution;
 mod literals;
 mod ranked;
@@ -44,7 +45,9 @@ pub(super) fn structural_contract(
     plan: &AbstractOperationPlan,
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
     if let Some(parameters) = structural_parameters(target).or_else(|| {
-        (!optimized.structural_places.is_empty() && literals::roster(optimized)).then_some(&[][..])
+        (!optimized.structural_places.is_empty()
+            && (literals::roster(optimized) || read_byte::roster(optimized)))
+        .then_some(&[][..])
     }) {
         return Some(legalized_operations::LegalizedStructuralContract {
             structural_types: plan.structural_types.clone(),

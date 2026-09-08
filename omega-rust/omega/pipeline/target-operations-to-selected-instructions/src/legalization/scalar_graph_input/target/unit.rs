@@ -157,6 +157,15 @@ pub(super) fn validate_operation(
         }
         (
             TargetUnitOperation::BoundarySettlement { .. },
+            AbstractOperation::BoundaryCall {
+                result: abstract_operations::AbstractBoundaryResult::Structural(_),
+                ..
+            },
+        ) => {
+            super::super::read_byte::validate(target, abstracted, native.target, plan, unit)?;
+        }
+        (
+            TargetUnitOperation::BoundarySettlement { .. },
             AbstractOperation::BoundaryCall { .. },
         ) => {
             super::hosted_scalar::validate(target, abstracted, native.target, plan, unit, sources)?;
@@ -410,7 +419,9 @@ pub(super) fn validate_operation(
                 psi_edge: edge,
                 cleanup_actions: cleanup,
             },
-        ) if psi_edge == edge && cleanup_actions == cleanup && cleanup.is_empty() => {}
+        ) if psi_edge == edge
+            && cleanup_actions == cleanup
+            && (cleanup.is_empty() || super::super::read_byte::cleanup(optimized, cleanup)) => {}
         _ => return Err(invalid),
     }
     Ok(())

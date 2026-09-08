@@ -203,6 +203,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
         SelectedInstructionKind::HostedExitProcessI32 => 31,
+        SelectedInstructionKind::HostedReadByte { .. } => 32,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
@@ -237,7 +238,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
-        SelectedInstructionKind::HostedWriteByteI32 { slot } => {
+        SelectedInstructionKind::HostedWriteByteI32 { slot }
+        | SelectedInstructionKind::HostedReadByte { slot } => {
             contracts::frame_slot(
                 bytes,
                 selected_instructions::FrameStorageSlotId::Local(slot),

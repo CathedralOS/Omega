@@ -285,6 +285,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedExitProcessI32 => 31,
+        MachineAlternativeFamily::HostedReadByte => 32,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
@@ -343,6 +344,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(pointer_operand.to_le_bytes());
             hasher.update(index_operand.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
+            hasher.update([8]);
+            hasher.update(stack_pointer.0.to_le_bytes());
         }
         MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
             hasher.update([6]);
@@ -408,11 +413,13 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     hasher.update([match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
         MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
+        MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
         MachineEncodedControlEffect::HostedExitOrTrapV1 => hasher.update([7]),
+        MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => hasher.update([8]),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => hasher.update([1]),

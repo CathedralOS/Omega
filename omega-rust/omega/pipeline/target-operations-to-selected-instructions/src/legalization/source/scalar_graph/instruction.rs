@@ -12,6 +12,19 @@ pub(super) fn project(
     let kind = match &node.operation {
         AbstractOperation::BoundaryCall {
             boundary,
+            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            ..
+        } if scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
+            == target_operations::CompilerBuiltinExecution::LinuxReadByte =>
+        {
+            LegalizedScalarInstructionKind::HostedReadByte {
+                boundary: *boundary,
+                result: result.clone(),
+                layout: scalar_graph_input::read_byte::layout(result, plan)?,
+            }
+        }
+        AbstractOperation::BoundaryCall {
+            boundary,
             arguments,
             ..
         } => {

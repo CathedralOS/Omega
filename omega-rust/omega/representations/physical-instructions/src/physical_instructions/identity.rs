@@ -150,6 +150,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             bytes.extend_from_slice(&base_operand.to_le_bytes());
             bytes.extend_from_slice(&index_operand.to_le_bytes());
         }
+        Some(crate::PhysicalAddressOperation::HostedReadByte { slot }) => {
+            bytes.push(9);
+            slot.encode_identity(bytes);
+        }
         Some(crate::PhysicalAddressOperation::HostedWriteByteI32 { slot }) => {
             bytes.push(5);
             slot.encode_identity(bytes);
@@ -239,6 +243,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedExitProcessI32 => 31,
+        MachineAlternativeFamily::HostedReadByte => 32,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,
@@ -356,6 +361,10 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
+            bytes.push(8);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
             bytes.push(6);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
@@ -404,11 +413,13 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     bytes.push(match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
         MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
+        MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     match effects.control {
         MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.push(7),
+        MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => bytes.push(8),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.push(6),
         MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),

@@ -85,6 +85,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::Load32 { .. } => 30,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
+        SelectedInstructionKind::HostedReadByte { .. } => 32,
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
@@ -152,7 +153,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::HostedWriteByteI32 { slot } => slot.encode_identity(bytes),
+        SelectedInstructionKind::HostedWriteByteI32 { slot }
+        | SelectedInstructionKind::HostedReadByte { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::ExactAddI64 {
             obligation,
@@ -262,6 +264,9 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         29 => SelectedInstructionKind::BitsToFloat64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
+        32 => SelectedInstructionKind::HostedReadByte {
+            slot: super::structural::decode_local_slot(cursor)?,
+        },
         23 => SelectedInstructionKind::HostedWriteByteI32 {
             slot: super::structural::decode_local_slot(cursor)?,
         },
@@ -371,6 +376,12 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         argument_index: 1,
     };
     for kind in [
+        SelectedInstructionKind::HostedReadByte {
+            slot: selected_instructions::LocalStorageSlotId::Structural {
+                operation: slot.operation,
+                place: semantic_vocabulary::PlaceId::new(47).unwrap(),
+            },
+        },
         SelectedInstructionKind::FrameAddress {
             slot: selected_instructions::FrameStorageSlotId::Incoming {
                 parameter_index: 8,

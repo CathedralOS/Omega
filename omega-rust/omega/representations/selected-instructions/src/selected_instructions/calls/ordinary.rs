@@ -171,6 +171,12 @@ pub struct SelectedBoundarySettlement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedBoundarySettlementPayload {
+    HostedReadByte {
+        operation: OperationId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        result: terminal_psi::StructuralOperationResult,
+        layout: calling_conventions::ConventionalSumLayout,
+    },
     HostedExitProcessI32 {
         operation: OperationId,
         boundary: semantic_vocabulary::BoundaryMachineId,
@@ -188,7 +194,8 @@ impl SelectedBoundarySettlementPayload {
     pub fn operation(&self) -> OperationId {
         match self {
             Self::ClaimCompletion(settlement) => settlement.operation,
-            Self::HostedWriteByteI32 { operation, .. }
+            Self::HostedReadByte { operation, .. }
+            | Self::HostedWriteByteI32 { operation, .. }
             | Self::HostedExitProcessI32 { operation, .. } => *operation,
         }
     }
@@ -196,6 +203,17 @@ impl SelectedBoundarySettlementPayload {
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         match self {
+            Self::HostedReadByte {
+                operation,
+                boundary,
+                result,
+                layout,
+            } => {
+                bytes.push(3);
+                legalized_operations::encode_hosted_read_byte_identity(
+                    &mut bytes, *operation, *boundary, result, layout,
+                );
+            }
             Self::ClaimCompletion(settlement) => {
                 bytes.push(0);
                 bytes.extend_from_slice(&settlement.canonical_bytes());

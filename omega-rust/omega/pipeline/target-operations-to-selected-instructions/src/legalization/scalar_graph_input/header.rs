@@ -16,6 +16,8 @@ pub(super) fn function_abi(
         || !optimized.structural_parameters.is_empty()
         || !(super::literals::roster(optimized)
             || (abstracted.result == AbstractFunctionResult::Unit
+                && super::read_byte::roster(optimized))
+            || (abstracted.result == AbstractFunctionResult::Unit
                 && super::literals::provider_metadata_roster(optimized)))
         || !abstracted.entry_claims.is_empty()
         || !optimized.entry_claim_declarations.is_empty()

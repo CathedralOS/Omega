@@ -5,6 +5,7 @@ pub(in crate::function_fragments) fn validate_function(
     function: &ObjectFunction,
     rows: &[SemanticCodeAttribution],
 ) -> Result<(), Error> {
+    byte_input::validate_cleanup(source, function, rows)?;
     let invalid = || Error::Mismatch("structural object differs from current ABI or call evidence");
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
@@ -335,6 +336,7 @@ pub(in crate::function_fragments) fn validate_settlements(
                 &located.settlement
             else {
                 match located.settlement {
+                    selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte { .. } => byte_input::validate(source, placed.machine, located, actual)?,
                     selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. } => process_exit::validate(source, placed.machine, located, actual)?,
                     _ => byte_output::validate(source, placed.machine, located, actual)?,
                 }
@@ -424,6 +426,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
         let expected_byte_count = if matches!(
             located.settlement,
             selected_instructions::SelectedBoundarySettlementPayload::HostedWriteByteI32 { .. }
+                | selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte { .. }
                 | selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. }
         ) {
             let block = function

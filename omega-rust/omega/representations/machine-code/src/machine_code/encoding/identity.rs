@@ -67,6 +67,12 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
             match address.symbolic {
+                Address::HostedReadByte { slot } => {
+                    hasher.update([9]);
+                    let mut identity = Vec::new();
+                    slot.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
                 Address::HostedWriteByteI32 { slot } => {
                     hasher.update([5]);
                     let mut identity = Vec::new();
@@ -267,6 +273,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(index_operand.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }
+        Memory::HostedReadByteV1 { stack_pointer } => {
+            hasher.update([8]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+        }
         Memory::HostedWriteByteV1 { stack_pointer } => {
             hasher.update([6]);
             hasher.update(stack_pointer.0.to_le_bytes());
@@ -331,11 +341,13 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     hasher.update([match effects.trap {
         Trap::NeverV1 => 0,
         Trap::HostedExitReturnedV1 => 3,
+        Trap::HostedReadFailureV1 => 4,
         Trap::HostedWriteFailureV1 => 2,
         Trap::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
         Control::HostedExitOrTrapV1 => hasher.update([7]),
+        Control::HostedReadReturnOrTrapV1 => hasher.update([8]),
         Control::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         Control::FallThroughV1 => hasher.update([0]),
         Control::ConditionalRelativeBranchV1 => hasher.update([1]),
@@ -377,6 +389,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedExitProcessI32 => 31,
+        MachineAlternativeFamily::HostedReadByte => 32,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,

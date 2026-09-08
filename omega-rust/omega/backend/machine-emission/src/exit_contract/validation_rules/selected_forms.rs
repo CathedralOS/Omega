@@ -143,6 +143,9 @@ pub(in crate::exit_contract) fn validate_non_return(
     layout: &machine_code::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
+        SelectedInstructionKind::HostedReadByte { .. } => {
+            MachineEncodedControlEffect::HostedReadReturnOrTrapV1
+        }
         SelectedInstructionKind::HostedWriteByteI32 { .. } => {
             MachineEncodedControlEffect::HostedWriteReturnOrTrapV1
         }
@@ -205,6 +208,18 @@ pub(in crate::exit_contract) fn validate_non_return(
         ));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
+        (
+            SelectedInstructionKind::HostedReadByte { slot },
+            MachineEncodedMemoryEffect::HostedReadByteV1 { .. },
+            Some(address),
+        ) => {
+            matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Structural { .. }
+            ) && address.symbolic
+                == physical_instructions::PhysicalAddressOperation::HostedReadByte { slot }
+                && effects.trap == MachineEncodedTrapBehavior::HostedReadFailureV1
+        }
         (
             SelectedInstructionKind::HostedWriteByteI32 { slot },
             MachineEncodedMemoryEffect::HostedWriteByteV1 { .. },

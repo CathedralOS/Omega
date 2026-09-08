@@ -8,6 +8,7 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
+mod byte_input;
 mod byte_output;
 mod control;
 mod process_exit;
@@ -112,7 +113,9 @@ pub(in crate::selection) fn validate(
                 }
                 continue;
             }
-            if byte_output::validate(operation, &mut replay)? {
+            if byte_input::validate(operation, &mut replay)?
+                || byte_output::validate(operation, &mut replay)?
+            {
                 continue;
             }
             if zero_compare::folded_zero(source, source_block, operation_index + 1).is_some() {
@@ -326,6 +329,7 @@ pub(in crate::selection) fn validate(
                 }
                 LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                 | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
+                | LegalizedScalarInstructionKind::HostedReadByte { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)

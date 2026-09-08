@@ -21,6 +21,9 @@ pub enum SelectedInstructionKind {
     /// Consume the low signed-i32 carrier and terminate through the selected host.
     HostedExitProcessI32,
     /// Closed hosted write(1, &low_byte(input), 1), continuing only after success.
+    HostedReadByte {
+        slot: crate::LocalStorageSlotId,
+    },
     HostedWriteByteI32 {
         slot: super::LocalStorageSlotId,
     },

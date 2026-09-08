@@ -306,6 +306,56 @@ fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
 }
 
 #[test]
+fn linux_byte_input_codec_binds_structural_home_and_distinct_effects() {
+    let mut source = plan();
+    let row = &mut source.functions[0].blocks[0].instructions[0];
+    let slot = crate::LocalStorageSlotId::Structural {
+        place: semantic_vocabulary::PlaceId::new(311).unwrap(),
+        operation: OperationId::new(313).unwrap(),
+    };
+    row.kind = SelectedInstructionKind::HostedReadByte { slot };
+    row.memory = MachineMemoryEffect::HostedReadByteV1;
+    row.trap = MachineTrapBehavior::HostedReadFailureV1;
+    row.barrier = MachineBarrier::ExternalEffect;
+    row.alternatives.truncate(1);
+    let alternative = &mut row.alternatives[0];
+    alternative.key.family = MachineAlternativeFamily::HostedReadByte;
+    alternative.encoded.memory = MachineEncodedMemoryEffect::HostedReadByteV1 {
+        stack_pointer: register_model::RegisterViewId(7),
+    };
+    alternative.encoded.trap = MachineEncodedTrapBehavior::HostedReadFailureV1;
+    alternative.encoded.control = MachineEncodedControlEffect::HostedReadReturnOrTrapV1;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
+        source
+    );
+    for mutation in 0..5 {
+        let mut changed = source.clone();
+        let row = &mut changed.functions[0].blocks[0].instructions[0];
+        match mutation {
+            0 => {
+                row.kind = SelectedInstructionKind::HostedReadByte {
+                    slot: crate::LocalStorageSlotId::Structural {
+                        place: semantic_vocabulary::PlaceId::new(311).unwrap(),
+                        operation: OperationId::new(317).unwrap(),
+                    },
+                }
+            }
+            1 => row.memory = MachineMemoryEffect::NoneV1,
+            2 => row.trap = MachineTrapBehavior::NeverV1,
+            3 => row.kind = SelectedInstructionKind::HostedWriteByteI32 { slot },
+            _ => row.barrier = MachineBarrier::None,
+        }
+        assert_ne!(
+            pre_allocation_machine_effect_identity(&changed),
+            source.identity
+        );
+        assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+    }
+}
+
+#[test]
 fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
     let mut source = plan();
     let row = &mut source.functions[0].blocks[0].instructions[0];
