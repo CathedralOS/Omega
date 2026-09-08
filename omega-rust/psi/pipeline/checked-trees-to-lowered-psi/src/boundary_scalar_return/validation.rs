@@ -22,6 +22,7 @@ pub(crate) fn validate_boundary_scalar_return<'a>(
         plan.machine,
         plan.state,
         &plan.boundary_call,
+        &plan.structural_parameters,
     )?;
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
     let CheckedUnitEffectOperationPlan::BoundaryCall {

@@ -77,7 +77,81 @@ fn assert_stored_fields(
 
 #[test]
 fn boundary_byte_buffer_preserves_initialized_field() {
-    let (module, mut execution) = start(INPUT_SOURCE);
+    assert_sequential_input(INPUT_SOURCE);
+}
+
+#[test]
+fn boundary_byte_buffer_nested_source_preserves_initialized_field() {
+    let source = r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        boundary trait Input { machine read(out: &mut [u8]) reaches Input; }
+        data Cell { out: [u8; 3] in Utf8; other: [u8; 3] in Utf8; }
+        data Record { cells: [Cell; 2]; }
+        machine Record::run(&mut self) reaches Input {
+            self.cells[1].out = "old";
+            self.cells[1].other = "QQ";
+            Input::read(&mut self.cells[1].out);
+            Input::read(&mut self.cells[1].out);
+        }
+    "#;
+    assert_sequential_input(source);
+    assert_sequential_input(
+        &source
+            .replace("machine read(out:", "machine read(marker: i32, out:")
+            .replace("Input::read(&mut", "Input::read(7, &mut"),
+    );
+    assert_sequential_input(
+        &source
+            .replace("[Cell; 2]", "Cell")
+            .replace("cells[1]", "cells"),
+    );
+    for change_store in [false, true] {
+        let mut checked = checked_source(source);
+        let operation = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.operations)
+            .find(|operation| {
+                if change_store {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                    )
+                } else {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                    )
+                }
+            })
+            .unwrap();
+        let path = match operation {
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                &mut store.carrier_path
+            }
+            CheckedUnitEffectOperationPlan::BoundaryCall {
+                structural_arguments,
+                ..
+            } => &mut structural_arguments[0].path,
+            _ => unreachable!(),
+        };
+        let array_segment = path
+            .iter_mut()
+            .find(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_)))
+            .unwrap();
+        *array_segment = CheckedUnitStructuralPathSegment::FixedIndex(0);
+        assert!(
+            lower_machine(&checked, "Record::run").is_err(),
+            "a different valid array index does not match the source"
+        );
+    }
+}
+
+fn assert_sequential_input(source: &str) {
+    let (module, mut execution) = start(source);
     struct Input(usize);
     impl TerminalEffectHandler for Input {
         fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
@@ -137,6 +211,30 @@ fn boundary_byte_buffer_preserves_initialized_field() {
     assert_eq!(input.0, 2);
     assert_eq!(execution.effects().len(), 2);
     assert_stored_fields(&module, &execution, &[b"X", b"QQ"]);
+    for operation in module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+    {
+        if let OperationKind::StructuralByteSequenceFieldStore { path, field, .. } = &operation.kind
+        {
+            let mut sibling = path.clone();
+            if let Some(array_segment) = sibling.iter_mut().find(|segment| {
+                matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
+            }) {
+                assert_eq!(
+                    *array_segment,
+                    terminal_psi::StructuralPathSegment::FixedIndex(1)
+                );
+                *array_segment = terminal_psi::StructuralPathSegment::FixedIndex(0);
+                assert_eq!(
+                    execution.structural_byte_sequence_field(73, &sibling, *field),
+                    None
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -301,135 +399,6 @@ fn boundary_byte_buffers_keep_field_destinations_separate() {
             );
             assert_stored_fields(&module, &execution, &[&[255], b"", b"QQ"]);
             assert_eq!(execution.effects().len(), 1);
-        }
-    }
-}
-
-#[test]
-fn boundary_byte_buffer_terminal_nested_path_retains_original_owner() {
-    // Canonical Terminal execution coverage, not a claim that the source
-    // producer admits nested mutable boundary syntax. Wrap the produced record
-    // and rederive operation evidence for the new exact store paths.
-    let checked = checked_source(INPUT_SOURCE);
-    let mut lowered = lower_machine(&checked, "Record::run").unwrap();
-    let module = &mut lowered.semantic_module;
-    let record = module.machines[0].structural_parameters[0].structural_type;
-    let next_type = module
-        .structural_types
-        .iter()
-        .map(|declaration| declaration.id.get())
-        .max()
-        .unwrap()
-        + 1;
-    let array = structural_type_id(next_type);
-    let owner = structural_type_id(next_type + 1);
-    module.structural_types.extend([
-        terminal_psi::StructuralTypeDeclaration {
-            id: array,
-            identity: "RecordArray".into(),
-            shape: terminal_psi::StructuralTypeShape::FixedArray {
-                element: record,
-                length: 2,
-            },
-        },
-        terminal_psi::StructuralTypeDeclaration {
-            id: owner,
-            identity: "Owner".into(),
-            shape: terminal_psi::StructuralTypeShape::Record {
-                fields: vec![terminal_psi::StructuralFieldDeclaration {
-                    id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
-                    identity: "records".into(),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: terminal_psi::StructuralFieldType::Structural(array),
-                }],
-            },
-        },
-    ]);
-    let prefix = vec![
-        terminal_psi::StructuralPathSegment::Field("records".into()),
-        terminal_psi::StructuralPathSegment::FixedIndex(1),
-    ];
-    let machine = &mut module.machines[0];
-    machine.attachment = Some(owner);
-    machine.structural_parameters[0].structural_type = owner;
-    for operation in &mut machine.blocks[0].operations {
-        match &mut operation.kind {
-            OperationKind::StructuralByteSequenceFieldStore { path, .. } => {
-                path.splice(0..0, prefix.clone());
-            }
-            OperationKind::BoundaryCall {
-                structural_arguments,
-                ..
-            } => {
-                for argument in structural_arguments {
-                    argument.path.splice(0..0, prefix.clone());
-                }
-            }
-            _ => {}
-        }
-    }
-    lowered.proof_bundle.evidence.clear();
-    crate::operation_emission::finalize_operation_proofs(&mut lowered).unwrap();
-    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
-    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
-        &semantic,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-        &[],
-        &[TerminalStructuralValue {
-            opaque_identity: 73,
-            structural_type: owner,
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        }],
-    )
-    .unwrap();
-    struct Input;
-    impl TerminalEffectHandler for Input {
-        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-            panic!("writeback callback")
-        }
-        fn handle_effect_with_byte_buffers(
-            &mut self,
-            effect: &TerminalEffect,
-            buffers: &mut [TerminalBoundaryByteBuffer],
-        ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-            let TerminalEffect::BoundaryCall {
-                structural_arguments,
-                ..
-            } = effect
-            else {
-                panic!("boundary")
-            };
-            assert_eq!(structural_arguments[0].opaque_identity, 73);
-            assert_eq!(structural_arguments[0].path.len(), 3);
-            assert_eq!(
-                structural_arguments[0].path[1],
-                terminal_psi::StructuralPathSegment::FixedIndex(1)
-            );
-            buffers[0].replace(b"X")?;
-            Ok(TerminalEffectResult::Unit)
-        }
-    }
-    assert_eq!(
-        execution
-            .resume_with_effect_handler(
-                &mut terminal_fuel::TerminalFuelMeter::with_allowance(100),
-                &mut Input
-            )
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert_stored_fields(&lowered.semantic_module, &execution, &[b"X", b"QQ"]);
-    let mut other_element = prefix;
-    other_element[1] = terminal_psi::StructuralPathSegment::FixedIndex(0);
-    for operation in &lowered.semantic_module.machines[0].blocks[0].operations {
-        if let OperationKind::StructuralByteSequenceFieldStore { field, .. } = operation.kind {
-            assert_eq!(
-                execution.structural_byte_sequence_field(73, &other_element, field),
-                None
-            );
         }
     }
 }

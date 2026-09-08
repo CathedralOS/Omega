@@ -525,6 +525,7 @@ fn assemble_unit_closure(
                 machine.machine,
                 machine.state,
                 operation,
+                &machine.structural_parameters,
             )?;
             match operation {
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {

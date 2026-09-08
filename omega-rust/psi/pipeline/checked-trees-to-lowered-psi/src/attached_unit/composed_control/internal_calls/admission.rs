@@ -11,7 +11,13 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     plans: &'a checked_trees::CheckedUnitEffectPlans,
     targets: &mut Vec<(UnitBody<'a>, String)>,
 ) -> Result<(), LoweringError> {
-    crate::call_source_custody::validate_operation(checked, root, state.state, operation)?;
+    crate::call_source_custody::validate_operation(
+        checked,
+        root,
+        state.state,
+        operation,
+        &state.structural_parameters,
+    )?;
     let CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
         target_machine,
