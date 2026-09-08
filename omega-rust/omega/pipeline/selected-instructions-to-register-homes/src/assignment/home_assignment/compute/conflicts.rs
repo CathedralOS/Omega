@@ -1,11 +1,16 @@
 //! Explicit interference and directional early-clobber compatibility.
 
+#[cfg(test)]
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
+#[cfg(test)]
 use super::domain::AllocationDomain;
-use crate::{RegisterHomeError, VirtualInterference};
+#[cfg(test)]
+use crate::RegisterHomeError;
+use crate::VirtualInterference;
 
+#[cfg(test)]
 pub(super) fn domains_constrained(
     left: &AllocationDomain<'_>,
     right: &AllocationDomain<'_>,
@@ -33,6 +38,7 @@ pub(super) fn domains_constrained(
     })
 }
 
+#[cfg(test)]
 pub(super) fn candidate_conflicts(
     function: usize,
     domain: &AllocationDomain<'_>,
@@ -70,6 +76,7 @@ pub(super) fn registers_interfere(
         .is_ok()
 }
 
+#[cfg(test)]
 fn interference_conflicts(
     left: &AllocationDomain<'_>,
     left_view: &RegisterView,
@@ -88,6 +95,7 @@ fn interference_conflicts(
     }) && symmetric_footprints_overlap(left_view, right_view)
 }
 
+#[cfg(test)]
 fn early_clobber_conflicts(
     left: &AllocationDomain<'_>,
     left_view: &RegisterView,
@@ -111,6 +119,7 @@ fn early_clobber_conflicts(
     })
 }
 
+#[cfg(test)]
 fn symmetric_footprints_overlap(left: &RegisterView, right: &RegisterView) -> bool {
     left.units
         .iter()
@@ -118,6 +127,7 @@ fn symmetric_footprints_overlap(left: &RegisterView, right: &RegisterView) -> bo
         .any(|unit| right.units.contains(unit) || right.write_units.contains(unit))
 }
 
+#[cfg(test)]
 fn def_write_overlaps_use_storage(definition: &RegisterView, used: &RegisterView) -> bool {
     definition
         .write_units
@@ -125,6 +135,7 @@ fn def_write_overlaps_use_storage(definition: &RegisterView, used: &RegisterView
         .any(|unit| used.units.contains(unit))
 }
 
+#[cfg(test)]
 fn checked_view<'a>(
     function: usize,
     domain: &AllocationDomain<'_>,

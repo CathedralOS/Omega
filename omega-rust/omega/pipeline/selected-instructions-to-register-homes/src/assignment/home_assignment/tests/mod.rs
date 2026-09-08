@@ -5,6 +5,7 @@ mod determinism;
 mod early_clobber;
 mod fixtures;
 mod placement;
+mod prepared_conflicts;
 mod ties;
 
 pub(super) use super::{compute::compute_function, validate};

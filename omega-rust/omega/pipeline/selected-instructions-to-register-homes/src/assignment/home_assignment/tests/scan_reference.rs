@@ -7,12 +7,12 @@ use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
 use super::{
+    conflicts::{candidate_conflicts, domains_constrained},
     domain::{AllocationDomain, build_domains},
-    prepared_conflicts::PreparedConflicts,
 };
 use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
 
-pub(crate) fn compute_function(
+pub(in crate::assignment::home_assignment) fn compute_function(
     function: usize,
     legality: &crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
@@ -22,12 +22,11 @@ pub(crate) fn compute_function(
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
     let domains = build_domains(function, legality, ranges)?;
-    let conflicts = PreparedConflicts::new(&domains, ranges, physical);
     let mut unassigned = (0..domains.len()).collect::<Vec<_>>();
     let mut assigned = Vec::<(usize, RegisterViewId)>::new();
     while !unassigned.is_empty() {
         let (position, viable) =
-            select_domain(function, &unassigned, &assigned, &domains, &conflicts)?;
+            select_domain(function, &unassigned, &assigned, &domains, ranges, physical)?;
         let domain_index = unassigned.remove(position);
         let view = viable
             .first()
@@ -65,7 +64,8 @@ fn select_domain(
     unassigned: &[usize],
     assigned: &[(usize, RegisterViewId)],
     domains: &[AllocationDomain<'_>],
-    conflicts: &PreparedConflicts<'_>,
+    ranges: &crate::FunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Selection, RegisterHomeError> {
     let mut selected = None::<(usize, Vec<RegisterViewId>, usize)>;
     for (position, &domain_index) in unassigned.iter().enumerate() {
@@ -75,12 +75,8 @@ fn select_domain(
             .iter()
             .copied()
             .filter_map(|candidate| {
-                match conflicts.candidate_conflicts(
-                    function,
-                    domain_index,
-                    candidate,
-                    assigned,
-                    domains,
+                match candidate_conflicts(
+                    function, domain, candidate, assigned, domains, ranges, physical,
                 ) {
                     Ok(false) => Some(Ok(candidate)),
                     Ok(true) => None,
@@ -91,7 +87,9 @@ fn select_domain(
         let degree = unassigned
             .iter()
             .copied()
-            .filter(|other| *other != domain_index && conflicts.constrained(domain_index, *other))
+            .filter(|other| {
+                *other != domain_index && domains_constrained(domain, &domains[*other], ranges)
+            })
             .count();
         let replace = match &selected {
             None => true,

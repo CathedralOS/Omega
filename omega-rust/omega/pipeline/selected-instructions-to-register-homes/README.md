@@ -45,6 +45,11 @@ and canonical value order, and chooses the lowest compatible view. Replay
 reconstructs domains, conflicts, and placement separately. Exhaustion is typed
 pressure, not permission to manufacture a home or silently change policy.
 
+The producer prepares domain-pair interference, both directional early-clobber
+relations, and candidate view lookups once per allocation attempt. These private
+facts avoid repeating source scans during greedy placement; they do not change
+candidate order, ranking, error order, or the independently reconstructed result.
+
 Selection prepares scalar edge copies as ordinary instructions in explicit
 implementation blocks. Only the final transfer register and destination parameter
 must share a home; original arguments and snapshots remain independently live.
@@ -71,8 +76,9 @@ Without an optional recovery selection, genuine `NoCompatibleHome` pressure
 can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). It
 visits a finite roster of original instruction-result values, restricted to the
 failing function and values interfering with its failed register. The selected
-rewrite owner admits ordinary nonaddress `u64` values in a single returning
-block, preserving source-definition lineage, storing once, and reloading at
+rewrite owner admits ordinary nonaddress `u64` values and GPR-resident IEEE
+payloads in a single returning block, preserving exact scalar type and
+source-definition lineage, storing once, and reloading at
 each flexible use. Rewritten values and spill addresses never expand the
 candidate roster. Each cumulative rewrite gets fresh liveness, ranges,
 legality, and homes; independent replay reconstructs each pressure failure,
