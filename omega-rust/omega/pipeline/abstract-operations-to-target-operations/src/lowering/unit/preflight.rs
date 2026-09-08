@@ -14,12 +14,7 @@ pub(super) fn validate_unit_function_shape(
         ));
     }
     let canonical_entry_parameters = function.block_entries.first().is_some_and(|entry| {
-        entry.parameters == function.parameters
-            || (entry.parameters.is_empty()
-                && (has_parameter_sourced_store_shape(function)
-                    || has_parameter_sourced_unit_call_shape(function)
-                    || has_shared_view_call_sequence(function)
-                    || has_scalar_unit_leaf_shape(function)))
+        entry.parameters.is_empty() || entry.parameters == function.parameters
     });
     if function.block_entries.len() != 1
         || function.block_entries[0].block != function.entry
@@ -28,90 +23,6 @@ pub(super) fn validate_unit_function_shape(
         return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
     }
     Ok(())
-}
-
-fn has_shared_view_call_sequence(function: &AbstractFunction) -> bool {
-    !function.structural_parameters.is_empty()
-        && function.structural_parameters.iter().all(|parameter| {
-            parameter.access == StructuralAccess::SharedBorrow
-                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && !parameter.is_self
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-        })
-        && function.entry_claims.is_empty()
-        && function.published_service_ceiling.is_empty()
-        && function
-            .operations
-            .split_last()
-            .is_some_and(|(last, preceding)| {
-                matches!(last, AbstractOperation::ReturnUnit { cleanup_actions, .. }
-                if cleanup_actions.is_empty())
-                    && preceding.iter().all(|operation| {
-                        matches!(
-                            operation,
-                            AbstractOperation::CallUnit { .. }
-                                | AbstractOperation::CallStructuralScalar { .. }
-                                | AbstractOperation::IntegerConstant { .. }
-                                | AbstractOperation::BooleanConstant { .. }
-                        )
-                    })
-            })
-}
-
-fn has_scalar_unit_leaf_shape(function: &AbstractFunction) -> bool {
-    !function.parameters.is_empty()
-        && function.structural_parameters.is_empty()
-        && function.entry_claims.is_empty()
-        && function.published_service_ceiling.is_empty()
-        && matches!(function.operations.as_slice(),
-            [AbstractOperation::ReturnUnit { cleanup_actions, .. }] if cleanup_actions.is_empty())
-}
-
-fn has_parameter_sourced_unit_call_shape(function: &AbstractFunction) -> bool {
-    if function.parameters.is_empty() {
-        return false;
-    }
-    matches!(
-        function.operations.as_slice(),
-        [
-            AbstractOperation::CallUnit {
-                arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                ..
-            },
-            AbstractOperation::ReturnUnit { cleanup_actions, .. },
-        ] if arguments.iter().all(|argument| {
-            function
-                .parameters
-                .iter()
-                .any(|parameter| parameter.value == *argument)
-        })
-            && claim_transfers.is_empty()
-            && requirement_obligations.is_empty()
-            && crash_continuations.is_empty()
-            && cleanup_actions.is_empty()
-    )
-}
-
-fn has_parameter_sourced_store_shape(function: &AbstractFunction) -> bool {
-    match function.operations.as_slice() {
-        [
-            AbstractOperation::WriteOnlyPrimitiveStore { value, .. },
-            AbstractOperation::ReturnUnit { .. },
-        ] => function.parameters.iter().any(|parameter| {
-            value.value == parameter.value && value.scalar_type == parameter.scalar_type
-        }),
-        [
-            AbstractOperation::StructuralScalarFieldStore { value, .. },
-            AbstractOperation::ReturnUnit { .. },
-        ] => function.parameters.iter().any(|parameter| {
-            value.value == parameter.value && value.scalar_type == parameter.scalar_type
-        }),
-        _ => false,
-    }
 }
 
 fn has_bounded_scalar_parameter_shape(function: &AbstractFunction) -> bool {
