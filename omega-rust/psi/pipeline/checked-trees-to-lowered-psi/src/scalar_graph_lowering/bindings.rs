@@ -26,18 +26,30 @@ pub(super) fn prepare(
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedScalarStateGraph,
     parameter_types: Vec<ScalarType>,
+    structural_parameters: &[StructuralParameterDeclaration],
 ) -> Result<Prepared, LoweringError> {
     let mut parameter_types = parameter_types;
     let mut prefixes = Vec::new();
     let mut value_types = parameter_types.clone();
-    let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len());
+    let structural_namespace = state
+        .structural_parameters
+        .iter()
+        .zip(structural_parameters)
+        .map(|(source, emitted)| (source.position, emitted.clone()))
+        .collect::<Vec<_>>();
+    let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len())
+        .with_structural_parameters(&structural_namespace);
     for parameter in source_custody::parameter_storage(checked, machine, state)? {
         scalar_bindings.initialize_parameter(
             parameter.symbol,
             terminal_scalar_type(parameter.primitive_type)?,
-            usize::try_from(parameter.parameter_ordinal).map_err(|_| {
-                LoweringError::Unsupported("scalar parameter ordinal exceeds the entry namespace")
-            })?,
+            state
+                .scalar_parameters
+                .iter()
+                .position(|scalar| scalar.source_position == parameter.parameter_ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar parameter ordinal is absent from the entry namespace",
+                ))?,
         )?;
     }
     let mut immutable_ordinal = 0u32;

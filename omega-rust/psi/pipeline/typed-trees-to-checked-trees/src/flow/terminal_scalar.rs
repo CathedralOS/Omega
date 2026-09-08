@@ -68,6 +68,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> CheckedScalarGraphPlans {
     let mut parameter_storage = arena::Arena::default();
+    let mut structural_types = std::collections::BTreeMap::new();
     let machines = program
         .machines()
         .iter()
@@ -78,12 +79,14 @@ pub(crate) fn build_checked_scalar_graph_plans(
                 expressions,
                 computations,
                 &mut parameter_storage,
+                &mut structural_types,
             )
         })
         .collect();
     CheckedScalarGraphPlans {
         machines,
         parameter_storage,
+        structural_types: structural_types.into_values().collect(),
     }
 }
 
@@ -93,6 +96,10 @@ fn build_machine_graph(
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     parameter_storage: &mut arena::Arena<CheckedScalarParameterStorage>,
+    structural_types: &mut std::collections::BTreeMap<
+        String,
+        checked_trees::CheckedUnitStructuralTypePlan,
+    >,
 ) -> Option<CheckedScalarMachineGraph> {
     let source_states = program.machine_states(machine);
     if source_states.is_empty() {
@@ -109,19 +116,61 @@ fn build_machine_graph(
                 parameter.is_self
                     || parameter.is_const
                     || (parameter.is_mutable
+                        && !matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            typed_trees::types::TypeReferenceNode::Reference { .. }
+                        )
                         && crate::values::mutable_scalar_parameter_type(program, parameter)
                             .is_none())
             }) {
                 return None;
             }
-            let parameter_types = parameters
+            let mixed = parameters.iter().any(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            });
+            let (structural_parameters, scalar_parameters, shapes) = if mixed {
+                // Structural state forwarding and cyclic custody are a later
+                // extension of this graph, not implicit scalar parameter slots.
+                if source_states.len() != 1 || machine.attached_data.is_some() {
+                    return None;
+                }
+                super::terminal_unit::primitive_scalar_graph_signature(program, state)?
+            } else {
+                (
+                    Vec::new(),
+                    parameters
+                        .iter()
+                        .enumerate()
+                        .map(|(position, parameter)| {
+                            Some(checked_trees::CheckedStructuralScalarParameterPlan {
+                                source_position: u32::try_from(position).ok()?,
+                                primitive_type: program
+                                    .primitive_type_reference(parameter.type_reference)?,
+                            })
+                        })
+                        .collect::<Option<Vec<_>>>()?,
+                    Vec::new(),
+                )
+            };
+            let parameter_types = scalar_parameters
                 .iter()
-                .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-                .collect::<Option<Vec<_>>>()?;
+                .map(|parameter| parameter.primitive_type)
+                .collect();
             let storage = parameters
                 .iter()
                 .enumerate()
-                .filter(|(_, parameter)| parameter.is_mutable)
+                // Mutable borrows already have structural parameter places;
+                // only authored mutable scalar formals need local storage.
+                .filter(|(_, parameter)| {
+                    parameter.is_mutable
+                        && program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                })
                 .map(|(ordinal, parameter)| {
                     Some(CheckedScalarParameterStorage {
                         parameter_ordinal: u32::try_from(ordinal).ok()?,
@@ -135,6 +184,23 @@ fn build_machine_graph(
             let result_type = program.primitive_type_reference(state.return_type)?;
             let statements = program.statement_table.statements(state.statement_nodes);
             let bindings = checked_binding_prefix(program, state, computations)?;
+            if mixed {
+                // Call-free primitive-reference leaves retain their existing
+                // structural scalar-return owner, including its admission fences.
+                if matches!(statements, [StatementNode::Expression(_)])
+                    && !computations
+                        .roots
+                        .iter()
+                        .any(|(_, root)| root.state == state.symbol)
+                {
+                    return None;
+                }
+                if bindings.iter().any(|binding| {
+                    binding.destination != checked_trees::CheckedScalarBindingDestination::Immutable
+                }) {
+                    return None;
+                }
+            }
             let binding_count = bindings.len();
             let terminator_ordinal = u32::try_from(binding_count).ok()?;
             let terminator = match &statements[binding_count..] {
@@ -258,9 +324,27 @@ fn build_machine_graph(
                 }
                 _ => return None,
             };
+            if mixed
+                && match &terminator {
+                    CheckedScalarStateTerminator::Jump(_) => true,
+                    CheckedScalarStateTerminator::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        matches!(when_true, CheckedScalarBranchDestination::Jump(_))
+                            || matches!(when_false, CheckedScalarBranchDestination::Jump(_))
+                    }
+                    _ => false,
+                }
+            {
+                return None;
+            }
             Some((
                 CheckedScalarStateGraph {
                     state: state.symbol,
+                    structural_parameters,
+                    scalar_parameters,
                     parameter_types,
                     parameter_storage: arena::HandleSpan::empty(),
                     bindings,
@@ -268,6 +352,7 @@ fn build_machine_graph(
                     terminator,
                 },
                 storage,
+                shapes,
             ))
         })
         .collect::<Option<Vec<_>>>()?;
@@ -276,8 +361,11 @@ fn build_machine_graph(
         // Commit storage rows only after the complete machine shape succeeds.
         states: states
             .into_iter()
-            .map(|(mut state, storage)| {
+            .map(|(mut state, storage, shapes)| {
                 state.parameter_storage = parameter_storage.insert_many(storage);
+                for shape in shapes {
+                    structural_types.insert(shape.identity.clone(), shape);
+                }
                 state
             })
             .collect(),

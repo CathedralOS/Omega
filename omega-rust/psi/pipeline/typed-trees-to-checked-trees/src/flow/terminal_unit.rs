@@ -96,6 +96,31 @@ pub(super) fn cleanup_type_is_unit(
     is_unit(program, type_reference)
 }
 
+/// Reuse ordinary signature and shape ownership for scalar graph borrow inputs.
+pub(super) fn primitive_scalar_graph_signature(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<CheckedUnitStructuralTypePlan>,
+)> {
+    if !returns::primitive_effects::has_plain_primitive_borrows(program, state) {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    let (structural, scalar) = free_structural_scalar_signature(program, &mut shapes, state, &[])?;
+    if structural.iter().any(|parameter| {
+        parameter.is_self
+            || parameter.multiplicity != Multiplicity::Unrestricted
+            || parameter.access == CheckedStructuralAccess::Owned
+            || !parameter.qualifications.is_empty()
+    }) {
+        return None;
+    }
+    Some((structural, scalar, shapes.types.into_values().collect()))
+}
+
 /// Reconstruct the exact direct-record shape admitted by the first checked
 /// projected-transition cleanup rung. Keeping this next to `ShapeCollector`
 /// makes the result use the same normalized field/type identities as the

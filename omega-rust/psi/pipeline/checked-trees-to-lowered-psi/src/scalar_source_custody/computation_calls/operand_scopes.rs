@@ -3,6 +3,28 @@
 use super::*;
 use checked_trees::expression::BinaryOperator;
 
+/// Pure lowering retains the whole expression. Computation lowering can instead
+/// return one operand when a known Boolean condition skips call-bearing syntax.
+/// Retain its exact occurrence, without treating operand location as guard proof.
+pub(super) fn value(
+    checked: &CheckedTrees,
+    mut source: ExpressionHandle,
+    value_source: ExpressionHandle,
+) -> Result<ExpressionHandle, LoweringError> {
+    if !authored_expressions(checked, source)?.contains(&value_source) {
+        return unsupported("pure computation escaped its authored operand scope");
+    }
+    while source != value_source {
+        let (condition, selected, _) = selection(checked, source)?;
+        source = if authored_expressions(checked, condition)?.contains(&value_source) {
+            condition
+        } else {
+            selected
+        };
+    }
+    Ok(source)
+}
+
 pub(super) fn application(
     checked: &CheckedTrees,
     mut source: ExpressionHandle,

@@ -246,6 +246,7 @@ pub(super) fn lower_nominal_cleanup_closure(
         &roots,
         None,
         RuntimeRequirementOwner::NominalCleanup,
+        false,
     )
     .map(|closure| closure.lowered)
 }
@@ -262,6 +263,7 @@ pub(super) fn lower_shared_unit_closure(
         unit_roots,
         external,
         RuntimeRequirementOwner::UnitClosure,
+        false,
     )
 }
 
@@ -271,17 +273,35 @@ enum RuntimeRequirementOwner {
     NominalCleanup,
 }
 
+/// A scalar entry uses the same real callee catalog without a synthetic Unit caller.
+pub(crate) fn lower_scalar_effect_closure(
+    checked: &CheckedTrees,
+    entry: symbols::SymbolHandle,
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+    let mut closure = assemble_unit_closure(
+        checked,
+        entry,
+        &[],
+        None,
+        RuntimeRequirementOwner::UnitClosure,
+        true,
+    )?;
+    finalize_operation_proofs(&mut closure.lowered)?;
+    crate::machine_dispatch::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
+}
+
 fn assemble_unit_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
     unit_roots: &[symbols::SymbolHandle],
     external: Option<shared_closure::ExternalUnitRoots<'_>>,
     requirements_owner: RuntimeRequirementOwner,
+    scalar_entry: bool,
 ) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
     let reserved_prefix = usize::from(external.is_some());
     let ordinary_entry = unit_roots.first().copied();
-    if external.is_none() && ordinary_entry != Some(entry) {
+    if external.is_none() && !scalar_entry && ordinary_entry != Some(entry) {
         return unsupported("ordinary Unit closure must begin with its exact entry");
     }
     let mut retained_roots = unit_roots.get(1..).unwrap_or_default().to_vec();
@@ -333,6 +353,10 @@ fn assemble_unit_closure(
         .map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
     let mut selected_scalar_roots = Vec::new();
     let mut structural_scalar_roots = Vec::new();
+    if scalar_entry {
+        ordinary_scalar_roots.push(entry);
+        structural_scalar_roots.push(entry);
+    }
     for machine_symbol in &closure {
         let computed_structural_roots =
             crate::scalar_computations::structural_call_targets(checked, *machine_symbol)?;
@@ -397,13 +421,12 @@ fn assemble_unit_closure(
     {
         return unsupported("embedded scalar call overlaps the attached Unit machine closure");
     }
-    let prepared_scalar_machines = scalar_closure
+    let scalar_callees = scalar_closure
         .iter()
         .map(|machine| {
             crate::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
                 checked, *machine,
-            )?
-            .prepare(checked, *machine, scalar_roots.contains(machine))
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -599,17 +622,17 @@ fn assemble_unit_closure(
                         CheckedScalarCallee::Graph(_)
                             if !structural_arguments.is_empty() || !claim_transfers.is_empty() =>
                         {
-                            return unsupported(
-                                "scalar graph call cannot discard structural arguments or claims",
-                            );
+                            scalar_structural_calls::validate_call_source(
+                                checked, machine, operation, &target,
+                            )?;
                         }
                         CheckedScalarCallee::Graph(_) => {}
                     }
-                    let prepared = prepared_scalar_machines
+                    let checked_target = scalar_callees
                         .iter()
-                        .find(|prepared| prepared.source_machine() == *target_machine)
+                        .find(|callee| callee.source_machine() == *target_machine)
                         .ok_or(LoweringError::Unsupported(
-                            "ordinary Unit scalar call target is absent from the prepared closure",
+                            "ordinary Unit scalar call target is absent from the checked closure",
                         ))?;
                     let contract = checked
                         .facts
@@ -644,7 +667,8 @@ fn assemble_unit_closure(
                     };
                     if target.entry_state()? != *target_state
                         || target.parameter_types()?.len() != scalar_arguments.len()
-                        || prepared.result_type() != terminal_scalar_type(result.primitive_type)?
+                        || checked_target.result_type()?
+                            != terminal_scalar_type(result.primitive_type)?
                         || contract.report_fingerprint != *target_contract_report_fingerprint
                         || contract.commitment != *target_contract_commitment
                         || !reach_matches
@@ -873,7 +897,7 @@ fn assemble_unit_closure(
         .map_or_else(Vec::new, |roots| roots.service_roots.to_vec());
     scalar_boundaries::retain_catalog_roots(
         checked,
-        &prepared_scalar_machines,
+        &scalar_callees,
         &mut boundaries,
         &mut additional_type_roots,
         &mut additional_service_roots,
@@ -909,10 +933,10 @@ fn assemble_unit_closure(
             break;
         }
     }
-    let wrapper_domains = prepared_scalar_machines
+    let wrapper_domains = scalar_callees
         .iter()
         .filter_map(|callee| match callee {
-            PreparedScalarCallee::Boundary { plan, .. } => Some(plan),
+            CheckedScalarCallee::Boundary(plan) => Some(plan),
             _ => None,
         })
         .flat_map(|plan| &plan.structural_parameters)
@@ -1179,6 +1203,40 @@ fn assemble_unit_closure(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     placed_view_inputs.sort();
+    let scalar_graph_parameters = scalar_callees
+        .iter()
+        .map(|callee| {
+            let parameters = if let CheckedScalarCallee::Graph(_) = callee {
+                lower_unit_parameters(
+                    callee.structural_parameters(),
+                    &type_ids,
+                    &domain_ids,
+                    &mut next_place,
+                )?
+            } else {
+                Vec::new()
+            };
+            Ok((callee.source_machine(), parameters))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let prepared_scalar_machines = scalar_callees
+        .into_iter()
+        .map(|callee| {
+            let source = callee.source_machine();
+            let parameters = scalar_graph_parameters
+                .iter()
+                .find(|(symbol, _)| *symbol == source)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar graph has no allocated parameter namespace",
+                ))?;
+            callee.prepare(
+                checked,
+                source,
+                scalar_roots.contains(&source) && !(scalar_entry && source == entry),
+                &parameters.1,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let scalar_requirement_counts = prepared_scalar_machines
         .iter()
         .map(|machine| (machine.source_machine(), machine.requirement_count()))
@@ -3471,7 +3529,13 @@ fn assemble_unit_closure(
                 .append(&mut emitted.selected_ieee_float_fma_occurrences);
             continue;
         };
-        let mut lowered = build_scalar_graph_module(
+        let graph_parameters = scalar_graph_parameters
+            .iter()
+            .find(|(source, _)| *source == machine.source_machine)
+            .ok_or(LoweringError::Unsupported(
+                "scalar graph emission lost its allocated parameters",
+            ))?;
+        let mut lowered = crate::scalar_graph_module::build_scalar_graph_module_in_namespace(
             &machine.states,
             machine.result_type,
             machine.contract,
@@ -3482,6 +3546,7 @@ fn assemble_unit_closure(
             identity_base,
             &machine_ids,
             &scalar_requirement_counts,
+            &graph_parameters.1,
         )?;
         let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
             unreachable!("one prepared selected scalar graph emits one terminal machine")

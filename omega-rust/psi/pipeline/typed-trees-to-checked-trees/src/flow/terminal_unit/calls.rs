@@ -1142,6 +1142,8 @@ pub(super) fn build_call_operation(
             if is_registered_boundary_scalar_target(
                 facts, target_machine.symbol, target_state.symbol, result)
                 || scalar_targets::registered_primitive_store_target(
+                    program, facts, target_machine.symbol, target_state.symbol, result).is_some()
+                || scalar_targets::registered_primitive_graph_target(
                     program, facts, target_machine.symbol, target_state.symbol, result).is_some())
     {
         None

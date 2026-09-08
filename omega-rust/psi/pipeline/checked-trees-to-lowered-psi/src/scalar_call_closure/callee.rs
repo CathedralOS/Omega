@@ -68,7 +68,10 @@ impl<'checked> CheckedScalarCallee<'checked> {
 
     pub(crate) fn structural_parameters(&self) -> &[CheckedUnitStructuralParameterPlan] {
         match self {
-            Self::Graph(_) => &[],
+            Self::Graph(graph) => graph
+                .states
+                .first()
+                .map_or(&[], |state| &state.structural_parameters),
             Self::Boundary(plan) => &plan.structural_parameters,
             Self::Structural(plan) => &plan.structural_parameters,
         }
@@ -146,14 +149,19 @@ impl<'checked> CheckedScalarCallee<'checked> {
         checked: &CheckedTrees,
         source: symbols::SymbolHandle,
         embedded_root: bool,
+        structural_parameters: &[StructuralParameterDeclaration],
     ) -> Result<PreparedScalarCallee<'checked>, LoweringError> {
         match self {
             Self::Graph(graph) => {
-                let prepared = if embedded_root {
-                    prepare_embedded_scalar_graph_machine(checked, source, graph)?
-                } else {
-                    prepare_scalar_graph_machine(checked, source, graph)?
-                };
+                if source != graph.machine {
+                    return unsupported("scalar graph preparation substituted its source owner");
+                }
+                let prepared = crate::scalar_graph_lowering::prepare_scalar_graph_in_namespace(
+                    checked,
+                    graph,
+                    embedded_root,
+                    structural_parameters,
+                )?;
                 if !prepared.identity_reshuffles.structural_places.is_empty()
                     || !prepared.identity_reshuffles.entry_claims.is_empty()
                     || !prepared.identity_reshuffles.reshuffles.is_empty()

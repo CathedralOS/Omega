@@ -212,6 +212,7 @@ pub(super) fn prepare_scalar_graph_machine(
         machine,
         graph,
         ScalarContractMode::ClosedRuntimeValue,
+        &[],
     )
 }
 
@@ -225,6 +226,7 @@ fn prepare_standalone_scalar_graph_machine(
         machine,
         graph,
         ScalarContractMode::StandaloneProofOnlyFloatResult,
+        &[],
     )
 }
 
@@ -242,6 +244,26 @@ pub(super) fn prepare_embedded_scalar_graph_machine(
         machine,
         graph,
         ScalarContractMode::EmbeddedByEnclosingCall,
+        &[],
+    )
+}
+
+pub(crate) fn prepare_scalar_graph_in_namespace(
+    checked: &CheckedTrees,
+    graph: &CheckedScalarMachineGraph,
+    embedded: bool,
+    parameters: &[StructuralParameterDeclaration],
+) -> Result<PreparedScalarMachine, LoweringError> {
+    prepare_scalar_graph_machine_with_contract_mode(
+        checked,
+        graph.machine,
+        graph,
+        if embedded {
+            ScalarContractMode::EmbeddedByEnclosingCall
+        } else {
+            ScalarContractMode::ClosedRuntimeValue
+        },
+        parameters,
     )
 }
 
@@ -257,12 +279,20 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     machine: symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
     contract_mode: ScalarContractMode,
+    structural_parameters: &[StructuralParameterDeclaration],
 ) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
         "checked scalar control plan must contain an entry state",
     ))?;
     let result_type = terminal_scalar_type(entry_state.result_type)?;
+    if entry_state.structural_parameters.len() != structural_parameters.len()
+        || (!structural_parameters.is_empty() && states.len() != 1)
+    {
+        return unsupported(
+            "scalar graph requires its exact structural entry namespace; structural state forwarding remains unsupported",
+        );
+    }
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state.state)?;
     let return_sink = states
@@ -304,7 +334,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .copied()
             .map(terminal_scalar_type)
             .collect::<Result<Vec<_>, _>>()?;
-        let prepared = bindings::prepare(checked, machine, state, parameter_types)?;
+        let prepared = bindings::prepare(
+            checked,
+            machine,
+            state,
+            parameter_types,
+            structural_parameters,
+        )?;
         let value_types = &prepared.value_types;
         let scalar_bindings = &prepared.scalar_bindings;
         let terminator = match &state.terminator {
@@ -492,6 +528,12 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .chain(plan.ensures())
         .any(|clause| matches!(clause, Some(ClosedScalarContractValue::Predicate(_))));
     let contract = if contract_mode == ScalarContractMode::EmbeddedByEnclosingCall {
+        PreparedScalarContract::Empty
+    } else if plan.requires().is_empty()
+        && plan.ensures().is_empty()
+        && !plan.has_outcome_specific_clauses()
+    {
+        validate_empty_scalar_contract_source(checked, machine)?;
         PreparedScalarContract::Empty
     } else if has_return {
         if contract_mode == ScalarContractMode::StandaloneProofOnlyFloatResult
@@ -1699,6 +1741,54 @@ fn closed_scalar_contract_plan(
         .ok_or(LoweringError::Unsupported(
             "machine has no source-independent checked contract plan",
         ))
+}
+
+fn validate_empty_scalar_contract_source(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<(), LoweringError> {
+    use checked_trees::signature::SignatureContractKind;
+
+    let source_machine = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .ok_or(LoweringError::Unsupported(
+            "empty scalar contract has no authored machine",
+        ))?;
+    let contracts = checked
+        .signature_contracts
+        .span(source_machine.contracts)
+        .ok_or(LoweringError::Unsupported(
+            "empty scalar contract has an invalid authored clause span",
+        ))?;
+    // Match the closed scalar contract owner's roster: named witnesses have
+    // separate evidence custody, but outcome-specific clauses never disappear.
+    // Crash routes are retained independently below graph preparation.
+    if contracts.iter().any(|contract| match contract.kind {
+        SignatureContractKind::EnsuresForResultCase { .. } => true,
+        SignatureContractKind::Requires | SignatureContractKind::Ensures => {
+            contract.binding.is_none()
+        }
+        SignatureContractKind::Crashes { .. } => false,
+    }) {
+        return unsupported("empty scalar contract would erase an authored normal clause");
+    }
+    let entry =
+        checked
+            .machine_states(source_machine)
+            .first()
+            .ok_or(LoweringError::Unsupported(
+                "empty scalar contract has no authored entry state",
+            ))?;
+    // Bracket ranges contribute requires rows even without signature clauses;
+    // other qualifications retain their existing, separate contract owners.
+    if checked.state_parameters(entry).iter().any(|parameter| {
+        checked_trees::wire::type_reference_carries_range(&checked.typed, parameter.type_reference)
+    }) {
+        return unsupported("empty scalar contract would erase an authored parameter range");
+    }
+    Ok(())
 }
 
 /// Recognize the one D40 contract shape whose entire value is proof-only.

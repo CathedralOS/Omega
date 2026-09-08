@@ -439,6 +439,7 @@ impl Builder<'_, '_> {
         kind: CheckedScalarComputationKind,
     ) -> CheckedScalarComputationHandle {
         self.plans.nodes.append(CheckedScalarComputation {
+            value_source: ExpressionHandle::invalid(),
             authored_root: ExpressionHandle::invalid(),
             primitive_type,
             kind,
@@ -470,7 +471,10 @@ impl Builder<'_, '_> {
             expected_type,
             self.exact_integer_casts,
         ) {
-            return Some(self.insert(expected_type, CheckedScalarComputationKind::Value(value)));
+            let computation =
+                self.insert(expected_type, CheckedScalarComputationKind::Value(value));
+            self.plans.nodes.get_mut(computation).value_source = expression;
+            return Some(computation);
         }
         if is_integer(expected_type)
             && !matches!(
