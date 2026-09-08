@@ -286,7 +286,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Continue from the guarded mutable-view write primitive in
   `checked-trees-to-lowered-psi/src/byte_sequence_write.rs`: preserve exact
   source operands, explicit exclusive state transfers, current same-view bounds,
-  and original field backing. Regression command (macOS ARM64, Cargo fallback):
+  and original field backing. At `e6c08ea7fb` on macOS ARM64 this regression
+  passes (Cargo fallback):
   `cargo nextest run -p checked-trees-to-lowered-psi --lib byte_sequence_write
   --no-fail-fast --no-tests fail`. The source fixture checks empty/nonempty
   field-backed calls and fuel suspension; it is not raw-array or line-reader
@@ -350,7 +351,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution must retain distinct result homes, exactly two sequential reads,
   first-byte output, and zero-status Unit completion. The macOS completion
   adapter is a physical entry mapping, not closure of the canonical root contract.
-  The macOS `cli_mvp` probe above still stops at the missing
+  At `e6c08ea7fb`, the macOS `cli_mvp` probe above still stops at the missing
   `Console::read_line` catalog identity. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
