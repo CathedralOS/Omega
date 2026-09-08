@@ -57,8 +57,12 @@ value or definition site. The semantic edge alone retains no-code affine cleanup
 and fuel; its implementation continuation retains payload lineage and register
 transport, with empty cleanup and fuel. Independent selection and bridge replay
 restore the exact legalized case, including its destination-owned definition.
-Other case layouts and multi-block return cleanup remain separate admission
-limits; neither a new ISA case opcode nor a second physical route is introduced.
+Returning blocks retain exact no-code discards of their own affine byte-read
+results. Current-unit ownership replay reconstructs each live frontier; target
+and legalized replay preserve its ordered actions, return edge, and fuel. A
+function-wide result roster cannot substitute for branch-local ownership.
+Other case layouts and executable or residual return cleanup remain separate
+admission limits; no new ISA case opcode or physical route is introduced.
 Computed Boolean comparisons remain branch predicates until value materialization
 is implemented.
 

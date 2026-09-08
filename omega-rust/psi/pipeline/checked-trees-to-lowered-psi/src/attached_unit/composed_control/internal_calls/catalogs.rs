@@ -131,6 +131,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
     );
     Ok(super::super::catalogs::ComposedCatalogs {
         literal_store_places: Vec::new(),
+        result_places: Vec::new(),
         structural_types: shared.lowered.semantic_module.structural_types.clone(),
         type_ids: shared.type_ids,
         domain_ids: shared.domain_ids,

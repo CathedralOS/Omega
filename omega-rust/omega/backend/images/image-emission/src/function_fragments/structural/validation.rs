@@ -5,7 +5,13 @@ pub(in crate::function_fragments) fn validate_function(
     function: &ObjectFunction,
     rows: &[SemanticCodeAttribution],
 ) -> Result<(), Error> {
-    byte_input::validate_cleanup(source, function, rows)?;
+    // No-code return cleanup is carried by the mandatory retained graph.
+    // A legacy singular record would be a second, incomplete custody channel.
+    if function.unit_affine_cleanup.is_some() {
+        return Err(Error::Mismatch(
+            "shared fragments cannot carry legacy singular cleanup",
+        ));
+    }
     let invalid = || Error::Mismatch("structural object differs from current ABI or call evidence");
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;

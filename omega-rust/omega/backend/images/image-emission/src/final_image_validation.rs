@@ -17,7 +17,7 @@ pub(super) fn validate_terminal_image(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    scalar_exit_shim: Option<LinuxX86ScalarExitShim>,
+    scalar_exit_shim: Option<super::hosted_unit_entry::EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = object
@@ -64,7 +64,7 @@ fn validate_terminal_image_with_import_count(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    scalar_exit_shim: Option<LinuxX86ScalarExitShim>,
+    scalar_exit_shim: Option<super::hosted_unit_entry::EntryShim>,
     output: &EmittedImageOutput,
     expected_imports: usize,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
@@ -191,7 +191,16 @@ fn validate_terminal_image_with_import_count(
         }
     }
     if let Some(shim) = scalar_exit_shim {
-        validate_linux_x86_scalar_exit_shim(artifact, object, text_bytes, shim, output)?;
+        match shim {
+            super::hosted_unit_entry::EntryShim::LinuxScalar(shim) => {
+                validate_linux_x86_scalar_exit_shim(artifact, object, text_bytes, shim, output)?
+            }
+            super::hosted_unit_entry::EntryShim::DarwinUnit { symbol, offset } => {
+                super::hosted_unit_entry::validate(
+                    artifact, object, text_bytes, symbol, offset, output,
+                )?
+            }
+        }
     }
     let evidence =
         validate_final_text_relocation_envelope(text_bytes, &output.final_text_bytes, relocations)?;

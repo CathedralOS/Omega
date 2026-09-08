@@ -243,6 +243,9 @@ pub(in crate::attached_unit) fn emit_callable_body(
     machine
         .structural_places
         .append(&mut catalogs.literal_store_places);
+    machine
+        .structural_places
+        .append(&mut catalogs.result_places);
     machine.structural_places.sort_by_key(|place| place.id);
     catalogs.next_value = next_value;
     catalogs.next_place = next_place;
@@ -279,6 +282,7 @@ pub(crate) fn emit_call_leaf(
         blocks: Vec::new(),
     };
     let mut values = scalar_parameters.to_vec();
+    let result_start = catalogs.result_places.len();
     emit_call_operations(
         checked,
         machine,
@@ -301,7 +305,11 @@ pub(crate) fn emit_call_leaf(
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::ReturnUnit {
             edge: edge_id(allocate_dense(next_edge)?),
-            trivial_affine_discards: Vec::new(),
+            trivial_affine_discards: catalogs.result_places[result_start..]
+                .iter()
+                .rev()
+                .map(|declaration| declaration.id)
+                .collect(),
         },
     });
     Ok((evaluation.blocks, operations.source_calls))
@@ -404,18 +412,23 @@ pub(super) fn emit_call_operations(
             operations,
         )?;
         match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => emit_boundary_call_operation(
-                state,
-                operation,
-                &catalogs.lowered_boundaries,
-                &catalogs.type_ids,
-                &catalogs.structural_types,
-                parameters,
-                claim_bindings,
-                arguments.as_deref(),
-                &byte_argument_places,
-                operations,
-            )?,
+            CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
+                emit_boundary_call_operation(
+                    state,
+                    operation,
+                    &catalogs.lowered_boundaries,
+                    &catalogs.type_ids,
+                    &catalogs.structural_types,
+                    parameters,
+                    claim_bindings,
+                    arguments.as_deref(),
+                    &byte_argument_places,
+                    &mut catalogs.next_place,
+                    &mut catalogs.result_places,
+                    operations,
+                )?
+            }
             CheckedUnitEffectOperationPlan::CallUnit { .. } => {
                 internal_calls::emission::emit_call_operation(
                     state,
@@ -446,9 +459,11 @@ pub(super) fn emit_boundary_call_operation(
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     scalar_values: Option<&[ValueDeclaration]>,
     byte_argument_places: &[PlaceId],
+    next_place: &mut u64,
+    result_places: &mut Vec<StructuralPlaceDeclaration>,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
+    let (CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,
         source_site,
         target_machine,
@@ -456,7 +471,16 @@ pub(super) fn emit_boundary_call_operation(
         structural_arguments,
         completion_receipts,
         ..
-    } = operation
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        coordinate,
+        source_site,
+        target_machine,
+        scalar_arguments,
+        structural_arguments,
+        completion_receipts,
+        ..
+    }) = operation
     else {
         unreachable!("admission retained one boundary call")
     };
@@ -510,6 +534,30 @@ pub(super) fn emit_boundary_call_operation(
     .map(|value| value.id)
     .collect();
     let call_id = operations.allocate();
+    let result = match operation {
+        CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
+            let BoundaryMachineResult::Structural(result) = &target.result else {
+                return unsupported("composed Unit structural boundary lost its result");
+            };
+            let place = place_id(allocate_dense(next_place)?);
+            result_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: call_id,
+                    structural_type: result.structural_type,
+                },
+            });
+            OperationResult::Structural(StructuralOperationResult {
+                place,
+                structural_type: result.structural_type,
+                multiplicity: result.multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            })
+        }
+        _ => OperationResult::Unit,
+    };
     operations.record_source_call(
         SourceCallCoordinate {
             state: state.state,
@@ -526,7 +574,7 @@ pub(super) fn emit_boundary_call_operation(
     )?;
     operations.push(Operation {
         id: call_id,
-        result: OperationResult::Unit,
+        result,
         kind: OperationKind::BoundaryCall {
             boundary: target.id,
             arguments,

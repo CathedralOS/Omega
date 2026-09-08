@@ -143,9 +143,15 @@ pub(super) fn validate_boundary(
             if boundary.attachment_type_identity.is_some()
                 || !boundary.structural_parameters.is_empty()
                 || !boundary.domain_requirements.is_empty()
-                || !boundary.result.is_unit()
+                || !(boundary.result.is_unit()
+                    || matches!(&boundary.result,
+                        CheckedBoundaryMachineResultPlan::Structural {
+                            multiplicity: Multiplicity::Affine, qualifications, ..
+                        } if qualifications.is_empty()))
             {
-                return unsupported("composed Unit boundary is not scalar-only Unit");
+                return unsupported(
+                    "composed Unit boundary escaped claim-free Unit or affine result custody",
+                );
             }
         }
         ComposedCustody::WholeRootLinear { .. } => {

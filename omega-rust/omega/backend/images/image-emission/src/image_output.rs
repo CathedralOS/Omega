@@ -109,11 +109,16 @@ pub fn emit_executable_image(
             artifact.target
         )));
     }
+    let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
+    let (object, text_bytes, entry_shim) = prepared_entry.as_ref().map_or(
+        (&artifact.object, artifact.text_bytes.as_slice(), None),
+        |(object, text, shim)| (object, text.as_slice(), Some(*shim)),
+    );
     let image = image::build_final_image(FinalImageInput {
         target: artifact.target,
-        object: &artifact.object,
+        object,
         relocations: &artifact.relocations,
-        text_bytes: &artifact.text_bytes,
+        text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     let final_image_symbol_digest = image::final_image_symbol_digest(&image);
@@ -136,10 +141,10 @@ pub fn emit_executable_image(
     let mut output = emitted_direct_executable_output(output);
     let text_validation = validate_terminal_image(
         artifact,
-        &artifact.object,
+        object,
         &artifact.relocations,
-        &artifact.text_bytes,
-        None,
+        text_bytes,
+        entry_shim,
         &output,
     )?;
     output.compiler_function_validation =
@@ -196,11 +201,16 @@ pub fn validate_executable_image(
             "terminal object and executable image have different semantic or evidence identity",
         ));
     }
+    let prepared_entry = super::hosted_unit_entry::prepare(artifact)?;
+    let (object, text_bytes, entry_shim) = prepared_entry.as_ref().map_or(
+        (artifact.object(), artifact.text_bytes(), None),
+        |(object, text, shim)| (object, text.as_slice(), Some(*shim)),
+    );
     let replayed_final_image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
-        object: artifact.object(),
+        object,
         relocations: artifact.relocations(),
-        text_bytes: artifact.text_bytes(),
+        text_bytes,
         data_bytes: artifact.data_bytes(),
     });
     if image.final_image_symbol_digest != image::final_image_symbol_digest(&replayed_final_image) {
@@ -210,10 +220,10 @@ pub fn validate_executable_image(
     }
     let recomputed = validate_terminal_image(
         artifact,
-        artifact.object(),
+        object,
         artifact.relocations(),
-        artifact.text_bytes(),
-        None,
+        text_bytes,
+        entry_shim,
         image.output(),
     )?;
     let function_validation =
@@ -328,7 +338,7 @@ pub fn emit_scalar_call_reference_linux_x86_64_image(
         &object,
         &relocations,
         &text_bytes,
-        Some(shim),
+        Some(super::hosted_unit_entry::EntryShim::LinuxScalar(shim)),
         &output,
     )?);
     Ok(ScalarCallReferenceImage {

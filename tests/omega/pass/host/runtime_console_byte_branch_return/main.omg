@@ -1,0 +1,23 @@
+// Each returning arm owns a distinct uninspected result from its second read.
+use omega_language_std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let first: ByteRead = self.console.read_byte();
+    transition first {
+        ByteRead::Byte { value } -> byte(value)
+        ByteRead::Eof -> eof()
+    }
+
+    state byte(&mut self, value: i32) {
+        self.console.write_byte(value);
+        let second: ByteRead = self.console.read_byte();
+    }
+
+    state eof(&mut self) {
+        let second: ByteRead = self.console.read_byte();
+    }
+}
