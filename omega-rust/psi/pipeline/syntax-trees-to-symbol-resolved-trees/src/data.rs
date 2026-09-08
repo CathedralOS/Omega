@@ -66,7 +66,17 @@ fn retain_derived_const_argument_origins(
                 pending.extend_from_slice(table.type_reference_handles(*arguments));
             }
             TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                pending.push(*base_type);
+                for constraint in table.constraints(*constraints) {
+                    if let syntax::types::TypeConstraintNode::Domain(domain) = constraint {
+                        pending.extend_from_slice(table.type_reference_handles(domain.arguments));
+                    }
+                }
+            }
             TypeReferenceNode::FixedArray { element_type, .. }
             | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
             _ => {}

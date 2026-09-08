@@ -37,6 +37,30 @@ enum ClosedDomainParameter {
     },
 }
 
+/// The family's index telescope, excluding only a directly named first
+/// type binder used as its carrier. Fixed carriers retain every parameter.
+pub(in crate::generic_data) fn domain_index_parameters<'syntax>(
+    syntax: &'syntax SyntaxTrees,
+    definition: &syntax_trees::item::DomainDefinition,
+) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
+    let TypeReferenceNode::Named(target) = syntax
+        .type_references
+        .type_reference(definition.target_type)
+    else {
+        return None;
+    };
+    let parameters = syntax.items.type_parameters(definition.type_parameters);
+    let generic_carrier = parameters.first().is_some_and(|parameter| {
+        matches!(parameter.kind, TypeParameterKind::Type)
+            && target.as_str() == parameter.name.as_str()
+    });
+    Some(if generic_carrier {
+        &parameters[1..]
+    } else {
+        parameters
+    })
+}
+
 /// PDI2's closed-index precursor runs beside generic-data canonicalization but
 /// does not monomorphize the domain: the family remains nominal and erased.
 /// Only its const arguments are rewritten to the same canonical leaves used by
@@ -45,6 +69,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
     syntax: &mut SyntaxTrees,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
+    selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let mut families = HashMap::<String, ClosedDomainFamily>::new();
@@ -72,24 +97,11 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
             continue;
         }
 
-        let TypeReferenceNode::Named(target) = syntax
-            .tables
-            .type_references
-            .type_reference(definition.target_type)
-        else {
+        let Some(index_parameters) = domain_index_parameters(syntax, definition) else {
             return Err(Diagnostic::error(format!(
                 "indexed domain `{}` must use its carrier binder directly before `::{}`",
                 definition.name, definition.name
             )));
-        };
-        let generic_carrier = parameters.first().is_some_and(|parameter| {
-            matches!(parameter.kind, TypeParameterKind::Type)
-                && target.as_str() == parameter.name.as_str()
-        });
-        let index_parameters = if generic_carrier {
-            &parameters[1..]
-        } else {
-            parameters
         };
         if index_parameters.is_empty() {
             // A carrier-polymorphic, unindexed domain (`domain<T> T::D`)
@@ -197,6 +209,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
             }),
     );
 
+    let concrete_data_positions = collect_data_type_reference_positions(syntax, false);
     for (name, argument_span) in applications {
         let Some(family) = families.get(&name) else {
             continue;
@@ -213,6 +226,8 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
             arguments,
             const_definitions,
             const_values,
+            selection,
+            &concrete_data_positions,
             warnings,
         )?;
     }
@@ -226,6 +241,8 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
     arguments: Vec<TypeReferenceHandle>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
+    selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
+    concrete_data_positions: &[TypeReferenceHandle],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     if arguments.len() != family.parameters.len() {
@@ -260,6 +277,52 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                             family_name, value.type_name
                         )));
                     }
+                    continue;
+                }
+                if name.as_str().parse::<i128>().is_ok() {
+                    continue;
+                }
+                // Exact header selection is limited to concrete data owners.
+                // Other owners retain their existing normalization path until
+                // their complete lexical selection context is available.
+                if let Some(selection) = selection
+                    && concrete_data_positions.contains(&argument)
+                {
+                    let Some(definition) = selection.select(syntax, &name)? else {
+                        // Ambiguous or unresolved names belong to ordinary
+                        // resolution; never select from the legacy string map.
+                        continue;
+                    };
+                    let value = canonicalize_const_definition(syntax, &definition, *parameter_type)
+                        .map_err(|reason| Diagnostic::error(format!(
+                            "index argument for `{family_name}::{parameter_name}` is invalid: {reason}"
+                        )).with_source_span(name.source_span()))?;
+                    let replacement = match value.decode_encoding() {
+                        Some(
+                            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                                value,
+                                ..
+                            },
+                        ) => value.to_string(),
+                        _ => value.atom(),
+                    };
+                    let initializer = syntax.expressions.source_span(definition.value);
+                    syntax.type_references.retain_const_argument_normalization(
+                        argument,
+                        name.source_span(),
+                        value.encoding.clone(),
+                        [syntax_trees::types::ConstArgumentOrigin {
+                            reference: name.source_span(),
+                            declaration: definition.name.source_span(),
+                            initializer,
+                            canonical_value_encoding: value.encoding,
+                        }],
+                        [],
+                    );
+                    syntax.type_references.replace_type_reference(
+                        argument,
+                        TypeReferenceNode::Named(Identifier::generated(replacement)),
+                    );
                     continue;
                 }
                 if const_values.contains_key(name.as_str())

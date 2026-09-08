@@ -1,0 +1,8 @@
+module rooms;
+
+const SIZE: u64 = 3;
+data Room {
+    named: u64 in Indexed<SIZE>;
+    same: u64 in Indexed<SIZE + 0>;
+    next: u64 in Indexed<SIZE + 1>;
+}

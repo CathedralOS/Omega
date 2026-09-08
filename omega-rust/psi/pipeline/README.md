@@ -77,12 +77,15 @@ probes too. The normalizer checks the declared carrier, retains exact declaratio
 and initializer custody at each argument, and rejoins its canonical value to the
 final symbol. Shared instance derivations do not inherit a caller's occurrence
 exposure; equal values may deduplicate without losing distinct selections.
-Concrete data fields and payloads also evaluate closed integer expressions through
-a private typed probe. Exact primitive carriers, builtin operator meaning and
+Concrete data fields and payloads also evaluate closed integer expressions in
+data applications and root-owned domain families through a private typed probe.
+Exact primitive carriers, builtin operator meaning and
 package selection are checked before fixed-width arithmetic. Each argument retains
 one canonical result, every selected constant occurrence and its builtin operator
 occurrences. Machine-local indices, open templates, constrained destinations,
-authored operators and domain constant indices retain their existing fences.
+authored operators and module-owned domain families retain their existing fences.
+Domain indices retain the declared family's identity; equal results share canonical
+type identity without discarding the original constant or operator occurrences.
 Unrelated root constants and literal or binder-only
 applications remain available. Later
 syntax extensions cannot yet consume a retained base constant whose initializer
@@ -111,6 +114,7 @@ cargo run -p omega -- --check tests/omega/pass/modules/qualified_constants/main.
 cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_constants/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/qualified_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/compound_constant_indices/main.omg
+cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/main.omg
 ```
 
 [Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration

@@ -13,7 +13,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{
-    ConstDefinition, DataDefinition, DataMember, Item, ProofFact, TypeParameterKind,
+    ConstDefinition, DataDefinition, DataMember, Item, ProofFact, TypeParameter, TypeParameterKind,
 };
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::{
@@ -56,32 +56,9 @@ pub fn closed_data_const_argument_expressions(
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let mut pending = Vec::new();
     let public_positions = collect_data_type_reference_positions(syntax, true);
-    for position in collect_data_type_reference_positions(syntax, false) {
-        let TypeReferenceNode::Generic {
-            base_name,
-            arguments,
-            ..
-        } = syntax.type_references.type_reference(position)
-        else {
-            continue;
-        };
-        let mut definitions = syntax.root_items().filter_map(|item| match item {
-            Item::Data(definition) if definition.name.as_str() == base_name.as_str() => {
-                Some(definition)
-            }
-            _ => None,
-        });
-        let Some(definition) = definitions.next() else {
-            continue;
-        };
-        // Ambiguous template selection is not resolved by visitation order.
-        if definitions.next().is_some() {
-            continue;
-        }
-        let parameters = syntax.items.type_parameters(definition.type_parameters);
-        let arguments = syntax.type_references.type_reference_handles(*arguments);
+    let mut retain_arguments = |parameters: &[TypeParameter], arguments: &[TypeReferenceHandle]| {
         if parameters.len() != arguments.len() {
-            continue;
+            return;
         }
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if let TypeParameterKind::Const { type_reference } = parameter.kind
@@ -97,6 +74,64 @@ pub fn closed_data_const_argument_expressions(
                     public_positions.contains(argument),
                 ));
             }
+        }
+    };
+    for position in collect_data_type_reference_positions(syntax, false) {
+        match syntax.type_references.type_reference(position) {
+            TypeReferenceNode::Generic {
+                base_name,
+                arguments,
+                ..
+            } => {
+                let mut definitions = syntax.root_items().filter_map(|item| match item {
+                    Item::Data(definition) if definition.name.as_str() == base_name.as_str() => {
+                        Some(definition)
+                    }
+                    _ => None,
+                });
+                let Some(definition) = definitions.next() else {
+                    continue;
+                };
+                // Ambiguous template selection is not resolved by visitation order.
+                if definitions.next().is_some() {
+                    continue;
+                }
+                retain_arguments(
+                    syntax.items.type_parameters(definition.type_parameters),
+                    syntax.type_references.type_reference_handles(*arguments),
+                );
+            }
+            TypeReferenceNode::Constrained { constraints, .. } => {
+                for constraint in syntax.type_references.constraints(*constraints) {
+                    let TypeConstraintNode::Domain(domain) = constraint else {
+                        continue;
+                    };
+                    let mut definitions = syntax.root_items().filter_map(|item| match item {
+                        Item::Domain(definition)
+                            if definition.name.as_str() == domain.name.as_str() =>
+                        {
+                            Some(definition)
+                        }
+                        _ => None,
+                    });
+                    let Some(definition) = definitions.next() else {
+                        continue;
+                    };
+                    if definitions.next().is_some() {
+                        continue;
+                    }
+                    let Some(parameters) = domain_index_parameters(syntax, definition) else {
+                        continue;
+                    };
+                    retain_arguments(
+                        parameters,
+                        syntax
+                            .type_references
+                            .type_reference_handles(domain.arguments),
+                    );
+                }
+            }
+            _ => {}
         }
     }
     pending

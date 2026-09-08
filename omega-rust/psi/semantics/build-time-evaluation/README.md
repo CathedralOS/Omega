@@ -19,7 +19,8 @@ requires declaration admission before early evaluation. The
 [selection-custody note](../../pipeline/typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
 maps that gate to exact calls, candidate sets, and authored application sites.
 
-Closed integer indices in concrete data fields and payloads use
+Closed integer indices for data applications and root-owned domain families in
+concrete data fields and payloads use
 [typed expression probes](src/const_generic_expressions.rs) before generic data
 synthesis. The temporary probe carries original source/import custody; its
 symbols and placeholder layouts never become the published program. Exact

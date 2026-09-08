@@ -218,8 +218,14 @@ pub(super) fn desugar_generic_data_instances_with_selection(
         })
         .collect();
 
-    canonicalize_closed_domain_indices(syntax, &const_definitions, &const_values, warnings)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    canonicalize_closed_domain_indices(
+        syntax,
+        &const_definitions,
+        &const_values,
+        selection,
+        warnings,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
 
     if generic_data.is_empty() {
         return Ok(());
