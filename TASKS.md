@@ -185,7 +185,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   missing package-root policy. This is a completed slow-route observation,
   not a timeout or evidence of native execution.
 
-  The downstream native `cli_mvp` probe with production checkpoint `1b47c379b8`
+  The downstream native `cli_mvp` probe with production checkpoint `c235e3df29`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
