@@ -431,6 +431,36 @@ mod tests {
     }
 
     #[test]
+    fn package_permission_does_not_authorize_builtin_operator_substitution() {
+        let package = PackageKeyIdentity::from_digest([0x73; 32]).expect("nonzero package");
+        let source = r#"
+            data Math {}
+            boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+            data Provider {}
+            machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 0 }
+            machine count() -> u64 { 7u64 % 2 }
+            data Buffer<const N: u64> { values: [u8; N]; }
+            data Main { value: Buffer<count()>; }
+        "#;
+        let (syntax, sources) = parsed_source(source, package);
+        let result = evaluate_pre_resolution_with_sources_and_authority(
+            syntax,
+            sources,
+            Arc::new(AllowAllSelections::default()),
+        );
+        let errors = match result {
+            Ok(_) => panic!("package permission cannot supply selected operator semantics"),
+            Err(errors) => errors,
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("requires exact authored selection")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
     fn authority_pre_resolution_retains_the_exact_authority_for_pre_check() {
         let package =
             PackageKeyIdentity::from_digest([0x72; 32]).expect("nonzero package identity");

@@ -761,3 +761,52 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
+
+#[test]
+fn authored_binary_operator_cannot_fall_back_to_builtin_during_evaluation() {
+    let program = typed(
+        "data Math {}
+         boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+         data Provider {}
+         machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 0 }
+         machine count() -> u64 { 7u64 % 2 }
+         machine indirect() -> u64 { count() }",
+    );
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    for machine in ["count", "indirect"] {
+        let error = admission
+            .evaluate_const_evaluable_machine(&program, machine, vec![])
+            .expect_err("unresolved authored meaning must not execute builtin remainder");
+        assert!(
+            error.contains("requires exact authored selection"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn unrelated_typed_operator_does_not_prevent_builtin_evaluation() {
+    for declaration in [
+        "",
+        "operator + u64::add(left: u64, right: u64) -> u64;",
+        "operator % i32::remainder(left: i32, right: i32) -> i32;",
+    ] {
+        let program = typed(&format!(
+            "{declaration} machine count() -> u64 {{ 7u64 % 2 }}"
+        ));
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+            .evaluate_const_evaluable_machine(&program, "count", vec![])
+            .expect("unrelated declarations retain builtin meaning");
+        assert_eq!(value, BuildTimeValue::Int(1));
+    }
+}
+
+#[test]
+fn builtin_evaluation_does_not_inherit_a_bound_proof_depth_limit() {
+    let expression = vec!["1u64"; 140].join(" + ");
+    let program = typed(&format!("machine count() -> u64 {{ {expression} }}"));
+    let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+        .evaluate_const_evaluable_machine(&program, "count", vec![])
+        .expect("builtin meaning is checked at each visited node");
+    assert_eq!(value, BuildTimeValue::Int(140));
+}

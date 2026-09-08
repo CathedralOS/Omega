@@ -66,7 +66,8 @@ pub use places::{
 };
 
 pub use bound_expression_meaning::{
-    has_builtin_bound_expression_meaning, has_builtin_decomposed_guard_meaning,
+    has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
+    has_builtin_decomposed_guard_meaning,
 };
 pub use intrinsic_boundaries::exact_compiler_intrinsic_boundary_requirement;
 

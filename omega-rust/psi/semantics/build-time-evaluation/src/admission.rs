@@ -161,15 +161,13 @@ impl BuildTimeAdmissionPlan {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let closure_violation = checked_closure_violation(&self.call_edges, program, machine);
-        let selection_violation = self.selection_authority.as_ref().and_then(|authority| {
-            selection_authority_violation(
-                &self.call_edges,
-                program,
-                machine,
-                custody,
-                authority.as_ref(),
-            )
-        });
+        let selection_violation = selection_authority_violation(
+            &self.call_edges,
+            program,
+            machine,
+            custody,
+            self.selection_authority.as_deref(),
+        );
         if services.is_empty()
             && !transitive_may_suspend
             && !transitive_may_block

@@ -900,6 +900,12 @@ Owners include
   now rejects with `requires an integer literal argument` instead of synthesizing
   `Buffer<1>` for a remainder provider returning zero. Owner:
   `syntax-trees-to-symbol-resolved-trees/src/generic_data/const_evaluation/`.
+  The equivalent `Buffer<count()>` probe lives in
+  `tests/omega/fail/generics/authored_const_call_operator_requires_selection/main.omg`;
+  it rejects with `requires exact authored selection` on macOS. Semantic
+  evaluation still needs exact selected execution across helper calls,
+  independently of package permission. Admission is owned by
+  `build-time-evaluation/src/admission/selection_authority.rs`.
   Next acceptance: evaluate that selected provider to `Buffer<0>` while keeping
   unrelated operator declarations from changing builtin arithmetic.
   Complete builtin proof `Int` division and remainder beyond exact constant
