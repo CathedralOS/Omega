@@ -108,8 +108,9 @@ module dungeon::combat;
 
 Module paths participate in name resolution and artifact identity. They are
 not filesystem escape paths or additional package reach boundaries. The Rust
-parser retains module declarations, but resolved module namespace behavior is
-not yet implemented; parsing this form does not establish its full semantics.
+implementation supports selected nominal/free-machine namespace paths; remaining
+forms, including module-owned domains, still reject pending namespace-aware
+normalization. See [source resolution](../../omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization).
 
 ## Imports
 
@@ -124,6 +125,27 @@ An external package must be a direct declared dependency. Fully qualifying its
 name does not bypass that rule. Imports affect resolution; they do not execute
 the imported code. Tooling may discover an enclosing build directory, but source
 imports cannot reach upward through directories to evade package declarations.
+
+Imports are local to this source file, even when sibling files declare the same
+logical module. They do not spread transitively or change visibility of the
+module's own declarations. Importing a module exposes its directly declared
+public foreign domains; importing one domain exposes only that declaration.
+Importing a machine or carrier exposes no sibling or foreign domains merely
+because their source was loaded. Descendant modules and the imported module's
+own imports do not add extension candidates.
+
+For example, `use ui_policy::screen::Point::OnScreen;` selects an independently
+owned domain in `ui_policy::screen`. Its carrier attachment resolves in the
+declaring context, not against the caller's same-spelled `Point`. Direct qualified
+selection exposes no siblings. The domain's exact owner and the carrier's owner
+remain distinct. Importing grants no membership, minting authority, private
+representation access, or implicit operator change.
+
+Two distinct exposed declarations competing for one carrier-qualified name
+reject; repeating the same exact import does not. Neither import order nor
+carrier ownership gives priority. A broad import may collide after module growth;
+a narrow import avoids unrelated additions. Diagnostics show both owners and
+the imports responsible. See [ordinary import rules](../spec/language/modules.md#import-scope-and-exposure).
 
 ### Declaration selection and carried foreign types
 
@@ -141,6 +163,10 @@ This example is schematic: the selected API supplies the concrete signatures
 and ownership modes. Moving, borrowing, storing, returning, and passing the
 inferred value does not select its owner's declarations. Multiplicity and
 compiler-planned cleanup still apply.
+
+The same distinction preserves an exact foreign-domain qualification and its
+evidence when received through an API. Carrying it does not import the domain
+for authored lookup or activate its declaring package's other extensions.
 
 Selecting the handle owner's fields, methods, cases, operators, or conformances
 is different. That needs a direct dependency on the owner, even if its name is
@@ -184,7 +210,8 @@ requires self.health >= amount
 The preconditions also keep this subtraction within range. Public visibility
 does not waive numeric, ownership, or proof rules.
 
-A public contract cannot name a private declaration. A public machine's body
+A public contract cannot expose a private declaration for consumer selection.
+A public machine's body
 may use private implementation details; its exposed contracts may not. Likewise,
 `terminates` is the public promise, while its ranking measure is private
 proof machinery. Measures are not published with `pub`.
@@ -193,6 +220,12 @@ Named conformances have independent visibility. A public conformance may
 retain private implementing machine identities: its consumer selects the public
 conformance and its row map, not those machines independently. A requirement-local
 `as Name` label does not create another public declaration.
+
+A public domain may similarly retain private trait requirements or exact machines
+in its issuer catalog. This [authorization metadata](../spec/resources/authority.md#private-issuer-routes)
+does not make the private route callable or externally implementable, and does
+not expose private carrier types. The verifier still checks exact issuer identity;
+private does not mean secret or omitted from evidence.
 
 Omega has no re-export item that changes dependency ownership. To present a
 dependency's behavior under your package's API, write an ordinary public wrapper.

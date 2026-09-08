@@ -26,13 +26,72 @@ weakening, aliases, and semantic-role composition.
 from supply and use, not the keyword. None is a substitute for claim evidence.
 
 A domain's `requires` clauses state predicate obligations; `established by`
-names exact trait requirements authorized to establish provenance. Each route
-is an alternative origin, not a call. The signature-free path must resolve to
-one exact overload without consulting visible or selected satisfiers. Adding
-an overload can break distant establishment clauses and callback binders;
-compatibility reporting attributes that change to the requirement declaration.
+names exact trait requirements or exact machine declarations authorized to
+establish provenance. Each route is an alternative origin, not a call. The
+signature-free path must resolve to one exact declaration without consulting an
+expected result or selecting among satisfiers. Ambiguity across overloads or
+declaration kinds rejects. Adding an overload can break establishment clauses;
+compatibility reporting attributes that change to the selected declaration.
 `as Name` labels a satisfier edge or selects a complete conformance where its
 grammar allows it, never an overload.
+
+### Requirement and exact-machine routes
+
+The route retains a closed target kind and exact declaration identity:
+
+| Target | Authorized origin |
+| --- | --- |
+| Trait requirement | An exact invocation through that requirement and a valid selected conformance. |
+| Concrete machine declaration | That exact machine's invocation, not other conformers of a requirement it happens to satisfy. |
+
+A public ordinary requirement deliberately permits valid downstream checked
+conformers. A public boundary requirement additionally requires provider
+selection and admission. An exact-machine route may name a free or attached
+machine; its visibility controls who can select it. Naming a machine is neither
+trait sealing nor an implicit grant to other machines in its package.
+
+Compiler-owned classifications can further restrict eligible route kinds, such
+as admitted boundary routes for opaque progress profiles. General machine-route
+support does not relax those classification-specific contracts.
+
+At an authorized checked result boundary, the compiler introduces the declared
+provenance only for the exact result subject, after independently establishing
+carrier validity, predicates, and ordinary result/custody obligations. The body
+cannot assume the qualification being introduced to prove those obligations or
+its own call preconditions. Route authorization is provenance evidence, not an
+axiom proving arbitrary predicates. A result annotation alone remains insufficient.
+Existing evidence may instead be forwarded; a public wrapper returning an issued
+value does not become a new issuer.
+
+An exact-machine route does not bypass a boundary declaration's ordinary supply,
+provider, or admission obligations. Merely implementing a requirement does not
+authorize an unrelated direct call. A separately authorized exact checked machine
+can establish its own declared result provenance, but cannot borrow the admitted
+authority of a requirement it satisfies.
+
+### Private issuer routes
+
+A public domain may name a private trait requirement or private concrete machine
+that its author is authorized to select. This is an issuer-authorization reference,
+not publication of that route as consumer-nameable API. A private trait restricts
+outside conformance; a private machine restricts outside selection. Public wrappers
+may return established values without exposing either route for direct use.
+
+The interface and proof evidence retain the exact route kind, owner, declaration,
+subject/signature correspondence, and required semantic dependencies. A verifier
+must still check that an establishment occurrence matches the authorized route.
+Private does not mean secret, nor permit deleting evidence or hiding admissions.
+Consumers gain no permission to name, call, conform to, or select private types
+through that metadata. Public carriers, predicates, signatures, and ordinary
+declaration selections keep their existing visibility requirements.
+
+The catalog is owned by the domain declaration. Downstream code cannot append
+routes or substitute a same-spelled issuer. A change to the authorized route set
+changes the domain's semantic interface; replacing a checked body does not select
+a different route, but still requires validation of its exact contract. No new
+sealed-trait construct or runtime issuer registry is required.
+
+### Membership and boundary evidence
 
 Predicate-only membership follows from checked predicates, including exact
 guarantees of checked validation or appropriately admitted evidence. A routed
@@ -46,7 +105,7 @@ by consumers; inaccessible predicates are exposed through checked validators
 and guarantees. Neither package ownership nor a qualified result annotation
 provides ambient establishment authority. A checked implementation must justify
 its guarantee from proof, existing evidence, validation, transfer, or an exact
-authorized crossing.
+authorized establishment occurrence as described above.
 
 For an admitted membership guarantee, the boundary requirement supplies the
 contract and the domain authorizes that requirement. An unrelated accepted
@@ -106,6 +165,9 @@ no new admitted seam. [Content custody](content_custody.md) owns conservation;
 
 Facts retain checked, transferred, validated, or accepted origins. Accepted
 origins name domain, subject, requirement, selected provider, and receipt.
+Checked route introductions also retain the exact requirement or machine target
+kind and identity, established result subject, and invocation evidence. Private
+route references remain verifiable without granting downstream name selection.
 Authority-flow reports attribute acceptance, derivation, retention, return,
 release, and acquisition to packages. Content reports additionally retain
 projection, backing, lineage, outcome mapping, and conservation evidence.

@@ -241,7 +241,12 @@ domain does not name it.
 
 Trait visibility governs who may implement the route, machine visibility who
 may invoke it, and boundary routes additionally require provider admission.
-The domain owner has no special minting privilege. The
+A public domain may authorize a private trait requirement without publishing it
+for outside conformance. It may instead name an exact concrete machine, public
+or private; that authorizes only the named machine, not other conformers.
+Private issuer identities remain verification metadata, not consumer access.
+No sealed-trait feature or artificial trait is required for a single issuer.
+The domain owner has no ambient minting privilege. The
 [establishment contract](../spec/resources/authority.md#establishment-routes)
 owns these distinctions.
 

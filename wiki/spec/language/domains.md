@@ -25,8 +25,9 @@ machine calls may occur as denotational value terms inside propositions under
 execute a validator. Executable validation is an ordinary machine whose exact
 guarantee may establish a proposition after its successful call.
 
-Each comma-separated `established by` requirement is an alternative authorized
-origin, not an invocation. Predicates alone establish predicate-only membership.
+Each comma-separated `established by` entry names an exact trait requirement or
+concrete machine as an alternative authorized origin, not an invocation.
+Predicates alone establish predicate-only membership.
 A routed domain additionally needs exact authorized provenance, even when all
 its predicates are proved. A predicate-free domain with establishment routes
 still requires that provenance. A declaration with neither predicates nor routes
@@ -34,12 +35,19 @@ adds no membership obligation: a valid bare `i32` may be explicitly qualified as
 `Km` without an owner grant. Predicate-free does not mean uninhabited.
 
 [Authority establishment](../resources/authority.md#establishment-routes) owns
-exact requirement resolution, result and installed-parameter subjects, checked
+exact route resolution, result and installed-parameter subjects, checked
 versus admitted routes, and receipts. The domain owner has no ambient minting
 privilege. A result annotation or `ensures` creates an obligation, not evidence.
 Trait visibility governs who may conform; machine visibility governs who may
-invoke an existing route. Public ordinary routes permit checked conformers;
-public boundary routes permit admitted opaque realizations.
+invoke an existing route. Requirement routes deliberately permit valid conformers
+under their visibility and contract; boundary routes also require admission.
+An exact-machine route authorizes only the named declaration's invocation.
+
+A public domain may authorize private requirements or machines accessible to its
+author. Their exact identities remain verifier-visible issuer metadata, not
+consumer selection authority. Public wrappers may return qualified values while
+issuance stays private. This [limited visibility exception](../resources/authority.md#private-issuer-routes)
+does not expose private carriers or relax public predicate/signature visibility.
 
 Assignment, move, and permitted copy transport existing qualification; rebuilding
 equal carrier fields does not. Mutation invalidates subject-bound facts unless
@@ -54,17 +62,29 @@ It is private unless declared `pub`; publishing it does not publish a private
 carrier. Public signatures must be authorized to name both declarations under
 [package boundaries](../packages/boundaries.md).
 
-A package may declare a domain over a foreign carrier. Extension visibility is
-import-gated, not an ambient addition to every user's type namespace. A visible
-collision between the same carrier-qualified case, domain, or machine name
-rejects; inherent declarations do not silently win over extensions. An upstream
-addition may therefore break an existing extension.
+A package may declare a domain over a foreign carrier without a carrier-owner
+veto or orphan restriction. Its declarations cannot change the carrier's validity,
+reveal private representation, or alter another domain's establishment routes.
 
-The exact foreign-domain import-gate spelling, optional owner/orphan restrictions,
-and authority/reporting presentation remain
-[undetermined](../../../OWNER_QUESTIONS.md#q1--foreign-domain-import-and-applicability).
-These open details do
-not authorize ambient extension discovery or priority-based collision resolution.
+Foreign domains follow [ordinary import scope and exposure](modules.md#import-scope-and-exposure):
+importing the declaring module exposes its directly declared public domains in
+the importing source file; importing one domain exposes only that declaration.
+Sibling files, descendant modules, and transitive imports add no exposure.
+Importing a carrier or ordinary machine does not expose unrelated domains merely
+because their source was loaded. Direct qualified selection uses the
+[declaring-owner-first address](modules.md#foreign-attached-declaration-paths).
+
+The exact domain owner and carrier owner remain independent in interfaces and
+reports. Repeated exposure of one exact declaration is not a collision; distinct
+visible declarations competing for the same carrier-qualified case, domain, or
+machine name reject without inherent-declaration or import-order priority.
+Broad imports may be affected by later module additions; narrow imports avoid
+unrelated exposure. Diagnostics identify both owners and the exposing imports.
+
+Importing enables selection, not membership, minting, or implicit operator
+changes. A value carrying a foreign qualification retains its exact identity and
+evidence without activating the domain for authored lookup. Carrying it does not
+grant additional dependency reach or expose other extensions.
 
 ## Refinement and executable membership
 

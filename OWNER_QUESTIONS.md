@@ -38,34 +38,4 @@ the concrete compiler customer or required proof obligation, compare existing
 languages and simpler refactors, and account for total audit cost and machinery
 displaced. Await an owner decision; a task or prototype is not approval.
 
-## Q1 — Foreign-domain import and applicability
-
-### Context and problem
-
-Downstream policy packages may classify upstream values through domains without
-changing the carrier. The existing direction makes foreign extensions
-import-gated and rejects name collisions rather than choosing one by priority.
-It leaves the activation syntax, optional owner restrictions, and reporting
-unspecified; see [domains](wiki/spec/language/domains.md).
-
-Which explicit source import makes an extension participate, and can a carrier
-owner prohibit external extensions? These affect whether adding a dependency or
-an upstream member changes existing name resolution. Merely placing declarations
-in the same resolved package closure must not activate every extension.
-
-### Proposed direction, not yet adopted
-
-Use explicit import of the declaring module to activate its extensions, retaining
-the extension's declaring-package identity and normal collision rejection.
-Publish that provenance in interfaces and reports. Do not add an optional orphan
-restriction without a concrete need beyond collision rejection and explicit
-visibility. Settle the exact import/name-resolution rules before implementation.
-
-### Alternatives
-
-A dedicated named-domain import could make activation narrower if ordinary
-module imports expose too much. Restricting extensions to the carrier's package
-would require policy packages to use wrappers and changes the existing extension
-direction. Ambient dependency-wide activation or silent upstream-priority
-selection is wrong: either can change an existing contract without an authored
-selection.
+No unresolved owner questions.

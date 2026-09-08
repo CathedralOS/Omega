@@ -24,6 +24,11 @@ and automatic cleanup are carried type semantics. The reserved owner-attached
 ordinary consuming call whose resulting cleanup plan remains carried semantics.
 Borrowed erased views never acquire cleanup ownership of their referents.
 
+Exact foreign-domain qualification and evidence can likewise travel through an
+API without importing the domain for authored lookup. Carrying does not expose
+its declaring package's other extensions or erase its separate ownership.
+Explicit domain selection follows [file-local import exposure](../language/modules.md#import-scope-and-exposure).
+
 The transitive closure retains the exact type owner. Exact semantic dependencies
 affect rebuild/content identity for private uses and also API compatibility for
 public-signature uses. A coarse whole-package dependency may conservatively
@@ -37,7 +42,9 @@ Public contracts, data/domain facts, and trait contracts use public-interface
 exposure. Executable bodies, internal states, local annotations/casts, owned
 storage, and ranking witnesses remain private implementation. The public
 termination promise is `terminates`, not the measure used to prove it.
-A public interface cannot select a private declaration.
+A public interface cannot expose a private declaration for consumer source
+selection. Private issuer references in a domain's authorization catalog are the
+limited evidence-only exception described below.
 
 Independently nameable declarations own their own visibility, including
 carrier-qualified declarations. Only genuine members of one exact semantic owner
@@ -59,11 +66,16 @@ Selection settles before supply admission; rejection of the supply does not
 erase the declaration it selected. Nested machine-parameter contracts and
 generic applications retain the same selections.
 
-Each domain establishment route selects its exact trait and signature-free
-requirement under the domain's exposure. Repeated authored routes retain their
-occurrences even when equal semantic alternatives normalize to one route.
-Public domains cannot authorize private requirements. Lexical subjects/binders
-do not become declaration-selection rows.
+Each domain establishment route selects an exact trait requirement or concrete
+machine, retaining its target kind and author-side dependency/visibility checks.
+Repeated authored routes retain their occurrences even when equal semantic
+alternatives normalize to one route. A public domain may authorize a private
+requirement or machine accessible to its author under the
+[private-issuer rule](../resources/authority.md#private-issuer-routes).
+The catalog retains exact identities and dependencies for verification without
+making the issuer callable, externally implementable, or source-nameable.
+Public predicates, carrier types, and ordinary signatures keep their existing
+exposure rules. Lexical subjects/binders do not become declaration-selection rows.
 
 Value calls, Unit/discarded calls, static arguments, constructor fields, member
 projections, and intrinsic unary expressions retain independent selections.

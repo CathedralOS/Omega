@@ -86,6 +86,17 @@ Import loading still uses source-path candidates, including enclosing prefixes
 for a module's declarations; it does
 not scan or parse a package-wide source inventory to discover arbitrary files.
 
+The settled [foreign-domain import contract](../../../wiki/spec/language/modules.md#import-scope-and-exposure)
+requires file-local broad/narrow exposure, no transitive activation, and exact
+declaring-owner-first attached paths. Loading a source cannot expose its sibling
+domains. The current module-domain fence remains until namespace-aware operator
+homes and declaration selection preserve those identities. The
+[establishment contract](../../../wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
+also admits exact machine targets; current requirement-only route normalization
+needs a distinct exact-machine identity, not a conversion to a selected satisfier.
+`MODULE-NAMESPACE-RESOLUTION` and `DOMAIN-ISSUER-ROUTES` on the
+[execution board](../../../TASKS.md) track this work, not an unresolved owner decision.
+
 The focused source/Terminal probes run from the repository root:
 
 ```sh
