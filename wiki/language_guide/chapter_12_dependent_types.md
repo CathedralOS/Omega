@@ -4,6 +4,11 @@ A range, contract, or view can name ordinary in-scope values, not only constants
 The compiler tracks the relationship; the program does not acquire hidden
 witness storage or runtime type metadata merely because a fact names a value.
 
+This also applies to [runtime-capable value binders](chapter_13_generics.md#runtime-capable-value-parameters):
+`Buffer<count>` may retain the exact runtime extent when Buffer declares a
+non-const value binder and supplies a valid representation. `const` remains an
+explicit requirement for static knowledge, not a universal property of generics.
+
 The [dependent-value specification](../spec/language/dependent_values.md) defines
 this systems fragment. Examples show intended contracts; implementation support
 for relational proofs and views remains narrower. General mathematical
@@ -115,6 +120,12 @@ those applications; runtime dimensions do not become const arguments by analogy.
 ## Dynamic Lowering
 
 A runtime witness remains its ordinary stored field, parameter, or view value.
+A runtime-capable generic index can use that same witness. Compile a shared body
+over its value where possible; static-only operations require a justified static
+selection or another supported realization. No new machine is generated for each
+value read from input. Index-only proof facts may erase, but executable size or
+offset computations retain their needed values.
+
 A strided access can lower to ordinary offset arithmetic; the proof establishes
 that its actual byte range lies in the backing region. Dynamic-sized data lives
 behind checked views or provisioned buffers/storage, not variable-sized stack
@@ -218,9 +229,12 @@ facts for compatibility without rewriting interface identity. Qualifying the
 same carrier adds no representation, but a units library's scaling or rounding
 operation can still perform real work. See [indexed domains](../spec/language/domains.md#indexed-families).
 
-The systems model does not support arbitrary runtime-dependent nominal types
-or implicit runtime proof objects. It does not prohibit eligible static
-evaluation in layout plans, nor restrict general proof-side quantification.
+Runtime-capable generic value indices are distinct from arbitrary runtime
+creation or selection of nominal type declarations. They require an existing
+declared family and a valid realization, with no implicit runtime proof objects,
+storage allocation, or unlimited specialization. Existing const-indexed families
+retain their static requirement. These rules neither prohibit eligible static
+evaluation in layout plans nor restrict general proof-side quantification.
 Arbitrary mathematical functions/predicates, noncomputable values, and the full
 universe/equality foundations remain required but
 [undetermined](../spec/proofs/contracts.md#undetermined-foundations).
@@ -229,6 +243,6 @@ universe/equality foundations remain required but
 
 Chapter 7 introduces default domains; Chapter 8 explains qualification;
 Chapter 11 explains restoring validity after mutation. Chapter 10 supplies
-proofs and explicit pre-state reasoning, Chapter 13 handles static generic
+proofs and explicit pre-state reasoning, Chapter 13 handles staged generic
 applications, and Chapter 20 explains the representation and view obligations
 that a dependent bound alone cannot establish.

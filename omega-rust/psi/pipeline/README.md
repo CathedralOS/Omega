@@ -50,6 +50,23 @@ crashes stay distinct from ordinary terminal transitions. Retired grammar is
 diagnosed rather than admitted as a compatibility syntax tree. Parser diagnostics
 and the current language specification must agree.
 
+## Value-generic staging
+
+The settled [value-binder contract](../../../wiki/spec/language/generics.md#value-binders-and-const-requirements)
+distinguishes runtime-capable `Count: u32` from static `const Count: u32`.
+The current static-index evaluator and instance cache do not implement the new
+runtime-value path. Preserve rejection of runtime subjects in const applications;
+do not turn a failed constant evaluation into a guessed value or runtime fallback.
+
+Implement distinct binder kinds, exact runtime-subject substitution, and ordinary
+operand lowering with checked representation/custody under `RUNTIME-VALUE-GENERICS`
+on the [execution board](../../../TASKS.md). Runtime witnesses are not canonical
+static index bytes. Scope/name resolution, parameter modes, contract dependencies,
+and result identity must survive through Terminal and artifact replay. General
+finite dispatch generation and indexed dynamic interfaces require their own
+design; this is not a claim that a generic method on a dynamic value can already
+specialize or that runtime-dependent inline storage is supported.
+
 ## Resolution and closed-instance normalization
 
 Authored `module` paths establish namespace symbols without moving the ordered

@@ -852,6 +852,38 @@ Owners include
   contexts. Preserve per-node integer carriers, canonical result/selection
   separation, per-use exposure under specialization, and package authority before evaluation.
 
+- **RUNTIME-VALUE-GENERICS.** Implement the settled
+  [runtime-capable versus const binder contract](wiki/spec/language/generics.md#value-binders-and-const-requirements)
+  for APIs whose result or stored qualification depends on an input value.
+  Begin with scalar value binders and fixed-representation data/machine uses,
+  not dynamic stack layouts or automatic SIMD specialization. Psi syntax,
+  resolution, generic substitution, checked facts and Terminal production own
+  the new path; calling/layout and artifact consumers retain the same exact
+  runtime subjects alongside static applications. Keep the existing constant
+  evaluator's runtime-input rejection for `const` binders. Module-owned forms
+  depend on exact lexical selection from MODULE-NAMESPACE-RESOLUTION, not a
+  source-spelling fallback or treating a runtime value as a static cache key.
+
+  Acceptance: `<Count: u32>` accepts static and runtime arguments when the
+  caller establishes its obligations; `<const Count: u32>` still requires a
+  static specialization. One dynamic machine body handles distinct runtime
+  counts without per-value code generation. Parameters/results and an indexed
+  scalar field preserve the same captured subject, including after reassignment
+  of its source variable. Equality-guarded uses retain their proof, and stale
+  relationships, invalid bounds, duplicate/lost linear custody, and unsupported
+  static-only uses reject. Reuse witnesses where valid; do not add heap boxing,
+  reserve a range's maximum on the stack, or interpret integer finiteness as a
+  specialization request. Check source diagnostics, representation, and
+  interpreter/native replay for the supported slice before widening it.
+
+  Squalr's 16/32/64-byte comparers and const-rotation bridges motivate follow-up
+  [finite specialization](wiki/spec/language/generics.md#finite-specialization-boundary).
+  Before implementing automatic dispatch or finite generic methods through
+  dynamic interfaces, specify coverage/fallback, target support, dispatch
+  placement, indexed result custody, and code-size control. Existing explicit
+  branches/static calls remain the baseline; the settled binder split is not
+  approval of an implicit dynamic vtable or existential packaging protocol.
+
 - **DOMAIN-ISSUER-ROUTES.** Implement the
   [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
   and [private issuer catalogs](wiki/spec/resources/authority.md#private-issuer-routes)
