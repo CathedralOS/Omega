@@ -377,6 +377,7 @@ pub(crate) fn substitute_resolved_constants(
     authored: &[crate::lowerer::PendingAuthoredExpression],
     selections: &mut Vec<crate::lowerer::PendingConstSelection>,
     retained_const_count: usize,
+    retain_selection_only: bool,
 ) -> Result<(), Diagnostic> {
     use symbol_resolved_trees::expression::ExpressionNode;
     let declarations = program
@@ -504,6 +505,17 @@ pub(crate) fn substitute_resolved_constants(
                 "resolved constant selection has no retained declaration",
             ));
         };
+        if retain_selection_only {
+            // This private prepass publishes declaration custody, not a value
+            // for typing or execution. Leave the resolved expression intact.
+            selections.push(crate::lowerer::PendingConstSelection {
+                expression: occurrence.expression,
+                source_span: reference,
+                declaration_ordinal,
+                exposure: occurrence.exposure,
+            });
+            continue;
+        }
         let Some((_, initializer)) = initializers
             .iter()
             .find(|(ordinal, _)| *ordinal == declaration_ordinal)

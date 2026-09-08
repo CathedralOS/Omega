@@ -1,0 +1,12 @@
+// Scoped aggregate constants retain their ordinary canonical identity.
+data Index { value: u64; }
+data Sizes {}
+const Sizes::SIZE: Index = Index { value: 1 };
+data Indexed<const Selected: Index> { value: u8; }
+machine keep(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> { value }
+machine before_local(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> {
+    let Sizes: u64 = 0;
+    value
+}
+data Main {}
+machine Main::main(&mut self) {}

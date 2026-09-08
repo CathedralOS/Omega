@@ -215,3 +215,53 @@ fn data_index_discovery_excludes_shadowed_machine_scope() {
     };
     assert_eq!(value.value_u64(), Some(0));
 }
+
+#[test]
+fn aggregate_indices_reject_runtime_qualified_roots_at_each_machine_frontier() {
+    for body in [
+        "machine run(Sizes: Index, value: Indexed<Sizes::SIZE>) {}",
+        "machine run(Sizes: Index) -> Indexed<Sizes::SIZE> {}",
+        "machine run() { let Sizes: Index; let value: Indexed<Sizes::SIZE>; }",
+    ] {
+        let source = format!(
+            "data Index {{ value: u64; }} data Sizes {{}}
+             const Sizes::SIZE: Index = Index {{ value: 1 }};
+             data Indexed<const Selected: Index> {{ value: u8; }} {body}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("aggregate tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("aggregate syntax");
+        let diagnostics = super::evaluate(syntax, None, &[], None)
+            .expect_err("runtime roots must not acquire static aggregate identity");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "machine index operand must select a constant in its original lexical scope"
+                )),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn aggregate_indices_preserve_static_paths_before_later_local_bindings() {
+    let source = "data Index { value: u64; } data Sizes {}
+        const Sizes::SIZE: Index = Index { value: 1 };
+        data Indexed<const Selected: Index> { value: u8; }
+        machine run(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> {
+            let before: Indexed<Sizes::SIZE>;
+            let Sizes: Index;
+        }";
+    let tokens = Lexer::new(source).tokenize().expect("aggregate tokens");
+    let syntax = parse_syntax_trees(&tokens).expect("aggregate syntax");
+    let positions = syntax_trees_to_symbol_resolved_trees::closed_machine_const_arguments(&syntax);
+    assert_eq!(positions.len(), 3);
+    let normalized = super::evaluate(syntax, None, &[], None)
+        .expect("later local cannot capture prior static selections");
+    for (argument, _, _) in positions {
+        assert!(
+            matches!(normalized.type_references.type_reference(argument),
+            syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str() == "Sizes::SIZE")
+        );
+    }
+}

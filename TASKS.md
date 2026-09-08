@@ -856,8 +856,11 @@ Owners include
   Original lexical selection in
   `build-time-evaluation/src/const_generic_expressions.rs` precedes the typed
   scalar probe. Next acceptance: aggregate indices must preserve their lexical
-  owner before materialization; the remaining legacy aggregate path is outside
-  this probe, and a runtime-shadowed aggregate reproducer is not yet run.
+  owner through namespace-aware materialization; module-owned aggregate constants
+  remain fenced by initializer normalization. Root scoped aggregate indices have
+  lexical admission coverage in `tests/omega/pass/modules/aggregate_machine_indices`
+  and `tests/omega/fail/modules/runtime_aggregate_index`; this does not replace
+  the legacy aggregate materializer with namespace-aware evaluation.
   Computed Boolean expressions need admitted operator evaluation rather than
   literal substitution. Conformance and static-requirement argument positions
   also need their complete owners, not a standalone root probe.

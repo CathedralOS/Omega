@@ -346,6 +346,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "constants/free_const_local_shadowing",
     "modules/machine_constant_indices",
     "modules/boolean_machine_indices",
+    "modules/aggregate_machine_indices",
     "arithmetic/anonymous_rational_integer_landing",
     "arithmetic/anonymous_rational_arguments",
     "slices/signed_index_and_range_lower_bounds",
@@ -748,6 +749,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "modules/runtime_boolean_index",
+    "modules/runtime_aggregate_index",
     "termination/unequal_computed_rank_copies",
     "termination/explicit_self_without_descent",
     "termination/identity_measure_unbound_name",
