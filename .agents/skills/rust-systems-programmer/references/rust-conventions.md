@@ -1,6 +1,6 @@
 # Rust coding and verification conventions
 
-Apply these preferences within [Omega conventions](../../../../README.md#readonly-coding-conventions) and [AGENTS.md](../../../../AGENTS.md); those contracts take precedence.
+Apply these preferences within [AGENTS.md](../../../../AGENTS.md) and its [repository conventions](../../../../AGENTS.md#repository-conventions); those contracts take precedence.
 
 ## Name the domain, not the mechanics
 
