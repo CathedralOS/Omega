@@ -53,6 +53,7 @@ pub(super) fn enforce_construction_field_obligations(
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
+    environment: &ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_name = literal.type_name.as_str();
@@ -165,8 +166,8 @@ pub(super) fn enforce_construction_field_obligations(
         // silent truncation at construction, the same decision-17 narrowing store
         // obligation the assignment / call-arg positions carry. The field range
         // check below only covers `[a..=b]`-refined fields; this covers the plain
-        // scalar width. Flow-insensitive (empty env, like the field-range check
-        // below), so a wider place must be `as`-cast or constrained at construction.
+        // scalar width. The scanner supplies only guard facts about immutable
+        // owned inputs; unsupported evaluation effects discard those facts.
         if let Some(field_primitive) = program.primitive_type_reference(field_type) {
             let owner = format!(
                 "construction of `{type_name}` field `{}`",
@@ -187,7 +188,7 @@ pub(super) fn enforce_construction_field_obligations(
                 Some(state),
                 field.value,
                 field_primitive,
-                &ValueEnv::new(),
+                environment,
                 &owner,
                 diagnostics,
             );
@@ -231,7 +232,7 @@ pub(super) fn enforce_construction_field_obligations(
                     machine,
                     Some(state),
                     field.value,
-                    &ValueEnv::new(),
+                    environment,
                     program.primitive_type_reference(field_type),
                     numerics::arithmetic::ArithmeticDomain::Exact,
                     &owner,

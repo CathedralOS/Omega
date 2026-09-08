@@ -44,6 +44,15 @@ distinct. `parameter_bounds.rs` preserves one-sided unsigned bounds even beyond
 the interval engine's signed endpoint width. Exact `u64` formation separately
 checks the actual unsigned ceiling.
 
+`struct_literals/guard_bounds.rs` passes the selected transition arm's numeric
+facts to constructor checks only for exact immutable owned inputs and builtin
+arithmetic. It validates field identities before narrowing. Unsupported operand
+effects discard those facts for the whole target; references and mutable inputs
+need their own write-frame evidence. Storage-width and declared-range checks
+remain independent of termination. `enforced_integer_type_bounds` exposes only
+finite bounds enforced by Exact integer storage and representable by the interval
+engine's signed endpoints, not permissive policy ranges.
+
 Strict arithmetic call implication admits immutable same-carrier scalar actuals
 and checked Exact add/subtract/multiply trees. It substitutes actuals in the caller
 namespace before binding any formal and consumes simultaneous surviving contexts.

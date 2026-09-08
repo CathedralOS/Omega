@@ -7,6 +7,7 @@
 //! definition in this program (or is generic, where member types depend on
 //! instantiation) are left to later layers.
 
+use crate::arithmetic_domains::ValueEnv;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
@@ -18,7 +19,11 @@ use typed_trees::types::PrimitiveType;
 
 mod construction_bounds;
 mod field_obligations;
+mod guard_bounds;
 mod window_elements;
+
+#[cfg(test)]
+mod tests;
 
 pub(crate) use window_elements::validate_array_window_elements;
 
@@ -33,24 +38,53 @@ pub(crate) fn validate_struct_literal_fields(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let empty = ValueEnv::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::AssemblyFact(fact) => {
-                        scan_expression(program, machine, state, fact.expression, diagnostics);
+                        scan_expression(
+                            program,
+                            machine,
+                            state,
+                            fact.expression,
+                            &empty,
+                            diagnostics,
+                        );
                     }
                     StatementNode::Assignment(assignment) => {
-                        scan_expression(program, machine, state, assignment.target, diagnostics);
-                        scan_expression(program, machine, state, assignment.value, diagnostics);
+                        scan_expression(
+                            program,
+                            machine,
+                            state,
+                            assignment.target,
+                            &empty,
+                            diagnostics,
+                        );
+                        scan_expression(
+                            program,
+                            machine,
+                            state,
+                            assignment.value,
+                            &empty,
+                            diagnostics,
+                        );
                     }
                     StatementNode::Call(call) => {
                         for argument in program.statement_table.expression_handles(call.arguments) {
-                            scan_expression(program, machine, state, *argument, diagnostics);
+                            scan_expression(
+                                program,
+                                machine,
+                                state,
+                                *argument,
+                                &empty,
+                                diagnostics,
+                            );
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        scan_expression(program, machine, state, *expression, diagnostics);
+                        scan_expression(program, machine, state, *expression, &empty, diagnostics);
                     }
                     StatementNode::LocalData(local_data) => {
                         scan_expression(
@@ -58,22 +92,33 @@ pub(crate) fn validate_struct_literal_fields(
                             machine,
                             state,
                             local_data.initial_value,
+                            &empty,
                             diagnostics,
                         );
                     }
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = &transition.guard {
-                            scan_expression(program, machine, state, *guard, diagnostics);
+                            scan_expression(program, machine, state, *guard, &empty, diagnostics);
                         }
-                        for target in [transition.target, transition.continuation] {
+                        for (target, positive) in
+                            [(transition.target, true), (transition.continuation, false)]
+                        {
                             if !target.is_valid() {
                                 continue;
                             }
+                            let environment = guard_bounds::construction_guard_environment(
+                                program,
+                                machine,
+                                state,
+                                &transition.guard,
+                                positive,
+                            );
                             scan_transition_target(
                                 program,
                                 machine,
                                 state,
                                 program.statement_table.transition_target(target),
+                                &environment,
                                 diagnostics,
                             );
                         }
@@ -89,16 +134,46 @@ fn scan_transition_target(
     machine: &Machine,
     state: &State,
     target: &TransitionTargetNode,
+    environment: &ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match target {
         TransitionTargetNode::Named { arguments, .. } => {
+            // Later argument evaluation can write through an earlier alias.
+            // Until this adapter consumes write frames, any unsupported operand
+            // removes guard facts from the entire target's constructor checks.
+            let empty = ValueEnv::new();
+            let environment = if program
+                .statement_table
+                .expression_handles(*arguments)
+                .iter()
+                .all(|argument| {
+                    guard_bounds::has_immutable_inputs(program, machine, state, *argument)
+                }) {
+                environment
+            } else {
+                &empty
+            };
             for argument in program.statement_table.expression_handles(*arguments) {
-                scan_expression(program, machine, state, *argument, diagnostics);
+                scan_expression(program, machine, state, *argument, environment, diagnostics);
             }
         }
         TransitionTargetNode::Value(expression) => {
-            scan_expression(program, machine, state, *expression, diagnostics);
+            let empty = ValueEnv::new();
+            let environment =
+                if guard_bounds::has_immutable_inputs(program, machine, state, *expression) {
+                    environment
+                } else {
+                    &empty
+                };
+            scan_expression(
+                program,
+                machine,
+                state,
+                *expression,
+                environment,
+                diagnostics,
+            );
         }
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
@@ -109,6 +184,7 @@ fn scan_expression(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
+    environment: &ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -116,51 +192,132 @@ fn scan_expression(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            scan_expression(program, machine, state, atomic.value, diagnostics)
-        }
+        ExpressionNode::Atomic(atomic) => scan_expression(
+            program,
+            machine,
+            state,
+            atomic.value,
+            environment,
+            diagnostics,
+        ),
         ExpressionNode::StructLiteral(literal) => {
             validate_literal_field_names(program, machine, state, literal, diagnostics);
-            enforce_construction_field_obligations(program, machine, state, literal, diagnostics);
+            enforce_construction_field_obligations(
+                program,
+                machine,
+                state,
+                literal,
+                environment,
+                diagnostics,
+            );
             for field in program.expression_table.struct_fields(literal.fields) {
-                scan_expression(program, machine, state, field.value, diagnostics);
+                scan_expression(
+                    program,
+                    machine,
+                    state,
+                    field.value,
+                    environment,
+                    diagnostics,
+                );
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
-                scan_expression(program, machine, state, *element, diagnostics);
+                scan_expression(program, machine, state, *element, environment, diagnostics);
             }
         }
         ExpressionNode::Binary(binary) => {
-            scan_expression(program, machine, state, binary.left, diagnostics);
-            scan_expression(program, machine, state, binary.right, diagnostics);
+            scan_expression(
+                program,
+                machine,
+                state,
+                binary.left,
+                environment,
+                diagnostics,
+            );
+            scan_expression(
+                program,
+                machine,
+                state,
+                binary.right,
+                environment,
+                diagnostics,
+            );
         }
-        ExpressionNode::Cast(cast) => {
-            scan_expression(program, machine, state, cast.value, diagnostics)
-        }
+        ExpressionNode::Cast(cast) => scan_expression(
+            program,
+            machine,
+            state,
+            cast.value,
+            environment,
+            diagnostics,
+        ),
         ExpressionNode::Call(call) => {
-            scan_expression(program, machine, state, call.receiver, diagnostics);
+            scan_expression(
+                program,
+                machine,
+                state,
+                call.receiver,
+                environment,
+                diagnostics,
+            );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression(program, machine, state, *argument, diagnostics);
+                scan_expression(program, machine, state, *argument, environment, diagnostics);
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            scan_expression(program, machine, state, indexed.collection, diagnostics);
-            scan_expression(program, machine, state, indexed.index, diagnostics);
+            scan_expression(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                environment,
+                diagnostics,
+            );
+            scan_expression(
+                program,
+                machine,
+                state,
+                indexed.index,
+                environment,
+                diagnostics,
+            );
         }
-        ExpressionNode::Member(member) => {
-            scan_expression(program, machine, state, member.receiver, diagnostics)
-        }
-        ExpressionNode::Borrow(inner) => {
-            scan_expression(program, machine, state, inner.target, diagnostics)
-        }
+        ExpressionNode::Member(member) => scan_expression(
+            program,
+            machine,
+            state,
+            member.receiver,
+            environment,
+            diagnostics,
+        ),
+        ExpressionNode::Borrow(inner) => scan_expression(
+            program,
+            machine,
+            state,
+            inner.target,
+            environment,
+            diagnostics,
+        ),
         ExpressionNode::Range(range) => {
-            scan_expression(program, machine, state, range.start, diagnostics);
-            scan_expression(program, machine, state, range.end, diagnostics);
+            scan_expression(
+                program,
+                machine,
+                state,
+                range.start,
+                environment,
+                diagnostics,
+            );
+            scan_expression(program, machine, state, range.end, environment, diagnostics);
         }
-        ExpressionNode::Unary(unary) => {
-            scan_expression(program, machine, state, unary.operand, diagnostics)
-        }
+        ExpressionNode::Unary(unary) => scan_expression(
+            program,
+            machine,
+            state,
+            unary.operand,
+            environment,
+            diagnostics,
+        ),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)

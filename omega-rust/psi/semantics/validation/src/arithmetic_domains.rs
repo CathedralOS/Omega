@@ -56,7 +56,7 @@ pub(crate) use guard_narrowing::{
     seed_out_param_ensures,
 };
 pub(crate) use interval::Interval;
-pub use invariant_bounds::immutable_integer_expression_bounds;
+pub use invariant_bounds::{enforced_integer_type_bounds, immutable_integer_expression_bounds};
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use total_specification::{
