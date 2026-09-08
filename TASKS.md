@@ -772,7 +772,7 @@ Owners include
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
-  machine-local and domain constant indices, aggregate/type-scoped constants, templates, trait defaults,
+  machine-local constant indices, aggregate/type-scoped constants, templates, trait defaults,
   operator homes, qualified constructors, and remaining declaration forms.
   Later syntax extensions also need retained base constant initializers; they
   currently retain only declaration identity. The explicit temporary fences live in
@@ -798,19 +798,18 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: `3422468efc`, macOS arm64 with Cargo and
+  Resume evidence: `60574911b7`, macOS arm64 with Cargo and
   `RUST_MIN_STACK=33554432`. Run
-  `cargo run -p omega -- --check tests/omega/pass/modules/compound_constant_indices/main.omg`:
-  three files check with root/module `SIZE + 0` and `SIZE + 1` selecting
-  `Buffer<1>` through `Buffer<4>`. The typed probe in
+  `cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/main.omg`:
+  three files check with root/module named and compound indices selecting
+  `Indexed<1>` through `Indexed<4>` from one exact root-owned family. The typed probe in
   `build-time-evaluation/src/const_generic_expressions.rs` owns concrete data
-  field/payload indices; machine lexical scopes, open templates, constrained
-  destinations, authored operator execution and domain expressions still need
-  their complete selection/evaluation contexts. The next acceptance is exact
-  compound domain indexing or lexical-owner-preserving machine indices, without
-  consuming a runtime binder as a same-spelled constant. Preserve per-node
-  integer carriers, canonical result/selection separation, per-use exposure
-  under specialization, and package authority before evaluation.
+  field/payload data and domain indices. The next acceptance is lexical-owner-preserving
+  machine indices, without consuming a runtime binder as a same-spelled constant.
+  Open-template computation, constrained destinations, authored operator execution
+  and module-owned domain families also need their complete selection/evaluation
+  contexts. Preserve per-node integer carriers, canonical result/selection
+  separation, per-use exposure under specialization, and package authority before evaluation.
 
 - **DOMAIN-ISSUER-ROUTES.** Implement the
   [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
