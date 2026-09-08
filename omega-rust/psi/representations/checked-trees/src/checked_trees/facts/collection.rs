@@ -47,7 +47,7 @@ pub struct CheckFacts {
     /// STR4 checked plans, slice 2 (decision 19): the semantic-domain
     /// commitments each machine's body makes (arithmetic-policy casts v1).
     pub qualifications: QualificationFacts,
-    /// STR4 checked plans (machine_taxonomy.md): the normalized machine
+    /// STR4 checked plans (wiki/spec/language/machines.md): the normalized machine
     /// semantic contracts -- published halves + deterministic fingerprint.
     pub contract_plans: MachineContractPlans,
     /// CRY1: checker-derived four-axis carry policy per transparent data

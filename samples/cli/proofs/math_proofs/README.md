@@ -14,4 +14,4 @@ omega --check samples/cli/proofs/math_proofs/main.omg
 The ladder runs from constant arithmetic through ranked induction. Every
 theorem here is true. Matching false twins under `tests/omega/fail/proofs/` are
 acceptance tests for the entailment engine described in
-`wiki/pre_migration/proof_engine_roadmap.md`.
+[source proof automation](../../../../omega-rust/psi/semantics/validation/README.md#source-proof-automation).

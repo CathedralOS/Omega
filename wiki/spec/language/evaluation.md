@@ -217,9 +217,9 @@ production cost.
 Published carrierless selected-conformance evidence is separate compilation,
 not a local cache exception. A producer performs witness search; a consumer
 projects the retained proposition and may cheaply verify its artifact/kernel
-evidence without rerunning the search. Proof results remain in the separate
-`;` output lane under [proof contracts](../proofs/contracts.md), not runtime
-values smuggled through a cache. The separate
+evidence without rerunning the search. Ordinary theorem contracts and named
+witness/law bundles follow [proof contracts](../proofs/contracts.md); a cache
+does not turn erased evidence into runtime values. The separate
 [proof-search-cache proposal](../../proposals/proof_search_cache.md) concerns
 untrusted search reuse, not a replacement admission route.
 

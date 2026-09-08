@@ -15,6 +15,10 @@ beside code; completed work belongs in Git, not current reference material.
 ## Current specification subjects
 
 - Source semantics: [state contracts and live facts](spec/language/state_contracts.md),
+  [machines and refinement](spec/language/machines.md),
+  [termination and progress](spec/language/termination.md),
+  [domains and qualification](spec/language/domains.md),
+  [value-dependent facts and views](spec/language/dependent_values.md),
   [service reach and operational ceilings](spec/language/effects.md),
   [semantic evaluation](spec/language/evaluation.md),
   [constants](spec/language/constants.md), [numeric values and bounds](spec/language/numeric_values.md),

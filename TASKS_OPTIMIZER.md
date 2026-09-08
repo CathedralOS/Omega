@@ -107,7 +107,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and structured finite-work failures.
 
   First bounded call-composition milestone: implement the
-  [ranked callee on a projected receiver](wiki/pre_migration/design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers),
+  [ranked callee on a projected receiver](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers),
   beyond the current whole-entry-only admission. Acceptance: an ordinary caller
   borrows a nested field, its ranked callee preserves that referent across
   backedges, and the caller observes writes after return. Conflicting parent

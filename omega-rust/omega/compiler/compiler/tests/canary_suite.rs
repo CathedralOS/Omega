@@ -4315,8 +4315,8 @@ struct PendingCanary {
 // entailment engine (validation/src/contract_entailment.rs) landed:
 // empty-body proof machines whose contracts lie inside the engine's language
 // are now PROVED or REJECTED, never silently accepted. The pass/proofs/
-// ladder pins the proving side; the rungs map to engine increments in
-// wiki/pre_migration/proof_engine_roadmap.md.
+// ladder pins the proving side; the current automation boundary is documented
+// in omega-rust/psi/semantics/validation/README.md#source-proof-automation.
 //
 // case_payload_native_construction was promoted to pass/data/ when native case
 // payload codegen landed (tag-prefix write + payload field writes + tag-only

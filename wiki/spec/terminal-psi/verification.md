@@ -25,6 +25,13 @@ theory facts join a whole-artifact refinement claim only through checked bridges
 Subject, model or theory identity, semantics version, target capsule, observation
 profile, bridge dependencies, and admissions participate in identity.
 
+All-model consequence, truth in an exact constructed mathematical model, and
+operational refinement of pinned transition systems are distinct subjects.
+Using a theory theorem in one model requires checked model-satisfaction evidence.
+Induction over generated values requires their intended construction, not merely
+an arbitrary model satisfying some axioms. Supporting theories or alternative
+proof calculi cannot replace the canonical operational question.
+
 The verifier derives the observation profile from canonical semantics,
 boundary/component contracts, and the consumer-selected typed schema. Exact
 profile equality is the first replay gate. Cross-profile reuse requires a checked

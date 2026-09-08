@@ -4,7 +4,7 @@ A domain is a zero-cost semantic theory attached to a value's unchanged
 carrier.
 
 > **Current domain model
-> ([domain_facets_and_qualification.md](../pre_migration/design_briefs/domain_facets_and_qualification.md)).**
+> ([domains and qualification](../spec/language/domains.md)).**
 > One domain declaration may contribute predicate requirements, semantic
 > declarations, exact authorized establishment routes, and transparent alias
 > expansion. Those aspects share a source name because they compose, but the
@@ -1058,7 +1058,7 @@ payload writes `embed(value)` explicitly; fixed-width integers and addresses
 embed into proof `Int` with derived carrier-range facts. A same-carrier
 `value as T` instead removes the policy and selects Exact `T` arithmetic with
 its ordinary formation obligations. See
-[Total Specification Arithmetic](../pre_migration/design_briefs/total_specification_arithmetic.md).
+[Total Specification Arithmetic](../spec/proofs/contracts.md#total-arithmetic).
 
 **Normalization is not entailment.** A small deterministic, confluent,
 terminating normalizer owns what a domain expression *is*; type identity,

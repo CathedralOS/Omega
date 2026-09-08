@@ -101,7 +101,7 @@ Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_
 [ranked_native.rs](src/artifact/ranked_native.rs) currently admits only the entry
 machine's exact unsigned countdown and ceiling. Native and fixed-fuel verification
 run independently. This is not admission of an ordinary call to a ranked callee.
-The [projected-receiver contract](../../../../wiki/pre_migration/design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers)
+The [projected-receiver contract](../../../../wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
 needs composed argument references, call/return, cleanup, callee measure checking,
 and resource evidence; removing an entry guard or widening parameter count is
 not that implementation.
