@@ -50,8 +50,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 11998 ]
-[ "$EPSILON_BYTES" -eq 611266 ]
+[ "$EPSILON_LINES" -eq 11995 ]
+[ "$EPSILON_BYTES" -eq 611524 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -69,8 +69,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        611266,
-        "566139b6c2e97d06d1c18297432ebe4453801be45d35c8c76385bda3ecde0ad8",
+        611524,
+        "4a9d1e2fd1719705763057080b163506e92c2b2355327938f82235740185ec47",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -208,13 +208,13 @@ def evaluate(program, sealed_input=b"", timeout=300):
     return process.returncode, process.stdout
 
 status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 712070:
+if status != 0 or len(receipt) != 713259:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "c657884fde474a63c8ffafd628959c8c47e6a7440172d3a4d449991d1dab148f"
+    "de5ed0d307a218a6b99f0618f722eaeafa0d51a88b1aacadbdc51e3458a16c9a"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "

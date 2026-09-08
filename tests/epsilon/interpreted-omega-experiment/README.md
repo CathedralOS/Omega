@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,998
-lines / 611,266 bytes, authored in 87 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,995
+lines / 611,524 bytes, authored in 87 explicitly manifested members.
 The complete gate checks 142 ordinary fixtures, five D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
@@ -72,8 +72,8 @@ This removes no language observation and does not close the resource profile.
 The gate compiles the exact evaluator plus the 55-line / 2,565-byte
 `execution_driver.delta` (SHA-256
 `ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`) through the
-selected Delta route and pins the measured 712,070-byte receipt, SHA-256
-`c657884fde474a63c8ffafd628959c8c47e6a7440172d3a4d449991d1dab148f`.
+selected Delta route and pins the measured 713,259-byte receipt, SHA-256
+`de5ed0d307a218a6b99f0618f722eaeafa0d51a88b1aacadbdc51e3458a16c9a`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -280,7 +280,7 @@ unterminated comments, unsupported escapes, and recovery after a previous
 failure. The required observation is tagged `Exit(0)` with stdout `A`.
 On macOS arm64, base `564b45e205` ran this unchanged customer in 145.273
 seconds. Reusing the exact current callable fact during checking reduced the
-measured invocation to 120.518 seconds; the current 712,070-byte receipt was
+measured invocation to 120.518 seconds; that 712,070-byte receipt was
 reconstructed separately in 107.401 seconds. Both customer runs used the same
 selected evaluator and 300-second watchdog, without another bootstrap job.
 These are single-run measurements, not a controlled benchmark series, an
@@ -290,6 +290,15 @@ different checkpoints took 183.898 seconds without another bootstrap job and
 comparison for this change.
 No scanner function is extracted, rewritten, or replaced; this contract is not
 evidence of complete Omega parsing or compilation.
+
+With compact runtime field coordinates, a paired macOS arm64 comparison on
+the same evaluator and unchanged customer observed 136.905 seconds for the
+712,070-byte baseline receipt and 126.065 seconds for the 713,259-byte receipt
+pinned above (135.839 and 125.229 child CPU seconds). Other bootstrap checks
+were running. This single pair is not a benchmark series or a full-parser
+speedup; the canonical selected-customer command independently returned the
+same observation in 132.815 seconds. The baseline is the receipt at
+`844e450838`, unchanged by subsequent folder moves.
 
 Run that customer alone with:
 
@@ -314,7 +323,13 @@ the failing argument, and suppresses later mutation/output, Assertion, or exit.
 Existing successful snapshot and later-argument-trap controls ensure valid
 earlier fields do not suppress later argument evaluation.
 
-The inventory specifies 147 language/customer judgments (142 ordinary fixtures
+The record-field identity control uses two nominal owners with matching field
+spellings. It checks independent nested writes, unwritten zero defaults, sibling
+preservation, and a whole-record snapshot across subsequent updates. The private
+[runtime controls](../runtime-invariants/README.md) separately isolate each
+identity coordinate and malformed projection admission.
+
+The inventory specifies 148 language/customer judgments (143 ordinary fixtures
 and five whole-member D customers). Seven private-framing controls are counted
 separately. The companion
 [checking gate](../checking/README.md) pins exact checker reasons and coordinates

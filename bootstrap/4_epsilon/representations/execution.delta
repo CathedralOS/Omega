@@ -37,8 +37,10 @@
 (data EpsilonRuntimeView
   (EpsilonRuntimeViewAt EpsilonRuntimeViewBacking EpsilonType Int Int))
 
+; Field identity is the checked owner start/end and member start/end, not a
+; spelling or an instance identifier. The type supplies the unwritten default.
 (data EpsilonRuntimeProjection
-  (EpsilonRuntimeField EpsilonDeclaration EpsilonDataMember)
+  (EpsilonRuntimeField Int Int Int Int EpsilonType)
   (EpsilonRuntimeIndex Int))
 
 (data EpsilonRuntimeChildren

@@ -170,8 +170,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,998 lines / 611,266 bytes, SHA-256
-`566139b6c2e97d06d1c18297432ebe4453801be45d35c8c76385bda3ecde0ad8`.
+The packed evaluator is 11,995 lines / 611,524 bytes, SHA-256
+`4a9d1e2fd1719705763057080b163506e92c2b2355327938f82235740185ec47`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
@@ -252,7 +252,19 @@ or existing snapshot backing and expose no assignable place; strings, range
 slices, `.as_slice`, indexing, lengths, and all four
 Console operations execute in this staging path. Sparse typed zero homes avoid
 eager array allocation; they do not establish the final application's physical
-storage profile. Record fields retain exact checked identities in a sparse list;
+storage profile. Record fields retain exact checked identities in a sparse list.
+The projection entrance admits only a data-owned field and carries its owner
+start/end, member start/end, and field type into runtime storage. Comparisons
+check member coordinates first, then both owner coordinates; they do not unpack
+syntax declarations or compare names. The original checked ledger remains the
+authority. The type supplies zero defaults, not identity, and root identifiers
+still distinguish runtime instances. Replacing two syntax payloads with four
+coordinates and a type adds three Gamma payload pairs per new projection;
+existing projections and immutable child lists remain shared. There is no new
+index, primitive, or resource provision.
+The [field controls](../../tests/epsilon/runtime-invariants/README.md) isolate
+all four coordinates and reject invalid projection owners and sum cases.
+Record snapshots and nested-place updates retain their ordinary execution tests;
 array children use an immutable interval tree keyed by element index. Reads and
 updates traverse at most 31 partitions, independent of the number of populated
 elements, and updates share untouched branches. Parent reconstruction has its

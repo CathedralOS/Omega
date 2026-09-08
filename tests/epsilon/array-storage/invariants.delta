@@ -142,19 +142,12 @@
           (bytes_concat (array_storage_read second 2147483646 46)
             (array_storage_read second 2147483644 0)))))))
 
-(def array_storage_field () EpsilonDataMember
-  (EpsilonFieldMember 2 3 (EpsilonNameSpan 0 1) (EpsilonI32Type 2 3)))
-
-(def array_storage_record_owner () EpsilonDeclaration
-  (EpsilonDataDeclaration 0 4 (EpsilonNameSpan 0 1)
-    (MoreEpsilonDataMembers (array_storage_field) NoEpsilonDataMembers)))
-
 (def array_storage_families () Bytes
   (let value EpsilonRuntimeValue
     (EpsilonRuntimeAggregate (EpsilonNamedType 0 1 (EpsilonNameSpan 0 1))
       (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree))
     (let projection EpsilonRuntimeProjection
-      (EpsilonRuntimeField (array_storage_record_owner) (array_storage_field))
+      (EpsilonRuntimeField 0 4 2 3 (EpsilonI32Type 2 3))
       (bytes_concat
         (bytes_single (array_storage_absent (epsilon_runtime_project value projection)))
         (bytes_single
