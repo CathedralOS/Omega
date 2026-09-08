@@ -135,7 +135,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Work from the actual `cli_mvp` [command and route](samples/cli/basics/cli_mvp/README.md).
   The macOS ARM64 outer command
-  `CARGO_INCREMENTAL=0 cargo run -p omega -- --target macos_arm64
+  `CARGO_INCREMENTAL=0 cargo run --release -p omega -- --target macos_arm64
   --build-dir build/cli-mvp-ranks samples/cli/basics/cli_mvp/main.omg`
   requires ordinary project acceptance before native production. Std's filesystem
   authority and external Console leaves remain review findings, not implicit
@@ -143,21 +143,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   sample harness bypasses this policy route; independent writer work remains
   actionable.
 
-  The macOS ARM64 outer CLI remains slow. A probe on `feafd58343` with
-  invocation-shared range summaries uses the already-built command above
-  (`--build-dir build/cli-mvp-final`) and exits 1 at missing package acceptance
-  in 205.58 seconds. The paired instrumented comparison on `28ac561b15`
-  took 247.87 versus 208.14 seconds and built 68 versus 24 mutation tables,
-  with byte-identical review output after removing timing lines.
-  Each of four 593-machine preliminary/settled checks still takes about 34
-  seconds; source assembly and the rest of package preparation also remain.
-  Next measure those complete-route phases in `compiler/src/pipeline/` and
-  `packages/manager/src/review/candidate/` before choosing another optimization.
-  Preserve the distinct source/selection snapshots and admission checks; do not
-  reuse a result merely because package names agree. Acceptance: the unchanged
-  CLI reaches its next diagnostic promptly with comparable whole-route timings
-  and unchanged findings. Windows timing remains unverified for this change.
-  This performance work does not block the native operand work below.
+  Measure remaining package latency with an already-built release CLI, separately
+  from Cargo build time. At `a63284e305` on macOS ARM64, the command above
+  (`--build-dir build/cli-mvp-release-final`) exits 1 at missing package acceptance
+  in 20.01 seconds with unchanged findings. Temporary release probes on
+  `875ab15102` put std's four preliminary/settled checks at about three seconds each and
+  post-compilation review at about 2.6 seconds per std pass. Next distinguish
+  checker costs in `compiler/src/pipeline/` from projection, policy, and obligation
+  reconstruction in `packages/manager/src/review/candidate/`, using release
+  measurements before choosing another optimization. Std itself changes semantic
+  bindings between discovery and final checking, so retaining unaffected dependencies
+  would not eliminate its second compilation. Preserve those distinct inputs,
+  complete findings, and admission checks. Acceptance remains prompt whole-route
+  diagnosis with comparable timings and unchanged findings; Windows timing is
+  unverified. This work does not block the native operand work below.
 
   The downstream native `cli_mvp` probe with production checkpoint `70f6771034`
   passes Terminal production but remains red. On macOS ARM64,

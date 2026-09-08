@@ -21,7 +21,7 @@ compiling or testing the `compiler` library alone does not establish that it bui
 Windows PowerShell:
 
 ```powershell
-mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg
+mbx run --release -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg
 if ($LASTEXITCODE -ne 0) { throw 'cli_mvp compilation failed; do not run an old executable' }
 & ./build/cli-mvp-route/omega-program.exe
 if ($LASTEXITCODE -ne 0) { throw 'cli_mvp returned a nonzero exit' }
@@ -30,7 +30,7 @@ if ($LASTEXITCODE -ne 0) { throw 'cli_mvp returned a nonzero exit' }
 macOS ARM64 shell:
 
 ```sh
-mbx run -p omega -- --target macos_arm64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg &&
+mbx run --release -p omega -- --target macos_arm64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg &&
   ./build/cli-mvp-route/omega-program
 ```
 
@@ -38,6 +38,13 @@ Observe both lines and press Enter. Use a fresh ignored build directory when
 comparing revisions. Failed compilation is not permission to run a stale image.
 Do not remove `read_line`, rewrite the writer as synthetic machines, or substitute
 a special Console intrinsic for its checked source body.
+
+Use the release compiler for customer-facing latency measurements. The first
+invocation also builds the Rust compiler; measure subsequent direct invocations
+of `target/release/omega` (`omega.exe` on Windows) separately from that build.
+Cargo's `--release` optimizes the host compiler; it does not disable Omega's
+semantic checking, package review, or acceptance requirements. Development-build
+timings are useful for developer iteration but are not release performance.
 
 The faster Windows compiler-library probe is:
 
@@ -59,9 +66,9 @@ The outer CLI checks current package requirements against the project's accepted
 native production with ordinary `omega update` guidance and compiler-rendered
 findings. The [single package-acceptance rule](../../../../wiki/spec/packages/acceptance.md#authority-boundaries)
 means an unchanged accepted policy needs no second native approval file.
-The macOS outer command reaches missing package acceptance, but full package
-validation remains slow. Current measurements and the next performance
-investigation belong to the owning task.
+The macOS release outer command reaches missing package acceptance. Remaining
+package latency, current measurements, and the next performance investigation
+belong to the owning task; Windows release timing has not been measured.
 
 On Windows, std contributes `FilesystemHost` authority and four external Console
 leaves: `read_line`, `read_byte`, `write_byte`, and `exit_process`. These are review
