@@ -174,6 +174,261 @@ fn nested_fixture() -> checked_trees::CheckedTrees {
 }
 
 #[test]
+fn projected_aliases_compose_capture_and_receiver_suffix_once() {
+    for access in ["write", "mut"] {
+        for (parameters, prefix, body, expected_path_length) in [
+            (
+                "records",
+                "let held: &write Record = &write records[1];",
+                "held.replace(value);",
+                1,
+            ),
+            (
+                "records",
+                "let held: &write [Record; 2] = &write records; let child: &write Record = &write held[1];",
+                "child.replace(value);",
+                1,
+            ),
+            (
+                "containers",
+                "let held: &write Container = &write containers[1];",
+                "held.records[1].replace(value);",
+                3,
+            ),
+            (
+                "containers",
+                "let held: &write Container = &write containers[1]; let child: &write [Record; 2] = &write held.records;",
+                "child[1].replace(value);",
+                3,
+            ),
+            (
+                "containers",
+                "let held: &write Container = &write containers[1]; let child: &write [Record; 2] = &write held.records; let leaf: &write Record = &write child[1];",
+                "leaf.replace(value);",
+                3,
+            ),
+        ] {
+            let element = if parameters == "records" {
+                "Record"
+            } else {
+                "Container"
+            };
+            let checked = checked(&format!("data Record [copy] {{ value: u16; }}
+                data Container [copy] {{ records: [Record; 2]; }}
+                machine Record::replace(&write self, value: u16) {{ self.value = value; }}
+                machine forward({parameters}: &{access} [{element}; 2], value: u16) {{ {prefix} {body} }}"));
+            let aliases = aliases(&checked).expect("projected alias prefix");
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "forward")
+                .expect("caller");
+            let plan = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter()
+                .find(|plan| plan.machine == machine.symbol)
+                .expect("projected caller plan");
+            let CheckedUnitEffectOperationPlan::CallUnit {
+                coordinate,
+                structural_arguments,
+                ..
+            } = &plan.operations[0]
+            else {
+                panic!("receiver call");
+            };
+            assert_eq!(coordinate.statement_index as usize, aliases.len());
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("one receiver");
+            };
+            assert_eq!(argument.source_parameter_index(), Some(0));
+            assert_eq!(argument.path.len(), expected_path_length);
+            assert_eq!(
+                argument.path[0],
+                CheckedUnitStructuralPathSegment::FixedIndex(1)
+            );
+            if expected_path_length == 3 {
+                assert!(matches!(
+                    argument.path[1],
+                    CheckedUnitStructuralPathSegment::Field(_)
+                ));
+                assert_eq!(
+                    argument.path[2],
+                    CheckedUnitStructuralPathSegment::FixedIndex(1)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn projected_self_alias_retains_capture_and_normalized_receiver_paths() {
+    let checked = checked(
+        "data Record [copy] { value: u16; }
+        data Container [copy] { records: [Record; 2]; }
+        machine Record::replace(&write self, value: u16) { self.value = value; }
+        machine Container::forward(&write self, value: u16) {
+            let held: &write [Record; 2] = &write self.records;
+            let leaf: &write Record = &write held[1];
+            leaf.replace(value);
+        }",
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Container::forward")
+        .expect("attached caller");
+    let state = checked.machine_states(machine).first().expect("entry");
+    let aliases =
+        prefix(&checked.typed, &checked.facts, machine, state).expect("projected self aliases");
+    assert_eq!(aliases[1].root, machine.symbol);
+    assert_eq!(aliases[1].segments.len(), 2);
+    let resource = checked
+        .facts
+        .borrow
+        .direct_loan_resources
+        .iter()
+        .find(|(_, row)| row.owner_symbol == aliases[0].owner)
+        .expect("direct resource")
+        .1;
+    assert_ne!(resource.captured_place.root_symbol, machine.symbol);
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == machine.symbol)
+        .expect("projected attached caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &plan.operations[0]
+    else {
+        panic!("receiver call");
+    };
+    assert_eq!(structural_arguments[0].path.len(), 2);
+    let StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("alias");
+    };
+    let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(local.initial_value)
+    else {
+        panic!("borrow");
+    };
+    let target = borrow.target;
+    let wrong_field = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Record")
+        .and_then(|definition| {
+            checked
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field) => Some(field.symbol),
+                    _ => None,
+                })
+        })
+        .expect("unrelated field");
+    let mut forged = checked.clone();
+    let ExpressionNode::Member(member) = forged.typed.expression_table.expression_mut(target)
+    else {
+        panic!("self member");
+    };
+    member.member_symbol = wrong_field;
+    let machine = forged
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Container::forward")
+        .expect("attached caller");
+    let state = forged.machine_states(machine).first().expect("entry");
+    assert!(
+        prefix(&forged.typed, &forged.facts, machine, state).is_none(),
+        "another declaration's field cannot replace inherited self field custody"
+    );
+}
+
+#[test]
+fn projected_aliases_reject_changed_capture_or_immediate_projection() {
+    let original = fixture(
+        "write",
+        "let held: &write [Record; 2] = &write records; let child: &write Record = &write held[1];",
+        "child.replace(value);",
+    );
+    assert!(aliases(&original).is_some());
+    let resource_handle = original
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .expect("child resource")
+        .0;
+    let certificate_handle = original
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .next()
+        .expect("child containment")
+        .0;
+    for mutation in 0..5 {
+        let mut checked = original.clone();
+        match mutation {
+            0 => checked
+                .facts
+                .borrow
+                .reborrow_loan_resources
+                .get_mut(resource_handle)
+                .captured_place
+                .segments
+                .clear(),
+            1 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .get_mut(resource_handle)
+                    .captured_place
+                    .segments[0] = facts::PlaceSegment::FixedIndex { index: 0 }
+            }
+            2 => checked
+                .facts
+                .borrow
+                .reborrow_containment_certificates
+                .get_mut(certificate_handle)
+                .projection_remainder
+                .clear(),
+            3 => checked
+                .facts
+                .borrow
+                .reborrow_containment_certificates
+                .get_mut(certificate_handle)
+                .parent_place
+                .segments
+                .push(facts::PlaceSegment::FixedIndex { index: 1 }),
+            _ => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .get_mut(certificate_handle)
+                    .child_place
+                    .segments[0] = facts::PlaceSegment::FixedIndex { index: 0 }
+            }
+        }
+        assert!(
+            aliases(&checked).is_none(),
+            "projection mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn nested_receiver_alias_keeps_the_exact_self_attachment() {
     let checked = checked(
         "data Record [copy] { value: u16; }

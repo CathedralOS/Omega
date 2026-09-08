@@ -448,7 +448,7 @@ fn retains_source_direct_modes_and_rejects_sibling_state_substitution() {
 }
 
 #[test]
-fn keeps_direct_root_write_only_local_outside_the_reborrow_carrier() {
+fn projected_self_write_only_local_retains_direct_root_resource() {
     let source = r#"
         data Main { writable: i32; }
         machine fill(value: &write i32) { value = 2; }
@@ -463,13 +463,18 @@ fn keeps_direct_root_write_only_local_outside_the_reborrow_carrier() {
     let syntax = parse_syntax_trees(&tokens).expect("parse fenced write-only local");
     let resolved = lower_syntax_trees(&syntax).expect("resolve fenced write-only local");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fenced write-only local");
-    let diagnostics = lower_typed_trees(typed)
-        .expect_err("write-only locals are admitted only as exact direct reborrows");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("forms `&write` from an unsupported projection or computed expression")
-    }));
+    let checked = lower_typed_trees(typed).expect("exact self field capture is non-observing");
+    assert!(
+        checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .iter()
+            .any(|(_, resource)| {
+                resource.access == checked_trees::BorrowAccessKind::WriteOnly
+                    && checked.symbols.name(resource.owner_symbol) == "write"
+            })
+    );
 }
 
 #[test]

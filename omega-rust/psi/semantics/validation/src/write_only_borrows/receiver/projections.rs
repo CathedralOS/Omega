@@ -10,10 +10,35 @@ pub(super) fn record<'program>(
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<&'program DataDefinition> {
+    let (root, referee, attached_root) = projected(program, expression, roots, false)?;
+    if attached_root {
+        super::record(program, root)
+    } else {
+        write_only_record(program, referee)
+    }
+}
+
+/// Local formation freezes only literal coordinates. Runtime receiver dispatch
+/// retains its existing separate selector-evaluation and range checks.
+pub(in crate::write_only_borrows) fn captured_type(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+) -> Option<TypeReferenceHandle> {
+    let (_, referee, attached_root) = projected(program, expression, roots, true)?;
+    (!attached_root && is_supported_checked_referee(program, referee)).then_some(referee)
+}
+
+fn projected<'roots>(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &'roots [WriteOnlyRoot],
+    literal_indexes: bool,
+) -> Option<(&'roots WriteOnlyRoot, TypeReferenceHandle, bool)> {
     let mut cursor = expression;
     let mut projections = Vec::new();
     loop {
-        if projections.len() >= 128 {
+        if projections.contains(&cursor) || !program.expression_table.expression_is_valid(cursor) {
             return None;
         }
         cursor = match program.expression_table.expression(cursor) {
@@ -38,14 +63,6 @@ pub(super) fn record<'program>(
             }
             (root, field.type_reference, false)
         };
-    if projections.is_empty() {
-        return if attached_root {
-            super::record(program, root)
-        } else {
-            write_only_record(program, referee)
-        };
-    }
-
     for projection in projections.into_iter().rev() {
         match program.expression_table.expression(projection) {
             ExpressionNode::Member(member) => {
@@ -66,11 +83,26 @@ pub(super) fn record<'program>(
                 }
                 referee = field.type_reference;
             }
-            ExpressionNode::Indexed(_) => {
+            ExpressionNode::Indexed(indexed) => {
                 // Do not peel a reference stored in the referent: following
                 // that pointer would observe prior contents. The array shape
                 // and its element address must come from the declared type.
-                let (element, _) = fixed_unrestricted_write_only_array_shape(program, referee)?;
+                let (element, length) =
+                    fixed_unrestricted_write_only_array_shape(program, referee)?;
+                if literal_indexes {
+                    if !program.expression_table.expression_is_valid(indexed.index) {
+                        return None;
+                    }
+                    let ExpressionNode::Integer(index) =
+                        program.expression_table.expression(indexed.index)
+                    else {
+                        return None;
+                    };
+                    let index = usize::try_from(index.value_bignum()?.to_u64()?).ok()?;
+                    if index >= length {
+                        return None;
+                    }
+                }
                 let (machine, state) = crate::calls::machine_state_by_symbol(
                     program,
                     program.symbols.get(root.symbol).parent,
@@ -85,7 +117,7 @@ pub(super) fn record<'program>(
         }
         attached_root = false;
     }
-    write_only_record(program, referee)
+    Some((root, referee, attached_root))
 }
 
 /// Admitting an address does not exempt selector evaluation from the ordinary

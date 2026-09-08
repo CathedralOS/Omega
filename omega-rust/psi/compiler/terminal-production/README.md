@@ -205,16 +205,18 @@ records the callee's weaker access. Shared projections preserve unrestricted
 multiplicity and cannot originate from write-only roots.
 
 Projection replay rejoins every field/index, array bound, type, and source
-application. Nonescaping immutable whole-referent write-only alias prefixes
-erase after replaying each immediate parent, exact formation and lifetime, and
-receiver use. Nested exclusive chains retain the existing direct-root handoff
-evidence: every parent's final use forms its single child, and the leaf ends at
-state exit. The call subloan retains the original root, path, and attenuated
+application. Nonescaping immutable write-only alias prefixes capture whole roots
+or static field/literal-index projections. Their captured prefix precedes each
+receiver suffix exactly once. Erasure replays every immediate parent, exact
+formation and lifetime, and receiver use. Nested exclusive chains retain the
+existing direct-root handoff evidence: every parent's final use forms its single
+child, and the leaf ends at state exit. The call subloan retains the original
+root, path, and attenuated
 access; erasing local names does not authorize skipping intermediate custody.
-Dynamic/range projections, projected alias initializers, escaping receiver
-aliases, early nested closure, restored-parent uses, deeper shared array paths,
-and general reference-bearing or constrained data need separate producer
-support. A stored pointer cannot be read merely to locate a write-only receiver.
+Dynamic/range projections, escaping receiver aliases, early nested closure,
+restored-parent uses, deeper shared array paths, and general reference-bearing
+or constrained data need separate producer support. A stored pointer cannot be
+read merely to locate a write-only receiver.
 Dynamic write summaries remain conservatively collection-wide.
 
 Run the source-to-canonical receiver controls, including nested alias erasure,
@@ -227,7 +229,7 @@ cargo nextest run -p checked-trees-to-lowered-psi --test receiver_call_source --
 For four-target publication and supported-host caller-storage observations:
 
 ```sh
-cargo nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail -E 'test(nested_aliases::)'
+cargo nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail -E 'test(nested_aliases::) | test(projected_aliases::)'
 ```
 
 Cross-publication is not runtime coverage on the other targets.

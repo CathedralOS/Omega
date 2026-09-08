@@ -316,6 +316,9 @@ fn receiver_place(
             .find(|alias| place.root == facts::PlaceRoot::Symbol(alias.owner))
     {
         place.root = facts::PlaceRoot::Symbol(alias.root);
+        let mut segments = alias.segments.clone();
+        segments.extend_from_slice(&place.segments);
+        place.segments = segments;
     }
     Some(place)
 }

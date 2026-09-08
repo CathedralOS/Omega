@@ -14,6 +14,9 @@ pub(crate) struct ReceiverSource {
     pub(crate) root: SymbolHandle,
     pub(crate) path: Vec<CheckedUnitStructuralPathSegment>,
     pub(crate) stamp: SymbolHandle,
+    /// Authored carrier and capture remain distinct from normalized self paths.
+    owner: SymbolHandle,
+    captured_place: checked_trees::CapturedPlace,
     erased_alias: bool,
 }
 
@@ -30,7 +33,7 @@ pub(crate) fn source(
         state,
         expression,
         true,
-        Some(statement_index),
+        Some((statement_index, false)),
     )
 }
 
@@ -51,7 +54,7 @@ fn resolve_source(
     state: SymbolHandle,
     expression: ExpressionHandle,
     require_endpoint_stamp: bool,
-    statement_index: Option<usize>,
+    statement_index: Option<(usize, bool)>,
 ) -> Result<ReceiverSource, LoweringError> {
     let (machine, state) = crate::scalar_source_custody::authored_state(checked, state)?;
     if machine.symbol != caller {
@@ -62,6 +65,9 @@ fn resolve_source(
     let mut visited = Vec::new();
     let mut stamp = SymbolHandle::invalid();
     let mut erased_alias = false;
+    let mut captured_segments = Vec::new();
+    let owner;
+    let captured_root;
     let root = loop {
         if !checked.expression_table.expression_is_valid(cursor) || visited.contains(&cursor) {
             return unsupported("projected receiver has a stale or cyclic source");
@@ -111,6 +117,23 @@ fn resolve_source(
                     stamp = field.symbol;
                 }
                 path.push(field_segment(field));
+                if matches!(checked.expression_table.expression(member.receiver), ExpressionNode::Name(name)
+                    if name.symbol == machine.symbol && name.head_symbol == name.symbol)
+                {
+                    owner = field.symbol;
+                    captured_root = field.symbol;
+                    break checked
+                        .state_parameters(state)
+                        .iter()
+                        .find(|parameter| parameter.is_self)
+                        .ok_or(LoweringError::Unsupported(
+                            "projected receiver has no borrowed self",
+                        ))?
+                        .symbol;
+                }
+                captured_segments.push(facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
                 cursor = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
@@ -159,6 +182,11 @@ fn resolve_source(
                     return unsupported("projected receiver index is out of bounds");
                 }
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
+                captured_segments.push(facts::PlaceSegment::FixedIndex {
+                    index: usize::try_from(index).map_err(|_| {
+                        LoweringError::Unsupported("projected receiver index exceeds usize")
+                    })?,
+                });
                 cursor = indexed.collection;
             }
             ExpressionNode::Name(name)
@@ -170,23 +198,37 @@ fn resolve_source(
                         .len()
                         == 1 =>
             {
+                if checked
+                    .expression_table
+                    .name_path_member_symbols(name.member_symbols)
+                    .first()
+                    .is_some_and(|symbol| *symbol != name.symbol)
+                {
+                    return unsupported("projected receiver root identity changed");
+                }
+                owner = name.symbol;
                 if let Some(parameter) = checked.state_parameters(state).iter().find(|parameter| {
                     parameter.symbol == name.symbol
                         || (parameter.is_self && name.symbol == machine.symbol)
                 }) {
+                    captured_root = name.symbol;
                     break parameter.symbol;
                 }
-                if let Some(statement_index) = statement_index
-                    && let Some(root) = aliases::parameter_root(
+                if let Some((statement_index, formation)) = statement_index
+                    && let Some(alias) = aliases::parameter_source(
                         checked,
                         machine.symbol,
                         state.symbol,
                         statement_index,
                         name.symbol,
+                        formation,
                     )?
                 {
                     erased_alias = true;
-                    break root;
+                    path.extend(alias.path.into_iter().rev());
+                    captured_root = alias.captured_place.root_symbol;
+                    captured_segments.extend(alias.captured_place.segments.into_iter().rev());
+                    break alias.root;
                 }
                 let field = validation::exact_attached_field(
                     &checked.typed,
@@ -201,6 +243,10 @@ fn resolve_source(
                     return unsupported("projected receiver cannot select an erased root field");
                 }
                 path.push(field_segment(field));
+                // Bare names capture their resolved inherited occurrence.
+                // The exact data declaration normalizes the call path, not
+                // the separately retained source loan root.
+                captured_root = name.symbol;
                 break checked
                     .state_parameters(state)
                     .iter()
@@ -218,10 +264,16 @@ fn resolve_source(
         }
     };
     path.reverse();
+    captured_segments.reverse();
     Ok(ReceiverSource {
         root,
         path,
         stamp,
+        owner,
+        captured_place: checked_trees::CapturedPlace {
+            root_symbol: captured_root,
+            segments: captured_segments,
+        },
         erased_alias,
     })
 }
@@ -242,7 +294,7 @@ fn statement_alias_source(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
     call: &checked_trees::statement::TableCall,
-    root: SymbolHandle,
+    alias: ReceiverSource,
 ) -> Result<ReceiverSource, LoweringError> {
     let members = checked.statement_table.name_path_members(call.receiver);
     let local = checked
@@ -265,7 +317,8 @@ fn statement_alias_source(
     }
     let mut reference = local.type_reference;
     let mut endpoint = local.symbol;
-    let mut path = Vec::new();
+    let mut path = alias.path;
+    let mut captured_place = alias.captured_place;
     for (position, member) in members.iter().enumerate().skip(1) {
         let nominal = validation::unwrapped_type_reference(&checked.typed, reference).ok_or(
             LoweringError::Unsupported("receiver alias field lost its nominal type"),
@@ -304,6 +357,9 @@ fn statement_alias_source(
             return unsupported("receiver alias cannot select an erased field");
         }
         path.push(field_segment(field));
+        captured_place.segments.push(facts::PlaceSegment::Field {
+            symbol: field.symbol,
+        });
         reference = field.type_reference;
         endpoint = field.symbol;
     }
@@ -311,9 +367,11 @@ fn statement_alias_source(
         return unsupported("receiver alias statement changed its captured endpoint");
     }
     Ok(ReceiverSource {
-        root,
+        root: alias.root,
         path,
         stamp: endpoint,
+        owner: local.symbol,
+        captured_place,
         erased_alias: true,
     })
 }
@@ -370,17 +428,18 @@ pub(crate) fn validate(
             else {
                 return unsupported("receiver alias lost its authored statement call");
             };
-            let Some(root) = aliases::parameter_root(
+            let Some(alias) = aliases::parameter_source(
                 checked,
                 caller.machine,
                 caller.state,
                 coordinate.statement_index as usize,
                 call.receiver_root_symbol,
+                false,
             )?
             else {
                 return Ok(());
             };
-            statement_alias_source(checked, state, call, root)?
+            statement_alias_source(checked, state, call, alias)?
         }
         None => return Ok(()),
     };
