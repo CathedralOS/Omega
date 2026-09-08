@@ -12,6 +12,9 @@ use semantic_vocabulary::{
 use terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
 };
+
+#[path = "canonical/contract_fields.rs"]
+mod contract_fields;
 use terminal_psi::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,

@@ -307,6 +307,8 @@ pub(super) fn validate_crash_frontiers(
                 &machine.contract.requires,
             )?;
             contracts::validate_contract_scope(
+                module,
+                machine,
                 predicate.proposition(),
                 contract_values,
                 machine.contract.id,

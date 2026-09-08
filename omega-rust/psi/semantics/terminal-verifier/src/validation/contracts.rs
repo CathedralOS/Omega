@@ -27,6 +27,8 @@ pub(super) fn validate_contract_clause_kind(
 }
 
 pub(super) fn validate_contract_scope(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
     proposition: &Proposition,
     allowed: &BTreeSet<ValueId>,
     contract: ContractId,
@@ -36,9 +38,43 @@ pub(super) fn validate_contract_scope(
         Proposition::Truth
         | Proposition::Falsehood
         | Proposition::Atom(_)
-        | Proposition::IeeeFloatComparison { .. }
-        | Proposition::ByteSequenceEqual { .. }
         | Proposition::StructuralCaseMembership { .. } => Ok(()),
+        Proposition::IeeeFloatComparison {
+            format,
+            left,
+            right,
+            ..
+        } => {
+            for field in [left, right] {
+                if !matches!(
+                    readable_field_type(module, machine, field.root(), field.path()),
+                    Some(StructuralFieldType::IeeeFloat(actual)) if actual == format
+                ) {
+                    return Err(ModuleError::InvalidIeeeFloatFieldTerm {
+                        machine: machine.id,
+                        root: field.root(),
+                        path: field.path().to_vec(),
+                        format: *format,
+                    });
+                }
+            }
+            Ok(())
+        }
+        Proposition::ByteSequenceEqual { left, right } => {
+            for field in [left, right] {
+                if !matches!(
+                    readable_field_type(module, machine, field.root(), field.path()),
+                    Some(StructuralFieldType::ByteSequence(_))
+                ) {
+                    return Err(ModuleError::InvalidByteSequenceFieldTerm {
+                        machine: machine.id,
+                        root: field.root(),
+                        path: field.path().to_vec(),
+                    });
+                }
+            }
+            Ok(())
+        }
         Proposition::IntegerMathEqual(left, right)
         | Proposition::IntegerMathLessThan(left, right)
         | Proposition::IntegerMathLessOrEqual(left, right) => {
@@ -48,12 +84,12 @@ pub(super) fn validate_contract_scope(
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
-            validate_term_scope(left, allowed, contract, clause)?;
-            validate_term_scope(right, allowed, contract, clause)
+            validate_term_scope(module, machine, left, allowed, contract, clause)?;
+            validate_term_scope(module, machine, right, allowed, contract, clause)
         }
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
             for proposition in propositions {
-                validate_contract_scope(proposition, allowed, contract, clause)?;
+                validate_contract_scope(module, machine, proposition, allowed, contract, clause)?;
             }
             Ok(())
         }
@@ -61,8 +97,8 @@ pub(super) fn validate_contract_scope(
             premise,
             conclusion,
         } => {
-            validate_contract_scope(premise, allowed, contract, clause)?;
-            validate_contract_scope(conclusion, allowed, contract, clause)
+            validate_contract_scope(module, machine, premise, allowed, contract, clause)?;
+            validate_contract_scope(module, machine, conclusion, allowed, contract, clause)
         }
         Proposition::ContentConservation(_) => Ok(()),
     }
@@ -100,6 +136,8 @@ fn validate_integer_math_term_scope(
 }
 
 fn validate_term_scope(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
     term: &ScalarTerm,
     allowed: &BTreeSet<ValueId>,
     contract: ContractId,
@@ -137,26 +175,67 @@ fn validate_term_scope(
         | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
         | ScalarTerm::IntegerBitwiseOr { left, right, .. }
         | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-            validate_term_scope(left, allowed, contract, clause)?;
-            validate_term_scope(right, allowed, contract, clause)?;
+            validate_term_scope(module, machine, left, allowed, contract, clause)?;
+            validate_term_scope(module, machine, right, allowed, contract, clause)?;
         }
         ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
         | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
         | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            validate_term_scope(value, allowed, contract, clause)?;
-            validate_term_scope(count, allowed, contract, clause)?;
+            validate_term_scope(module, machine, value, allowed, contract, clause)?;
+            validate_term_scope(module, machine, count, allowed, contract, clause)?;
         }
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
         | ScalarTerm::IntegerWiden { operand, .. }
         | ScalarTerm::IntegerExactCast { operand, .. } => {
-            validate_term_scope(operand, allowed, contract, clause)?;
+            validate_term_scope(module, machine, operand, allowed, contract, clause)?;
         }
-        ScalarTerm::BooleanField { .. }
-        | ScalarTerm::IntegerField { .. }
-        | ScalarTerm::Boolean(_)
-        | ScalarTerm::Integer { .. } => {}
+        ScalarTerm::BooleanField { root, path } => {
+            if !matches!(
+                readable_field_type(module, machine, *root, path),
+                Some(StructuralFieldType::Scalar(ScalarType::Boolean))
+            ) {
+                return Err(ModuleError::InvalidBooleanFieldTerm {
+                    machine: machine.id,
+                    root: *root,
+                    path: path.clone(),
+                });
+            }
+        }
+        ScalarTerm::IntegerField {
+            root,
+            path,
+            scalar_type,
+        } => {
+            if !matches!(
+                readable_field_type(module, machine, *root, path),
+                Some(StructuralFieldType::Scalar(ScalarType::Integer(actual))) if actual == scalar_type
+            ) {
+                return Err(ModuleError::InvalidIntegerFieldTerm {
+                    machine: machine.id,
+                    root: *root,
+                    path: path.clone(),
+                    scalar_type: *scalar_type,
+                });
+            }
+        }
+        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
     }
     Ok(())
+}
+
+/// Contract field terms name readable direct parameter roots. Reconstruct the
+/// complete canonical path even when no operation or proof uses this clause.
+/// This is formation checking only: no contract becomes its own safety premise.
+fn readable_field_type<'module>(
+    module: &'module TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<&'module StructuralFieldType> {
+    machine.structural_parameters.iter().find(|parameter| {
+        parameter.place == root && parameter.access != StructuralAccess::WriteOnlyBorrow
+    })?;
+    structural_leaf_type(module, machine, root, path)
 }
