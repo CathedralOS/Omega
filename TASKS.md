@@ -144,17 +144,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   actionable.
 
   Measure remaining package latency with an already-built release CLI, separately
-  from Cargo build time. At `ef78ef665d` on macOS ARM64, the command above
-  (`--build-dir build/cli-mvp-summaries`) exits 1 at missing package acceptance
-  in 17.25–17.40 seconds with unchanged complete findings. Next trace repeated
-  machine/state lookup through
-  `omega-rust/psi/representations/typed-trees/src/typed_trees.rs` and the existing
-  `omega-rust/psi/semantics/validation/src/symbols/` owners. These accessors
-  revalidate arena spans; inspect opportunities to borrow validated views within
-  an immutable pass before adding another cache. Select work from self cost,
-  not inflated recursive stack counts. Name grouping and accessor inlining did
-  not establish a whole-route gain. Confirm improvements through this outer
-  command, not isolated query timings.
+  from Cargo build time. At `f96d04b5ec` on macOS ARM64, the command above
+  (`--build-dir build/cli-mvp-lookups`) exits 1 at missing package acceptance
+  in 17.30–17.45 seconds with unchanged complete findings. Further symbol-lookup
+  micro-optimization is paused under the scope checkpoint: name grouping,
+  accessor inlining, prepared exact-machine lookup, and avoiding impossible
+  attached-data scans did not establish a useful whole-route gain. Resume that
+  strategy only with phase-level evidence of material avoidable cost; select
+  from self cost rather than inflated recursive stack counts, and confirm through
+  this outer command. Do not add another cache or weaken arena validation on
+  the strength of isolated query timings. This is not a language-design blocker;
+  continue independent compiler work meanwhile.
   Std itself changes semantic bindings between discovery and final checking, so
   retaining unaffected dependencies would not eliminate its second compilation.
   Preserve distinct source/selection inputs, conservative unknown-write handling,
