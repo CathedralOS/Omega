@@ -69,36 +69,3 @@ would require policy packages to use wrappers and changes the existing extension
 direction. Ambient dependency-wide activation or silent upstream-priority
 selection is wrong: either can change an existing contract without an authored
 selection.
-
-## Q2 — Runtime checking of admitted claims
-
-### Context and problem
-
-An admitted boundary claim is trusted, not proved. Development tests can expose
-a violation when its subjects and predicate have an executable observation.
-The guide required runtime checks in “proof builds” without defining that build
-mode, eligible predicates, or the instrumented failure/reporting contract.
-The [proof contract](wiki/spec/proofs/contracts.md#axioms-and-receiving-policy)
-therefore distinguishes this required checking facility from implemented support.
-
-How does the root request these checks, and what observations may a generated
-check perform without altering the program it is meant to test? This is not a
-new admission channel or a proof of unobserved executions.
-
-### Proposed direction, not yet adopted
-
-Make instrumentation an explicit root testing choice over exact admitted claim
-identities. Admit only predicates whose evaluation and captured subjects have a
-checked observation and lifetime contract; report unsupported checks explicitly.
-A witnessed failure names the claim, invocation, and observed counterexample.
-Specify the instrumented artifact's failure behavior and identity separately
-from the uninstrumented program's contract. Keep grants and assumption reports
-unchanged, and never label a passing test as proof of the claim.
-
-### Alternatives
-
-Explicit package-authored checkers avoid automatic insertion but need the same
-observation/lifetime and claim-attribution rules. Making instrumentation mandatory
-for all builds would change observable costs and failures and needs a separate
-justification. Guessing that any Boolean-looking predicate is safe to execute,
-inventing a silent build mode, or treating tests as an admission receipt is wrong.

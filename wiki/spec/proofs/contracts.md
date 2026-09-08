@@ -240,12 +240,34 @@ A boundary claim that the checker can refute against declared ranges, domains,
 or accepted statements rejects even when granted. This veto is not a proof that
 the complete assumption set is consistent.
 
-Runtime-decidable boundary claims require oracle-tripwire instrumentation: a
-witnessed violation must trap and identify the offending claim. The activation,
-coverage, and failure-reporting protocol for the former guide term "proof builds"
-remains [undetermined](../../../OWNER_QUESTIONS.md#q2--runtime-checking-of-admitted-claims);
-this is a required capability, not a claim of implemented
-or universal runtime instrumentation.
+### Admission and runtime diagnostics
+
+An admitted claim is trusted without mandatory runtime checking. Runtime
+checkability is not a condition of admission, and enabling or disabling
+diagnostics does not change grants or the reported assumption closure. Omega
+makes no commitment to automatic assertion insertion, runtime proof execution,
+or a special proof-build mode. Authors are not required to replace automatic
+instrumentation with manually written checks.
+
+Authors may test providers or write ordinary executable validation. A test can
+expose a violation on an observed execution; passing tests establish neither
+admission nor universal correctness. A meaningful test of a claim cannot rely
+on that claim, or conclusions derived from it, to establish its result. A
+comparison after a call may already follow from the call's admitted guarantees
+and can be eliminated under ordinary optimization.
+
+To validate rather than trust a particular guarantee, expose the result through
+a boundary contract that does not assume it, then use checked executable
+validation to establish the property on the successful path. Calling, storage,
+lifetime, and observation safety still require their own justified premises;
+removing one disputed guarantee does not make all foreign execution untrusted
+or safe by default. Validation establishes facts about its exact observed
+subjects, not a universal provider promise. A post-call check cannot undo
+external effects or contain arbitrary provider corruption.
+
+The separate [assertion design RFC](../../proposals/assertions_and_build_diagnostics.md)
+compares optional author-invoked diagnostics. It approves no assertion API,
+source syntax, crash cause, build switch, or contract-widening mechanism.
 
 Published proof evidence retains theorem identity, cited lemmas and premises,
 normalization licenses, derivation/checker version, and trust/deferral closure.

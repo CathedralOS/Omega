@@ -431,11 +431,24 @@ behalf of its consumers. Development use is not consumer or release acceptance.
 
 A boundary statement the checker can refute against declared ranges, domains,
 or another accepted statement rejects despite a grant. This is not a guarantee
-that the complete assumption set is consistent. Runtime-decidable boundary
-claims require oracle tripwires that trap on witnessed violations and identify
-the claim. Their activation, coverage, and failure-reporting protocol remains
-undetermined, not a promise of currently implemented instrumentation. These
-rules belong to [receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).
+that the complete assumption set is consistent. These rules belong to
+[receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).
+
+Admission means trusting the claim, not trusting it only after a runtime check.
+There is no mandatory automatic or author-written checking requirement, and no
+required proof-build mode. Runtime checkability does not determine whether a
+claim may be admitted. Tests can expose violations; passing them neither grants
+admission nor proves all executions correct.
+
+To test a particular guarantee, do not assume it through the boundary contract
+used by the test. An ordinary comparison against an already admitted guarantee
+may be proved true and optimized away. Expose the raw result with independently
+justified calling and observation guarantees, then validate it explicitly.
+Successful validation establishes the property for that result. It does not
+prove the provider always complies or repair effects already performed.
+The [admission and diagnostics rules](../spec/proofs/contracts.md#admission-and-runtime-diagnostics)
+remain independent of the unapproved
+[assertion design RFC](../proposals/assertions_and_build_diagnostics.md).
 
 Admitting a false statement can invalidate downstream safety proofs. It does
 not waive the independently checked reach ceiling or establish runtime authority
