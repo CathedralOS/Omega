@@ -209,6 +209,7 @@ pub(super) fn validate_machine(
                 OperationKind::CallUnit { .. }
                     | OperationKind::WriteOnlyPrimitiveStore { .. }
                     | OperationKind::StructuralScalarFieldStore { .. }
+                    | OperationKind::StructuralByteSequenceFieldStore { .. }
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
@@ -218,6 +219,15 @@ pub(super) fn validate_machine(
                     return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
                 }
                 validate_unit_operation_static(module, machine, machines, operation)?;
+                if let OperationKind::StructuralByteSequenceFieldStore { obligation, .. } =
+                    &operation.kind
+                {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
                 if let OperationKind::CallUnit {
                     requirement_obligations,
                     ..
@@ -327,6 +337,7 @@ pub(super) fn validate_machine(
                 OperationKind::CallUnit { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StructuralScalarFieldStore { .. }
+                | OperationKind::StructuralByteSequenceFieldStore { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallDynamicScalar { .. }
                 | OperationKind::CallDynamicParameterScalar { .. }

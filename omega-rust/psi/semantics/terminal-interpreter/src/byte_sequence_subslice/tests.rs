@@ -147,6 +147,7 @@ fn execution() -> (TerminalExecution, Operation) {
         structural_primitive_storage: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
         structural_scalar_fields: BTreeMap::new(),
+        structural_byte_sequence_fields: BTreeMap::new(),
         payloadless_case_values: BTreeMap::new(),
         byte_sequence_values: BTreeMap::from([(
             place(1),

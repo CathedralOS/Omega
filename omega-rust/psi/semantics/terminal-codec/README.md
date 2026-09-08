@@ -10,7 +10,7 @@ artifact envelope/manifest, debug map, installation payload, optimization
 execution, obligation ledger, and observation profile have distinct owners.
 Do not infer one section's identity from another section's current version.
 
-Current implementation markers are semantic format/vocabulary `79/85`, proof
+Current implementation markers are semantic format/vocabulary `80/86`, proof
 format `30`, artifact envelope `2`, and manifest `3`. The image-emission owner
 maintains the separately encoded installation payload (currently `85`).
 These are current codec facts, not a chronology or a promise of older acceptance.

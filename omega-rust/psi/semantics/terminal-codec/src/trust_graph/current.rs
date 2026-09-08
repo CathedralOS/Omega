@@ -1,8 +1,9 @@
 //! Exact source-bound construction of the current migration trust graph.
 use super::{
     BYTE_BLOCK_BINDINGS_SOURCE, BYTE_CYCLIC_ELIGIBILITY_SOURCE, BYTE_EXTENT_RECONSTRUCTION_SOURCE,
-    BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
-    BYTE_VIEW_FRONTIER_SOURCE, BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE,
+    BYTE_FIELD_STORE_VALIDATION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
+    BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
+    BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE, LITERAL_FOUNDATION_SOURCE,
     MACHINE_WIRE_SOURCE, PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
     PROOF_CODEC_VALIDATION_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
@@ -43,7 +44,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-79-vocabulary-85"
+    "root:canonical-terminal-bytes-format-80-vocabulary-86"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -463,8 +464,10 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
             }
             if matches!(row.tag(), terminal_semantics::OperationSemanticTag::ByteSequenceRead
                 | terminal_semantics::OperationSemanticTag::ByteSequenceLength
-                | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice) {
+                | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice
+                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore) {
                 exact_sources.extend([
+                    ("terminal-verifier/validation/foundation.rs", LITERAL_FOUNDATION_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_subslice.rs", BYTE_SUBSLICE_VALIDATION_SOURCE),
                     ("terminal-semantics/structural_effect/byte_extent.rs", TERMINAL_BYTE_EXTENT_SOURCE),
                     ("terminal-verifier/verification/reconstruction/operation_facts/byte_extent.rs", BYTE_EXTENT_RECONSTRUCTION_SOURCE),
@@ -480,6 +483,9 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ("terminal-verifier/verification/reconstruction/operation_facts.rs", OPERATION_FACTS_SOURCE),
                     ("terminal-verifier/verification/reconstruction/machine_context.rs", MACHINE_RECONSTRUCTION_CONTEXT_SOURCE),
                 ]);
+            }
+            if row.tag() == terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore {
+                exact_sources.push(("terminal-verifier/validation/structural_byte_sequence_store.rs", BYTE_FIELD_STORE_VALIDATION_SOURCE));
             }
             if proof_bearing_scalar.is_some() {
                 exact_sources.push((

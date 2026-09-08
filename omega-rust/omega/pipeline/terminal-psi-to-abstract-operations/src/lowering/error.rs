@@ -19,6 +19,8 @@ pub enum LoweringError {
     /// Psi preserves exact byte-sequence literals, but native realization is
     /// deliberately fenced until the selected boundary has a byte-view ABI.
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),
+    /// Bounded byte-field replacement has no native storage realization yet.
+    UnsupportedStructuralByteSequenceFieldStore(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),

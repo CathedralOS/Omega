@@ -30,6 +30,34 @@ pub(super) fn validate(
         let statement_index = u32::try_from(statement_index).map_err(|_| {
             LoweringError::Unsupported("structural scalar store statement ordinal exceeds u32")
         })?;
+        let byte_stores = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store)
+                    if store.statement_index == statement_index =>
+                {
+                    Some(store)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let [store] = byte_stores.as_slice() {
+            if stores
+                .iter()
+                .any(|scalar| scalar.statement_index == statement_index)
+            {
+                return unsupported("assignment has both byte and scalar store custody");
+            }
+            crate::structural_byte_sequence_store::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                store,
+            )?;
+            continue;
+        }
         if plan.operations.iter().any(|operation| {
             matches!(operation,
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. }
@@ -68,7 +96,29 @@ pub(super) fn validate(
             return unsupported("structural scalar store has no authored assignment");
         }
     }
-    if !stores.is_empty()
+    let byte_stores = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => Some(store),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for store in &byte_stores {
+        let Some(StatementNode::Assignment(assignment)) =
+            statements.get(store.statement_index as usize)
+        else {
+            return unsupported("byte-field store has no authored assignment");
+        };
+        crate::structural_byte_sequence_store::validate_assignment(
+            checked,
+            plan.machine,
+            plan.state,
+            assignment,
+            store,
+        )?;
+    }
+    if (!stores.is_empty() || !byte_stores.is_empty())
         && !matches!(plan.operations.last(),
         Some(CheckedUnitEffectOperationPlan::ReturnUnit { statement_index, .. })
             if usize::try_from(*statement_index).ok() == Some(statements.len()))

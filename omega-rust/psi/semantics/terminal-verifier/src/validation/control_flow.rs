@@ -29,6 +29,10 @@ pub(super) fn validate_control_flow(
             definition_blocks.insert(parameter.id, block.id);
         }
         for operation in &block.operations {
+            if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind
+            {
+                borrowed_view_definitions.insert(destination, block.id);
+            }
             if let Some(result) = operation.result.structural()
                 && super::byte_sequence_subslice::borrowed_result(machine, result.place).is_some()
             {
@@ -227,6 +231,10 @@ pub(super) fn validate_control_flow(
             )?;
             if let Some(result) = operation.result.scalar() {
                 defined.insert(result.id);
+            }
+            if let OperationKind::EstablishByteSequenceLiteral { destination, .. } = operation.kind
+            {
+                available_views.insert(destination);
             }
             if let Some(result) = operation.result.structural()
                 && borrowed_view_definitions.contains_key(&result.place)

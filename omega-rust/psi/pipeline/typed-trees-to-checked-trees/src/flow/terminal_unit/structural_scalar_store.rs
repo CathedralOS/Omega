@@ -29,7 +29,7 @@ pub(super) fn build_structural_scalar_field_store(
         ) if result.statement_index == 0 && result.binding_ordinal == 0 => (1, assignment),
         _ => return None,
     };
-    build_structural_scalar_field_store_at(
+    let operation = build_structural_field_store_at(
         program,
         facts,
         machine,
@@ -41,7 +41,11 @@ pub(super) fn build_structural_scalar_field_store(
         result_local,
         selected_scalar_result_local.is_some(),
         false,
-    )
+    )?;
+    let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation else {
+        return None;
+    };
+    Some(store)
 }
 
 pub(super) fn build_structural_scalar_field_store_sequence(
@@ -52,7 +56,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     statement_start: usize,
-) -> Option<Vec<CheckedStructuralScalarFieldStorePlan>> {
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     if !statements
         .iter()
@@ -83,7 +87,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
                 u32::try_from(statement_index)
                     .ok()
                     .and_then(|statement_index| {
-                        build_structural_scalar_field_store_at(
+                        build_structural_field_store_at(
                             program,
                             facts,
                             machine,
@@ -102,7 +106,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
         .collect()
 }
 
-fn build_structural_scalar_field_store_at(
+fn build_structural_field_store_at(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -114,7 +118,7 @@ fn build_structural_scalar_field_store_at(
     result_local: Option<&CheckedUnitScalarResultBindingPlan>,
     selected_result: bool,
     exact_sequence_frame: bool,
-) -> Option<CheckedStructuralScalarFieldStorePlan> {
+) -> Option<CheckedUnitEffectOperationPlan> {
     let [destination] = structural_parameters else {
         return None;
     };
@@ -233,17 +237,6 @@ fn build_structural_scalar_field_store_at(
         return None;
     }
     let field = exact_relevant_field(program, field_owner, *field_symbol)?;
-    if !crate::field_domain::domain_constraint_symbols(program, field.type_reference).is_empty() {
-        return None;
-    }
-    let primitive_type = program.primitive_type_reference(field.type_reference)?;
-    if !matches!(
-        primitive_type,
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-    ) && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
-    {
-        return None;
-    }
     let source_path =
         crate::labels::canonical_place_label_from_parts(program, place.root, &place.segments);
     let source_root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
@@ -295,6 +288,60 @@ fn build_structural_scalar_field_store_at(
         && !exact_collection_frame
         && !unresolved_selected_frame
         && !exact_sequence_frame
+    {
+        return None;
+    }
+    if let Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) =
+        byte_sequence_carrier(program, field.type_reference, &[])
+    {
+        if result_local.is_some() || selected_result {
+            return None;
+        }
+        let ExpressionNode::String(bytes) = program.expression_table.expression(assignment.value)
+        else {
+            return None;
+        };
+        if u64::try_from(bytes.len()).ok()? > capacity
+            || !crate::field_domain::domain_constraint_symbols(program, field.type_reference)
+                .into_iter()
+                .all(|symbol| {
+                    program
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == symbol)
+                        .is_some_and(|domain| {
+                            domain.establishment_routes.is_empty()
+                                && domain.semantic_roles == Default::default()
+                                && crate::field_domain::string_literal_expression_grants_domain(
+                                    program,
+                                    assignment.value,
+                                    symbol,
+                                )
+                        })
+                })
+        {
+            return None;
+        }
+        return Some(
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(
+                checked_trees::CheckedStructuralByteSequenceFieldStorePlan {
+                    statement_index,
+                    destination_parameter_position: destination.position,
+                    carrier_path,
+                    field_identity: terminal_field_identity(program, field.symbol)?,
+                    bytes: bytes.to_vec(),
+                },
+            ),
+        );
+    }
+    if !crate::field_domain::domain_constraint_symbols(program, field.type_reference).is_empty() {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(field.type_reference)?;
+    if !matches!(
+        primitive_type,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+    ) && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
     {
         return None;
     }
@@ -373,14 +420,16 @@ fn build_structural_scalar_field_store_at(
     if !exact_source || crate::values::scalar_expression_type(value) != Some(primitive_type) {
         return None;
     }
-    Some(CheckedStructuralScalarFieldStorePlan {
-        statement_index,
-        destination_parameter_position: destination.position,
-        carrier_path,
-        field_identity: terminal_field_identity(program, field.symbol)?,
-        primitive_type,
-        value: value.clone(),
-    })
+    Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+        CheckedStructuralScalarFieldStorePlan {
+            statement_index,
+            destination_parameter_position: destination.position,
+            carrier_path,
+            field_identity: terminal_field_identity(program, field.symbol)?,
+            primitive_type,
+            value: value.clone(),
+        },
+    ))
 }
 
 fn authored_scalar_position(dense_position: usize) -> Option<u32> {

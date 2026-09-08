@@ -230,6 +230,9 @@ pub(super) fn validate_unit_operation_static(
                 *field,
             )?;
         }
+        OperationKind::StructuralByteSequenceFieldStore { .. } => {
+            super::structural_byte_sequence_store::capacity(module, machine, operation)?;
+        }
         OperationKind::EstablishPayloadlessCase { result_case } => {
             let Some(result) = operation.result.structural() else {
                 return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));

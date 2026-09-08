@@ -48,6 +48,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                 StructuralPlaceKind::Parameter { .. }
                     | StructuralPlaceKind::BlockParameter { .. }
                     | StructuralPlaceKind::OperationResult { .. }
+                    | StructuralPlaceKind::ByteSequenceLiteral { .. }
                     | StructuralPlaceKind::ProviderAttachment { .. }
             )
         })
@@ -82,6 +83,13 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                                     .iter()
                                     .any(|parameter| parameter.place == argument.place)
                                     || block_views::parameter(machine, argument.place).is_some()
+                                    || machine.structural_places.iter().any(|place| {
+                                        place.id == argument.place
+                                            && matches!(
+                                                place.kind,
+                                                StructuralPlaceKind::ByteSequenceLiteral { .. }
+                                            )
+                                    })
                                     || byte_sequence_subslice::borrowed_result(
                                         machine,
                                         argument.place,
@@ -121,7 +129,9 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                 | OperationKind::BooleanStructuralField { .. } => {
                     operation.result.scalar().is_some()
                 }
-                OperationKind::StructuralScalarFieldStore { .. } => {
+                OperationKind::StructuralScalarFieldStore { .. }
+                | OperationKind::StructuralByteSequenceFieldStore { .. }
+                | OperationKind::EstablishByteSequenceLiteral { .. } => {
                     operation.result == OperationResult::Unit
                 }
                 kind => operation.result.scalar().is_some() && pure_scalar(kind),

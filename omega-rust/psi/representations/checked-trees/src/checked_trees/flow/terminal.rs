@@ -1483,6 +1483,17 @@ impl CheckedBoundaryMachineResultPlan {
     }
 }
 
+/// Exact source occurrence of a whole bounded byte-field replacement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralByteSequenceFieldStorePlan {
+    pub statement_index: u32,
+    pub destination_parameter_position: u32,
+    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub field_identity: String,
+    /// The first admitted source is a literal; Terminal consumes a shared view.
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
     /// Normal edge after the named call completes. Cleanup belongs to this
@@ -1703,6 +1714,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// by the immediately preceding ordinary scalar call or selected
     /// boundary-operator realization.
     StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
+    StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
     ReturnUnit {
         statement_index: u32,
         /// Exact local declaration coordinates cleaned before parameters, in

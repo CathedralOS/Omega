@@ -169,7 +169,7 @@ fn structural_block_module() -> TerminalModule {
 fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
     let module = structural_block_module();
     let bytes = encode_module(&module).expect("borrowed block bindings encode");
-    assert_eq!(&bytes[8..12], &[79, 0, 85, 0]);
+    assert_eq!(&bytes[8..12], &[80, 0, 86, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -209,7 +209,7 @@ fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
             super::semantic_fingerprint(&module).unwrap()
         );
     }
-    for (offset, marker) in [(8, 78_u16), (8, 80), (10, 84), (10, 86)] {
+    for (offset, marker) in [(8, 79_u16), (8, 81), (10, 85), (10, 87)] {
         let mut stale = bytes.clone();
         stale[offset..offset + 2].copy_from_slice(&marker.to_le_bytes());
         assert!(decode_module(&stale).is_err());

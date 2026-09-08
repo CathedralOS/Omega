@@ -46,7 +46,8 @@ fn selected_roots(
                 | CheckedUnitEffectOperationPlan::CallUnit {
                     scalar_arguments, ..
                 } => scalar_arguments,
-                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
                 _ => return unsupported("composed scalar selection contains a non-call operation"),
             };
             crate::call_source_custody::validate_operation(

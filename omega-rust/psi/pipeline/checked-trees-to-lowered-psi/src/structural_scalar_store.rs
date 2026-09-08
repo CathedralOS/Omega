@@ -49,6 +49,45 @@ pub(super) fn lower_structural_scalar_store_place(
     structural_types: &[StructuralTypeDeclaration],
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
+    let scalar_type = terminal_scalar_type(store.primitive_type)?;
+    let field_type = crate::structural_types::terminal_structural_field_type(store.primitive_type)?;
+    let (path, field) = lower_structural_field_place(
+        store.statement_index,
+        expected_statement_index,
+        store.destination_parameter_position,
+        &store.carrier_path,
+        &store.field_identity,
+        parameter,
+        structural_types,
+        access_policy,
+    )?;
+    if field.field_type != field_type {
+        return unsupported("structural scalar store field has a different type");
+    }
+    Ok(LoweredStructuralScalarStore {
+        path,
+        field: field.id,
+        scalar_type,
+    })
+}
+
+/// Reconstruct the exact carrier and relevant field independently of payload type.
+pub(super) fn lower_structural_field_place<'a>(
+    statement_index: u32,
+    expected_statement_index: u32,
+    destination_parameter_position: u32,
+    carrier_path: &[CheckedUnitStructuralPathSegment],
+    field_identity: &str,
+    parameter: &StructuralParameterDeclaration,
+    structural_types: &'a [StructuralTypeDeclaration],
+    access_policy: StoreAccessPolicy,
+) -> Result<
+    (
+        Vec<StructuralPathSegment>,
+        &'a terminal_psi::StructuralFieldDeclaration,
+    ),
+    LoweringError,
+> {
     let access_matches = match access_policy {
         StoreAccessPolicy::MutableOnly => parameter.access == StructuralAccess::MutableBorrow,
         StoreAccessPolicy::Exclusive => matches!(
@@ -63,13 +102,11 @@ pub(super) fn lower_structural_scalar_store_place(
         )
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || store.statement_index != expected_statement_index
-        || store.destination_parameter_position != parameter.position
+        || statement_index != expected_statement_index
+        || destination_parameter_position != parameter.position
     {
         return unsupported("structural scalar store lost exact exclusive custody");
     }
-    let scalar_type = terminal_scalar_type(store.primitive_type)?;
-    let field_type = crate::structural_types::terminal_structural_field_type(store.primitive_type)?;
     let declaration = structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)
@@ -77,9 +114,9 @@ pub(super) fn lower_structural_scalar_store_place(
             "structural scalar store root type is absent",
         ))?;
     let mut field_owner = declaration;
-    let mut path = Vec::with_capacity(store.carrier_path.len());
+    let mut path = Vec::with_capacity(carrier_path.len());
     let mut reached_array = false;
-    for segment in &store.carrier_path {
+    for segment in carrier_path {
         let nested = match segment {
             CheckedUnitStructuralPathSegment::Field(identity)
                 if !reached_array && !identity.is_empty() =>
@@ -131,20 +168,12 @@ pub(super) fn lower_structural_scalar_store_place(
     };
     let matching = fields
         .iter()
-        .filter(|field| {
-            field.identity == store.field_identity
-                && !field.relevance.is_erased()
-                && field.field_type == field_type
-        })
+        .filter(|field| field.identity == field_identity && !field.relevance.is_erased())
         .collect::<Vec<_>>();
     let [field] = matching.as_slice() else {
         return unsupported("structural scalar store field is absent or ambiguous");
     };
-    Ok(LoweredStructuralScalarStore {
-        path,
-        field: field.id,
-        scalar_type,
-    })
+    Ok((path, field))
 }
 
 fn checked_store_source_matches(

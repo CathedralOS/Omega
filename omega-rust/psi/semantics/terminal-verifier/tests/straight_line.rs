@@ -52,6 +52,9 @@ mod case_access;
 #[path = "straight_line/literal_byte_extent.rs"]
 mod literal_byte_extent;
 
+#[path = "straight_line/structural_byte_sequence_store.rs"]
+mod structural_byte_sequence_store;
+
 #[test]
 fn unit_machine_is_a_value_less_normal_return() {
     let module = unit_module();

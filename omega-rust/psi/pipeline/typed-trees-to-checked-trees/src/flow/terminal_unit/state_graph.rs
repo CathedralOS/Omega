@@ -151,7 +151,8 @@ pub(super) fn build(
                                     | CheckedStructuralAccess::SharedBorrow
                             )
                     }) => {}
-                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 _ => return None,
             }
         }

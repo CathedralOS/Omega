@@ -1,8 +1,8 @@
 /// Marker for the single unstable terminal-Psi semantic vocabulary.
 ///
 /// The in-memory representation accepts only the vocabulary it was built with.
-/// The terminal codec may migrate an explicitly supported prior wire vocabulary
-/// before constructing this marker.
+/// The terminal codec rejects prior wire vocabularies before constructing this
+/// marker; it does not migrate artifacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VocabularyMarker;
 
@@ -18,6 +18,6 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        85
+        86
     }
 }
