@@ -54,6 +54,11 @@ values share semantic contexts and invalidation with domain facts. Exit checking
 uses live assignment evidence, not initializer replay; scalar returns require
 exact result/arm binding and checked operator meaning.
 
+Indexed-access checking owns one lazy mutation-summary table for its immutable
+program and borrow facts. Incoming-state propagation and branch snapshots borrow
+that same table while rebuilding their local bounds. A new check owns a fresh
+table; source or borrow changes cannot reuse an earlier invocation's summaries.
+
 `checks/termination/ranking/` separates range membership from descent. Static
 single-state integer bounds and the strict-symbol relational tier retain exact
 entry parameters, view endpoints, simultaneous self-edge substitution, and

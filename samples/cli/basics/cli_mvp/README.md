@@ -59,8 +59,9 @@ The outer CLI checks current package requirements against the project's accepted
 native production with ordinary `omega update` guidance and compiler-rendered
 findings. The [single package-acceptance rule](../../../../wiki/spec/packages/acceptance.md#authority-boundaries)
 means an unchanged accepted policy needs no second native approval file.
-Recent macOS outer probes have not reached package admission within their measured
-runtime window; the preliminary-validation performance task remains open.
+The macOS outer command reaches missing package acceptance, but full package
+validation remains slow. Current measurements and the next performance
+investigation belong to the owning task.
 
 On Windows, std contributes `FilesystemHost` authority and four external Console
 leaves: `read_line`, `read_byte`, `write_byte`, and `exit_process`. These are review
@@ -111,15 +112,12 @@ boundary-call source view; direct selected-adapter calls belong to interpreter
 dispatch, while native adapter selection remains on the Omega side. Source
 custody and structural validation must not be bypassed.
 
-The outer CLI with production changes in `dcb670edfd` was interrupted after
-249.36 seconds of already-built binary execution on macOS ARM64, still without
-a policy or native diagnostic. Boundary-target lookup and incoming-state
-analysis now share immutable derivations. A one-second host stack sample around
-2.5 minutes reaches flow construction's mutation-summary builder; each flow
-fixed-point iteration currently creates a new cache. Complete-route phase
-timings and rebuild counts are the next performance investigation, not more
-isolated cache tests. These interrupted probes do not establish an end-to-end
-speedup and are separate from the subsecond compiler-library probe above.
+Measure the complete package route separately from the compiler-library probe.
+Source checking repeats for preliminary and settled package inputs; permission
+comparison follows those checks. Mutation summaries depend on immutable source
+and borrow facts, so range-state passes and branch snapshots share their check's
+existing table. Local bounds and invalidations still evolve independently.
+No summary cache spans source revisions or substitutes for package acceptance.
 
 The shared free/attached Unit graph retains scalar prefixes, guarded head/tail
 operands, repeated descriptor bindings, and authored `Slice::Length` ranking.

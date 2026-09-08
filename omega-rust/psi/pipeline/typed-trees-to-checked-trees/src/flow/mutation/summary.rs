@@ -16,6 +16,18 @@ pub(crate) struct StateMutationSummaryCache {
     states: std::sync::OnceLock<Vec<StateMutationSummary>>,
 }
 
+#[cfg(test)]
+thread_local! {
+    static SUMMARY_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+impl StateMutationSummaryCache {
+    pub(crate) fn build_count() -> usize {
+        SUMMARY_BUILDS.get()
+    }
+}
+
 #[derive(Debug, Clone)]
 struct StateMutationSummary {
     state_symbol: SymbolHandle,
@@ -106,6 +118,8 @@ fn build_state_mutation_summaries(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
 ) -> Vec<StateMutationSummary> {
+    #[cfg(test)]
+    SUMMARY_BUILDS.set(SUMMARY_BUILDS.get() + 1);
     let mut states = Vec::new();
     let mut inferred_completeness = Vec::new();
     if let Some(resolver) = validation::CallFrameResolver::new(program) {

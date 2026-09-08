@@ -137,6 +137,7 @@ pub(super) fn collect_state_argument_facts<'program>(
     machine: &'program Machine,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
     borrows: &checked_trees::BorrowFacts,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
     // Facts about a state's arguments are derived from the call/transition
     // sites that target it. On a recursive or cyclic control-flow path the
@@ -173,6 +174,10 @@ pub(super) fn collect_state_argument_facts<'program>(
                 call_frames,
             };
             let mut facts = RangeFacts::new(field_lengths);
+            // Only range contributions change between states and passes.
+            // Borrow the invocation's completed source/borrow summaries before
+            // any branch snapshots clone these per-state facts.
+            facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_borrows = Some(borrows);
             for parameter in program.state_parameters(state) {
                 facts.define_local(
