@@ -277,6 +277,11 @@ fn concrete_effective_services(machine: &MachineReachWork) -> &[ServiceReachId] 
 }
 
 fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> DirectServiceReach {
+    // Checked calls to an exact intrinsic realization retain the boundary
+    // requirement's identity. Infer its nominal reach at the same boundary,
+    // even when the realization's own declaration has no authored reach row.
+    let target = crate::exact_compiler_intrinsic_boundary_requirement(program, target)
+        .map_or(target, |(requirement, _)| requirement);
     let mut reach = DirectServiceReach::default();
     if !target.is_valid() {
         return reach;

@@ -2449,6 +2449,52 @@ fn rooted_fixture_explicit_deny_policy_still_rejects() {
 }
 
 #[test]
+fn runtime_console_byte_sources_retain_checked_unit_plans_and_terminal_artifacts() {
+    for fixture in [
+        fixture_roster::RUNTIME_CONSOLE_BYTE_LITERAL_EXIT,
+        fixture_roster::RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT,
+    ] {
+        let compilation =
+            compile_to_checked(&pass_canary(fixture).join("main.omg"), Some("linux_x86_64"))
+                .expect("console source should check");
+        let checked = &compilation;
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        let main = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Main entry");
+        assert!(
+            plans.for_machine(main.symbol).is_some()
+                || plans.composed_for_machine(main.symbol).is_some(),
+            "{fixture}: missing Main plan; boundary plans: {:#?}",
+            plans.boundary_machines
+        );
+        let root_path = pass_canary(fixture).join("main.omg");
+        let package_inputs =
+            reviewed_repository_fixture_package_inputs(&root_path, Some("linux_x86_64"))
+                .expect("fixture package inputs");
+        let mut request = CompileRequest::new(CompilerOptions {
+            root_path,
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+        if let Some(package_inputs) = package_inputs {
+            request = request.with_package_inputs(package_inputs);
+        }
+        compiler::compile(request)
+            .unwrap_or_else(|diagnostics| {
+                panic!("{fixture}: Terminal production failed: {diagnostics:#?}")
+            })
+            .into_retained_terminal_artifact()
+            .expect("console source retains its Terminal artifact")
+            .validate()
+            .unwrap_or_else(|error| panic!("{fixture}: Terminal artifact replay failed: {error}"));
+    }
+}
+
+#[test]
 fn runtime_console_byte_literal_linux_catalog_replays_both_targets() {
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_LITERAL_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
