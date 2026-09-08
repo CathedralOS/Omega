@@ -1,7 +1,7 @@
 use abstract_operations::ValueBinding;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedSuccessor, SelectedTerminator, SelectedValueBinding,
-    SelectedValueTransport, VirtualRegisterId,
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 
@@ -21,7 +21,17 @@ use crate::rewrites::allocation_recovery::fixed_view_copy::codec::{
 
 pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
     bytes.extend_from_slice(&block.id.0.to_le_bytes());
-    bytes.extend_from_slice(&block.source_block.get().to_le_bytes());
+    match block.origin {
+        SelectedBlockOrigin::Source(source) => {
+            bytes.push(0);
+            bytes.extend_from_slice(&source.get().to_le_bytes());
+        }
+        SelectedBlockOrigin::EdgeTransfer { edge, target } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            bytes.extend_from_slice(&target.get().to_le_bytes());
+        }
+    }
     length(bytes, block.instructions.len());
     for instruction in &block.instructions {
         encode_instruction(bytes, instruction);
@@ -80,7 +90,14 @@ pub(super) fn decode_block(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedBlock, FixedViewCopyDecodeError> {
     let id = SelectedBlockId(cursor.u32()?);
-    let source_block = decode_id(cursor, BlockId::new)?;
+    let origin = match cursor.byte()? {
+        0 => SelectedBlockOrigin::Source(decode_id(cursor, BlockId::new)?),
+        1 => SelectedBlockOrigin::EdgeTransfer {
+            edge: decode_id(cursor, EdgeId::new)?,
+            target: decode_id(cursor, BlockId::new)?,
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownBlockOrigin(tag)),
+    };
     let instruction_count = cursor.length()?;
     let mut instructions = Vec::with_capacity(instruction_count.min(cursor.remaining()));
     for _ in 0..instruction_count {
@@ -114,13 +131,17 @@ pub(super) fn decode_block(
     };
     Ok(SelectedBlock {
         id,
-        source_block,
+        origin,
         instructions,
         terminator,
     })
 }
 
 fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
+    bytes.push(match successor.role {
+        SelectedSuccessorRole::Semantic => 0,
+        SelectedSuccessorRole::EdgeTransferContinuation => 1,
+    });
     bytes.extend_from_slice(&successor.psi_edge.get().to_le_bytes());
     bytes.extend_from_slice(&successor.block.0.to_le_bytes());
     bytes.extend_from_slice(&successor.source_target.get().to_le_bytes());
@@ -147,6 +168,11 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
 fn decode_successor(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedSuccessor, FixedViewCopyDecodeError> {
+    let role = match cursor.byte()? {
+        0 => SelectedSuccessorRole::Semantic,
+        1 => SelectedSuccessorRole::EdgeTransferContinuation,
+        tag => return Err(FixedViewCopyDecodeError::UnknownSuccessorRole(tag)),
+    };
     let psi_edge = decode_id(cursor, EdgeId::new)?;
     let block = SelectedBlockId(cursor.u32()?);
     let source_target = decode_id(cursor, BlockId::new)?;
@@ -172,6 +198,7 @@ fn decode_successor(
         });
     }
     Ok(SelectedSuccessor {
+        role,
         psi_edge,
         block,
         source_target,

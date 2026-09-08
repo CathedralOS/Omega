@@ -59,6 +59,7 @@ pub enum FunctionFragmentConditionalBranchPredicate {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentSuccessorProvenance {
+    pub role: selected_instructions::SelectedSuccessorRole,
     pub psi_edge: EdgeId,
     pub block: SelectedBlockId,
     pub source_target: BlockId,

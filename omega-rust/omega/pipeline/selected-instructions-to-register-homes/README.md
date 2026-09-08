@@ -45,6 +45,13 @@ and canonical value order, and chooses the lowest compatible view. Replay
 reconstructs domains, conflicts, and placement separately. Exhaustion is typed
 pressure, not permission to manufacture a home or silently change policy.
 
+Selection prepares scalar edge copies as ordinary instructions in explicit
+implementation blocks. Only the final transfer register and destination parameter
+must share a home; original arguments and snapshots remain independently live.
+The allocator retains its interference and tied-home checks. Recovery that
+requires an authored node must match a `Source` block origin, not the semantic
+target anchor of an edge-copy block.
+
 Fixed-use recovery separates factual intervals, incompatible fixed-use splits,
 and segment homes from the decision to insert a copy. Different fixed views
 may alias; a split requirement alone prescribes no physical movement. The

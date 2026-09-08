@@ -35,6 +35,7 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
     function.blocks[0].terminator = SelectedTerminator::Jump {
         instruction: jump,
         successor: SelectedSuccessor {
+            role: selected_instructions::SelectedSuccessorRole::Semantic,
             psi_edge: EdgeId::new(1).unwrap(),
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
@@ -54,7 +55,7 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
     };
     function.blocks.push(SelectedBlock {
         id: SelectedBlockId(1),
-        source_block: BlockId::new(2).unwrap(),
+        origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
         instructions: Vec::new(),
         terminator: SelectedTerminator::Return {
             instruction: return_instruction,
@@ -113,6 +114,16 @@ fn successor_parameter_liveness_substitutes_the_actual_edge_argument() {
     let changed = compute_function(0, &selected).unwrap();
     assert_eq!(changed.blocks[0].virtual_live_out, [VirtualRegisterId(1)]);
     assert_ne!(live, changed);
+}
+
+#[test]
+fn source_blocks_cannot_claim_implementation_edge_roles() {
+    let mut function = successor_parameter_function();
+    let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
+        unreachable!()
+    };
+    successor.role = selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation;
+    assert!(compute_function(0, &function).is_err());
 }
 
 #[test]

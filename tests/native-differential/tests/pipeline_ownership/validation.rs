@@ -240,7 +240,8 @@ fn selected_content_identity_binds_every_retained_field_class() {
     changed.functions[0].blocks[1].id.0 += 1;
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.functions[0].blocks[1].source_block = BlockId::new(8_020).unwrap();
+    changed.functions[0].blocks[1].origin =
+        selected_instructions::SelectedBlockOrigin::Source(BlockId::new(8_020).unwrap());
     mutations.push(changed);
     let mut changed = original.clone();
     changed.functions[0].blocks[1].instructions.clear();

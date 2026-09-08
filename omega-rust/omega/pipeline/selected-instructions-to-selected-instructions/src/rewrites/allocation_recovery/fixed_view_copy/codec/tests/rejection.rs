@@ -156,7 +156,7 @@ fn artifact_current_rejection_precedence_is_trailing_payload_semantic_then_outer
 #[test]
 fn every_previous_wire_generation_rejects_before_payload_decoding() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
-    for version in 0..22_u32 {
+    for version in 0..23_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

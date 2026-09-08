@@ -142,6 +142,68 @@ fn omitted_operation_and_return_attribution_reject() {
 }
 
 #[test]
+fn bridge_continuation_does_not_attribute_the_semantic_edge_twice() {
+    let (mut fragment, mut source) = fixture();
+    let edge = EdgeId::new(4).unwrap();
+    source.operations.push(AbstractOperation::Jump {
+        psi_edge: edge,
+        target: BlockId::new(2).unwrap(),
+        bindings: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    });
+    let successor = machine_code::FunctionFragmentSuccessorProvenance {
+        role: SelectedSuccessorRole::Semantic,
+        psi_edge: edge,
+        block: SelectedBlockId(1),
+        source_target: BlockId::new(2).unwrap(),
+        bindings: Vec::new(),
+        fuel: Vec::new(),
+    };
+    let mut jump = fragment.blocks[0].instructions[3].clone();
+    jump.instruction = SelectedInstructionId(4);
+    jump.offset = 8;
+    jump.control = Control::Jump {
+        successor: successor.clone(),
+    };
+    fragment.blocks[0].instructions.push(jump.clone());
+    jump.instruction = SelectedInstructionId(5);
+    jump.offset = 9;
+    jump.control = Control::Jump {
+        successor: machine_code::FunctionFragmentSuccessorProvenance {
+            role: SelectedSuccessorRole::EdgeTransferContinuation,
+            block: SelectedBlockId(2),
+            ..successor
+        },
+    };
+    fragment.blocks[0].instructions.push(jump);
+    fragment.blocks[0].byte_count = 10;
+    fragment.byte_count = 10;
+    fragment.bytes.resize(10, 0x90);
+    let rows = produce(&fragment, &source).unwrap();
+    validate(&fragment, &source, &rows).unwrap();
+    let row = rows
+        .iter()
+        .find(|row| row.site == SemanticCodeSite::Edge(edge))
+        .unwrap();
+    assert_eq!((row.code_offset, row.byte_count), (8, 1));
+    let mut forged = rows.clone();
+    let row = forged
+        .iter_mut()
+        .find(|row| row.site == SemanticCodeSite::Edge(edge))
+        .unwrap();
+    row.byte_count = 2;
+    assert!(validate(&fragment, &source, &forged).is_err());
+    let row = forged
+        .iter_mut()
+        .find(|row| row.site == SemanticCodeSite::Edge(edge))
+        .unwrap();
+    row.code_offset = 9;
+    row.byte_count = 1;
+    assert!(validate(&fragment, &source, &forged).is_err());
+}
+
+#[test]
 fn disjoint_same_site_spans_are_not_widened_over_another_operation() {
     let (mut fragment, source) = fixture();
     let instructions = &mut fragment.blocks[0].instructions;

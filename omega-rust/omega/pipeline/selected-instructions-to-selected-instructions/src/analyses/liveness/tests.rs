@@ -96,6 +96,7 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
         provenance: SelectedInstructionProvenance::default(),
     };
     let successor = |edge, block, source_target| SelectedSuccessor {
+        role: selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: EdgeId::new(edge).unwrap(),
         block: SelectedBlockId(block),
         source_target: BlockId::new(source_target).unwrap(),
@@ -140,13 +141,17 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
             blocks: vec![
                 SelectedBlock {
                     id: SelectedBlockId(0),
-                    source_block: BlockId::new(1).unwrap(),
+                    origin: selected_instructions::SelectedBlockOrigin::Source(
+                        BlockId::new(1).unwrap(),
+                    ),
                     instructions: Vec::new(),
                     terminator,
                 },
                 SelectedBlock {
                     id: SelectedBlockId(1),
-                    source_block: BlockId::new(2).unwrap(),
+                    origin: selected_instructions::SelectedBlockOrigin::Source(
+                        BlockId::new(2).unwrap(),
+                    ),
                     instructions: Vec::new(),
                     terminator: SelectedTerminator::Return {
                         instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
@@ -155,7 +160,9 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
                 },
                 SelectedBlock {
                     id: SelectedBlockId(2),
-                    source_block: BlockId::new(3).unwrap(),
+                    origin: selected_instructions::SelectedBlockOrigin::Source(
+                        BlockId::new(3).unwrap(),
+                    ),
                     instructions: Vec::new(),
                     terminator: SelectedTerminator::Return {
                         instruction: instruction(2, SelectedInstructionKind::ReturnUnit),
@@ -212,7 +219,7 @@ pub(crate) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         virtual_registers: Vec::new(),
         blocks: vec![SelectedBlock {
             id: SelectedBlockId(0),
-            source_block: BlockId::new(1).unwrap(),
+            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
             instructions: vec![instruction],
             terminator: SelectedTerminator::Return {
                 instruction: SelectedInstruction {

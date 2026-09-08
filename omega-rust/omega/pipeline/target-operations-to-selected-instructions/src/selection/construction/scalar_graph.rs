@@ -391,7 +391,7 @@ pub(super) fn build(
             .ok_or_else(invalid)?;
         blocks.push(SelectedBlock {
             id: block_id,
-            source_block: block.id,
+            origin: selected_instructions::SelectedBlockOrigin::Source(block.id),
             instructions: builder.instructions[start..body_end].to_vec(),
             terminator,
         });

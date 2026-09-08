@@ -49,7 +49,14 @@ fn branch_call_selection_rejects_changed_join_bindings_and_edges() {
         let arm = function
             .blocks
             .iter_mut()
-            .find(|block| block.source_block.get() == 28_150)
+            .find(|block| match block.origin {
+                selected_instructions::SelectedBlockOrigin::Source(source) => {
+                    mutation < 3 && source == BlockId::new(28_150).unwrap()
+                }
+                selected_instructions::SelectedBlockOrigin::EdgeTransfer { edge, .. } => {
+                    mutation >= 3 && edge == EdgeId::new(28_151).unwrap()
+                }
+            })
             .unwrap();
         let SelectedTerminator::Jump { successor, .. } = &mut arm.terminator else {
             unreachable!()
@@ -73,7 +80,10 @@ fn branch_call_selection_rejects_changed_join_bindings_and_edges() {
                 std::mem::swap(argument, parameter);
             }
         }
-        assert!(validate_raw_selection(&staged, changed).is_err());
+        assert!(
+            validate_raw_selection(&staged, changed).is_err(),
+            "mutation {mutation}"
+        );
     }
 }
 

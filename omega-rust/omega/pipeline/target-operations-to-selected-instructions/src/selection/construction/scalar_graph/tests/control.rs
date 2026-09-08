@@ -384,7 +384,7 @@ fn scalar_control_keeps_blocks_branches_calls_and_parallel_bindings() {
                     selected
                         .blocks
                         .iter()
-                        .map(|block| block.source_block.get())
+                        .map(|block| block.source_block().get())
                         .collect::<Vec<_>>(),
                     vec![1, 2, 3, 4]
                 );
@@ -420,7 +420,7 @@ fn scalar_control_keeps_blocks_branches_calls_and_parallel_bindings() {
                 for corruption in 0..8 {
                     let mut changed = selected.clone();
                     match corruption {
-                        0 => changed.blocks[1].source_block = changed.blocks[2].source_block,
+                        0 => changed.blocks[1].origin = changed.blocks[2].origin,
                         1 => changed.blocks[1].id = SelectedBlockId(99),
                         2 => {
                             let SelectedTerminator::Jump { successor, .. } =

@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v27\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v28\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -148,7 +148,17 @@ pub fn selected_instruction_plan_identity(
         encode_len(&mut bytes, function.blocks.len());
         for block in &function.blocks {
             bytes.extend_from_slice(&block.id.0.to_le_bytes());
-            bytes.extend_from_slice(&block.source_block.get().to_le_bytes());
+            match block.origin {
+                selected_instructions::SelectedBlockOrigin::Source(source) => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                }
+                selected_instructions::SelectedBlockOrigin::EdgeTransfer { edge, target } => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&edge.get().to_le_bytes());
+                    bytes.extend_from_slice(&target.get().to_le_bytes());
+                }
+            }
             encode_len(&mut bytes, block.instructions.len());
             for instruction in &block.instructions {
                 encode_instruction(&mut bytes, instruction);
@@ -352,6 +362,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
 }
 
 fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
+    bytes.push(match successor.role {
+        selected_instructions::SelectedSuccessorRole::Semantic => 0,
+        selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation => 1,
+    });
     bytes.extend_from_slice(&successor.psi_edge.get().to_le_bytes());
     bytes.extend_from_slice(&successor.block.0.to_le_bytes());
     bytes.extend_from_slice(&successor.source_target.get().to_le_bytes());

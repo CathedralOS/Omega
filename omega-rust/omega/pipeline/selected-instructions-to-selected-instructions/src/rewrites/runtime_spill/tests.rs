@@ -88,7 +88,9 @@ fn fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
             virtual_registers: registers,
             blocks: vec![SelectedBlock {
                 id: SelectedBlockId(0),
-                source_block: BlockId::new(1).unwrap(),
+                origin: selected_instructions::SelectedBlockOrigin::Source(
+                    BlockId::new(1).unwrap(),
+                ),
                 instructions,
                 terminator: SelectedTerminator::Return {
                     instruction: admission::instruction(

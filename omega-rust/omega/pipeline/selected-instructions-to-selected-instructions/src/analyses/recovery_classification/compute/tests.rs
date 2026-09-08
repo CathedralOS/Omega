@@ -119,7 +119,7 @@ fn fixture() -> (
             .collect(),
         blocks: vec![SelectedBlock {
             id: SelectedBlockId(0),
-            source_block,
+            origin: selected_instructions::SelectedBlockOrigin::Source(source_block),
             instructions: definitions,
             terminator: SelectedTerminator::Return {
                 instruction: returned,
@@ -282,6 +282,7 @@ fn edge_used_literal_is_not_an_instruction_local_recovery_candidate() {
     selected.blocks[0].terminator = selected_instructions::SelectedTerminator::Jump {
         instruction: jump,
         successor: selected_instructions::SelectedSuccessor {
+            role: selected_instructions::SelectedSuccessorRole::Semantic,
             psi_edge: semantic_vocabulary::EdgeId::new(90).unwrap(),
             block: selected_instructions::SelectedBlockId(1),
             source_target: semantic_vocabulary::BlockId::new(91).unwrap(),

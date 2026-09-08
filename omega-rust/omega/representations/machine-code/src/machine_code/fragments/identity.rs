@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v10";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v11";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -179,6 +179,10 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
 }
 
 fn encode_successor(hasher: &mut Sha256, successor: &FunctionFragmentSuccessorProvenance) {
+    hasher.update([match successor.role {
+        selected_instructions::SelectedSuccessorRole::Semantic => 0,
+        selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation => 1,
+    }]);
     hasher.update(successor.psi_edge.get().to_le_bytes());
     hasher.update(successor.block.0.to_le_bytes());
     hasher.update(successor.source_target.get().to_le_bytes());

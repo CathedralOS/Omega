@@ -36,9 +36,14 @@ materialized Boolean block arguments. Exact block/value/type references are
 available only in their defining block and dominated successors; each arrival
 retains its own ordered bindings, even when both conditional arms have the same
 target. A transferred integer does not inherit byte-length observation custody.
-The allocator currently requires every connected argument/destination group to
-share a legal register home. Interfering arrivals still reject with
-`UnsupportedEdgeTransfer`; general edge-copy realization is not implemented.
+Selection expands materialized edge bindings into explicitly identified
+implementation blocks. Each chosen edge snapshots all arguments before copying
+them into destination-associated transfer registers. Distinct arrivals need not
+share their original homes; parallel swaps do not overwrite unread arguments.
+Ordinary liveness, allocation and encoding own these copies. Independent replay
+checks the expansion and contracts it back to the source graph, with the authored
+edge and its fuel retained once; the final implementation jump carries lineage,
+not a second semantic transition. No source block or operation is fabricated.
 Computed Boolean comparisons remain branch predicates until value materialization
 is implemented; structural descriptor transfers and ranked control are separate.
 

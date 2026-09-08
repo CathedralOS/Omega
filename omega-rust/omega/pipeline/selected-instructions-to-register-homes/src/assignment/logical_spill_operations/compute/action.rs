@@ -83,7 +83,7 @@ pub(in crate::assignment::logical_spill_operations) fn compute_action(
     };
     if !matches!(
         victim.definition_site,
-        Some(ValueDefinitionSite::Node { block, .. }) if block == selected_block.source_block
+        Some(ValueDefinitionSite::Node { block, .. }) if matches!(selected_block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == block)
     ) {
         return Err(LogicalSpillOperationError::UnsupportedOrigin {
             function: function_index,

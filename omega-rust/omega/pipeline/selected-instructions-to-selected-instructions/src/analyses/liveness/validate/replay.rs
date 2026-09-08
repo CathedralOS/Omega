@@ -311,7 +311,7 @@ fn replay_block(
     }
     Ok(BlockLiveness {
         block: block.id,
-        source_block: block.source_block,
+        source_block: block.source_block(),
         virtual_live_in: collect(&v_in[&block.id]),
         virtual_live_out: collect(&v_out[&block.id]),
         unit_live_in: collect(&u_in[&block.id]),

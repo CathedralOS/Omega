@@ -9,6 +9,7 @@ use machine_code::{
     FunctionFragment, FunctionFragmentBranchEvidence, FunctionFragmentControlProvenance as Control,
     SemanticCodeAttribution, SemanticCodeSite,
 };
+use selected_instructions::SelectedSuccessorRole;
 
 pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Result<usize, Error> {
     let mut matches = source
@@ -85,14 +86,22 @@ pub(super) fn produce(
             Control::Return { psi_return_edge } => {
                 push(SemanticCodeSite::Edge(*psi_return_edge), offset, length)?
             }
-            Control::Jump { successor } => {
+            Control::Jump { successor } if successor.role == SelectedSuccessorRole::Semantic => {
                 push(SemanticCodeSite::Edge(successor.psi_edge), offset, length)?
             }
+            Control::Jump { .. } => {}
             Control::ConditionalBranch {
                 when_taken,
                 when_fallthrough,
                 ..
             } => {
+                if when_taken.role != SelectedSuccessorRole::Semantic
+                    || when_fallthrough.role != SelectedSuccessorRole::Semantic
+                {
+                    return Err(Error::Mismatch(
+                        "conditional successor has nonsemantic attribution role",
+                    ));
+                }
                 push(SemanticCodeSite::Edge(when_taken.psi_edge), offset, length)?;
                 let Some(branch) = instruction.branch.as_deref() else {
                     return Err(Error::Mismatch("conditional has no decoded branch"));
@@ -184,12 +193,27 @@ pub(super) fn validate(
         }
         let edges: Vec<_> = match &instruction.control {
             Control::Return { psi_return_edge } => vec![*psi_return_edge],
-            Control::Jump { successor } => vec![successor.psi_edge],
+            Control::Jump { successor } => {
+                if successor.role == SelectedSuccessorRole::Semantic {
+                    vec![successor.psi_edge]
+                } else {
+                    Vec::new()
+                }
+            }
             Control::ConditionalBranch {
                 when_taken,
                 when_fallthrough,
                 ..
-            } => vec![when_taken.psi_edge, when_fallthrough.psi_edge],
+            } => {
+                if when_taken.role != SelectedSuccessorRole::Semantic
+                    || when_fallthrough.role != SelectedSuccessorRole::Semantic
+                {
+                    return Err(Error::Mismatch(
+                        "conditional successor has nonsemantic attribution role",
+                    ));
+                }
+                vec![when_taken.psi_edge, when_fallthrough.psi_edge]
+            }
             Control::DirectInternalCall { .. } | Control::None => Vec::new(),
         };
         for edge in edges {
@@ -218,14 +242,21 @@ fn supports(
         }
         SemanticCodeSite::Edge(edge) => match &instruction.control {
             Control::Return { psi_return_edge } => ordinary && edge == *psi_return_edge,
-            Control::Jump { successor } => ordinary && edge == successor.psi_edge,
+            Control::Jump { successor } => {
+                successor.role == SelectedSuccessorRole::Semantic
+                    && ordinary
+                    && edge == successor.psi_edge
+            }
             Control::ConditionalBranch {
                 when_taken,
                 when_fallthrough,
                 ..
             } => {
-                (ordinary && edge == when_taken.psi_edge)
-                    || (edge == when_fallthrough.psi_edge
+                (when_taken.role == SelectedSuccessorRole::Semantic
+                    && ordinary
+                    && edge == when_taken.psi_edge)
+                    || (when_fallthrough.role == SelectedSuccessorRole::Semantic
+                        && edge == when_fallthrough.psi_edge
                         && length == 0
                         && matches!(
                             instruction.branch.as_deref(),

@@ -217,7 +217,7 @@ fn reconstruct(
         .iter()
         .find(|block| block.id == choice.block)
         .ok_or(SpillRecoveryActionError::FunctionMismatch { function })?;
-    if !matches!(victim.definition_site, Some(ValueDefinitionSite::Node { block: source, .. }) if source == block.source_block)
+    if !matches!(victim.definition_site, Some(ValueDefinitionSite::Node { block: source, .. }) if matches!(block.origin, selected_instructions::SelectedBlockOrigin::Source(authored) if authored == source))
     {
         return Err(SpillRecoveryActionError::UnsupportedOrigin {
             function,

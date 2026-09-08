@@ -221,8 +221,10 @@ fn typed_unit_transfers_select_and_replay_on_all_hosted_targets() {
             .unwrap();
             for mutation in 0..3 {
                 let mut changed = selected.plan().clone();
+                let bridge = changed.functions[0].blocks.iter_mut().find(|block|
+                    matches!(block.origin, selected_instructions::SelectedBlockOrigin::EdgeTransfer { edge: transfer, .. } if transfer == edge(12))).expect("prepared edge");
                 let selected_instructions::SelectedTerminator::Jump { successor, .. } =
-                    &mut changed.functions[0].blocks[1].terminator
+                    &mut bridge.terminator
                 else {
                     panic!("jump");
                 };

@@ -145,7 +145,7 @@ pub(in crate::selection) fn validate(
         let source_block = source
             .blocks
             .iter()
-            .find(|source| source.id == block.source_block)
+            .find(|source| source.id == block.source_block())
             .ok_or_else(invalid)?;
         for (parameter_index, parameter) in source_block.parameters.iter().enumerate() {
             if !source.references_value(parameter.value) {
@@ -170,7 +170,7 @@ pub(in crate::selection) fn validate(
         let source_block = source
             .blocks
             .iter()
-            .find(|source| source.id == block.source_block)
+            .find(|source| source.id == block.source_block())
             .ok_or_else(invalid)?;
         replay.block = block;
         if block.id != SelectedBlockId(0) {
