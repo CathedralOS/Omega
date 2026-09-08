@@ -29,7 +29,9 @@ pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegiste
             }
         };
         edges.iter().any(|edge| {
-            edge.bindings.iter().any(|binding| {
+            edge.structural_case.as_ref().is_some_and(|case| case.payloads.iter().any(|payload| matches!(payload.transport,
+                selected_instructions::SelectedCasePayloadTransport::Registers { argument, .. } if argument == register)))
+            || edge.bindings.iter().any(|binding| {
                 matches!(binding.transport,
             SelectedValueTransport::Registers {argument,..} if argument == register)
             })
@@ -111,6 +113,7 @@ pub(crate) fn validate_transports(
                         .all(|binding| binding.transport == SelectedValueTransport::Unused) => {}
                 _ => return Err(mismatch()),
             }
+            validate_case_transport(function_index, function, edge, destination)?;
             for binding in &edge.bindings {
                 if edge
                     .bindings
@@ -189,6 +192,52 @@ pub(crate) fn incoming_argument(
     {
         return Err(mismatch());
     }
+    if let Some(case) = &successor.structural_case {
+        let mut payloads = case
+            .payloads
+            .iter()
+            .filter(|payload| payload.semantic.parameter.value == source_value);
+        if let Some(payload) = payloads.next() {
+            if payloads.next().is_some()
+                || successor
+                    .bindings
+                    .iter()
+                    .any(|binding| binding.semantic.parameter == source_value)
+                || payload.semantic.parameter.scalar_type != destination_register.scalar_type
+                || Some(payload.semantic.parameter.definition_site)
+                    != destination_register.definition_site
+            {
+                return Err(mismatch());
+            }
+            let selected_instructions::SelectedCasePayloadTransport::Registers {
+                argument,
+                parameter,
+            } = payload.transport
+            else {
+                return Err(mismatch());
+            };
+            if parameter != destination
+                || successor.role != SelectedSuccessorRole::EdgeTransferContinuation
+            {
+                return Err(mismatch());
+            }
+            let mut sources = function
+                .virtual_registers
+                .iter()
+                .filter(|register| register.id == argument);
+            let source = sources.next().ok_or_else(mismatch)?;
+            if sources.next().is_some()
+                || source.scalar_type != destination_register.scalar_type
+                || source.class != destination_register.class
+                || source.definition_site.is_some()
+                || !matches!(source.origin, VirtualRegisterOrigin::StructuralObservation { place, byte_offset, .. }
+                    if Some(place) == case.slot.structural_place() && byte_offset == payload.semantic.field_byte_offset)
+            {
+                return Err(mismatch());
+            }
+            return Ok(argument);
+        }
+    }
     let mut bindings = successor
         .bindings
         .iter()
@@ -222,6 +271,7 @@ pub(crate) fn incoming_argument(
     let value = match source.origin {
         VirtualRegisterOrigin::StructuralParameter { .. }
         | VirtualRegisterOrigin::SpillAddress { .. }
+        | VirtualRegisterOrigin::StructuralObservation { .. }
         | VirtualRegisterOrigin::ScalarAbiAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => return Err(mismatch()),
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
@@ -235,4 +285,88 @@ pub(crate) fn incoming_argument(
         return Err(mismatch());
     }
     Ok(argument)
+}
+
+fn validate_case_transport(
+    function_index: usize,
+    function: &SelectedFunction,
+    edge: &SelectedSuccessor,
+    destination: &selected_instructions::SelectedBlock,
+) -> Result<(), LivenessError> {
+    use selected_instructions::SelectedCasePayloadTransport;
+    let mismatch = || LivenessError::FunctionMismatch {
+        function: function_index,
+    };
+    let Some(case) = &edge.structural_case else {
+        return Ok(());
+    };
+    if case.slot.structural_place().is_none()
+        || case.case_tag < 0
+        || (edge.role == SelectedSuccessorRole::EdgeTransferContinuation
+            && !case.trivial_affine_discards.is_empty())
+    {
+        return Err(mismatch());
+    }
+    if matches!(destination.origin, SelectedBlockOrigin::EdgeTransfer { .. }) {
+        let SelectedTerminator::Jump {
+            successor: continuation,
+            ..
+        } = &destination.terminator
+        else {
+            return Err(mismatch());
+        };
+        let Some(next_case) = &continuation.structural_case else {
+            return Err(mismatch());
+        };
+        if next_case.slot != case.slot
+            || next_case.case != case.case
+            || next_case.case_tag != case.case_tag
+            || !next_case.trivial_affine_discards.is_empty()
+            || next_case.payloads.len() != case.payloads.len()
+            || next_case
+                .payloads
+                .iter()
+                .zip(&case.payloads)
+                .any(|(next, semantic)| next.semantic != semantic.semantic)
+        {
+            return Err(mismatch());
+        }
+    }
+    for payload in &case.payloads {
+        if case
+            .payloads
+            .iter()
+            .filter(|other| other.semantic.parameter.value == payload.semantic.parameter.value)
+            .count()
+            != 1
+            || case
+                .payloads
+                .iter()
+                .filter(|other| other.semantic.field == payload.semantic.field)
+                .count()
+                != 1
+            || edge
+                .bindings
+                .iter()
+                .any(|binding| binding.semantic.parameter == payload.semantic.parameter.value)
+        {
+            return Err(mismatch());
+        }
+        let destinations = function.virtual_registers.iter().filter(|register| {
+            matches!(register.origin, VirtualRegisterOrigin::BlockParameter { source_value, block, .. }
+                if source_value == payload.semantic.parameter.value && block == edge.block)
+        }).collect::<Vec<_>>();
+        match payload.transport {
+            SelectedCasePayloadTransport::Unused if destinations.is_empty() => {}
+            SelectedCasePayloadTransport::Registers { parameter, .. }
+                if edge.role == SelectedSuccessorRole::EdgeTransferContinuation
+                    && destinations.len() == 1
+                    && destinations[0].id == parameter =>
+            {
+                incoming_argument(function_index, function, edge, parameter)?;
+            }
+            _ => return Err(mismatch()),
+        }
+    }
+    Ok(())
 }

@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v30\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v31\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -81,6 +81,16 @@ pub fn selected_instruction_plan_identity(
             encode_scalar_type(&mut bytes, register.scalar_type);
             bytes.extend_from_slice(&register.class.0.to_le_bytes());
             match register.origin {
+                VirtualRegisterOrigin::StructuralObservation {
+                    instruction,
+                    place,
+                    byte_offset,
+                } => {
+                    bytes.push(8);
+                    bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&place.get().to_le_bytes());
+                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                }
                 VirtualRegisterOrigin::ScalarAbiAddress {
                     instruction,
                     source_value,
@@ -406,6 +416,13 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 bytes.extend_from_slice(&argument.0.to_le_bytes());
                 bytes.extend_from_slice(&parameter.0.to_le_bytes());
             }
+        }
+    }
+    match &successor.structural_case {
+        None => bytes.push(0),
+        Some(case) => {
+            bytes.push(1);
+            case.encode_identity(bytes);
         }
     }
     encode_len(bytes, successor.structural_bindings.len());

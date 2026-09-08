@@ -5,6 +5,7 @@ use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOper
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
+mod structural_case;
 #[cfg(test)]
 mod tests;
 
@@ -265,6 +266,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 } => {
                     when_true.trivial_affine_discards.is_empty()
                         && when_false.trivial_affine_discards.is_empty()
+                }
+                AbstractOperation::StructuralCase { source, cases } => {
+                    structural_case::retained(selected, *source, cases)
                 }
                 _ => false,
             };

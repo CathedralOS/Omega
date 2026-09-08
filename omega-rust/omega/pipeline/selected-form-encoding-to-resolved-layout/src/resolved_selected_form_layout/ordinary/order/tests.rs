@@ -24,6 +24,7 @@ fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction
 }
 fn successor(target: u32) -> SelectedSuccessor {
     SelectedSuccessor {
+        structural_case: None,
         role: selected_instructions::SelectedSuccessorRole::Semantic,
         structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(u64::from(target) + 1).unwrap(),

@@ -9,6 +9,23 @@ pub(super) fn validate_def_use(
     function: &SelectedFunction,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
+    validate(function_index, function, catalog, false)
+}
+
+pub(super) fn validate_projected_def_use(
+    function_index: usize,
+    function: &SelectedFunction,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<(), SelectedInstructionError> {
+    validate(function_index, function, catalog, true)
+}
+
+fn validate(
+    function_index: usize,
+    function: &SelectedFunction,
+    catalog: &ValidatedRegisterConstraintCatalog,
+    projected: bool,
+) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::NonCanonicalVirtualRegisters {
         function: function_index,
     };
@@ -142,6 +159,55 @@ pub(super) fn validate_def_use(
             }
         }
         for successor in successors(&block.terminator) {
+            if let Some(case) = &successor.structural_case {
+                use selected_instructions::SelectedCasePayloadTransport as Transport;
+                for payload in &case.payloads {
+                    let semantic = payload.semantic.parameter;
+                    let destination = function.virtual_registers.iter().find(|register| {
+                        matches!(register.origin, VirtualRegisterOrigin::BlockParameter {
+                            source_value, block, ..
+                        } if source_value == semantic.value && block == successor.block)
+                    });
+                    match (payload.transport, destination) {
+                        (Transport::Unused, None) => {}
+                        (Transport::Unmaterialized { parameter }, Some(destination))
+                            if projected
+                                && successor.role
+                                    == selected_instructions::SelectedSuccessorRole::Semantic
+                                && destination.id == parameter
+                                && destination.scalar_type == semantic.scalar_type
+                                && destination.definition_site
+                                    == Some(semantic.definition_site) => {}
+                        (
+                            Transport::Registers {
+                                argument,
+                                parameter,
+                            },
+                            Some(destination),
+                        ) => {
+                            let argument_row = function
+                                .virtual_registers
+                                .get(argument.0 as usize)
+                                .ok_or_else(invalid)?;
+                            if projected
+                                || successor.role != selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation
+                                || destination.id != parameter
+                                || destination.scalar_type != semantic.scalar_type
+                                || destination.definition_site != Some(semantic.definition_site)
+                                || argument_row.scalar_type != semantic.scalar_type
+                                || argument_row.definition_site.is_some()
+                                || !matches!(argument_row.origin, VirtualRegisterOrigin::StructuralObservation {
+                                    place, byte_offset, ..
+                                } if Some(place) == case.slot.structural_place()
+                                    && byte_offset == payload.semantic.field_byte_offset)
+                                || !available(argument, block_index, block.instructions.len() + 1) {
+                                return Err(invalid());
+                            }
+                        }
+                        _ => return Err(invalid()),
+                    }
+                }
+            }
             for binding in &successor.bindings {
                 let semantic = binding.semantic;
                 let destination = function.virtual_registers.iter().find(|register| {
@@ -191,6 +257,7 @@ fn source_value(register: &VirtualRegister) -> Option<ValueId> {
         | VirtualRegisterOrigin::InstructionResult { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. } => Some(source_value),
         VirtualRegisterOrigin::StructuralParameter { .. }
+        | VirtualRegisterOrigin::StructuralObservation { .. }
         | VirtualRegisterOrigin::ScalarAbiAddress { .. }
         | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => None,

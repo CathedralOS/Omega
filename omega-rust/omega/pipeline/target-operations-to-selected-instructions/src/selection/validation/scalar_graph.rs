@@ -2,7 +2,7 @@
 //! Replay selected register transport against the current scalar graph.
 //! This checks the proposed stream in place; it does not call selection.
 
-use super::integrity::{validate_block_constraints, validate_def_use};
+use super::integrity::validate_block_constraints;
 use crate::selection::constraints::row;
 use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
@@ -16,6 +16,7 @@ mod register_entry;
 mod scalar_call;
 mod scalar_stack;
 mod structural;
+mod structural_case;
 mod unit_call;
 mod zero_compare;
 
@@ -366,7 +367,7 @@ pub(in crate::selection) fn validate(
     {
         return Err(invalid());
     }
-    validate_def_use(function, selected, catalog)
+    super::def_use::validate_projected_def_use(function, selected, catalog)
 }
 
 struct Replay<'a> {

@@ -17,6 +17,13 @@ pub struct VirtualRegister {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VirtualRegisterOrigin {
+    /// A compiler-owned structural address or loaded observation, not a new
+    /// Terminal scalar definition. The instruction distinguishes the operation.
+    StructuralObservation {
+        instruction: SelectedInstructionId,
+        place: PlaceId,
+        byte_offset: u32,
+    },
     /// Compiler-owned ABI stack address associated with a scalar source, not its payload.
     ScalarAbiAddress {
         instruction: SelectedInstructionId,

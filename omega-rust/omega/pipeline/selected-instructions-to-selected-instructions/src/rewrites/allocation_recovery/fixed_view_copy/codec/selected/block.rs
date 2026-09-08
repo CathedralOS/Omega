@@ -174,6 +174,13 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             }
         }
     }
+    match &successor.structural_case {
+        None => bytes.push(0),
+        Some(case) => {
+            bytes.push(1);
+            case.encode_identity(bytes);
+        }
+    }
     length(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
         bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
@@ -225,6 +232,7 @@ fn decode_successor(
             transport,
         });
     }
+    let structural_case = decode_case(cursor)?;
     let count = cursor.length()?;
     let mut structural_bindings = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
@@ -252,6 +260,62 @@ fn decode_successor(
         source_target,
         bindings,
         structural_bindings,
+        structural_case,
         fuel: decode_fuel(cursor)?,
     })
+}
+
+fn decode_case(
+    cursor: &mut Cursor<'_>,
+) -> Result<Option<selected_instructions::SelectedStructuralCaseEdge>, FixedViewCopyDecodeError> {
+    match cursor.byte()? {
+        0 => return Ok(None),
+        1 => {}
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    }
+    let slot = super::structural::decode_local_slot(cursor)?;
+    let case = decode_id(cursor, semantic_vocabulary::StructuralCaseId::new)?;
+    let case_tag = i32::from_le_bytes(cursor.array()?);
+    let count = cursor.length()?;
+    let mut payloads = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        let field = decode_id(cursor, semantic_vocabulary::StructuralFieldId::new)?;
+        let field_byte_offset = cursor.u32()?;
+        let parameter = legalized_operations::LegalizedValueDefinition {
+            value: decode_id(cursor, ValueId::new)?,
+            scalar_type: decode_scalar(cursor)?,
+            definition_site: crate::rewrites::allocation_recovery::fixed_view_copy::codec::values::decode_definition_site(cursor)?,
+        };
+        let transport = match cursor.byte()? {
+            0 => selected_instructions::SelectedCasePayloadTransport::Unused,
+            1 => selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                parameter: VirtualRegisterId(cursor.u32()?),
+            },
+            2 => selected_instructions::SelectedCasePayloadTransport::Registers {
+                argument: VirtualRegisterId(cursor.u32()?),
+                parameter: VirtualRegisterId(cursor.u32()?),
+            },
+            tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
+        };
+        payloads.push(selected_instructions::SelectedCasePayloadBinding {
+            semantic: legalized_operations::LegalizedStructuralCasePayload {
+                field,
+                field_byte_offset,
+                parameter,
+            },
+            transport,
+        });
+    }
+    let count = cursor.length()?;
+    let mut trivial_affine_discards = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        trivial_affine_discards.push(decode_id(cursor, semantic_vocabulary::PlaceId::new)?);
+    }
+    Ok(Some(selected_instructions::SelectedStructuralCaseEdge {
+        slot,
+        case,
+        case_tag,
+        payloads,
+        trivial_affine_discards,
+    }))
 }

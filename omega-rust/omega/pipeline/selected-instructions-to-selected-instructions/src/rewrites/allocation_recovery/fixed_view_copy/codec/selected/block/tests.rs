@@ -3,6 +3,7 @@ use semantic_vocabulary::ScalarType;
 fn successor() -> SelectedSuccessor {
     SelectedSuccessor {
         role: SelectedSuccessorRole::Semantic,
+        structural_case: None,
         structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(1).unwrap(),
         block: SelectedBlockId(2),
@@ -26,7 +27,7 @@ fn successor_register_transport_has_exact_canonical_bytes() {
     let original = successor();
     let mut encoded = Vec::new();
     encode_successor(&mut encoded, &original);
-    let golden = "0001000000000000000200000003000000000000000100000000000000040000000000000005000000000000000001110000001d00000000000000000000000000000000000000";
+    let golden = "0001000000000000000200000003000000000000000100000000000000040000000000000005000000000000000001110000001d0000000000000000000000000000000000000000";
     let expected = (0..golden.len())
         .step_by(2)
         .map(|offset| u8::from_str_radix(&golden[offset..offset + 2], 16).unwrap())
@@ -143,4 +144,89 @@ fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
         decode_block(&mut Cursor::new(&encoded)),
         Err(FixedViewCopyDecodeError::UnknownBlockOrigin(2))
     );
+}
+
+#[test]
+fn case_payload_codec_retains_every_semantic_and_transport_field() {
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
+        SelectedStructuralCaseEdge,
+    };
+    use semantic_vocabulary::{OperationId, PlaceId, StructuralCaseId, StructuralFieldId};
+    let mut original = successor();
+    original.structural_case = Some(SelectedStructuralCaseEdge {
+        slot: LocalStorageSlotId::Structural {
+            operation: OperationId::new(7).unwrap(),
+            place: PlaceId::new(11).unwrap(),
+        },
+        case: StructuralCaseId::new(2).unwrap(),
+        case_tag: 1,
+        payloads: vec![SelectedCasePayloadBinding {
+            semantic: legalized_operations::LegalizedStructuralCasePayload {
+                field: StructuralFieldId::new(3).unwrap(),
+                field_byte_offset: 4,
+                parameter: legalized_operations::LegalizedValueDefinition {
+                    value: ValueId::new(9).unwrap(),
+                    scalar_type: ScalarType::Boolean,
+                    definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                        block: original.source_target,
+                        position: 1,
+                    },
+                },
+            },
+            transport: SelectedCasePayloadTransport::Unused,
+        }],
+        trivial_affine_discards: vec![PlaceId::new(11).unwrap()],
+    });
+    let mut encodings = Vec::new();
+    for transport in [
+        SelectedCasePayloadTransport::Unused,
+        SelectedCasePayloadTransport::Unmaterialized {
+            parameter: VirtualRegisterId(29),
+        },
+        SelectedCasePayloadTransport::Registers {
+            argument: VirtualRegisterId(17),
+            parameter: VirtualRegisterId(29),
+        },
+    ] {
+        original.structural_case.as_mut().unwrap().payloads[0].transport = transport;
+        let mut encoded = Vec::new();
+        encode_successor(&mut encoded, &original);
+        assert_eq!(
+            decode_successor(&mut Cursor::new(&encoded)).unwrap(),
+            original
+        );
+        for end in 0..encoded.len() {
+            assert!(decode_successor(&mut Cursor::new(&encoded[..end])).is_err());
+        }
+        encodings.push(encoded);
+    }
+    assert_ne!(encodings[0], encodings[1]);
+    assert_ne!(encodings[1], encodings[2]);
+    for mutation in 0..6 {
+        let mut changed = original.clone();
+        let case = changed.structural_case.as_mut().unwrap();
+        match mutation {
+            0 => case.case_tag = 0,
+            1 => case.payloads[0].semantic.field_byte_offset += 4,
+            2 => case.payloads[0].semantic.parameter.value = ValueId::new(10).unwrap(),
+            3 => case.trivial_affine_discards.clear(),
+            4 => {
+                case.slot = LocalStorageSlotId::Boundary {
+                    operation: OperationId::new(7).unwrap(),
+                }
+            }
+            _ => {
+                case.payloads[0].semantic.parameter.definition_site =
+                    optimization_unit::ValueDefinitionSite::FunctionParameter(1)
+            }
+        }
+        let mut encoded = Vec::new();
+        encode_successor(&mut encoded, &changed);
+        assert_ne!(encoded, encodings[2], "mutation {mutation}");
+        assert_eq!(
+            decode_successor(&mut Cursor::new(&encoded)).unwrap(),
+            changed
+        );
+    }
 }

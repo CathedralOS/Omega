@@ -22,7 +22,7 @@ use crate::{
 use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 const RECOVERY_CLASSIFICATION_MAGIC: &[u8; 8] = b"OMGRCV\0\0";
-const RECOVERY_CLASSIFICATION_VERSION: u32 = 6;
+const RECOVERY_CLASSIFICATION_VERSION: u32 = 7;
 
 impl RecoveryClassificationPlan {
     /// Canonical transport only. Decoding returns an unchecked plain plan; only
@@ -311,6 +311,16 @@ impl<'encoded> RecoveryClassificationCursor<'encoded> {
                     place: semantic_vocabulary::PlaceId::new(raw)
                         .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
                     parameter_index: self.length()?,
+                })
+            }
+            8 => {
+                let instruction = SelectedInstructionId(u32::from_le_bytes(self.array()?));
+                let raw = u64::from_le_bytes(self.array()?);
+                Ok(VirtualRegisterOrigin::StructuralObservation {
+                    instruction,
+                    place: semantic_vocabulary::PlaceId::new(raw)
+                        .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
+                    byte_offset: u32::from_le_bytes(self.array()?),
                 })
             }
             5 => {

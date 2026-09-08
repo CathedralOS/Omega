@@ -16,6 +16,16 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
     encode_scalar(bytes, register.scalar_type);
     bytes.extend_from_slice(&register.class.0.to_le_bytes());
     match register.origin {
+        VirtualRegisterOrigin::StructuralObservation {
+            instruction,
+            place,
+            byte_offset,
+        } => {
+            bytes.push(8);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         VirtualRegisterOrigin::ScalarAbiAddress {
             instruction,
             source_value,
@@ -95,6 +105,11 @@ pub(super) fn decode_register(
     let scalar_type = decode_scalar(cursor)?;
     let class = RegisterClassId(cursor.u16()?);
     let origin = match cursor.byte()? {
+        8 => VirtualRegisterOrigin::StructuralObservation {
+            instruction: SelectedInstructionId(cursor.u32()?),
+            place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+            byte_offset: cursor.u32()?,
+        },
         7 => VirtualRegisterOrigin::ScalarAbiAddress {
             instruction: SelectedInstructionId(cursor.u32()?),
             source_value: decode_id(cursor, ValueId::new)?,
@@ -139,4 +154,63 @@ pub(super) fn decode_register(
         },
         entry_fixed_view: decode_option_u16(cursor)?.map(RegisterViewId),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn structural_observation_origin_round_trips_without_scalar_definition_site() {
+        let source = VirtualRegister {
+            id: VirtualRegisterId(3),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            class: RegisterClassId(0),
+            origin: VirtualRegisterOrigin::StructuralObservation {
+                instruction: SelectedInstructionId(5),
+                place: semantic_vocabulary::PlaceId::new(7).unwrap(),
+                byte_offset: 4,
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        };
+        let mut encoded = Vec::new();
+        encode_register(&mut encoded, &source);
+        assert_eq!(decode_register(&mut Cursor::new(&encoded)).unwrap(), source);
+        for end in 0..encoded.len() {
+            assert!(decode_register(&mut Cursor::new(&encoded[..end])).is_err());
+        }
+        for mutation in 0..4 {
+            let mut changed = source.clone();
+            changed.origin = match mutation {
+                0 => VirtualRegisterOrigin::StructuralObservation {
+                    instruction: SelectedInstructionId(6),
+                    place: semantic_vocabulary::PlaceId::new(7).unwrap(),
+                    byte_offset: 4,
+                },
+                1 => VirtualRegisterOrigin::StructuralObservation {
+                    instruction: SelectedInstructionId(5),
+                    place: semantic_vocabulary::PlaceId::new(8).unwrap(),
+                    byte_offset: 4,
+                },
+                2 => VirtualRegisterOrigin::StructuralObservation {
+                    instruction: SelectedInstructionId(5),
+                    place: semantic_vocabulary::PlaceId::new(7).unwrap(),
+                    byte_offset: 0,
+                },
+                _ => VirtualRegisterOrigin::AbiTransport {
+                    instruction: SelectedInstructionId(5),
+                    place: semantic_vocabulary::PlaceId::new(7).unwrap(),
+                    byte_offset: 4,
+                },
+            };
+            let mut changed_bytes = Vec::new();
+            encode_register(&mut changed_bytes, &changed);
+            assert_ne!(encoded, changed_bytes);
+            assert_eq!(
+                decode_register(&mut Cursor::new(&changed_bytes)).unwrap(),
+                changed
+            );
+        }
+    }
 }

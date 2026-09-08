@@ -14,6 +14,7 @@ mod scalar_call_unit;
 mod scalar_transfers;
 mod scalar_unit_calls;
 mod structural_call;
+pub(crate) mod structural_case;
 mod structural_publication;
 mod unit_graph;
 mod unit_view_graph;

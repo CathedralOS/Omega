@@ -13,6 +13,12 @@ pub(super) fn validate(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
+    if matches!(
+        block.terminator,
+        LegalizedScalarTerminator::StructuralCase { .. }
+    ) {
+        return super::structural_case::validate(source, block, replay);
+    }
     if super::process_exit::validate(block, replay)? {
         return Ok(());
     }
@@ -303,6 +309,9 @@ fn check_successor(
     source: &LegalizedScalarSuccessor,
     actual: &SelectedSuccessor,
 ) -> Result<(), SelectedInstructionError> {
+    if actual.structural_case.is_some() {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
     let matches = replay
         .selected
         .blocks
