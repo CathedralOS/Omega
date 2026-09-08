@@ -17,5 +17,8 @@ Acceptance updates the specification; this directory does not define current rul
 - [Author-invoked assertions and build diagnostics](assertions_and_build_diagnostics.md):
   unapproved library, provider, and diagnostic-build alternatives; admissions
   require no runtime checking independently of this design.
+- [Semantic reflection and typed member expansion](semantic_reflection.md):
+  candidate syntax for checked field traversal, layout-key joins, placed
+  accessors, and explicitly retained runtime descriptions; not current rules.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).
