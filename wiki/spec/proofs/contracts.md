@@ -230,6 +230,23 @@ A deferral waives one generated obligation, creates no reusable fact, is pinned
 to its site, warns each build, and cannot cross package release. A permanent
 claim needs a reviewed boundary contract; packages cannot self-grant it.
 
+Own-package boundary claims may be used during development with a standing
+warning until granted. Imported claims remain inert until the consumer grants
+them. Development use is not consumer or release acceptance. A provider-slot
+grant covers only its exact selected plan; unselected or partial candidates
+cannot inherit that receipt merely by implementing the same requirement.
+
+A boundary claim that the checker can refute against declared ranges, domains,
+or accepted statements rejects even when granted. This veto is not a proof that
+the complete assumption set is consistent.
+
+Runtime-decidable boundary claims require oracle-tripwire instrumentation: a
+witnessed violation must trap and identify the offending claim. The activation,
+coverage, and failure-reporting protocol for the former guide term "proof builds"
+remains [undetermined](../../../OWNER_QUESTIONS.md#q5--runtime-checking-of-admitted-claims);
+this is a required capability, not a claim of implemented
+or universal runtime instrumentation.
+
 Published proof evidence retains theorem identity, cited lemmas and premises,
 normalization licenses, derivation/checker version, and trust/deferral closure.
 Deterministic normalization owns identity; stronger proof search may establish

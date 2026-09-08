@@ -17,6 +17,24 @@ payload. An inactive case creates no obligation for its absent payload.
 Copyability requires compatible owned contents and cannot duplicate unique
 cleanup responsibility.
 
+## Property declarations
+
+Lowercase bracket properties attach to the data declaration or type parameter,
+as in `data Box<T [copy]> [copy]`. They are distinct from value-range constraints
+and generate no callable behavior. `sized` and structural carry are derived
+judgments, not authored requests. Explicit `copy` and `linear` requests are
+checked at the declaration; failure rejects rather than weakening the request.
+
+Opaque boundary properties require accepted provider evidence. Ordinary packages
+cannot append structural properties to foreign types or grant themselves opaque
+claims. Apart from specified derived judgments, omitted properties are not
+inferred, and there is no negative property syntax. Colon bounds such as
+`T: copy` and detached attribute-prefix forms do not declare these properties.
+The core property set beyond the specified multiplicity and
+[carry](../resources/carry.md) rules remains open, not an extensible attribute
+namespace. Binding-local `[erased]` has its separate
+[relevance contract](../proofs/contracts.md#explicit-erased-bindings).
+
 ## Establishment and erasure
 
 Distinguish initialized storage bits, an established semantic value, and a live

@@ -78,8 +78,8 @@ before proposing it. The migration task is separate from this candidate.
   payload binding already uses the data-pattern rules in Chapter 1. Inline
   integer discriminants are retired; foreign integer sets use typed scalar
   carriers and ordinary checked mapping machines.
-- Define foreign-type domain imports, orphan/coherence restrictions, and their
-  authority-report representation.
+- Foreign-domain import/applicability and inconsistent-domain declaration policy
+  are concrete [owner questions](../../OWNER_QUESTIONS.md), not assumed rules.
 - Decide whether any core generic properties beyond `copy`, `linear`, `sized`,
   and parameterized carry earn inclusion.
 

@@ -21,6 +21,11 @@ data PerCpuLease [linear, carry(
 | Host thread | Same thread or any thread. |
 | Address | Stable or movable. |
 
+An authored carry property supplies all four axes exactly once; their order is
+not semantic. Its type-wide floor must fit the structurally derived policy.
+The vocabulary is closed: adding an axis or value requires corresponding
+composition, liveness, and runtime-admission rules.
+
 The property lowers directly to compiler facts, not ordinary core data, a trait,
 or a policy-machine result. Ordinary data composes its live fields and explicit
 type-wide policy using the most restrictive demand on each axis. Accepted
@@ -29,6 +34,14 @@ resource claims originate strict. Their result contracts may establish
 `Carry::MovableAddress`; `Carry::Portable` denotes all four. Checked resource
 transformations inherit permissions through their provenance mapping; combined
 origins retain the most restrictive demand.
+
+The positive permission facts are subject-polymorphic and retain each value's
+provenance anchor, including what `same` means for CPU and thread. Forgetting a
+permission selects a stricter policy but does not erase the underlying claim.
+A conserved split gives each child the parent's permissions; a more permissive
+successor requires discharge of the old claim and checked or admitted
+establishment of the new one. Generic bounds use this same ordering
+parametrically, without requiring backend monomorphization.
 
 A claim's carry entry belongs to its undischarged permission provenance, not
 the current predicate-fact set. A cast cannot erase it; consumption or transfer
