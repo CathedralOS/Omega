@@ -355,7 +355,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &17_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &19_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -393,7 +393,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..17 {
+    for version in 0_u32..19 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -462,7 +462,7 @@ fn codec_u32_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..17 {
+    for version in 0_u32..19 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

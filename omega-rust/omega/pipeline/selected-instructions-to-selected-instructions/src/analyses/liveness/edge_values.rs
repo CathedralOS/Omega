@@ -184,6 +184,7 @@ pub(crate) fn incoming_argument(
     }
     let value = match source.origin {
         VirtualRegisterOrigin::StructuralParameter { .. }
+        | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => return Err(mismatch()),
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }

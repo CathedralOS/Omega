@@ -14,6 +14,11 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 2 {
+        return Ok(selected_instructions::LocalStorageSlotId::Spill {
+            register: selected_instructions::VirtualRegisterId(cursor.u32()?),
+        });
+    }
     let operation = decode_id(cursor, OperationId::new)?;
     match tag {
         0 => Ok(selected_instructions::LocalStorageSlotId::Structural {

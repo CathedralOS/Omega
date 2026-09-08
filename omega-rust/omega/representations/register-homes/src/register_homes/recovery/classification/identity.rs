@@ -12,7 +12,7 @@ pub fn recovery_classification_identity(
     plan: &RecoveryClassificationPlan,
 ) -> RecoveryClassificationIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v5\0");
     bytes.extend_from_slice(&encode_terminal_recovery_classification_content(plan));
     RecoveryClassificationIdentity(Sha256::digest(bytes).into())
 }
@@ -141,6 +141,15 @@ fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
 
 fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::SpillAddress {
+            instruction,
+            register,
+        } => {
+            bytes.push(6);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&register.0.to_le_bytes());
+        }
+
         VirtualRegisterOrigin::StructuralParameter {
             place,
             parameter_index,

@@ -31,13 +31,13 @@ fn deferred_program() -> SelectedFormEncoding {
 }
 
 #[test]
-fn current_encoding_binds_the_version_16_ordinary_instruction_schema() {
+fn current_encoding_binds_the_version_18_ordinary_instruction_schema() {
     let mut program = deferred_program();
-    // V16 adds pointer stores and projected addresses alongside Linux byte output.
+    // V18 adds compiler-owned spill slots to ordinary frame addresses.
     // This deferred-branch payload is unchanged; its schema domain still changes.
     // Assemble the canonical bytes independently of the production encoder.
     use sha2::{Digest, Sha256};
-    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v16".to_vec();
+    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v18".to_vec();
     canonical.extend_from_slice(&[1; 32]); // Selected identity.
     canonical.extend_from_slice(&[2; 32]); // Physical identity.
     canonical.push(0); // No post-allocation rewrite custody.
@@ -51,8 +51,8 @@ fn current_encoding_binds_the_version_16_ordinary_instruction_schema() {
     }
     assert_eq!(canonical.len(), 187);
     let expected = [
-        70, 151, 149, 177, 204, 132, 52, 25, 44, 106, 252, 123, 111, 124, 211, 246, 149, 43, 70,
-        226, 115, 148, 84, 55, 126, 92, 47, 132, 176, 182, 115, 48,
+        203, 90, 227, 216, 194, 148, 8, 64, 249, 189, 40, 29, 222, 62, 40, 205, 109, 181, 252, 212,
+        38, 211, 111, 150, 211, 125, 185, 211, 88, 162, 42, 87,
     ];
     assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
     assert_eq!(program.recomputed_identity().bytes(), expected);

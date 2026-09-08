@@ -364,6 +364,7 @@ pub(super) fn callee_plan(
     };
     if !call_plan.parameters.iter().all(|placement| {
         scalar_register(placement)
+            || crate::structural_reference_input::stack_pointer_offset(placement).is_some()
             || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
                 && matches!(placement.locations.as_slice(),
                     [ValueLocation::Register { value_byte_offset: 0, byte_size: 8, .. }])

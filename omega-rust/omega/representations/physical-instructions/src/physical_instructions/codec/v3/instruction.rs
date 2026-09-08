@@ -66,6 +66,10 @@ pub(super) fn decode_instruction(
         }),
         tag @ (2 | 3) => {
             let slot = match byte(cursor)? {
+                2 => selected_instructions::FrameStorageSlotId::Incoming {
+                    parameter_index: u32_field(cursor)?,
+                    abi_stack_byte_offset: u32_field(cursor)?,
+                },
                 0 => selected_instructions::FrameStorageSlotId::Outgoing(
                     selected_instructions::OutgoingArgumentSlotId {
                         operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)

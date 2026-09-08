@@ -90,9 +90,7 @@ pub(super) fn lower_field_store(
                                     && parameter.scalar_type == value.scalar_type
                             })
                 }
-                KnownUnitInteger::Immediate { scalar_type, .. } => {
-                    scalar_type == integer_type && function.parameters.is_empty()
-                }
+                KnownUnitInteger::Immediate { scalar_type, .. } => scalar_type == integer_type,
                 KnownUnitInteger::Home(home) => {
                     home.scalar_type == value.scalar_type
                         && home.source_value == value.value
@@ -100,7 +98,6 @@ pub(super) fn lower_field_store(
                             == fixed_native_integer_shape(integer_type).ok_or(
                                 LoweringError::UnsupportedOperationInUnitFunction(function.machine),
                             )?
-                        && function.parameters.is_empty()
                 }
             };
             if !exact_source {
@@ -128,7 +125,7 @@ pub(super) fn lower_field_store(
                     source_value: value.value,
                     scalar_type: ScalarType::Boolean,
                 }
-            } else if function.parameters.is_empty() {
+            } else {
                 let (defining_operation, immediate) = boolean_constants
                     .get(&value.value)
                     .copied()
@@ -138,10 +135,6 @@ pub(super) fn lower_field_store(
                     source_value: value.value,
                     value: immediate,
                 }
-            } else {
-                return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ));
             };
             (source, 1)
         }

@@ -16,6 +16,15 @@ fn request(
     } else {
         MachineAlternativeFamily::FrameAddress
     };
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::Incoming { .. },
+            ..
+        }
+    ) {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
     if physical.model() != &aarch64_physical_register_model()
         || !matches!(
             kind,

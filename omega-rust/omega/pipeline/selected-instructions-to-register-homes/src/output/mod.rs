@@ -10,6 +10,7 @@ mod literal_folds;
 mod model;
 mod rematerialization;
 mod retained;
+mod runtime_spill;
 
 pub use model::{AllocationEvidence, AllocationOutput, AllocationReplayError};
 pub use retained::RetainedAllocation;

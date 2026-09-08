@@ -129,6 +129,14 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store64 { slot, byte_offset }
         | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
             match slot {
+                crate::FrameStorageSlotId::Incoming {
+                    parameter_index,
+                    abi_stack_byte_offset,
+                } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&parameter_index.to_le_bytes());
+                    bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
+                }
                 crate::FrameStorageSlotId::Outgoing(slot) => {
                     bytes.push(0);
                     bytes.extend_from_slice(&slot.operation.get().to_le_bytes());

@@ -13,8 +13,8 @@ identifies the compiler sequence.
 [RetainedAllocation](src/output/mod.rs) owns the current program separately from
 its source and transformation evidence. `AllocationSource::replay_allocation`
 reconstructs that evidence before exposing `AllocationOutput`. Baseline, literal
-fold, fixed-view-copy, and rematerialization histories therefore share one
-downstream allocation view. Projection or hashing a raw plan is not admission.
+fold, fixed-view-copy, rematerialization, and executable-spill histories share
+one downstream allocation view. Projection or hashing a raw plan is not admission.
 
 Selected liveness/range schemas belong to `selected-instructions`; allocation
 legality, home, and pressure schemas belong to `register-homes`. Algorithms,
@@ -59,6 +59,19 @@ any insertion, assigns fresh dense instruction IDs, and preserves original
 return fuel/provenance. A zero-copy result is identity. Fixed-mismatch facts
 alone grant neither moves nor homes; all post-rewrite analyses bind the
 transformed identity and are independently reconstructed.
+
+Without an optional recovery selection, genuine `NoCompatibleHome` pressure
+can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). It
+visits a finite roster of original instruction-result values, restricted to the
+failing function and values interfering with its failed register. The selected
+rewrite owner admits ordinary nonaddress `u64` values in a single returning
+block, preserving source-definition lineage, storing once, and reloading at
+each flexible use. Rewritten values and spill addresses never expand the
+candidate roster. Each cumulative rewrite gets fresh liveness, ranges,
+legality, and homes; independent replay reconstructs each pressure failure,
+rewrite, and final fact/manifest join. The current allocation view remains the
+same downstream representation. The manifest records exact transformed
+identities and realized selected storage, not final frame authority.
 
 The [assignment group](src/assignment/mod.rs) also exposes compiler-private
 logical spill, slot-coloring, recursive-recovery, pseudo, and access-constraint

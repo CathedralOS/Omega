@@ -75,7 +75,6 @@ pub(super) fn validate_layout(
         for (index, slot) in source.outgoing_arguments.iter().enumerate() {
             let end = u64::from(slot.abi_stack_byte_offset) + u64::from(slot.byte_size);
             if !calls
-                || required.abi != FrameAbiPreservationConvention::MicrosoftX64
                 || slot.byte_size == 0
                 || !slot.alignment.is_power_of_two()
                 || u64::from(slot.abi_stack_byte_offset) < shadow

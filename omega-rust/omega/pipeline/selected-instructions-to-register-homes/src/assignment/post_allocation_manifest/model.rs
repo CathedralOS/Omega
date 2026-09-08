@@ -20,6 +20,7 @@ pub enum PostAllocationManifestStage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationSpillStatus {
     NotRequiredForValidatedHomePlan,
+    RealizedInSelectedProgram,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +44,7 @@ pub struct PostAllocationStatistics {
 /// is not an unordered feature or optimization-level set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PostAllocationSelectedTransformation {
+    RuntimeSpill(SelectedInstructionPlanIdentity),
     FixedViewCopy(FixedViewCopyIdentity),
     LiteralFold(LiteralFoldIdentity),
     PressureRematerialization(PressureRematerializationIdentity),

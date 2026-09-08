@@ -1,9 +1,43 @@
 //! Input-only reconstruction of borrowed referent geometry.
-use calling_conventions::ValueShape;
+use calling_conventions::{
+    IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
+};
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
+
+/// Locate pointer bits in an exact borrowed-reference ABI placement, not referent bytes.
+pub(crate) fn stack_pointer_offset(placement: &ValuePlacement) -> Option<u32> {
+    if placement.shape.class != ValueClass::BorrowedReference {
+        return None;
+    }
+    match placement.locations.as_slice() {
+        [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ] => Some(*stack_byte_offset),
+        [
+            ValueLocation::Indirect {
+                pointer:
+                    IndirectPointerLocation::Stack {
+                        stack_byte_offset,
+                        alignment: 8,
+                    },
+                copy_stack_byte_offset: None,
+                byte_size,
+                alignment,
+            },
+        ] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment => {
+            Some(*stack_byte_offset)
+        }
+        _ => None,
+    }
+}
 
 fn align(value: u32, alignment: u16) -> Option<u32> {
     let alignment = u32::from(alignment);

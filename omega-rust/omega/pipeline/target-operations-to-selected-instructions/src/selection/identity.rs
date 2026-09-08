@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v25\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v27\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -81,6 +81,15 @@ pub fn selected_instruction_plan_identity(
             encode_scalar_type(&mut bytes, register.scalar_type);
             bytes.extend_from_slice(&register.class.0.to_le_bytes());
             match register.origin {
+                VirtualRegisterOrigin::SpillAddress {
+                    instruction,
+                    register,
+                } => {
+                    bytes.push(6);
+                    bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&register.0.to_le_bytes());
+                }
+
                 VirtualRegisterOrigin::StructuralParameter {
                     place,
                     parameter_index,

@@ -17,6 +17,11 @@ pub struct VirtualRegister {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VirtualRegisterOrigin {
+    /// Compiler-owned frame address for one original virtual value's spill slot.
+    SpillAddress {
+        instruction: SelectedInstructionId,
+        register: VirtualRegisterId,
+    },
     StructuralParameter {
         place: PlaceId,
         parameter_index: usize,

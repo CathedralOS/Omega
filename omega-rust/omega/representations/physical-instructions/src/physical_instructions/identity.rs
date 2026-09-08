@@ -27,7 +27,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v12\0",
+        b"omega.terminal-postallocation-machine.v14\0",
     )
 }
 
@@ -176,6 +176,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
                 },
             );
             match slot {
+                selected_instructions::FrameStorageSlotId::Incoming {
+                    parameter_index,
+                    abi_stack_byte_offset,
+                } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&parameter_index.to_le_bytes());
+                    bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
+                }
                 selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
                     bytes.push(0);
                     bytes.extend_from_slice(&slot.operation.get().to_le_bytes());

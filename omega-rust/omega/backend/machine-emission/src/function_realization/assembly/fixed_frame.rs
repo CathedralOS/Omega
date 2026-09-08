@@ -60,6 +60,12 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
                 receipt.rematerialization(),
             ),
         ],
+        AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
+            // AllocationSource replay independently reconstructs every retained
+            // spill rewrite and its cumulative manifest before granting this
+            // identity. Consume that checked history, not an unbound roster.
+            post.selected_transformations.clone()
+        }
         _ => return Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
     };
     let pre_physical = allocation

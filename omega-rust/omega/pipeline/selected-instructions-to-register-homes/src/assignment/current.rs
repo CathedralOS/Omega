@@ -4,7 +4,7 @@ use optimization_core::{Optimization, OptimizationExecutionPhase};
 use crate::{
     AllocationReplayError, OptimizedAllocationLegalityCustodyError,
     OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    RetainedAllocation, stage_optimized_allocation_legality, stage_optimized_register_homes,
+    RetainedAllocation, stage_optimized_allocation_legality,
     stage_optimized_register_homes_after_selected_lowering,
 };
 
@@ -50,7 +50,22 @@ pub fn stage_register_allocation(
     }
     let legality =
         stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
-    let homes = stage_optimized_register_homes(legality).map_err(RegisterAllocationError::Homes)?;
+    let assignment = match super::runtime_spill::assign_source(&legality) {
+        Ok(homes) => homes,
+        Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {
+            let recovered = super::runtime_spill::recover(legality)
+                .map_err(RegisterAllocationError::RuntimeSpill)?;
+            return RetainedAllocation::try_from(recovered)
+                .map_err(RegisterAllocationError::Replay);
+        }
+        Err(error) => {
+            return Err(RegisterAllocationError::Homes(
+                OptimizedRegisterHomeCustodyError::Assignment(error),
+            ));
+        }
+    };
+    let homes = super::baseline::stage_register_homes_with_assignment(legality, assignment)
+        .map_err(RegisterAllocationError::Homes)?;
     RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)
 }
 
@@ -64,6 +79,7 @@ pub enum RegisterAllocationError {
     FixedViewHomes(crate::OptimizedPostCopyRegisterHomeCustodyError),
     Reanalysis(crate::OptimizedSelectedReanalysisError),
     Rematerialization(crate::OptimizedActiveResidentRematerializationError),
+    RuntimeSpill(crate::RuntimeSpillAllocationError),
     Legality(OptimizedAllocationLegalityCustodyError),
     Homes(OptimizedRegisterHomeCustodyError),
     TransformedHomes(OptimizedPostSelectedLoweringHomeCustodyError),

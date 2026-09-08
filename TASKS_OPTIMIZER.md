@@ -140,13 +140,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Register allocation and frames
 
-- **SPILL-REALIZATION.** Complete deterministic spill choice, physical slot
-  assignment/coloring, store/reload insertion, later-use rewrites, and
-  independent validation. Existing logical spill plans grant no frame, unwind,
-  instruction, or publication authority.
+- **SPILL-REALIZATION.** Extend executable spill recovery beyond nonaddress
+  `u64` instruction results with flexible uses in a single returning block.
+  The owning paths are `selected-instructions-to-register-homes/src/assignment/runtime_spill/`
+  and `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`.
+  Complete broader CFG/type and fixed-use recovery, composition with selected
+  recovery rules, physical slot reuse/coloring, and independent validation.
+  Existing logical spill plans grant no frame, unwind, instruction, or
+  publication authority.
   Connect final spill-inclusive frame extents to existing WCSU composition and
   stack provisioning under the
-  [compiler-owned stack contract](wiki/language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+  [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses).
+  Keep `WRITE-ONLY-BORROW`'s source-backed three-call regression as the hosted
+  execution control; its object-publication dependency remains open. Reuse the
+  existing final-local-frame demand path, not a parallel spill-byte estimate.
   Acceptance: slot reuse is not double-counted; changed allocation/frame
   realization invalidates stale demand; insufficient supply rejects before
   execution; and generated loads/stores independently replay their physical

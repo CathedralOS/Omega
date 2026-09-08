@@ -114,6 +114,15 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(u8, u8, u8, X86_64SelectedFormFootprint), X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::Incoming { .. },
+            ..
+        }
+    ) {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
     if physical.model() != &crate::x86_64_physical_register_model() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }

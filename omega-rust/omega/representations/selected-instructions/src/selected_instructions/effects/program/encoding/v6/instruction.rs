@@ -109,6 +109,10 @@ fn decode_kind(
         },
         tag @ (17 | 18) => {
             let slot = match cursor.byte()? {
+                2 => crate::FrameStorageSlotId::Incoming {
+                    parameter_index: cursor.u32()?,
+                    abi_stack_byte_offset: cursor.u32()?,
+                },
                 0 => crate::FrameStorageSlotId::Outgoing(crate::OutgoingArgumentSlotId {
                     operation: OperationId::new(cursor.u64()?)
                         .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
@@ -175,6 +179,11 @@ pub fn decode_local_storage_slot(
     cursor: &mut Cursor<'_>,
 ) -> Result<crate::LocalStorageSlotId, PreAllocationMachineEffectDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 2 {
+        return Ok(crate::LocalStorageSlotId::Spill {
+            register: crate::VirtualRegisterId(cursor.u32()?),
+        });
+    }
     let operation = OperationId::new(cursor.u64()?)
         .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
     match tag {

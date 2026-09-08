@@ -15,12 +15,6 @@ use super::model::{
 pub(super) fn construct_optimized_register_homes(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
-    let upstream = validate_optimized_allocation_legality_custody(
-        legality.live_range_stage(),
-        legality.allocator_availability(),
-        legality.legality(),
-    )
-    .map_err(OptimizedRegisterHomeCustodyError::UpstreamLegality)?;
     let ranges = legality.live_range_stage();
     let environment = ranges
         .liveness_stage()
@@ -36,6 +30,24 @@ pub(super) fn construct_optimized_register_homes(
         &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedRegisterHomeCustodyError::Assignment)?;
+    construct_with_assignment(legality, homes)
+}
+
+pub(super) fn construct_with_assignment(
+    legality: StagedOptimizedAllocationLegality,
+    homes: crate::ValidatedRegisterHomes,
+) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
+    let upstream = validate_optimized_allocation_legality_custody(
+        legality.live_range_stage(),
+        legality.allocator_availability(),
+        legality.legality(),
+    )
+    .map_err(OptimizedRegisterHomeCustodyError::UpstreamLegality)?;
+    let ranges = legality.live_range_stage();
+    let environment = ranges
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
     let replayed = validate_register_homes(
         legality.legality(),
         ranges.ranges(),

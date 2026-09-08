@@ -5,7 +5,203 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-fn projected_call(target: target::NativeTarget) -> LegalizedScalarFunction {
+#[test]
+fn outgoing_projected_pointer_stack_slot_replays_exact_bits_and_call_registers() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        let mut source = projected_call(target);
+        let prefix = match source.call_plan.policy {
+            CallingPolicy::MicrosoftX64 => 4,
+            CallingPolicy::SystemVAMD64 => 6,
+            _ => 8,
+        };
+        let value = ValueId::new(100).unwrap();
+        let operation = OperationId::new(100).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let mut literal = source.blocks[0].instructions[0].clone();
+        literal.operation = operation;
+        literal.result = Some(LegalizedValueDefinition {
+            value,
+            scalar_type,
+            definition_site: ValueDefinitionSite::Node {
+                block: source.entry_block,
+                node: 0,
+            },
+        });
+        literal.kind = LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(17));
+        literal.ownership.clear();
+        literal.fuel = vec![FuelSettlement {
+            site: PsiProvenance::Operation(operation),
+            units: 1,
+        }];
+        source.blocks[0].instructions.insert(0, literal);
+        source.provenance.operations.insert(0, operation);
+        let LegalizedScalarInstructionKind::Call(call) = &mut source.blocks[0].instructions[1].kind
+        else {
+            panic!("call fixture");
+        };
+        let mut argument = call.arguments[0].clone();
+        let leaf_shape = argument.placement().shape;
+        call.call_plan = evaluate_call_plan(
+            source.call_plan.policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); prefix]
+                    .into_iter()
+                    .chain([leaf_shape])
+                    .collect(),
+                result: None,
+            },
+        )
+        .unwrap();
+        let LegalizedScalarArgument::Structural {
+            target: structural, ..
+        } = &mut argument
+        else {
+            panic!("borrowed argument");
+        };
+        structural.destination = call.call_plan.parameters[prefix].clone();
+        let expected_offset =
+            crate::structural_reference_input::stack_pointer_offset(&structural.destination)
+                .unwrap();
+        call.arguments = call.call_plan.parameters[..prefix]
+            .iter()
+            .map(|placement| LegalizedScalarArgument::Scalar {
+                source: value,
+                placement: placement.clone(),
+            })
+            .chain([argument])
+            .collect();
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |candidate: &SelectedFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                candidate,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&selected).unwrap();
+        assert_eq!(selected.outgoing_arguments.len(), 1);
+        assert_eq!(selected.outgoing_arguments[0].byte_size, 8);
+        assert_eq!(
+            selected.outgoing_arguments[0].abi_stack_byte_offset,
+            expected_offset
+        );
+        assert_eq!(selected.calls[0].call.arguments.len(), prefix + 1);
+        let call_index = selected.blocks[0]
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::CallUnit { .. })
+            })
+            .unwrap();
+        assert_eq!(
+            selected.blocks[0].instructions[call_index].operands.len(),
+            prefix
+        );
+        let store_index = selected.blocks[0]
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::Store64 { .. })
+            })
+            .unwrap();
+        assert_eq!(selected.memory_accesses.len(), 1);
+        let mut scalar_stack = source.clone();
+        let LegalizedScalarInstructionKind::Call(call) =
+            &mut scalar_stack.blocks[0].instructions[1].kind
+        else {
+            panic!("call fixture");
+        };
+        let mut argument = call.arguments.last().unwrap().clone();
+        call.call_plan = evaluate_call_plan(
+            source.call_plan.policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); prefix + 1]
+                    .into_iter()
+                    .chain([leaf_shape])
+                    .collect(),
+                result: None,
+            },
+        )
+        .unwrap();
+        let LegalizedScalarArgument::Structural {
+            target: structural, ..
+        } = &mut argument
+        else {
+            panic!("borrowed argument");
+        };
+        structural.destination = call.call_plan.parameters[prefix + 1].clone();
+        call.arguments = call.call_plan.parameters[..prefix + 1]
+            .iter()
+            .map(|placement| LegalizedScalarArgument::Scalar {
+                source: value,
+                placement: placement.clone(),
+            })
+            .chain([argument])
+            .collect();
+        assert!(
+            build(
+                0,
+                &scalar_stack,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints()
+            )
+            .is_err(),
+            "scalar stack arguments remain outside this slice"
+        );
+        for mutation in 0..6 {
+            let mut changed = selected.clone();
+            match mutation {
+                0 => changed.outgoing_arguments[0].abi_stack_byte_offset += 8,
+                1 => changed.outgoing_arguments[0].byte_size = 2,
+                2 => changed.outgoing_arguments[0].id.argument_index = 0,
+                3 => {
+                    changed.memory_accesses[0].role =
+                        selected_instructions::SelectedMemoryAccessRole::ReadPlace
+                }
+                4 => {
+                    changed.blocks[0].instructions[store_index].operands[0].virtual_register =
+                        changed.blocks[0].instructions[call_index].operands[0].virtual_register
+                }
+                _ => {
+                    changed.blocks[0].instructions[store_index].provenance.fuel =
+                        source.blocks[0].instructions[1].fuel.clone()
+                }
+            }
+            assert!(
+                validate(&changed).is_err(),
+                "mutation {mutation} on {target:?}"
+            );
+        }
+    }
+}
+
+pub(super) fn projected_call(target: target::NativeTarget) -> LegalizedScalarFunction {
     let mut source = borrowed_calls::borrowed_call(target);
     let record = StructuralTypeId::new(2).unwrap();
     let root_shape = ValueShape::borrowed_reference(4, 2);

@@ -7,6 +7,9 @@ use target::NativeTarget;
 #[allow(dead_code)]
 mod native_function;
 
+#[path = "terminal_psi_indexed_receivers/stack_pointers.rs"]
+mod stack_pointers;
+
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")
 }

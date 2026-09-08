@@ -1,9 +1,18 @@
-//! Input-only join from the admitted register CallPlan to target constraint rows.
+//! Input-only join from the exact CallPlan to register operands and pointer slots.
 
 use super::shared::*;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction};
 use register_environment::ValidatedTargetRegisterEnvironment;
+
+use crate::structural_reference_input::stack_pointer_offset;
+
+pub(super) fn register_argument_count(call: &LegalizedScalarCall) -> usize {
+    call.arguments
+        .iter()
+        .filter(|argument| stack_pointer_offset(argument.placement()).is_none())
+        .count()
+}
 
 pub(super) fn validate(
     function: usize,
@@ -27,6 +36,7 @@ pub(super) fn validate(
         validate_borrowed_argument(source, call, operation).ok_or_else(invalid)?;
     }
     let count = call.arguments.len();
+    let register_count = register_argument_count(call);
     let result = call.call_plan.result.as_ref();
     let selected_keys = environment.selected_keys();
     let keys = if result.is_some() {
@@ -34,25 +44,27 @@ pub(super) fn validate(
     } else {
         &selected_keys.call_unit
     };
-    if keys.get(count) != Some(&key)
+    if keys.get(register_count) != Some(&key)
         || environment.constraint(key) != Some(row)
         || row.key != key
         || call.call_plan.parameters.len() != count
-        || row.operands.len() != count + usize::from(result.is_some())
+        || row.operands.len() != register_count + usize::from(result.is_some())
     {
         return Err(invalid());
     }
     if result != call.result_placement.as_ref() {
         return Err(invalid());
     }
-    for (index, (placement, operand)) in call
-        .call_plan
-        .parameters
-        .iter()
-        .chain(result)
-        .zip(&row.operands)
-        .enumerate()
-    {
+    let mut operands = row.operands.iter();
+    for (index, placement) in call.call_plan.parameters.iter().chain(result).enumerate() {
+        if stack_pointer_offset(placement).is_some() {
+            if !matches!(call.arguments.get(index), Some(LegalizedScalarArgument::Structural { target, .. }) if target.destination == *placement)
+            {
+                return Err(invalid());
+            }
+            continue;
+        }
+        let operand = operands.next().ok_or_else(invalid)?;
         let register = match placement.locations.as_slice() {
             [
                 ValueLocation::Register {

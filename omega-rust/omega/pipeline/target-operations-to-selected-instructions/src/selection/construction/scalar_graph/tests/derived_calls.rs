@@ -248,7 +248,10 @@ fn derived_call_descriptor_replay_rejects_storage_address_and_fuel_substitution(
                     4 => {
                         changed.local_storage_slots[0].id =
                             selected_instructions::LocalStorageSlotId::Structural {
-                                operation: changed.local_storage_slots[0].id.operation(),
+                                operation: changed.local_storage_slots[0]
+                                    .id
+                                    .operation()
+                                    .expect("source-backed local slot"),
                                 place: PlaceId::new(99).unwrap(),
                             }
                     }
