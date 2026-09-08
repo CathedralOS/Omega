@@ -357,7 +357,7 @@ fn ieee_primitive_literals_preserve_exact_bits_with_unused_runtime_inputs() {
     }
 }
 
-fn assert_ieee_c_text(bytes: &[u8], entry: usize, source: &str) {
+pub(super) fn assert_ieee_c_text(bytes: &[u8], entry: usize, source: &str) {
     #[cfg(any(
         all(
             target_os = "linux",

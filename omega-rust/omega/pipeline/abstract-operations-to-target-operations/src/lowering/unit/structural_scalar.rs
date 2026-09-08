@@ -25,6 +25,7 @@ pub(super) fn lower_field_store(
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
+    ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -141,22 +142,38 @@ pub(super) fn lower_field_store(
             (source, 1)
         }
         ScalarType::IeeeFloat(format) => {
-            let (parameter_index, _) = function
+            let source = if let Some((parameter_index, _)) = function
                 .parameters
                 .iter()
                 .enumerate()
                 .find(|(_, parameter)| {
                     parameter.value == value.value && parameter.scalar_type == value.scalar_type
-                })
-                .ok_or(LoweringError::UnknownValue(value.value))?;
-            (
+                }) {
                 TargetUnitScalarArgumentSource::Parameter {
                     parameter_index: u32::try_from(parameter_index).map_err(|_| {
                         LoweringError::UnitFunctionHasScalarParameters(function.machine)
                     })?,
                     source_value: value.value,
                     scalar_type: value.scalar_type,
-                },
+                }
+            } else {
+                let (defining_operation, immediate) = ieee_float_constants
+                    .get(&value.value)
+                    .copied()
+                    .ok_or(LoweringError::UnknownValue(value.value))?;
+                if immediate.format() != format {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                    defining_operation,
+                    source_value: value.value,
+                    value: immediate,
+                }
+            };
+            (
+                source,
                 match format {
                     IeeeFloatFormat::Binary32 => 4,
                     IeeeFloatFormat::Binary64 => 8,

@@ -3,6 +3,8 @@ use abstract_operations::AbstractParameter;
 use semantic_vocabulary::IeeeFloatFormat;
 use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 
+mod literals;
+
 fn plan(format: IeeeFloatFormat, field_store: bool) -> AbstractOperationPlan {
     let machine = MachineId::new(1).unwrap();
     let block = BlockId::new(1).unwrap();

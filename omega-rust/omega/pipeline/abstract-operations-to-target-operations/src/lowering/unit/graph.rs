@@ -380,6 +380,7 @@ fn lower_operation(
                 &live.integers,
                 &BTreeMap::new(),
                 &live.booleans,
+                &BTreeMap::new(),
                 &live.boolean_parameters,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),

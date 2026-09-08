@@ -28,6 +28,7 @@ pub(super) fn lower_structural_unit_call(
     scalar_values: &BTreeMap<ValueId, super::scalar_call::KnownUnitInteger>,
     scalar_aliases: &BTreeMap<ValueId, ValueId>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
+    ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
     boolean_parameters: &BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -152,8 +153,8 @@ pub(super) fn lower_structural_unit_call(
                         }
                         known.into_target_source(*source_value)
                     }
-                    ScalarType::IeeeFloat(_) => {
-                        let (caller_parameter_index, _) = function
+                    ScalarType::IeeeFloat(format) => {
+                        if let Some((caller_parameter_index, _)) = function
                             .parameters
                             .iter()
                             .enumerate()
@@ -161,15 +162,28 @@ pub(super) fn lower_structural_unit_call(
                                 caller_parameter.value == *source_value
                                     && caller_parameter.scalar_type == parameter.scalar_type
                             })
-                            .ok_or(LoweringError::CallArgumentTypeMismatch {
-                                callee: *callee,
-                                argument: *source_value,
-                            })?;
-                        TargetUnitScalarArgumentSource::Parameter {
-                            parameter_index: u32::try_from(caller_parameter_index)
-                                .map_err(|_| LoweringError::UnitCallTargetKindMismatch(*callee))?,
-                            source_value: *source_value,
-                            scalar_type: parameter.scalar_type,
+                        {
+                            TargetUnitScalarArgumentSource::Parameter {
+                                parameter_index: u32::try_from(caller_parameter_index).map_err(
+                                    |_| LoweringError::UnitCallTargetKindMismatch(*callee),
+                                )?,
+                                source_value: *source_value,
+                                scalar_type: parameter.scalar_type,
+                            }
+                        } else {
+                            let (defining_operation, value) = ieee_float_constants
+                                .get(source_value)
+                                .copied()
+                                .filter(|(_, value)| value.format() == format)
+                                .ok_or(LoweringError::CallArgumentTypeMismatch {
+                                    callee: *callee,
+                                    argument: *source_value,
+                                })?;
+                            TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+                                defining_operation,
+                                source_value: *source_value,
+                                value,
+                            }
                         }
                     }
                 };
