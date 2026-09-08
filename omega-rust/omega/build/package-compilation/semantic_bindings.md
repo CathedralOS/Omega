@@ -14,7 +14,7 @@ generic accepted-boundary protocol for arbitrary nominal carriers.
 The filesystem permission-authoring control partitions the current 50-method
 schema: 36 explicit dispositions and 14 lifecycle/control entries whose
 implementation remains governed by the
-[filesystem policy](../../../../wiki/pre_migration/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority).
+[filesystem policy](../../../../wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
 Missing entries are not empty grants. Classification retains exact requirement
 and mechanism identities; ordinary release narrowing needs checked occurrence
 flow and a release contract. A known class set outside policy fails containment;

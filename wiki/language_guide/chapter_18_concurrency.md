@@ -160,7 +160,7 @@ claim-bearing, Unit, boundary, and dynamic frontiers, park/resume lowering, and
 evidence-backed widening of the suspension-safe-loan subset remain engineering
 work under the settled model.
 See
-[effects_authority_and_observation.md](../pre_migration/design_briefs/effects_authority_and_observation.md).
+[service reach and operational ceilings](../spec/language/effects.md).
 
 ### Call-site acknowledgements
 

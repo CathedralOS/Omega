@@ -15,6 +15,8 @@ beside code; completed work belongs in Git, not current reference material.
 ## Current specification subjects
 
 - Source semantics: [state contracts and live facts](spec/language/state_contracts.md),
+  [service reach and operational ceilings](spec/language/effects.md),
+  [semantic evaluation](spec/language/evaluation.md),
   [constants](spec/language/constants.md), [numeric values and bounds](spec/language/numeric_values.md),
   and [counts, indices, and addresses](spec/language/counts_and_addresses.md).
 - Representation policies: [layout plans](spec/layouts/plans.md),
@@ -39,6 +41,7 @@ beside code; completed work belongs in Git, not current reference material.
   [storage](spec/resources/storage.md),
   [external-entry stacks](spec/resources/entry_stacks.md),
   [content custody](spec/resources/content_custody.md),
+  [authority and qualification](spec/resources/authority.md),
   [extents and mappings](spec/resources/extents.md),
   [placed access](spec/resources/placed_access.md),
   [device custody and ordering](spec/resources/device_access.md),
@@ -48,6 +51,7 @@ beside code; completed work belongs in Git, not current reference material.
 - Build: [declarations and package identity](spec/build/declarations.md),
   [configuration and targets](spec/build/configuration.md),
   [target slots and entry roots](spec/build/entry_roots.md),
+  [UEFI entry and handoff](spec/build/uefi_entry.md),
   [installed external roots](spec/build/external_roots.md),
   [boundary calling plans](spec/build/calling_plans.md),
   [boundary signature shapes](spec/build/boundary_shapes.md),
@@ -55,6 +59,7 @@ beside code; completed work belongs in Git, not current reference material.
   [foreign storage and lifetime](spec/build/foreign_storage.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
   [provider selection](spec/build/provider_selection.md),
+  [service permissions](spec/build/permissions.md),
   [opaque representations](spec/build/opaque_representations.md),
   [execution and generated source](spec/build/execution.md),
   [observations and reproducibility](spec/build/observations.md),

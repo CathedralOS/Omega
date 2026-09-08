@@ -30,6 +30,12 @@ resource claims originate strict. Their result contracts may establish
 transformations inherit permissions through their provenance mapping; combined
 origins retain the most restrictive demand.
 
+A claim's carry entry belongs to its undischarged permission provenance, not
+the current predicate-fact set. A cast cannot erase it; consumption or transfer
+changes its ownership. Fresh unqualified data has no claim entry and follows
+structural/type-wide carry. Unique provenance mappings may infer through moves,
+splits, loans, and aggregates; ambiguous inheritance rejects.
+
 Exclusive cross-activation transfer requires ownership and carry/runtime
 compatibility. Shared references additionally require a sanctioned shared-access
 contract. Copyability only authorizes duplication; it is not shareability.

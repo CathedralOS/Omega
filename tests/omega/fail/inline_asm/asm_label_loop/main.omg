@@ -1,6 +1,6 @@
 // Inline Assembly: an assembly block with an arbitrary label and a `jmp label`
 // back-edge is rejected. Every asm instruction is a known-contract intrinsic or
-// it does not compile (privileged_effects_and_binary_trust brief); `label` is
+// it does not compile (wiki/spec/build/hardware_materialization.md); `label` is
 // not one, so the block is refused rather than smuggling a free control-flow
 // loop into the Omega state graph. The accepted set is catalog-driven; control
 // flow itself remains limited to `jmp state(...)`.

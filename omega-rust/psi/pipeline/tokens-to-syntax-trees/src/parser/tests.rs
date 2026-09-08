@@ -5081,7 +5081,7 @@ fn rejects_inexact_asm_where_clobber_contracts() {
 }
 
 /// Opaque asm forms have no attributable contract; only known-contract
-/// instructions compile (privileged_effects_and_binary_trust, LOCKED point 2).
+/// instructions compile (wiki/spec/build/hardware_materialization.md).
 #[test]
 fn rejects_unknown_asm_mnemonics() {
     for block in ["asm { db 0xF4 }", "asm { swapgs }"] {

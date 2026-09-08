@@ -6422,7 +6422,7 @@ pub fn evaluate_const_machine_measured(
     evaluator::run_const_machine(program, machine_name)
 }
 
-/// STRUCTURED build-time evaluation (design_briefs/build_time_evaluation.md;
+/// STRUCTURED build-time evaluation (wiki/spec/language/evaluation.md;
 /// the R2 layouts enabler): invoke the effect-free machine `machine_name`
 /// with compiler-built arguments and read back its terminal value as a
 /// structured tree. As with [`evaluate_const_machine`], the CALLER owns the

@@ -86,6 +86,11 @@ overlaps them; retained classes stay with the continuing owner; excluded classes
 remain unavailable. External classification is admitted, while locally tracked
 range checks are derived.
 
+Succession consumes the transferred issuance authority, preventing the old
+custodian from issuing again for those classes, and transfers the applicable
+live ledger and unused capacity. Its append-only evidence names classification,
+predecessor, successor, and any retained custodian.
+
 Destroying placed content returns range authority but does not release it to
 firmware or an OS. Implicit provider reclamation must be terminating,
 infallible, non-suspending, and nonblocking. Otherwise expose explicit terminal
@@ -120,11 +125,9 @@ there is no per-access generation probe. An erased era comparison cannot make
 asynchronous revocation safe. Forced revocation requires an explicit fallible
 provider quiescence/lifecycle protocol, not an implicit property of mappings.
 
-Owned virtual-to-physical decomposition cannot conserve two independent
-projections when their correspondence matters. It requires a compact canonical
-mapping algebra with decidable containment, restriction, equality, and separated
-composition. Until such an algebra is specified, that decomposition rejects;
-interval and counted-quantity algebras do not express the correspondence.
+Owned virtual-to-physical decomposition requires the joint correspondence
+algebra specified by [related content](content_custody.md#independent-and-related-content).
+Independent interval/quantity conservation cannot preserve that association.
 
 Page tables, translation policy, activation, shootdowns, and teardown belong
 to OS/provider packages. Omega owns the general authority and checking rules,

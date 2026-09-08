@@ -1,4 +1,4 @@
-//! The BUILD-TIME EVALUATION bridge (design_briefs/build_time_evaluation.md):
+//! The BUILD-TIME EVALUATION bridge (wiki/spec/language/evaluation.md):
 //! the compiler invokes an effect-free machine through the reference
 //! interpreter with compiler-built arguments and reads back a STRUCTURED
 //! value. No keyword marks such machines -- the POSITION makes the evaluation

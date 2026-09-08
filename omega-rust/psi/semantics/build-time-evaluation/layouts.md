@@ -41,6 +41,22 @@ types, never display names. Unsupported recursion, unresolved generics,
 references, or mismatched/incomplete values reject before destination mutation.
 A checked zero-argument source machine may supply the structured value.
 
+The sealed `ConstMaterializable` record entrance is narrower than the legacy
+typed-owned writer: closed non-generic copy records with integers, Booleans,
+non-NaN binary32/binary64 values, literal arrays, and recursively eligible
+records. Binary32 must already be exact; this entrance grants no narrowing.
+It preserves signed zero, infinity, exact IEEE bits, and target byte order.
+It rejects NaNs lacking exact-representation evidence and unsupported generic,
+opaque, quotient, reference, slice, Text, dynamic, atomic, or non-copy shapes.
+These fences do not revoke the language's carried-quotient materialization rule.
+
+The carrier retains typed value, exact schema/layout, byte order, and zeroed
+staged bytes. Hash-free replay checks complete geometry and reconstructs bytes
+before copying; even equal compact report coordinates cannot authorize a
+substituted layout. Malformed evidence and a short destination leave the
+destination unchanged. Richer producer-origin chains, quotient custody, and
+target-dependent const applications remain outside this bounded entrance.
+
 ## Conventional sum materialization
 
 Read-only conventional reports retain the fixed four-byte tag, authored-order

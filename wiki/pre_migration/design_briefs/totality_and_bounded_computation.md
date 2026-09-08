@@ -135,7 +135,7 @@ portable deadline or WCET.
 ## Cross-references
 
 See chapters 3, 9, 16, 18, and 19; [mathematical proof contracts](../../spec/proofs/contracts.md#citation-and-induction) for proof-stratum
-recursion; `effects_authority_and_observation.md` for progress/effect
-separation; `proof_caching.md` for transmissible proof artifacts; and
+recursion; [service reach and operational ceilings](../../spec/language/effects.md) for progress/effect
+separation; [proof-search caching](../../proposals/proof_search_cache.md) for the open reuse proposal; and
 [Termination, Ranking, And Progress](termination_ranking_and_progress.md) for
 the frozen source, identity, and progress-profile ruling.

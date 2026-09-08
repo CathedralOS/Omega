@@ -458,13 +458,11 @@ keeps the compiler-owned build protocol independent of whether std exists.
   `target_runtime/` skeleton that once reserved a home for them held only
   `.gitkeep` files and was removed; reserve that placement here in prose rather
   than as empty directories on disk.
-- The retired `omega/host` capability scaffold is not a second boundary model.
-  The repository's current optional host requirements, checked adapters, and
+- The repository's current optional host requirements, checked adapters, and
   target implementations live under `source/library/std`, but that package and
   decomposition have no compiler privilege and may be split or retired.
-  [Retired: Host Package Scaffold](../design_briefs/retired_host_package_scaffold.md)
-  preserves the migration fence for future dedicated provider packages; the
-  `omega/host/` directory itself is gone.
+  Dedicated provider packages use ordinary
+  [boundary requirements and explicit satisfiers](../../spec/build/foreign_bindings.md).
 - Import tables, export tables, loader metadata, startup selection, and final
   fixups are compiler responsibilities because Omega does not assume native
   system linkers.

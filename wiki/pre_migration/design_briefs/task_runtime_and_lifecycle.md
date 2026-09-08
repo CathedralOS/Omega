@@ -407,7 +407,7 @@ plan rather than pretending to perform provider admission. Provider selection,
 routed establishment, transactional start, stack leases and WCSU-backed
 provisioning, and source-level ledger connection remain ordinary implementation
 work under the settled model in
-[`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
+[authority and qualification](../../spec/resources/authority.md).
 
 ## Architectural preemption and semantic safe points
 

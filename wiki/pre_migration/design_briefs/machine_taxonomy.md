@@ -301,7 +301,7 @@ reach happens to be implemented. See
 ## Deferred design spaces
 
 - Reach, authority, and observation are now settled by frozen decision 22;
-  see [Reach, Authority, And Observation](effects_authority_and_observation.md).
+  see [Reach, Authority, And Observation](../../spec/language/effects.md).
   Its compiler representation remains engineering work.
 - Continuation lowering and suspension-safe loans.
 - Task-runtime activation planning, linear lifecycle claims, provider

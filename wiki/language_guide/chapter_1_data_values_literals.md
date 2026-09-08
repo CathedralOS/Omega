@@ -292,7 +292,7 @@ do not survive outside the graph paths where their lifetime is valid.
 
 A `const` is a named compile-time value. Its initializer is evaluated at build
 time (a build-time-admissible expression in constant position — see
-[Build-Time Evaluation](../pre_migration/design_briefs/build_time_evaluation.md)), so a `const`
+[Semantic evaluation](../spec/language/evaluation.md)), so a `const`
 is a *value*, not runtime storage.
 
 ```omega
@@ -336,7 +336,7 @@ an array length or const-generic argument. Its exact observation and selected-
 realization dependencies remain in the public signature, artifact identity,
 and diagnostic provenance after folding. This adds no conditional field/case
 or declaration-splice facility. See
-[Build-Time Evaluation](../pre_migration/design_briefs/build_time_evaluation.md#target-semantic-observations).
+[Semantic evaluation](../spec/language/evaluation.md#target-semantic-capsule).
 
 `const` names a value, not one addressable image occurrence. Compile-time-only
 uses may erase completely. When runtime use requires bytes, the compiler applies

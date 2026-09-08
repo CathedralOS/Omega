@@ -232,8 +232,8 @@ fn parse_discard_statement_handle<'tokens, 'source>(
 /// never an opaque text blob (ch23). Each mnemonic is a KNOWN-CONTRACT
 /// instruction or the block does not compile -- there is no strictest-default
 /// escape hatch, and opaque forms (`db`, raw bytes) are rejected because no
-/// contract is attributable to them (privileged_effects_and_binary_trust
-/// brief, LOCKED point 2). A block may contain multiple instructions; every
+/// contract is attributable to them (wiki/spec/build/hardware_materialization.md).
+/// A block may contain multiple instructions; every
 /// one desugars to an ordinary checked Omega statement, so no opaque assembly
 /// node enters the tree. The accepted subset desugars here:
 ///

@@ -22,7 +22,7 @@ and its ownership boundaries.
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):
   migration from lossy booleans/bitsets to the settled domain, machine,
   multiplicity, reach-row, and termination-plan semantic forms.
-- [Authority Values And Boundary Evidence](../design_briefs/authority_values_and_boundary_evidence.md):
+- [Authority Values And Boundary Evidence](../../spec/resources/authority.md):
   transparent runtime authority carriers, routed qualification evidence,
   receipt-backed fact origination, and checked resource transformations.
 - [Logical work and response](../../spec/resources/logical_work.md) and
