@@ -77,8 +77,9 @@ prerequisite to every lower-rung milestone.
   its execution receipt is pinned by that gate. The
   [paired D lexer comparison](tests/epsilon/interpreted-omega-experiment/README.md)
   observed 136.905 to 126.065 seconds, not a complete-parser speedup. The full
-  parser rerun has started but has no completed observation yet. Compact keys
-  add three payload pairs per new projection; preserve the selected provision
+  [parser baseline](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
+  now passes with measured allocation; the compact-key run remains pending.
+  Compact keys add three payload pairs per new projection; preserve the selected provision
   and check the actual complete customer's fit, not just small-control success.
   Acceptance: exact full-parser observation and measured time/allocation on
   unchanged D source; compare retaining this representation with simplification
