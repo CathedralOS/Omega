@@ -1,9 +1,10 @@
 //! Join a length observation to its validated immutable descriptor producer.
 
 use semantic_vocabulary::{Proposition, StructuralPlaceKind};
-use terminal_psi::TerminalMachine;
+use terminal_psi::{OperationKind, TerminalMachine};
 use terminal_semantics::{
-    StructuralEffectObservation, structural_effect_leaf_observation, subslice_length_equation,
+    StructuralEffectObservation, literal_length_equation, structural_effect_leaf_observation,
+    subslice_length_equation,
 };
 
 use crate::ModuleError;
@@ -15,12 +16,35 @@ pub(super) fn length_equation(
     let StructuralEffectObservation::ByteSequenceLengthRead { source, .. } = observation else {
         return Ok(None);
     };
-    let Some(StructuralPlaceKind::OperationResult { producer, .. }) = machine
+    let Some(place_kind) = machine
         .structural_places
         .iter()
         .find(|place| place.id == *source)
         .map(|place| place.kind)
     else {
+        return Ok(None);
+    };
+    if matches!(place_kind, StructuralPlaceKind::ByteSequenceLiteral { .. }) {
+        let Some(producer) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                        if destination == *source
+                )
+            })
+        else {
+            return Ok(None);
+        };
+        // Literal validation independently establishes uniqueness and that
+        // this exact source was established before the current length read.
+        return literal_length_equation(observation, producer)
+            .map_err(ModuleError::OperationSemanticSchema);
+    }
+    let StructuralPlaceKind::OperationResult { producer, .. } = place_kind else {
         return Ok(None);
     };
     // Module validation has checked this exact producer/result join, source

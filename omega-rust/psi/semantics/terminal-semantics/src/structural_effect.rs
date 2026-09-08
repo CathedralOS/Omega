@@ -7,7 +7,7 @@ use semantic_vocabulary::{
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
 mod byte_extent;
-pub use byte_extent::subslice_length_equation;
+pub use byte_extent::{literal_length_equation, subslice_length_equation};
 
 #[cfg(test)]
 mod subslice_tests;

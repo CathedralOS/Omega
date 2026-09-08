@@ -33,6 +33,13 @@ available after its producer and can be passed whole, measured, read, or
 subsliced again. It creates no owned place on later cleanup frontiers.
 The vocabulary described here does not carry borrowed structural returns.
 
+Measuring an established literal introduces the equality between that length
+result and the exact literal octet count, including zero and non-UTF-8 bytes.
+Rejoin the measured place to its unique, dominating literal establishment;
+neither a declaration ordinal nor another literal's length supplies this fact.
+The equation becomes available at the length read, not at establishment, and
+does not replace the read or subslice's independently reconstructed bounds.
+
 Measuring an established subslice introduces exactly
 `measured_length = end - start` at that later length read, using its validated
 producer's original endpoints. The descriptor/producer join cannot be replaced

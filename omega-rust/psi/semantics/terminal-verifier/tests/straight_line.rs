@@ -49,6 +49,9 @@ mod contract_fields;
 #[path = "straight_line/case_access.rs"]
 mod case_access;
 
+#[path = "straight_line/literal_byte_extent.rs"]
+mod literal_byte_extent;
+
 #[test]
 fn unit_machine_is_a_value_less_normal_return() {
     let module = unit_module();
