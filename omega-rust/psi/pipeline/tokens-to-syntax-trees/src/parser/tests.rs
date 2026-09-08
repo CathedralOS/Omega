@@ -2120,6 +2120,19 @@ fn retired_library_block_names_the_boundary_provider_migration() {
 }
 
 #[test]
+fn retired_abi_declaration_names_requirement_owned_calling_policy() {
+    let tokens = Lexer::new(r#"abi "C""#)
+        .tokenize()
+        .expect("tokenize retired ABI declaration");
+    let error = parse_syntax_trees(&tokens).expect_err("ABI declaration must reject");
+    assert!(error.message.contains("`boundary machine ...`"));
+    assert!(error.message.contains("satisfied requirement"));
+    assert!(error.message.contains("wiki/spec/build/calling_plans.md"));
+    assert!(!error.message.contains("inferred from the image"));
+    assert!(!error.message.contains("boundary(<Plan>)"));
+}
+
+#[test]
 fn retired_capability_entry_names_the_boundary_provider_migration() {
     let source = r#"
         capability TestHost {
