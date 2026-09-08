@@ -292,18 +292,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   runtime_console_byte_read_return_catalog_replays_both_linux_targets
   --no-fail-fast --no-tests fail` passes cross-emission and native artifact replay
   on macOS ARM64 at `95d162cd33`; it does not execute Linux code.
-  At checkpoint `b5de983e7d`, the same command with
+  At checkpoint `5cbcd1893d`, the same command with
   `runtime_console_byte_inspection_replays_validated_cross_target_artifacts`
-  passes abstract validation, including case payloads and owned-result cleanup,
-  then fails `Selection(Legalization(UnsupportedSourceShape { function: 0 }))`.
-  Extend the existing `target-operations-to-selected-instructions/src/legalization/
-  scalar_graph_input/` and `selection/read_result_input.rs` one-block input rosters
-  into case-aware graph selection. The input is now ordinary
-  `TargetUnitGraph` with `TargetUnitTerminator::StructuralCase`, not flat
-  arm-layout ordinals. Reuse its retained tag/layout, structural result home,
-  and edge-produced destination block/value/type; materialize payloads before
-  cleanup and transfer. Target production and independent input correspondence
-  do not implement legalized/selected case transport or its physical replay.
+  passes legalization and independent replay, then fails
+  `Selection(Selection(UnsupportedSourceShape { function: 0 }))` on Linux x64.
+  Extend `target-operations-to-selected-instructions/src/selection/read_result_input.rs`
+  and ordinary scalar-graph selection using the retained
+  `LegalizedScalarTerminator::StructuralCase`. The admitted read result has two
+  tags; existing conditional branches and edge-transfer blocks suffice.
+  Add explicit case-payload bindings and structural-observation temporaries,
+  not fabricated source values or a new ISA case opcode. Load only the selected
+  payload from its exact result home before no-code cleanup and destination
+  binding commit; retain the edge's fuel exactly once. Update independent
+  selection/edge-transfer replay, liveness and allocation connectors, and
+  identity/persistence readers together. The legalized definition belongs to
+  the destination block, not the boundary producer. Its exact graph, layout,
+  cleanup and fuel are already retained; multi-block return cleanup remains a
+  separate admission limit.
   The same checkpoint's macOS `cli_mvp` probe above still stops at `read_line`.
   `runtime_console_byte_sources_retain_checked_unit_plans_and_terminal_artifacts`
   is the source-to-Terminal replay floor for literal output and byte inspection;
