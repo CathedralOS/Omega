@@ -25,36 +25,63 @@ fn verified_mutable_byte_view_write_rejects_unrealized_state_bindings() {
             state done() {}
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "put")
-        .expect("guarded write lowers to Terminal");
-    let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");
-    let proof_bytes = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
-    let profile = AdmissionProfile::default();
-    terminal_verifier::verify_module(&terminal.semantic_module, &terminal.proof_bundle, &profile)
-        .expect("write has independently verified bounds");
-    for result in [
-        lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).map(|_| ()),
-        lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
-            .map(|_| ()),
-        lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
-            .map(|_| ()),
+    for (entry, source) in [
+        ("put", source.to_owned()),
+        (
+            "run",
+            format!("{source}\n machine run(out: &mut [u8;3]) {{ put(out,65); put(out,0); }}"),
+        ),
     ] {
-        // This source reaches the earlier state-binding fence, before the
-        // separate per-operation ByteSequenceWrite realization fence.
-        assert!(
-            matches!(
-                result,
-                Err(ArtifactLoweringError::Lowering(
-                    LoweringError::UnsupportedStructuralSuccessorArguments { machine, .. }
-                )) if machine == terminal.semantic_module.entry
-            ),
-            "a verified mutable view cannot lose its write during projection: {result:?}"
-        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize source");
+        let syntax = parse_syntax_trees(&tokens).expect("parse source");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+        let checked = lower_typed_trees(typed).expect("check source");
+        let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
+            .expect("guarded write lowers to Terminal");
+        let writer = terminal
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .any(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceWrite { .. })
+                    })
+            })
+            .expect("retained writer")
+            .id;
+        let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");
+        let proof_bytes = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+        let profile = AdmissionProfile::default();
+        terminal_verifier::verify_module(
+            &terminal.semantic_module,
+            &terminal.proof_bundle,
+            &profile,
+        )
+        .expect("write has independently verified bounds");
+        for result in [
+            lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).map(|_| ()),
+            lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
+                .map(|_| ()),
+            lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
+                .map(|_| ()),
+        ] {
+            // This source reaches the earlier state-binding fence, before the
+            // separate per-operation ByteSequenceWrite realization fence.
+            assert!(
+                matches!(
+                    result,
+                    Err(ArtifactLoweringError::Lowering(
+                        LoweringError::UnsupportedStructuralSuccessorArguments { machine, .. }
+                    )) if machine == writer
+                ),
+                "a verified mutable view cannot lose its write during projection: {result:?}"
+            );
+        }
     }
 }
 

@@ -75,7 +75,8 @@ impl BoundaryArguments {
             };
             let access = match &binding {
                 ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
-                ByteSequenceBinding::MutableField { .. } => StructuralAccess::MutableBorrow,
+                ByteSequenceBinding::MutableField { .. }
+                | ByteSequenceBinding::MutableArray { .. } => StructuralAccess::MutableBorrow,
             };
             if parameter.access != access
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
@@ -130,6 +131,9 @@ impl TerminalExecution {
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {
             match binding {
                 None => resolved.bytes.push(None),
+                Some(ByteSequenceBinding::MutableArray { .. }) => {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
                 Some(ByteSequenceBinding::Immutable(view)) => {
                     resolved.bytes.push(Some(view.bytes().to_vec()));
                 }
@@ -305,7 +309,9 @@ impl TerminalExecution {
             &self.structural_types,
             match &binding {
                 ByteSequenceBinding::MutableField { referent, .. } => referent,
-                ByteSequenceBinding::Immutable(_) => return Err(invalid()),
+                ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
+                    return Err(invalid());
+                }
             },
         )?;
         Ok(binding)

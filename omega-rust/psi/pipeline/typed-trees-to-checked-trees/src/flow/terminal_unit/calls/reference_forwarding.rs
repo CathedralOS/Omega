@@ -195,11 +195,106 @@ fn prefix_preserves_parameter(
         if writes
             .iter()
             .any(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
+            && !(preceding.statement_index < call.statement_index
+                && preceding_fixed_array_loan_preserves_carrier(
+                    program,
+                    borrow,
+                    borrow_state,
+                    preceding,
+                    source_symbol,
+                ))
         {
             return None;
         }
     }
     Some(())
+}
+
+/// A completed call through a byte view can change elements, not the caller's
+/// reference carrier. This does not admit assignments or restore live loans.
+fn preceding_fixed_array_loan_preserves_carrier(
+    program: &TypedTrees,
+    borrow: &checked_trees::BorrowFacts,
+    state: &checked_trees::StateBorrowFact,
+    call: &checked_trees::BorrowCallFact,
+    source_symbol: SymbolHandle,
+) -> bool {
+    let Some(source_state) =
+        crate::find_state_in_machine(program, state.machine_symbol, state.state_symbol)
+    else {
+        return false;
+    };
+    let Some(source) = program
+        .state_parameters(source_state)
+        .iter()
+        .find(|parameter| parameter.symbol == source_symbol)
+    else {
+        return false;
+    };
+    let Some(crate::CallSite::Statement(authored)) = crate::find_call_site(
+        program,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return false;
+    };
+    if authored.target_symbol != call.target_symbol {
+        return false;
+    }
+    let Some(parameters) = crate::call_target_parameters(program, call.target_symbol) else {
+        return false;
+    };
+    let arguments = program
+        .statement_table
+        .expression_handles(authored.arguments);
+    if parameters.len() != arguments.len() {
+        return false;
+    }
+    let mut matching = parameters.iter().zip(arguments).filter(|(_, expression)| {
+        matches!(program.expression_table.expression(**expression), ExpressionNode::Name(name) if name.symbol == source_symbol)
+    });
+    let Some((parameter, expression)) = matching.next() else {
+        return false;
+    };
+    if matching.next().is_some()
+        || parameter.is_self
+        || parameter.is_const
+        || !super::fixed_byte_array_mutable_view_is_admitted(
+            program,
+            source.type_reference,
+            parameter.type_reference,
+        )
+    {
+        return false;
+    }
+    let ExpressionNode::Name(name) = program.expression_table.expression(*expression) else {
+        return false;
+    };
+    if name.head_symbol != source_symbol
+        || program
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return false;
+    }
+    let mut accesses = borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+        .iter()
+        .filter(|access| access.root_symbol == source_symbol);
+    let Some(access) = accesses.next() else {
+        return false;
+    };
+    accesses.next().is_none()
+        && borrow.access_segments(access).is_empty()
+        && matches!(
+            access.kind,
+            checked_trees::BorrowAccessKind::Read | checked_trees::BorrowAccessKind::Mutable
+        )
 }
 
 #[cfg(test)]

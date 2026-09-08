@@ -213,7 +213,7 @@ impl TerminalExecution {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
                     if parameter.access == StructuralAccess::MutableBorrow {
-                        self.mutable_byte_sequence_field(argument.place)?;
+                        self.mutable_byte_sequence_storage(argument.place)?;
                     }
                 }
                 _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),

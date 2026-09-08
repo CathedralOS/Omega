@@ -122,7 +122,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 83;
+const FORMAT_MARKER: u16 = 84;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -2061,6 +2061,23 @@ fn validate_structural_arguments(
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };
+        if matches!(
+            presentation,
+            StructuralArgumentPresentation::MutableUnitView
+        ) && machine.structural_parameters.iter().any(|actual| {
+            terminal_semantics::mutable_fixed_byte_array_extent(module, actual, argument, expected)
+                .is_some()
+                && !machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == argument.place)
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == argument.place)
+        }) {
+            continue;
+        }
         let inline_byte_view = match presentation {
             StructuralArgumentPresentation::Ordinary => false,
             StructuralArgumentPresentation::Boundary => true,

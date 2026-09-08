@@ -12,6 +12,8 @@ mod byte_sequence_subslice;
 use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
 mod byte_sequence_write;
+mod structural_byte_arrays;
+pub use structural_byte_arrays::TerminalStructuralByteArrayValue;
 mod effect_results;
 mod primitive_storage;
 mod structural_byte_sequence_index_store;
@@ -531,6 +533,7 @@ pub struct TerminalExecution {
     /// Owned byte contents are keyed by referent identity, not a callee-local
     /// parameter. Immutable backing implements a logical copy of the live prefix.
     structural_byte_sequence_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
+    structural_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
@@ -1038,6 +1041,7 @@ impl TerminalExecution {
             ),
             structural_scalar_fields,
             structural_byte_sequence_fields: BTreeMap::new(),
+            structural_byte_arrays: BTreeMap::new(),
             payloadless_case_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
             live_affine_frontier,
@@ -1205,7 +1209,8 @@ impl TerminalExecution {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
                 }
-                ByteSequenceBinding::MutableField { .. } => {
+                ByteSequenceBinding::MutableField { .. }
+                | ByteSequenceBinding::MutableArray { .. } => {
                     if parameter.access != StructuralAccess::MutableBorrow {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
@@ -1453,7 +1458,10 @@ impl TerminalExecution {
                 !argument.path.is_empty()
                     && !matches!(
                         prepared_arguments.byte_sequences.get(&parameter.place),
-                        Some(ByteSequenceBinding::MutableField { .. })
+                        Some(
+                            ByteSequenceBinding::MutableField { .. }
+                                | ByteSequenceBinding::MutableArray { .. }
+                        )
                     )
             })
             || result.structural_type != callee_result.structural_type

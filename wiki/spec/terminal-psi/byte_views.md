@@ -74,6 +74,18 @@ Invocation storage preserves nested/repeated calls and their independent content
 Descriptors may share immutable backing; deriving a view does not require copying
 its bytes.
 
+An ordinary Unit helper can receive a mutable view of an initialized raw
+`FixedArray(PrimitiveScalar(u8), N)`. The source is either the whole mutable
+parameter or a relevant field-only projection from it; both ends are
+unrestricted, unqualified, and claim-free. The array remains a fixed array:
+its borrowed extent is exactly `N`, and writes retain the
+original referent and untouched elements. This presentation supplies no
+initialization, source-owned construction, or boundary replacement authority.
+Missing initialized backing rejects even when an opaque referent is supplied.
+Scalar/structural-result calls and indexed projection paths are not admitted
+by this Unit-call extension. The existing Terminal zero-length fixed-array
+admission fence remains; it does not forbid empty borrowed views.
+
 A block's ordered structural parameters each bind one
 `BlockParameter { block, position }` place. Structural positions are dense
 within that vector and independent of mixed authored scalar/structural argument

@@ -2,7 +2,7 @@
 
 use super::*;
 
-const PUT: &str = r#"
+pub(super) const PUT: &str = r#"
     machine put(out: &mut [u8], byte: u8) {
         transition out.len > 0 {
             true -> store(out, byte)
@@ -12,6 +12,15 @@ const PUT: &str = r#"
         state done() {}
     }
 "#;
+
+#[test]
+fn fixed_byte_array_lends_mutable_view() {
+    let checked = checked_source(&format!(
+        "{PUT}\n machine run(out: &mut [u8; 3]) {{ put(out, 65); put(out, 0); }}"
+    ));
+    let _artifact = produce_terminal_artifact(&checked, "run")
+        .expect("a raw fixed byte array lends its exact initialized writable range");
+}
 
 #[test]
 fn guarded_mutable_byte_view_write_publishes_terminal() {

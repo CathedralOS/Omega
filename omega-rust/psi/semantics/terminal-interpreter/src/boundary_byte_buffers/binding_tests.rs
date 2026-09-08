@@ -3,6 +3,7 @@ use semantic_vocabulary::EdgeId;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
 
+mod array_tests;
 #[cfg(test)]
 mod write_tests;
 
@@ -143,6 +144,7 @@ fn execution() -> TerminalExecution {
         primitive_local_identities:
             primitive_storage::PrimitiveLocalIdentities::with_reserved_identities([101]),
         structural_scalar_fields: BTreeMap::new(),
+        structural_byte_arrays: BTreeMap::new(),
         structural_byte_sequence_fields: BTreeMap::from([
             (field(0), ByteSequenceView::new(vec![99])),
             (field(1), ByteSequenceView::new(vec![10])),

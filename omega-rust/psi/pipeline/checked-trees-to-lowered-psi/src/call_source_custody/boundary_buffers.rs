@@ -97,7 +97,10 @@ pub(super) fn validate(
         if access != language_core::ReferenceAccess::Mutable
             || argument.access != CheckedStructuralAccess::MutableBorrow
             || source_parameter.symbol != source.root
-            || (source.path.is_empty() && !is_mutable_byte_view(source_parameter))
+            || (source.path.is_empty()
+                && !is_mutable_byte_view(source_parameter)
+                && !(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                    && is_mutable_fixed_byte_array(checked, source_parameter)))
             || source.path != argument.path
         {
             return unsupported(
@@ -106,4 +109,31 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+fn is_mutable_fixed_byte_array(
+    checked: &CheckedTrees,
+    parameter: &checked_trees::signature::StateParameter,
+) -> bool {
+    let TypeReferenceNode::Reference {
+        access: language_core::ReferenceAccess::Mutable,
+        referee,
+        ..
+    } = checked
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: checked_trees::types::FixedArrayLength::Literal(_),
+    } = checked.type_reference_table.type_reference(*referee)
+    else {
+        return false;
+    };
+    matches!(
+        checked.type_reference_table.type_reference(*element_type),
+        TypeReferenceNode::Named { .. }
+    ) && checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
 }

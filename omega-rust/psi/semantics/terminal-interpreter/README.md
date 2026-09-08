@@ -101,6 +101,22 @@ binding behavior, not new line-input acceptance. Ordinary whole-field stores
 remain independently supported. Encoding qualification needs checked library
 validation of the written prefix; buffer writeback itself grants none.
 
+## Fixed byte arrays
+
+`start_artifact_with_structural_arguments_and_byte_arrays` supplies explicit
+initialized fixed-array contents by structural argument and relative field path.
+Every supplied value must match a real unqualified `FixedArray(u8, N)` and contain
+exactly `N` bytes. Duplicate referents, mistyped paths, and fabricated storage
+reject; an opaque root does not imply initialization. `structural_byte_array`
+observes the original backing by referent identity and path.
+
+Ordinary Unit helpers may borrow the whole array or an admitted record-field
+array as a mutable byte view. Calls and block transfers retain that binding;
+length remains `N` and indexed writes preserve all other elements through fuel
+suspension. A fieldless array binding is distinct from the bounded-field loan,
+so the external `replace` callback cannot resize an array. This host-input route
+does not implement source-owned array construction or native array/view storage.
+
 ## Boundary responses
 
 [effect_results.rs](src/effect_results.rs) distinguishes Unit, scalar, and opaque
