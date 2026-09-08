@@ -1,4 +1,4 @@
-//! Invocation-local homes for a derived view; no addressable descriptor layout.
+//! Invocation-local root/offset homes; calls additionally materialize a descriptor.
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::{PlaceId, ValueId};
 

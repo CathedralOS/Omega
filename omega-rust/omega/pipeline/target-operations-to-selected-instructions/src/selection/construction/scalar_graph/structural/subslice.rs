@@ -107,5 +107,38 @@ pub(super) fn create(
         byte_length,
         root_length,
     });
+    if crate::selection::established_view_input::called(function, result.place) {
+        let slot = selected_instructions::LocalStorageSlotId {
+            operation: row.operation,
+            place: result.place,
+        };
+        builder
+            .transport
+            .local_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+        let pointer = transport_register(builder, result.place, 0)?;
+        // B + R <= Bound and O + L <= R imply B + O <= Bound.
+        // Equality forces L = 0: zero address bits then represent an empty view.
+        // This private descriptor calculation is not exact source integer addition.
+        builder.emit(
+            SelectedInstructionKind::ByteViewAddress,
+            builder.constraints.keys.add_i64,
+            &[backing, byte_offset, pointer],
+            SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![*start, *end, *length, root_length],
+                obligations: vec![*obligation],
+                ..Default::default()
+            },
+        )?;
+        super::local_storage::store(builder, row, slot, 0, pointer)?;
+        super::local_storage::store(builder, row, slot, 8, byte_length)?;
+        let descriptor = super::local_storage::address(builder, row, slot, 0, 16, false)?;
+        builder.transport.pointers.push((result.place, descriptor));
+    }
     Ok(())
 }

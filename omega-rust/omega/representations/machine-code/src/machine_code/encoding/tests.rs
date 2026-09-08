@@ -31,13 +31,13 @@ fn deferred_program() -> SelectedFormEncoding {
 }
 
 #[test]
-fn current_encoding_binds_the_version_13_ordinary_instruction_schema() {
+fn current_encoding_binds_the_version_14_ordinary_instruction_schema() {
     let mut program = deferred_program();
-    // V13 distinguishes outgoing ABI slots from activation-local storage.
+    // V14 adds private byte-view address formation distinct from Exact arithmetic.
     // This deferred-branch payload is unchanged; its schema domain still changes.
     // Assemble the canonical bytes independently of the production encoder.
     use sha2::{Digest, Sha256};
-    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v13".to_vec();
+    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v14".to_vec();
     canonical.extend_from_slice(&[1; 32]); // Selected identity.
     canonical.extend_from_slice(&[2; 32]); // Physical identity.
     canonical.push(0); // No post-allocation rewrite custody.
@@ -51,8 +51,8 @@ fn current_encoding_binds_the_version_13_ordinary_instruction_schema() {
     }
     assert_eq!(canonical.len(), 187);
     let expected = [
-        199, 82, 168, 129, 254, 154, 64, 99, 20, 8, 133, 217, 240, 219, 147, 123, 171, 165, 58,
-        135, 13, 239, 126, 137, 100, 85, 77, 226, 215, 87, 76, 16,
+        116, 150, 80, 55, 87, 135, 124, 171, 172, 79, 54, 217, 101, 47, 253, 0, 110, 105, 75, 155,
+        244, 247, 225, 184, 71, 72, 34, 217, 92, 29, 140, 177,
     ];
     assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
     assert_eq!(program.recomputed_identity().bytes(), expected);

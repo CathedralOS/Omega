@@ -60,7 +60,7 @@ pub(super) fn encode_target_structural_argument(
             bytes.push(0);
             encode_placement(bytes, placement);
         }
-        target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
             psi_operation,
         } => {
             bytes.push(1);

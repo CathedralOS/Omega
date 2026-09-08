@@ -41,7 +41,11 @@ pub struct TargetStructuralArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetStructuralArgumentSource {
     Placement(ValuePlacement),
-    ByteSequenceLiteral { psi_operation: OperationId },
+    /// Exact literal or subslice producer; its retained operation owns contents
+    /// and bounds, and source validation independently establishes dominance.
+    EstablishedByteView {
+        psi_operation: OperationId,
+    },
 }
 
 impl From<ValuePlacement> for TargetStructuralArgumentSource {

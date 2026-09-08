@@ -5,7 +5,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
     let mut plan = call_aware_plan();
     let call = structural_call_mut(&mut plan);
     let (_, argument) = structural_argument_mut(&mut call.arguments[0]);
-    argument.source = target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+    argument.source = target_operations::TargetStructuralArgumentSource::EstablishedByteView {
         psi_operation: id(900),
     };
     let destination = StructuralPlaceDeclaration {
@@ -38,7 +38,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
             let call = structural_call_mut(&mut changed);
             let (_, argument) = structural_argument_mut(&mut call.arguments[0]);
             argument.source = if mutation == 0 {
-                target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation: id(901),
                 }
             } else {

@@ -1,5 +1,8 @@
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StructuralProjectionPolicy {
     Unit,
@@ -194,20 +197,23 @@ fn structural_operation_result_contract(
         .iter()
         .flat_map(|block| &block.nodes)
         .find_map(|node| {
-            let result = match &node.operation {
+            let (result, access) = match &node.operation {
+                O::ByteSequenceSubslice { result, .. } => {
+                    (result, terminal_psi::StructuralAccess::SharedBorrow)
+                }
                 O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
                     ..
-                } => result,
+                } => (result, terminal_psi::StructuralAccess::Owned),
                 _ => return None,
             };
             (result.place == place).then_some(StructuralSourceContract {
                 structural_type: result.structural_type,
                 multiplicity: result.multiplicity,
-                access: terminal_psi::StructuralAccess::Owned,
+                access,
                 qualifications: &result.qualifications,
                 projected_qualifications: &result.projected_qualifications,
             })

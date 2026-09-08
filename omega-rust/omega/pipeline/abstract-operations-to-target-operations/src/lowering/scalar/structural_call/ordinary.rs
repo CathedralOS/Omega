@@ -93,26 +93,34 @@ pub(in crate::lowering::scalar) fn lower(
         .zip(call_plan.parameters.iter().skip(arguments.len()))
         .map(
             |(((argument, destination_parameter), shape), destination)| {
-                if let Some((producer, declaration)) = caller.operations.iter()
-                    .take_while(|operation| !matches!(operation, AbstractOperation::CallStructuralScalar { psi_operation: called, .. } if called == psi_operation))
-                    .find_map(|operation| match operation {
-                        AbstractOperation::EstablishByteSequenceLiteral { psi_operation, place, structural_type, .. }
-                            if place.id == argument.place => Some((*psi_operation, structural_type)),
-                        _ => None,
-                    }) {
-                    if caller.block_entries.len() != 1 || !argument.path.is_empty()
+                if let Some((producer, structural_type)) =
+                    established_view(caller, *psi_operation, argument.place, structural_types)
+                {
+                    if !argument.path.is_empty()
                         || argument.access != terminal_psi::StructuralAccess::SharedBorrow
                         || !shared_view(destination_parameter, structural_types)
-                        || declaration.id != destination_parameter.structural_type
-                        || declaration.shape != terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
-                        || *shape != ValueShape::borrowed_reference(16, 8) {
-                        return Err(LoweringError::StructuralCallArgumentTypeMismatch { callee: *callee, place: argument.place });
+                        || structural_type != destination_parameter.structural_type
+                        || *shape != ValueShape::borrowed_reference(16, 8)
+                    {
+                        return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                            callee: *callee,
+                            place: argument.place,
+                        });
                     }
                     return Ok(TargetStructuralArgument {
-                        place: argument.place, access: argument.access, path: Vec::new(),
-                        root_structural_type: declaration.id, structural_type: declaration.id, shape: *shape,
-                        source_byte_offset: 0, fixed_array_length: None, element_stride: None,
-                        source: target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral { psi_operation: producer },
+                        place: argument.place,
+                        access: argument.access,
+                        path: Vec::new(),
+                        root_structural_type: structural_type,
+                        structural_type,
+                        shape: *shape,
+                        source_byte_offset: 0,
+                        fixed_array_length: None,
+                        element_stride: None,
+                        source:
+                            target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                                psi_operation: producer,
+                            },
                         destination: destination.clone(),
                     });
                 }
@@ -157,7 +165,7 @@ pub(in crate::lowering::scalar) fn lower(
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
-                source: source.placement.clone().into(),
+                    source: source.placement.clone().into(),
                     destination: destination.clone(),
                 })
             },
@@ -176,6 +184,37 @@ pub(in crate::lowering::scalar) fn lower(
             requirement_obligations: requirement_obligations.clone(),
             crash_continuations: crash_continuations.clone(),
         }),
+    })
+}
+
+// This is a source projection, not a dominance proof. Native admission replays
+// the exact optimized CFG and every structural use before consuming this row.
+fn established_view(
+    caller: &AbstractFunction,
+    call: semantic_vocabulary::OperationId,
+    place: semantic_vocabulary::PlaceId,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<(semantic_vocabulary::OperationId, StructuralTypeId)> {
+    caller.operations.iter().enumerate().find_map(|(producer_position, operation)| match operation {
+        AbstractOperation::EstablishByteSequenceLiteral {
+            psi_operation, place: destination, structural_type, ..
+        } if destination.id == place && caller.block_entries.len() == 1 => {
+            let call_position = caller.operations.iter().position(|candidate|
+                matches!(candidate, AbstractOperation::CallStructuralScalar { psi_operation, .. } if *psi_operation == call))?;
+            (producer_position < call_position
+                && structural_type.shape == terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView))
+                .then_some((*psi_operation, structural_type.id))
+        }
+        AbstractOperation::ByteSequenceSubslice { psi_operation, result, .. }
+            if result.place == place
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && structural_types.get(&result.structural_type).is_some_and(|declaration|
+                    declaration.shape == terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)) =>
+            Some((*psi_operation, result.structural_type)),
+        _ => None,
     })
 }
 

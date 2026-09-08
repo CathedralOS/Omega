@@ -39,6 +39,23 @@ position without inventing executable work. Frame-free bodies must not acquire
 storage merely because their parameters are structural; actual outgoing and
 preservation storage must be replayed against the realized frame.
 
+Literal and called subslice descriptors use activation-local homes, separately
+from ABI argument-copy slots. A subslice retains the original backing plus
+exact integer offset and length; only a view used as a call argument acquires
+an addressable 16-byte descriptor. Repeated calls forward that descriptor,
+never a copy of its bytes. Producer/result identity, bounds and selected SSA
+dominance remain required, including across guarded blocks.
+
+On the current 64-bit targets, `ByteViewAddress` forms the private descriptor's
+address bits without asserting exact source integer arithmetic. Valid root
+geometry `B + R <= Bound` and view geometry `O + L <= R` imply
+`B + O <= Bound`; equality forces an empty view. A one-past endpoint at
+`2^64` therefore becomes zero pointer bits with zero length, not an overflow
+proof or permission to read address zero. Other empty views need not form a
+dereference either. The original bounds and backing remain the access authority;
+this address calculation introduces no Psi operation or additional fuel charge.
+See [extent endpoints](../../../../wiki/spec/resources/extents.md#conservation-and-loans).
+
 [Construction](src/selection/construction/mod.rs) and independent validation
 derive separate projections. Replay checks the complete selected content against
 the semantic/optimized input, target plan and register catalog, including exact

@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod byte_view_address_tests;
+
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
@@ -542,6 +545,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
         SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2),
         SelectedInstructionKind::ZeroExtendU32 => (MachineAlternativeFamily::ZeroExtendU32, 2),
+        SelectedInstructionKind::ByteViewAddress => (MachineAlternativeFamily::ByteViewAddress, 3),
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
@@ -657,7 +661,7 @@ fn encode_unchecked(
                 0xeb00_001f | (u32::from(registers[1]) << 16) | (u32::from(registers[0]) << 5),
             );
         }
-        SelectedInstructionKind::ExactAddI64 { .. } => {
+        SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
             words.push(
                 0x8b00_0000
                     | (u32::from(registers[1]) << 16)
@@ -985,7 +989,7 @@ fn validate_decoded(
                     right: registers[1],
                 }]
         }
-        SelectedInstructionKind::ExactAddI64 { .. } => {
+        SelectedInstructionKind::ByteViewAddress | SelectedInstructionKind::ExactAddI64 { .. } => {
             decoded
                 == [DecodedWord::Add {
                     left: registers[0],
@@ -1138,7 +1142,8 @@ fn footprint(
         | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
-        SelectedInstructionKind::ExactAddI64 { .. }
+        SelectedInstructionKind::ByteViewAddress
+        | SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
@@ -1211,7 +1216,8 @@ fn footprint(
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
-                SelectedInstructionKind::ExactAddI64 { .. }
+                SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
             },
@@ -1222,7 +1228,8 @@ fn footprint(
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
-                SelectedInstructionKind::ExactAddI64 { .. }
+                SelectedInstructionKind::ByteViewAddress
+                | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::CompareI64 => vec![],

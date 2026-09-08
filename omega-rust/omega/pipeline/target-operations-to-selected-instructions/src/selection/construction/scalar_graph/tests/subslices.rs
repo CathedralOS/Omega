@@ -13,7 +13,7 @@ fn view_result(place: PlaceId) -> terminal_psi::StructuralOperationResult {
     }
 }
 
-fn view_fixture(target: target::NativeTarget, empty: bool) -> LegalizedScalarFunction {
+pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> LegalizedScalarFunction {
     let mut source = fixture(target, 0);
     source.attachment = None;
     let original = PlaceId::new(1).unwrap();

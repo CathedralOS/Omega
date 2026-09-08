@@ -146,12 +146,14 @@ fn declaration(
     keys: &SelectedConstraintKeys,
 ) -> MachineEffectDeclaration {
     let alternatives = match semantic {
-        MachineSemanticKind::ExactAddI64 => vec![alternative(
-            semantic,
-            0,
-            MachineAlternativeApplicability::Always,
-            size(semantic),
-        )],
+        MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
+            vec![alternative(
+                semantic,
+                0,
+                MachineAlternativeApplicability::Always,
+                size(semantic),
+            )]
+        }
         MachineSemanticKind::ExactSubtractI64 => vec![
             alternative(
                 semantic,
@@ -274,7 +276,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::CopyI64
         | MachineSemanticKind::ZeroExtendU8
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
-        MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
+        MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
+            (vec![0, 1], vec![2])
+        }
         MachineSemanticKind::ExactAddI64Immediate
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         MachineSemanticKind::ExactSubtractI64 if variant == 0 => (vec![], vec![2]),
@@ -394,10 +398,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::ZeroExtendU8 => MachineSizeKnowledge::ExactBytes(4),
         MachineSemanticKind::ZeroExtendU32 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
-        MachineSemanticKind::ExactAddI64 => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 4,
-            maximum_bytes: Some(5),
-        },
+        MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(5),
+            }
+        }
         MachineSemanticKind::ExactAddI64Immediate => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 4,
             maximum_bytes: Some(8),

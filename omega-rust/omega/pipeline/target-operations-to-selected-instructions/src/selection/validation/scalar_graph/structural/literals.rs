@@ -1,6 +1,7 @@
 //! Reconstruct literal stores and descriptor homes from the retained raw payload.
+use super::local_storage::{address, store};
 use super::*;
-use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot};
+use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
@@ -81,73 +82,6 @@ fn constant(
         replay.constraints.keys.materialize_i64,
         &[register],
         &provenance(row),
-    )?;
-    Ok(register)
-}
-
-fn store(
-    replay: &mut Replay<'_>,
-    row: &LegalizedScalarInstruction,
-    slot: LocalStorageSlotId,
-    offset: u32,
-    value: VirtualRegisterId,
-) -> Result<(), SelectedInstructionError> {
-    memory(
-        replay,
-        row,
-        slot.place,
-        offset,
-        8,
-        SelectedMemoryAccessRole::WriteLocal { slot },
-    )?;
-    replay.check_instruction(
-        SelectedInstructionKind::Store64 {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: offset,
-        },
-        replay
-            .constraints
-            .keys
-            .store64
-            .ok_or_else(|| replay.invalid())?,
-        &[value],
-        &provenance(row),
-    )
-}
-
-fn address(
-    replay: &mut Replay<'_>,
-    row: &LegalizedScalarInstruction,
-    slot: LocalStorageSlotId,
-    offset: u32,
-    byte_count: u32,
-    settles_fuel: bool,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let register = result(replay, slot.place, offset)?;
-    memory(
-        replay,
-        row,
-        slot.place,
-        offset,
-        byte_count,
-        SelectedMemoryAccessRole::AddressLocal { slot },
-    )?;
-    let mut provenance = provenance(row);
-    if settles_fuel {
-        provenance.fuel = row.fuel.clone();
-    }
-    replay.check_instruction(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: offset,
-        },
-        replay
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| replay.invalid())?,
-        &[register],
-        &provenance,
     )?;
     Ok(register)
 }

@@ -211,33 +211,8 @@ fn validate_borrowed_argument(
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
-            psi_operation,
-        } => {
-            let [block] = source.blocks.as_slice() else {
-                return None;
-            };
-            let call_position = block
-                .instructions
-                .iter()
-                .position(|row| row.operation == operation)?;
-            let producer = block.instructions[..call_position]
-                .iter()
-                .find(|row| row.operation == *psi_operation)?;
-            let legalized_operations::LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { destination, structural_type, .. } = &producer.kind else { return None; };
-            if producer.result.is_some()
-                || destination.id != semantic.place
-                || !signature.structural_places.contains(destination)
-                || !signature.structural_types.contains(structural_type)
-                || structural_type.id != target.structural_type
-                || structural_type.shape
-                    != terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
-                    )
-                || !matches!(destination.kind, semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. } if identity == structural_type.id)
-            {
-                return None;
-            }
+        target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. } => {
+            crate::selection::established_view_input::accepts(source, operation, target)?;
         }
     }
     Some(())

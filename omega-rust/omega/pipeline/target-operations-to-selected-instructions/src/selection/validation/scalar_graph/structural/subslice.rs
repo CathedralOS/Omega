@@ -117,5 +117,37 @@ pub(super) fn create(
         byte_length,
         root_length,
     });
+    if crate::selection::established_view_input::called(function, view.place) {
+        let slot = selected_instructions::LocalStorageSlotId {
+            operation: row.operation,
+            place: view.place,
+        };
+        replay
+            .transport
+            .local_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 16,
+                alignment: 8,
+            });
+        let pointer = result(replay, view.place, 0)?;
+        // The retained root/offset induction permits only an empty one-past
+        // wrap. No source integer exactness or additional access is asserted.
+        replay.check_instruction(
+            SelectedInstructionKind::ByteViewAddress,
+            replay.constraints.keys.add_i64,
+            &[backing, byte_offset, pointer],
+            &SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![*start, *end, *length, root_length],
+                obligations: vec![*obligation],
+                ..Default::default()
+            },
+        )?;
+        super::local_storage::store(replay, row, slot, 0, pointer)?;
+        super::local_storage::store(replay, row, slot, 8, byte_length)?;
+        let descriptor = super::local_storage::address(replay, row, slot, 0, 16, false)?;
+        replay.transport.pointers.push((view.place, descriptor));
+    }
     Ok(())
 }

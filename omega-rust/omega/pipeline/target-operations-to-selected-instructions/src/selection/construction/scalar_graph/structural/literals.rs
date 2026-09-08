@@ -1,6 +1,7 @@
 //! Establish original immutable literal backing and its addressable descriptor.
+use super::local_storage::{address, store};
 use super::*;
-use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot};
+use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
@@ -85,65 +86,6 @@ fn constant(
         builder.constraints.keys.materialize_i64,
         &[register],
         provenance(row),
-    )?;
-    Ok(register)
-}
-
-fn store(
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
-    slot: LocalStorageSlotId,
-    offset: u32,
-    value: VirtualRegisterId,
-) -> Result<(), SelectedInstructionError> {
-    memory(
-        builder,
-        row,
-        slot.place,
-        offset,
-        8,
-        SelectedMemoryAccessRole::WriteLocal { slot },
-    )?;
-    builder.emit(
-        SelectedInstructionKind::Store64 {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: offset,
-        },
-        builder.constraints.keys.store64.ok_or_else(invalid)?,
-        &[value],
-        provenance(row),
-    )
-}
-
-fn address(
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
-    slot: LocalStorageSlotId,
-    offset: u32,
-    byte_count: u32,
-    settles_fuel: bool,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let register = transport_register(builder, slot.place, offset)?;
-    memory(
-        builder,
-        row,
-        slot.place,
-        offset,
-        byte_count,
-        SelectedMemoryAccessRole::AddressLocal { slot },
-    )?;
-    let mut provenance = provenance(row);
-    if settles_fuel {
-        provenance.fuel = row.fuel.clone();
-    }
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: offset,
-        },
-        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
-        &[register],
-        provenance,
     )?;
     Ok(register)
 }

@@ -216,9 +216,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::Load64
         | MachineSemanticKind::ZeroExtendU8
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
-        MachineSemanticKind::ExactAddI64 | MachineSemanticKind::ExactSubtractI64 => {
-            (vec![0, 1], vec![2])
-        }
+        MachineSemanticKind::ByteViewAddress
+        | MachineSemanticKind::ExactAddI64
+        | MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         MachineSemanticKind::ConditionalBranchNonZero

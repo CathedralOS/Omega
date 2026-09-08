@@ -138,9 +138,22 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 }
 
 #[test]
+fn physical_codec_retains_byte_view_address_family_not_exact_add() {
+    let mut source = plan();
+    source.functions[0].blocks[0].instructions[0].alternative.key.family =
+        MachineAlternativeFamily::ByteViewAddress;
+    source.identity = post_allocation_machine_identity(&source);
+    assert_eq!(PostAllocationMachinePlan::decode(&source.encode()), Ok(source.clone()));
+    source.functions[0].blocks[0].instructions[0].alternative.key.family =
+        MachineAlternativeFamily::ExactAddI64;
+    assert_eq!(PostAllocationMachinePlan::decode(&source.encode()),
+        Err(PostAllocationMachineDecodeError::InvalidIdentity));
+}
+
+#[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..9_u32 {
+    for version in 0..10_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

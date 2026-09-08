@@ -81,6 +81,7 @@ fn decode_kind(
         2 => SelectedInstructionKind::CopyI64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
+        22 => SelectedInstructionKind::ByteViewAddress,
         21 => SelectedInstructionKind::Load8Indexed,
         16 => SelectedInstructionKind::Load64 {
             byte_offset: cursor.u32()?,
@@ -225,6 +226,7 @@ fn decode_alternative_for_version(
         2 => MachineAlternativeFamily::CopyI64,
         15 => MachineAlternativeFamily::ZeroExtendU8,
         20 => MachineAlternativeFamily::ZeroExtendU32,
+        22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
         16 => MachineAlternativeFamily::Load64,
         17 => MachineAlternativeFamily::Store64,

@@ -97,6 +97,7 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::CopyI64
                 | MachineAlternativeFamily::ZeroExtendU8
                 | MachineAlternativeFamily::ZeroExtendU32
+                | MachineAlternativeFamily::ByteViewAddress
                 | MachineAlternativeFamily::ExactAddI64
                 | MachineAlternativeFamily::ExactAddI64Immediate
                 | MachineAlternativeFamily::ExactSubtractI64

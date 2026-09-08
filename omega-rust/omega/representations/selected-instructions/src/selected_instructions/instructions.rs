@@ -18,6 +18,11 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// Private 64-bit byte-view descriptor address: (backing + offset) modulo 2^64.
+    /// Valid backing and subslice bounds restrict wrap to an exclusive-bound empty
+    /// view, whose zero pointer is a valid empty carrier. No memory is accessed,
+    /// authority created, or source Exact/Wrapping arithmetic claimed.
+    ByteViewAddress,
     /// Load one byte from base plus byte index and zero-extend the register result.
     Load8Indexed,
     Load64 {
