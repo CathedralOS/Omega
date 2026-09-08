@@ -3,7 +3,8 @@
 The package service resolves and installs source dependencies, checks their
 complete supported graph, and compares compiler-derived authority, public API,
 and assumptions with project acceptance. Native emission is a separate operation.
-[Build declarations](../build/declarations.md) owns graph and package identity.
+[Build declarations](../build/declarations.md) owns graph and package identity;
+[compiler-derived review](review.md) owns the report's completeness and identity.
 
 ## Requests and project decisions
 

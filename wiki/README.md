@@ -46,6 +46,7 @@ beside code; completed work belongs in Git, not current reference material.
   [macOS applications](spec/build/macos_application.md),
   and [private callbacks](spec/build/private_callbacks.md).
 - Packages: [source selection](spec/packages/sources.md),
+  [compiler-derived review](spec/packages/review.md),
   [acceptance](spec/packages/acceptance.md), and the
   [workflow guide](language_guide/packages.md).
 
