@@ -189,7 +189,12 @@ fn conditional_unit_byte_calls_reject_changed_selected_control() {
         let entry = caller
             .blocks
             .iter()
-            .find(|block| block.source_block == BlockId::new(101).unwrap())
+            .find(|block| {
+                block.origin
+                    == selected_instructions::SelectedBlockOrigin::Source(
+                        BlockId::new(101).unwrap(),
+                    )
+            })
             .unwrap();
         let SelectedTerminator::ConditionalBranch {
             when_nonzero,
@@ -222,7 +227,12 @@ fn conditional_unit_byte_calls_reject_changed_selected_control() {
             let entry = caller
                 .blocks
                 .iter_mut()
-                .find(|block| block.source_block == BlockId::new(101).unwrap())
+                .find(|block| {
+                    block.origin
+                        == selected_instructions::SelectedBlockOrigin::Source(
+                            BlockId::new(101).unwrap(),
+                        )
+                })
                 .unwrap();
             let SelectedTerminator::ConditionalBranch {
                 when_nonzero,

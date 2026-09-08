@@ -143,7 +143,20 @@ fn scalar_cfg_accepts_signed_comparisons_and_more_than_four_blocks() {
                     environment.constraints(),
                 )
                 .unwrap();
-                assert_eq!(selected.plan().functions[0].blocks.len(), 5);
+                let function = &selected.plan().functions[0];
+                let mut sources = function
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match block.origin {
+                        selected_instructions::SelectedBlockOrigin::Source(source) => {
+                            Some(source.get())
+                        }
+                        selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. } => None,
+                    })
+                    .collect::<Vec<_>>();
+                sources.sort();
+                assert_eq!(sources, [1, 2, 3, 4, 5]);
+                assert_return_bridges(function, 5);
                 validate_selected_instructions(
                     &legalized,
                     &constraints,

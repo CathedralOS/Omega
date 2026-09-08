@@ -193,10 +193,14 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
             function
                 .blocks
                 .iter()
-                .map(|block| block.source_block)
+                .filter_map(|block| match block.origin {
+                    selected_instructions::SelectedBlockOrigin::Source(source) => Some(source),
+                    selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. } => None,
+                })
                 .collect::<Vec<_>>(),
             [block(1), block(3), block(4), block(2)]
         );
+        assert_return_bridges(function, 4);
         assert!(
             function.virtual_registers.iter().any(|register| matches!(register.origin, selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, .. } if source_value == value(3)))
         );
@@ -207,8 +211,74 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
             };
             assert_eq!(successor.source_target, block(2));
             assert_eq!(successor.bindings[0].semantic.parameter, value(3));
+            assert_eq!(
+                successor.role,
+                selected_instructions::SelectedSuccessorRole::Semantic
+            );
+            assert_eq!(
+                successor.bindings[0].transport,
+                selected_instructions::SelectedValueTransport::Unused
+            );
         }
     }
+}
+
+fn assert_return_bridges(function: &selected_instructions::SelectedFunction, source_count: usize) {
+    use selected_instructions::{
+        SelectedBlockOrigin, SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
+    };
+    assert_eq!(function.blocks.len(), source_count + 2);
+    let mut edges = Vec::new();
+    for bridge in &function.blocks[source_count..] {
+        let SelectedBlockOrigin::EdgeTransfer { edge, target } = bridge.origin else {
+            panic!("bridge origin");
+        };
+        assert_eq!(target, block(2));
+        edges.push(edge.get());
+        assert_eq!(bridge.instructions.len(), 2);
+        assert!(
+            bridge
+                .instructions
+                .iter()
+                .all(|instruction| instruction.kind
+                    == selected_instructions::SelectedInstructionKind::CopyI64
+                    && instruction.provenance.operations.is_empty()
+                    && instruction.provenance.fuel.is_empty())
+        );
+        let SelectedTerminator::Jump { successor, .. } = &bridge.terminator else {
+            panic!("continuation");
+        };
+        assert_eq!(
+            successor.role,
+            SelectedSuccessorRole::EdgeTransferContinuation
+        );
+        assert_eq!(successor.psi_edge, edge);
+        assert!(successor.fuel.is_empty());
+        assert_eq!(successor.bindings.len(), 1);
+        assert_eq!(successor.bindings[0].semantic.parameter, value(3));
+        let SelectedValueTransport::Registers {
+            argument,
+            parameter,
+        } = successor.bindings[0].transport
+        else {
+            panic!("register transfer");
+        };
+        assert_eq!(
+            argument,
+            bridge.instructions[1].operands[1].virtual_register
+        );
+        assert_eq!(
+            bridge.instructions[1].operands[0].virtual_register,
+            bridge.instructions[0].operands[1].virtual_register
+        );
+        assert!(
+            matches!(function.virtual_registers[parameter.0 as usize].origin,
+            selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, block: owner, .. }
+                if source_value == value(3) && owner == successor.block)
+        );
+    }
+    edges.sort();
+    assert_eq!(edges, [4, 5]);
 }
 
 #[test]

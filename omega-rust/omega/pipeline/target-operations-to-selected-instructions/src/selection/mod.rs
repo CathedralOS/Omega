@@ -3,6 +3,7 @@
 mod byte_view_homes;
 mod constraints;
 mod construction;
+mod edge_transfers;
 mod established_view_input;
 mod identity;
 mod literal_storage_input;

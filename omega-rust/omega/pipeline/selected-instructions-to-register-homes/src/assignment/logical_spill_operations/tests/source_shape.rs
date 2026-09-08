@@ -37,6 +37,24 @@ fn raw_v1_shape_reconstructs_exact_store_reload_and_rewrite_boundaries() {
 }
 
 #[test]
+fn bridge_semantic_anchor_does_not_authorize_an_authored_spill_victim() {
+    let mut fixture = raw_fixture();
+    assert!(compute(&fixture).unwrap().is_some());
+    let authored = fixture.selected.blocks[0].source_block();
+    fixture.selected.blocks[0].origin = selected_instructions::SelectedBlockOrigin::EdgeTransfer {
+        edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+        target: authored,
+    };
+    // The anchor and inherited Node site still agree, but this is not the
+    // authored block in which the original-victim policy permits spilling.
+    assert_eq!(fixture.selected.blocks[0].source_block(), authored);
+    assert!(matches!(
+        compute(&fixture),
+        Err(LogicalSpillOperationError::UnsupportedOrigin { .. })
+    ));
+}
+
+#[test]
 fn v1_refuses_unsupported_victim_type_origin_and_role() {
     let mut fixture = raw_fixture();
     fixture.selected.virtual_registers[0].scalar_type =

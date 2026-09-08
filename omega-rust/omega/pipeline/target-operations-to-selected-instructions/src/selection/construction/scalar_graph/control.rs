@@ -257,6 +257,7 @@ fn successor(
         .position(|index| source.blocks[*index].id == next.target)
         .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
     Ok(SelectedSuccessor {
+        role: selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: next.edge,
         block: SelectedBlockId(
             u32::try_from(position).map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,

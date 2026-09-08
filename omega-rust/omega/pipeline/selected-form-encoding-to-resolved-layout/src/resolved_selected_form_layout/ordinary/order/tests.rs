@@ -24,6 +24,7 @@ fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction
 }
 fn successor(target: u32) -> SelectedSuccessor {
     SelectedSuccessor {
+        role: selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: EdgeId::new(u64::from(target) + 1).unwrap(),
         block: SelectedBlockId(target),
         source_target: BlockId::new(u64::from(target) + 1).unwrap(),
@@ -69,7 +70,9 @@ fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
             .enumerate()
             .map(|(position, terminator)| SelectedBlock {
                 id: SelectedBlockId(position as u32),
-                source_block: BlockId::new(position as u64 + 1).unwrap(),
+                origin: selected_instructions::SelectedBlockOrigin::Source(
+                    BlockId::new(position as u64 + 1).unwrap(),
+                ),
                 instructions: Vec::new(),
                 terminator,
             })

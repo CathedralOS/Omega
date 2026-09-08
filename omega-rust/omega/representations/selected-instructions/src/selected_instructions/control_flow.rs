@@ -1,4 +1,4 @@
-//! Functions, blocks and explicitly identified semantic successor edges.
+//! Functions, source and implementation blocks, and explicitly identified successor edges.
 use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegisterId};
 use abstract_operations::ValueBinding;
 use optimization_unit::FuelSettlement;
@@ -25,15 +25,44 @@ pub struct SelectedFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedBlock {
     pub id: SelectedBlockId,
-    pub source_block: BlockId,
+    pub origin: SelectedBlockOrigin,
     pub instructions: Vec<SelectedInstruction>,
     pub terminator: SelectedTerminator,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedBlockOrigin {
+    Source(BlockId),
+    /// Copies for one authored edge; the target is semantic lineage, not a
+    /// claim that this implementation block exists in Terminal Psi.
+    EdgeTransfer {
+        edge: EdgeId,
+        target: BlockId,
+    },
+}
+
+impl SelectedBlock {
+    /// Semantic anchor; an implementation block anchors its destination.
+    pub const fn source_block(&self) -> BlockId {
+        match self.origin {
+            SelectedBlockOrigin::Source(block) => block,
+            SelectedBlockOrigin::EdgeTransfer { target, .. } => target,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedSuccessorRole {
+    Semantic,
+    /// Completes the physical transfer after its semantic edge was selected.
+    /// It retains the edge's identity but carries no second fuel charge.
+    EdgeTransferContinuation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedTerminator {
-    /// An unconditional semantic edge. Argument transfers remain on the
-    /// successor and are not inferred from physical fallthrough placement.
+    /// Unconditional control, with semantic versus implementation role on the
+    /// successor. Argument transfers are not inferred from physical fallthrough.
     Jump {
         instruction: SelectedInstruction,
         successor: SelectedSuccessor,
@@ -65,6 +94,7 @@ pub enum SelectedTerminator {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedSuccessor {
+    pub role: SelectedSuccessorRole,
     pub psi_edge: EdgeId,
     pub block: SelectedBlockId,
     pub source_target: BlockId,

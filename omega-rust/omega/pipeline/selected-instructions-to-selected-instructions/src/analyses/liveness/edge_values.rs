@@ -1,8 +1,8 @@
 //! Explicit register transport across authored successor bindings.
 use super::LivenessError;
 use selected_instructions::{
-    SelectedFunction, SelectedSuccessor, SelectedTerminator, SelectedValueTransport,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
 pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
@@ -63,16 +63,49 @@ pub(crate) fn validate_transports(
             SelectedTerminator::Return { .. } => Vec::new(),
         };
         for edge in edges {
+            match (block.origin, edge.role) {
+                (SelectedBlockOrigin::Source(_), SelectedSuccessorRole::Semantic) => {}
+                (
+                    SelectedBlockOrigin::EdgeTransfer {
+                        edge: owner,
+                        target,
+                    },
+                    SelectedSuccessorRole::EdgeTransferContinuation,
+                ) if owner == edge.psi_edge
+                    && target == edge.source_target
+                    && edge.fuel.is_empty()
+                    && matches!(block.terminator, SelectedTerminator::Jump { .. }) => {}
+                _ => return Err(mismatch()),
+            }
             if function
                 .blocks
                 .iter()
                 .filter(|target| {
-                    target.id == edge.block && target.source_block == edge.source_target
+                    target.id == edge.block && target.source_block() == edge.source_target
                 })
                 .count()
                 != 1
             {
                 return Err(mismatch());
+            }
+            let destination = function
+                .blocks
+                .iter()
+                .find(|target| target.id == edge.block)
+                .ok_or_else(mismatch)?;
+            match destination.origin {
+                SelectedBlockOrigin::Source(_) => {}
+                SelectedBlockOrigin::EdgeTransfer {
+                    edge: owner,
+                    target,
+                } if edge.role == SelectedSuccessorRole::Semantic
+                    && owner == edge.psi_edge
+                    && target == edge.source_target
+                    && edge
+                        .bindings
+                        .iter()
+                        .all(|binding| binding.transport == SelectedValueTransport::Unused) => {}
+                _ => return Err(mismatch()),
             }
             for binding in &edge.bindings {
                 if edge

@@ -182,7 +182,7 @@ pub(super) fn raw_fixture() -> RawFixture {
         virtual_registers: registers,
         blocks: vec![SelectedBlock {
             id: SelectedBlockId(0),
-            source_block,
+            origin: selected_instructions::SelectedBlockOrigin::Source(source_block),
             instructions: vec![
                 instruction(0, 0, register_model::RegisterOperandAccess::Def),
                 instruction(1, 1, register_model::RegisterOperandAccess::Def),

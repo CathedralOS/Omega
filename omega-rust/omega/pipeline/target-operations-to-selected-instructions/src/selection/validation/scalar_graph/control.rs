@@ -304,7 +304,7 @@ fn check_successor(
         .selected
         .blocks
         .iter()
-        .filter(|block| block.source_block == source.target)
+        .filter(|block| block.source_block() == source.target)
         .collect::<Vec<_>>();
     let [block] = matches.as_slice() else {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
@@ -362,7 +362,7 @@ pub(super) fn block_order(
     }
     let mut seen = Vec::new();
     for (position, actual) in selected.blocks.iter().enumerate() {
-        if actual.id.0 as usize != position || seen.contains(&actual.source_block) {
+        if actual.id.0 as usize != position || seen.contains(&actual.source_block()) {
             return Err(invalid);
         }
         let expected = if position == 0 {
@@ -401,15 +401,15 @@ pub(super) fn block_order(
                 .map(|block| block.id)
                 .ok_or(invalid.clone())?
         };
-        if actual.source_block != expected
+        if actual.source_block() != expected
             || !source
                 .blocks
                 .iter()
-                .any(|block| block.id == actual.source_block)
+                .any(|block| block.id == actual.source_block())
         {
             return Err(invalid);
         }
-        seen.push(actual.source_block);
+        seen.push(actual.source_block());
     }
     Ok(())
 }

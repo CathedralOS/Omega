@@ -17,15 +17,28 @@ pub(super) fn validate(
             .filter(|source| source.machine == selected.machine)
             .collect::<Vec<_>>();
         match graph.as_slice() {
-            [source] => scalar_graph::validate(
-                function_index,
-                source,
-                selected,
-                target.target,
-                constraints,
-                physical,
-                catalog,
-            )?,
+            [source] => {
+                let projected =
+                    super::super::edge_transfers::project(function_index, selected, constraints)?;
+                scalar_graph::validate(
+                    function_index,
+                    source,
+                    &projected,
+                    target.target,
+                    constraints,
+                    physical,
+                    catalog,
+                )?;
+                for block in &selected.blocks {
+                    super::integrity::validate_block_constraints(
+                        function_index,
+                        block,
+                        selected,
+                        catalog,
+                    )?;
+                }
+                super::integrity::validate_def_use(function_index, selected, catalog)?;
+            }
             _ => return Err(SelectedInstructionError::SourceCustodyMismatch),
         }
     }

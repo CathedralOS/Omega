@@ -26,7 +26,7 @@ pub(super) fn validate_def_use(
                 .iter()
                 .position(|block| block.id == successor.block)
                 .ok_or_else(invalid)?;
-            if function.blocks[destination].source_block != successor.source_target {
+            if function.blocks[destination].source_block() != successor.source_target {
                 return Err(invalid());
             }
             predecessors[destination].push(source);

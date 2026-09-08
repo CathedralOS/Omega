@@ -448,7 +448,7 @@ fn materialize_block(
         .collect::<Result<Vec<_>, LivenessError>>()?;
     Ok(BlockLiveness {
         block: block.id,
-        source_block: block.source_block,
+        source_block: block.source_block(),
         virtual_live_in: sorted(&virtual_entry[&block.id]),
         virtual_live_out: sorted(&virtual_exit[&block.id]),
         unit_live_in: sorted(&unit_entry[&block.id]),

@@ -128,7 +128,7 @@ pub(crate) fn fixture() -> (
             virtual_registers: registers,
             blocks: vec![SelectedBlock {
                 id: SelectedBlockId(0),
-                source_block,
+                origin: selected_instructions::SelectedBlockOrigin::Source(source_block),
                 instructions: definitions,
                 terminator: SelectedTerminator::Return {
                     instruction: returned,

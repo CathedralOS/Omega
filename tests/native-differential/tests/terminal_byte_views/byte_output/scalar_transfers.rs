@@ -2,6 +2,9 @@
 use super::*;
 use semantic_vocabulary::BlockId;
 
+#[path = "scalar_transfers/native_scalar.rs"]
+mod native_scalar;
+
 fn scalar_transfer_output_module() -> TerminalModule {
     let mut module = unit_control::conditional_unit_byte_output_module();
     let caller = module.machines.last_mut().unwrap();
@@ -148,6 +151,26 @@ fn same_target_transfer_module() -> TerminalModule {
     module
 }
 
+fn duplicate_live_through_transfer_module() -> TerminalModule {
+    let mut module = paired_scalar_transfer_module();
+    let caller = module.machines.last_mut().unwrap();
+    caller.blocks[1].operations.clear();
+    for block in &mut caller.blocks[1..3] {
+        let Terminator::Jump { arguments, .. } = &mut block.terminator else {
+            panic!("duplicate-source arrival")
+        };
+        arguments[1] = arguments[0];
+    }
+    let mut output = caller.blocks[3].operations[0].clone();
+    output.id = OperationId::new(158).unwrap();
+    let OperationKind::CallUnit { arguments, .. } = &mut output.kind else {
+        panic!("live-through source output")
+    };
+    arguments[0] = ValueId::new(103).unwrap();
+    caller.blocks[3].operations.insert(2, output);
+    module
+}
+
 fn literal_boolean_transfer_module() -> TerminalModule {
     let mut module = scalar_guard_transfer_module(true);
     let caller = module.machines.last_mut().unwrap();
@@ -282,13 +305,18 @@ fn scalar_transfer_unit_output_publishes_u64_arrival() {
 }
 
 #[test]
-fn scalar_transfer_unit_output_paired_arrivals_require_physical_edge_copies() {
-    assert_edge_copy_fence(&paired_scalar_transfer_module());
+fn scalar_transfer_unit_output_publishes_paired_arrivals() {
+    assert_transfer_publication(&paired_scalar_transfer_module());
 }
 
 #[test]
-fn scalar_transfer_unit_output_same_target_arrivals_require_physical_edge_copies() {
-    assert_edge_copy_fence(&same_target_transfer_module());
+fn scalar_transfer_unit_output_publishes_same_target_arrivals() {
+    assert_transfer_publication(&same_target_transfer_module());
+}
+
+#[test]
+fn scalar_transfer_unit_output_publishes_duplicate_source_and_live_through() {
+    assert_transfer_publication(&duplicate_live_through_transfer_module());
 }
 
 #[test]
@@ -296,65 +324,8 @@ fn scalar_transfer_unit_output_publishes_literal_boolean_arrival() {
     assert_transfer_publication(&literal_boolean_transfer_module());
 }
 
-fn assert_edge_copy_fence(module: &TerminalModule) {
-    use selected_instructions_to_register_homes::{
-        OptimizedRegisterHomeCustodyError, RegisterAllocationError, RegisterHomeError,
-    };
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let semantic = terminal_codec::encode_module(module).unwrap();
-        let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
-        let selections = OptimizationSelections::new([]).unwrap();
-        let optimized = optimize_artifact_sections(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-            compiler_baseline_request_v1(&selections),
-        )
-        .unwrap();
-        let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions(
-            optimized, target, &[AdmittedBoundarySettlement {
-                boundary: module.boundary_machines[0].id,
-                execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32),
-                realization: LinuxWriteByteI32Realization.into(),
-            }],
-        ).unwrap();
-        let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
-        let selected =
-            target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                compiled,
-                environment,
-            )
-            .unwrap();
-        // Selection independently accepts these semantic bindings. Allocation
-        // rejects their unavailable physical edge-copy realization.
-        let optimized =
-            selected_instructions_to_selected_instructions::optimize_selected_instructions(
-                selected,
-            )
-            .unwrap();
-        let error =
-            match selected_instructions_to_register_homes::stage_register_allocation(optimized) {
-                Ok(_) => panic!(
-                    "edge-copy support now available; promote fixture to publication/runtime"
-                ),
-                Err(error) => error,
-            };
-        assert_eq!(
-            error,
-            RegisterAllocationError::Homes(OptimizedRegisterHomeCustodyError::Assignment(
-                RegisterHomeError::UnsupportedEdgeTransfer {
-                    function: 1,
-                    edge: 111,
-                }
-            ),),
-            "{target:?}"
-        );
-    }
-}
-
 #[test]
-fn scalar_transfer_unit_output_executes_coalescible_arrivals_and_continues() {
+fn scalar_transfer_unit_output_executes_ordered_arrivals_and_continues() {
     #[cfg(all(
         target_os = "linux",
         any(target_arch = "x86_64", target_arch = "aarch64")
@@ -363,7 +334,10 @@ fn scalar_transfer_unit_output_executes_coalescible_arrivals_and_continues() {
         (0, scalar_transfer_output_module()),
         (1, scalar_guard_transfer_module(true)),
         (2, scalar_guard_transfer_module(false)),
+        (3, paired_scalar_transfer_module()),
+        (4, same_target_transfer_module()),
         (5, literal_boolean_transfer_module()),
+        (6, duplicate_live_through_transfer_module()),
     ] {
         let (image, offset) = publish_transfer(NativeTarget::host(), &module);
         let signature = if mode == 2 { "uint64_t" } else { "bool" };
@@ -380,13 +354,18 @@ fn scalar_transfer_unit_output_executes_coalescible_arrivals_and_continues() {
                 close(channel[1]);
                 uint8_t expected[3072]; unsigned count = 0;
                 const uint64_t selectors[] = {0, 1, UINT64_MAX};
-                for (unsigned repetition = 0; repetition < 2; ++repetition)
+                for (unsigned repetition = 0; repetition < (MODE == 6 ? 1 : 2); ++repetition)
                     for (unsigned byte = 0; byte < 256; ++byte)
                         for (unsigned choice = 0; choice < (MODE == 2 ? 3 : 2); ++choice) {
                             uint64_t selector = selectors[choice];
                             omega_entry((uint8_t)byte, selector);
                             bool selected = MODE == 5 ? false : MODE == 2 ? selector == 0 : selector != 0;
                             expected[count++] = selected ? byte : '?';
+                            if (MODE == 3) expected[count++] = selected ? '?' : byte;
+                            if (MODE == 6) {
+                                expected[count++] = selected ? byte : '?';
+                                expected[count++] = byte;
+                            }
                             expected[count++] = '!';
                         }
                 if (dup2(saved, STDOUT_FILENO) < 0) return 3;

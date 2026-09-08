@@ -21,6 +21,7 @@ pub(super) fn provenance(
             successor,
         } if jump.id == instruction.id => FunctionFragmentControlProvenance::Jump {
             successor: FunctionFragmentSuccessorProvenance {
+                role: successor.role,
                 psi_edge: successor.psi_edge,
                 block: successor.block,
                 source_target: successor.source_target,
@@ -39,6 +40,7 @@ pub(super) fn provenance(
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
             when_taken: FunctionFragmentSuccessorProvenance {
+                role: when_nonzero.role,
                 psi_edge: when_nonzero.psi_edge,
                 block: when_nonzero.block,
                 source_target: when_nonzero.source_target,
@@ -50,6 +52,7 @@ pub(super) fn provenance(
                 fuel: when_nonzero.fuel.clone(),
             },
             when_fallthrough: FunctionFragmentSuccessorProvenance {
+                role: when_zero.role,
                 psi_edge: when_zero.psi_edge,
                 block: when_zero.block,
                 source_target: when_zero.source_target,
@@ -68,6 +71,7 @@ pub(super) fn provenance(
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
             when_taken: FunctionFragmentSuccessorProvenance {
+                role: when_less.role,
                 psi_edge: when_less.psi_edge,
                 block: when_less.block,
                 source_target: when_less.source_target,
@@ -79,6 +83,7 @@ pub(super) fn provenance(
                 fuel: when_less.fuel.clone(),
             },
             when_fallthrough: FunctionFragmentSuccessorProvenance {
+                role: when_not_less.role,
                 psi_edge: when_not_less.psi_edge,
                 block: when_not_less.block,
                 source_target: when_not_less.source_target,
@@ -97,6 +102,7 @@ pub(super) fn provenance(
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::I64LessThanV1,
             when_taken: FunctionFragmentSuccessorProvenance {
+                role: when_less.role,
                 psi_edge: when_less.psi_edge,
                 block: when_less.block,
                 source_target: when_less.source_target,
@@ -108,6 +114,7 @@ pub(super) fn provenance(
                 fuel: when_less.fuel.clone(),
             },
             when_fallthrough: FunctionFragmentSuccessorProvenance {
+                role: when_not_less.role,
                 psi_edge: when_not_less.psi_edge,
                 block: when_not_less.block,
                 source_target: when_not_less.source_target,

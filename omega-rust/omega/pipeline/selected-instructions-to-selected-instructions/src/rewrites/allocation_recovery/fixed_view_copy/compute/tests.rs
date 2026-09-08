@@ -125,11 +125,14 @@ pub(crate) fn fixture() -> (
         blocks: vec![
             SelectedBlock {
                 id: SelectedBlockId(0),
-                source_block: BlockId::new(1).unwrap(),
+                origin: selected_instructions::SelectedBlockOrigin::Source(
+                    BlockId::new(1).unwrap(),
+                ),
                 instructions: vec![compare],
                 terminator: SelectedTerminator::ConditionalBranch {
                     instruction: branch,
                     when_nonzero: SelectedSuccessor {
+                        role: selected_instructions::SelectedSuccessorRole::Semantic,
                         psi_edge: EdgeId::new(1).unwrap(),
                         block: SelectedBlockId(1),
                         source_target: BlockId::new(2).unwrap(),
@@ -137,6 +140,7 @@ pub(crate) fn fixture() -> (
                         fuel: Vec::new(),
                     },
                     when_zero: SelectedSuccessor {
+                        role: selected_instructions::SelectedSuccessorRole::Semantic,
                         psi_edge: EdgeId::new(2).unwrap(),
                         block: SelectedBlockId(2),
                         source_target: BlockId::new(3).unwrap(),
@@ -147,7 +151,9 @@ pub(crate) fn fixture() -> (
             },
             SelectedBlock {
                 id: SelectedBlockId(1),
-                source_block: BlockId::new(2).unwrap(),
+                origin: selected_instructions::SelectedBlockOrigin::Source(
+                    BlockId::new(2).unwrap(),
+                ),
                 instructions: Vec::new(),
                 terminator: SelectedTerminator::Return {
                     instruction: return_a,
@@ -156,7 +162,9 @@ pub(crate) fn fixture() -> (
             },
             SelectedBlock {
                 id: SelectedBlockId(2),
-                source_block: BlockId::new(3).unwrap(),
+                origin: selected_instructions::SelectedBlockOrigin::Source(
+                    BlockId::new(3).unwrap(),
+                ),
                 instructions: Vec::new(),
                 terminator: SelectedTerminator::Return {
                     instruction: return_b,
