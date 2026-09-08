@@ -156,19 +156,19 @@
                     expressionValue base arguments active pending machineValue
                     continuationStart receiverScan))
                 (EpsilonOrdinaryExpressionUse
-                  (epsilon_local_scan_unqualified_machine_application source
-                    expressionValue base arguments active pending useValue
-                    (epsilon_local_scan_reject_value_call expressionValue base
+                  (epsilon_local_scan_reject_value_call expressionValue base
+                    (epsilon_local_scan_unqualified_machine_application source
+                      expressionValue base arguments active pending useValue
                       receiverScan)))
                 (EpsilonCallHeadExpressionUse
-                  (epsilon_local_scan_unqualified_machine_application source
-                    expressionValue base arguments active pending useValue
-                    (epsilon_local_scan_reject_value_call expressionValue base
+                  (epsilon_local_scan_reject_value_call expressionValue base
+                    (epsilon_local_scan_unqualified_machine_application source
+                      expressionValue base arguments active pending useValue
                       receiverScan)))
                 ((EpsilonPostfixStatementExpressionUse statementStart)
-                  (epsilon_local_scan_unqualified_machine_application source
-                    expressionValue base arguments active pending useValue
-                    (epsilon_local_scan_reject_value_call expressionValue base
+                  (epsilon_local_scan_reject_value_call expressionValue base
+                    (epsilon_local_scan_unqualified_machine_application source
+                      expressionValue base arguments active pending useValue
                       receiverScan)))))))))
     ((EpsilonIndexExpression start end base indexValue)
       (epsilon_local_scan_index_fact expressionValue base indexValue

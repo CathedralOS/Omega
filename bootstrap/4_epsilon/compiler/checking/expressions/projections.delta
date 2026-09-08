@@ -259,20 +259,34 @@
   (match scan
     ((EpsilonLocalResolutionScanSyntax catalog references fields callables stateApplications types
       candidate)
-      (match (epsilon_find_expression_result base types)
-        (NoEpsilonExpressionResult scan)
-        ((OneEpsilonExpressionResult resultValue)
-          (match resultValue
-            ((EpsilonValueExpressionResult typeValue placeType)
-              (epsilon_local_scan_add_candidate TypeMismatch
-                (epsilon_expression_start expressionValue) scan))
-            (EpsilonResultlessExpressionResult
-              (epsilon_local_scan_add_candidate TypeMismatch
-                (epsilon_expression_start expressionValue) scan))
-            (EpsilonNeverExpressionResult
-              (epsilon_local_scan_add_candidate InvalidTerminal
-                (epsilon_expression_start (epsilon_call_head_core base))
-                scan))))))))
+      ; Callable resolution runs after all child calls and prepends its exact
+      ; application identity. Its named callable head has no value fact, even
+      ; when receiver-place or signature checking contributed a candidate.
+      ; A child call (including one with the same start) cannot authorize this
+      ; skip: kind and both span endpoints must match the current application.
+      (let currentCallable Int
+        (match callables
+          (NoEpsilonResolvedCallableReferences 0)
+          ((MoreEpsilonResolvedCallableReferences item rest)
+            (match item
+              ((EpsilonResolvedCallableReferenceSyntax target callable)
+                (epsilon_expressions_same_identity expressionValue target)))))
+        (if currentCallable
+          scan
+          (match (epsilon_find_expression_result base types)
+            (NoEpsilonExpressionResult scan)
+            ((OneEpsilonExpressionResult resultValue)
+              (match resultValue
+                ((EpsilonValueExpressionResult typeValue placeType)
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_expression_start expressionValue) scan))
+                (EpsilonResultlessExpressionResult
+                  (epsilon_local_scan_add_candidate TypeMismatch
+                    (epsilon_expression_start expressionValue) scan))
+                (EpsilonNeverExpressionResult
+                  (epsilon_local_scan_add_candidate InvalidTerminal
+                    (epsilon_expression_start (epsilon_call_head_core base))
+                    scan))))))))))
 
 (def epsilon_local_scan_index_fact ((expressionValue EpsilonExpression)
   (base EpsilonExpression) (indexValue EpsilonExpression)

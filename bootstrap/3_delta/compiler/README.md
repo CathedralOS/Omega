@@ -402,9 +402,9 @@ Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution
   -> all nullary, unary, and three-field constructor shapes produce byte 7
 946-line / 35,826-byte current Epsilon declaration prefix plus scalar entry
   -> exact 21-byte scalar Gamma receipt within the evaluator watchdog
-12,004-line / 611,372-byte current Epsilon source plus checking entry
-  -> measured 707,983-byte Gamma receipt
-  -> checking gate requires 60 exact judgments
+12,018-line / 612,210-byte current Epsilon source plus checking entry
+  -> measured 708,456-byte Gamma receipt
+  -> checking gate requires 70 exact judgments
 3,001-function / 66,266-byte scale fixture
   -> 78,271-byte Gamma receipt
   -> selected Gamma evaluation produces byte 199
