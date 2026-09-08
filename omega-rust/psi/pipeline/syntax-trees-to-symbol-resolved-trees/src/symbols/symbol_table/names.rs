@@ -33,6 +33,36 @@ pub(super) fn operator_symbol_name(
         .join("::")
 }
 
+pub(super) fn measure_symbol_name(
+    program: &SymbolResolvedTrees,
+    measure: &symbol_resolved_trees::measure::MeasureDefinition,
+) -> String {
+    program
+        .measure_path_members(measure.name)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+pub(super) fn measure_symbol_seed<'name>(
+    program: &SymbolResolvedTrees,
+    measure: &symbol_resolved_trees::measure::MeasureDefinition,
+    canonical_name: &'name str,
+    has_sources: bool,
+) -> SymbolSeed<'name> {
+    match program.measure_path_members(measure.name).last() {
+        Some(name) if has_sources && name.is_source_backed() => (
+            SymbolKind::Measure,
+            SymbolNameRef::OwnedSource {
+                value: canonical_name,
+                source_span: name.source_span(),
+            },
+        ),
+        _ => (SymbolKind::Measure, SymbolNameRef::Borrowed(canonical_name)),
+    }
+}
+
 pub(super) fn operator_symbol_seed<'name>(
     program: &SymbolResolvedTrees,
     operator: &symbol_resolved_trees::operator::OperatorDefinition,

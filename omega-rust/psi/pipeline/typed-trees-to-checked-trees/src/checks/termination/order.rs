@@ -435,7 +435,24 @@ fn measure_body_shape(
         return None;
     }
     match program.expression_table.expression(body[0]) {
-        ExpressionNode::Name(_) => Some(MeasureBodyShape::ParameterForward),
+        ExpressionNode::Name(path) => {
+            let parameter = measure.parameter.as_ref()?;
+            let binder = program.symbols.get(parameter.symbol);
+            // A name-shaped body is not evidence of an identity function.
+            // Its reference must belong to this exact measure's telescope.
+            (parameter.symbol.is_valid()
+                && program.symbols.get(measure.symbol).kind == symbols::SymbolKind::Measure
+                && binder.kind == symbols::SymbolKind::Parameter
+                && binder.parent == measure.symbol
+                && path.symbol == parameter.symbol
+                && path.head_symbol == parameter.symbol
+                && program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1)
+                .then_some(MeasureBodyShape::ParameterForward)
+        }
         ExpressionNode::Member(member) => {
             Some(MeasureBodyShape::FieldProjection(member.member.clone()))
         }
@@ -473,14 +490,16 @@ fn find_declared_measure<'program>(
     program: &'program typed_trees::TypedTrees,
     order: &[&str],
 ) -> Option<&'program MeasureDefinition> {
-    program.measures().iter().find(|measure| {
+    let mut matching = program.measures().iter().filter(|measure| {
         let actual = program.measure_path_members(measure.name);
         actual.len() == order.len()
             && actual
                 .iter()
                 .zip(order.iter())
                 .all(|(actual, expected)| actual.as_str() == *expected)
-    })
+    });
+    let measure = matching.next()?;
+    matching.next().is_none().then_some(measure)
 }
 
 /// `usize` is retired (parse-rejected); `u64` is the natural-measure name,
@@ -577,7 +596,7 @@ fn state_parameter_type_name(
         .map(|parameter| {
             program
                 .type_reference_table
-                .display_name(parameter.type_reference)
+                .display_name(unwrap_constraint_shells(program, parameter.type_reference))
         })
 }
 

@@ -13,11 +13,12 @@ use symbols::{
 use crate::symbols::symbol_table::children::{
     insert_builtin_type_symbol_children, insert_conformance_symbol_children,
     insert_data_symbol_children, insert_domain_symbol_children, insert_machine_symbol_children,
-    insert_operator_symbol_children, insert_proposition_symbol_children,
-    insert_trait_symbol_children,
+    insert_measure_symbol_children, insert_operator_symbol_children,
+    insert_proposition_symbol_children, insert_trait_symbol_children,
 };
 use crate::symbols::symbol_table::names::{
-    operator_symbol_name, operator_symbol_seed, symbol_seed,
+    measure_symbol_name, measure_symbol_seed, operator_symbol_name, operator_symbol_seed,
+    symbol_seed,
 };
 
 pub(super) fn extend_symbol_table(
@@ -114,6 +115,18 @@ pub(super) fn extend_symbol_table(
         insert_operator_symbol_children(&mut extension, program, symbol, &operator, has_sources);
         program.operators[index].symbol = symbol;
     }
+    for index in roots.measures..program.measures.len() {
+        let measure = program.measures[index].clone();
+        let name = measure_symbol_name(program, &measure);
+        let symbol = extension.insert_top_level([measure_symbol_seed(
+            program,
+            &measure,
+            &name,
+            has_sources,
+        )])[0];
+        insert_measure_symbol_children(&mut extension, symbol, &measure, has_sources);
+        program.measures[index].symbol = symbol;
+    }
     for index in roots.traits..program.traits.len() {
         let definition = program.traits[index].clone();
         let symbol = extension.insert_top_level([symbol_seed(
@@ -164,6 +177,11 @@ pub(super) fn build_symbol_table(
         .iter()
         .map(|operator| operator_symbol_name(program, operator))
         .collect::<Vec<_>>();
+    let measure_names = program
+        .measures
+        .iter()
+        .map(|measure| measure_symbol_name(program, measure))
+        .collect::<Vec<_>>();
     let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
         sources,
         source_scoped_top_level_bindings,
@@ -207,6 +225,14 @@ pub(super) fn build_symbol_table(
                     .zip(program.operators.iter())
                     .map(|(name, operator)| {
                         operator_symbol_seed(program, operator, name, has_sources)
+                    }),
+            )
+            .chain(
+                measure_names
+                    .iter()
+                    .zip(program.measures.iter())
+                    .map(|(name, measure)| {
+                        measure_symbol_seed(program, measure, name, has_sources)
                     }),
             )
             .chain(program.traits.iter().map(|trait_definition| {
@@ -309,6 +335,11 @@ pub(super) fn build_symbol_table(
                 operator,
                 has_sources,
             );
+        }
+    }
+    for measure in &program.measures {
+        if let Some(measure_symbol) = root_children.next() {
+            insert_measure_symbol_children(&mut builder, measure_symbol, measure, has_sources);
         }
     }
     for trait_definition in &program.traits {

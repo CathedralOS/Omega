@@ -17,6 +17,21 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder}
 
 use super::names::symbol_seed;
 
+pub(super) fn insert_measure_symbol_children(
+    builder: &mut impl SymbolTableAppender,
+    measure_symbol: SymbolHandle,
+    measure: &symbol_resolved_trees::measure::MeasureDefinition,
+    has_sources: bool,
+) {
+    builder.insert_children(
+        measure_symbol,
+        measure
+            .parameter
+            .iter()
+            .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
+    );
+}
+
 /// Insert the lexical children owned by a machine-parameter signature. Its
 /// generic parameters precede its value parameters, mirroring ordinary
 /// machine symbol layout. Nested machine parameters recursively own their

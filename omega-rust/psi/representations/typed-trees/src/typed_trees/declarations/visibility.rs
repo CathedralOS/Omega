@@ -29,6 +29,7 @@ pub const fn requires_declaration_visibility(kind: SymbolKind) -> bool {
             | SymbolKind::Variant
             | SymbolKind::Machine
             | SymbolKind::Operator
+            | SymbolKind::Measure
             | SymbolKind::Proposition
             | SymbolKind::State
             | SymbolKind::Trait
@@ -69,6 +70,11 @@ pub fn declaration_visibility(
             .map(|declaration| ("machine", declaration.is_public)),
         SymbolKind::Operator => crate::operator::declaration_by_symbol(program, symbol)
             .map(|declaration| ("operator", declaration.is_public)),
+        SymbolKind::Measure => program
+            .measures()
+            .iter()
+            .find(|declaration| declaration.symbol == symbol)
+            .map(|_| ("measure", false)),
         SymbolKind::Proposition => program
             .propositions()
             .iter()

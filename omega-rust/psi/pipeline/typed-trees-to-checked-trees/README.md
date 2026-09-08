@@ -67,6 +67,12 @@ proof nor an acyclic body excuses an invalid authored rank. Named-state,
 mutable, custom-view, and call-component range transport require their own proof
 support. Slice ranking shares validation's exact nonempty-slice/`1..` rule.
 
+A declared `u64 -> u64` identity measure shares scalar range proofs only when
+its body names its exact resolved parameter. The authored custom view remains
+private witness identity; it is not relabeled `Nat::Descending`. Constrained
+subjects retain their scalar carrier. Non-identity projections and constrained
+measure parameters need their own checked application/projection evidence.
+
 Computed state arrivals may use multiple copies of the same authored scalar
 rank. Mapping discovery identifies that entry role; the arithmetic edge judgment
 separately proves required copies equal on every arrival before using equality

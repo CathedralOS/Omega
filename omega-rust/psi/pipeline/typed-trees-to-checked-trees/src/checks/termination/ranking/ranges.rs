@@ -67,9 +67,10 @@ fn proves_range(
         return None;
     }
     let (rank, pinned_bound) = match (order, measure) {
-        (RankingOrder::NatDescending, DecreaseMeasure::Single(subject)) => {
-            (bounds(program, machine, subject)?, None)
-        }
+        (
+            RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
+            DecreaseMeasure::Single(subject),
+        ) => (bounds(program, machine, subject)?, None),
         (RankingOrder::IncreasingTo(limit), DecreaseMeasure::Distance { lower, upper })
             if *limit == upper =>
         {

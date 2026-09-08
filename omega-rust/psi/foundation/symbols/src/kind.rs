@@ -12,6 +12,8 @@ pub enum SymbolKind {
     Variant,
     Machine,
     Operator,
+    /// A package-private ranking declaration owning its measured parameter.
+    Measure,
     Proposition,
     State,
     Trait,
