@@ -94,8 +94,8 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   in build evaluation/realization inputs, Mach-O signing, command publication,
   and compilation reports. Preserve flat/report validation and flat v1 digests.
   Specify the identifier field in ordinary build vocabulary,
-  preserve portable GUI intent separately from PE integers, and bind native
-  signing identity before emission. Publish one whole validated `.app` with
+  carry `CheckedCompilation::application_intent()` through native realization
+  separately from PE integers, and bind native signing identity before emission. Publish one whole validated `.app` with
   distinct checked package-root and inner-executable accessors.
 
   Acceptance: the specification's stage-requiredness, deterministic bytes, cross-invocation,
@@ -104,6 +104,14 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   GUI cohort on macOS, recording unavailable-host coverage explicitly. Resource
   inclusion/lookup for `image_viewer` remains outside v1; do not claim Finder
   runtime coverage for it or silently change its working directory.
+
+  The macOS ARM64 `window_app` [outer command](samples/gui/window_app/README.md)
+  at `bdf3195a4a` exits 1 at ordinary package review: acceptance is missing or
+  current requirements need review. No phase artifacts are produced. Complete
+  ordinary package review before identifying its next native failure; do not
+  infer it from the build-intent tests. The checked intent owner is
+  `build-evaluation/src/lib.rs`, carried by `compiler/src/pipeline/checked_entry.rs`.
+  The retained native proposal still carries only the PE word.
 
 - **SAMPLE-CORPUS.** `mbx test -p compiler --test samples_compile` is red.
   `cli/proofs/math_proofs` needs ordinary core multiset data and slice-to-proof

@@ -135,6 +135,42 @@ fn exact_target_is_source_visible_and_drives_build_evaluation() {
         Some(target::TargetProfile::WindowsX64)
     );
     assert_eq!(checked.subsystem(), 2, "Windows branch must select Gui");
+    assert_eq!(
+        checked.application_intent(),
+        Some(build_evaluation::HostedApplicationIntent::Gui)
+    );
+    let other = compile_to_checked(&project.main(), Some("macos_arm64"))
+        .expect("the macOS selection must execute its own authored branch");
+    assert_eq!(
+        other.application_intent(),
+        Some(build_evaluation::HostedApplicationIntent::Console)
+    );
+    assert_eq!(other.subsystem(), 3);
+}
+
+#[test]
+fn checked_build_preserves_hosted_intent_without_interpreting_raw_pe_words() {
+    use build_evaluation::HostedApplicationIntent::{Console, Gui};
+    for (subsystem, intent, pe_word) in [
+        ("Gui", Some(Gui), 2),
+        ("Console", Some(Console), 3),
+        ("Unspecified { value: 2 }", None, 2),
+        ("Unspecified { value: 3 }", None, 3),
+    ] {
+        let project = TempProject::new(&application_build(&format!(
+            "    builder.subsystem = Subsystem::{subsystem};"
+        )));
+        for target in ["macos_arm64", "windows_x86_64", "linux_x86_64"] {
+            let checked = compile_to_checked(&project.main(), Some(target))
+                .expect("authored subsystem must survive the ordinary checked route");
+            assert_eq!(
+                checked.application_intent(),
+                intent,
+                "{target}: {subsystem}"
+            );
+            assert_eq!(checked.subsystem(), pe_word, "{target}: {subsystem}");
+        }
+    }
 }
 
 #[test]

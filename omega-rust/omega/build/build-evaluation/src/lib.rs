@@ -272,6 +272,9 @@ impl BuildMachineFilesystemScope {
 /// `Build`. ZII: the default IS the zero value's meaning.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildConfig {
+    /// Authored hosted presentation intent, independent of PE loader metadata.
+    /// EFI and raw `Unspecified` words carry no hosted application intent.
+    pub application_intent: Option<HostedApplicationIntent>,
     /// PE optional-header Subsystem word (console 3 when unstated).
     pub subsystem: u16,
     /// Freestanding image: no ambient host packages or import thunks.
@@ -304,6 +307,15 @@ pub struct BuildConfig {
     /// machine. The binding names an exact source machine; no entry discovery
     /// or naming convention participates once a binding is present.
     pub root_bindings: Vec<RootBinding>,
+}
+
+/// Portable presentation requested by the authored Console or Gui case.
+/// This does not select an execution environment or enable bundle publication
+/// independently of the selected target and requested output product.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostedApplicationIntent {
+    Console,
+    Gui,
 }
 
 /// Accounting-only projection of the transitional typed-tree build evaluator.
@@ -2341,6 +2353,7 @@ pub struct WireCompatibilityDemand {
 impl Default for BuildConfig {
     fn default() -> Self {
         Self {
+            application_intent: Some(HostedApplicationIntent::Console),
             subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
             freestanding: false,
             optimizations: OptimizationSelections::default(),
@@ -5318,18 +5331,19 @@ fn extract_build_config(
         None
     };
 
-    let subsystem = match field("subsystem")? {
+    let (application_intent, subsystem) = match field("subsystem")? {
         BuildTimeValue::Case { variant, payload } => {
             match variant.rsplit("::").next().unwrap_or(variant) {
-                "Console" => 3u16,
-                "Gui" => 2,
-                "EfiApplication" => 10,
+                "Console" => (Some(HostedApplicationIntent::Console), 3u16),
+                "Gui" => (Some(HostedApplicationIntent::Gui), 2),
+                "EfiApplication" => (None, 10),
                 "Unspecified" => match payload.iter().find(|(name, _)| name == "value") {
-                    Some((_, BuildTimeValue::Int(value))) => {
+                    Some((_, BuildTimeValue::Int(value))) => (
+                        None,
                         u16::try_from(*value).map_err(|_| {
                             format!("Unspecified subsystem value {value} exceeds a u16")
-                        })?
-                    }
+                        })?,
+                    ),
                     other => {
                         return Err(format!(
                             "Unspecified subsystem carries no integer value: {other:?}"
@@ -5355,6 +5369,7 @@ fn extract_build_config(
 
     Ok((
         BuildConfig {
+            application_intent,
             subsystem,
             freestanding,
             optimizations,
@@ -5405,6 +5420,75 @@ mod tests {
                 })
                 .collect(),
             ..BuildConfig::default()
+        }
+    }
+
+    #[test]
+    fn gui_intent_is_not_an_unspecified_pe_subsystem() {
+        let mut typed = typed_trees::TypedTrees::default();
+        typed.push_data_definition(typed_trees::data::DataDefinition {
+            name: "Build".into(),
+            ..Default::default()
+        });
+        let extract = |variant: &str, payload| {
+            let build = super::BuildTimeValue::Struct {
+                type_name: "Build".into(),
+                fields: vec![
+                    (
+                        "subsystem".into(),
+                        super::BuildTimeValue::Case {
+                            variant: variant.into(),
+                            payload,
+                        },
+                    ),
+                    ("freestanding".into(), super::BuildTimeValue::Bool(false)),
+                ],
+            };
+            super::extract_build_config(
+                &build,
+                super::optimization::BuildOptimizationAdmission::admit(&typed).unwrap(),
+                None,
+                false,
+            )
+            .unwrap()
+            .0
+        };
+        let gui = extract("Gui", vec![]);
+        let unspecified = extract(
+            "Unspecified",
+            vec![("value".into(), super::BuildTimeValue::Int(2))],
+        );
+        assert_eq!(gui.subsystem, unspecified.subsystem);
+        assert_ne!(
+            gui, unspecified,
+            "equal PE words do not establish GUI application intent"
+        );
+        assert_eq!(
+            gui.application_intent,
+            Some(super::HostedApplicationIntent::Gui)
+        );
+        assert_eq!(unspecified.application_intent, None);
+        let console = extract("Console", vec![]);
+        assert_eq!(
+            console.application_intent,
+            Some(super::HostedApplicationIntent::Console)
+        );
+        assert_eq!(console.subsystem, 3);
+        assert_eq!(console, BuildConfig::default());
+        let efi = extract("EfiApplication", vec![]);
+        assert_eq!(efi.application_intent, None);
+        assert_eq!(efi.subsystem, 10);
+        assert!(
+            !efi.freestanding,
+            "presentation extraction must not override environment policy"
+        );
+        for word in [0, 2, 3, 10, 65535] {
+            let raw = extract(
+                "Unspecified",
+                vec![("value".into(), super::BuildTimeValue::Int(word))],
+            );
+            assert_eq!(raw.application_intent, None);
+            assert_eq!(raw.subsystem, word as u16);
         }
     }
 
