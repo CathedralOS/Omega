@@ -9,6 +9,8 @@ use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, Operation, OperationResult,
     TerminalMachineResult, Terminator, ValueDeclaration,
 };
+#[path = "byte_output/widening.rs"]
+mod widening;
 
 fn byte_output_module() -> TerminalModule {
     let mut module = fixtures::byte_view_length_module();
@@ -57,11 +59,18 @@ fn stage_byte_output(
     target: NativeTarget,
 ) -> machine_emission::StagedOptimizedFixedFrameTextSection {
     let module = byte_output_module();
+    stage_byte_output_module(target, &module)
+}
+
+fn stage_byte_output_module(
+    target: NativeTarget,
+    module: &TerminalModule,
+) -> machine_emission::StagedOptimizedFixedFrameTextSection {
     let proof = ProofBundle::default();
-    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
+    terminal_verifier::verify_module(module, &proof, &AdmissionProfile::default()).unwrap();
     calls::stage_call_text_with_settlements(
         target,
-        &module,
+        module,
         &proof,
         &[AdmittedBoundarySettlement {
             boundary: module.boundary_machines[0].id,

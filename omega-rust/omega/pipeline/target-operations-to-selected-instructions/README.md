@@ -75,6 +75,14 @@ syscall sequence and resolved slot. Object evidence distinguishes this selected
 input transport from legacy immediate materialization. This Linux realization
 does not authorize a macOS/Windows provider or establish writer control flow.
 
+Ordered Unit scalar definitions join their exact source operations before
+entering the same legalized SSA graph. Explicit `u8` widening to fixed
+16/32/64-bit signed or unsigned integers reuses ordinary copies after byte
+inputs are zero-extended at the ABI boundary. Result type, defining operation,
+source identity and value residence remain independently replayed; no new
+instruction or forced stack home is needed. Other source widths and general
+Unit control-flow composition remain separate realization work.
+
 [Construction](src/selection/construction/mod.rs) and independent validation
 derive separate projections. Replay checks the complete selected content against
 the semantic/optimized input, target plan and register catalog, including exact

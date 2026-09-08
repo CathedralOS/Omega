@@ -7,11 +7,11 @@ use semantic_vocabulary::{
 };
 use terminal_psi::StructuralOperationResult;
 
-/// A scalar value produced by an attached-Unit call that must survive the
-/// call-result register's next clobber.
+/// A scalar value produced by an ordered Unit definition or call that must
+/// remain available to its later uses.
 ///
 /// This is a storage requirement, not a storage decision. The assignment
-/// stage must give this exact terminal value a durable physical home and must
+/// stage must give this exact terminal value a physical residence and must
 /// use that same home for every later [`crate::TargetUnitScalarArgumentSource::Home`]
 /// occurrence. Keeping the defining operation, value identity, type, and
 /// shape together prevents a same-typed result from being substituted.

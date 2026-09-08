@@ -321,7 +321,9 @@ pub(super) fn validate(
                 ..
             } => {
                 if *source_type != u8_type()
-                    || *target_type != u64_type()
+                    || target_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+                    || !matches!(target_type.bits(), 16 | 32 | 64)
+                    || !source_type.can_widen_to(*target_type)
                     || value_type(optimized, *operand) != Some(ScalarType::Integer(*source_type))
                 {
                     return Err(invalid);

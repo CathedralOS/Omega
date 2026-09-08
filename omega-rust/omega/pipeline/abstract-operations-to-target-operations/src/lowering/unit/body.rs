@@ -10,7 +10,8 @@ use super::dynamic::{
 use super::return_unit::lower_unit_return;
 use super::scalar_call::lower_scalar_call;
 use super::scalar_definitions::{
-    lower_boolean_constant, lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
+    lower_boolean_constant, lower_ieee_float_constant, lower_ieee_float_fma,
+    lower_integer_constant, lower_integer_widen,
 };
 use super::structural_call::{StructuralCallLocalSource, lower_structural_unit_call};
 use super::structural_result::lower_structural_result_call;
@@ -455,6 +456,15 @@ pub(super) fn lower_unit_body(
                 &mut provenance,
                 &mut returned,
             )?,
+            AbstractOperation::IntegerWiden { .. } => lower_integer_widen(
+                operation,
+                function.machine,
+                scalar_parameters,
+                nonreturning_boundary,
+                &mut scalar_values,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::IntegerConstant {
                 psi_operation,
                 result,
@@ -533,7 +543,6 @@ pub(super) fn lower_unit_body(
             | AbstractOperation::IntegerLessThan { .. }
             | AbstractOperation::IntegerLessOrEqual { .. }
             | AbstractOperation::IntegerBitwiseNot { .. }
-            | AbstractOperation::IntegerWiden { .. }
             | AbstractOperation::IntegerExactCast { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }
             | AbstractOperation::IntegerBitwiseOr { .. }

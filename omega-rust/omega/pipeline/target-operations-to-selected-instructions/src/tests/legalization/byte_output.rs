@@ -14,7 +14,7 @@ use target_operations::{
     TargetUnitOperation,
 };
 
-fn fixture(
+pub(super) fn fixture(
     native: NativeTarget,
 ) -> (
     abstract_operations::AbstractOperationPlan,
