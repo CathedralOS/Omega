@@ -1,4 +1,4 @@
-//! Versioned exact-rule release and promotion custody.
+//! Exact-rule inventory and owner-reviewed promotion custody.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 mod inventory;
 mod promotion;
 
-const RELEASE_NOTES: &str = "wiki/pre_migration/releases/optimizer_exact_rules_v1.md";
-const PROMOTION_ROOT: &str = "wiki/pre_migration/releases/optimizer_promotions";
+const RULE_INVENTORY: &str = "omega-rust/omega/representations/optimization-core/rules.md";
+const PROMOTION_ROOT: &str = "omega-rust/omega/representations/optimization-core/promotions";
 
 struct Audit {
     repository: PathBuf,

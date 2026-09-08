@@ -1,7 +1,7 @@
 # Delta language
 
 Delta is the small, typed, pure definitional language used to implement the
-Epsilon compiler. Its selected Gamma-authored implementation edge is currently
+Epsilon evaluator. Its selected Gamma-authored implementation edge is currently
 open. Earlier concatenative compilers and bounded oracles supplied implementation
 evidence; none defines a second Delta language.
 
@@ -160,8 +160,8 @@ profile's `Incomplete` result and proves neither rejection nor divergence.
 ## Compiler-application profile
 
 Delta itself has no byte-I/O operation. Its source semantics ends at a pure
-returned value; a compiler-generated Alpha adapter may join that value to
-sealed input and an external observation contract. D19 fixes that adapter
+returned value; a compiler-generated Gamma adapter may join that value to
+sealed input and an external observation contract. The adapter
 choice as one closed, sealed application-profile ID supplied alongside the
 exact Delta source. The ID is part of compilation identity and reconstruction
 evidence. It is not Delta syntax, an ambient host flag, a filename convention,
@@ -226,7 +226,8 @@ failure. Divergence produces no terminal observation.
 Canonical compiler edges share one boundary discipline:
 
 - halt values `0..3` mean Complete, Reject, Incomplete, and InternalFailure;
-- success stdout is the raw runnable tape with no wrapper;
+- success stdout is the exact canonical output for that edge: Gamma source for
+  Delta, or raw Alpha tape for an Omega `alpha_bootstrap` product, with no wrapper;
 - failure stdout is one canonical 40-byte, `0xFF`-prefixed frame whose tag agrees
   with the halt value; and
 - unknown, malformed, noncanonical, or mismatched frames reject.
@@ -282,7 +283,7 @@ entry-schema diagnostics also publish canonical DCOUT. Declaration and body
 checking publish codes 9 through 18 for local/pattern conflicts, unknown names
 and types, type and arity disagreement, duplicate match cases, and incomplete
 match coverage. The complete global
-census precedes this phase. It accounts for D30's 32,768 authored function
+census precedes this phase. It accounts for 32,768 authored function
 rows, checking an exact duplicate before provisioning each fresh row. A fresh
 32,769th function returns `Incomplete` resource code 4 at its name-token start,
 limit 32,768 and requested 32,769, before insertion or declaration-type
@@ -309,7 +310,7 @@ requesting total row 65,537 returns `Incomplete` resource code 2 at its
 type-name start, with limit 65,536 and requested 65,537, before type metadata
 or any constructor processing. Builtin identities need no nominal trie entries,
 but that representation choice does not increase the selected logical total.
-Local environments account for D30's 65,536 active binding rows. Each function
+Local environments account for 65,536 active binding rows. Each function
 starts with an empty environment; its parameters, active `let` bindings, and
 current pattern bindings share this limit. A fresh 65,537th binding returns
 `Incomplete` resource code 5 at its name-token start, with limit 65,536 and
@@ -353,13 +354,13 @@ disagreement remain raw evaluator failures, not canonical DCOUT outcomes. The
 keeps admitted-source intermediate and complete emission counts below `2^62`;
 the private overflow case is not reachable through that producer. This is a
 source-level implementation argument, not a checked Delta refinement proof.
-Grammar implements D30's 1,024-level expression `parse_depth` profile: bodies
+Grammar implements the 1,024-level expression `parse_depth` profile: bodies
 start at level 1, expression children including atoms advance by one, and match
 arm bodies are at their enclosing match's level plus one. Declaration, parameter,
 and pattern structure adds no expression levels. Before judging a level-1,025
 expression, it returns `Incomplete` code 8 at that node's source start, with
 limit 1,024 and requested 1,025. Complete balanced parsing precedes this check.
-The syntax producer separately provisions D30's 114,294,752 syntax-arena bytes.
+The syntax producer separately provisions 114,294,752 syntax-arena bytes.
 Its source-owned ledger counts parser nodes, both construction spines, parser
 frames, the program root, and grammar work at the selected evaluator's actual
 40 bytes per immutable pair. Usage is cumulative across completed lists and

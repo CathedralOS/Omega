@@ -1,6 +1,6 @@
 # Sorted ground terms and owner root
 
-[Inner format](FORMAT.md) | [Theory formation](FORMATION.md) | [Calculus](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
+[Inner format](FORMAT.md) | [Theory formation](FORMATION.md) | [Calculus](README.md)
 
 `check_derivation_ground()` extends theory formation with sorted owner and
 witness term tables and a well-sorted owner root. It does not compare the root

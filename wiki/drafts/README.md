@@ -21,7 +21,5 @@ the existing task boards, not in a second tracking system.
 - [Cathedral alignment](cathedral_alignment.md): temporary cross-repository
   ownership and dependency map for OS bring-up.
 
-Old documents still waiting for review belong in [pre_migration/](../pre_migration/README.md)
-during migration. After review, keep useful temporary residue here; delete obsolete
-or redundant history. Concrete proposed language or toolchain changes belong in
-proposals.
+Keep useful temporary residue here after review; delete obsolete or redundant
+history. Concrete proposed language or toolchain changes belong in proposals.

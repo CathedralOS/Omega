@@ -2,6 +2,8 @@
 
 [Whole-chain minimization](MINIMIZATION.md) governs retention and engineering
 comparisons; language and resource contracts remain with their rung owners.
+[Edge contracts](CONTRACT.md) own source/evaluator composition, refinement,
+admission, and native-realization requirements.
 
 This tree contains the trust-minimizing compiler chain and no final product
 implementation:

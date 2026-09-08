@@ -83,7 +83,7 @@ valid `if` expressions complete checking before missing-entry code 19. Neither
 requires deeply nested Gamma emission; successful emission at that depth is
 not claimed.
 
-The 22 controls in `depth_fixtures.py` pin D30's expression `parse_depth`:
+The 22 controls in `depth_fixtures.py` pin the selected expression `parse_depth`:
 function bodies begin at level 1, and expression children, including atoms,
 advance one level. At level 1,025 the compiler returns `Incomplete` code 8 at
 the expression start, with limit 1,024 and requested 1,025. Exact-limit valid
@@ -154,7 +154,7 @@ source identity is pinned before any observation. The gate implements the
 bounded checks above, not full resource conformance, arbitrary emission-depth
 closure, or closure of the Delta bootstrap edge.
 
-The phase order is fixed by [D20](../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d20--delta-names-resolve-through-four-namespaces-without-active-shadowing)
-and [D33](../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d33--dcout-admission-and-schema-diagnosis-are-bounded-and-total).
+The phase order is fixed by the [Delta language](../../../bootstrap/3_delta/LANGUAGE.md#program-form)
+and [request-boundary contract](../../../bootstrap/3_delta/implementation/boundary/README.md).
 See also the [Delta language](../../../bootstrap/3_delta/LANGUAGE.md) and the
 adjacent [request-boundary gate](../request-boundary/README.md).

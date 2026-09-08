@@ -29,7 +29,7 @@ not consume one Gamma return context per source nesting level during parsing.
 
 ## Syntax storage
 
-[storage.gamma](storage.gamma) owns D30's 114,294,752-byte syntax provision.
+[storage.gamma](storage.gamma) owns the 114,294,752-byte syntax provision.
 This producer charges its actual syntax objects at the selected Gamma
 evaluator's 40 bytes per immutable pair. It does not charge a historical
 32-byte typed-syntax row for a differently represented S-expression node.
@@ -112,7 +112,7 @@ advance by one, including atoms. Match arm bodies use their enclosing match's
 level plus one, without counting arm or pattern wrappers. Declarations,
 parameters, and patterns do not themselves consume expression levels.
 
-Before an expression's grammar judgment, level 1,025 produces D30
+Before an expression's grammar judgment, level 1,025 produces
 `Incomplete(parse_depth)`: halt/tag 2, resource code 8, Delta-source space 1,
 the expression's start, limit 1,024, and requested 1,025. Balanced parsing still
 completes first, so the retained node already exists when the level is checked.
@@ -171,7 +171,7 @@ The retained program is consumed, not discarded after validation:
 
 The [emitter](../../emission/README.md) remains after the complete static
 preflight, as required by
-[D114](../../../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
+[completed preflight contract](../../../LANGUAGE.md#compilation-requirements).
 Other compiler-owned resource/internal failure propagation and successful
 generated-program admission throughout the Delta depth profile remain separate
 work. The selected Gamma evaluator caps generated bodies at 255 nested lists;

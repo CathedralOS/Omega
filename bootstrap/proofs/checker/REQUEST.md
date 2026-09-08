@@ -1,7 +1,7 @@
 # Derivation-checker request envelope
 
 This defines the outer admission layer for the
-[ground equality checker design](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md).
+[ground equality checker design](README.md).
 The [inner theory, proposition, and certificate formats](FORMAT.md) have a
 separate [physical layout traversal](LAYOUT.md) and
 [conservative theory formation](FORMATION.md), followed by

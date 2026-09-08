@@ -30,7 +30,7 @@ Two checker defects motivate the controls. Grouping a non-callable continuation
 previously bypassed control-target rejection; grouped and nested forms must
 retain the same judgment at the outer continuation start. Separately, a
 transition after a resolved `never` call still derived subject-admission and
-sum-coverage parent judgments. D53 suppresses those parent relations and
+sum-coverage parent judgments. The [block-exit contract](../../../bootstrap/4_epsilon/LANGUAGE.md#8-machines-states-and-transitions) suppresses those parent relations and
 requires `InvalidTerminal` at the transition's closing brace, while independent
 subject, argument, and pattern name errors remain active. Paired reachable
 record-subject and incomplete-sum controls retain their ordinary `TypeMismatch`
@@ -43,7 +43,7 @@ previously either displaced the correct child diagnostic or collided with it
 at the same coordinate and produced `InternalFailure`. Ordinary parent joins
 also cannot consume a nonreturning operand: its independent `InvalidTerminal`
 retains the exact call-head anchor. Paired controls retain resultless mismatches
-when all parent premises exist and preserve D52's independent machine and
+when all parent premises exist and preserve independent machine and
 constructor argument rules. The previous checker fails 13 of these 22 exact
 observations; grouping and opposite operand orders prevent an implementation
 from merely suppressing coordinate ties.

@@ -40,7 +40,7 @@ semantics-preserving families. During the experimental phase only the root's
 authoritative `build.omg` enables them, not dependency metadata or embedding
 defaults. Selection is independent of target, debug data, diagnostics, assertions,
 and packaging. There are no debug/release or O1/O2/O3 optimization categories.
-[Optimization phases](../../pre_migration/architecture/pipeline/optimization_phases.md)
+[Optimization phases](optimizations.md#phase-and-product-boundaries)
 owns phase vocabulary, canonical selection, and fail-closed execution.
 
 Hosted/freestanding environment, default providers, calling policies, fault and

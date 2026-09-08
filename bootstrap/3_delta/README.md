@@ -183,7 +183,7 @@ wrappers; only the complete declaration returns an outcome to the coordinator.
 Grammar work entries also retain expression level. Function bodies start at 1;
 expression children, including atoms and match arm bodies, advance by one.
 Declarations, parameters, and patterns do not add levels. Before a level-1,025
-expression's own grammar judgment, D30's selected 1,024-level `parse_depth`
+expression's own grammar judgment, the selected 1,024-level `parse_depth`
 profile produces an exact `Incomplete` frame: code 8, source coordinate at that
 node's start, limit 1,024, requested 1,025. Complete balanced parsing remains
 earlier, and the refusal is not a Delta syntax error.
@@ -193,14 +193,14 @@ constructor, and function identity, constructor counts, representation shape,
 and source coordinates before resolving any declaration type. Duplicate
 identities therefore precede declaration-type and body failures. Resolution
 then checks fields and signatures against the complete catalogs, followed by
-body checking. Census also provisions D30's 32,768 authored `function_rows`:
+body checking. Census also provisions 32,768 authored `function_rows`:
 duplicate lookup precedes each fresh row, and a fresh 32,769th declaration
 returns `Incomplete` resource code 4 at its name, before row insertion or any
 declaration-type resolution. This count excludes metadata copies and generated
 helpers; Gamma's physical function storage is separately bounded by its complete
 request extent, as established in the evaluator profile.
 The census also counts fresh authored constructors across all data declarations.
-D30 admits 65,536 rows; a fresh 65,537th name returns `Incomplete` resource
+The selected profile admits 65,536 rows; a fresh 65,537th name returns `Incomplete` resource
 code 3 at that name, with limit/requested 65,536/65,537. Duplicate lookup
 precedes provision, and a refused constructor allocates no row metadata.
 Payload fields and the later declaration-resolution metadata rebuild do not

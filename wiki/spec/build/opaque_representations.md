@@ -17,6 +17,8 @@ reject with demand/selection provenance.
 
 At most one application per opaque declaration may be selected in an activation.
 An unused selection occupies that choice but creates no by-value demand row.
+An invalid explicit selection still rejects at its source occurrence even if
+unused; only absence is demand-driven.
 The consumer's authoritative build selects for the combined compilation; it does
 not inherit the dependency's historical root-build choice or rerun that build.
 Historical review choices do not conflict merely by sharing a source closure.
@@ -25,9 +27,12 @@ Historical review choices do not conflict merely by sharing a source closure.
 
 V1 has explicit lifecycle role `Inert`, not an omitted field or provider assertion.
 Admission proves no independently invoked cleanup/disposable obligation in any
-reachable field, array element type, or sum payload. A copyable opaque additionally
+field, array element type, or sum payload in the complete closed carrier graph,
+including inactive cases. A copyable opaque additionally
 requires a structurally copyable inert carrier. Affine/linear values retain one
 semantic occurrence while lowering copies physical bytes for placement.
+Only a checked semantic copy of a copyable opaque creates another occurrence;
+a physical copy instruction cannot do so independently.
 
 Cleanup-owning carriers require a separate versioned lifecycle relationship with
 total disposition rules; an empty representation trait cannot implicitly inherit

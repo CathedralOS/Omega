@@ -24,6 +24,6 @@ locals. Finishing compares distinct count with the owner's constructor count;
 no downstream consumer needs a materialized coverage trie.
 
 These are compiler working-state savings, not a changed matching policy or a
-new aggregate coverage-row limit. D110's match-local set, authored arm order,
+new aggregate coverage-row limit. The match-local set, authored arm order,
 exact failure selection, and immutable scopes remain intact. Physical pair
 exhaustion is still a separate evaluator observation, not fabricated DCOUT.

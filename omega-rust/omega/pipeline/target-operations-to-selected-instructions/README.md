@@ -1,0 +1,65 @@
+# Instruction selection
+
+[lib.rs](src/lib.rs) enters mandatory target legalization and independently
+validated instruction selection. Input is the complete admitted target-operation
+custody and exact validated target register environment; output is the admitted
+current selected program with semantic, target, projection, fuel and constraint
+identities. Raw selected data or a detached content hash is not selection authority.
+
+## Target setup is not a program stage
+
+[Register environment](../../backend/register-environment/src/lib.rs) joins the
+exact native target, ISA physical model, instruction constraints, selected keys
+and active reservation profile. Baseline and decoded/custom inputs use independent
+structural and ISA-semantic validation. Selection takes that carrier explicitly;
+it must not import ISA crates or reconstruct a supposedly equivalent environment.
+Setup is neither instruction selection nor an optimization pass.
+
+## Ordinary selected control flow
+
+[Legalization](src/legalization/mod.rs) and [selection](src/selection/mod.rs)
+retain ordered instructions, block parameters, explicit jumps/branches/returns,
+virtual registers, exact fixed ABI constraints and machine effects. Roster order
+is not control-flow order. Arithmetic and calls use the same ordinary graph;
+physical register homes, liveness, frame storage and emission are downstream jobs.
+
+Each instruction retains operation, obligation, value, definition and fuel
+provenance. Successor bindings preserve semantic identities and explicit register
+transport, with exact edge, polarity, target and taken-edge fuel. Fixed views are
+constraints, not assigned homes. ISA-owned RFLAGS/RIP or NZCV/PC effects do not
+become fictional source values. Compiler condition tests, copies and address
+work do not invent Psi operations or logical charges. Returns retain their exact
+Unit/scalar role, result constraint where applicable, and edge fuel.
+
+Structural argument snapshots, loads/stores, frame addresses and calls use
+ordinary virtual instructions with exact slot/access/call metadata. Copying an
+owned referent into a distinct ABI temporary and forwarding a borrowed pointer
+are different transports. Claim completion can retain evidence at an instruction
+position without inventing executable work. Frame-free bodies must not acquire
+storage merely because their parameters are structural; actual outgoing and
+preservation storage must be replayed against the realized frame.
+
+[Construction](src/selection/construction/mod.rs) and independent validation
+derive separate projections. Replay checks the complete selected content against
+the semantic/optimized input, target plan and register catalog, including exact
+instruction order, ABI copies, call slots, memory accesses and zero-instruction
+settlements. Producer success is not its own validation.
+
+## Non-executable retained selection family
+
+The `projected_structural_call_returns` plan retains a bounded owned-linear
+projected call/return closure separately from ordinary selected functions. It
+records exact fragment placements, fixed constraints, implicit effects and
+required transfers without ordinary scalar registers/instructions. On differing
+x86 views the copy uses the complete target copy constraint; AArch64 same-view
+transport remains an explicit no-copy fact. Both
+[liveness](../selected-instructions-to-selected-instructions/src/analyses/liveness/compute.rs)
+and [machine-effect analysis](../selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/compute.rs)
+reject a nonempty retained family. Its existence is not physical or publication
+support and must not become an alternate executable pipeline.
+
+Broader supported behavior must enter the common graph with exact ABI, memory,
+ownership, proof and frame replay. Unsupported shapes reject at their owner;
+there is no assigned-program fallback. [Allocation](../selected-instructions-to-register-homes/README.md)
+owns homes and recovery, and [machine emission](../../backend/machine-emission/README.md)
+owns the physical continuation.

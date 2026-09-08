@@ -61,8 +61,10 @@ and charged template traversal. The [checking contract](CHECKING.md) specifies
 proof rules, final-root enforcement, soundness under the formed theory, and the
 combined generic resource profile. Artifact-specific measurements and acceptance
 remain unfinished.
-The [implementation design](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
-owns conservative definition formation, explicit derivation checks, exact-root
-comparison, and a complete certificate for the selected Gamma evaluator's
-Beta-source-to-Alpha-tape encoding. Small admission or rule tests cannot replace
-that full-subject acceptance.
+The [complete encoding contract](../beta_encoding/ACCEPTANCE.md) owns the first
+artifact-specific acceptance target. Small admission or rule tests cannot replace
+it. This checker searches for no proofs, discovers no artifact obligation, runs
+no compiler, and decides no deployment policy. It admits only the explicit finite
+ground rules required by that customer; quantifiers, induction, open lemma
+schemas, coinduction, and Alpha transition-system rules are outside this checker.
+Moving it into Gamma does not prove or remove the trusted Gamma evaluator.

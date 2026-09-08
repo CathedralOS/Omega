@@ -133,7 +133,9 @@ cannot manufacture a field qualification. Calls and returns preserve their
 exact source and result contracts. At an actual control-flow join, an output
 retains only qualifications carried by every incoming occurrence through valid
 lineage. CSE/GVN distinguish unequal rosters unless a named transformation forms
-their common intersection and independently revalidates every use. See
+their common intersection and independently revalidates every use. Inventing a
+qualification is unsound; losing one may cause rejection, but fail-closed
+narrowing alone is not evidence of an exact-preserving Terminal transformation. See
 [structural access](../terminal-psi/structural_access.md) and
 [authority](../resources/authority.md).
 

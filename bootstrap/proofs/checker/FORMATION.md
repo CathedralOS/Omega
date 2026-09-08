@@ -1,6 +1,6 @@
 # Conservative theory formation
 
-[Inner format](FORMAT.md) | [Layout](LAYOUT.md) | [Soundness argument](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md#terms-and-conservative-definitions)
+[Inner format](FORMAT.md) | [Layout](LAYOUT.md) | [Soundness argument](FORMATION.md#conservative-definition-soundness)
 
 `form_derivation_theory()` checks the owner-supplied constructor and function
 definitions after physical layout admission. It does not validate the ground
@@ -151,6 +151,19 @@ outcome add eleven pairs. Thus the actual bound is
 `W >= 3C+6F+3T+4K`, so this is at most `2W+32S+16`, below the allowance above.
 These counts include allocations that become unreachable: Gamma does not
 reclaim them during this evaluation.
+
+## Conservative-definition soundness
+
+Constructor sorts denote freely generated finite trees. Finite inhabitation
+ensures every declared sort has such a value. Complete disjoint constructor
+cases and sorted linear pattern variables make each function single-valued.
+Earlier-function calls decrease definition order; a direct self-call decreases
+the selected finite tree by consuming an unchanged immediate child. Their
+lexicographic measure proves totality. Fresh functions therefore extend the
+free constructor model conservatively rather than equating distinct constructors.
+An acyclic term table alone does not prove function termination. There are no
+equality axioms, arbitrary assumptions, binders, higher-order terms, mutual
+recursive definitions, or unchecked recursive equations in this calculus.
 
 ## Private formed outcome
 

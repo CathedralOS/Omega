@@ -33,9 +33,8 @@ visibility, declaration order, or bare exact-requirement satisfiers:
 | Preorder | Reflexivity, transitivity. |
 | Partial order | Preorder and antisymmetry. |
 
-Select a generic conformance through one nested application with every type,
-const, and static-machine argument explicit. Only ordinary lifetime elision is
-permitted; expected shape and visibility cannot infer application arguments.
+Generic selection follows the explicit-argument and closed-map rules for
+[named conformances](../language/conformances.md#declaration-and-selection).
 
 The laws quantify the appropriate packs independently: symmetry changes
 `R<I,J>(x,y)` to `R<J,I>(y,x)`; transitivity composes `R<I,J>(x,y)` and

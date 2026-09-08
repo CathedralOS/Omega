@@ -235,4 +235,4 @@ size or runtime. This gate proves only these finite equations under the fixed
 partial theory. Token scanning, word parsing, opcodes, source/output accounting, full
 Beta reconstruction, and accepted artifact custody remain outside its claim.
 It does not close the complete obligation in the
-[derivation calculus](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md).
+[complete encoding acceptance](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md).

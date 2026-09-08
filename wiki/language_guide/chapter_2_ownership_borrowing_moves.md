@@ -828,4 +828,4 @@ covered later in [Drops And Cleanup](chapter_17_drops_and_cleanup.md).
 The compiler records first-class `Establish`, `Transfer`, `Consume`, and
 `AffineDrop` permission events. The older parallel move/drop summaries have
 been deleted; cleanup-plan completion is tracked in
-[semantic_taxonomy_representation.md](../pre_migration/architecture/semantic_taxonomy_representation.md).
+[semantic representation ownership](../../omega-rust/psi/representations/README.md).

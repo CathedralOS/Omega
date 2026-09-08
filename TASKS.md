@@ -52,13 +52,13 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
 
 - **DOCUMENTATION-CONSOLIDATION.** Execute the
   [four-move cleanup plan](wiki/drafts/documentation_cleanup.md), owned by repository
-  documentation. Review and port the remaining Terminal operation reference and
-  complete the physical payload tables, then the other documents in `wiki/pre_migration/`. The
+  documentation. Finish the guide's teaching/specification separation, remove
+  stale historical references and duplicated draft material, and verify the
+  consolidated documentation and its source readers. The
   [documentation index](wiki/README.md) identifies the current subject owners.
   Consolidate into guide, specification, proposals, and temporary drafts; keep
-  implementation documentation beside code. Include the bootstrap decision
-  record and chain alternatives in the same consolidation; their current
-  contracts must survive, not their old paths or superseded history.
+  implementation documentation beside code. Preserve current contracts, not
+  superseded source forms, ledger numbers, or implementation history.
 
   Acceptance: one authoritative home per current contract, no competing legacy
   documents or completed-work diaries, honest implementation/formalization status,
@@ -550,11 +550,11 @@ Owners include
   independently reconstructible and no target placement leaks back into
   Terminal Psi.
 
-- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete D26 representation agreement at
+- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete [representation agreement](wiki/spec/build/opaque_representations.md) at
   independently compiled by-value exchanges. Rejoin consumer demands to exact
   producer opaque/conformance/carrier declarations and immutable source;
   enforce strong selected-application equality at actual exchanges. Finish
-  physical movement and lifecycle planning, including D44 transitive
+  physical movement and lifecycle planning, including transitive
   inert-carrier proof and multiplicity checks. Equal size/alignment or compact
   fingerprints cannot establish agreement.
 
@@ -932,7 +932,8 @@ Owners include
   custody through provider selection and native emission. Raw foreign bytes are
   data, never Omega symbol names or ambient lookup authority.
 
-  Extend D41 normalized-import evidence from fixed-width scalar calls to a
+  Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
+  from fixed-width scalar calls to a
   source-rooted flat-record argument, then ranked control and port-bearing
   artifacts. Acceptance: independent native replay preserves the exact
   survivor/physical-child bijection and rejects missing, duplicate, substituted,
@@ -952,7 +953,7 @@ Owners include
   not license `dyn`.
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
-  hermetic const evaluation, and D29 selected realization coverage. Finish
+  hermetic const evaluation, and [selected realization coverage](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children). Finish
   artifact-qualified symbolic substitution for separately compiled generics;
   recheck the reachable specialization's actual capability reach, proof
   obligations, target facts, and selected realization after closing every
@@ -960,7 +961,7 @@ Owners include
   boundary-trait calls with no telescope. Acceptance: cross-artifact canaries
   preserve actual reach and transitive open obligations, reject stale or
   substituted applications, and grant no coverage to unresolved arguments.
-  D32 physical-child binding belongs to `TRANSLATION-VALIDATION` in
+  Physical-child binding belongs to `TRANSLATION-VALIDATION` in
   `TASKS_OPTIMIZER.md`.
 
 - **BOUNDARY-OPERATOR-FAMILY-SELECTION.** Extend build selection from exact

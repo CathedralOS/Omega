@@ -5,7 +5,7 @@ Runnable compilers and checked edge evidence are both required; neither replaces
 the other. Minimize the total human audit burden of semantics, admitted seeds,
 implementations, checker rules, certificates, profiles, and permanent tooling.
 The governing contracts are [bootstrap minimization](bootstrap/MINIMIZATION.md)
-and the [derivation checker](wiki/pre_migration/architecture/bootstrap_chain/proof_kernel.md).
+and the [derivation checker](bootstrap/proofs/checker/README.md).
 
 The currently selected construction route is:
 
@@ -103,7 +103,7 @@ prerequisite to every lower-rung milestone.
   Current Epsilon demand does not justify more depth machinery; retain deep-source
   conformance until a simpler implementation or owner-approved scope replaces it.
   For P1 in `bootstrap/proofs/beta_encoding/`, use the consolidated
-  [complete encoder candidate](wiki/pre_migration/design_briefs/beta_encoder_plan.md), not
+  [complete encoder candidate](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md), not
   another isolated helper probe. It removes completed-token/output histories
   from incoming state and accounts explicitly for fragment composition, exact
   emission counts, all Beta cases, limits, failures, EOF, and owner custody.
@@ -131,12 +131,28 @@ prerequisite to every lower-rung milestone.
   justified, preserve its evidence and continue elsewhere; do not build an
   alternative language or delete unreviewed machinery.
 
+## Alpha execution hardening
+
+- **ALPHA-BOUNDS-HARDENING.** Owners: `bootstrap/0_alpha/` semantics, native
+  implementations and audited listings, with `tests/alpha/conformance.sh`.
+  The [hardening target](bootstrap/0_alpha/README.md) requires deterministic
+  bounds/resource failure; [current semantics](bootstrap/0_alpha/SEMANTICS.md)
+  still leave out-of-range memory and return-stack behavior undefined. Specify
+  the exact fault/exhaustion contract through
+  [owner escalation](bootstrap/MINIMIZATION.md#owner-escalation) before changing
+  opcode meaning, then implement it without changing admitted in-bound runs.
+  Acceptance: matched semantics/listings/native implementations, exact-boundary
+  and adjacent failure controls for memory, loading, and return-stack capacity,
+  deterministic failure, and refreshed affected seed identities and evidence.
+  Validate supported Windows and macOS routes; report unavailable host execution
+  explicitly rather than treating source review as a runtime pass.
+
 ## P1 - Gamma checker and first complete encoding proof
 
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific proof using
   the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md)
   and [Beta definitions](bootstrap/proofs/beta_encoding/README.md), following the
-  [ground equality design](wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md).
+  [complete encoding acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md).
   Remaining work: complete error-valued Beta encoding definitions, independently
   reconstruct the owner-fixed proposition, and produce the untrusted explicit
   certificate through the selected source-owned route.

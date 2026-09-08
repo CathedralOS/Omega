@@ -56,6 +56,9 @@ through Beta; emitted Alpha remains capped by the exact 16,777,212-byte seed hol
 There is no symbol table, label identity, relocation pass, hash, fixup chain, or
 compressed name. Comma removal and new Alpha opcodes remain rejected because
 their additional trust cost outweighs the remaining byte savings.
+Retained numeric control targets repeat the human block name in a comment beside
+the instruction; the corresponding address assertion names that block too.
+Comments aid the finite audit but never select target identity or affect encoding.
 
 Materialization and disposable builds live under `tools/bootstrap/beta/`.
 Reconstruction, the independent compiler, regressions, and examples live under
