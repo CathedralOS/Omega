@@ -964,11 +964,13 @@ Owners include
   extend scalar-result roots to owned structural signatures,
   then publish cyclic scalar control with exact structural
   forwarding and natural-descent evidence. Reuse the computed borrowed-call
-  closure and primitive-local storage shared by scalar roots and ordinary Unit operands.
-  Realize native storage and
-  borrowed-call observations without substituting snapshots. Preserve the authored
+  closure and primitive-local storage shared by scalar roots and ordinary Unit
+  operands. Realize native storage and borrowed-call observations without
+  substituting snapshots. Preserve the authored
   guard and structural payload; the linked command still rejects the rank range
-  on macOS at `b1cff595a4` because of the generated hop.
+  on macOS at `d00c9661fb` because of the generated hop. Next acceptance is owned
+  structural parameter reads and exact forwarding in scalar-result roots before
+  ranked cyclic publication; do not suppress the hoist by ranking annotation.
   Align compile-known numeric conditions between flow call capture and scalar
   computation folding: `((1u64 > 2u64) && enabled) && stamp(&mut slot, number)`
   retains a flow call that computation folding removes (`omega inspect-terminal
