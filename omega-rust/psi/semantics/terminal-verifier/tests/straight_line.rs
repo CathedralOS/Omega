@@ -43,6 +43,9 @@ mod false_edge_custody;
 #[path = "straight_line/affine_local_frontier.rs"]
 mod affine_local_frontier;
 
+#[path = "straight_line/contract_fields.rs"]
+mod contract_fields;
+
 #[test]
 fn unit_machine_is_a_value_less_normal_return() {
     let module = unit_module();

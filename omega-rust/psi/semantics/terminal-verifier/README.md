@@ -23,6 +23,16 @@ Call validation proves concrete signature, clause, substitution, movement,
 outcome, crash, and lifetime conditions before reconstruction imports guarantees.
 Do not duplicate those policies in operation-specific verifier branches.
 
+Contract formation checks every field term, including unused requirements and
+ordinary or outcome-specific guarantees. The existing scope traversal resolves
+canonical paths, exact Boolean/integer/IEEE leaf types, byte-field kinds, and
+readable parameter access before proof reconstruction. Nominal cleanup sites
+separately validate their action-bound proof-only receivers. These checks add
+neither arithmetic safety premises nor entry-snapshot authority. The codec's
+`canonical::contract_fields` tests exercise source-free decoding with substituted
+field identities; `terminal-verifier`'s field and guarded-guarantee tests cover
+formation directly.
+
 ## Call and crash reconstruction
 
 Contracts: [call substitution](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts)

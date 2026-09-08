@@ -1,7 +1,7 @@
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, ContractId, EdgeId, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, PsiSemanticId,
+    ScalarTerm, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
@@ -11,6 +11,9 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{ModuleError, reconstruct_operation_obligations, validate_module};
+
+#[path = "structural_scalar_fields/contract_fields.rs"]
+mod contract_fields;
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).expect("test identity is nonzero")
@@ -235,6 +238,42 @@ fn structural_scalar_field_module() -> TerminalModule {
 fn admits_scalar_store_observed_through_projected_structural_call() {
     validate_module(&structural_scalar_field_module())
         .expect("mixed scalar/structural call module verifies");
+}
+
+#[test]
+fn rejects_nonexistent_integer_field_in_an_unused_entry_requirement() {
+    let mut module = structural_scalar_field_module();
+    let ScalarType::Integer(integer_type) = integer_type() else {
+        panic!("fixed integer carrier");
+    };
+    let field = ScalarTerm::integer_field_path(
+        module.machines[0].structural_parameters[0].place,
+        vec![
+            CanonicalStructuralPathSegment::Field(id::<StructuralFieldId>(1)),
+            CanonicalStructuralPathSegment::Field(id::<StructuralFieldId>(1)),
+        ],
+        integer_type,
+    );
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::Equal(field.clone(), field));
+    validate_module(&module).expect("the declared integer field requirement is well formed");
+    let Proposition::Equal(left, right) = &mut module.machines[0].contract.requires[0] else {
+        panic!("field equality");
+    };
+    for term in [left, right] {
+        let ScalarTerm::IntegerField { path, .. } = term else {
+            panic!("integer field");
+        };
+        path[1] = CanonicalStructuralPathSegment::Field(id::<StructuralFieldId>(2));
+    }
+    let error = validate_module(&module)
+        .expect_err("unused requirements must still name an actual field of the declared carrier");
+    assert!(
+        matches!(error, ModuleError::InvalidIntegerFieldTerm { .. }),
+        "{error:?}"
+    );
 }
 
 fn indexed_scalar_field_store_module(index: u64) -> TerminalModule {

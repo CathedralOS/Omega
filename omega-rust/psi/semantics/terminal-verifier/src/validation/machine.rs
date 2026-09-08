@@ -899,12 +899,19 @@ pub(super) fn validate_machine(
         context
             .validate(proposition)
             .map_err(ModuleError::MalformedProposition)?;
-        contracts::validate_contract_scope(
-            proposition,
-            &requires_values,
-            machine.contract.id,
-            ContractClauseKind::Requires,
-        )?;
+        // Nominal cleanup sites validate their exact Boolean-field requirements
+        // against the action's receiver type. That proof-only receiver is not an
+        // executable parameter; ordinary contracts use the parameter scope here.
+        if contract_receiver.is_none() {
+            contracts::validate_contract_scope(
+                module,
+                machine,
+                proposition,
+                &requires_values,
+                machine.contract.id,
+                ContractClauseKind::Requires,
+            )?;
+        }
         crash::validate_structural_case_memberships(module, machine, proposition)?;
     }
     for clause in &machine.contract.ensures {
@@ -922,6 +929,8 @@ pub(super) fn validate_machine(
             .validate(&clause.proposition)
             .map_err(ModuleError::MalformedProposition)?;
         contracts::validate_contract_scope(
+            module,
+            machine,
             &clause.proposition,
             &ensures_values,
             machine.contract.id,
@@ -944,6 +953,8 @@ pub(super) fn validate_machine(
             .validate(&row.proposition)
             .map_err(ModuleError::MalformedProposition)?;
         contracts::validate_contract_scope(
+            module,
+            machine,
             &row.proposition,
             &ensures_values,
             machine.contract.id,

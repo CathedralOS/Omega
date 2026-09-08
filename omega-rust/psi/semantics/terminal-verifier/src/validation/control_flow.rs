@@ -409,6 +409,8 @@ pub(super) fn validate_control_flow(
             Terminator::Crash { site_guard, .. } => {
                 for predicate in site_guard {
                     contracts::validate_contract_scope(
+                        module,
+                        machine,
                         predicate.proposition(),
                         &defined,
                         machine.contract.id,
