@@ -14,6 +14,7 @@ mod payloadless_cases;
 mod scalar_types;
 mod service_calls;
 mod structural_access;
+mod structural_cases;
 mod values;
 
 pub(crate) use affine_calls::*;
@@ -58,7 +59,13 @@ pub(crate) fn validate_values_and_bindings(
                 structural_types,
                 structural_domains,
             )?;
-            values::validate_successor_bindings(function, node, &definitions, blocks)?;
+            values::validate_successor_bindings(
+                function,
+                node,
+                &definitions,
+                blocks,
+                structural_types,
+            )?;
         }
     }
     Ok(())

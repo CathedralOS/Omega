@@ -13,9 +13,9 @@ pub(crate) enum StructuralProjectionPolicy {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct StructuralSourceContract<'a> {
-    structural_type: StructuralTypeId,
-    multiplicity: terminal_psi::StructuralMultiplicity,
-    access: terminal_psi::StructuralAccess,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) multiplicity: terminal_psi::StructuralMultiplicity,
+    pub(crate) access: terminal_psi::StructuralAccess,
     qualifications: &'a [StructuralDomainId],
     projected_qualifications: &'a [terminal_psi::StructuralPathQualification],
 }

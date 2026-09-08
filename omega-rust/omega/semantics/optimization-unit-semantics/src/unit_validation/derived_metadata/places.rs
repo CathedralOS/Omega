@@ -78,6 +78,12 @@ pub(crate) fn validate_operation_places(
         }
     };
     match operation {
+        O::StructuralCase { source, cases } => {
+            require(*source, known)?;
+            for place in cases.iter().flat_map(|case| &case.trivial_affine_discards) {
+                require(*place, known)?;
+            }
+        }
         O::Jump {
             structural_bindings,
             ..

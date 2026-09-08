@@ -91,7 +91,17 @@ pub(super) fn validate_successor_bindings(
     node: &optimization_unit::OptimizationNode,
     definitions: &BTreeMap<ValueId, ValueDefinition>,
     blocks: &BTreeMap<BlockId, &optimization_unit::OptimizationBlock>,
+    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    if let O::StructuralCase { source, cases } = &node.operation {
+        return super::structural_cases::validate(
+            function,
+            *source,
+            cases,
+            blocks,
+            structural_types,
+        );
+    }
     for edge in &node.successors {
         let target = blocks.get(&edge.target).expect("successor validated");
         if edge.bindings.len() != target.parameters.len() {

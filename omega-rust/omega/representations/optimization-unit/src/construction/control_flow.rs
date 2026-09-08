@@ -28,6 +28,24 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
             when_false,
             ..
         } => vec![successor_edge(when_true), successor_edge(when_false)],
+        O::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|case| OptimizationEdge {
+                psi_edge: case.psi_edge,
+                target: case.target,
+                // Payloads are produced on this case edge, not by preceding SSA
+                // operations. Their complete telescope stays on StructuralCase.
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                trivial_affine_discards: case.trivial_affine_discards.clone(),
+                residual_affine_discards: Vec::new(),
+                provenance: vec![PsiProvenance::Edge(case.psi_edge)],
+                fuel: vec![FuelSettlement {
+                    site: PsiProvenance::Edge(case.psi_edge),
+                    units: 1,
+                }],
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }

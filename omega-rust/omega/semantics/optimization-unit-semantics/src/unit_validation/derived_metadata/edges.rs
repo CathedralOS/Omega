@@ -68,6 +68,22 @@ pub(crate) fn expected_edges(
                 }],
             })
             .collect(),
+        O::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|case| OptimizationEdge {
+                psi_edge: case.psi_edge,
+                target: case.target,
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                trivial_affine_discards: case.trivial_affine_discards.clone(),
+                residual_affine_discards: Vec::new(),
+                provenance: vec![PsiProvenance::Edge(case.psi_edge)],
+                fuel: vec![optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(case.psi_edge),
+                    units: 1,
+                }],
+            })
+            .collect(),
         _ => Vec::new(),
     }
 }

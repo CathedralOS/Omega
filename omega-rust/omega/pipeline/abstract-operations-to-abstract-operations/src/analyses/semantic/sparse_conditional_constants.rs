@@ -250,7 +250,7 @@ fn sparse_conditional_constants(
                 };
                 let operation_successors = scalar_operation_successors(&node.operation);
                 let successors = match &node.operation {
-                    O::Jump { .. } => operation_successors
+                    O::Jump { .. } | O::StructuralCase { .. } => operation_successors
                         .iter()
                         .map(|successor| (successor, None))
                         .collect::<Vec<_>>(),
@@ -296,6 +296,18 @@ fn sparse_conditional_constants(
                         path_support.union_with(&condition_support);
                     }
                     path_support = path_support.through_edge(successor.psi_edge);
+                    if let O::StructuralCase { cases, .. } = &node.operation {
+                        for payload in cases
+                            .iter()
+                            .filter(|case| case.psi_edge == successor.psi_edge)
+                            .flat_map(|case| &case.payloads)
+                        {
+                            let target = values
+                                .entry(payload.parameter)
+                                .or_insert(LatticeValue::Unknown);
+                            changed |= merge(target, &LatticeValue::Overdefined, &path_support);
+                        }
+                    }
                     match feasible_edges.entry(successor.psi_edge) {
                         std::collections::btree_map::Entry::Vacant(entry) => {
                             entry.insert(path_support.clone());

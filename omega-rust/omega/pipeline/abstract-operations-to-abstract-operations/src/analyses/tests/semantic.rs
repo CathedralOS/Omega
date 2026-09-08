@@ -8,6 +8,80 @@ use optimization_unit::*;
 use semantic_vocabulary::*;
 
 #[test]
+fn sccp_case_paths_and_payloads_do_not_invent_join_constants() {
+    // These are analysis fixtures, not claims of source-produced structural custody.
+    for payload_arrival in [false, true] {
+        let (mut input, parameter, _, _) =
+            block_parameter_constant_unit(None, IntegerValue::Unsigned(8));
+        let function = &mut input.functions[0];
+        let scalar_type = function.blocks[3].parameters[0].scalar_type;
+        let case_edge = id(501, EdgeId::new);
+        let second_case_edge = id(502, EdgeId::new);
+        let payloads = if payload_arrival {
+            vec![abstract_operations::AbstractStructuralCasePayloadBinding {
+                parameter,
+                field: id(504, StructuralFieldId::new),
+                scalar_type,
+            }]
+        } else {
+            Vec::new()
+        };
+        let target = if payload_arrival { 4 } else { 3 };
+        let case = O::StructuralCase {
+            source: id(505, PlaceId::new),
+            cases: [case_edge, second_case_edge]
+                .into_iter()
+                .enumerate()
+                .map(
+                    |(index, psi_edge)| abstract_operations::AbstractStructuralCaseSuccessor {
+                        psi_edge,
+                        target: id(target, BlockId::new),
+                        case: id(506 + index as u64, StructuralCaseId::new),
+                        payloads: payloads.clone(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                )
+                .collect(),
+        };
+        if payload_arrival {
+            function.blocks[2].nodes = vec![node(case)];
+        } else {
+            let O::Conditional { when_false, .. } = &mut function.blocks[0].nodes[0].operation
+            else {
+                unreachable!()
+            };
+            when_false.target = id(5, BlockId::new);
+            function.blocks.push(OptimizationBlock {
+                id: id(5, BlockId::new),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                nodes: vec![node(case)],
+            });
+        }
+        input.identity = recompute_psi_optimization_unit_identity(&input);
+        let AnalysisProduct::ScalarConstants(constants) =
+            compute_analysis(&input, AnalysisKind::ScalarConstants).unwrap()
+        else {
+            unreachable!()
+        };
+        assert!(
+            constants.facts.iter().all(|fact| fact.value != parameter),
+            "a case arrival must participate in the mixed join lattice"
+        );
+        let AnalysisProduct::ExecutableEdges(edges) =
+            compute_analysis(&input, AnalysisKind::ExecutableEdges).unwrap()
+        else {
+            unreachable!()
+        };
+        for case_edge in [case_edge, second_case_edge] {
+            assert!(edges.edges.iter().any(|edge| {
+                edge.edge == case_edge && edge.knowledge == ExecutableEdgeKnowledge::KnownExecutable
+            }));
+        }
+    }
+}
+
+#[test]
 fn function_effects_propagate_services_and_crashes_through_calls() {
     let mut caller = function(100, 1, vec![(1, Terminator::Return)]);
     let mut callee = function(200, 2, vec![(2, Terminator::Crash)]);

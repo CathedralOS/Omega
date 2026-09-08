@@ -48,6 +48,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(result.place);
         }
         O::ByteSequenceRead { source, .. }
+        | O::StructuralCase { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {
