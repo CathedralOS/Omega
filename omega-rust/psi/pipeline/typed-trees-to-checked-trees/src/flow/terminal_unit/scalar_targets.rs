@@ -19,7 +19,6 @@ pub(super) fn registered_primitive_store_target<'facts>(
     if targets.next().is_some()
         || plan.state != state_symbol
         || plan.result_type != result
-        || plan.effects.is_empty()
         || facts
             .flow
             .terminal_scalar_graphs

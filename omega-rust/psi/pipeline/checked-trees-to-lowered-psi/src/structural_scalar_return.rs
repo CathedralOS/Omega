@@ -319,7 +319,7 @@ pub(super) fn lower_structural_scalar_return_machine(
     lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0, None)
 }
 
-/// Ordinary structural scalar callees currently use the closed primitive-store
+/// Ordinary structural scalar callees currently use the closed primitive-reference
 /// body: no calls, claims, cleanup, requirements, or crash routes are omitted.
 pub(crate) fn validate_scalar_callee(
     checked: &CheckedTrees,
@@ -338,7 +338,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     identity_base: u64,
     shared_structural_types: Option<&[StructuralTypeDeclaration]>,
 ) -> Result<LoweredPsi, LoweringError> {
-    let primitive_store_return = effects::validate(checked, plan)?;
+    let primitive_reference_return = effects::validate(checked, plan)?;
     if plan.cleanup_actions.iter().any(|action| {
         matches!(
             action,
@@ -370,7 +370,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     let mut positions = BTreeSet::new();
     for parameter in &plan.structural_parameters {
         if parameter.is_self
-            || (parameter.multiplicity != Multiplicity::Affine && !primitive_store_return)
+            || (parameter.multiplicity != Multiplicity::Affine && !primitive_reference_return)
             || !parameter.qualifications.is_empty()
             || !positions.insert(parameter.position)
         {

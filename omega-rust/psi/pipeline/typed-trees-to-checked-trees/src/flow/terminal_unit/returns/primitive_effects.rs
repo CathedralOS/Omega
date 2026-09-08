@@ -1,8 +1,8 @@
-//! Primitive store prefixes shared with the Unit effect producer.
+//! Call-free primitive-reference returns and prefixes shared with Unit effects.
 
 use super::*;
 
-/// Discover call-free primitive-store bodies before their Unit callers. Nominal
+/// Discover call-free primitive-reference bodies before their Unit callers. Nominal
 /// cleanup has no catalog here and remains in the later return-plan phase.
 pub(crate) fn build_checked_primitive_store_scalar_return_plans(
     program: &TypedTrees,
@@ -54,7 +54,7 @@ pub(crate) fn refresh_checked_primitive_store_scalar_return_plans(
             *plan = primitive_returns.machines.remove(position);
             true
         } else {
-            plan.effects.is_empty()
+            plan.effects.is_empty() && !is_primitive_reference_plan(plan)
         }
     });
     returns.machines.extend(primitive_returns.machines);
@@ -81,8 +81,10 @@ pub(in crate::flow::terminal_unit) fn build_machine(
     if machine.supply_mode != MachineSupplyMode::CheckedBody
         || !matches!(
             program.statement_table.statements(state.statement_nodes),
-            [StatementNode::Assignment(_), StatementNode::Expression(_)]
+            [StatementNode::Expression(_)]
+                | [StatementNode::Assignment(_), StatementNode::Expression(_)]
         )
+        || !has_plain_primitive_borrows(program, state)
     {
         return None;
     }
@@ -96,12 +98,50 @@ pub(in crate::flow::terminal_unit) fn build_machine(
         &mut diagnostics,
     )?;
     (diagnostics.is_empty()
-        && !plan.effects.is_empty()
+        && is_primitive_reference_plan(&plan)
         && plan.bindings.is_empty()
         && plan.cleanup_actions.is_empty()
         && plan.caller_requirements.is_empty()
         && plan.scalar_requirements.is_empty())
     .then_some(plan)
+}
+
+/// This independent cohort carries unrestricted primitive borrows, never the
+/// affine parameters whose return plans depend on nominal cleanup discovery.
+pub(super) fn is_primitive_reference_plan(plan: &CheckedStructuralScalarReturnMachinePlan) -> bool {
+    !plan.structural_parameters.is_empty()
+        && plan.structural_parameters.iter().all(|parameter| {
+            !parameter.is_self
+                && parameter.multiplicity == Multiplicity::Unrestricted
+                && parameter.access != CheckedStructuralAccess::Owned
+                && parameter.qualifications.is_empty()
+        })
+}
+
+pub(super) fn has_plain_primitive_borrows(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> bool {
+    let mut has_borrow = false;
+    program.state_parameters(state).iter().all(|parameter| {
+        if parameter.is_self || parameter.is_const {
+            return false;
+        }
+        let reference = match program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            TypeReferenceNode::Reference { referee, .. } => {
+                has_borrow = true;
+                *referee
+            }
+            _ => parameter.type_reference,
+        };
+        matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        ) && program.primitive_type_reference(reference).is_some()
+    }) && has_borrow
 }
 
 pub(super) fn build(
@@ -145,9 +185,6 @@ pub(super) fn build(
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let [StatementNode::Assignment(_), StatementNode::Expression(_)] = statements else {
-        return None;
-    };
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     if !facts
         .flow
@@ -158,6 +195,12 @@ pub(super) fn build(
     {
         return None;
     }
+    if matches!(statements, [StatementNode::Expression(_)]) {
+        return has_plain_primitive_borrows(program, state).then(Vec::new);
+    }
+    let [StatementNode::Assignment(_), StatementNode::Expression(_)] = statements else {
+        return None;
+    };
     // This is the actual authored effect prefix. Its assignment keeps the
     // source state's parameter identity, complete write frame and RHS facts.
     let store = build_write_only_primitive_store(
@@ -174,3 +217,6 @@ pub(super) fn build(
     )?;
     Some(vec![store])
 }
+
+#[cfg(test)]
+mod tests;

@@ -66,7 +66,6 @@ fn primitive_store_scalar_return_rejects_unrepresented_prefix_statements() {
     for body in [
         "value = 0; value = 1; 0",
         "let saved: u64 = 0; value = saved; 0",
-        "0",
     ] {
         let checked = checked(&format!(
             "machine reset(value: &mut u64) -> u64 {{ {body} }}"
