@@ -42,6 +42,10 @@ stack-argument storage and AArch64 link-register preservation. This does not
 establish all native program shapes or publication profiles. ABI red-zone
 capacity is a fact, not a decision to use it.
 
+Preservation storage starts at its required alignment even when a narrow outgoing
+argument is not followed by activation-local storage. Alignment padding does not
+widen the outgoing argument's payload or write footprint.
+
 The separate abstract spill-requirement calculation exposes extent/alignment,
 not integration of executable spill accesses into the common frame. Callee-save
 group selection similarly starts with abstract storage: complete target storage

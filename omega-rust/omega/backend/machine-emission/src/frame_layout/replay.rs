@@ -128,23 +128,24 @@ pub(super) fn validate_layout(
                 .checked_add(u64::from(placed.size_bytes))
                 .ok_or(Error::GeometryOverflow)?;
         }
-        let preservation_offset = if source.local_storage_slots.is_empty() {
-            outgoing
-        } else {
-            let alignment = storage
-                .slots
-                .iter()
-                .map(|slot| slot.alignment_bytes)
-                .max()
-                .unwrap_or(8)
-                .max(8);
-            if !alignment.is_power_of_two() {
-                return Err(Error::NonCanonicalLayout);
-            }
-            local_extent
-                .checked_add((alignment - local_extent % alignment) % alignment)
-                .ok_or(Error::GeometryOverflow)?
-        };
+        let preservation_offset =
+            if source.local_storage_slots.is_empty() && storage.slots.is_empty() {
+                outgoing
+            } else {
+                let alignment = storage
+                    .slots
+                    .iter()
+                    .map(|slot| slot.alignment_bytes)
+                    .max()
+                    .unwrap_or(8)
+                    .max(8);
+                if !alignment.is_power_of_two() {
+                    return Err(Error::NonCanonicalLayout);
+                }
+                local_extent
+                    .checked_add((alignment - local_extent % alignment) % alignment)
+                    .ok_or(Error::GeometryOverflow)?
+            };
         let area = storage
             .abstract_area_bytes
             .checked_add(preservation_offset)
@@ -287,6 +288,8 @@ mod tests {
 
     #[test]
     fn saves_cannot_overlap_the_outgoing_abi_area_or_escape_storage() {
+        assert!(save_region_is_disjoint(8, 8, 8, 4, 16));
+        assert!(!save_region_is_disjoint(4, 8, 8, 4, 12));
         assert!(save_region_is_disjoint(32, 8, 8, 32, 40));
         assert!(save_region_is_disjoint(48, 16, 16, 32, 64));
         for (offset, size, alignment, end) in [
