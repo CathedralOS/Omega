@@ -162,17 +162,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe with production checkpoint `2596b778bf`
-  passes Terminal production but remains red. On macOS ARM64,
+  The downstream native `cli_mvp` probe with production checkpoint `52ce6f9c78`
+  passes Terminal and native abstract admission but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution: `Verification(Module(NonExecutableRankedScc(MachineId(3))))`.
-  `terminal-psi-to-abstract-operations/src/artifact/native.rs` routes every ranked
-  module into the restricted unsigned-countdown realization; the writer instead
-  uses natural slice-decrease evidence. Complete its native byte-view operations
-  and control transfers with the corresponding authority path, not fabricated
-  countdown or fixed-fuel evidence and not a weakened gate.
+  execution: the selected macOS Console provider has no closed native catalog
+  identities for `exit_process`, `read_line`, and `write_byte`.
+  `compiler/src/compiler/intrinsic_settlements.rs` currently realizes only the
+  Linux leaves. Complete the macOS provider definitions and realization; do not
+  substitute Linux or interpreter output.
+  Natural slice-decrease graphs use ordinary verified native admission, retaining
+  their grouped proofs and exact transfers. Downstream source inspection also
+  identifies countdown-only cycle replay in
+  `abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/`,
+  all-predecessor scheduling in `abstract-operations-to-target-operations/src/lowering/unit/graph.rs`,
+  and the ordinary-cycle fence in
+  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs`.
+  Reuse verified natural-component custody and dominance-owned availability
+  through those stages; do not fabricate countdown or fixed-fuel evidence,
+  import a predecessor's stale length, or weaken native replay.
   Terminal production retains authored boundary calls; native provider selection
   owns adapter realization, independently of interpreter dispatch. Complete the
   [borrowed-byte writer closure](omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
