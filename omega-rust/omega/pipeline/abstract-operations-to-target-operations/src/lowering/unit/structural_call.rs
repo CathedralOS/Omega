@@ -28,6 +28,7 @@ pub(super) fn lower_structural_unit_call(
     scalar_values: &BTreeMap<ValueId, super::scalar_call::KnownUnitInteger>,
     scalar_aliases: &BTreeMap<ValueId, ValueId>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
+    boolean_parameters: &BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -121,6 +122,16 @@ pub(super) fn lower_structural_unit_call(
                                 source_value: *source_value,
                                 value,
                             }
+                        } else if let Some(parameter) = boolean_parameters.get(source_value) {
+                            if parameter.value != *source_value
+                                || parameter.scalar_type != ScalarType::Boolean
+                            {
+                                return Err(LoweringError::CallArgumentTypeMismatch {
+                                    callee: *callee,
+                                    argument: *source_value,
+                                });
+                            }
+                            TargetUnitScalarArgumentSource::BlockParameter(*parameter)
                         } else {
                             return Err(LoweringError::UnknownValue(*source_value));
                         }

@@ -1,6 +1,19 @@
 //! Independent expression correspondence under source successor bindings.
 use super::*;
 impl Checker<'_> {
+    fn available_block_value(&self, parameter: &target_operations::TargetScalarBlockValue) -> bool {
+        let Some(sources) = self.available else {
+            return false;
+        };
+        let mut definitions = sources
+            .iter()
+            .filter(|(value, _)| *value == parameter.value);
+        matches!(definitions.next(),
+            Some((_, target_operations::TargetUnitScalarArgumentSource::BlockParameter(expected)))
+                if expected == parameter)
+            && definitions.next().is_none()
+    }
+
     fn scalar_parameters(&self) -> &[target_operations::ScalarAbiValue] {
         if let Some(abi) = &self.function.scalar_abi {
             &abi.parameters
@@ -38,6 +51,9 @@ impl Checker<'_> {
     ) -> bool {
         let resolved = resolve(value, aliases);
         match expression {
+            Expression::BlockParameter(parameter) => parameter.value == resolved
+                && matches!(parameter.scalar_type, ScalarType::Integer(_))
+                && self.available_block_value(parameter),
             Expression::ScalarHome(home) => home.source_value == resolved
                 && matches!(home.scalar_type, ScalarType::Integer(_))
                 && self.available_home(home),
@@ -97,6 +113,11 @@ impl Checker<'_> {
         value: ValueId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        if let Boolean::BlockParameter(parameter) = expression {
+            return parameter.value == resolve(value, aliases)
+                && parameter.scalar_type == ScalarType::Boolean
+                && self.available_block_value(parameter);
+        }
         if let Boolean::ScalarHome(home) = expression {
             return home.source_value == resolve(value, aliases)
                 && home.scalar_type == ScalarType::Boolean

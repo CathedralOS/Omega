@@ -281,6 +281,7 @@ pub(super) fn lower_unit_body(
                 &scalar_values,
                 &scalar_aliases,
                 &boolean_constants,
+                &BTreeMap::new(),
                 &mut shape_cache,
                 &mut active,
                 &mut operations,

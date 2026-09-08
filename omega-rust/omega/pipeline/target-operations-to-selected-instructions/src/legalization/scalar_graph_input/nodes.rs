@@ -158,7 +158,11 @@ pub(super) fn validate(
     super::boolean::validate(block, optimized)?;
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
-        if integer_type(parameter.scalar_type).is_none()
+        if (integer_type(parameter.scalar_type).is_none()
+            && !(optimized.result == AbstractFunctionResult::Unit
+                && !ranked
+                && [ScalarType::Boolean, ScalarType::Integer(u8_type())]
+                    .contains(&parameter.scalar_type)))
             || parameter.site
                 != (ValueDefinitionSite::BlockParameter {
                     block: block.id,

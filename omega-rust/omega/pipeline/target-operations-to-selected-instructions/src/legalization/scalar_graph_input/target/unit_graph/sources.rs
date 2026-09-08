@@ -23,8 +23,20 @@ pub(super) fn available(
         })
         .collect::<Vec<_>>();
     for candidate in &graph.blocks {
-        if candidate.block != block && dominates(optimized, candidate.block, block) {
-            result.extend(candidate.operations.iter().filter_map(definition));
+        if candidate.block == block || dominates(optimized, candidate.block, block) {
+            result.extend(candidate.parameters.iter().map(|parameter| {
+                (
+                    parameter.value,
+                    Source::BlockParameter(target_operations::TargetScalarBlockValue {
+                        block: candidate.block,
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                    }),
+                )
+            }));
+            if candidate.block != block {
+                result.extend(candidate.operations.iter().filter_map(definition));
+            }
         }
     }
     result

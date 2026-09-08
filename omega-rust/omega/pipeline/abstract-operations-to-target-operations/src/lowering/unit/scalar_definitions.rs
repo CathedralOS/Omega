@@ -35,6 +35,20 @@ pub(super) fn lower_integer_widen(
         .copied()
         .ok_or(LoweringError::UnknownValue(*operand))?;
     let operand_expression = match known {
+        KnownUnitInteger::BlockParameter {
+            block,
+            value,
+            scalar_type,
+        } => {
+            if value != *operand || scalar_type != *source_type {
+                return Err(invalid());
+            }
+            TargetIntegerExpression::BlockParameter(target_operations::TargetScalarBlockValue {
+                block,
+                value,
+                scalar_type: ScalarType::Integer(scalar_type),
+            })
+        }
         KnownUnitInteger::Parameter {
             parameter_index,
             scalar_type,

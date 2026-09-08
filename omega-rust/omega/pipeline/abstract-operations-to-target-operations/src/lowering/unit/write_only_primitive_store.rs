@@ -80,6 +80,7 @@ pub(super) fn lower_write_only_primitive_store(
                     value: immediate,
                 },
                 KnownUnitInteger::Home(home) => TargetUnitWriteOnlyPrimitiveStoreSource::Home(home),
+                KnownUnitInteger::BlockParameter { .. } => return Err(invalid()),
             };
             (
                 ValueShape::borrowed_reference(referent_shape.byte_size, referent_shape.alignment),

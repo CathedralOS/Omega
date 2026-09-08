@@ -33,15 +33,7 @@ pub(super) fn validate(
                 .any(|(actual, expected)| {
                     actual.value != expected.value || actual.scalar_type != expected.scalar_type
                 })
-            || (source.id != optimized.entry && !source.parameters.is_empty())
-            || (!source.parameters.is_empty()
-                && (source.parameters.len() != optimized.parameters.len()
-                    || source.parameters.iter().zip(&optimized.parameters).any(
-                        |(actual, expected)| {
-                            actual.value != expected.value
-                                || actual.scalar_type != expected.scalar_type
-                        },
-                    )))
+            || (source.id == optimized.entry && !source.parameters.is_empty())
             || source.nodes.len() != block.operations.len() + 1
         {
             return Err(invalid);
@@ -90,7 +82,6 @@ pub(super) fn validate(
                 successor.psi_edge == *psi_edge
                     && successor.target == *target
                     && successor.bindings == *bindings
-                    && bindings.is_empty()
                     && successor.cleanup_actions.is_empty()
                     && trivial_affine_discards.is_empty()
                     && residual_affine_discards.is_empty()
@@ -137,7 +128,6 @@ fn successor_matches(
     target.psi_edge == source.psi_edge
         && target.target == source.target
         && target.bindings == source.bindings
-        && source.bindings.is_empty()
         && source.trivial_affine_discards.is_empty()
         && target.cleanup_actions.is_empty()
 }

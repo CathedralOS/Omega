@@ -94,6 +94,11 @@ pub(super) fn validate(
                 && literal == expected_literal
                 && source_type.admits(*literal)
         }
+        (Expression::BlockParameter(parameter), Source::BlockParameter(expected)) => {
+            parameter == expected
+                && parameter.value == *source_value
+                && parameter.scalar_type == ScalarType::Integer(*source_type)
+        }
         (Expression::ScalarHome(home), Source::Home(expected)) => {
             home == expected
                 && home.source_value == *source_value
