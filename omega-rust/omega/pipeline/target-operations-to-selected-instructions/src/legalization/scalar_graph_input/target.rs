@@ -41,6 +41,9 @@ pub(super) fn validate_target(
                 when_false,
                 ..
             } => vec![when_true.psi_edge, when_false.psi_edge],
+            AbstractOperation::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| case.psi_edge).collect()
+            }
             _ => vec![],
         })
         .collect::<Vec<_>>();

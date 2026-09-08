@@ -3,6 +3,7 @@ use super::super::shared::*;
 use super::scalar_call::KnownUnitInteger;
 mod dominance;
 mod observations;
+mod structural_case;
 mod transfers;
 use target_operations::{
     TargetScalarBlockParameter, TargetUnitBlock, TargetUnitGraph, TargetUnitSuccessor,
@@ -11,6 +12,9 @@ use target_operations::{
 
 #[derive(Clone)]
 struct LiveDefinitions {
+    // Dominating definitions only. Abstract-unit validation owns edge liveness.
+    structural_homes: BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
+    nonreturning: bool,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
     boolean_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
@@ -27,10 +31,14 @@ pub(super) fn lower(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
+    installed_calls: &BTreeMap<
+        (MachineId, OperationId, BoundaryMachineId),
+        InstalledProviderCallEvidence,
+    >,
+    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
     if function.result != AbstractFunctionResult::Unit
-        || function.attachment.is_some()
         || !function.structural_parameters.iter().all(|parameter| {
             super::super::scalar::byte_views::is_immutable_byte_parameter(
                 parameter,
@@ -90,9 +98,15 @@ pub(super) fn lower(
         }
     }
     for operation in &function.operations {
-        if let AbstractOperation::ByteSequenceSubslice { result, .. } = operation
-            && !places.insert(result.place)
-        {
+        let established = match operation {
+            AbstractOperation::ByteSequenceSubslice { result, .. }
+            | AbstractOperation::BoundaryCall {
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            } => Some(result.place),
+            _ => None,
+        };
+        if established.is_some_and(|place| !places.insert(place)) {
             return Err(invalid());
         }
     }
@@ -149,6 +163,9 @@ pub(super) fn lower(
             {
                 vec![when_true.target, when_false.target]
             }
+            AbstractOperation::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| case.target).collect()
+            }
             _ => return Err(invalid()),
         };
         for target_block in targets {
@@ -171,6 +188,8 @@ pub(super) fn lower(
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
     let initial = LiveDefinitions {
+        structural_homes: BTreeMap::new(),
+        nonreturning: false,
         integers: super::setup::integer_parameters(function.machine, &prepared.scalar_parameters)?,
         booleans: BTreeMap::new(),
         boolean_homes: BTreeMap::new(),
@@ -184,6 +203,7 @@ pub(super) fn lower(
             None => initial.clone(),
             Some(dominator) => live_exits[dominator].as_ref().ok_or_else(invalid)?.clone(),
         };
+        live.nonreturning = false;
         if position != entry_position {
             transfers::enter(&entries[position], &mut live);
             live.block_views.extend(
@@ -205,6 +225,8 @@ pub(super) fn lower(
                 structural_types,
                 boundary_machines,
                 settlements,
+                installed_calls,
+                native_callbacks,
                 &prepared,
                 &mut live,
                 &mut operations,
@@ -217,6 +239,7 @@ pub(super) fn lower(
             function,
             &prepared,
             &live,
+            structural_types,
             provenance,
         )?;
         lowered[position] = Some(TargetUnitBlock {
@@ -273,11 +296,21 @@ fn lower_operation(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
+    installed_calls: &BTreeMap<
+        (MachineId, OperationId, BoundaryMachineId),
+        InstalledProviderCallEvidence,
+    >,
+    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
     prepared: &super::setup::PreparedUnitFunction,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    if live.nonreturning {
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
+    }
     match operation {
         AbstractOperation::BoundaryCall { boundary, .. }
             if settlements.get(boundary).is_some_and(|binding| {
@@ -285,6 +318,8 @@ fn lower_operation(
                     binding.realization,
                     target_operations::BoundarySettlementRealization::Builtin(
                         BoundaryRealization::HostedWriteByteI32(_)
+                            | BoundaryRealization::HostedExitProcessI32(_)
+                            | BoundaryRealization::LinuxReadByte(_)
                     )
                 )
             }) =>
@@ -297,8 +332,8 @@ fn lower_operation(
                 structural_types,
                 boundary_machines,
                 settlements,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
+                installed_calls,
+                native_callbacks,
                 &super::setup::parameters_by_place(&prepared.parameters),
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
@@ -306,8 +341,22 @@ fn lower_operation(
                 &mut live.integers,
                 operations,
                 provenance,
-                &mut false,
-            )
+                &mut live.nonreturning,
+            )?;
+            if let Some(TargetUnitOperation::BoundarySettlement {
+                result: target_operations::TargetBoundaryResult::Structural(home),
+                ..
+            }) = operations.last()
+                && live
+                    .structural_homes
+                    .insert(home.result.place, home.clone())
+                    .is_some()
+            {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
+            Ok(())
         }
         AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::ByteSequenceRead { .. }
@@ -403,9 +452,17 @@ fn terminator(
     function: &AbstractFunction,
     prepared: &super::setup::PreparedUnitFunction,
     live: &LiveDefinitions,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetUnitTerminator, LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
+    if live.nonreturning
+        && !matches!(operation, AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty())
+    {
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
+    }
     let successor = |edge: &abstract_operations::AbstractSuccessor| TargetUnitSuccessor {
         psi_edge: edge.psi_edge,
         target: edge.target,
@@ -414,6 +471,9 @@ fn terminator(
         cleanup_actions: Vec::new(),
     };
     match operation {
+        AbstractOperation::StructuralCase { .. } => {
+            structural_case::lower(operation, function, live, structural_types, provenance)
+        }
         AbstractOperation::ReturnUnit {
             psi_edge,
             cleanup_actions,

@@ -3,6 +3,9 @@ use super::*;
 use target_operations::{TargetUnitGraph, TargetUnitSuccessor, TargetUnitTerminator};
 mod sources;
 #[cfg(test)]
+mod structural_case_tests;
+mod structural_cases;
+#[cfg(test)]
 mod tests;
 
 pub(super) fn validate(
@@ -14,7 +17,7 @@ pub(super) fn validate(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    if optimized.attachment.is_some()
+    if function.attachment != optimized.attachment
         || graph.structural_types != plan.structural_types
         || graph.structural_types != unit.structural_types
         || graph.entry != optimized.entry
@@ -60,6 +63,21 @@ pub(super) fn validate(
         }
         let source_terminator = &source.nodes.last().ok_or(invalid.clone())?.operation;
         let matches = match (&block.terminator, source_terminator) {
+            (
+                TargetUnitTerminator::StructuralCase { source, cases },
+                AbstractOperation::StructuralCase {
+                    source: expected_source,
+                    cases: expected_cases,
+                },
+            ) => structural_cases::matches(
+                graph,
+                optimized,
+                block.block,
+                source,
+                cases,
+                *expected_source,
+                expected_cases,
+            ),
             (
                 TargetUnitTerminator::Return {
                     psi_edge,

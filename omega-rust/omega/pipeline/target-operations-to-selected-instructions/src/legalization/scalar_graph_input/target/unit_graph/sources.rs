@@ -80,7 +80,11 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
     }
 }
 
-fn dominates(function: &PsiOptimizationFunction, candidate: BlockId, block: BlockId) -> bool {
+pub(super) fn dominates(
+    function: &PsiOptimizationFunction,
+    candidate: BlockId,
+    block: BlockId,
+) -> bool {
     let mut pending = vec![function.entry];
     let mut visited = Vec::new();
     while let Some(current) = pending.pop() {

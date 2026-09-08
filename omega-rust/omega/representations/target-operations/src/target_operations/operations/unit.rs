@@ -7,8 +7,7 @@ use crate::{
     TargetDynamicDescriptorArgument, TargetIeeeFloatFmaOperand, TargetStructuralArgument,
     TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitConditionalSuccessor,
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TargetUnitStructuralCaseSuccessor, TargetUnitWriteOnlyPrimitiveStoreSource,
-    TargetX86ScalarFmaSettlement,
+    TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement,
 };
 use abstract_operations::{
     AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
@@ -258,12 +257,6 @@ pub enum TargetUnitOperation {
         rebound_argument: TargetStructuralArgument,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Inspect one exact structural boundary-result home and dispatch to the
-    /// physically laid-out arm matching its canonical signed-i32 case tag.
-    StructuralCase {
-        source: TargetStructuralHomeRequirement,
-        cases: Vec<TargetUnitStructuralCaseSuccessor>,
     },
     /// One bounded equality decision after a durable Unit scalar result.
     /// The true arm is laid out first and both arms must end in admitted

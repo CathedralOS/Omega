@@ -35,6 +35,10 @@ pub struct TargetScalarBlockParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitTerminator {
+    StructuralCase {
+        source: crate::TargetStructuralHomeRequirement,
+        cases: Vec<TargetUnitGraphCaseSuccessor>,
+    },
     Return {
         psi_edge: EdgeId,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
@@ -48,6 +52,25 @@ pub enum TargetUnitTerminator {
         when_true: TargetUnitSuccessor,
         when_false: TargetUnitSuccessor,
     },
+}
+
+/// Ordered sum alternative and the exact destination telescope it produces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetUnitGraphCaseSuccessor {
+    pub psi_edge: EdgeId,
+    pub case: semantic_vocabulary::StructuralCaseId,
+    pub case_tag: i32,
+    pub target: BlockId,
+    pub payloads: Vec<TargetUnitGraphCasePayload>,
+    pub trivial_affine_discards: Vec<semantic_vocabulary::PlaceId>,
+}
+
+/// A payload is defined by its destination parameter, not the sum producer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetUnitGraphCasePayload {
+    pub field: semantic_vocabulary::StructuralFieldId,
+    pub field_byte_offset: u32,
+    pub parameter: crate::TargetScalarBlockValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

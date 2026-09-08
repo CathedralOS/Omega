@@ -44,6 +44,13 @@ Ordinary liveness, allocation and encoding own these copies. Independent replay
 checks the expansion and contracts it back to the source graph, with the authored
 edge and its fuel retained once; the final implementation jump carries lineage,
 not a second semantic transition. No source block or operation is fabricated.
+
+Target-input correspondence also checks `StructuralCase` terminators in
+`TargetUnitGraph` against the validated abstract graph: the exact dominating
+result home, declared case order/tag, relevant field offset, destination
+block/value/type, and edge cleanup must agree. This is input replay only. The
+legalized and selected case terminators and their payload-before-cleanup
+transport remain unimplemented; the selection boundary still rejects them.
 Computed Boolean comparisons remain branch predicates until value materialization
 is implemented.
 
