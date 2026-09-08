@@ -1,5 +1,7 @@
 use super::*;
 
+mod selected_meaning;
+
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -69,6 +71,126 @@ fn query(source: &str) -> Option<(i64, i64)> {
         panic!("value expression");
     };
     immutable_integer_expression_bounds(&program, machine, state, *expression)
+}
+
+#[test]
+fn immutable_bounds_do_not_select_carrier_width_by_spelling() {
+    let mut program = typed("machine read(input: u64) -> u64 { input }");
+    let machine = program.machines()[0].clone();
+    let state = program.machine_states(&machine)[0].clone();
+    let reference = program.state_parameters(&state)[0].type_reference;
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        panic!("builtin carrier");
+    };
+    let symbol = *symbol;
+    let forged = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol,
+            name: typed_trees::name::Identifier::generated_static("u8"),
+        });
+    program.state_parameters.span_mut_or_empty(state.parameters)[0].type_reference = forged;
+    let typed_trees::statement::StatementNode::Expression(expression) =
+        program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("input expression");
+    };
+    assert_eq!(
+        immutable_integer_expression_bounds(&program, &machine, &state, expression),
+        None,
+        "the actual u64 ceiling does not fit the signed interval engine"
+    );
+}
+
+#[test]
+fn immutable_bounds_exclude_the_signed_remainder_overflow_pair() {
+    for carrier in ["i8", "i16", "i32", "i64"] {
+        assert_eq!(
+            query(&format!(
+                "machine value(input: {carrier}) -> {carrier} {{ input % -1{carrier} }}"
+            )),
+            None,
+            "{carrier} MIN % -1 is not an Exact value"
+        );
+        assert_eq!(
+            query(&format!(
+                "machine value(input: {carrier} [0..=5]) -> {carrier} {{ input % -1{carrier} }}"
+            )),
+            Some((0, 0)),
+            "ordinary negative divisors remain supported"
+        );
+    }
+}
+
+#[test]
+fn bounded_result_does_not_excuse_an_overflowing_unsigned_intermediate() {
+    assert_eq!(
+        query("machine value(input: u64) -> u64 { (input + 1) % 5 + 6 }"),
+        None
+    );
+    assert_eq!(
+        query("machine value(input: u64) -> u64 { (input + 0) % 5 + 6 }"),
+        Some((6, 10))
+    );
+}
+
+#[test]
+fn immutable_arithmetic_keeps_operand_landing_obligations() {
+    for source in [
+        "machine value(input: u8) -> u8 { input % 256 }",
+        "machine value(input: u64) -> u64 { input % -1 }",
+        "machine value(input: u8 [0..=5]) -> u8 { input + 1u64 }",
+    ] {
+        assert_eq!(query(source), None, "{source}");
+    }
+    assert_eq!(
+        query("machine value(input: u8 [0..=5]) -> u8 { input + 1u8 }"),
+        Some((1, 6))
+    );
+}
+
+#[test]
+fn unsigned_literal_formation_uses_the_actual_carrier_ceiling() {
+    assert_eq!(
+        query("machine value() -> u64 { 18446744073709551616u64 % 5u64 }"),
+        None
+    );
+    assert_eq!(
+        query("machine value() -> u64 { 18446744073709551615u64 % 5u64 }"),
+        Some((0, 4))
+    );
+}
+
+#[test]
+fn computed_bounds_retain_carrier_identity_without_input_refinements() {
+    let program = typed("machine value(input: u64 [20..=30]) -> u64 { input % 5 }");
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let typed_trees::statement::StatementNode::Expression(expression) =
+        program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("computed expression");
+    };
+    let value = bounds(&program, machine, state, expression).expect("builtin remainder");
+    let reference = value.type_reference.expect("the result remains typed");
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        panic!("operand refinements must not become result facts");
+    };
+    assert_eq!(
+        program.symbols.builtin_type_atom(*symbol),
+        Some(symbols::BuiltinTypeAtom::U64)
+    );
+    assert_eq!(
+        value.interval,
+        Interval {
+            low: Some(0),
+            high: Some(4)
+        }
+    );
 }
 
 #[test]

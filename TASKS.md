@@ -316,8 +316,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   bounded-distance, or custom views need
   exact arrival mappings and preserved premises for ranked subjects and pinned
   endpoints. Mutable premises need live write-frame evidence.
-  Custom struct-view ranges requiring relational field facts or computed
-  endpoints, scalar views beyond `u64` identity forwarding, and slice lengths
+  Custom struct-view ranges requiring relational field or endpoint facts,
+  scalar views beyond `u64` identity forwarding, and slice lengths
   over projected storage need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 

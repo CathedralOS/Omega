@@ -31,10 +31,29 @@ pub(super) fn check(
             strict_decrease_proven: true,
         });
     }
-    let separator = if range.ceiling_inclusive { "..=" } else { ".." };
+    // Diagnostics use the retained expression tree. Normalized witness labels
+    // deliberately cover a smaller subset and may spell arithmetic as "value".
+    let retained = program
+        .ranking_expression_custody_for(machine.symbol)
+        .and_then(|custody| custody.rank_range)
+        .and_then(|handle| match program.expression_table.expression(handle) {
+            ExpressionNode::Range(range) => Some((
+                program.expression_table.display_name(range.start),
+                program.expression_table.display_name(range.end),
+                range.end_inclusive,
+            )),
+            _ => None,
+        });
+    let (floor, ceiling, inclusive) = retained.unwrap_or_else(|| {
+        (
+            range.floor.clone(),
+            range.ceiling.clone(),
+            range.ceiling_inclusive,
+        )
+    });
+    let separator = if inclusive { "..=" } else { ".." };
     Err(format!(
-        "cannot prove rank range `{}{separator}{}` for the rank produced by the selected view",
-        range.floor, range.ceiling,
+        "cannot prove rank range `{floor}{separator}{ceiling}` for the rank produced by the selected view",
     ))
 }
 
@@ -133,12 +152,6 @@ fn endpoint_bounds(
     expression: ExpressionHandle,
     pinned_bound: Option<(ExpressionHandle, i128, i128)>,
 ) -> Option<Bounds> {
-    if let Some(value) = program.expression_table.constant_integer_value(expression) {
-        return Some(Bounds {
-            low: i128::from(value),
-            high: i128::from(value),
-        });
-    }
     // The IncreasingTo edge proof already pins this exact bound. Other scalar
     // endpoints need their own occurrence and write-preservation judgment.
     if let Some((bound, _, _)) = pinned_bound
@@ -146,7 +159,7 @@ fn endpoint_bounds(
     {
         return bounds(program, machine, expression);
     }
-    endpoints::pinned_parameter_bounds(program, machine, expression)
+    endpoints::pinned_expression_bounds(program, machine, expression)
 }
 
 fn same_parameter(program: &TypedTrees, left: ExpressionHandle, right: ExpressionHandle) -> bool {

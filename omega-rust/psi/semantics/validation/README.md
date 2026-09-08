@@ -43,6 +43,11 @@ loses precision. Scalar argument snapshots and reference-write invalidation are
 distinct. `parameter_bounds.rs` preserves one-sided unsigned bounds even beyond
 the interval engine's signed endpoint width. Exact `u64` formation separately
 checks the actual unsigned ceiling.
+`invariant_bounds.rs` selects fixed carriers by builtin identity and retains
+literal landing types and evaluates anonymous subtrees with the existing rational
+evaluator. Its immutable expression queries check operand landing,
+each intermediate's unsigned representability, and the signed `MIN / -1`
+definedness pair shared by division and remainder before reporting bounds.
 
 `struct_literals/guard_bounds.rs` passes the selected transition arm's numeric
 facts to constructor checks only for exact immutable owned inputs and builtin

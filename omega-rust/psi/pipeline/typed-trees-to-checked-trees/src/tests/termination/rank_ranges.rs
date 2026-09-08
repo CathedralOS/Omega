@@ -5,6 +5,7 @@ use super::{
 mod call_components;
 mod clamped_calls;
 mod entry_reentry;
+mod field_endpoint_arithmetic;
 mod identity_measures;
 mod increasing_calls;
 mod named_states;

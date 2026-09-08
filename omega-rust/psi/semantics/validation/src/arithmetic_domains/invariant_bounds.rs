@@ -10,6 +10,18 @@ pub fn enforced_integer_type_bounds(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
+    let primitive = exact_integer_primitive(program, type_reference)?;
+    let carrier = primitive_range(primitive)?;
+    let interval = enforced_declared_range(program, type_reference)
+        .map_or(carrier, |range| range.intersect(carrier));
+    let (low, high) = (interval.low?, interval.high?);
+    (low <= high).then_some((low, high))
+}
+
+fn exact_integer_primitive(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
     let mut carrier_type = type_reference;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(carrier_type)
@@ -35,11 +47,7 @@ pub fn enforced_integer_type_bounds(
     if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
         return None;
     }
-    let carrier = primitive_range(primitive)?;
-    let interval = enforced_declared_range(program, type_reference)
-        .map_or(carrier, |range| range.intersect(carrier));
-    let (low, high) = (interval.low?, interval.high?);
-    (low <= high).then_some((low, high))
+    Some(primitive)
 }
 
 /// Bound a literal or builtin arithmetic tree over exact immutable primitive
@@ -98,26 +106,62 @@ fn bounds(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<Bounds> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => Some(Bounds {
-            interval: literal_interval(literal),
+    // Anonymous subtrees retain rational meaning until an operand lands. The
+    // syntax-only integer folder would truncate division and erase landing.
+    if let Some(evaluated) =
+        crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
+            crate::literals::has_anonymous_operator_meaning(program, expression)
+        })
+    {
+        let value = evaluated.value.to_integer_exact()?.to_i64()?;
+        return Some(Bounds {
+            interval: Interval::constant(value),
             primitive: None,
             type_reference: None,
-        }),
+        });
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => {
+            let interval = literal_interval(literal);
+            let type_reference = if let Some(landing) = literal.landing() {
+                if landing.domain != ArithmeticDomain::Exact {
+                    return None;
+                }
+                Some(crate::operators::landed_integer_literal_type_reference(
+                    program, expression,
+                )?)
+            } else {
+                None
+            };
+            let primitive = match type_reference {
+                Some(reference) => {
+                    let primitive = exact_integer_primitive(program, reference)?;
+                    // The projected u64 ceiling is unbounded in Interval;
+                    // validate its literal payload against the real carrier.
+                    if (primitive == PrimitiveType::U64 && literal.value_u64().is_none())
+                        || !primitive_range(primitive)?.contains(interval)
+                    {
+                        return None;
+                    }
+                    Some(primitive)
+                }
+                None => None,
+            };
+            Some(Bounds {
+                interval,
+                primitive,
+                type_reference,
+            })
+        }
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
             let parameter = program
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
-            if parameter.is_self
-                || parameter.is_mutable
-                || parameter.is_const
-                || program.arithmetic_domain_for_type_reference(parameter.type_reference)
-                    != ArithmeticDomain::Exact
-            {
+            if parameter.is_self || parameter.is_mutable || parameter.is_const {
                 return None;
             }
-            let primitive = program.primitive_type_reference(parameter.type_reference)?;
+            let primitive = exact_integer_primitive(program, parameter.type_reference)?;
             let carrier = primitive_range(primitive)?;
             Some(Bounds {
                 interval: enforced_declared_range(program, parameter.type_reference)
@@ -155,6 +199,39 @@ fn bounds(
             }
             let primitive = left.primitive.or(right.primitive)?;
             let carrier = primitive_range(primitive)?;
+            // Anonymous operands land at the already-typed operation. A small
+            // result is not evidence that an out-of-range operand can land.
+            if !carrier.contains(left.interval) || !carrier.contains(right.interval) {
+                return None;
+            }
+            // A later operation may produce small bounds, but cannot repair
+            // an earlier Exact overflow hidden by the signed interval window.
+            if primitive == PrimitiveType::U64
+                && matches!(
+                    binary.operator,
+                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                )
+                && !super::unsigned_representability::binary_fits(
+                    binary.operator,
+                    left.interval,
+                    right.interval,
+                    None,
+                    None,
+                )
+            {
+                return None;
+            }
+            if matches!(
+                binary.operator,
+                BinaryOperator::Divide | BinaryOperator::Modulo
+            ) && primitive.is_signed_integer()
+                && left.interval.contains(Interval::constant(carrier.low?))
+                && right.interval.contains(Interval::constant(-1))
+            {
+                // Exact signed remainder shares the quotient's MIN / -1
+                // definedness obligation, even though its result would be zero.
+                return None;
+            }
             // The shared i64 interval engine cannot represent abs(i64::MIN).
             // Do not use its saturating divisor magnitude as an exact bound.
             if binary.operator == BinaryOperator::Modulo && right.interval.low == Some(i64::MIN) {
@@ -168,10 +245,18 @@ fn bounds(
                 BinaryOperator::Modulo => left.interval.modulo(right.interval),
                 _ => return None,
             };
+            // A parent must still see this result's selected integer carrier.
+            // Operand refinements do not survive the arithmetic operation.
+            let mut result_type = left.type_reference.or(right.type_reference)?;
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                program.type_reference_table.type_reference(result_type)
+            {
+                result_type = *base_type;
+            }
             carrier.contains(interval).then_some(Bounds {
                 interval,
                 primitive: Some(primitive),
-                type_reference: None,
+                type_reference: Some(result_type),
             })
         }
         _ => None,
