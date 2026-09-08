@@ -130,7 +130,7 @@ The native path runs real programs on macOS ARM64, Windows x64, and Linux
 The general implementation queue and its acceptance checks live in
 [`TASKS.md`](TASKS.md). Optimizer architecture and its dedicated execution queue
 live in
-[`optimizer_architecture.md`](wiki/pre_migration/design_briefs/optimizer_architecture.md) and
+[optimizer implementation](omega-rust/optimization.md) and
 [`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Completed limitations are removed
 rather than retained as status history.
 
@@ -145,7 +145,7 @@ optimization, and native lowering. The current Rust pipeline predates that cut
 and is being migrated; `StateGraph` and `ControlFlowPlan` are not the public
 portable format.
 
-See [wiki/pre_migration/architecture/architecture.md](wiki/pre_migration/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
+See the [compiler pipeline](omega-rust/pipeline.md) for connected stages and implementation ownership.
 
 The selected bootstrap lattice is Alpha -> Beta -> Gamma -> Delta -> Epsilon ->
 Omega. Alpha is raw tape execution; Beta is the trusted imperative tape-
@@ -166,7 +166,7 @@ options are separated in the
 [shorter-chain proposal](wiki/proposals/bootstrap_chain_alternatives.md).
 The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
-[`compiler_source_profile.md`](wiki/pre_migration/architecture/bootstrap_chain/compiler_source_profile.md).
+[bootstrap source contract](bootstrap/CONTRACT.md#source-subjects).
 [`source/README.md`](source/README.md) describes the final product-source side;
 the [ground-equality checker](bootstrap/proofs/checker/README.md) is an
 ordinary Gamma tool, not another language rung. Its full Beta encoding certificate
@@ -257,5 +257,5 @@ The language is moving quickly. The best current design references are:
 
 - [Documentation index](wiki/README.md)
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
-- [Architecture](wiki/pre_migration/architecture/architecture.md)
+- [Compiler ownership and pipeline](omega-rust/pipeline.md)
 - [Rust compiler completion](wiki/drafts/rust_compiler_completion.md)

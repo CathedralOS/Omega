@@ -15,7 +15,7 @@ evaluator, expected observations, and 300-second allowance as the full gate.
 single source-to-receipt validation-environment control described below.
 
 [`function_rows.py`](function_rows.py) retains the three function-row controls
-at D30's selected limit of 32,768:
+at the selected limit of 32,768:
 
 | Authored source | Bytes | Expected exact DCOUT |
 | --- | ---: | --- |
@@ -33,7 +33,7 @@ duplicate diagnosis. All three inputs are below the separate 4-MiB source limit.
 Fixture sizes, SHA256 identities, and full 40-byte output frames are pinned.
 
 [`constructor_rows.py`](constructor_rows.py) supplies five constructor-row
-controls at D30's selected limit of 65,536:
+controls at the selected limit of 65,536:
 
 | Authored source | Bytes | Expected exact DCOUT |
 | --- | ---: | --- |
@@ -55,7 +55,7 @@ below the separate source-byte provision. Their length, digest, source
 coordinate, status, and complete 40-byte frame expectations are fixed in the
 fixture owner; no expected diagnosis is obtained from compiler output.
 
-[`type_rows.py`](type_rows.py) supplies four total-type-row controls at D30's
+[`type_rows.py`](type_rows.py) supplies four total-type-row controls at the
 selected limit of 65,536, including the two built-in rows for `Int` and `Bytes`:
 
 | Authored source | Bytes | Expected exact DCOUT |
@@ -80,7 +80,7 @@ complete 40-byte frames are independently pinned in the fixture owner.
 ## Active-environment fixture inventory
 
 [`environment_rows.py`](environment_rows.py) defines eleven full authored
-controls for D30's 65,536 active local rows through the same selected compiler
+controls for the selected 65,536 active local rows through the same compiler
 and unchanged diagnostic allowance.
 
 | Authored source | Bytes | Expected exact DCOUT |
@@ -138,18 +138,18 @@ must reject its own missing coverage at its expression start. Source lengths,
 SHA256 identities, literal coordinate anchors, and all 40 output bytes are
 fixed independently of compiler output.
 
-D110 defines an immutable exact-name coverage set local to each match and
+The [Delta language](../../../bootstrap/3_delta/LANGUAGE.md) defines an immutable exact-name coverage set local to each match and
 permits arbitrary authored arm order. The separate global constructor limit
 admits at most 65,536 constructors. Consequently, a fresh 65,537th same-owner
 coverage member cannot arise: an extra pattern instead encounters constructor
 identity, owner, arity, or duplicate-case checking. These controls establish
 capacity reach, diagnostic precedence, and per-match isolation, not an invented
-code-6 refusal or complete D30 resource closure.
+code-6 refusal or complete resource closure.
 
 ## Syntax-storage fixture inventory
 
 [`syntax_storage.py`](syntax_storage.py) defines ten authored controls for
-D30's 114,294,752-byte cumulative syntax provision. The selected Gamma pair
+the selected 114,294,752-byte cumulative syntax provision. The selected Gamma pair
 occupies 40 bytes, so 2,857,368 complete pairs consume 114,294,720 bytes; the
 remaining 32 bytes cannot hold another pair. No test injects a usage counter.
 
@@ -246,7 +246,7 @@ These controls test the type-, function-, constructor-, and
 active-environment-row boundaries, cumulative syntax storage, full per-match
 coverage behavior, exact/adjacent payload publication, and this generated
 validation-environment gap.
-They do not establish all D30 capacities, acceptance or emission of every
+They do not establish all selected capacities, acceptance or emission of every
 in-bound program, or closure of the Delta edge. Other frontend and request
 behavior remains in the
 [frontend](../frontend-boundary/README.md) and

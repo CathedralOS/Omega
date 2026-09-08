@@ -2,7 +2,7 @@
 
 This is the optimizer execution board, not its history. Architecture and
 rationale live in
-[`wiki/pre_migration/design_briefs/optimizer_architecture.md`](wiki/pre_migration/design_briefs/optimizer_architecture.md),
+[optimizer implementation](omega-rust/optimization.md),
 and landed milestones live in Git. Remove work from this file when its
 acceptance condition passes.
 
@@ -14,7 +14,7 @@ needed for independent replay through publication.
 ## Pipeline cleanup follow-ups
 
 These are separately schedulable follow-ups, not an ongoing cleanup run.
-The [ownership contract](wiki/pre_migration/architecture/pipeline/ownership_cleanup.md)
+The [ownership contract](omega-rust/pipeline.md)
 governs all three: replace obstructive implementations, preserve semantics and
 independent validation, and keep empty/nonempty optimization selections on one
 physical route. Unsupported cases reject rather than restoring a fallback.
@@ -68,11 +68,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   families and publication routes must fail closed until their exact grammar,
   target applicability, result, effect, cleanup, and custody facts reconstruct.
 
-  Close D32 with one source-reachable selected-lowering operation carrying
+  Close [physical-child replay](wiki/spec/terminal-psi/boundary_calls.md#closed-application-and-physical-occurrence)
+  with one source-reachable selected-lowering operation carrying
   nonempty physical evidence through allocation, layout, native emission, and
   independent replay. Bind the immutable Terminal product, validated
   optimization projection, and each surviving boundary occurrence to exactly
-  one physical child with its D29 application or D41 settlement parent.
+  one physical child with its operator-application or boundary-settlement parent.
   Acceptance: post-Psi optimization
   and final publication reject missing, duplicate, stale, substituted, padded,
   or role-swapped children; only verified eliminated occurrences need no child.

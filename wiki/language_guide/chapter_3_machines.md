@@ -541,4 +541,4 @@ Working rules:
 
 > **Implementation gate:** the current Rust trees do not yet carry the
 > normalized complete machine contract or explicit supply mode. See
-> [semantic_taxonomy_representation.md](../pre_migration/architecture/semantic_taxonomy_representation.md).
+> [semantic representation ownership](../../omega-rust/psi/representations/README.md).

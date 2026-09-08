@@ -31,11 +31,12 @@ SOURCE_READERS = {
 }
 
 # Audited Markdown locations, not a blanket extension exclusion: Markdown in
-# tests/fixtures is executable test input. Architecture reads wiki releases;
-# the compiler corpus audit below reads prose across the repository.
+# tests/fixtures is executable test input. Architecture reads the optimizer rule
+# inventory; the compiler corpus audit below reads prose across the repository.
 DOCUMENTATION_FILES = {
     "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
+    "omega-rust/omega/representations/optimization-core/rules.md",
 }
 DOCUMENTATION_TEST = (
     "surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus"
@@ -46,6 +47,9 @@ def is_documentation(filename):
     path = PurePosixPath(filename)
     return filename in DOCUMENTATION_FILES or (
         path.parts[0] == "wiki" and path.suffix == ".md"
+    ) or (
+        path.is_relative_to("omega-rust/omega/representations/optimization-core/promotions")
+        and path.suffix == ".md"
     )
 
 

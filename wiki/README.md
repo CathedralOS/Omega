@@ -6,7 +6,6 @@
 | spec/ | Current contracts, organized by subject. |
 | [proposals/](proposals/README.md) | Proposed changes, not current rules. |
 | [drafts/](drafts/README.md) | Temporary investigations and migration plans. |
-| [pre_migration/](pre_migration/README.md) | Existing documents that still need review and porting. |
 
 The specification uses grammar, definitions, rules, tables, and examples where
 useful. It is not claimed to be fully formalized. Implementation details belong
@@ -18,6 +17,7 @@ beside code; completed work belongs in Git, not current reference material.
   [ownership and multiplicity](spec/language/ownership.md),
   [concurrency and atomics](spec/language/concurrency.md),
   [machines and refinement](spec/language/machines.md),
+  [named conformances](spec/language/conformances.md),
   [termination and progress](spec/language/termination.md),
   [domains and qualification](spec/language/domains.md),
   [value-dependent facts and views](spec/language/dependent_values.md),
@@ -87,12 +87,10 @@ beside code; completed work belongs in Git, not current reference material.
   [acceptance](spec/packages/acceptance.md), and the
   [workflow guide](language_guide/packages.md).
 
-Only the migrated subjects above have specification owners so far.
-Bootstrap retention rules live beside the chain in
-[MINIMIZATION.md](../bootstrap/MINIMIZATION.md); alternative chains remain an
+Bootstrap language and proof contracts live beside the chain; start at
+[edge contracts](../bootstrap/CONTRACT.md) and
+[minimization](../bootstrap/MINIMIZATION.md). Alternative chains remain an
 [open proposal](proposals/bootstrap_chain_alternatives.md).
-The [migration index](pre_migration/README.md) identifies the remaining source
-material. Moving a file there is not a review or an approval of its contents.
 
 The [cleanup plan](drafts/documentation_cleanup.md) drives the migration.
 [Execution tasks](../TASKS.md) track implementation;

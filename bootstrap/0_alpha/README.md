@@ -39,6 +39,17 @@ plus the admitted Beta compiler tape.
 It contains no compiler framework or higher-language primitive. Host stamping
 packages a raw tape; it does not compile a language.
 
+## Unimplemented hardening objective
+
+Bounds, resource, and boundary failures should become explicit deterministic
+fault/exhaustion outcomes rather than corruption. This is a hardening objective,
+not current opcode semantics: [SEMANTICS section 8](SEMANTICS.md#8-currently-undefined-the-honest-edges)
+still leaves out-of-range memory and stack behavior undefined, and existing
+programs must remain in bounds. A revision must keep the native realization
+small enough to audit, record narrow loading/I/O behavior, and update both
+realizations and their conformance evidence together. Do not infer Windows
+runtime validation from source/listing reconstruction.
+
 ## Owned files
 
 ```text
@@ -60,6 +71,14 @@ reconstructs the admitted tape byte-identically and supplies the next language
 edge to the Gamma evaluator.
 
 ## Retention inventory
+
+The selected native container identities are SHA-256 commitments to the exact
+repository bytes, separate from their realization/conformance obligations:
+
+| Container | SHA-256 |
+| --- | --- |
+| `alpha_arm64_macos` | `4e1ca500d5c4a93eb3f487988e26bf63006c31ec398fdbafccc84a0a1224fac9` |
+| `alpha_x64_windows.exe` | `4fb6c5fc99e93d8e18f7247855d4a58a82dedf8705d3d24ea82e5b59d166edde` |
 
 | Retained files | Direct role | Deletion condition |
 | --- | --- | --- |

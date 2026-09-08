@@ -224,8 +224,8 @@ crate. `cargo clean` fixes it.
 
 ## Architecture
 
-Full breakdown: [architecture.md](wiki/pre_migration/architecture/architecture.md) and
-[repository_layout.md](wiki/pre_migration/architecture/repository_layout.md).
+Implementation entrypoints: [compiler ownership](omega-rust/README.md) and
+[connected pipeline](omega-rust/pipeline.md).
 
 ### The Psi/Omega ownership firewall
 
@@ -394,14 +394,12 @@ Owner decisions belong in `OWNER_QUESTIONS.md`, not on a board. Before starting
 work, fetch `main` and inspect recent commits in that lane to avoid overlapping
 an active change. Prefer small checkpoint commits after working improvements.
 
-The [bootstrap decision record](wiki/pre_migration/architecture/bootstrap_chain/decisions.md)
-is awaiting consolidation with the other legacy documentation. The owner has
-authorized porting its current contracts and deleting superseded history; its
-path and ledger format are not protected. Preserve ratified semantics while
-consolidating. Correct obvious stale text, but raise genuinely unsettled conflicts
-in `OWNER_QUESTIONS.md` and mark the affected specification undetermined. Until
-its escalation rules are ported, read D12 for their exact scope and leave an
-owner-blocked edge open until answered.
+The [bootstrap contract](bootstrap/CONTRACT.md) and its linked language/proof
+owners hold current requirements; Git holds the retired decision history.
+Preserve ratified semantics. Correct obvious stale text, but raise genuinely
+unsettled conflicts in `OWNER_QUESTIONS.md` and mark the affected specification
+undetermined. Apply [owner escalation](bootstrap/MINIMIZATION.md#owner-escalation)
+and leave an owner-blocked edge open until answered.
 
 History on `main` stays linear. The Git for Windows system config sets
 `pull.rebase` to `false`, which turns a `git pull` behind `origin/main` into a
@@ -624,8 +622,8 @@ what you mean. When a literal phrase is available, use it.
 ## Design references
 
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
-- [Architecture](wiki/pre_migration/architecture/architecture.md)
+- [Compiler ownership and pipeline](omega-rust/pipeline.md)
 - [Documentation index](wiki/README.md)
 - [Terminal Psi product contract](wiki/spec/terminal-psi/product.md)
-- [Optimization Phases](wiki/pre_migration/architecture/pipeline/optimization_phases.md)
+- [Optimization phases](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
 - [Rust compiler completion](wiki/drafts/rust_compiler_completion.md)

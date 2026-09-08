@@ -16,11 +16,10 @@ Preserve useful contracts and explanations, not the old documents' volume.
 | `wiki/spec/` | Current language and public toolchain contracts. |
 | `wiki/proposals/` | Concrete proposed changes and concise useful decision rationale. |
 | `wiki/drafts/` | Temporary investigations and migration plans, deleted when finished. |
-| `wiki/pre_migration/` | Existing documents awaiting review and porting, deleted as they are handled. |
 
 Implementation ownership belongs beside code. Keep a short documentation index,
-not another architecture hierarchy. Moving a file into `pre_migration/` marks
-unfinished work; it does not count as consolidating that file.
+not another architecture hierarchy. Moving a document without reviewing and
+consolidating its contents does not complete this work.
 
 ## Specification style
 
@@ -57,9 +56,9 @@ transcripts. Rejected designs normally leave the tree. Git retains them.
 
 ### 1. Consolidate the large mixed references
 
-Continue with the remaining optimizer architecture, physical pipeline, and source-organization references
-in `pre_migration/design_briefs/`, consolidating against
-their existing specification owners before adding another document.
+Audit remaining guide and draft material against the existing specification and
+implementation owners before adding another document. Prioritize large duplicate
+blocks and historical implementation accounts over small editorial changes.
 
 For each coherent subject:
 
@@ -81,7 +80,7 @@ examples and explanations. Remove implementation diaries, old source forms,
 and decision numbers as required reading. Mark real support limitations and
 link their task; do not weaken the language to match the current compiler.
 
-### 3. Empty pre_migration
+### 3. Remove obsolete residue
 
 Port or delete every remaining document. Preserve release evidence only where
 an identified consumer needs it; do not confuse evidence with a changelog.
@@ -92,10 +91,9 @@ alignment, move to drafts after review. They need not become language documents
 or formal proposals. Give them a purpose and removal condition; delete stale
 claims and redundant history rather than moving them unchanged.
 
-The owner has authorized consolidating the
-[bootstrap decision record](../pre_migration/architecture/bootstrap_chain/decisions.md)
-under the same rules. Preserve current contracts, not the ledger format or
-superseded history. No old-location exception remains. The
+Bootstrap contracts follow the same rule: preserve current requirements in
+[their owners](../../bootstrap/CONTRACT.md), not decision numbers or superseded
+history. The
 [chain comparison proposal](../proposals/bootstrap_chain_alternatives.md) is
 separate from the selected chain and its
 [minimization contract](../../bootstrap/MINIMIZATION.md).
@@ -118,7 +116,8 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: consolidate optimizer implementation organization and the remaining architecture and bootstrap records. Complete
-byte-level Terminal tables remain explicit PSIIR work, not an implied achievement
-of prose migration. The remaining documents in pre_migration still need review,
-not automatic promotion into the specification.
+Next: consolidate the guide's duplicated conformance teaching, provider-coverage
+ledger narration, and stored-integer lowering details against their specification
+owners. Then audit remaining historical references, drafts, navigation, and source
+readers. Complete byte-level Terminal tables remain explicit PSIIR work, not an
+implied achievement of prose migration.

@@ -58,7 +58,9 @@ class SelectionTests(unittest.TestCase):
     def test_audited_docs_select_no_libraries_but_unknown_markdown_is_full(self):
         for path in ["README.md", "TASKS.md", "AGENTS.md", "CLAUDE.md",
                      "OWNER_QUESTIONS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
-                     "wiki/pre_migration/releases/optimizer_promotions/rule.md", "wiki/new.md"]:
+                     "wiki/proposals/example.md", "wiki/new.md",
+                     "omega-rust/omega/representations/optimization-core/rules.md",
+                     "omega-rust/omega/representations/optimization-core/promotions/rule.md"]:
             with self.subTest(path=path):
                 self.assertEqual(self.select(path), ("none()", [], []))
         for path in ["fixtures/input.md", "wiki/input.omg", "wiki/config.toml",

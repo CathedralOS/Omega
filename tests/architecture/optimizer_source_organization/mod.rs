@@ -1,7 +1,6 @@
 //! Repository guard for the optimizer source-navigation contract.
 //!
-//! The governing design brief is
-//! `wiki/pre_migration/design_briefs/optimizer/source_organization.md`.
+//! See the adjacent `README.md` for the checked organization contract.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;

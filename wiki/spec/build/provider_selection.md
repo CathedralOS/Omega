@@ -92,6 +92,24 @@ calling plans, target admission, and role-specific realization. Provider-authore
 generic assertions do not establish coverage. A future checked universal theorem
 could not replace those concrete obligations.
 
+Universal generic coverage remains unimplemented and fail-closed without an
+actual checked generic operator customer. An eligible future row must be
+compiler-issued from a checked Omega body on the pristine pre-monomorphization
+graph under its complete symbolic telescope. It binds requirement and realization
+telescopes, binder categories/domains/bounds, exact mapping, requirement coordinate,
+realization template, symbolic routing/dispatch, and transitive admissions.
+The requirement domain must imply the realization domain. Bijective binder
+reordering is permitted; collapsing independent binders or strengthening an
+unrestricted input to `[copy]` is not.
+
+The quantifier ranges over source applications satisfying the telescope and
+`where` requirements, excluding target layout limits. Target-dependent routing
+or admissions may qualify the row, but symbolic coverage proves only routing
+and dispatch, not calling policy, byte layout, register classes, or stack
+placement. Bodyless, external, opaque, intrinsic, and separately supplied
+realizations remain exact-only; any future foreign universal contract needs its
+own independent verifier, not a checked-body label or a successful concrete case.
+
 An indexed requirement such as `ResidentContentTransfer<P,T>` is one schema
 selected through one binding, not an ambient slot per monomorph. A provider may
 offer a generic implementation or exact supported family, but final composition

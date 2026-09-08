@@ -376,7 +376,7 @@ closure, not Omega source limits; exhaustion is retained for the future outer
 `Incomplete` mapping.
 
 No source identity, package alias, token ledger, decoded mirror, or transferable
-preflight fact is retained. D18 binds each relative tree to a package-owned
+preflight fact is retained. The [standalone request contract](../../wiki/spec/build/compiler_request.md) binds each relative tree to a package-owned
 source unit and fixes public diagnostic/outcome framing at the outer compiler
 edge. A
 public validate/advance split would be false authority, while revalidating the

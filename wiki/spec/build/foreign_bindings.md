@@ -48,6 +48,36 @@ identity. Physical nonreturning behavior does not establish semantic successful
 termination; [boundary realization](../terminal-psi/boundary_calls.md#consumer-owned-settlement)
 requires the distinct terminal-effect identity.
 
+## Exact requirement lifetime application
+
+A checked or external realization writes the complete target-trait application
+in `satisfies`, with lifetimes first: `satisfies Reads<'scope, Item>::read`.
+Its lifetime argument count equals the trait telescope, and each argument names
+an active binder in the realizer's lifetime telescope. Repeated arguments are
+valid. The declaration-order ordinal vector substitutes through the requirement
+signature, inherited requirements, contracts, and evidence; it is not inferred
+from incidental occurrences in the machine's signature.
+
+The exact requirement edge's public identity numbers distinct realizer binders
+by first occurrence in trait-parameter order. Thus `[1,1]` becomes `[0,0]`,
+`[4,2]` becomes `[0,1]`, and `[4,2,4]` becomes `[0,1,0]`. This equality partition
+does not change under private binder renaming, reordering, or unused additions.
+It applies regardless of machine visibility. A public machine's direct callable
+identity and a whole conformance's public telescope separately retain their
+declaration-order meaning; neither is the exact satisfaction edge.
+
+Checked and opaque external rows use the same edge partition. Distinct borrow
+contracts remain distinct even if physical signatures and bindings coincide.
+This names the foreign promise, not proof that the implementation satisfies it.
+The partition cannot reconstruct the actual signature substitution: retain the
+full lifetime arguments separately wherever policy/signature checking needs them.
+
+There is currently no lifetime constant such as `'static`; application arguments
+are active binders. Adding constants would require a closed binder-or-constant
+identity while keeping every telescope slot explicit. A lifetime fixed directly
+inside a requirement, rather than declared as a trait parameter, has no slot to
+supply. Runtime erasure is never permission to omit a declared application.
+
 ## Validation and identity
 
 Before a value enters a provider plan, variant- and target-specific validation

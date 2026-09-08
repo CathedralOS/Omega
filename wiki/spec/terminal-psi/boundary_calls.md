@@ -36,6 +36,25 @@ canonical kinds. A top-level requirement retains its package-qualified operation
 static telescope, signature, contract, and visibility. A bodyless implementation,
 bounded effect row, or provider selection cannot synthesize that identity.
 
+## Structural domain requirements
+
+A boundary structural requirement identifies an argument position and an exact
+domain identity. Admission checks that identity in the argument's carried
+qualification roster. The qualification was established through whatever proof
+and/or sealed introduction its domain requires; the boundary call does not
+establish it again.
+
+This requirement is not a proposition term or conclusion and creates no
+`ObligationId`. Boundary calls have no positional proof-obligation vector for
+these requirements. Ordinary calls' `requires` propositions retain their own
+proof-obligation lane. Encoding a structural qualification as a trivially true
+proposition cannot substitute for the carried identity.
+
+A proof condition may constrain a permitted use but cannot replace a domain's
+sealed introduction or routed provenance. Qualification transfer must preserve
+the exact argument path, identity, and establishment lineage under
+[optimization](../build/optimizations.md#evidence-and-control-flow).
+
 ## Checked providers
 
 Checked satisfiers are ordinary Terminal machines with canonical conformance

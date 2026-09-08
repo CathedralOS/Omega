@@ -175,7 +175,7 @@ expected_compiler_tapes='bootstrap/1_beta/beta_compiler_bytecode.tape'
 
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
-  --exclude=decisions.md --exclude=check-chain-hygiene.sh \
+  --exclude=check-chain-hygiene.sh \
   'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/0_alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure\.py|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
   "$OMEGA_PATH_BOOTSTRAP" "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
   "$OMEGA_REPO_ROOT/tools" "$OMEGA_REPO_ROOT/wiki" \

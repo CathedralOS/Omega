@@ -1,6 +1,6 @@
 # Structural ground comparison
 
-[Ground terms](GROUND.md) | [Inner format](FORMAT.md#comparison-and-finite-execution) | [Calculus](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
+[Ground terms](GROUND.md) | [Inner format](FORMAT.md#comparison-and-finite-execution) | [Calculus](README.md)
 
 This component compares the syntax of validated ground terms. It does not
 interpret definitions, substitute templates, check proof rows, or accept a

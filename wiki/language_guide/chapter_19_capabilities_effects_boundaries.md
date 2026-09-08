@@ -578,7 +578,7 @@ records closure containment only and grants no I/O or invocation authority.
 Review reports an excess as an explicit containment failure, and accepted
 realization rejects it. For example, a filesystem provider whose selected
 Linux binding reaches a process-execution syscall does not become safe because
-it satisfies a filesystem requirement. The receiving D41 interpreter or
+it satisfies a filesystem requirement. The receiving interpreter or
 lowerer owns the versioned target policy and independently accepts or rejects
 the producer's realization proposal. Its accepted policy commitment enters
 realization evidence; inability to realize does not invalidate source or
@@ -825,7 +825,7 @@ boundary trait Console {
 ```
 
 The current `exit_process` spelling is a migration surface whose selected
-native realization is physically nonreturning. D39 does not infer successful
+native realization is physically nonreturning. The observation contract does not infer successful
 external termination from the method name, its Unit result, a syscall number,
 or backend convention. A complete language contract must attach one explicit
 checked terminal-effect completion identity to the boundary operation and
@@ -1276,7 +1276,7 @@ after every argument is closed and validated against its category, carrier,
 domain, bounds, and `where` requirements. Equal closed applications deduplicate
 only after their selected-plan, realization, semantic, target, and admission
 joins succeed. Checked source-use coordinates remain independent provenance
-even when they share one semantic coverage row. D32 separately requires one
+even when they share one semantic coverage row. [Physical realization](../spec/terminal-psi/boundary_calls.md#closed-application-and-physical-occurrence) separately requires one
 physical child for each boundary-operation occurrence that survives verified
 optimization.
 
@@ -1337,9 +1337,9 @@ projection retains the canonical `TerminalPsiIdentity` and identifies the
 boundary occurrences that survive as executable operations. Every such
 occurrence has exactly one native physical child. Its role-tagged
 `PhysicalChildParent` is either an `OperatorApplicationCoverageRef` to
-reconstructible D29 coverage or a retained-and-replayed D41
-`BoundaryTraitSettlement`. The D41 branch reuses `BoundaryExecutionBinding`;
-the role is not duplicated. Equal D29 applications may share one semantic
+reconstructible operator-application coverage or a retained-and-replayed
+`BoundaryTraitSettlement`. The settlement branch reuses `BoundaryExecutionBinding`;
+the role is not duplicated. Equal operator applications may share one semantic
 parent but never one physical child. The child additionally binds its distinct
 optimized-operation identity and retains target lowering, instruction
 selection, assignment, relocation, and emitted-byte-span joins. Native replay
@@ -1348,7 +1348,7 @@ child. It permits omission only when the verified optimization proof
 establishes elimination; without optimization the projection is the identity
 projection.
 
-Package review may publish D29 semantic coverage without physical facts.
+Package review may publish operator-application semantic coverage without physical facts.
 Native or external execution authority additionally requires the physical
 child and complete set correspondence above. Housing both in one
 `NativeArtifact` envelope does not merge their evidence classes or replay
@@ -1365,9 +1365,7 @@ separately supplied realizations cannot acquire universal coverage from an
 authored claim and remain exact-only. A foreign universal contract would need
 a distinct independently recheckable verifier.
 
-The former non-authorizing indexed-application scaffold is retired by D35. Its
-arity/string schema and provider assertion were never D29 evidence: equality
-between an authored claim and compiler demand does not establish a checked
+Equality between an authored claim and compiler demand does not establish a checked
 realization. Compiler-derived tagged applications are demands. Coverage exists
 only after the compiler independently rejoins and rechecks the selected role-
 specific realization. Until that join lands, generic provider-family review

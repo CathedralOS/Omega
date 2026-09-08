@@ -3,39 +3,15 @@
 This directory owns the Epsilon language, its Delta-written evaluator, and
 adjacent execution validation.
 
-[`LANGUAGE.md`](LANGUAGE.md) is the normative Epsilon v1 contract fixed by D17.
+[`LANGUAGE.md`](LANGUAGE.md) is the normative Epsilon v1 contract.
 It is self-contained: a compiler, sample corpus, historical implementation, or
 Omega document cannot amend Epsilon by acceptance.
 
-D22, D36, and D51 fix deterministic declaration identity beneath that contract:
-grammar-selected owner, machine, member, state, and local scopes; one pre-type
-scoped duplicate census; no active local shadowing; legal disjoint-state and
-member/local spelling reuse; free unqualified machines; mandatory receivers on
-owner-qualified data machines; disjoint constructor and receiver-method
-namespaces; and no authored machine bodies on boundary owners. D24 completes that census with transition-arm binder scope,
-same-phase `DuplicateName`/`InvalidBoundary` ordering, and unique-owner
-classification.
-D31 completes type formation and D34 completes its realizability report:
-positive array lengths, zero-field records, mixed-data rejection, exact
-storage-only `u8` and `never`/view/`Console` placement, structural diagnostic
-anchors, and profile-owned bounded-witness static-storage refusal.
-D37 fixes body/control candidate dependency as a complete premise DAG,
-including value/place/resultless/`never` joins and exact relational/projection
-anchors. D52 fixes resultless machine/constructor arguments at their authored
-argument-expression start and closes the distinct-reason coordinate audit.
-D53 fixes five local block-exit effects, checks every state without reachability
-analysis, and gives falloff and post-`never` constructs exact delimiter anchors.
-D38 fixes `.as_slice` as a once-evaluated, allocation-free full view of a
-place-valued fixed array; views and non-place array temporaries are not accepted
-receivers.
-D56 closes the fixed `Console`/`Main` entry taxonomy inside type formation:
-absence of an authored `Main::main` name is the sole `MissingEntry`, every
-present malformed or incomplete entry system is `InvalidEntry`, and no entry
-candidate is compared with body/control coordinates.
-D57 makes wildcard finality grammatical and orders transition-pattern checking
-as subject admission, semantic duplicate identity, payload arity, then static
-sum coverage. Scalar selectors compare by `i32` value, and missing sum coverage
-anchors at the transition subject.
+Declaration identity, type formation, body/control premise dependencies, and
+entry diagnostics belong to the [language contract](LANGUAGE.md#4-names-types-and-closure-checking).
+Its [resource classification](LANGUAGE.md#10-resource-classification) separates
+valid source from bounded realization; implementation status below does not
+amend either contract.
 
 ## Canonical edges
 
@@ -58,10 +34,9 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   Delta-written evaluator's entry; `epsilon_compiler.delta.sources` orders the
   concept-owned authoring members into one exact Delta translation unit.
   The source currently
-  contains final compiler material through complete parsing, the D22/D24
-  source-shaped identity census including D51's receiver-only qualified-machine
-  syntax and removal of the superseded case/machine collision registry, D31
-  structural type formation including D56's final reserved entry-shape
+  contains final compiler material through complete parsing, the
+  source-shaped identity census including receiver-only qualified-machine
+  syntax, structural type formation including final reserved entry-shape
   judgment, the source-backed resolution catalog, ordered local-value
   resolution, exact scalar and aggregate value/place facts, one generalized
   callable ledger, direct
@@ -72,25 +47,21 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   explicit transition state applications with state/machine collision
   rejection and separate state completion custody, transition subject,
   resolved-case, complete payload-binder, and retained sum-coverage facts,
-  settled field/index/slice projection failures, D37 scalar and argument-
+  settled field/index/slice projection failures, scalar and argument-
   `never` category joins, let/assignment/assert and explicit-return relations,
   first-following-statement terminal flow.
-  D50 fixes bare-state-transfer spelling, D51 retires static qualified
-  machines plus special `self` resolution, D52 fixes resultless-argument
-  anchoring, D53 fixes local block exits, D56 fixes entry diagnostics, and D57
-  fixes transition-pattern and coverage diagnostics. D50, D51, D52, D56, and
-  D57 are implemented. The remaining rulings, final body/control checking,
-  the remaining D37 control/terminal premise DAG, full resource conformance,
+  Bare-state-transfer checks, receiver-only qualified machines, resultless-argument
+  anchors, entry diagnostics, and transition-pattern diagnostics are implemented.
+  Final body/control checking,
+  the remaining control/terminal premise DAG, full resource conformance,
   storage realization, execution, `main`, and composition remain incomplete,
   so it exposes no final evaluator artifact yet. The
-  current fact pass does enforce D38's contextual receiver/result relation and
+  current fact pass does enforce contextual receiver/result relation and
   separate array-view extra-call rejection.
   The [execution status](#validation-and-completion) below describes the
   staging executor and its remaining conformance obligations.
 
-Superseded bridge and native-publication experiments remain only in Git
-history. No compatibility owner replaces them. A compact positive/negative
-suite will be derived from D17 and owned by the real compiler edge.
+The real evaluator edge owns its contract-derived positive/negative suite.
 
 ## Boundaries
 

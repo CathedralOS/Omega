@@ -1,11 +1,8 @@
-# Optimizer Exact-Rule Release Notes V1
+# Exact optimization rules
 
-> **Needs porting.** This document has not been consolidated or vetted for the
-> current documentation structure. See the [migration index](../README.md).
-
-This is the published inventory for the first exact-name optimizer rollout.
-It is governed by the [optimization contract](../../spec/build/optimizations.md#release-rollback-and-promotion).
-Every row is explicit and opt-in, and every V1 row is currently experimental.
+This inventory is checked against the owning selection and stage catalogs.
+The [optimization contract](../../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+defines selection and promotion. Every current row is explicit, opt-in, and experimental.
 There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 
 ## Exact rule inventory
@@ -35,7 +32,9 @@ the repository gate.
 
 ## Supported composition policy
 
-- Any explicit subset of the six Psi suites may run in canonical phase order.
+- The source vocabulary names six Psi suites. The current executable Psi phase
+  supports `DeadPureScalarElimination`; other nonempty selections reject until
+  their transformations are implemented and independently validated there.
 - One allocation-recovery rule may precede the canonical frame and layout stages.
 - x86-64 branch relaxation runs in the resolved-layout phase.
 - Selected-lowering and retired post-allocation machine rewrite selections are
@@ -46,13 +45,13 @@ the repository gate.
 Unsupported or wrong-target compositions fail before physical optimization;
 they never silently drop a selected rule.
 
-Catalog presence records implemented rule support, not universal program-shape
-support. Every row remains experimental, and native realization fails closed
+Catalog presence records selection vocabulary or isolated rule support, not
+complete phase or program-shape support. Every row remains experimental, and native realization fails closed
 when the selected carrier, target, or exact composition is unsupported.
 
 ## Release rollback procedure
 
-Follow the [exact-rule rollback runbook](optimizer_rollback.md). It keeps the
+Follow the [exact-rule rollback procedure](../../../optimization.md#operational-rollback). It keeps the
 authored `build.omg` selection unchanged, applies one repeatable native-build
 argument per affected exact row, captures the printed requested/applied/
 effective receipt, and defines verification and restoration steps.
@@ -61,7 +60,7 @@ effective receipt, and defines verification and restoration steps.
 
 Changing any row from `Experimental` to `Recommended` or `Default` requires a
 completed owner-reviewed record at
-`optimizer_promotions/<ExactRuleName>.md`. The architecture gate rejects the
+`promotions/<ExactRuleName>.md`. The architecture gate rejects the
 status change unless that record names the exact rule and status and supplies
 semantic/corruption, differential, deterministic bounded-work, supported
 target, measurement, owner-approval, and exact rollback evidence.

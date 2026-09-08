@@ -4,6 +4,46 @@ This stage derives target operations and call placement from abstract operations
 Start at [lib.rs](src/lib.rs). The public reference contract is
 [structural access](../../../../wiki/spec/terminal-psi/structural_access.md).
 
+## Target projection and independent coverage
+
+This stage translates abstract operations using the exact target, selected
+mechanisms and ABI/layout owners. It preserves operation order, source values,
+ownership and boundary occurrence identity. It does not authorize effects,
+discharge source borrow/proof obligations, assign physical registers or choose
+result-home offsets. Concrete assignments belong downstream. A normalized foreign
+locator's sealed target profile owns applicability; this stage checks that target
+rather than maintaining another format/case allowlist.
+
+[Validation](src/validation/mod.rs) rejoins the target, semantic entry and complete
+function roster, then uses the ordered family catalog to select independent
+translation replay. Ambiguous classification rejects. A receipt names the exact
+function families covered; whole-plan root/roster custody is not proof of semantic
+translation for every unmatched function. Extend both source classification and
+independent replay when admitting a family; a producer-only variant is not closure.
+The [target representation](../../representations/target-operations/src/target_operations.rs)
+owns resulting control, value, storage, call and boundary data.
+
+Exact numeric replay retains source definitions, operand order, distinct source
+and destination types, ABI locations and proof obligations. Wrapping shifts keep
+independently typed counts and modulo-width meaning; exact shifts retain their
+count-range and, for left shift, result-representability obligations. Native
+integer widening must validate its exact sign/width relation, not just copy bits.
+FMA target records retain occurrence, selected plan and admission without choosing
+XMM homes. An available target record does not imply that the common downstream
+selection/emission path supports it.
+
+Dynamic-descriptor lowering preserves establishment, rebinding, aggregate store,
+and parameter forwarding as distinct semantic sources. Retain the exact selected
+application, receiver projection, requirement and native call plans, not a
+descriptor reconstructed from an ordinal or an indirect call replaced by a direct
+one. Transparent helpers preserve the incoming two-word descriptor and its exact
+outgoing ABI; Unit calls carry no fabricated scalar result. Boolean results retain
+Boolean control rather than an invented integer comparison. Mutable projections
+retain each path segment and checked offset for independent physical replay.
+Object/image/installation joins must bind table, adapter, realization, relocation,
+stack and code-span custody. Historical target-family support does not establish
+current native execution; unsupported common-route transports remain fenced.
+
 ## Structural ABI derivation
 
 [structural_signature.rs](src/lowering/structural_signature.rs) constructs

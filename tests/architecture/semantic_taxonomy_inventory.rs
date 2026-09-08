@@ -1,13 +1,10 @@
-//! STR1 — the semantic-taxonomy INVENTORY PINS (staged migration rung 1;
-//! record: wiki/pre_migration/architecture/semantic_taxonomy_representation.md).
+//! Semantic representation shape witnesses.
+//! Ownership contract: omega-rust/psi/representations/README.md.
 //!
-//! Each test DESTRUCTURES one of the current representation-loss shapes so
-//! the migration (STR2+) cannot change a shape without consciously updating
-//! its witness here. These are not behavior tests: they are compile-time
-//! shape witnesses plus the record's must-survive invariants spelled where
-//! the compiler can see them. When a pin breaks, the fix is NEVER to delete
-//! it -- it is to re-pin the NEW shape and check the migration carried the
-//! distinction the comment names.
+//! Each test destructures a current representation and names distinctions that
+//! its replacement must preserve. These are compile-time shape witnesses, not
+//! behavior tests. Update a witness when the representation changes and verify
+//! the same semantic distinction through the replacement's owning checks.
 
 use typed_trees::data::DataProperties;
 use typed_trees::domain::DomainDefinition;

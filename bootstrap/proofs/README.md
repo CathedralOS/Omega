@@ -23,6 +23,6 @@ equation also does not prove Gamma evaluator semantics.
 checker must preserve bounded input custody, checked premises, and independently
 owned subjects; replacing the partial Beta definitions must retain the obligation
 for a faithful complete theory and independently reconstructed encoding root.
-The [derivation design](../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
+The [complete encoding contract](beta_encoding/ACCEPTANCE.md)
 owns that acceptance target; [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md)
 tracks the remaining work and strategy pauses.

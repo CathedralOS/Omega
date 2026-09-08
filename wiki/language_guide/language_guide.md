@@ -17,7 +17,7 @@ Generated origin and checked trust, historical schema and migration coverage,
 and selected representation and authored representation law remain similarly
 distinct.
 
-Compiler architecture notes live in [Architecture](../pre_migration/architecture/architecture.md).
+Compiler implementation notes start at [compiler ownership](../../omega-rust/README.md).
 
 Suggested reading path:
 

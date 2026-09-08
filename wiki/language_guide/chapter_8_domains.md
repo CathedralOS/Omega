@@ -1425,4 +1425,4 @@ Working interpretation:
 >
 > General domain work must preserve every domain-theory axis independently in
 > the IR; see
-> [semantic_taxonomy_representation.md](../pre_migration/architecture/semantic_taxonomy_representation.md).
+> [semantic representation ownership](../../omega-rust/psi/representations/README.md).

@@ -178,10 +178,10 @@ fn catalog_applicability(audit: &mut Audit, name: &str, phase: &str) -> String {
 }
 
 fn published_rules(audit: &mut Audit) -> BTreeMap<String, ReleaseRow> {
-    let Ok(contents) = fs::read_to_string(audit.repository.join(super::RELEASE_NOTES)) else {
+    let Ok(contents) = fs::read_to_string(audit.repository.join(super::RULE_INVENTORY)) else {
         audit.violations.insert(format!(
-            "cannot read versioned optimizer release notes {}",
-            super::RELEASE_NOTES
+            "cannot read optimizer rule inventory {}",
+            super::RULE_INVENTORY
         ));
         return BTreeMap::new();
     };

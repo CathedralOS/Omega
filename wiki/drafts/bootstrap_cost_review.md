@@ -39,11 +39,11 @@ Both investigations ran on macOS arm64; no Windows result is claimed.
 ## P1 complete-route feasibility
 
 The next unit and scope pause belong to the
-[complete encoder plan](../pre_migration/design_briefs/beta_encoder_plan.md).
+[complete encoder candidate](../../bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md).
 Its customer is the exact selected evaluator source/tape in
 [the Gamma profile](../../bootstrap/2_gamma/EVALUATOR_PROFILE.md), not another
 literal instruction proof. The
-[P1 proposition](../pre_migration/architecture/bootstrap_chain/derivation_calculus.md#first-complete-subject)
+[complete encoding subject](../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
 requires complete error-valued Beta definitions, independently constructed
 source/tape/limits/theory ownership, and a source-owned untrusted producer.
 An encoding certificate would still leave evaluator correctness separately

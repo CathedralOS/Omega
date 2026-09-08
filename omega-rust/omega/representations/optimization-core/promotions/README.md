@@ -1,7 +1,6 @@
-# Optimizer Promotion Records
+# Exact-rule promotion evidence
 
-> **Needs porting.** This document has not been consolidated or vetted for the
-> current documentation structure. See the [migration index](../../README.md).
+These records support the checked [rule inventory](../rules.md), not a release diary.
 
 One file promotes one exact optimizer rule. Copy the schema below to
 `<ExactRuleName>.md`; do not create a suite-wide or optimization-level record.

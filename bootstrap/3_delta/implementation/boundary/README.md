@@ -1,6 +1,6 @@
 # Delta request boundary
 
-`request.gamma` implements D30/D33 admission. `outcome.gamma` owns the private
+`request.gamma` implements the [selected admission contract](../../LANGUAGE.md#compilation-requirements). `outcome.gamma` owns the private
 failure value, phase-success carrier, and complete DCOUT V1 publication. The
 outer `../../delta_compiler.gamma` entry consumes request admission before
 invoking the compiler pipeline. No request-admission function writes output or
@@ -93,7 +93,7 @@ at exact source EOF. Empty and data-only programs lack the required function
 declaration and reject at source EOF. These are explicit phase and coordinate
 rules, not a claim that every frontend category chooses the smallest offset.
 
-Grammar also accounts for D30's `parse_depth` resource. A function body starts
+Grammar also accounts for `parse_depth` resource. A function body starts
 at expression level 1; each expression child, including an atom, is one level
 deeper. Match subjects and arm bodies are children of the match expression;
 declarations, parameter lists, patterns, and arm wrappers add no levels. Before
@@ -112,7 +112,7 @@ It does not establish successful emission for every input within the selected
 depth limit.
 
 The [syntax storage owner](../checking/syntax/README.md#syntax-storage) separately
-accounts for D30's 114,294,752 syntax-arena bytes. Parser nodes, construction
+accounts for 114,294,752 syntax-arena bytes. Parser nodes, construction
 spines, parser frames, the program root, and grammar pending batches consume
 their actual 40-byte Gamma pairs cumulatively. Before an allocation group
 exceeds the limit, it returns tag 2, code 7, source space 1, and the exact
@@ -150,7 +150,7 @@ retired.
 
 ## Authored global-row provision
 
-The global census accounts for D30's `function_rows` resource. Its logical
+The global census accounts for `function_rows` resource. Its logical
 counter starts at zero and advances once for each fresh authored function
 declaration. Types and constructors do not advance it. Typed metadata rebuilt
 after census, emitted runtime functions, and normalization helpers are not
@@ -329,10 +329,29 @@ canonical publisher with private retained Gamma plans, not admitted source.
 
 ### Resource ownership in the selected producer
 
-D30's resource identities and limits remain fixed; changing the producer does
+The resource identities and limits remain fixed; changing the producer does
 not authorize renumbering them. The selected Delta compiler emits Gamma source,
 not Alpha instructions. Review the actual owners before treating each historical
 resource row as missing implementation:
+
+| Code | Resource | Selected limit |
+| --- | --- | ---: |
+| 1 | source bytes | 4,194,304 |
+| 2 | total type rows | 65,536 |
+| 3 | constructor rows | 65,536 |
+| 4 | authored function rows | 32,768 |
+| 5 | active environment rows | 65,536 |
+| 6 | coverage rows | 65,536 |
+| 7 | syntax-arena bytes | 114,294,752 |
+| 8 | expression parse depth | 1,024 |
+| 9 | live local slots | 65,535 |
+| 10 | labels | 65,536 |
+| 11 | fixups | 116,508 |
+| 12 | payload bytes | 16,777,212 |
+
+These are selected compiler-profile provisions, not language restrictions.
+Changed provisions require coherent containment, canonical failure, and relevant
+exact/adjacent controls. Zero-use resources below do not acquire invented uses.
 
 | DCOUT resource | Selected producer ownership |
 | --- | --- |
@@ -428,12 +447,9 @@ nothing; successful publication follows the same formatting decisions.
 This closes payload-size refusal, not later internal replay failure or every
 generated Gamma admission limit.
 
-The common layout and IDs follow the D13/D30/D33 contract. Their retained
-historical table is recoverable at
-`78d8f51053^:source/delta/compiler/dcout-v1.tsv`; the shared field layout is at
-`50bb6afe20:source/beta/compiler/README.md`. Neither retired implementation nor
-detached table participates in execution. D125 removes profile 2, not the
-request-failure identities.
+The common layout, IDs, and selected provisions are defined above. No detached
+host table participates in execution. Retirement of the Epsilon compiler
+profile removes profile 2, not the request-failure identities.
 
 Canonical frontend rejection and the owned source-byte, syntax-arena, global-row,
 active-environment, parse-depth, and payload-byte refusals

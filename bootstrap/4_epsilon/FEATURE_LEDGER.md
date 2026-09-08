@@ -4,7 +4,7 @@ Epsilon is justified by the smallest robust surface needed to author the
 Epsilon-written full Omega compiler source closure `D` and execute it with the
 Delta-written Epsilon evaluator.
 
-[`LANGUAGE.md`](LANGUAGE.md) is the normative Epsilon v1 contract fixed by D17.
+[`LANGUAGE.md`](LANGUAGE.md) is the normative Epsilon v1 contract.
 This ledger is rationale and change control, not a second specification or a
 vote by historical samples. A future facility belongs to Epsilon only when at
 least one of these holds and the normative contract is revised explicitly:
@@ -19,7 +19,7 @@ least one of these holds and the normative contract is revised explicitly:
 - deterministic byte input and artifact/diagnostic output;
 - explicit process termination and failure;
 - finite nominal data, sums, records, arrays, and bounded views, including the
-  allocation-free D38 adapter from a place-valued fixed array to its full
+  allocation-free adapter from a place-valued fixed array to its full
   immutable view;
 - zero-field records and positive fixed-array lengths with target capacity kept
   outside language validity;

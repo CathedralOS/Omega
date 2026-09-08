@@ -261,7 +261,7 @@ contains an authored `Main::main` owner/name candidate, duplicate `Main` and
 and reject as `InvalidEntry`. This exception exists so malformed reserved entry
 support cannot be preempted by the generic census. It does not suppress any
 unrelated duplicate, and without an authored entry-name candidate the ordinary
-D22 census remains unchanged.
+declaration census remains unchanged.
 
 A sum case and receiver machine under one data owner may share a spelling.
 `Owner::name(...)` selects the case namespace, while `value.name(...)` selects
@@ -435,6 +435,9 @@ exist until their initializers complete.
 Records and sum payloads establish fields in declaration order. Constructor
 arguments, call arguments, assignments, and ordinary operands evaluate exactly
 once from left to right. Arrays are fixed in length and never allocate.
+An indexed assignment evaluates its destination base and index and checks
+bounds before evaluating the right side. A failed bounds check suppresses
+right-side effects and traps.
 
 <a id="epsilon-constructor-payload-establishment-order"></a>
 
@@ -477,8 +480,8 @@ contributes `TypeMismatch` under the ordinary call rule.
 - `/` truncating toward zero and `%` with the dividend's sign;
 - `DivisionByZero` for a zero divisor;
 - `SignedDivisionOverflow` for `-2147483648 / -1` (and its remainder form);
-- shifts whose count must be in `0..31`, otherwise `ShiftCount`; `>>` is
-  arithmetic;
+- shifts whose count must be in `0..31`, otherwise `ShiftCount`; `<<` wraps in
+  the 32-bit representation and `>>` is arithmetic;
 - bitwise `&`, `^`, and `|` on the 32-bit representation; and
 - comparisons returning exactly `0` or `1`.
 
@@ -708,7 +711,7 @@ Delta constructor order:
 Zero and unknown codes are noncanonical. Reordering an implementation sum does
 not change this table. The final evaluator observation profile must preserve a
 total bijection over the exact closed reason set. Changing that set requires an
-explicit D17 and observation-profile decision.
+explicit language and observation-profile decision.
 
 `TrapKind` is exactly:
 
@@ -749,7 +752,7 @@ storage. Exhausting any execution-profile or private budget yields outer
 detected compiler contradiction yields outer `InternalFailure`. Neither is a
 Epsilon rejection, trap, divergence verdict, or partial successful tape.
 
-D31 and D34 separate valid fixed storage from one selected realization. After
+The language and resource contracts separate valid fixed storage from one selected realization. After
 `CheckEpsilon` succeeds, the compiler expands only the storage roots actually
 reachable in the selected application. An unused large type consumes no
 application storage. If one reachable expanded array occurrence alone exceeds
@@ -770,7 +773,7 @@ demand fits nonnegative Delta `Int`, and is `INT64_MAX` for every larger
 demand. Exact `INT64_MAX` and a larger demand are intentionally
 observationally equivalent because both exceed every admissible selected
 limit and produce the same coordinate and no-publication result. Thus both
-attributed and aggregate forms require `requested > limit`, but D34 does not
+attributed and aggregate forms require `requested > limit`, but this witness does not
 claim that every refusal carries the arbitrary-precision total.
 
 The Delta implementation computes in the closed private domain
