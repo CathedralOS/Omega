@@ -1,694 +1,286 @@
 # Chapter 2: Ownership, Borrowing, And Moves
 
-Values have an owner. Ownership determines who is responsible for moving,
-mutating, and cleaning up a value.
-
-This chapter is the place for the rules other chapters rely on.
-
-> **Core multiplicity.** Usage is an explicit type
-> property with three cases: unrestricted, affine, and linear. Facts and
-> permissions share control-flow/place infrastructure but not one algebra. See
-> [ownership and multiplicity](../spec/language/ownership.md).
+Ownership determines who may move a value and who owes its final disposition.
+Borrowing temporarily grants access without transferring the referent. The
+[ownership specification](../spec/language/ownership.md) defines these rules;
+this chapter shows their use.
 
 ## Usage Multiplicity
 
-- **Unrestricted** values may be copied and discarded. `[copy]` establishes
-  this property.
-- **Affine** values may be moved at most once and may be discarded. This is
-  the default for owned data.
-- **Linear** values must be transferred or explicitly consumed exactly once.
-  `[linear]` establishes this property.
+Omega distinguishes three type properties:
 
-Multiplicity is a type property, not a trait and not a qualifier repeated at
-every binding. It composes structurally through records, sums, and generic
-containers. `[copy]` and `[linear]` are mutually exclusive.
+- Unrestricted (`[copy]`): may copy and discard.
+- Affine (the owned-data default): may move at most once and use eligible cleanup.
+- Linear (`[linear]`): must transfer or consume exactly once.
 
-Establishing a new linear value creates exactly one obligation. Moves, calls,
-returns, receives, and storage operations transfer that obligation; terminal
-consumers discharge it. Implicit zero-filling does none of these. Linearity is
-about use, not bit patterns: an explicitly constructed all-zero linear value
-is owed if that bit pattern is valid for its type.
+`[copy]` and `[linear]` are mutually exclusive. Multiplicity is not a trait or
+a qualifier repeated on every binding. Records, active sum payloads and generic
+containers retain their contents' obligations.
+
+Constructing a valid linear value creates one obligation, even if its bits are
+all zero. Implicit zero-filling creates none, and zero is not a universal
+“already consumed” value.
 
 ## Owned Values
 
-An owned value may be moved into another location.
+An owned value can move into another location:
 
 ```omega
-machine InventorySystem::repair(&mut self) {
-    let replacement: Inventory;
-
+machine InventorySystem::repair(&mut self, replacement: Inventory) {
     self.inventory = move replacement;
 }
 ```
 
-After a move, the old binding is no longer usable.
+After the move, the old binding is unusable. Replacement must also account for
+the old inventory's disposition.
 
-A field or fixed-array element selected from an owned call result belongs to
-that result's storage. Selecting through a reference or slice instead reaches
-borrowed storage and retains its restrictions. A partial move must preserve a
-nominal cleanup machine's whole-value entitlement and cannot discard unselected
-linear siblings. Bind the result to a local when the remaining claims must be
-transferred or consumed separately.
+A field selected from an owned call result belongs to that result's storage;
+selection through a reference or slice reaches borrowed storage. Partial moves
+must retain the remaining obligations. A type with a nominal whole-value cleanup
+hook instead requires an explicit consuming decomposition, because its hook is
+entitled to a whole valid value.
 
 ## Copy Values
-
-Some values are copied instead of moved.
 
 ```omega
 let depth: u32 = self.level_depth;
 let next_depth: u32 = depth + 1;
 ```
 
-Copy is a type property. Machine integers, booleans, and small proof values are
-natural copy candidates. A copied value is unrestricted. Data with unique
-cleanup responsibility is not.
+Copying `depth` does not consume it. The addition still needs its Exact overflow
+proof. Integers and Booleans are common unrestricted values; unique cleanup
+responsibility cannot be copied.
 
 ## Linear Values
 
-Linear values represent protocols that must reach an explicit conclusion: task
-lifecycle claims, transactions, acknowledgements, DMA submissions, and similar
-resources. A move transfers the live obligation. Ordinary scope exit with an
-unconsumed linear value is a compile error; automatic drop cannot silently
-discharge it.
+Task lifecycle claims, transactions, acknowledgements and DMA submissions often
+need an explicit conclusion. Moving one transfers its obligation; reaching a
+normal exit without a legal disposition rejects. Automatic cleanup is available
+only when the type owner authorizes that exact plan—not merely because a hook
+exists or the bits can be discarded.
 
 Conditional ownership uses an ordinary sum such as `Idle | Running(Task<T>)`.
-The obligation belongs only to the live payload. Zeroed storage is not a
-universal consumed linear value.
+Only the active payload owes the task. Substitution of a linear payload into a
+generic sum cannot erase that debt.
 
-This rule is unchanged for generic sums. The nominal container keeps its own
-declared multiplicity while the active payload carries every affine or linear
-obligation introduced by substitution. `Returned(LinearT)` and
-`Rejected(LinearArguments)` therefore participate in the same conditional
-permission accounting as `Idle | Running(Task<T>)`; a generic parameter does
-not erase custody, and an inactive case does not acquire it.
-
-Flow analysis therefore carries two different kinds of context. Propositions
-can weaken or duplicate where logic permits. Permissions track establishment,
-multiplicity, loan compatibility (`owned`, `shared`, `exclusive`), permitted
-observation/mutation, and provenance with their own path-join rules. One CFG
-walk may carry both, but a fact catalog must never silently forget a resource
-obligation.
-
-Carry policy is another independent consumer of canonical place liveness. It
-does not change ownership: an exclusive move transfers ownership, while the
-value's carry policy and selected runtime decide whether the destination
-activation/CPU/thread/storage transition is legal. Shared references also need
-an access contract that sanctions concurrent use. The compiler shares the CFG
-traversal; ownership, carry, and proposition facts retain separate algebras.
+Logical facts and permissions are separate: a proof may be reused without
+duplicating the resource it describes. [Carry policy](../spec/resources/carry.md)
+is independent too. Ownership transfer alone does not prove that a value may
+cross a suspension, CPU, thread or storage boundary, or that shared use is safe.
 
 ## Shared Borrows
 
-Shared borrows allow read-only access.
+Shared borrows grant observation under their access contract:
 
 ```omega
-machine RoomFormatter::render(
-    &self,
-    room: &Room,
-    out: &write [u8]
-) {
+machine RoomFormatter::render(&self, room: &Room, out: &write [u8]) {
 }
 ```
 
-Many shared borrows may coexist if no mutable borrow conflicts with them.
-
-All borrowed forms denote the original object, not a snapshot selected because
-the object fits in registers. Shared access remains subject to the operation's
-concurrency rules; where synchronized mutation is permitted, a shared reference
-must keep observing the original location. Mutable and write-only calls likewise
-write the caller's actual referent. Their common physical reference ABI does not
-make their access permissions interchangeable. Owned arguments retain ordinary
-value ABI selection. See the [native structural borrow identity contract](../spec/terminal-psi/structural_access.md).
+Several shared borrows may coexist when no conflicting exclusive access exists.
+A reference always denotes the original storage, not a snapshot chosen because
+the object is small enough for registers. If synchronized mutation is permitted,
+a shared reference still observes that same location. Its concurrency contract
+remains separate from copyability.
 
 ## Mutable Borrows
 
-A mutable borrow is unique for the borrowed place.
+A mutable borrow is exclusive for its borrowed place:
 
 ```omega
-machine Player::heal(
-    &mut self,
-    amount: i32
-) {
+machine Player::heal(&mut self, amount: i32) {
     self.health += amount;
 }
 ```
 
-While `self.health` is mutably borrowed, code cannot also read or mutate the
-same place through another active reference.
+While the place is mutably borrowed, another active route cannot read or mutate
+it incompatibly. Arithmetic and value invariants remain ordinary obligations;
+exclusive access does not prove the new health fits.
 
 ## Write-Only Borrows
 
-A write-only borrow lends an existing valid value exclusively while denying
-observation of its prior contents:
+Write-only access exclusively lends an existing valid value without permitting
+observation of its contents:
 
 ```omega
-machine fill(destination: &write [u8]) {
+machine fill(destination: &write [u8])
+requires
+    destination.len > 0;
+{
     destination[0] = 42;
 }
 
-fill(&write buffer[..]);
+fill(&write buffer[..]); // caller must establish nonempty buffer
 ```
 
-`&write T` has the same alias-exclusion and lifetime rules as `&mut T`, but a
-narrower operation set. An exclusive mutable loan may be explicitly attenuated
-to `&write`; a write-only loan cannot become `&T` or `&mut T`. It may be
-reborrowed only as `&write`. The physical ABI is the corresponding reference
-ABI, while the write-only access set remains part of semantic signature and
-artifact identity.
+`&write` has the exclusion and lifetime rules of `&mut`, with a narrower set
+of operations. Mutable access can explicitly attenuate to write-only; write-only
+access cannot become readable or mutable. Its receiver spelling is `&write self`,
+and an explicit lifetime precedes the modifier: `&'buffer write T`.
 
-Explicit lifetimes use the same position as the other reference forms:
-`&'buffer write T`. Receiver spelling follows the same rule, so `&write self`
-is an exclusive non-observing receiver rather than a special capability.
+It is not vacant output storage: the referent is a live `T` before and after
+the loan. Stores, content-independent projection and view metadata such as
+length are available. Loading, comparing, hashing, pattern matching, taking,
+swapping and read-modify-write are not. Replacing a value does not make the
+write-only loan readable afterward.
 
-The referent is a live `T` on entry and remains one when the loan ends.
-`&write` never denotes `Vacant` storage and performs no construction or
-definite-initialization transition. A future output/construction slot for
-storage containing no live `T` is a separate feature.
+A known field can be located without inspecting content. A sum payload that
+needs a tag read cannot, unless an already-established refinement fixes the
+case. Whole replacement writes the tag and payload together. Displaced custody
+and invariant-window obligations still apply: write-only access cannot silently
+discard a linear value or prove a cross-field invariant by reading another field.
 
-> **Implementation checkpoint (August 2026):** the compiler recognizes and
-> preserves the distinct `&write` source/type identity. Checked Omega bodies may
-> replace unrestricted primitive scalars and fixed byte arrays, replace literal
-> or proven-in-bounds dynamic byte elements, replace a supported fixed-array
-> range with a
-> same-width array literal when both bounds are integer literals or finite
-> immutable local-copy chains, replace an unrestricted primitive leaf through a
-> finite path of relevant unconstrained common fields in plain invariant-free
-> records from either a fixed-integer or Boolean literal or one exact
-> same-typed fixed-integer or Boolean parameter, read a literal fixed-array
-> length as static metadata through the same eligible record paths, and forward
-> the loan explicitly. A closed-record parameter, attached `self`, or finite
-> relevant projection through eligible closed records and literal fixed arrays
-> may also invoke an exactly selected checked `&write self` method, in statement
-> or scalar-result position. Fields and nested array indexes may alternate;
-> literal and caller-proven dynamic selectors retain ordinary bounds checks.
-> Indexing and selector arithmetic must retain builtin address meaning, and
-> selector evaluation cannot observe write-only content. Standalone Unit calls
-> may precede later work without becoming scalar values or return expressions.
-> The receiver remains exclusive against explicit
-> arguments and live local loans, even when the callee performs no writes;
-> shared access cannot supply it. Selecting a receiver place never grants
-> observation of its prior contents, even after replacement.
-> Single-state Unit callers carry whole borrowed receiver parameters and
-> attached `self` through canonical Terminal production and interpretation,
-> including transitive forwarding methods and interleaved scalar parameters.
-> Mutable and write-only receiver calls also retain finite field-only paths
-> through borrowed record parameters or attached `self`, preserving the
-> container's identity and the callee's exact leaf type. A mutable root may
-> supply a write-only callee: the root retains mutable access while the call
-> operand and callee retain write-only access. Bare attached-field spellings
-> retain the same `self` root and ordered path. A write-only callee may also
-> receive a material record through finite literal fixed-array indexes,
-> interleaved with record fields, from either mutable or write-only parameter
-> roots. Source replay checks the exact authored path, and Terminal verification
-> reconstructs its bounds, type, and non-transferring access. Canonical artifacts
-> execute across fuel boundaries without replaying the call or store. A leading
-> immutable local `let held: &write T = &write parameter;` may supply these
-> receiver calls without publishing a local carrier when its exact direct-root
-> loan, activation, weakening, and nonescaping receiver uses replay. Whole, field,
-> and literal-indexed receivers retain the original parameter root and write-only
-> access, including sequential calls. This erasure uses existing direct-subloan
-> semantics; it does not publish source-local lifetime or restoration authority.
-> Nested/escaping carriers and dynamic indexes remain outside this producer.
-> The current shared native legalization route rejects structural field stores
-> and projected structural calls; native caller-observation coverage remains open.
-> Borrowed `self` uses the reference type's usage multiplicity, just like an
-> explicit reference parameter; its access still controls reading and mutation.
-> This does not provision a native executable's entry receiver.
-> One projected subloan form may pass
-> `&write root.field...leaf` directly to a checked call when the complete field
-> path and leaf meet that same non-observation referee. That direct-call form may
-> finish with a finite nonempty suffix of ordered in-bounds literal indexes
-> through recursively literal fixed arrays, either directly or after the
-> eligible field prefix, when the ultimate leaf is an unrestricted non-Atomic
-> primitive. The ordered fields and `FixedIndex` suffix cross checked and
-> Terminal replay. Native projected-call realization remains subject to the
-> legalization gaps above. Such a call may also pass checked scalar values;
-> their ordinary ABI prefix does not grant or widen write authority.
-> It cannot be retained in a local alias. Dynamic and range
-> subloans remain gated, as do whole nested-array and aggregate elements,
-> record-held slice descriptors, sum projection, and opaque providers.
-> Structural parameters and calls preserve
-> owned/shared/mutable/write-only access (first introduced in Terminal format
-> 27); exact unrestricted record-leaf and literal-indexed field paths cross the
-> codec and independent verifier. Terminal format 42/vocabulary 45 additionally carries
-> one direct whole-root unrestricted primitive store from either a landed
-> integer literal or a Boolean literal. Its ordinary SSA
-> value producer precedes a Unit write-only event, the verifier reconstructs
-> exact type/access/place custody without an old-value premise, and the
-> reference interpreter mutates exact-typed stable target-neutral backing across an
-> in-module call with fuel charged before the store. The Boolean form retains
-> its exact one-byte referent and literal through target selection and physical
-> assignment, and machine emission emits the exact one-byte store on both native
-> architectures. Object and installation replay retain its exact definition
-> ordinal, target bytes, and attribution. Opaque-provider execution remains
-> gated. `&write` is never
-> temporarily lowered as `&mut`.
+A prefix-writing contract can state that `[0..count)` changed while
+`[count..len)` stayed unchanged. That preserves the caller's suffix facts; it
+does not claim to construct previously nonexistent values.
 
-Code may perform plain typed stores, content-independent field/index/range
-projection, disjoint subdivision, and read view metadata such as a slice's
-length. It may not load, compare, hash, pattern-match, take, swap, perform
-read-modify-write, create a readable reborrow, or call a machine expecting one.
-The governing rule is that no operation may obtain a premise or choose its
-behavior by observing the referent. Static structure, values being written,
-and proof facts explicitly supplied by the caller remain usable.
-
-Projection is legal only when its location is known without reading content.
-A record field or fixed-offset common field qualifies. A sum payload requiring
-a tag read does not, unless an already-available refinement fixes the case.
-Whole-value replacement writes the tag and payload together and needs no prior
-observation.
-
-Every store must also account for the displaced value. Plain replacement is
-available only where the old content is freely discardable and requires no
-content-dependent cleanup; write-only access cannot silently consume linear or
-otherwise conserved custody. Whole-value replacement is validity-safe when the
-incoming value is already a `T`, subject to that displacement rule.
-
-The current bounded native compiler path carries one unrestricted whole-root
-fixed-integer replacement from verified Terminal form through target-neutral
-abstract operations, optimization validation, target selection, physical
-assignment, and machine emission on x86-64 and AArch64. Object construction
-independently replays its exact parameter identity, access, primitive type,
-borrowed-reference placement and home, preceding typed scalar definition,
-target store bytes, and semantic attribution. The Boolean sibling reaches the
-same independently replayed physical assignment and exact machine-store
-emission while retaining a distinct Boolean source and definition ordinal.
-IEEE float literals retain their raw-bit source and definition ordinal through
-the same pipeline without requiring floating-register custody. Object
-construction and installation format 73 rejoin and transport all three
-families. Opaque-provider non-observation guarantees remain fail closed.
-The projected-record sibling carries one fixed-integer or Boolean literal, one
-exact same-typed fixed-integer or Boolean parameter, or the exact fixed-integer
-result of one immediately preceding ordinary scalar call or selected
-boundary-operator realization into a relevant primitive field through a finite
-field-only path. The same store may cross one in-bounds literal index after a
-common-field prefix when the array element is a closed material `[copy]` record
-and the final destination is one relevant primitive field. The parameter form
-keeps one structural destination plus an ordered scalar roster and selects one
-exact source; target assignment, machine emission, object construction, and
-installed replay reconstruct its register, incoming-stack, or durable-result-home
-location and exact field offset on both Linux targets.
-These native tests establish store encoding and retained artifact evidence;
-they do not alone establish caller-visible mutation after return. The native
-reference-identity rule is settled for all borrowed access modes. Mutable and
-write-only reference selection and pointer-home stores already exist, but
-shared-borrow classification and complete structural-signature construction,
-argument preparation, and independent replay enforcement remain unfinished.
-Existing unsupported forms remain fenced; this is an implementation gap, not
-an open choice about what a reference means.
-Boolean sources retain their own one-byte ABI and definition custody without
-an integer surrogate.
-Bodyless boundary result homes, delayed uses, Boolean and IEEE results, and
-arithmetic locals remain gated for projected stores.
-Nested or dynamic array indexes, ranges, and whole aggregate elements also
-remain gated.
-
-A partial write must leave `T` valid at the ordinary invariant-window
-consumption points. The checker may prove that from the written inputs, static
-structure, and explicitly supplied facts, but never from a load through the
-write-only loan. Cross-field invariants therefore often permit only a
-whole-value replacement, while independently valid byte elements remain
-straightforward.
-
-An exact outcome contract distinguishes the modified range from the untouched
-range. For a prefix-producing byte operation, `[0..count)` is changed as
-specified and `[count..len)` is unchanged; the caller's facts about the suffix
-survive. The count describes the effect and does not establish a previously
-nonexistent value.
-
-Checked Omega implementations enforce non-observation transitively through
-every helper call. An opaque foreign implementation receives the corresponding
-address and may be physically capable of reading it; its compliance is an
-admitted provider claim unless target isolation enforces the restriction.
+Checked helpers must preserve non-observation transitively. A foreign provider
+may physically be able to read the address, so its restriction needs admitted
+provider evidence or enforced isolation. See the [structural access contract](../spec/terminal-psi/structural_access.md#write-only-authority).
+Current source, artifact and native support are distinguished
+[beside Terminal production](../../omega-rust/psi/compiler/terminal-production/README.md#structural-access-and-stores).
 
 ## Reborrow Authority and Restoration
 
-A reborrow derives a child loan from one exact parent-loan occurrence. It does
-not create authority, and borrowing the reference carrier itself is not a
-reborrow of its referent. The child access must be an allowed attenuation of
-the parent's retained access:
+A reborrow comes from one exact parent loan, not merely from borrowing the
+reference carrier itself:
 
-| parent access | child `Read` | child `Mutable` | child `WriteOnly` |
-| --- | --- | --- | --- |
-| `Read` | allowed | rejected | rejected |
-| `Mutable` | allowed; shared freeze | allowed; exclusive suspension | allowed; exclusive suspension |
-| `WriteOnly` | rejected | rejected | allowed; exclusive suspension |
+| Parent | Permitted child |
+| --- | --- |
+| Shared | Shared. |
+| Mutable | Shared, mutable or write-only. |
+| Write-only | Write-only. |
 
-`is_exclusive` is an interference classification, not this attenuation rule.
-In particular, `Mutable` may attenuate to `WriteOnly`, while `WriteOnly` may
-never acquire observation by becoming `Read` or `Mutable`.
+A shared child of mutable access freezes parent mutation; all shared descendants
+in that cohort must end before mutation returns. An exclusive child suspends
+the corresponding parent branch until it closes. Shared-to-shared release does
+not restore exclusive authority that never existed.
 
-The permitted cases have three different lifetime effects:
-
-- `Read` to `Read` releases the child without suspending or restoring the
-  parent. Shared descendants may coexist.
-- `Mutable` to `Read` freezes the parent's mutation authority while a finite
-  cohort of shared descendants exists. The parent remains readable, and its
-  exact `Mutable` access returns once, only after the last descendant in that
-  cohort ends.
-- An exclusive child suspends its parent behind one descendant branch. The
-  parent regains its exact original access only after that branch ends.
-  The first release permits one active exclusive descendant branch; broader
-  branching requires a separately specified resource algebra.
-
-Restoration is therefore not the generic rule "child ends, parent becomes
-available." Exclusive lineages close deepest-first. Shared descendants form a
-dependency set: all members ending at one semantic boundary release before the
-frozen parent is restored exactly once. A parent that retires while suspended
-or frozen remains pending; closure follows the complete retained lineage to a
-live parent or an exact direct-root occurrence. When that route reaches a root
-at state exit, the borrow system returns custody to that root only. Transfer,
-cleanup, and linear discharge remain ownership operations and are never
-inferred by the borrow disposition.
-
-Usable restoration requires checked evidence for the exact parent and child
-resources, access pair, formation and weakening boundaries, projection path,
-and suspension or freeze interval. The evidence must establish that forbidden
-parent use did not occur and that the exclusive branch or complete shared
-cohort ended. Lexical survival and a compiler-recorded disposition are not by
-themselves authority. Terminal Psi independently reconstructs and replays this
-evidence before publishing post-reborrow use or root custody.
-
-The first checked post-restoration use row and its Terminal publication are
-deliberately narrow. They accept one direct mutable parent and either an exact
-mutable/write-only exclusive child or one exact shared child occurrence with no
-sibling for that parent. Other non-overlapping sequential exclusive siblings
-may occur. The exclusive form requires exact reactivation and
-exclusive-suspension evidence; the shared form requires an exact sole-member
-cohort restoration and shared-freeze evidence. The child ends by last use
-before the exact next runtime-
-receiver-free call
-whose sole mutable parameter consumes the bare parent carrier and mutates the
-whole restored referent. A nominally qualified static call is still runtime-
-receiver-free. Checked replay independently rejoins the child and parent
-resources, class-specific containment and disposition, weakening, call,
-entry-loan, access, place, and target evidence. Multi-member or sequential
-shared cohorts, multihop
-children, concurrent siblings, state exit, projected arguments, receiver
-calls, direct assignment, and partial mutation remain outside this row.
-Terminal then independently matches the exact `CallUnit`, ordinal-zero call
-coordinate, callee, restoration class, and encoded sole-member roster and
-requires exactly one compatible whole-parent mutating `CallUnit` in a shared
-caller. It publishes authority for that one call only. The source target identity is
-committed custody rather than reconstructed from machine bytes. It does not publish cleanup,
-transfer, or linear discharge.
-
-Published root custody remains deliberately narrow but now covers a finite
-linear exclusive lineage. One direct-root mutable loan may lend a mutable or
-write-only child; a mutable child may continue with either access, while a
-write-only child may continue only as write-only. The complete chain must close
-at state exit through exact exclusive-suspension paths. Terminal retains that
-handoff as semantic custody, not as executable cleanup or transfer. Shared
-cohorts, branching, restoration before state exit, and restored-parent uses
-beyond the one published whole-parent call still require further Terminal
-publication support.
+“The child ended” is therefore not enough by itself. Restoration needs the exact
+lineage, access, formation and closure evidence, including the complete shared
+cohort. A parent going out of lexical scope does not magically return authority.
+Root handoff, restored use, ownership transfer and cleanup are different events.
+The [loan specification](../spec/terminal-psi/loans.md) gives their full rules.
 
 ## Transitions And Ownership
 
-A transition is a jump. Arguments passed to the target state must be valid on
-the target edge.
+A transition transfers to a state within the same machine. The target's bindings
+are explicit:
 
 ```omega
-machine InventorySystem::repair(&mut self) {
+machine forward(value: Inventory) -> Inventory {
     transition {
-        _ -> build_inventory()
+        _ -> done(move value)
     }
 
-    state build_inventory(&mut self) {
-        let replacement: Inventory;
-
-        transition self.inventory_valid {
-            true -> done()
-            false -> copy_default_items(move replacement)
-        }
-    }
-
-    state copy_default_items(replacement: Inventory) {
-        self.inventory = move replacement;
-    }
-
-    state done(&mut self) {
+    state done(value: Inventory) {
+        value
     }
 }
 ```
 
-Working rules:
-
-- Copy values may be copied into transition arguments.
-- Owned values may be moved into transition arguments.
-- References may cross a transition only when the referenced storage outlives
-  the target path.
-- Owned locals not moved into the target are cleaned up on the transition edge.
+Copy values may copy into state arguments; owned values move. A reference may
+cross only while its storage outlives the target path. Locals not transferred
+need eligible cleanup or another authorized disposition; an outstanding linear
+claim cannot disappear on the edge. See [state arrivals](../spec/language/state_contracts.md#bindings-and-arrivals).
 
 ## Borrow Facts
 
-Borrowing contributes facts to the proof system.
+Separate loans may require a disjointness proof:
 
 ```omega
 let a = &mut items[i];
 let b = &mut items[j];
 ```
 
-The checker must know that `i` and `j` refer to disjoint places. That fact may
-come from arithmetic, from a domain, or from a helper machine that establishes
-`i != j`.
+Bounds and `i != j` can establish that the elements differ. They cannot create
+the owner's loan authority or widen its access. Arithmetic, domains and theorem
+calls are ways to establish relations between already-existing subjects.
 
-Borrow checking coordinates two ledgers without collapsing them. The
-Type/resource ledger owns the existence, provenance, polarity, lifetime, and
-return of each loan. The proof ledger may establish relationships over
-already-existing, versioned values, places, and authority occurrences. Because
-`Prop` is erased and copyable and has no custody disposition, a proposition can
-never create, amplify, transfer, extend, return, consume, or duplicate loan
-authority.
-
-This is a criterion rather than a closed obligation list. Spatial
-disjointness, spatial containment, and non-interference are relational and may
-be proved. Literal comparison, symbolic-bound normalization, arithmetic,
-domains, and explicit theorem citation are different derivation methods for
-those relationships, not separate borrow-obligation kinds. Loan descent from a
-live owner, access attenuation, temporal containment within the parent loan,
-and restoration remain resource judgments. A compound rule such as "no
-conflicting writer" therefore splits: the write loan's existence is Type-side,
-while whether its captured place interferes with another loan is relational.
-
-A loan captures its exact place occurrence when it is formed.
-
-The current checked representation retains the first automatic certificate
-for this split without promoting proof facts into authority. Each admitted
-loan/loan non-interference judgment records a separate zero-premise
-`Structural` row naming the formation's machine, state, and statement, both
-exact loan occurrences, their frozen places, and the normalized relational
-conclusion. For every dynamic selector position consulted by the judgment, the
-row also freezes its forming/active side, place-path position, selector
-coordinate, and exact normalized integer or immutable-symbol value; a
-conservatively unknown coordinate is retained explicitly and grants no positive
-evidence. Missing field or case identities likewise establish neither identity
-nor containment. Disjointness may follow from an earlier known root or path
-divergence, but not from child comparisons beneath an unresolved field or case.
-Mutation-path matching uses the same conservative rule when invalidating facts.
-Rerunning checked-fact validation independently normalizes the exact
-typed formation expression, requires equality with the frozen rows, and then
-replays the relationship. Runtime changes cannot retarget the immutable-symbol
-occurrence captured by an existing loan; typed formation drift rejects.
-Proposition premises and Terminal verification remain a later rung; this
-checked record does not change ordinary borrow admission.
-
-In:
+A loan captures its place when formed:
 
 ```omega
 let view = &mut buffer[table[index]];
 ```
 
-later mutation of `table[index]` does not retarget `view`. Any proposition used
-to license compatibility must dominate formation and be valid for the exact
-value/place versions captured at that event. The resulting compatibility fact
-is about those frozen loan occurrences; its premises may later expire without
-moving or merging the captured places. A supposedly retargetable place instead
-violates the Type-side pinning/provenance rule.
+Later changing `table[index]` does not retarget `view`. Compatibility premises
+must be valid for the captured value/place versions at formation; later expiry
+does not move those frozen places.
 
-The proof context participates from the beginning; it is not a fallback after
-a separate borrow checker rejects. The ordinary checker is the default tactic
-that constructs the same compatibility certificate automatically. A failed
-automatic derivation remains an ordinary borrow diagnostic unless source has
-explicitly engaged with proof vocabulary.
-
-Shared symbolic boundaries are an ordinary automatic case:
+Half-open windows illustrate a simple automatic proof:
 
 ```omega
 let left = &mut items[start..mid];
 let right = &mut items[mid..end];
 ```
 
-After the usual range-validity obligations, the identical half-open boundary
-`mid` proves adjacency without requiring literal endpoints or a separately
-authored disjointness theorem.
+Once their bounds are valid, the shared immutable boundary `mid` establishes
+adjacency. An immutable integer copy keeps its captured value after its source
+changes; two separate captures do not establish equality automatically.
+Capturing a reference, unlike an integer, does not snapshot its referent.
 
-That boundary may be a computed immutable local, an immutable copy of a mutable
-integer, or a finite chain of immutable copies of either. An immutable copy of a
-mutable local or parameter has its own captured value identity: changing the
-source afterward does not change the copy. Separate captures from that mutable
-source do not establish equal values. The automatic identity comparison does
-not reevaluate initializers or prove equality between separately computed bindings.
-Direct mutable local and parameter bounds remain unknown, as do ambiguous and
-cyclic aliases and inclusive symbolic upper bounds. Value identity alone proves
-neither range validity nor a compile-time constant index.
-
-For a known array length, numeric bounds can validate a runtime start or end,
-including a tail window with an omitted end. The checker still requires
-nonnegative endpoints and their ordering; independently bounding both by the
-array length does not prove that the start precedes the end. Immutable integer
-copies retain established numeric bounds about their captured value after the
-source changes. This does not retain expired bounds about the mutable source.
-Inclusive ends must remain strictly below the array length.
-The checker retains guard-derived builtin arithmetic, unary, and cast premises
-across writes proven disjoint from their exact operand places. This includes
-direct assignments and complete call write frames, with reference aliases and
-bare/explicit receiver fields mapped to the same storage. Writing an operand
-retires its computed premises; a separately captured integer keeps its own
-numeric facts. Builtin array/slice element reads retain both element coordinates
-and selector dependencies. Copying an integer selector can carry an established
-indexed bound into exact typed uses of the new binding, including compiler
-temporaries; later source changes do not retarget that copy. Element writes
-still retire the dependent bound. A copied reference is not an integer snapshot.
-Fixed element and field coordinates survive local-reference origins and
-complete projected call write frames. A write through `set(&mut values[1])`
-or an alias to that element can preserve a bound that reads `values[0]`;
-an overlapping write cannot. A runtime selector captured by a reference is
-not reevaluated at a later write to manufacture disjointness. Unknown writes,
-unresolved selectors, or incomplete read sets grant no preservation beyond
-their proven storage prefix. Authored indexing operators, atomic
-reads, and calls need their own complete read and stability evidence; their
-spelling or explicit arguments alone are insufficient. Equal expression text
-cannot choose between incompatible typed operand identities, while separate
-arena copies of the same resolved selector retain its meaning.
-
-No public `footprint(...)` contract surface follows from this rule. Most
-source contracts state ordinary value relationships such as `mid <= items.len`,
-from which the checker derives projected-place relationships. Public abstract
-footprints for opaque modular APIs remain a separate future feature. Semantic
-`Content<A>` projections, logical place footprints, and physical effect
-footprints are distinct; a checked carrier-specific bridge may relate them,
-as an `Extent` can relate its address-interval content to a place range.
-
-> **Implementation direction (August 2026):** checked trees already retain
-> first-class loans and use borrow accesses to invalidate proof facts, but the
-> convergence is incomplete. Beyond exact shared immutable boundary identities,
-> symbolic range ordering and containment remain limited. Arbitrary valid proof
-> facts do not yet discharge one canonical
-> place-compatibility obligation, and ordinary loan compatibility is not yet
-> retained as an independently replayable Terminal certificate.
+Facts about storage survive only writes proved disjoint from their dependencies.
+A write to `values[1]` may preserve a bound reading `values[0]`; an overlapping
+or unknown write cannot. Equal expression text is not evidence of equal captured
+places. [Live facts](../spec/language/state_contracts.md#mutation-and-subject-identity)
+and [frozen loan places](../spec/terminal-psi/loans.md#frozen-places-and-proof-replay)
+describe these separate obligations. General proof-derived compatibility remains
+incomplete in the compiler; ordinary automatic checking is not a second semantic
+system preceding proof.
 
 ## Owners And Borrowed Views
 
-A borrowed view (a slice over an array, a text view over a bounded byte carrier,
-or a slice over a `Vec`) keeps the owner pinned for the view's lifetime. While such a view is
-active the checker rejects any write to the owner that overlaps the borrowed
-window:
+A borrowed window keeps its backing valid and rejects overlapping writes. For
+copy-eligible `Entry`:
 
 ```omega
 let view: &[Entry] = self.entries.as_slice();
-self.entries[0].value = 7; // rejected: view is still active
+self.entries[0].value = 7; // rejected: view is used below
 let first: Entry = view[0];
 ```
 
-Disjoint windows are allowed when disjointness is provable from compile-time
-bounds. A subslice `view[1..]` does not conflict with a write to
-`self.entries[0]`, because index `0` is provably outside the `1..` window.
-
-The same rule applies to `Vec`: a `Vec` mutation or reallocation
-(`push`, `pop`, or anything that may move the backing storage) must reject while
-a slice view derived from that `Vec` is still active, because the view may be
-invalidated by the reallocation. This is the borrow-conflict rule for `Vec`; its
-canary is parked under `tests/omega/pending/borrow/vec_view_invalidated_by_push`
-until the `Vec` runtime/lowering is ready to exercise it end to end.
+A view restricted to `self.entries[1..]` need not conflict with a write to
+element zero. Reallocation that invalidates a live vector view rejects too.
+The rule concerns the actual borrowed window and backing, not a blanket ban on
+every operation bearing the vector's name.
 
 ## Lifetime Parameters
 
-Omega uses Rust-style lifetime parameters: a call's
-output may borrow an input, and LIFETIME PARAMETERS — declared in the same
-`<>` list as type and `const` parameters, tick spelling — say which:
+An explicit lifetime names the input a returned view borrows:
 
 ```omega
-machine header<'buf>(buffer: &'buf [u8], scratch: &mut [u8]) -> &'buf [u8] {
-    // the returned view aliases `buffer`; the checker extends buffer's loan
-    // for as long as the result lives. `scratch` is unentangled.
+machine header<'buffer>(
+    buffer: &'buffer [u8], scratch: &mut [u8]
+) -> &'buffer [u8] {
+    return buffer;
 }
 ```
 
-ELISION keeps the common cases annotation-free, exactly as in Rust: a single
-ref input means the output borrows it, and a `&self` method's output borrows
-self. Most signatures therefore never write a tick:
+The result retains `buffer`'s loan, not `scratch`'s. Common single-reference-input
+and borrowed-receiver cases use elision, so most signatures need no tick. Prefer
+descriptive lifetime names such as `'buffer` or `'arena`.
+
+Borrow-carrying data makes zero-copy results ordinary values:
 
 ```omega
-machine decode_body(buffer: &[u8]) -> &[u8] { ... }         // borrows buffer
-machine Level::find_room(&self, id: CellId) -> &Room { ... } // borrows self
-```
-
-Borrow-carrying data is in-model from day one — a type holding views is
-generic over the lifetime of what it views, which is what makes zero-copy
-decoding spellable:
-
-```omega
-data ChatMessage<'buf> {
+data ChatMessage<'buffer> {
     sender_id: i64;
-    body: &'buf [u8];       // view into the receive buffer; zero bytes copied
+    body: &'buffer [u8];
 }
-```
 
-House style: descriptive lifetime names (`'buf`, `'arena`, `'msg`), never
-`'a`. The tick was kept deliberately after surveying the alternatives
-(argument-naming clauses, keyword region/origin parameters, Mojo-style
-bracket origins): it is lexically self-identifying at use sites, collides
-with none of Omega's bracket meanings (slices, properties, invariant
-parameters), and elision makes it rare.
-
-Implementation is staged. The frontend preserves explicit lifetime tags and
-their declaration binders through every semantic tree phase. Binders are
-erased regions stored separately from type/const/machine parameters, so they
-do not change runtime generic arity or monomorphization; duplicate declarations
-and undeclared tags reject. The checker applies the single-reference and
-`self` elision rules, rejects ambiguous multi-reference results, and links a
-returned view to the one input it names.
-Borrow carrying is structural: nested records, active sum payloads, fixed
-arrays, constraints, and concrete generic arguments cannot hide an inner
-loan, and recursive data is walked cycle-safely. Literal construction records
-every carried source; a returned aggregate is valid only when all of those
-sources outlive the call, and projecting a named field retains only that
-field's loans. Fixed-array literal positions retain exact ordinals too:
-projecting a constant index keeps only that element's loans, while a dynamic
-index conservatively keeps every candidate element's loans.
-
-Named borrow-carrying data accepts explicit erased lifetime applications:
-
-```omega
 machine select<'left, 'right>(
-    first: &'left [u8],
-    second: &'right [u8]
+    first: &'left [u8], second: &'right [u8]
 ) -> ChatMessage<'left> {
-    let selected: ChatMessage<'left> =
-        ChatMessage { sender_id: 0; body: first };
-    transition {
-        _ -> selected
-    }
+    return ChatMessage { sender_id: 0, body: first };
 }
 ```
 
-Lifetime arguments precede runtime type/const/machine arguments, validate
-against the data declaration's lifetime arity and the lexical owner's declared
-binders, and remain separate from runtime generic arity, layout, and
-monomorphization identity. A call-produced aggregate governed by one explicit
-result lifetime keeps the corresponding input loan active while unrelated
-inputs such as `second` remain independently usable. Moving a borrow-carrying
-local—or projecting and moving one of its nested fields—transfers the contained
-loan paths and their read/mutable polarity to the destination local; ordinary
-data assignment cannot erase a borrow. Reassigning an existing local or one of
-its aggregate fields follows the same rule: the right-hand side is evaluated
-while the old loans remain active, the overwritten field's carried loans end,
-and the replacement value's exact field/index loans become active. Replacing
-one field neither retains its old source nor releases loans carried by an
-unrelated sibling. Dynamic indexes remain conservative.
+The message carries the original source loan. Moving it, putting it inside
+another aggregate, or erasing a non-owning qualification cannot erase that loan.
+Replacing one field ends that field's former loans after evaluating the new
+value; unrelated siblings retain theirs.
 
-For an explicitly multi-lifetime result, the checker derives the result
-contract structurally from the data declaration:
+Different result fields can name different inputs:
 
 ```omega
 data Pair<'left, 'right> {
@@ -697,137 +289,46 @@ data Pair<'left, 'right> {
 }
 
 machine pair<'left, 'right>(
-    left: &'left mut i32,
-    right: &'right mut i32
+    left: &'left mut i32, right: &'right mut i32
 ) -> Pair<'left, 'right> {
-    let result: Pair<'left, 'right> = Pair {
-        left: left,
-        right: right,
-    };
-    transition {
-        _ -> result
-    }
+    return Pair { left: left, right: right };
 }
 ```
 
-The mapping follows nested records, sum payloads, fixed arrays, and concrete
-generic arguments, preserving each carried field's projection and polarity.
-Here `result.left` retains only `left`, while `result.right` retains only
-`right`. Inputs may themselves be owned borrow-carrying records, sum payloads,
-or fixed arrays. Their declared reference lifetimes select the source leaves;
-matching input and output field names are not required. Every leaf with the
-selected lifetime within that one input remains a possible source, and each
-must support the result's declared access.
-The same lifetime on two distinct input parameters remains ambiguous. Without
-annotations, one carried reference in one input supports single-source elision;
-several unnamed carried references do not. Returning an owned carrier preserves
-the captured source loans and their access restrictions, not a borrow of the
-caller's private carrier storage.
-Returning a reference field directly from an owned input uses the same complete
-input lifetime frontier. The result has no enclosing field path, but retains
-every candidate source loan selected by its lifetime. Forwarding that result
-through another call or storing it in a literal cannot discard those loans.
+Using `result.right` need not keep an unrelated `result.left` loan live. Nested
+records, active sum payloads and array positions retain the same structural
+correspondence. A dynamic index conservatively includes all possible sources.
 
-A generic trait requirement may declare a returned carrier whose structural
-lifetime frontier depends on its own type parameters. This is a
-template-dependent frontier, not evidence that the carrier contains no views.
-The checker permits a call when its exact selected static callable signatures
-and runtime arguments close the type substitution and the complete resulting
-carrier contains no views. This also covers direct nongeneric record
-constructors with the exact selected carrier identity. Otherwise calls that
-still select the uninstantiated requirement are rejected, including calls
-whose result is discarded. A concrete view-returning callable must retain the
-complete result-to-input lifetime check. General caller-side substitution and
-loan attribution for generic returned views remain unsupported; unrelated
-incomplete concrete frontiers are not deferred.
-
-The same mapping survives when that helper result, or a moved
-borrow-carrying local, initializes a field or fixed-array element of another
-aggregate: the checker prefixes the inner loan path with the enclosing
-field/index path without merging sibling sources or weakening shared versus
-mutable polarity. A same-carrier value cast preserves the same carried loans:
-explicitly erasing a non-owning qualification cannot erase ownership, its
-source place, or its shared/mutable polarity. Borrow representation recasts
-remain subject to their separate footprint and overlap judgment. A validated
-recast of a whole named value or member retains an ordinary shared or mutable
-loan on that exact source place. A recast at an exact literal index into a fixed
-byte array may now retain one complete half-open fixed-range loan when its
-target is a fact-free primitive, one nonzero closed acyclic tree of nongeneric,
-quotient-free, all-relevant fact-free records, or one recursively nonzero
-literal fixed array ending in either exact shape, provided the ordinary recast
-judgment has proved the whole footprint in bounds. The
-primitive-array extent comes from its normalized exactly tiled representation;
-record arrays repeat the complete normalized padded record extent under exact
-symbol identity. Eligible records may themselves contain recursively literal
-array fields ending in the same exact primitive or record shapes. A zero-length
-field participates only when its terminal independently qualifies and the
-whole record remains nonzero; its element alignment can still induce protected
-padding. Fully specialized type plus scalar-integer `const` or exact-replayed
-acyclic structured-data `const` instances participate under their exact
-synthesized symbol, validated carrier/value origin, and substituted-field
-eligibility. Structured atoms are completely decoded under fixed resource
-bounds and replayed in declaration order against the exact resolved record or
-pure-sum carrier, including the selected case and ordered payload; layout
-remains a property only of the substituted instance fields. Runtime or merely
-bounded offsets, slices, total zero-size targets, open/unresolved,
-mixed/recursive/custom-canonical structured-const, lifetime/machine/proposition
-generic instances, and invariant-bearing/erased/cased records remain
-conservative. Last-use accounting compares the canonical
-field/index path, so a
-later use of `result.right` does not artificially keep `result.left`'s loan
-active.
-Program-static views stored in persistent aggregate fields carry their stable
-field, case, and fixed-index identity across named graph states. A runtime index
-also crosses when it is an immutable state parameter or immutable local
-forwarded unchanged, or through direct immutable local copies, into an
-immutable target-state parameter; the edge rebases that shared identity to the
-target symbol. A mutable or computed alias, rewriting or omitting the argument,
-an inconsistent predecessor, a possibly overlapping mutation, or an opaque
-call discards the provenance rather than guessing that two runtime indexes
-agree.
-General outlives constraints, persistent-storage assignment across state
-transitions, and the remaining aggregate expression forms remain
-implementation work; they are not new language-design questions.
+The [lifetime specification](../spec/language/lifetimes.md) owns binder syntax,
+elision and carried-loan transport. The compiler's current multiple-input and
+generic returned-view limitations are documented [beside checking](../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
+Those limitations are not permission to forget unresolved borrows.
 
 ## Storage Carried By Placed Views
 
-The borrowed form of `Placed<P, T>` carries the exact source borrow from which
-placement was admitted. The owned form instead carries a split `Extent` and
-must eventually return or release that conserved claim through an authorized
-terminal route. Neither form turns special backing into an ordinary `&mut T`.
-Normal references remain unchanged:
+A borrowed `Placed<P, T>` retains its source borrow. An owned placement instead
+carries an extent claim that needs an authorized return or release:
 
 ```omega
-machine inspect(uart: &Placed<UartMmio, UartRegisters>);
-machine configure(uart: &mut Placed<UartMmio, UartRegisters>);
+machine inspect(uart: &Placed<UartMmio, UartRegisters>) {
+}
+
+machine configure(uart: &mut Placed<UartMmio, UartRegisters>) {
+}
 ```
 
-The current borrow of the view and the retained source borrow answer different
-questions. `&mut` proves exclusive use of the view value; it does not upgrade a
-view created from a shared source borrow. Stable ordinary mutation is legal
-only when its `AccessPlan` permits the operation, the current view borrow is
-exclusive, and the retained source borrow is exclusive. External and atomic
-operations instead follow their exact admitted operation contracts; an Omega
-`&mut` borrow cannot exclude a device.
+Exclusive access to the view value does not upgrade a shared source borrow.
+Ordinary stable mutation needs permission from its access plan and exclusivity
+of both current view and retained source. A device is not excluded by an Omega
+`&mut` borrow; external and atomic operations use their admitted contracts.
 
-Field projection is pure and preserves the narrowed borrow path. The resulting
-accessor cannot outlive its view or name bytes outside its planned field.
-Disjoint subrange views may coexist when a validated layout certificate or a
-checked interval proof establishes place non-overlap and their physical effect
-footprints do not conflict. Logical bitfields sharing one transfer word are not
-independently exclusive for destructive reads or read-modify-write. Each child
-receives only the parent resource profile restricted to its interval and
-attenuated rights.
-
-See [Chapter 20](chapter_20_memory_layout_abi.md#placed-and-externally-mutable-memory)
-for placement and access semantics.
+Projected accessors cannot outlive the view or escape the planned field.
+Disjoint subviews need both logical non-overlap and compatible physical effects:
+bitfields sharing a transfer word are not independently exclusive for destructive
+reads or read-modify-write. Child views only narrow the parent's rights.
+See [placed memory](chapter_20_memory_layout_abi.md#placed-and-externally-mutable-memory).
 
 ## Relationship To Drops
 
-Ownership decides who must clean up a value. The cleanup machinery itself is
-covered later in [Drops And Cleanup](chapter_17_drops_and_cleanup.md).
-
-The compiler records first-class `Establish`, `Transfer`, `Consume`, and
-`AffineDrop` permission events. The older parallel move/drop summaries have
-been deleted; cleanup-plan completion is tracked in
-[semantic representation ownership](../../omega-rust/psi/representations/README.md).
+Ownership determines which dispositions are owed. [Drops And Cleanup](chapter_17_drops_and_cleanup.md)
+explains eligible automatic cleanup, early disposal and edge order.

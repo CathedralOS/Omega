@@ -14,7 +14,9 @@ beside code; completed work belongs in Git, not current reference material.
 ## Current specification subjects
 
 - Source semantics: [state contracts and live facts](spec/language/state_contracts.md),
+  [modules and visibility](spec/language/modules.md),
   [ownership and multiplicity](spec/language/ownership.md),
+  [lifetimes and carried borrows](spec/language/lifetimes.md),
   [concurrency and atomics](spec/language/concurrency.md),
   [machines and refinement](spec/language/machines.md),
   [named conformances](spec/language/conformances.md),

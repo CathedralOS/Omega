@@ -83,6 +83,19 @@ Scalar arity/types/definitions and ownership are independently checked.
 Reconverging paths must establish the same ordered structural frontier; their
 scalar values need not be identical.
 
+Audit origin may remain path-sensitive. Operational metadata joins only when
+all alternatives use the same realization or an existing runtime discriminator
+preserves the distinction, such as a sum tag, provider key, or explicit state.
+Otherwise the author must represent the alternative or normalize custody.
+The checker cannot duplicate a semantic state to repair an invalid join.
+
+Every incoming owned obligation occurs exactly once in the edge's transfer map,
+explicit terminal consumption, eligible automatic cleanup, or validated no-code
+affine discard. A dying linear obligation requires an owner-authorized terminal
+disposition. The target frontier checks shape, facts, multiplicity, access, and
+operational metadata; predecessor origins need not be identical. The complete
+partition and conservation evidence remain in proof and diagnostic artifacts.
+
 Calls retain authored order, independently of reverse cleanup order. Whole and
 residual cleanup must share a valid establishment-order schedule before a
 consumer may support their combination. Transformations unable to preserve an
@@ -115,6 +128,24 @@ alignment, movement, and the concrete type's eligible cleanup plan. Reconstruct
 that relationship under retained facts. Borrowed erased views have no
 referent-cleanup disposition. Descriptor lifecycle metadata is not a user-defined
 Drop conformance.
+
+Erasure into an automatically cleaned owner requires eligibility under that
+owner's retained invariant, or retained stable facts and authority establishing
+the concrete plan's prerequisites. Otherwise a linear payload needs an explicit
+consuming owner. Erasure neither supplies missing authority nor changes the
+disposition. A collection's structural plan invokes each owned erased element's
+descriptor plan; borrowed views do not dispose their referents.
+
+## Physical realization
+
+Storage planning consumes the checked transfer map rather than reconstructing
+ownership from lexical scopes. Source and target storage may coalesce, but a
+borrow promising stable address requires a realization preserving that address.
+Cleanup suffix sharing and physical block cloning must retain every action's
+exact semantic edge and order. No-code actions still map to the permission ledger.
+Coalescing unchanged loop-carried large values is a performance acceptance
+requirement, never permission to accept an invalid transfer. An address-stability promise is instead
+a soundness obligation, whether realized by coalescing or another valid plan.
 
 Current producer and ABI limits are documented beside
 [Terminal production](../../../omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup)

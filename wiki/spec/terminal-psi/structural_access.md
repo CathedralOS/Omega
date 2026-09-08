@@ -53,6 +53,19 @@ Loan compatibility and permitted operations are separate. Content-independent
 place projection and metadata observation are permitted. Reading stored content,
 readable reborrowing, taking, swapping, and read-modify-write are not.
 
+A field or index projection must locate its target without reading content.
+A sum payload needing a tag read is unavailable unless an existing refinement
+already fixes the case. Whole-value replacement writes tag and payload together.
+Partial writes still owe ordinary invariant-window validity; written inputs,
+static structure and caller-supplied facts may prove it, never a load through
+the write-only loan. Freely discardable old content needs no content-dependent
+cleanup; conserved or linear displaced custody cannot silently disappear.
+
+Outcome contracts may identify a modified prefix `[0..count)` and unchanged
+suffix `[count..len)`, preserving the caller's suffix facts. The count describes
+an effect, not a construction of previously vacant storage. The loan begins
+and ends with a valid referent.
+
 Attenuating mutable access to write-only retains the root's declared access
 and records write-only access on the argument and callee. It creates neither
 ownership transfer nor reusable reborrow authority. Projection from an

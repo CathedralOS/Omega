@@ -43,6 +43,16 @@ Maximum logical work is the greatest total charge along any admitted path:
 Work is consumed, not reclaimed. This differs from simultaneous stack use:
 sequential call frames normally compose by maximum after the first is reclaimed.
 
+Executable cleanup belongs to the edge's work: sum the actions on one edge and
+take the maximum across mutually exclusive alternatives. A cycle executes its
+backedge cleanup on each iteration, so a bounded-cycle certificate counts it
+within the repeated work, not merely once in a maximum over edges. An iteration
+bound with entry, per-iteration, and exit ceilings may compose as
+`entry + bound * maximum_iteration_work + exit`; ranking without a quantitative
+iteration bound does not establish this ceiling. Cleanup stack demand separately
+uses ordinary peak composition, and its effects and guarantees remain part of
+the enclosing machine contract.
+
 Every retained executable operation is charged, including each arithmetic
 operation, cast, widen, shift, call, and ordinary value leaf. `ReturnUnit` charges
 one normal-return edge and no invented value-producing operation. Verifier work
