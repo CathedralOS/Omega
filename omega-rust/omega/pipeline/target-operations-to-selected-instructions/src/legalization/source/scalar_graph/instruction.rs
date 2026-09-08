@@ -9,6 +9,46 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::CallStructuralScalar {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } => {
+            let caller = native
+                .functions
+                .iter()
+                .find(|function| function.machine == optimized.machine)
+                .ok_or(Error::SourceCustodyMismatch)?;
+            let target_operations::TargetOperation::ReturnStructuralScalarCall {
+                arguments, ..
+            } = &caller.operation
+            else {
+                return Err(Error::SourceCustodyMismatch);
+            };
+            let ([semantic], [target]) = (structural_arguments.as_slice(), arguments.as_slice())
+            else {
+                return Err(Error::SourceCustodyMismatch);
+            };
+            let call_plan = scalar_graph_input::structural_call::validate_argument(
+                semantic, target, optimized, *callee, native, plan, unit,
+            )?;
+            LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                callee: *callee,
+                arguments: vec![LegalizedScalarArgument::Structural {
+                    semantic: semantic.clone(),
+                    target: target.clone(),
+                }],
+                result_placement: call_plan.result.clone(),
+                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                claim_transfers: claim_transfers.clone(),
+                call_plan,
+                requirement_obligations: requirement_obligations.clone(),
+                crash_continuations: crash_continuations.clone(),
+            })
+        }
         AbstractOperation::ByteSequenceRead {
             psi_operation,
             source,

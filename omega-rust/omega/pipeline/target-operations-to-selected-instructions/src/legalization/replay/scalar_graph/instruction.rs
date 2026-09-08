@@ -25,6 +25,43 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::Call(call),
+            AbstractOperation::CallStructuralScalar {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            },
+        ) => {
+            let ([argument], [LegalizedScalarArgument::Structural { semantic, target }]) =
+                (structural_arguments.as_slice(), call.arguments.as_slice())
+            else {
+                return Err(invalid);
+            };
+            let expected = scalar_graph_input::structural_call::validate_argument(
+                argument, target, optimized, *callee, native, plan, unit,
+            )?;
+            if semantic != argument
+                || call.callee != *callee
+                || call.call_plan != expected
+                || call.result_placement != expected.result
+                || call.source != LegalizedCallUnitSource::AuthoredCallUnit
+                || call.claim_transfers != *claim_transfers
+                || call.requirement_obligations != *requirement_obligations
+                || call.crash_continuations != *crash_continuations
+                || proposed_plan
+                    .scalar_functions
+                    .iter()
+                    .filter(|function| function.machine == *callee)
+                    .count()
+                    != 1
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::ByteSequenceRead {
                 source,
                 index,

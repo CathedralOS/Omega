@@ -213,6 +213,53 @@ pub(super) fn byte_view_read_module() -> TerminalModule {
     module
 }
 
+pub(super) fn byte_view_length_helper_module() -> TerminalModule {
+    byte_view_length_helper_chain(1)
+}
+
+pub(super) fn byte_view_length_helper_chain(depth: u64) -> TerminalModule {
+    let mut module = byte_view_length_module();
+    for level in 1..=depth {
+        let identity_base = level * 10;
+        let mut caller = module.machines[0].clone();
+        caller.id = MachineId::new(identity_base).unwrap();
+        caller.contract.id = ContractId::new(identity_base + 9).unwrap();
+        caller.entry = BlockId::new(identity_base + 2).unwrap();
+        caller.blocks[0].id = caller.entry;
+        caller.structural_parameters[0].place = PlaceId::new(identity_base + 3).unwrap();
+        caller.structural_places[0].id = PlaceId::new(identity_base + 3).unwrap();
+        let TerminalMachineResult::Scalar(result) = &mut caller.result else {
+            unreachable!()
+        };
+        result.id = ValueId::new(identity_base + 6).unwrap();
+        caller.blocks[0].operations[0].id = OperationId::new(identity_base + 7).unwrap();
+        let OperationResult::Scalar(result) = &mut caller.blocks[0].operations[0].result else {
+            unreachable!()
+        };
+        result.id = ValueId::new(identity_base + 5).unwrap();
+        caller.blocks[0].terminator = Terminator::Return {
+            edge: EdgeId::new(identity_base + 8).unwrap(),
+            value: ValueId::new(identity_base + 5).unwrap(),
+            cleanup_actions: Vec::new(),
+        };
+        caller.blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
+            callee: module.entry,
+            arguments: Vec::new(),
+            structural_arguments: vec![terminal_psi::StructuralArgument {
+                place: caller.structural_parameters[0].place,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        module.entry = caller.id;
+        module.machines.push(caller);
+    }
+    module
+}
+
 pub(super) fn byte_view_read_proof(module: &TerminalModule) -> ProofBundle {
     let reconstructed = terminal_verifier::reconstruct_terminal_obligations(module).unwrap();
     let [site] = reconstructed.obligations() else {

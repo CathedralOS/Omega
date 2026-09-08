@@ -6,6 +6,24 @@ pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
 ) -> Option<(OperationId, ValueId)> {
     match &node.operation {
+        AbstractOperation::CallStructuralScalar {
+            psi_operation,
+            result,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } if result.scalar_type == ScalarType::Integer(u64_type())
+            && arguments.is_empty()
+            && structural_arguments.len() == 1
+            && claim_transfers.is_empty()
+            && requirement_obligations.is_empty()
+            && crash_continuations.is_empty() =>
+        {
+            Some((*psi_operation, result.value))
+        }
         AbstractOperation::ByteSequenceRead {
             psi_operation,
             result,
@@ -133,6 +151,7 @@ pub(super) fn validate(
             return Err(invalid);
         }
         let expected_type = match &node.operation {
+            AbstractOperation::CallStructuralScalar { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {
                 source,
                 index,

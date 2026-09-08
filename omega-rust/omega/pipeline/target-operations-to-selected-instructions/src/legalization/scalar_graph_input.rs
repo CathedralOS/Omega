@@ -20,6 +20,7 @@ pub(super) use custody::validate_unit_custody;
 mod byte_views;
 mod header;
 mod ranked;
+pub(super) mod structural_call;
 pub(super) fn structural_contract(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -194,7 +195,7 @@ pub(super) fn match_input(
         } = &node.operation
         {
             let call = callee_plan(*callee, native, plan, unit)?;
-            if call.parameters.len() != arguments.len() {
+            if call.parameters.len() != arguments.len() || !call.parameters.iter().all(register) {
                 return Err(invalid);
             }
         }
@@ -244,8 +245,24 @@ pub(super) fn callee_plan(
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
-    let call_plan = function_abi(native.target, target, abstracted, optimized)?;
-    if !call_plan.parameters.iter().all(register) {
+    let call_plan = if target.mixed_structural_scalar_abi.is_some() {
+        byte_views::validate(target, abstracted, optimized, native.target, plan)?
+    } else {
+        function_abi(native.target, target, abstracted, optimized)?
+    };
+    if !call_plan.parameters.iter().all(|placement| {
+        register(placement)
+            || placement.shape == ValueShape::borrowed_reference(16, 8)
+                && matches!(
+                    placement.locations.as_slice(),
+                    [ValueLocation::Indirect {
+                        pointer: calling_conventions::IndirectPointerLocation::Register(_),
+                        copy_stack_byte_offset: None,
+                        byte_size: 16,
+                        alignment: 8,
+                    }]
+                )
+    }) {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
     Ok(call_plan)

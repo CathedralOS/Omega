@@ -362,6 +362,7 @@ pub(super) fn build(
                         .ok_or_else(invalid)?;
                     crate::selection::scalar_call_abi::validate(
                         function,
+                        source,
                         call,
                         key,
                         row(catalog, key)?,
@@ -369,6 +370,18 @@ pub(super) fn build(
                     )?;
                     let mut operands = Vec::new();
                     for argument in &call.arguments {
+                        if let legalized_operations::LegalizedScalarArgument::Structural {
+                            semantic,
+                            ..
+                        } = argument
+                        {
+                            operands.push(structural::call_pointer(
+                                &mut builder,
+                                operation,
+                                semantic.place,
+                            )?);
+                            continue;
+                        }
                         let (_, input, site, argument_type) = builder
                             .resolve(argument.scalar_source().ok_or_else(invalid)?)
                             .ok_or_else(invalid)?;

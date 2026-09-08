@@ -145,6 +145,37 @@ pub(super) fn entry(
     Ok(())
 }
 
+/// Reconstruct the outgoing pointer from the independently replayed entry copy.
+pub(super) fn call_pointer(
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?;
+    if !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
+        || row
+            .result
+            .is_none_or(|result| result.scalar_type != ScalarType::Integer(integer))
+    {
+        return Err(replay.invalid());
+    }
+    let input = replay
+        .transport
+        .pointers
+        .iter()
+        .find(|(source, _)| *source == place)
+        .map(|(_, pointer)| *pointer)
+        .ok_or_else(|| replay.invalid())?;
+    let output = result(replay, place, 0)?;
+    replay.check_instruction(
+        SelectedInstructionKind::CopyI64,
+        replay.constraints.keys.copy_i64,
+        &[input, output],
+        &SelectedInstructionProvenance::default(),
+    )?;
+    Ok(output)
+}
+
 pub(super) fn operation(
     source: &LegalizedScalarFunction,
     node: &LegalizedScalarInstruction,

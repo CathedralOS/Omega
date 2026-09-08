@@ -146,6 +146,37 @@ pub(super) fn entry(
     Ok(())
 }
 
+/// End the outgoing fixed-register constraint at a copy of the reference pointer.
+pub(super) fn call_pointer(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+    if !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
+        || row
+            .result
+            .is_none_or(|result| result.scalar_type != ScalarType::Integer(integer))
+    {
+        return Err(invalid());
+    }
+    let input = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(source, _)| *source == place)
+        .map(|(_, pointer)| *pointer)
+        .ok_or_else(invalid)?;
+    let output = transport_register(builder, place, 0)?;
+    builder.emit(
+        SelectedInstructionKind::CopyI64,
+        builder.constraints.keys.copy_i64,
+        &[input, output],
+        SelectedInstructionProvenance::default(),
+    )?;
+    Ok(output)
+}
+
 pub(super) fn operation(
     source: &LegalizedScalarFunction,
     block: SelectedBlockId,
