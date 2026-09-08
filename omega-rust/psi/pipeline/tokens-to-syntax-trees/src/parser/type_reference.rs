@@ -12,6 +12,8 @@ use syntax_trees::types::{
 use tokens::{KeywordKind, PunctuationKind};
 
 #[cfg(test)]
+mod qualified_names;
+#[cfg(test)]
 mod remainder_tests;
 
 pub(super) fn parse_type_reference_handle<'tokens, 'source>(
@@ -158,7 +160,22 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         ));
     }
 
-    let (base_name, mut input) = input.take_identifier()?;
+    let (first_name, mut input) = input.take_identifier()?;
+    let base_name = if input.at_punctuation(PunctuationKind::ColonColon) {
+        let mut name = first_name.as_str().to_owned();
+        let mut source_span = first_name.source_span();
+        while input.at_punctuation(PunctuationKind::ColonColon) {
+            input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (member, rest) = input.take_identifier()?;
+            name.push_str("::");
+            name.push_str(member.as_str());
+            source_span.span.end = member.source_span().span.end;
+            input = rest;
+        }
+        Identifier::new(name, source_span)
+    } else {
+        first_name
+    };
 
     let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
@@ -253,20 +270,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                         expression_rest,
                     )
                 } else {
-                    let (scope, after_scope) = input.take_identifier()?;
-                    if after_scope.at_punctuation(PunctuationKind::ColonColon) {
-                        let after_separator =
-                            after_scope.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                        let (name, rest) = after_separator.take_identifier()?;
-                        (
-                            syntax_trees
-                                .type_references
-                                .insert_named(Identifier::generated(format!("{scope}::{name}"))),
-                            rest,
-                        )
-                    } else {
-                        parse_type_reference_handle(syntax_trees, input)?
-                    }
+                    parse_type_reference_handle(syntax_trees, input)?
                 }
             } else {
                 parse_type_reference_handle(syntax_trees, input)?

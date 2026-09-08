@@ -173,6 +173,8 @@ pub struct TableCall {
     pub receiver: HandleSpan<Identifier>,
     pub receiver_starts_at_self: bool,
     pub target: Identifier,
+    /// Preserves static `::` selection through expression-to-statement conversion.
+    pub target_is_static: bool,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     /// Explicit erased evidence-term arguments after the `;` call lane.
@@ -188,6 +190,7 @@ impl Default for TableCall {
             receiver: HandleSpan::empty(),
             receiver_starts_at_self: false,
             target: Identifier::default(),
+            target_is_static: false,
             machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
             evidence_arguments: Box::default(),

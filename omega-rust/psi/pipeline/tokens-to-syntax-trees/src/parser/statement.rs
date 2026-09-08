@@ -592,6 +592,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 statement: syntax_trees
                     .statements
                     .insert(StatementNode::Call(TableCall {
+                        target_is_static: false,
                         receiver: HandleSpan::empty(),
                         receiver_starts_at_self: false,
                         target: Identifier::new("asm#hlt", mnemonic.source_span()),
@@ -620,6 +621,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     statement: syntax_trees
                         .statements
                         .insert(StatementNode::Call(TableCall {
+                            target_is_static: false,
                             receiver: HandleSpan::empty(),
                             receiver_starts_at_self: false,
                             target: Identifier::new("asm#port_out", mnemonic.source_span()),
@@ -645,6 +647,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: false,
                         receiver: ExpressionHandle::invalid(),
                         target: Identifier::new("asm#port_in", mnemonic.source_span()),
                         machine_arguments: Box::default(),
@@ -670,6 +673,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 statement: syntax_trees
                     .statements
                     .insert(StatementNode::Call(TableCall {
+                        target_is_static: false,
                         receiver: HandleSpan::empty(),
                         receiver_starts_at_self: false,
                         target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
@@ -688,6 +692,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 statement: syntax_trees
                     .statements
                     .insert(StatementNode::Call(TableCall {
+                        target_is_static: false,
                         receiver: HandleSpan::empty(),
                         receiver_starts_at_self: false,
                         target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
@@ -707,6 +712,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: false,
                         receiver: ExpressionHandle::invalid(),
                         target: Identifier::new("asm#pushfq", mnemonic.source_span()),
                         machine_arguments: Box::default(),
@@ -737,6 +743,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     statement: syntax_trees
                         .statements
                         .insert(StatementNode::Call(TableCall {
+                            target_is_static: false,
                             receiver: HandleSpan::empty(),
                             receiver_starts_at_self: false,
                             target: Identifier::new("asm#popfq", mnemonic.source_span()),
@@ -762,6 +769,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: false,
                         receiver: ExpressionHandle::invalid(),
                         target: Identifier::new("asm#rdmsr", mnemonic.source_span()),
                         machine_arguments: Box::default(),
@@ -794,6 +802,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     statement: syntax_trees
                         .statements
                         .insert(StatementNode::Call(TableCall {
+                            target_is_static: false,
                             receiver: HandleSpan::empty(),
                             receiver_starts_at_self: false,
                             target: Identifier::new("asm#wrmsr", mnemonic.source_span()),
@@ -814,6 +823,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: false,
                         receiver: ExpressionHandle::invalid(),
                         target: Identifier::new(
                             register.read_intrinsic_name(),
@@ -847,6 +857,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     statement: syntax_trees
                         .statements
                         .insert(StatementNode::Call(TableCall {
+                            target_is_static: false,
                             receiver: HandleSpan::empty(),
                             receiver_starts_at_self: false,
                             target: Identifier::new(
@@ -1709,6 +1720,7 @@ fn expression_handle_to_statement_call(
 
     let (receiver, target) = split_expression_call_handle(syntax_trees, &call)?;
     Some(TableCall {
+        target_is_static: call.target_is_static,
         receiver: receiver.members,
         receiver_starts_at_self: receiver.starts_at_self,
         target,

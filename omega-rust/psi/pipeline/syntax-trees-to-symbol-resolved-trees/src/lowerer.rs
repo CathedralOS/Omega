@@ -98,6 +98,7 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
     sources: Arc<SourceMap>,
     additional_source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    crate::module_normalization::validate_module_normalization(extension_syntax)?;
     let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
     if retained_sources.len() > sources.len()
         || !retained_sources
@@ -215,6 +216,7 @@ fn lower_syntax_trees_with_optional_sources(
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    crate::module_normalization::validate_module_normalization(syntax_trees)?;
     let mut syntax_trees = syntax_trees.clone();
     crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
@@ -227,6 +229,15 @@ fn lower_syntax_trees_with_optional_sources(
 }
 
 pub(crate) struct Lowerer {
+    pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
+    pub(crate) pending_static_module_calls: Vec<(
+        symbol_resolved_trees::expression::ExpressionHandle,
+        Vec<symbol_resolved_trees::name::DiagnosticName>,
+    )>,
+    pub(crate) pending_static_module_statement_calls: Vec<(
+        source::SourceSpan,
+        Vec<symbol_resolved_trees::name::DiagnosticName>,
+    )>,
     pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
     /// Authored machine `reaches` clauses retained until symbol assignment
     /// binds every member occurrence to its exact boundary-trait identity.
@@ -391,6 +402,9 @@ impl Lowerer {
         source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Self {
         Self {
+            namespace_declarations: crate::symbols::NamespaceDeclarations::default(),
+            pending_static_module_calls: Vec::new(),
+            pending_static_module_statement_calls: Vec::new(),
             symbol_resolved_trees: SymbolResolvedTrees::default(),
             pending_machine_service_reaches: Vec::new(),
             pending_signature_service_reaches: Vec::new(),
@@ -551,6 +565,7 @@ impl Lowerer {
                 self.sources,
                 self.source_scoped_top_level_bindings,
                 &self.pending_const_declarations,
+                &self.namespace_declarations,
             )?,
             FinishMode::Seeded { roots, .. } => {
                 let sources = self.sources.ok_or_else(|| {
@@ -564,9 +579,15 @@ impl Lowerer {
                     self.source_scoped_top_level_bindings,
                     *roots,
                     &self.pending_const_declarations,
+                    &self.namespace_declarations,
                 )?;
             }
         }
+        crate::symbols::normalize_static_module_calls(
+            &mut self.symbol_resolved_trees,
+            &self.pending_static_module_calls,
+            &self.pending_static_module_statement_calls,
+        );
         crate::state::finalize_outcome_specific_contract_symbols(
             &mut self.symbol_resolved_trees,
             &self.pending_outcome_specific_contracts,

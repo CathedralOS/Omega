@@ -1,0 +1,8 @@
+module combat;
+
+data Damage { amount: u32; }
+
+machine damage() -> u32
+requires 7u32 == 7u32
+ensures 7u32 == 7u32
+{ 7 }

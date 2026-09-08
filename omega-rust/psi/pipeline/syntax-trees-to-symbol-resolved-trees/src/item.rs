@@ -271,10 +271,23 @@ fn lower_item_with_exposure(
                     is_public: definition.is_public,
                 });
         }
-        syntax::item::Item::Capability(_)
-        | syntax::item::Item::Module(_)
-        | syntax::item::Item::Package(_)
-        | syntax::item::Item::Use(_) => {}
+        syntax::item::Item::Module(module) => {
+            lowerer.namespace_declarations.modules.push(
+                syntax_trees
+                    .items
+                    .identifier_path_members(module.path)
+                    .to_vec(),
+            );
+        }
+        syntax::item::Item::Use(import) => {
+            lowerer.namespace_declarations.imports.push(
+                syntax_trees
+                    .items
+                    .identifier_path_members(import.path)
+                    .to_vec(),
+            );
+        }
+        syntax::item::Item::Capability(_) | syntax::item::Item::Package(_) => {}
     }
 
     Ok(())

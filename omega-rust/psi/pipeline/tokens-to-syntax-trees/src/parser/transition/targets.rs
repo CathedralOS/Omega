@@ -185,6 +185,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: true,
                         receiver,
                         target,
                         machine_arguments: Box::default(),
@@ -197,6 +198,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: false,
                         receiver: member.receiver,
                         target: member.member,
                         machine_arguments: Box::default(),

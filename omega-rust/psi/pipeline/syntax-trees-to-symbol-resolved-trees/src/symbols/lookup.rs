@@ -138,14 +138,23 @@ fn child_symbol_by_kinds_matching(
         return SymbolHandle::invalid();
     };
 
+    let mut matched = SymbolHandle::invalid();
     for child in children {
         let symbol = symbols.get(child);
-        if matches_name(symbols.name(child)) && kinds.contains(&symbol.kind) {
-            return child;
+        if matches_name(symbols.name(child))
+            && (kinds.contains(&symbol.kind) || symbols.get(parent).kind == SymbolKind::Module)
+        {
+            if symbols.get(parent).kind != SymbolKind::Module {
+                return child;
+            }
+            if matched.is_valid() {
+                return SymbolHandle::invalid();
+            }
+            matched = child;
         }
     }
 
-    SymbolHandle::invalid()
+    matched
 }
 
 fn symbol_name_matches_indexed_member(symbol_name: &str, member: &str, index: i64) -> bool {

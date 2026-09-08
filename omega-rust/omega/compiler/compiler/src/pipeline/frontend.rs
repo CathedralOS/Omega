@@ -12,6 +12,9 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, ItemHandle};
 use tokens::{Token, TokenStream, TokenText};
 
+mod import_bindings;
+pub(super) use import_bindings::retain_module_import_bindings;
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LoadedSource {
     pub source_id: SourceId,
@@ -290,9 +293,9 @@ pub(super) struct ReconciledPackageImportRequest {
 
 impl ReconciledPackageImportRequest {
     pub(super) fn physical_source(&self) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
-        if !source_path_candidates(&self.expected_root.join(&self.relative_path))
+        if !source_import_candidates(&self.relative_path)
             .into_iter()
-            .any(|candidate| candidate.exists())
+            .any(|candidate| self.expected_root.join(candidate).exists())
         {
             return Ok(None);
         }
@@ -314,12 +317,13 @@ impl ReconciledPackageImportRequest {
                 "exact-target package source root does not match its retained import request",
             )]);
         }
-        let relative_candidates = source_path_candidates(&self.relative_path);
+        let relative_candidates = source_import_candidates(&self.relative_path);
         let generated = packages
             .generated_source_import_path(self.package, &relative_candidates)
             .map_err(|error| vec![Diagnostic::error(error)])?;
-        let physical = source_path_candidates(&self.expected_root.join(&self.relative_path))
+        let physical = relative_candidates
             .into_iter()
+            .map(|candidate| self.expected_root.join(candidate))
             .find(|candidate| candidate.exists());
         let resolved = match (generated, physical) {
             (Some(generated), Some(physical)) => {
@@ -533,16 +537,17 @@ fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
         root_dir.to_path_buf()
     };
 
-    for segment in segments {
-        path.push(segment.as_str());
-    }
-
-    for candidate in source_path_candidates(&path) {
+    let relative_path = segments.fold(PathBuf::new(), |mut relative_path, segment| {
+        relative_path.push(segment.as_str());
+        relative_path
+    });
+    for relative_candidate in source_import_candidates(&relative_path) {
+        let candidate = path.join(relative_candidate);
         if candidate.exists() {
             return candidate;
         }
     }
-
+    path.push(relative_path);
     source_path_candidates(&path)
         .into_iter()
         .next()
@@ -569,8 +574,9 @@ fn resolve_reconciled_relative_import(
 ) -> Result<PathBuf, Vec<Diagnostic>> {
     let path = expected_root.join(relative_path);
 
-    let candidate = source_path_candidates(&path)
+    let candidate = source_import_candidates(relative_path)
         .into_iter()
+        .map(|candidate| expected_root.join(candidate))
         .find(|candidate| candidate.exists())
         .unwrap_or_else(|| {
             source_path_candidates(&path)
@@ -646,4 +652,16 @@ fn source_path_candidates(base_path: &Path) -> Vec<PathBuf> {
         file_omega,
         base_path.join("mod.omega"),
     ]
+}
+
+/// Route a declaration import through its longest existing source prefix.
+/// The parsed module and declaration must still establish its nominal identity.
+fn source_import_candidates(relative_path: &Path) -> Vec<PathBuf> {
+    let mut candidates = source_path_candidates(relative_path);
+    let mut prefix = relative_path.parent();
+    while let Some(path) = prefix.filter(|path| !path.as_os_str().is_empty()) {
+        candidates.extend(source_path_candidates(path));
+        prefix = path.parent();
+    }
+    candidates
 }

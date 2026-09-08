@@ -276,6 +276,8 @@ pub struct TableMemberExpression {
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target: Identifier,
+    /// The target was an authored static name path, not a value member selected with `.`.
+    pub target_is_static: bool,
     /// Compile-time machine-symbol selections (`map<Card::power>(items)`).
     /// These are declaration identities, never runtime expression values.
     pub machine_arguments: Box<[StaticMachineArgument]>,
