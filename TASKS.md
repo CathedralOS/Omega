@@ -158,7 +158,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings; Windows timing is
   unverified. This work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe with production checkpoint `70f6771034`
+  The downstream native `cli_mvp` probe with production checkpoint `6b72df6c49`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -202,16 +202,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   resultless call or synthetic incoming descriptor.
   Use `terminal_byte_views/byte_output.rs` for the Linux `i32` byte leaf's
   selected/frame/object/image custody; Linux execution requires a Linux host.
-  Compose ordinary Unit calls with that leaf and the explicit widening covered
-  by `terminal_byte_views/byte_output/widening.rs`; preserve the widened value's
-  defining operation and normalize byte ABI inputs before use. Next witness:
-  a true Unit caller writes its runtime byte through the widened helper, then
-  writes `!` through another call, proving visible continuation and order.
-  Upper Unit lowering already retains scalar-only calls, but
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/nodes.rs`
-  requires exactly one structural argument, and selection routes structural-free
-  calls through owned structural transport. Generalize the existing ordinary
-  call path and replay; do not fabricate a descriptor or scalar return.
+  While joining derived views and Unit control, retain the byte widening and
+  scalar-only call regression floor in `terminal_byte_views/byte_output/`.
+  Preserve the defining operation, normalized byte ABI inputs, exact selected
+  call evidence, output order and visible caller continuation; do not fabricate
+  a descriptor or scalar return.
   macOS/Windows
   byte-output providers remain separate
   native realization dependencies; do not substitute Linux or interpreter output.
