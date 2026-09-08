@@ -123,15 +123,20 @@ pub(super) fn produce(
     rows.dedup();
     let mut joined: Vec<SemanticCodeAttribution> = Vec::new();
     for row in rows {
-        if let Some(previous) = joined.iter_mut().find(|previous| previous.site == row.site) {
+        if let Some(previous) = joined
+            .last_mut()
+            .filter(|previous| previous.site == row.site)
+        {
             let end = previous
                 .code_offset
                 .checked_add(previous.byte_count)
                 .ok_or(Error::Overflow)?;
-            if row.code_offset != end {
-                return Err(Error::Unsupported(
-                    "one semantic site has disjoint physical intervals",
-                ));
+            if row.code_offset > end {
+                joined.push(row);
+                continue;
+            }
+            if row.code_offset < end {
+                return Err(Error::Mismatch("semantic physical intervals overlap"));
             }
             previous.byte_count = previous
                 .byte_count
@@ -153,9 +158,14 @@ pub(super) fn validate(
     // membership and extent. No producer merge algorithm is invoked.
     for (index, row) in rows.iter().enumerate() {
         if ordinal(source, row.site)? != row.operation_ordinal
-            || rows[..index]
-                .iter()
-                .any(|previous| previous.site == row.site)
+            || rows[..index].iter().any(|previous| {
+                previous.site == row.site
+                    && (matches!(row.site, SemanticCodeSite::Edge(_))
+                        || previous
+                            .code_offset
+                            .checked_add(previous.byte_count)
+                            .is_none_or(|end| end >= row.code_offset))
+            })
             || !interval_is_exact(fragment, row)?
         {
             return Err(Error::Mismatch(
@@ -293,6 +303,13 @@ fn interval_is_exact(
             .checked_add(instruction.bytes.len())
             .ok_or(Error::Overflow)?;
         if instruction.provenance.operations.contains(&operation) {
+            // Other intervals for this site are checked separately. Compiler
+            // spill accesses between them have no authored operation provenance.
+            if (instruction_end <= row.code_offset || start >= end)
+                && (!instruction.bytes.is_empty() || start != row.code_offset || end != start)
+            {
+                continue;
+            }
             found = true;
             minimum = minimum.min(start);
             maximum = maximum.max(instruction_end);

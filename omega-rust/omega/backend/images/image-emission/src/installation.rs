@@ -48,6 +48,7 @@ mod provider_plan_codec;
 mod scalar_abi_codec;
 mod scalar_call_plan_codec;
 mod scalar_structural_scalar_field_store_codec;
+mod semantic_code_attribution;
 mod semantic_code_attribution_codec;
 mod structural_argument_codec;
 mod structural_case_codec;
@@ -3836,8 +3837,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         }
         previous_call = Some(key);
     }
-    let mut previous_attribution = None;
-    let mut attribution_sites = std::collections::BTreeSet::new();
+    semantic_code_attribution::validate_order(&record.semantic_code_attribution)?;
     for installed in &record.semantic_code_attribution {
         let function = function_by_machine.get(&installed.machine).ok_or(
             InstallationError::SemanticCodeAttributionMachineMissing(installed.machine),
@@ -3857,21 +3857,6 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 site: installed.attribution.site,
             });
         }
-        let key = (
-            installed.machine,
-            installed.attribution.operation_ordinal,
-            installed.text_offset,
-        );
-        if previous_attribution.is_some_and(|previous| previous >= key) {
-            return Err(InstallationError::NonCanonicalSemanticCodeAttributionOrder);
-        }
-        if !attribution_sites.insert((installed.machine, installed.attribution.site)) {
-            return Err(InstallationError::DuplicateSemanticCodeAttributionSite {
-                machine: installed.machine,
-                site: installed.attribution.site,
-            });
-        }
-        previous_attribution = Some(key);
     }
     let mut previous_port = None;
     let mut port_operations = std::collections::BTreeSet::new();
