@@ -20,11 +20,12 @@ pub(super) fn prove(
     if !matches!(
         order,
         RankingOrder::NatDescending
+            | RankingOrder::CustomNatDescending
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
             | RankingOrder::SliceLength
     ) {
-        // Custom scalar projections and lexicographic carrier ranges need their
+        // Non-identity custom projections and lexicographic ranges need their
         // exact produced-value projection, not an assumed operand polynomial.
         return false;
     }
@@ -37,9 +38,10 @@ pub(super) fn prove(
                 limit: upper,
             }
         }
-        (RankingOrder::NatDescending, DecreaseMeasure::Single(subject)) => {
-            validation::RankingRangeMeasure::Single(subject)
-        }
+        (
+            RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
+            DecreaseMeasure::Single(subject),
+        ) => validation::RankingRangeMeasure::Single(subject),
         (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
             validation::RankingRangeMeasure::SliceLength(subject)
         }

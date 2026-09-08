@@ -13,6 +13,7 @@ mod domain_facts;
 mod expression_paths;
 mod expressions;
 mod lookup;
+mod measures;
 mod propositions;
 mod scope;
 mod scoped_paths;
@@ -41,6 +42,7 @@ pub(crate) fn assign_symbols(
     let diagnostics = assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
+    measures::assign_measure_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
     assign_statement_reference_symbols(program, &symbols);
@@ -70,6 +72,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     let diagnostics = assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
+    measures::assign_measure_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
     assign_statement_reference_symbols(program, &symbols);

@@ -91,6 +91,9 @@ Operator contracts resolve in their own formal telescope, including domain-owned
 operators. Nested conformance applications retain their own argument packs rather
 than borrowing the enclosing telescope or inferring omitted arguments. Exact
 requirement lifetime names settle binder membership/ordinals during typing.
+Measures retain their own declaration and parameter symbols in full and seeded
+resolution. A body name cannot become its parameter merely through matching
+spelling or a missing symbol; ranking classification consumes the resolved binding.
 Proof-only `zero_value<T>()` retains the resolved type graph without deciding
 all-zero validity. Named-transition evidence stays separate from runtime arguments.
 

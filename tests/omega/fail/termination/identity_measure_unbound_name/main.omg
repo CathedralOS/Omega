@@ -1,0 +1,10 @@
+data Countdown {}
+measure Countdown::Remaining(value: u64) -> u64 { nonexistent }
+machine walk(remaining: u64)
+terminates by remaining -> Countdown::Remaining;
+-> u64 {
+    transition remaining > 0 {
+        true -> walk(remaining - 1)
+        false -> remaining
+    }
+}

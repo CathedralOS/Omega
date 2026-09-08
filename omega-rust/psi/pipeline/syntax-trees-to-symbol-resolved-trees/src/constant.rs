@@ -164,6 +164,20 @@ fn free_const_shadowing_walk(
                     }
                 }
             }
+            Item::Measure(measure) => {
+                if measure.parameter.is_valid() {
+                    let parameter = syntax_trees.items.state_parameter(measure.parameter);
+                    if parameter.name.as_str() == const_name
+                        && declarations_share_resolution_scope(
+                            lowerer,
+                            definition.name.source_span(),
+                            parameter.name.source_span(),
+                        )
+                    {
+                        return collision(format!("measure parameter `{const_name}`"));
+                    }
+                }
+            }
             Item::Machine(machine) => {
                 if machine.name.as_str() == const_name
                     && declarations_share_resolution_scope(
