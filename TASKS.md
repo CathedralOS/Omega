@@ -687,6 +687,15 @@ Owners include
 
 ## Parallel language and compiler lanes
 
+- **MODULE-NAMESPACE-RESOLUTION.** Implement the
+  [module/name contract](wiki/spec/language/modules.md) through source resolution
+  and artifact identity. The parser retains `ModuleDeclaration`, but
+  `syntax-trees-to-symbol-resolved-trees/src/item.rs` ignores it. Acceptance:
+  explicit module paths qualify declarations, cross-file imports resolve those
+  exact identities, ambiguity rejects, and module/qualified spelling cannot
+  bypass visibility or direct-dependency admission. A parse-only case is not
+  module support.
+
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
   [filesystem control/lifecycle policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).

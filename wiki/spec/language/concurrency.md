@@ -145,3 +145,13 @@ need fixed topology, conserved creation permits, enforced admission bounds,
 or a theorem quantified over the dynamic structure. Bounded exploration is a
 test, not a theorem. A theorem explicitly quantified over a bounded participant
 set remains valid within that stated bound.
+
+External arrival rates are never inferred. They require admitted provenance or
+an enforcing rate limiter that derives an admitted-work bound; its rejection or
+backpressure remains part of the service contract.
+
+Multicore response and blocking guarantees select both a scheduler and a
+resource-sharing protocol. A single-core priority-ceiling theorem does not
+establish bounds for cross-core sharing. A deployment must partition resources
+per core, forbid that sharing, or select a proved multiprocessor protocol with
+its own blocking analysis.

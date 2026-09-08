@@ -7,6 +7,9 @@ boundary. There is no export item that relabels a dependency declaration.
 A subsystem needing a different dependency-reach set is a separate package,
 not a hidden nested manifest.
 
+[Modules and visibility](../language/modules.md) owns source path syntax,
+resolution order, and public structural data access.
+
 ## Selection versus carrying a type
 
 A direct dependency authorizes authored selection of its declarations. It is
@@ -48,6 +51,26 @@ trait; a qualified conformance selects both carrier and conformance. Subject
 parameters, evidence binders, and local value roots remain lexical bindings.
 Explicit and inferred conformance selections both need dependency authority;
 inference is not a route to a transitive-only declaration.
+
+An exact `satisfies` edge selects its trait and overload-resolved requirement,
+or its exact operator/top-level boundary requirement. It follows the realizing
+machine's interface exposure, including exported boundary/accepted supply.
+Selection settles before supply admission; rejection of the supply does not
+erase the declaration it selected. Nested machine-parameter contracts and
+generic applications retain the same selections.
+
+Each domain establishment route selects its exact trait and signature-free
+requirement under the domain's exposure. Repeated authored routes retain their
+occurrences even when equal semantic alternatives normalize to one route.
+Public domains cannot authorize private requirements. Lexical subjects/binders
+do not become declaration-selection rows.
+
+Value calls, Unit/discarded calls, static arguments, constructor fields, member
+projections, and intrinsic unary expressions retain independent selections.
+Computed receivers and normalization cannot erase their authored selections;
+the selected field must agree with the checked projection. Constants retain
+declaration provenance after value substitution. An intrinsic receives its
+closed checked identity, not a fictional package owner.
 
 Quotient formation retains carrier, relation, trait/application, and proof-
 conformance selections. The relation and trait inherit the data interface's

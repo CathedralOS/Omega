@@ -114,6 +114,27 @@ must agree. Runtime offsets, unsupported generic/lifetime graphs, invariant or
 quotient shapes, and footprints not representable by the retained path decline
 the indexed form rather than becoming an element-sized loan.
 
+## Lifetime source correspondence
+
+[Source lifetimes](../../../../wiki/spec/language/lifetimes.md) owns the contract.
+[view_link.rs](src/borrow/view_link.rs) supplies one shared result-source query
+to declaration checks and loan attribution. It maps explicit result lifetimes
+to one input parameter and its complete matching structural leaves, retaining
+each result/source path and access. Reusing one lifetime on multiple input
+parameters currently rejects; it is not implementation of a general
+multiple-source return relation. Unannotated multiple carried sources also
+reject rather than selecting one by name.
+
+[Elision checking](src/checks/borrows/elision.rs) distinguishes incomplete
+concrete frontiers from template-dependent trait requirements.
+[Template call checks](src/checks/borrows/elision/templates.rs) permit the latter
+only after exact selected callable/argument substitution proves the complete
+result view-free; otherwise the still-uninstantiated call rejects, even when
+discarded. Concrete view-returning instances retain the full input/result
+check. General caller-side generic returned-view attribution and outlives
+constraints remain incomplete. Persistent-field correspondence and recast
+footprints follow the separate mutation/origin rules above.
+
 ## Checked callable custody
 
 Normalized contract plans retain source-free crash buckets separately from

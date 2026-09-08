@@ -1,22 +1,18 @@
 # Chapter 15: Modules, Imports, And Visibility
 
-Programs are made of source files grouped into packages.
+A package declares which other packages its source may use. Visibility then
+determines which declarations those dependencies expose. Neither importing a
+name nor carrying a value grants additional authority.
 
-This chapter defines source organization, names, imports, and visibility.
+The [source naming rules](../spec/language/modules.md) and
+[package boundary](../spec/packages/boundaries.md) specify the contract.
+This chapter explains how to use it; [using source packages](packages.md)
+covers installation and review.
 
 ## Packages
 
-A package is the compilation and dependency unit — and the **reach boundary**:
-it declares what it may import, and imports resolve only against that
-declaration. Visibility and hot-swap points nest *within* a package; a part that
-needs a different reach-set is, by that fact, a different package.
-
-**A package is a directory with a `build.omg`.** Source files are members **by
-location** and do **not** re-declare it. There is no per-file `package X` line.
-One directory = one package = one `build.omg`.
-
-The package declares its human name once through ordinary build vocabulary, on
-the same `Build` surface that carries dependencies and provider selection:
+A package is a directory with a `build.omg`. Files belong by location rather
+than repeating a package declaration. The package declares its own name:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -24,624 +20,222 @@ machine build(builder: &mut Build) {
 }
 ```
 
-Every `build.omg` states its kind explicitly — `builder.package` for a package,
-`builder.member` for a workspace root, `builder.application` for an
-application. No role is inferred from an absent declaration.
+Use `builder.application("name")` for an executable. A workspace instead lists
+`builder.member("path")` calls; each member is an independently selectable
+root, not part of one combined dependency graph. An application can depend on
+packages, but cannot itself be imported as a library.
 
-For complete macOS GUI application output, the settled
-[publication contract](../spec/build/macos_application.md) uses
-`builder.subsystem = Subsystem::Gui` as the opt-in to one `.app`, assembled
-after native emission. The application name supplies the executable and bundle
-basename; an explicit application identifier is required before signed macOS
-GUI native emission, not merely because a macOS entry was declared. Terminal
-Psi may still be published without those native realization inputs. The new
-identifier field and bundle producer are not yet implemented; current macOS
-GUI output is a flat executable, and std requests application activation.
+The build root is a free `machine build(builder: &mut Build)`, not an attached
+`Owner::build`. Project kind, members, and dependencies are direct unconditional
+statements: the package manager reads them before executing any build code.
+Helpers may perform later admitted build work, but cannot hide dependency edges.
 
-The selected manifest has exactly one free
-`machine build(builder: &mut Build)` entry. A scoped `Owner::build` is never a
-project root; its owner name proves neither identity nor authority, and the
-compiler does not synthesize its receiver. The same declaration in ordinary
-source is simply an ordinary machine.
+A package name is not globally unique. Its stable identity combines its declared
+name with its source lineage. A revision identifies the selected source, not a
+new nominal package: two incompatible resolutions of one package cannot coexist
+merely because a caller gives them different aliases. For a Git workspace,
+moving a member within the same repository does not rename it.
 
-The free root may lend `&mut Build` to ordinary helpers for evaluated
-composition. Their transitive checked contracts are charged to the root.
-Project role, workspace membership, and dependency requests remain direct
-statically projected root statements and cannot be hidden in helpers.
+The default import alias for `arithmetic-kernels` is `arithmetic_kernels`.
+Aliases belong to the requester: your rename does not change names used inside
+the dependency. See [source selection](../spec/packages/sources.md) for exact
+Git pins, workspace member selection, and reconciliation.
 
-The package manager statically projects this declaration from parsed source
-before dependency resolution or build execution; it does not execute the build
-machine to discover the graph. Graph-forming calls such as `package`, `member`,
-and `depend` therefore use a closed, directly projectable form. Arbitrary build
-control flow cannot hide a dependency edge. The directory and repository names
-do not establish identity. The declared name is qualified by canonical source lineage
-to form the stable `PackageKey` used by locks and nominal symbols. The resolved
-source records exact revisions and content; compiler review derives API,
-reachability, unsafe API, and assumption facts from that source. No certified
-`PackageInstance` combines these into installation authority. A same-spelled
-package or boundary from another lineage is therefore a different identity.
-Explicit compiler/toolchain semantic, build, and encoding identities remain
-separately labeled only where a concrete
-reproduction, compatibility, or deployment claim consumes them. Bytes read
-through the running process's executable pathname are never package review,
-lock, cache, or admission identity.
+Commit `omega.lock` under the project's review controls. It records the graph,
+pins, accepted policy, and decisions. Install/update reviews changed findings;
+ordinary compilation uses the accepted baseline rather than asking for the same
+permission again. Source changes remain visible even when permissions do not
+change. Acceptance neither proves the dependency safe nor bypasses compiler
+proof, reach, or artifact checks.
 
-Packages and applications use the same `PackageKey`: declared name plus source
-lineage. Role remains an explicit companion fact. A selected root may be either
-role and may own dependencies, but every dependency edge must resolve to a
-package; applications are not importable libraries. The resolver enforces that
-single root/non-root rule for every source kind and retains the root role in
-lock, review, and compiler-handoff evidence. Role is never inferred from an
-entry binding and does not alter the key.
+Targets are explicit invocation inputs. They do not change the dependency graph.
+Applications bind target entries with unconditional
+`roots.bind(target::ProgramEntry, entry)` rows. The
+[multi-target contract](../spec/build/configuration.md) requires an explicit,
+nonempty target set and independent outcomes; it does not infer an `all` set
+from declarations or the compiler catalog.
 
-A workspace is a catalog rather than a combined dependency graph. Multiple
-application members are multiple independently selectable roots. Selecting one
-does not pull in the others or package members it cannot reach.
-
-Dependencies are unconditional, directly projectable build rows. Omega has no
-graph-forming branch on `builder.target`, `depend_when`, `depend_as_when`, or
-string condition. The package manager never executes or statically interprets
-build-machine control flow to discover package edges, and the workspace lock
-records the one declared dependency set.
-
-The compiler invocation owns exact target identity. Authored `target X { }`
-declarations are retired and do not define application support. Target-specific
-host and boundary policy is immutable compiler/package input rather than source
-activation. The build machine owns roots, dependencies, generated outputs,
-subsystem/image facts, and provider selections. Applications bind entries with
-flat unconditional `roots.bind(target::ProgramEntry, entry)` rows; selecting an
-exact invocation target selects the corresponding entry.
-
-One invocation may request one exact target or a nonempty explicit set. The
-compiler reuses target-independent immutable stages and forks at target-
-sensitive checking and realization. Each target child remains identical to a
-standalone exact-target invocation, and no unresolved target branch enters one
-Terminal Psi subject. The caller supplies the set: `all`, wildcards, source or
-dependency inference, and compiler-catalog enumeration are invalid. A batch
-manifest records only the requested children and their independent outcomes;
-it is not application-support or tested-target evidence.
-
-`PackageName` is not globally unique. For Git, `PackageKey` lineage identifies
-the canonical repository namespace and
-does **not** include the requested revision, resolved commit, tree, or content.
-Those exact values belong to the resolved source and lock pins. Consequently,
-two revisions of the same declared package collide on one key and must reconcile
-rather than silently becoming two nominal universes.
-
-Packages expose public data, machines, traits, domains, wire schemas, and
-boundary surfaces.
-
-A package's dependencies — the external packages it may reach — are declared in
-its **`build.omg`**, a capability-checked build-entry machine that augments a
-`Build` (see
-[package source selection](../spec/packages/sources.md)).
-Each dependency row requests a source and update selector. After fetching it,
-Omega reads the dependency's own `builder.package("name")` declaration and
-derives the default local alias
-by mapping kebab-case to snake_case. Explicit aliases are exceptional local
-renames and never package identity.
-
-A Git request has two independent coordinates: acquisition identifies the
-repository and revision to fetch, while package selection is explicitly
-`Root` or `Named(PackageName)`. Omitted source spelling normalizes immediately
-to `Root`; absence is not retained in locks or evidence. `Named` selection
-content-verifies the repository root, statically projects its declared workspace
-members, and requires exactly one member whose own `builder.package` declaration
-matches. Recursive `build.omg` search, caller-authored member paths, escaping
-members, and duplicate names reject.
-
-The resolved member path is retained as navigation and replay custody, including
-the base for that member's relative dependencies. It is not package identity:
-moving a member inside the same repository lineage preserves its `PackageKey`.
-The canonical resolved-source question still binds that navigation, so a move
-is visible to lock/review reconstruction. Relative dependencies inside a fetched
-Git member may target only another exact member declared by the content-verified
-repository root; recursive discovery and undeclared directories reject.
-Different requesters may use different local aliases for that key, and a parent
-cannot rename aliases internal to a child. A consumer that names a dependency's
-declaration needs its own dependency edge and alias; one that merely carries an
-inferred opaque value through another package's API need not name that package.
-
-After reconciliation, the compiler receives the complete requester-local alias
-graph together with an opaque commitment to each `PackageKey` and each
-resolver-owned source root. It does not rediscover dependencies from package
-build code. The commitment, not the cache path, governs same-package and future
-nominal-identity checks; source roots only constrain where imports may load.
-
-The ratified install/update model is Cargo-like repository acquisition and
-dependency resolution with compiler-derived reachability, unsafe API, and
-assumption review. `omega.lock` records the reconciled graph, exact source pins,
-source-qualified package identities, accepted review baselines, and decisions.
-The project trusts whoever lands the lock. Installation does not require a
-sealed/certified `PackageInstance` or certificates proving lock acceptance.
-Compiler proof/reach checks and native artifact checks remain independent of
-installation.
-
-`omega install` and `omega update` stage declarations, check the graph, and
-publish the build/lock pair after required per-change decisions accept.
-Blocking findings leave accepted files unchanged and report editable review
-files; the matching command's `--resume` checks the same candidate and decisions.
-`--discard-review` abandons that proposal, not publication recovery. Ordinary
-compilation consumes accepted dependency pins while allowing application-source
-edits; dependency changes require an update.
-
-The current native manager route has separate in-memory evidence promotion and
-root-policy replay. It is not an install/update prerequisite. Compiler admission
-policy stores full domain-separated digests in `omega.admissions` and rejects
-legacy compact-only rows. Existing strong compiler rows under the old
-`omega.lock` name require explicit migration to `omega.admissions`; a modern
-package lock is never compiler admission policy.
-
-Claim-free opaque boundary representation remains visible and audit-recommended
-without being mislabeled as an accepted claim. Producer availability accepts no
-consumer choice. A consumer-owned demanded by-value row retains the exact
-selected or target-derived
-representation application and its strong calling-plan commitment; `Unbound`
-is complete only when no active by-value use needs one. Chapter 19 defines the
-distinction. The intended workflow consumes recorded pins rather than silently
-resolving mutable selectors during compilation. The lock should normally be
-committed; source caches may be ignored. The first implementation performs no
-semantic-version solving. Requests for one `PackageKey` that resolve to the same
-immutable source instance deduplicate, even when their request spellings differ;
-different immutable resolutions reject with every conflicting dependency path.
-There is no intermediate "compatible version" relation. Multiple simultaneous
-instances of one key are unsupported: adding them would require nominal types,
-conformances, provider selections, and evidence rows to be qualified by package
-instance rather than package key, not merely a second local alias.
-
-Package review is derived by the selected local compiler rather than accepted
-from dependency source. A package cannot declare its own capability result.
-Compiler output supplies the review baseline; the lock records which baseline
-and decisions the project accepted. Review status, producer provenance,
-signatures, and reasons are organization policy records; none proves that a
-human or LLM performed a sound audit. No additional certificate is required to
-prove the decision to accept the lock.
-
-Review includes transitive dependencies and keeps assumptions attributable to
-their owners. A parent's acceptance cannot discharge an open compiler proof
-obligation. Actual compiler proof certificates still need their ordinary
-kernel checks, and source reach and native realization still need their
-compiler checks. These checks establish program and artifact properties,
-independently of installation. The current evidence ledger also replays
-schema-bound rows and root policy; those extra promotion layers are existing
-implementation to simplify, not a future accepted-lock requirement.
-
-A claim about native lowering or final realization must be checked against the
-corresponding compiler artifact. These checks belong to that compilation, not
-to a certification step for the source lock.
-
-The compiler derives the review baseline from the earliest coherent
-compiler-owned representation in which each evidence fact is semantically
-established, through its internal package-review projection. Different
-rows may use different private representations; persisted review baselines
-use canonical rows. This does not make any internal IR a public
-compatibility surface or require another nominal IR stage.
-The projector may use private pre-Psi typed or resolved structure when that is
-where an exact identity is semantically established, then join checked
-acceptance, effects, proofs, and realization from the stage that establishes
-them after successful compilation. Terminal Psi evidence is additional and is
-required only for claims about final realization or by a hardened profile;
-absence of that evidence never implies a weaker Terminal
-guarantee. A new named stage is warranted only by a reusable semantic boundary,
-not by package-report format stability. Psi may repeat an invariant as a
-downstream compiler check without forcing package review to reconstruct an
-already-settled fact from Psi.
-
-Compiler-issued package review also retains a separate commitment to the exact
-reconciled package/alias graph and source bytes consumed by the frontend.
-Absolute cache locations and load order are not identity. This commitment
-changes on a source-only edit without asserting that the normalized public
-capability/API contract changed.
+For macOS GUI output, `Subsystem::Gui` selects the
+[application publication contract](../spec/build/macos_application.md):
+one bundle, with an authored application identifier supplied before signed
+native emission. Bundle production and its new identifier field remain
+implementation work; the current output is a flat executable and std requests
+foreground activation. Producing Terminal Psi alone does not need those native
+inputs.
 
 ### Build orchestration is not semantic evaluation
 
-Two kinds of Omega code run before the final program:
+Both can run before the final program, but they have different authority:
 
-| | `build.omg` | Compiler semantic evaluation |
-|---|---|---|
-| World | build host | selected target semantics |
-| Reach | explicit admitted capabilities | hermetic |
-| Work | dependencies, target selection, staging | constants, proofs, plans, generators |
-| Output | `Build`, staged artifacts, receipts | values and checked evidence |
+| Work | Inputs and effects |
+| --- | --- |
+| `build.omg` | Admitted build-host services, staging, generated source, and provider/root selections. |
+| Semantic evaluation | Hermetic target-semantic constants, proofs, plans, and generators. |
 
-`build.omg` is Omega's capability-audited build-script surface. Its entry may
-receive selected `Filesystem`, `Network`, `Console`, process, signing, or other
-build providers. None is ambient, and each operation remains visible in the
-normalized contract and artifact. Semantic evaluation cannot call those
-services. A host observation reaches a proof, type, layout, or constant only
-after `build.omg` turns it into an explicit recorded build input.
+A host observation becomes a semantic input only through recorded build-input
+custody. A constant or proof cannot directly read the build host's filesystem
+or environment. Selecting a runtime service provider does not grant build-host
+authority.
 
-Selecting the target also closes symbolic target-semantic observations and
-target-scoped realization applications used by constants, proofs, plans, or
-const-indexed types. Those dependencies are part of the normalized public
-signature when they escape a package. Independently closed artifacts must agree
-on them; adding, removing, or changing one in a public signature is a breaking
-semantic-API revision. A private dependency instead invalidates the target
-artifact without changing the public contract. Folding a target observation to
-an integer never erases its dependency or diagnostic origin.
-
-Those names describe authority classes, not a requirement to mint one public
-boundary trait per build operation. The concrete build library should use the
-smallest ordinary Omega surface that preserves explicit authority, checked
-reach, trust evidence, and observations; one-purpose services may remain
-narrow toolchain-owned operations. Build logic likewise uses ordinary Omega
-arithmetic rather than a package-specific numeric-policy layer.
-
-Build operations publish an observation ceiling:
-
-```text
-Hermetic < Receipted < Volatile
-```
-
-The compiler records the join of statically reachable operations, the narrower
-class actually reached, and the receipts. A release may reject a
-volatile-capable build before running it. The artifact separately reports:
-
-- **Replayable from record:** this exact compilation can be replayed from the
-  stored inputs and receipts.
-- **Rebuildable from source:** the complete dependency/toolchain/provider graph
-  traces to declared reproducible roots.
-
-A hash-pinned dependency artifact can satisfy the first even when its own build
-used a volatile observation, in which case the graph fails the second. See the
-[package-boundary contract](../spec/packages/boundaries.md) and the
+Build observations distinguish `Hermetic`, `Receipted`, and `Volatile`
+operations. An exact build may be replayable from retained inputs without being
+rebuildable from source: recording an input does not establish its origin.
+See [build execution](../spec/build/execution.md),
+[observations](../spec/build/observations.md), and
 [semantic evaluation](../spec/language/evaluation.md).
 
 ## Path separator: `::` for names, `.` for values
 
-Two different operations use two separators:
+Use `::` to resolve a static name: a package, module, type, or associated
+declaration. Use `.` to access a field or call through a value.
 
-- **`::` resolves a compile-time name path** — packages, modules, types,
-  associated items. It is the same `::` already used for type-scoped machines
-  (`Main::run`, `Arena::allocate`), now used uniformly for *all* static name
-  resolution.
-- **`.` accesses a runtime value** — a field of a value, a method on an
-  instance (`table.con_out`, `player.take_damage(...)`).
+```omega
+let room = dungeon::rooms::create();
+room.describe();
+```
 
-This is Rust's rule, and it removes the overload where `.` meant both "navigate
-a package" and "access a field." `a::b.c` is unambiguous: package `a`, item `b`,
-field `c`.
+Here `dungeon::rooms::create` selects a declaration. `room.describe()`
+selects a machine through the value `room`; that still requires the machine's
+declaring package to be an authorized dependency.
 
 ## Files And Modules
 
-Files organize declarations. A module path gives a stable name to declarations
-inside those files.
+Files organize declarations; module paths name them:
 
 ```omega
 module dungeon::combat;
 ```
 
-Module paths are part of name resolution and build artifacts.
+Module paths participate in name resolution and artifact identity. They are
+not filesystem escape paths or additional package reach boundaries. The Rust
+parser retains module declarations, but resolved module namespace behavior is
+not yet implemented; parsing this form does not establish its full semantics.
 
 ## Imports
 
-Imports make external names available — but only from **declared
-dependencies**. An import names a package (by its local alias) and a symbol
-within it; a package not declared in `build.omg` is not nameable, so undeclared
-reach is a resolution error, not a lint. Imports designate by logical name,
-never by filesystem path — there is no reaching "up" the directory tree from
-code. (The *build* may walk up to discover the enclosing package boundary; code
-may not.)
+Imports select logical names, not filesystem paths:
 
 ```omega
 use dungeon::combat::CombatSystem;
 use dungeon::rooms::Room;
 ```
 
-Imports do not execute code. They only affect name resolution.
+An external package must be a direct declared dependency. Fully qualifying its
+name does not bypass that rule. Imports affect resolution; they do not execute
+the imported code. Tooling may discover an enclosing build directory, but source
+imports cannot reach upward through directories to evade package declarations.
 
 ### Declaration selection and carried foreign types
 
-A direct dependency authorizes authored source to select declarations owned by
-that package. This includes static paths and declarations selected through an
-inferred receiver: fields, cases, methods, operators, conformances, and an
-ordinary explicitly named consuming call all retain their declaring package.
-Compiler-selected automatic `T::drop` is carried type semantics. The exact
-owner-attached hook is compiler-only and authored selection of it rejects;
-source code ends a lifetime early through the ordinary consuming
-`omega::core::drop(value)` machine or an owner-published protocol operation.
-A package absent from the requester's direct dependency set cannot be selected
-by hiding its name behind a value whose type was inferred.
-
-The carrier in an attached declaration head is itself a declaration selection:
-`machine Data::operation` names the exact `Data` declaration as well as
-declaring the independently visible machine. Qualifying the machine does not
-inherit the carrier's visibility or make a transitively owned carrier directly
-nameable.
-
-Nominal identity may nevertheless flow through another package's API without
-granting that selection authority:
+Suppose `filesystem` is your direct dependency, and its API returns a handle
+type owned by one of its dependencies. You may use that API without directly
+depending on the handle's owner:
 
 ```omega
-let handle = filesystem::open(path);   // inferred lower-package handle type
+let handle = filesystem::open(path);
 filesystem::read(&handle);
 filesystem::close(handle);
 ```
 
-The caller may move, borrow, store, return, and pass the value through declared
-dependencies. This remains legal for copyable, affine, and linear values;
-multiplicity is checked from the carried type contract and does not create a
-source dependency. Compiler-planned layout, move/copy behavior, and automatic
-affine cleanup likewise travel with the type. An authored call to the owning
-package's operation is different and requires that package as a direct
-dependency.
+This example is schematic: the selected API supplies the concrete signatures
+and ownership modes. Moving, borrowing, storing, returning, and passing the
+inferred value does not select its owner's declarations. Multiplicity and
+compiler-planned cleanup still apply.
 
-The foreign nominal identity is never hidden from artifacts. The transitive
-lock closure retains its owning package. After successful checking, a
-package-neutral semantic-dependency sidecar retains exact declarations carried
-through machine heads, checked call results, ownership places, and automatic
-cleanup. A private occurrence affects rebuild and artifact identity; an
-occurrence in a public signature also affects public compatibility identity.
-Whole-package dependency keying remains a sound conservative gate while the
-compiler-private rows are qualified and encoded for package evidence; exact
-declaration edges are the normative form.
+Selecting the handle owner's fields, methods, cases, operators, or conformances
+is different. That needs a direct dependency on the owner, even if its name is
+hidden by receiver inference. An attached declaration such as
+`machine Handle::inspect` also selects `Handle`; qualification does not
+provide missing access.
 
-The compiler retains authored selection occurrences while source spans and
-public-versus-private position are still exact, then joins each occurrence to
-its final selected declaration after successful checking. Static paths and
-ordinary members may settle during resolution; receiver-dispatched calls,
-overloads, operators, and inferred conformances may settle later. This is one
-compiler-internal ledger finalized from the stages that own those facts, not a
-new language-visible IR stage. An unresolved or unjoinable authored occurrence
-rejects rather than disappearing from the gate.
+Automatic cleanup is carried type behavior. The compiler uses the exact
+owner-attached cleanup hook, not an arbitrary same-spelled machine. Authored
+early cleanup uses an ordinary consuming operation such as
+`omega::core::drop(value)`, with its ordinary dependency requirements.
 
-One source token has one occurrence identity even when compiler normalization
-copies its expression. All retained copies carry that occurrence, provisional
-targets are reconciled to one exact declaration, and conflicting resolved
-targets reject. Compiler-owned vocabulary such as collection views and length
-is finalized as a closed intrinsic identity rather than by its spelling. A
-private ranking witness likewise retains its exact typed expression roots;
-termination checking and package custody do not rediscover those roots from
-rendered witness text.
-
-Expressions owned by a public declaration's published contract or predicate
-are public-interface selections. This includes public machine contracts,
-public data/domain predicates, and public trait contracts. Executable machine
-states and bodies remain private implementation even when the machine is
-public. A `terminates by` ranking expression is likewise private proof evidence:
-`terminates` is the public promise, while the rank is how the implementation
-discharges it. A membership fact selects its domain declaration; its value
-parameter or local is a lexical place and does not become a package row.
-
-Every declaration selected from a public-interface position must itself be
-publicly visible. The compiler rejects a public contract or predicate that
-names a private declaration rather than silently promoting the target.
-For a reviewed nominal member expression, the authored member token and the
-checked semantic place or call-result projection must also select the same
-exact field. The token cannot disappear merely because the checked expression
-already carries a structurally representable receiver and field path.
-This applies equally when the receiver is a computed nominal value, including
-a record or case constructor inside a transparent public proposition. The
-constructor type, every authored constructor field, and the selected result
-field retain their independent exact declaration selections; review recurses
-through the receiver value and rejoins the member token to its finalized field.
-
-Generic conformance bounds apply the same distinction. Their subject and
-evidence binder are lexical; the right-hand trait, or both declarations in a
-qualified `Carrier::Evidence` bound, are authored selections. Bounds on public
-machines and traits are public-interface selections, while bounds on private
-declarations remain private implementation.
-
-A complete name-first conformance owns ordinary declaration visibility. It is
-package-private unless marked `pub`; visibility is inherited from neither its
-subject nor its trait. Public-interface citation and authored selection from a
-direct dependent require `pub`. The conformance's normalized public surface may
-retain private member-machine and proof identities because callers select the
-authorized row map rather than those implementations.
-
-An exact `machine ... satisfies Requirement` edge is not a standalone
-conformance declaration and follows the machine's visibility. Its target may
-be a trait/operator requirement or an explicit top-level `boundary
-requirement`. Its optional
-`as Name` label groups requirement-local satisfiers but does not create a
-package-level selectable declaration. The edge nevertheless authors two exact
-declaration selections: the trait and its overload-resolved requirement. An
-operator requirement similarly selects the exact signature-matched operator.
-All selected coordinates require direct dependency authority and must be public when
-the realizing machine publishes an interface, including boundary or accepted
-supply not separately spelled `pub`. Selection identity is settled before
-supply policy: an inadmissible external realization does not erase or replace
-the declaration it attempted to realize. Conversely, a value may carry a private
-dynamic conformance selected by its producer without granting the receiver
-authority to name or select that conformance elsewhere. Carrying compiler-
-selected semantics is not authored declaration selection.
-
-A domain's `established by Trait::requirement` entry applies the same rule
-directly at the domain declaration. It selects the exact trait and the one
-signature-free requirement, and both selections inherit the domain's
-visibility. Each comma-separated or repeated authored route remains a source
-occurrence even when equivalent semantic alternatives normalize to one route.
-A public domain therefore cannot authorize a private trait or requirement;
-private same-package domains may use private routes normally.
-
-A nominal callable machine-parameter contract such as `where machine Selected
-satisfies Trait::requirement`, and an exact realization spelled `satisfies
-Trait<...>::requirement`, likewise author both exact selections. The complete
-trait application and requirement token inherit the enclosing declaration's
-interface exposure, including exported boundary machines, and each selected
-declaration must be directly authorized and visible there. On an exact
-realization, raw machine-lifetime binders remain checking custody while the
-public edge exposes only their normalized equality partition. Nested machine-
-parameter contracts follow the same rule; generic nesting does not hide a
-transitive or private requirement.
-
-A Unit-producing or explicitly discarded call statement follows exactly the
-same rule as a value-producing call expression. Its target token selects the
-callee declaration, each explicit static conformance argument selects its own
-declaration, and a uniquely inferred generic conformance is attributed to the
-call token. Compiler-owned build markers and lowered assembly operations retain
-closed intrinsic meanings instead of fictional package owners.
-
-Every explicit static argument path also selects its declaration, recursively
-through nested static applications. Conformance paths remain evidence
-selections; type, static-machine, and forwarded-binder paths use the common
-static-argument category while retaining their exact symbol. Integer literals
-select no declaration. A named const in a static-argument lane selects its
-exact const declaration directly; package review rejoins that symbol to the
-declaration's canonical value. Named const reduction in ordinary expression
-position retains the selected const's provenance separately, so erasing its
-value does not erase dependency custody.
-
-Only authored selection rows are checked against the direct dependency set.
-Carried nominal identity, compiler-planned layout and move/copy behavior, and
-automatic cleanup produce semantic dependency evidence but never manufacture
-authored selection authority. No package or build-time code selected by such an
-occurrence may execute before the finalized selection gate succeeds.
-
-Package review qualifies each carried dependency by the exact package owning
-the consuming machine and the exact package owning the declaration. Nominal,
-layout, ownership, and automatic-cleanup dependencies are blocking comparison
-rows; whether the occurrence is private implementation or public interface is
-part of the compared row. This records artifact/API consequences without
-making a transitive package source-nameable.
-
-The checked carrier retains an automatic cleanup machine by its exact
-attachment to the nominal declaration. A package-controlled machine with the
-same trailing `drop` spelling on another type cannot become that dependency.
-The attachment grants no authored source authority: only compiler-planned
-cleanup may select it, including cleanup reached through an erased owner's
-exact descriptor.
+Public signatures preserve transitive nominal identity. Carrying a private
+conformance chosen by another package does not grant permission to name it.
+The [boundary contract](../spec/packages/boundaries.md) specifies these
+distinctions; the [review contract](../spec/packages/review.md) explains their
+API and rebuild consequences.
 
 ## Visibility
 
-Declarations are private by default unless marked `pub`. Independently
-nameable data, domains, traits, machines, top-level boundary requirements, wire schemas, operators,
-propositions, and constants support that rule. A declared ranking measure is
-private proof machinery for `terminates by`; the parser rejects `pub measure`.
-Complete name-first conformances follow the same rule: they are private unless
-marked `pub`, independently of their subject and trait. An exact requirement
-edge's optional `as Name` label is not a standalone conformance declaration and
-acquires no package visibility. Qualification and direct dependency never
-grant an implicit exception.
-
-Qualification does not imply visibility inheritance. A declaration such as
-`Extent::Granted`, `[u8]::Utf8`, `Vector::add`, or a type-qualified constant is
-a standalone declaration with its own visibility, even though its path names a
-carrier. Only a genuine nested member with one exact semantic owner inherits
-that owner's visibility, such as a field, variant, state, or trait requirement.
+Independently nameable declarations are private unless marked `pub`.
+Qualification does not inherit visibility: a public `Player` does not
+automatically publish `Player::take_damage`. A genuine field, case, state, or
+trait requirement follows its exact containing declaration.
 
 ```omega
 pub data Player {
     health: i32;
 }
 
-measure Tree::Height(node: &Tree) -> Nat;
-
 pub const MAX_DAMAGE: i32 = 100;
 
-pub machine Player::take_damage(
-    &mut self,
-    amount: i32
-)
+pub machine Player::take_damage(&mut self, amount: i32)
 requires amount >= 0
+requires self.health >= amount
 {
     self.health = self.health - amount;
 }
 ```
 
-Visibility is a source-level API boundary. It does not bypass proof,
-ownership, or boundary checks.
+The preconditions also keep this subtraction within range. Public visibility
+does not waive numeric, ownership, or proof rules.
 
-Publishing a mathematical interface exposes its vocabulary and contracts; it
-does not prove every application or grant its assumptions. Checked machine
-bodies establish conclusions, while accepted boundary claims retain their
-explicit trust dependencies. These rules apply equally to named trait bundles.
+A public contract cannot name a private declaration. A public machine's body
+may use private implementation details; its exposed contracts may not. Likewise,
+`terminates` is the public promise, while its ranking measure is private
+proof machinery. Measures are not published with `pub`.
 
-Compiler intrinsics are a separate closed selection category. Their
-availability is fixed by the language/toolchain and cannot be acquired by a
-package declaring a public lookalike.
-An authored intrinsic still has source custody. In particular, each `!` or `~`
-token retains one exact operator-selection occurrence and the enclosing
-declaration determines whether that occurrence is public-interface or private-
-implementation use. Package review accepts the structural unary meaning only
-after checked lowering rejoins that occurrence to the compiler-owned builtin;
-a nested unary expression cannot disappear behind its enclosing binary fact.
+Named conformances have independent visibility. A public conformance may
+retain private implementing machine identities: its consumer selects the public
+conformance and its row map, not those machines independently. A requirement-local
+`as Name` label does not create another public declaration.
 
-Omega has no `export` item. `pub` exposes declarations owned by the current
-package; it does not relabel dependency-owned identity. A package presents
-dependency behavior under its own API through an ordinary public wrapper. A
-future ownership-preserving path alias would be name presentation only, never
-visibility widening or an implicit dependency edge. `export` is not reserved
-and remains available as an ordinary identifier where an identifier is expected.
+Omega has no re-export item that changes dependency ownership. To present a
+dependency's behavior under your package's API, write an ordinary public wrapper.
+A public lookalike also cannot grant access to compiler intrinsics.
 
 ### Public data shape
 
-Publishing a structural `data` declaration publishes its field names and shape
-to packages allowed to name it. Those packages may read, construct, and update
-the value subject to ordinary borrow rules, field types, domains, invariants,
-and qualification requirements.
+A public structural data declaration exposes its fields and shape. Authorized
+consumers can construct, read, and update it while preserving its field types,
+invariants, borrow rules, and qualification requirements.
 
-The supporting model is:
+Visible fields are not authority. A caller may assemble the geometry of a public
+linear `Extent`, but that does not establish `Extent::Granted`. Linearity
+tracks the value's use; the routed qualification establishes the authority.
 
-- confidentiality comes from custody in memory the observer cannot access;
-- unforgeable authority comes from checked domain evidence or an admitted
-  provider receipt, not from a record literal;
-- construction and mutation preserve the declaration's checked invariants; and
-- ABI stability comes from normalized boundary/component representation plans,
-  not from source visibility.
-
-Structural access never manufactures an abstract qualification. A public range
-record may be freely assembled; an authority *about* that range remains
-evidence-backed and cannot be forged by placing the two beside each other.
-When an invariant is not structurally expressible, useful operations require a
-routed qualification such as `Tree::Valid`.
-
-This is deliberate for core's public linear `Extent`: its fields publish only
-range geometry. `Extent::Granted` is the routed authority, and an admitted root
-provider decides whether arbitrary caller-constructed geometry receives that
-qualification. Linearity tracks the occurrence; it does not make the record
-literal an authority mint.
-
-Changing a published source shape changes source-content and public-contract
-identity and causes dependents to rebuild or fail loudly. It does not silently
-alter an ABI.
-Only behavior declared `pub` is nameable outside the package. This preserves a
-determinate component entry set for replacement and quiescence.
+Changing public shape changes the source/API contract. Source visibility is not
+an ABI guarantee; independent replacement uses explicit
+[component publication](../spec/build/component_publication.md) contracts.
 
 ### Authority visibility and custody
 
-Runtime authority uses ordinary data fields plus domain evidence. A value's
-published geometry or handle bits remain inspectable; reconstructing those
-fields does not reproduce its authority, validation, or provenance facts.
-Checked operations require the qualification they consume.
+Handle bits and range fields can be public while the state they refer to stays
+in provider custody. Reconstructing the bits does not reproduce validation,
+provenance, or permission. Checked operations require the applicable evidence.
 
-An admitted provider may originate a routed qualification when it satisfies
-an exact boundary requirement named in the domain declaration; admission
-records the receipt. Checked resource transformations preserve or divide that
-evidence while accounting for every linear claim. See
-[authority and qualification](../spec/resources/authority.md).
-
-Confidential state remains in provider custody. A public value may carry an
-index into that state, while the provider boundary controls lookup and
-observation. Structural invariants govern ordinary data correctness, domain
-facts govern authority and validation, and normalized boundary/component plans
-govern ABI stability.
+Use invariants for ordinary data correctness, routed qualifications for authority
+that needs an establishment route, and provider custody for confidential state.
+See [authority and qualification](../spec/resources/authority.md).
 
 ## Name Resolution
 
-Names resolve in this order:
+Resolution considers lexical bindings and parameters before imported names.
+Receiver fields are accessed through `self`; a fully qualified package path
+still obeys direct-dependency and visibility rules. Ambiguous imported names
+reject rather than selecting one by traversal order.
 
-- local bindings,
-- state parameters,
-- machine parameters,
-- receiver fields through `self`,
-- imported names,
-- fully qualified package/module paths — **within the declared dependency set
-  only.** A fully-qualified path does not bypass the reach boundary: naming a
-  package the current package did not declare in its `build.omg` is a resolution
-  error, not an ambient reach. (This gate is the build-time analog of the
-  capability model; see
-  [package-boundary contract](../spec/packages/boundaries.md).)
-
-Ambiguity is an error. The compiler should not guess between two imported
-declarations with the same visible name.
+The [source naming rules](../spec/language/modules.md#resolution) give the
+resolution order. Importing names never changes the meaning of an already
+selected declaration.
 
 ## Build Reports
 
-Compiler artifacts should report:
-
-- package graph,
-- import graph,
-- public API surface,
-- boundary imports,
-- versioned and wire declarations exported by a package.
+Reports expose the package/import graph, public API, boundary imports, and
+published wire/versioned declarations. Review also preserves source changes
+and authority/assumption findings without treating report wording as identity.
+Read [using source packages](packages.md) for inspecting and accepting changes.

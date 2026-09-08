@@ -114,6 +114,9 @@ a convenient alias name. Access attenuation does not change the parent's origina
 authority. [Loan compatibility](../terminal-psi/loans.md) owns captured places,
 formation proofs, lifetimes, closure order, and restored-use evidence.
 
+[Source lifetimes](lifetimes.md) specify explicit binders, result elision, and
+structural carried-loan transport through values and state transitions.
+
 ## Consumers and cleanup
 
 Ownership is determined by the receiver type: bare `self` is owned; `&self` and
@@ -136,6 +139,22 @@ beyond its receiver. The compiler begins consumption before temporarily lending
 [Nominal cleanup](../terminal-psi/ownership.md#nominal-cleanup) owns the reserved
 `T::drop` edge and ordinary consuming early-disposal call.
 
+Only the data declaration's owning package may declare its exact attached
+`T::drop`, and at most one exists. The hook receives and must return a whole
+valid value before structural field cleanup. A nominal-drop type cannot be
+partially moved; meaningful decomposition requires an explicit consuming
+machine. An unrelated ordinary machine named `drop` has no reserved meaning.
+
+Every owned death edge derives an internal contextual cleanup row: Type-side
+disposition eligibility, proposition prerequisites, operational effects/reach/
+work, and derived guarantees remain separate. Prerequisites must be proved
+locally or already authored in `requires`; neither public nor private body
+analysis may invent a new caller demand. Generic rows remain symbolic until
+substitution supplies the exact structural plans and contracts. Containers need
+no nominal `Disposable` bound, and an instantiation lacking legal element
+disposition rejects. Diagnostics identify the authored hook clause and edge,
+not an internal synthesized predicate.
+
 Cleanup promises only its owner's disposition, not durable output or protocol
 completion. Fallible/coordinating work uses explicit `flush`, `close`, `commit`,
 `finish`, or cancellation/settlement operations and their ordinary result
@@ -145,7 +164,22 @@ transferred; `request_cancel` retains its claim. Scope exit cannot implicitly
 wait, detach, or lose a bound task. Strict use of returned results alone does
 not enforce that lifecycle.
 
+Automatic abandonment requires a contract declaring implicit disposal harmless.
+A claim whose loss permanently withholds external capacity remains linear with
+an explicit terminal choice: release, or an authorized abandonment recording
+the loss. Deployment policy may forbid abandonment independently of memory
+safety. Enqueuing deferred reclamation transfers the obligation rather than
+discharging it; the queue needs capacity, servicing, progress and resource
+contracts covering eventual discharge.
+
 ## Construction and disposal order
+
+Independent roots clean up in reverse declaration order, so later locals precede
+earlier by-value parameters. The nominal whole-value hook precedes structural
+field cleanup; only the active sum payload is present. Borrow and ownership
+dependencies must fit this order: an owner cannot die before cleanup depending
+on its borrow. A different release protocol requires an explicit owner or
+consumer, not reconstruction of dynamic acquisition history.
 
 Named record/case literals establish fields once in authored expression order.
 Abandoning partial construction disposes the established prefix in reverse

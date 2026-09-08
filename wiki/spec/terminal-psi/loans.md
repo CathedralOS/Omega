@@ -13,6 +13,17 @@ non-interference cannot create a loan, repair missing resource custody, extend
 its lifetime, or widen access. Circular justification between these records
 rejects before either can authorize execution.
 
+The split is a criterion, not a closed list of obligations. Disjointness,
+containment and non-interference are relations over existing, versioned subjects
+and may be proved. Loan descent, access attenuation, temporal containment and
+restoration are resource judgments. Logical facts cannot create, amplify,
+transfer, extend, return, consume or duplicate authority. Proof participates in
+ordinary admission from the start; automatic checking derives the same
+compatibility judgment rather than preceding a separate proof fallback. Failure
+remains an ordinary borrow diagnostic unless source explicitly uses proof
+vocabulary. No public `footprint(...)` surface is implied; abstract footprints
+for opaque modular APIs remain a separate future facility.
+
 ## Frozen places and proof replay
 
 Loan formation captures a place, not a live selector expression. Retain exact

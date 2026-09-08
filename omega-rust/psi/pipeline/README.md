@@ -44,6 +44,12 @@ and the current language specification must agree.
 
 ## Resolution and closed-instance normalization
 
+The parser retains `module` paths, but item lowering ignores those declarations;
+no resolved module namespace is established from them. The parse canary is not
+module-identity coverage. Implement the
+[module/name contract](../../../wiki/spec/language/modules.md) before relying
+on authored module paths to qualify declarations.
+
 [Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
 identity and exact lexical lookup, not type compatibility, borrow legality,
 proof discharge or runtime support. Its private

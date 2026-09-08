@@ -1,8 +1,10 @@
 # Chapter 17: Drops And Cleanup
 
-Owned values need a deterministic cleanup story. Omega represents that story
-on graph edges, where ownership actually changes, rather than at lexical braces
-or in backend-invented drop flags.
+Owned values need deterministic cleanup. The
+[ownership specification](../spec/language/ownership.md#consumers-and-cleanup)
+and [Terminal cleanup contract](../spec/terminal-psi/ownership.md) own the rules.
+Omega represents cleanup on graph edges, where ownership changes, rather than
+at lexical braces or in backend-invented drop flags.
 
 The core rules are:
 
@@ -14,7 +16,7 @@ The core rules are:
   an edge.
 - Moving a value transfers its obligation.
 - Every ordinary outgoing edge carries a checked cleanup plan.
-- Nuclear abort is not an ownership-graph edge and performs no cleanup.
+- A crash is not an ownership-graph edge and performs no cleanup.
 - Cleanup remains visible in semantic, proof, debug, and resource artifacts.
 
 ## Cleanup Machines
@@ -27,7 +29,7 @@ data MutexGuard<T> {
 }
 
 machine MutexGuard::drop(&mut self)
-    ensures self.mutex unlocked
+    // The checked body must establish the mutex's published release contract.
 {
     self.mutex.unlock_raw();
 }
@@ -64,20 +66,9 @@ quiescence evidence, returning storage may need allocator authority, and
 committing may fail. A valid owner-attached hook is nevertheless a legitimate
 exact-once terminal disposition for a linear type.
 
-The implemented terminal subset is deliberately narrower. A root-only Unit
-return may invoke attached `drop` for a finite nonempty list of whole
-claim-free, unqualified affine records that are empty or contain only relevant
-Boolean or integer fields. Multiple cleanups run in reverse parameter
-declaration order and may share one cleanup machine because the actions own
-different places. Each body may
-contain a finite source-ordered list of ordinary zero-argument calls to mutually
-distinct exact-empty attached helpers; different bodies may share helpers. Psi
-preserves each whole receiver and executes
-the complete ordered list. Omega represents all return cleanup as one ordered
-action stream, assigns nonempty receivers their ordinary ABI homes, and emits
-only executable cleanup calls while retaining exact edge/action and helper
-operation custody. Wider body shapes and nested or erased receivers remain pending engineering work under
-the rules below.
+Current executable support is narrower than these rules; see
+[Terminal production](../../omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup)
+and [native cleanup](../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
 
 ## Explicit Early Disposal
 
@@ -106,10 +97,7 @@ separately named conformances for the same type and do not authorize dedicated
 syntax to discover one ambiently; automatic cleanup requires one structurally
 unique owner attachment. Static generic code consumes symbolic cleanup rows,
 and dynamic code consumes the type descriptor described below, so neither needs
-a nominal `T: Drop` bound. A future general facility for owner-unique,
-compiler-selected protocols could subsume this hook, but a superficial trait
-would otherwise add nomination and conformance machinery without changing the
-cleanup semantics.
+a nominal `T: Drop` bound.
 
 Named consuming machines remain the source surface for protocols with results
 or stronger behavior. `close(self)`, `finish(self)`, `commit(self)`,
@@ -161,7 +149,7 @@ evaluate and materialize successor arguments or the return value
     ↓
 commit the ownership transfer map
     ↓
-clean the remaining dying affine places
+apply eligible cleanup to the remaining dying places
     ↓
 verify the resulting frontier
     ↓
@@ -177,7 +165,7 @@ This sequence applies to:
 - compiler-synthesized call continuations.
 
 Argument evaluation may itself contain ordinary graph edges. Each such edge
-uses the frontier that exists after the evaluations preceding it. Nuclear abort
+uses the frontier that exists after the evaluations preceding it. A crash
 has no successor in the ownership graph and therefore has no cleanup plan.
 
 For an edge `e`:
@@ -278,13 +266,13 @@ named fields in authored order; if an ordinary cleanup-bearing edge abandons
 that partial construction, only its established prefix exists and cleans in
 reverse establishment order. Partial call-argument staging follows the same
 rule. Physical layout and completed-value canonicalization determine neither
-schedule. A trap or nuclear abort remains a no-successor edge and cleans
+schedule. A trap or abort remains a no-successor edge and cleans
 nothing.
 
 If fixed-array construction leaves through an ordinary cleanup-bearing edge,
 only the successfully established prefix exists and it is cleaned from its
 highest established index to its lowest. This is ordinary edge cleanup, not
-exception unwinding. A trap or nuclear abort is a no-successor edge and cleans
+exception unwinding. A trap or abort is a no-successor edge and cleans
 nothing.
 
 ## Partial Values
@@ -303,39 +291,13 @@ resources after move:
   .socket → live
 ```
 
-The first implemented frontier slice covers statically named fields of
-transparent records. A record that is not itself declared `[linear]` derives
-its contained linear field claims without adding an aggregate claim; local
-construction, whole-record transfer, and field extraction retain those paths.
-Moving one field therefore leaves its siblings live, and moving the same field
-twice rejects. An explicit `[linear]` record remains one nominal
-root. Literal-length fixed arrays likewise expose one canonical path per
-contained element: literal-index extraction leaves sibling obligations live,
-while runtime-indexed owned extraction remains conservative because it cannot
-name one unique element. Active sums expose a case-plus-field path for every
-contained claim. Constructing a case activates only its payload; moving one
-payload field leaves same-case siblings live while impossible case alternatives
-remain inactive.
-
-Checked transition planning has one deliberately smaller path-sensitive rung.
-An attached two-state Unit machine may make one unconditional ordinary jump
-whose sole non-self affine parameter is a claim-free, unqualified record of
-exactly two structural fields. Moving either whole direct field to the sole
-exact-same-type successor parameter retains the other field as one maximal
-no-code residual. The checked row is separate from the whole-root edge rows,
-so existing Terminal consumers fail closed instead of silently dropping the
-path. Executable Terminal control, codec/runtime/native replay, nested or wider
-records, extra roots, and arbitrary control flow remain unimplemented for this
-transition form.
+Transparent records, arrays, and active sum payloads retain the obligations of
+their live children. A nominal linear root is not duplicated into independent
+child claims. Extraction must identify one exact place and preserve its residual
+frontier; a second move of that place rejects.
 
 An aggregate with structural field cleanup may be partially moved. Its cleanup
-plan visits only the remaining live fields. The implemented terminal slice
-accepts a finite nonempty set of pairwise prefix-disjoint, nonempty all-field
-moves from one claim-free affine record, provided at least one residual subtree
-remains. It cleans every maximal live residual subtree in recursive reverse
-declaration order and never cleans a partially moved ancestor whole. Arrays and
-cases, claims, content evidence, contracts, and nominal `drop` remain fenced
-from that slice.
+plan visits only the remaining live fields.
 
 For a partially moved fixed array, the compiler constructs one static cleanup
 sequence from the exact live index set: decreasing indices with every moved or
@@ -343,24 +305,6 @@ otherwise discharged element absent. It does not emit a traversal with runtime
 liveness flags. Cleanup recurses structurally, so `[Record; 3]` cleans the live
 fields of element 2 before element 1 and element 0, while `[[T; 2]; 3]` applies
 decreasing-index order at both levels.
-
-The implemented nested multiple-residual slice accepts `[[T; N]; 2]` for
-`N = 3`, `N = 4`, `N = 5`, `N = 6`, `N = 7`, `N = 8`, `N = 9`, `N = 10`,
-`N = 11`, `N = 12`, `N = 13`, `N = 14`, `N = 15`, or `N = 16` when `T` is the exact claim-free,
-unqualified affine record leaf without nominal cleanup. It permits exactly one
-literal leaf
-move from each outer element. The length-nine form cleans the sixteen-leaf
-complement, the length-ten form cleans the eighteen-leaf complement, and the
-length-eleven form cleans the twenty-leaf complement, and the length-twelve
-form cleans the twenty-two-leaf complement, and the length-thirteen form cleans
-the twenty-four-leaf complement, the length-fourteen form cleans the
-twenty-six-leaf complement, and the length-fifteen form cleans the
-twenty-eight-leaf complement, and the length-sixteen form cleans the
-thirty-leaf complement in decreasing outer-then-inner order. All fourteen
-forms retain authored
-call order and charge five closure fuel units; the extra residuals are static
-no-code cleanup metadata. Inner length seventeen, another outer length, dynamic or
-deeper paths, and the existing type and ownership fences remain unsupported.
 
 A type with a nominal whole-value `drop` body may not be partially moved:
 the body is entitled to receive one whole valid value. Such a type exposes an
@@ -372,204 +316,14 @@ Dynamic-index owned extraction remains subject to the general requirement that
 the checker can name one unique place. No cleanup-specific runtime bitmap is
 introduced to compensate for an unnameable frontier.
 
-The second bounded construction-prefix slice admits an uninitialized mutable
-`[T; 4]` only when `T` is the same empty, unqualified, claim-free affine record
-with no nominal cleanup accepted by the first slice. Establishments must be the
-literal prefix `[0, 1, 2]`; an ordinary Unit return records three distinct
-zero-ABI element occurrences and cleans them in reverse order `[2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, or wider construction
-shapes at that slice remain unsupported, and trap or nuclear-abort edges still
-clean nothing.
+Partial array construction cleans only its established prefix. For example,
+if elements 0, 1, and 2 were established before an ordinary return, cleanup
+visits 2, 1, then 0. Unestablished elements have no value to dispose. A crash
+cleans none of them.
 
-The third bounded slice admits `[T; 5]` under those same restrictions.
-Establishments must be the literal prefix `[0, 1, 2, 3]`; an ordinary Unit
-return records four distinct zero-ABI element occurrences and cleans them in
-reverse order `[3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
-wrong-root, wrong-length, or wider construction shapes remain unsupported, and
-trap or nuclear-abort edges still clean nothing.
-
-The fourth bounded slice admits `[T; 6]` under those same restrictions.
-Establishments must be the literal prefix `[0, 1, 2, 3, 4]`; an ordinary Unit
-return records five distinct zero-ABI element occurrences and cleans them in
-reverse order `[4, 3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
-wrong-root, wrong-length, or wider construction shapes at that slice remain
-unsupported, and trap or nuclear-abort edges still clean nothing.
-
-The fifth bounded slice admits `[T; 7]` under those same restrictions.
-Establishments must be the literal prefix `[0, 1, 2, 3, 4, 5]`; an ordinary
-Unit return records six distinct zero-ABI element occurrences and cleans them
-in reverse order `[5, 4, 3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
-wrong-root, wrong-length, or other prefix drift remains unsupported, and trap
-or nuclear-abort edges still clean nothing.
-
-The sixth bounded slice admits `[T; 8]` under those same restrictions.
-Establishments must be the literal prefix `[0, 1, 2, 3, 4, 5, 6]`; an ordinary
-Unit return records seven distinct zero-ABI element occurrences and cleans them
-in reverse order `[6, 5, 4, 3, 2, 1, 0]`. Missing, reordered, duplicate,
-dynamic, wrong-root, wrong-length, or other prefix drift remains unsupported,
-and trap or nuclear-abort edges still clean nothing.
-
-The seventh bounded slice admits `[T; 9]` under those same restrictions.
-Establishments must be the literal prefix `[0, 1, 2, 3, 4, 5, 6, 7]`; an
-ordinary Unit return records eight distinct zero-ABI element occurrences and
-cleans them in reverse order `[7, 6, 5, 4, 3, 2, 1, 0]`. Missing, reordered,
-duplicate, dynamic, wrong-root, wrong-length, or other prefix drift remains
-unsupported, and trap or nuclear-abort edges still clean nothing.
-
-The eighth bounded slice admits `[T; 10]` under those same restrictions.
-Establishments must be the literal prefix `[0, 1, 2, 3, 4, 5, 6, 7, 8]`; an
-ordinary Unit return records nine distinct zero-ABI element occurrences and
-cleans them in reverse order `[8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or other prefix drift
-remains unsupported, and trap or nuclear-abort edges still clean nothing.
-
-The ninth bounded slice admits `[T; 11]` under those same restrictions.
-Establishments must be the literal prefix `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]`; an
-ordinary Unit return records ten distinct zero-ABI element occurrences and
-cleans them in reverse order `[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or other prefix drift
-remains unsupported, and trap or nuclear-abort edges still clean nothing.
-
-The tenth bounded slice admits `[T; 12]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`; an ordinary Unit return records eleven
-distinct zero-ABI element occurrences and cleans them in reverse order
-`[10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing, reordered, duplicate, dynamic,
-wrong-root, wrong-length, or other prefix drift remains unsupported, and trap
-or nuclear-abort edges still clean nothing.
-
-The eleventh bounded slice admits `[T; 13]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]`; an ordinary Unit return records twelve
-distinct zero-ABI element occurrences and cleans them in reverse order
-`[11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing, reordered, duplicate,
-dynamic, wrong-root, wrong-length, or other construction-prefix drift remains
-unsupported, and trap or nuclear-abort edges still clean nothing.
-
-The twelfth bounded slice admits `[T; 14]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]`; an ordinary Unit return records
-thirteen distinct zero-ABI element occurrences and cleans them in reverse order
-`[12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing, reordered, duplicate,
-dynamic, wrong-root, wrong-length, or other construction-prefix drift remains
-unsupported, and trap or nuclear-abort edges still clean nothing.
-
-The thirteenth bounded slice admits `[T; 15]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]`; an ordinary Unit return
-records fourteen distinct zero-ABI element occurrences and cleans them in
-reverse order `[13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or other
-construction-prefix drift remains unsupported, and trap or nuclear-abort edges
-still clean nothing.
-
-The fourteenth bounded slice admits `[T; 16]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]`; an ordinary Unit return
-records fifteen distinct zero-ABI element occurrences and cleans them in
-reverse order `[14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or other
-construction-prefix drift remains unsupported, and trap or nuclear-abort edges
-still clean nothing.
-
-The fifteenth bounded slice admits `[T; 17]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]`; an ordinary Unit
-return records sixteen distinct zero-ABI element occurrences and cleans them
-in reverse order `[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, wrong-length, or
-other construction-prefix drift remains unsupported, and trap or nuclear-abort
-edges still clean nothing.
-
-The sixteenth bounded slice admits `[T; 18]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]`; an ordinary Unit
-return records seventeen distinct zero-ABI element occurrences and cleans them
-in reverse order
-`[16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or other
-construction-prefix drift remains unsupported, and trap or nuclear-abort edges
-still clean nothing.
-
-The seventeenth bounded slice admits `[T; 19]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]`; an ordinary
-Unit return records eighteen distinct zero-ABI element occurrences and cleans
-them in reverse order
-`[17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or other
-construction-prefix drift remains unsupported, and trap or nuclear-abort edges
-still clean nothing.
-
-The eighteenth bounded slice admits `[T; 20]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]`; an
-ordinary Unit return records nineteen distinct zero-ABI element occurrences and
-cleans them in reverse order
-`[18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Missing,
-reordered, duplicate, dynamic, wrong-root, wrong-length, or other
-construction-prefix drift remains unsupported, and trap or nuclear-abort edges
-still clean nothing.
-
-The nineteenth bounded slice admits `[T; 21]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]`; an
-ordinary Unit return records twenty distinct zero-ABI element occurrences and
-cleans them in reverse order
-`[19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, wrong-length, or
-other construction-prefix drift remains unsupported, and trap or nuclear-abort
-edges still clean nothing.
-
-The twentieth bounded slice admits `[T; 22]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]`;
-an ordinary Unit return records twenty-one distinct zero-ABI element
-occurrences and cleans them in reverse order
-`[20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, wrong-length, or
-other construction-prefix drift remains unsupported, and trap or nuclear-abort
-edges still clean nothing.
-
-The twenty-first bounded slice admits `[T; 23]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]`;
-an ordinary Unit return records twenty-two distinct zero-ABI element
-occurrences and cleans them in reverse order
-`[21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, wrong-length, or
-other construction-prefix drift remains unsupported, and trap or nuclear-abort
-edges still clean nothing.
-
-The twenty-second bounded slice admits `[T; 24]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]`;
-an ordinary Unit return records twenty-three distinct zero-ABI element
-occurrences and cleans them in reverse order
-`[22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, wrong-length, or
-other construction-prefix drift remains unsupported, and trap
-or nuclear-abort edges still clean nothing.
-
-The twenty-third bounded slice admits `[T; 25]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]`;
-an ordinary Unit return records twenty-four distinct zero-ABI element
-occurrences and cleans them in reverse order
-`[23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, wrong-length, or
-other construction-prefix drift remains unsupported, and trap
-or nuclear-abort edges still clean nothing.
-
-The twenty-fourth bounded slice admits `[T; 26]` under those same restrictions.
-Establishments must be the literal prefix
-`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]`;
-an ordinary Unit return records twenty-five distinct zero-ABI element
-occurrences and cleans them in reverse order
-`[24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
-Missing, reordered, duplicate, dynamic, wrong-root, wrong-length, or
-length-twenty-seven and wider construction shapes remain unsupported, and trap
-or nuclear-abort edges still clean nothing.
+The [producer note](../../omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup)
+records current bounded admission; each new array length is not a new language
+rule.
 
 ## Contextual Droppability
 
@@ -577,25 +331,6 @@ Multiplicity is a type property; automatic droppability is checked at the
 particular edge. Every `requires` clause on `drop` must be established there.
 A value may therefore be automatically droppable in one state and require an
 explicit consumer or fact-preserving transfer in another.
-
-The implemented root-return subset currently proves a finite canonical set of
-direct relevant Boolean receiver-field requirements in either polarity on a `drop` body that is
-empty or contains only the bounded receiver-independent helper calls described
-above, from matching caller facts. For example, `requires self.ready, self.armed` is
-available for automatic cleanup at a Unit return whose caller establishes both
-facts for each affected value; unrelated supported caller facts do not need to
-appear in the `drop` contract. A finite list of roots is accepted and runs in
-reverse parameter order. Roots sharing one cleanup target share its target-local
-proof receiver, but every cleanup action receives distinct obligations for its
-own caller root. Psi independently replays every exact receiver substitution in
-the proof artifact; none is a native argument or Omega runtime contract. Other
-predicates and bodies that can inspect or change premise-bearing receiver facts
-remain outside this bounded subset.
-
-The bounded source forms are a bare field, a directly negated field, or direct
-equality/inequality with a Boolean literal in either operand order. Psi
-canonicalizes all of them to the exact expected Boolean value; nested negation
-and broader logically equivalent predicates remain outside this slice.
 
 Diagnostics name both the edge and the missing cleanup premise:
 
@@ -642,8 +377,8 @@ Cleanup contributes to the enclosing machine contract on the existing axes:
 
 - reach, inferred mutation summaries, and capabilities combine by their ordinary
   union rules;
-- structural work sums actions taken on one edge, then takes the maximum across
-  alternative acyclic edges;
+- structural work sums actions along a path, then takes the maximum across
+  mutually exclusive acyclic paths;
 - stack uses peak composition within an edge, then takes the maximum across
   alternatives;
 - every reachable cleanup action contributes its requirements and guarantees;
@@ -651,18 +386,20 @@ Cleanup contributes to the enclosing machine contract on the existing axes:
 - every cleanup action must satisfy termination and automatic-cleanup control
   restrictions.
 
-For a measured cycle, cleanup on the backedge runs once per iteration. Bounded
-work therefore composes with the same ranking that proves termination:
+For a measured cycle, cleanup on the backedge runs once per iteration. When
+analysis additionally establishes a quantitative iteration bound, work composes:
 
 ```text
 total work
   = entry work
-  + iteration bound × maximum cycle-edge work
+  + iteration bound × maximum total work per iteration
   + exit work
 ```
 
-Cleanup is included in the cycle-edge term. Max-over-edges alone is not a valid
-bound for repeated backedges.
+The iteration term includes the whole iteration path and all its cleanup.
+Max-over-edges alone is not a valid
+bound for repeated backedges. Termination alone does not supply a numeric bound;
+see [logical work](../spec/resources/logical_work.md#composition-and-charged-work).
 
 ## Conservation Witness
 
@@ -681,26 +418,9 @@ When an obligation carries decomposable content, this whole-claim theorem also
 contains the normalized content equation for its algebra: machine-entry content
 plus sealed introductions equals returned content plus content that left checked
 custody. `old(place)` names the callable-entry revision of a structural place,
-the exact owner-unique `Content<A>::project` machine projects its content, and
+the exact owner-selected content projection machine projects its content, and
 `separate(...)` composes disjoint pieces. Here “left checked custody” does not
 mean destroyed, reclaimed, or reusable; it records only the frontier transfer.
-
-One useful report shape is:
-
-```text
-EdgeCleanupPlan {
-    edge
-    frontier_before
-    established_during_materialization
-    transfer_map
-    explicit_consumptions
-    ordered_automatic_cleanup_actions
-    trivial_affine_discards
-    frontier_after
-    effects_and_resource_composition
-    conservation_witness
-}
-```
 
 A linear place in the dying set is a compile error unless its exact type-owned
 cleanup plan is an authorized terminal disposition and all contextual
@@ -739,31 +459,8 @@ This descriptor entry is lifecycle metadata, not trait evidence, and third
 parties cannot attach cleanup to a foreign type. They wrap it in a type they
 own when they need a different disposition.
 
-Coalescing is a soundness requirement when a borrow contract promises stable
-address, and a performance acceptance requirement for unchanged loop-carried
-large values. It is never used to make an invalid semantic transfer legal.
-
-## Acceptance Requirements
-
-1. An affine local omitted from a successor is cleaned exactly once on that
-   edge.
-2. A moved result or transition argument is committed before remaining cleanup
-   runs.
-3. A live linear place in the dying set rejects unless its owner-authorized
-   automatic disposition is valid at that edge.
-4. Failure and success edges use the same cleanup rules.
-5. Nuclear abort emits no cleanup or unwinding.
-6. A partially moved structural aggregate cleans only its live fields.
-7. Partial movement from a nominal-`drop` type rejects.
-8. Different predecessor cleanup lists require no hidden runtime flag.
-9. Operationally distinct alternatives require an existing represented
-   discriminator or author-visible normalization.
-10. A backedge cleans iteration-local values while preserving loop-carried
-    places without copies.
-11. Bounded cyclic work counts repeated cleanup through the termination
-    measure.
-12. Proof/debug artifacts retain the conservation witness and exact edge plan.
-13. Authored selection of the reserved attached hook rejects; explicit early
-    disposal consumes through `omega::core::drop`.
-14. Static generic cleanup rows and dynamic descriptors preserve the same exact
-    concrete disposition without trait or conformance lookup.
+Preserving a promised stable address is a soundness requirement. Coalescing
+unchanged loop-carried large values also avoids unnecessary copies, but cannot
+make an invalid semantic transfer legal. The
+[physical contract](../spec/terminal-psi/ownership.md#physical-realization)
+owns that distinction.
