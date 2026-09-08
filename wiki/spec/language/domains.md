@@ -45,6 +45,57 @@ preserved or re-established. Declared default-domain obligations are enforced
 at [consumption points](dependent_values.md#invariant-windows), not replaced by
 an assumption that old flow facts survived a write.
 
+### Visibility and foreign declarations
+
+A carrier-qualified domain owns its visibility independently of its carrier.
+It is private unless declared `pub`; publishing it does not publish a private
+carrier. Public signatures must be authorized to name both declarations under
+[package boundaries](../packages/boundaries.md).
+
+A package may declare a domain over a foreign carrier. Extension visibility is
+import-gated, not an ambient addition to every user's type namespace. A visible
+collision between the same carrier-qualified case, domain, or machine name
+rejects; inherent declarations do not silently win over extensions. An upstream
+addition may therefore break an existing extension.
+
+The exact foreign-domain import-gate spelling, optional owner/orphan restrictions,
+and authority/reporting presentation remain
+[undetermined](../../../OWNER_QUESTIONS.md#q4--foreign-domain-import-and-applicability).
+These open details do
+not authorize ambient extension discovery or priority-based collision resolution.
+
+## Refinement and executable membership
+
+Domains classify values within the carrier's ordinary validity. A domain cannot
+license observing a value outside its default domain. Whether an inconsistent
+domain declaration is rejected or denotes an uninhabited domain remains
+[undetermined](../../../OWNER_QUESTIONS.md#q3--empty-domains-and-contradictory-declarations);
+no member can be established without proving all obligations.
+
+`A::B::C` is a single-parent refinement of `A::B`: its predicate requirements
+include the parent's requirements. Multiple-parent predicate reuse is explicit,
+as `requires self in X & Y`. Names do not create a separate classifier declaration.
+Establishing the child also requires the parent's routed provenance when present;
+nesting a name cannot turn a routed parent into predicate-only membership.
+Pure total helper machines may supply denotational Boolean terms in predicates,
+but do not replace general mathematical predicates with executable deciders.
+
+`x in A | B` states union membership; `x in A & B` states both facts. An ordinary
+value match is ordered, so overlapping domain patterns are permitted and the
+first matching arm wins. Each selected arm imports the domain facts, and each
+transition proves its destination's requirements. A match without a wildcard
+over a known domain union must be exhaustive. Unordered domain-union reasoning
+requires mutually exclusive alternatives; a child and its parent are not such
+alternatives.
+
+An executable domain test requires pure, finite, runtime-checkable predicates.
+Subdomain tests check the parent before the child's added predicates. Quantifiers,
+opaque proof calls, and nonexecutable facts do not become runtime tests. A test
+that cannot establish membership rejects; no hidden runtime domain tag is added.
+For routed membership, predicate tests still require the retained authorized
+provenance. Neither a successful Boolean test nor inherited predicate knowledge
+can mint it. Runtime testing refines proof knowledge, not operator selection.
+
 ## Exact coercion and erasure
 
 `as` does not silently change denotation. A qualified target preserves the
@@ -145,6 +196,11 @@ Expansion precedes sorting, deduplication, and identity formation. The alias
 and expanded atoms have one normalized identity; edits affect every published
 contract using that expansion. Diagnostics name missing atoms. Compiler-owned
 atoms, including the positive carry permissions, may participate in aliases.
+Alias expansion is acyclic. Every constituent of a public alias must be legal
+to publish for its subject. Adding or removing conjuncts changes the normalized
+requirements and guarantees; compatibility checks attribute the consequences to
+affected callers, implementations, and consumers. Weakening the expanded atoms
+still follows their individual predicate, semantic, or custody rules.
 
 The deterministic normalizer owns domain identity, semantic interface identity,
 and specialization keys: exact carrier, normalized atoms/roles, routes,
@@ -164,6 +220,17 @@ Ordinary operator conformances require only the carrier operations they use;
 they do not enumerate combinations of unit, policy, and predicate refinements.
 Their guarantees establish surviving predicate facts.
 
+Families may bind a generic carrier or a fixed carrier with invariant indices:
+`domain<P, T> Extent::Resident<P, T>;` keeps `Extent` as its exact runtime carrier.
+Type indices use normalized type identity and substitute structurally at generic
+calls; different applications have no implicit variance relationship. Const
+indices use canonical value identity, not authored record-field order.
+
+One declaration owns the entire family's route set. Instantiation substitutes
+indices into those routes; it cannot append routes or create a per-application
+registry. Lifetime and static-machine domain indices are not specified by this
+type/const-index surface.
+
 Closed index expressions evaluate under [canonical static identity](evaluation.md#canonical-static-identities).
 Computed open indices retain their selected operation and normalized expression;
 compatibility with an expected index is a verification condition, not arbitrary
@@ -177,3 +244,36 @@ library customers, not compiler cases. Metadata erasure removes no scaling,
 range-check, or rounding work from the chosen library operation. Runtime
 witnesses and view geometry remain distinct from these static applications;
 see [dependent values](dependent_values.md).
+
+## Byte containers and encoding domains
+
+Text separates a byte container, an encoding-validity domain, and ordinary
+codec/operation contracts. Views, fixed arrays, and owned byte collections keep
+their own storage and lifetime semantics. No builtin `String` or `Bytes` type,
+encoding intrinsic, or implicit encoding qualification is required. Quoted
+literals supply raw bytes; an explicit qualification must establish the selected
+library predicate even when the known bytes permit compile-time proof.
+
+Encoding recognition and preservation are checked library behavior. Validation
+establishes the exact predicate once; subsequent operations preserve it through
+their contracts instead of implicitly rescanning. Reading a byte does not break
+the encoding, while a slice preserving UTF-8 must prove codepoint-boundary
+endpoints. Mutation must preserve or re-establish the facts on affected places.
+An abstract codepoint-text quotient is distinct from any chosen byte encoding;
+its observers obey [quotient contracts](../proofs/quotients.md).
+
+Fixed capacities do not define different meanings for one normalized byte-domain
+name. Declarations over different bounded carriers may share that name when
+their normalized facts agree; differing facts reject rather than selecting a
+declaration by order. Carrier capacities and representation remain distinct.
+Bounded-carrier construction proves the live byte length fits its capacity;
+it neither truncates nor defers capacity failure. This does not change a raw
+fixed array's exact-length construction rule.
+
+A validator may return a sum whose cases carry differently qualified views.
+Matching the successful case imports its established facts; matching does not
+repeat validation. Wire decoding ordinarily supplies structure and raw bytes,
+not encoding facts. A schema may explicitly request encoding validation and
+include its failure in the decode outcome; it is not the default. Selected
+[codec contracts](../layouts/codecs.md) own that validation and any separately
+authorized provenance. Encoding validity never proves external authority.

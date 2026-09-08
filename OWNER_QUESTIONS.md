@@ -1,7 +1,7 @@
 # Owner Questions
 
 Only unresolved owner-level language or architecture decisions belong here.
-Settled decisions live in the language guide and design briefs; implementation
+Settled decisions live in the specification and language guide; implementation
 and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
@@ -37,8 +37,6 @@ Apply the [bootstrap scope checkpoint](AGENTS.md#scope-checkpoints): identify
 the concrete compiler customer or required proof obligation, compare existing
 languages and simpler refactors, and account for total audit cost and machinery
 displaced. Await an owner decision; a task or prototype is not approval.
-
-Last pruned: 2026-09-07.
 
 ## Q1 — Terminal external-completion declarations
 
@@ -127,3 +125,99 @@ Native check placement and capacities remain engineering choices; host I/O
 failure policy is outside this bounds-only proposal. Until answered, the
 hardening task is owner-blocked and current semantics/seeds remain unchanged;
 independently contained bootstrap execution and proof work can continue.
+
+## Q3 — Empty domains and contradictory declarations
+
+### Context and problem
+
+A domain qualifies values already valid for its carrier. The former guide said
+that its predicates must not contradict carrier validity, but did not say whether
+an inconsistent declaration rejects or instead describes an empty domain.
+The [domain contract](wiki/spec/language/domains.md) leaves that declaration
+policy undetermined. Membership still requires carrier validity and every
+domain predicate; a contradiction cannot establish an ordinary value.
+
+This matters for generic constraints and mathematical classifications: a
+specialization may have no inhabitants without its declaration being malformed.
+Conversely, a contradictory constraint can expose a useful authoring mistake.
+
+### Proposed direction, not yet adopted
+
+Permit empty domains and reject uses that cannot establish membership. A proved
+empty domain may support an explanatory diagnostic, but failure to find a member
+must not be treated as proof of emptiness. Keep default-domain establishment
+gates and ordinary invariant windows unchanged.
+
+### Alternatives
+
+Reject declarations when the checker proves them empty, with an explicit rule
+for generic specialization and evidence-dependent diagnostics. Requiring every
+domain declaration to prove nonemptiness is a stronger alternative needing a
+constructor or witness contract. Guessing satisfiability, treating failed proof
+search as contradiction, or allowing an impossible qualification to bypass
+carrier validity is wrong.
+
+## Q4 — Foreign-domain import and applicability
+
+### Context and problem
+
+Downstream policy packages may classify upstream values through domains without
+changing the carrier. The existing direction makes foreign extensions
+import-gated and rejects name collisions rather than choosing one by priority.
+It leaves the activation syntax, optional owner restrictions, and reporting
+unspecified; see [domains](wiki/spec/language/domains.md).
+
+Which explicit source import makes an extension participate, and can a carrier
+owner prohibit external extensions? These affect whether adding a dependency or
+an upstream member changes existing name resolution. Merely placing declarations
+in the same resolved package closure must not activate every extension.
+
+### Proposed direction, not yet adopted
+
+Use explicit import of the declaring module to activate its extensions, retaining
+the extension's declaring-package identity and normal collision rejection.
+Publish that provenance in interfaces and reports. Do not add an optional orphan
+restriction without a concrete need beyond collision rejection and explicit
+visibility. Settle the exact import/name-resolution rules before implementation.
+
+### Alternatives
+
+A dedicated named-domain import could make activation narrower if ordinary
+module imports expose too much. Restricting extensions to the carrier's package
+would require policy packages to use wrappers and changes the existing extension
+direction. Ambient dependency-wide activation or silent upstream-priority
+selection is wrong: either can change an existing contract without an authored
+selection.
+
+## Q5 — Runtime checking of admitted claims
+
+### Context and problem
+
+An admitted boundary claim is trusted, not proved. Development tests can expose
+a violation when its subjects and predicate have an executable observation.
+The guide required runtime checks in “proof builds” without defining that build
+mode, eligible predicates, or the instrumented failure/reporting contract.
+The [proof contract](wiki/spec/proofs/contracts.md#axioms-and-receiving-policy)
+therefore distinguishes this required checking facility from implemented support.
+
+How does the root request these checks, and what observations may a generated
+check perform without altering the program it is meant to test? This is not a
+new admission channel or a proof of unobserved executions.
+
+### Proposed direction, not yet adopted
+
+Make instrumentation an explicit root testing choice over exact admitted claim
+identities. Admit only predicates whose evaluation and captured subjects have a
+checked observation and lifetime contract; report unsupported checks explicitly.
+A witnessed failure names the claim, invocation, and observed counterexample.
+Specify the instrumented artifact's failure behavior and identity separately
+from the uninstrumented program's contract. Keep grants and assumption reports
+unchanged, and never label a passing test as proof of the claim.
+
+### Alternatives
+
+Explicit package-authored checkers avoid automatic insertion but need the same
+observation/lifetime and claim-attribution rules. Making instrumentation mandatory
+for all builds would change observable costs and failures and needs a separate
+justification. Guessing that any Boolean-looking predicate is safe to execute,
+inventing a silent build mode, or treating tests as an admission receipt is wrong.

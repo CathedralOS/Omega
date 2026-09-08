@@ -28,12 +28,49 @@ destination, including when an intermediate division is fractional. Retained
 range bounds and contract expressions obey the same formation requirement.
 Declared operators and proof-level mathematical terms retain their own rules.
 
+Landing chooses a representation once. A suffix lands its literal at that
+occurrence; a contract comparison obtains its destination from a typed operand
+or the owning callable's declared result, not a verifier guess. Parentheses,
+constant folding, and evaluation during compilation do not move the landing
+boundary. Ordinary machine parameters remain landing boundaries even during
+semantic evaluation. No fold may make a landed value anonymous again.
+
+An exact rational can be represented by an unbounded numerator and positive
+denominator, with common factors removed and zero represented by `0/1`. Nested
+arithmetic needs no nested rational carrier or runtime rational evaluator. Anonymous division
+by zero has no numeric value, including in proofs or comparisons. No destination
+policy supplies one. Nor can a Saturating, Wrapping, or Trapping destination
+truncate an anonymous fraction or repair an out-of-range initial value.
+
+### Fractional-intermediate diagnostics
+
+Integer landing of a fractional final value rejects with its exact value and
+destination type. The diagnostic explains that typing an operand requests
+integer division; typing only the destination does not.
+
+If an authored anonymous calculation instead has a fractional intermediate and
+an integral final value that successfully lands as an integer, issue a
+default-on, suppressible warning. Report the fractional origin and exact final
+value, and suggest typing an operand if integer division was intended.
+For example, `(4097 / 4096) * 4096` lands as `4097`, not an alignment-down result.
+Retain that origin through simplification: cancellation cannot erase the warning.
+
+The trigger is an actual fractional intermediate, not comparison with a
+hypothetical truncating evaluation. Already-typed integer division and floating
+landing do not trigger it. Suppression changes neither arithmetic nor admission;
+ordinary suppression is allowed without an expression-only restriction. This is
+an author-intent correctness warning, not a claim that a valid integral landing
+is unsound.
+
 ## Arithmetic and comparisons
 
 An operation's selected declaration, operand carriers, and arithmetic policy
 determine its meaning. Matching a token is insufficient to use builtin arithmetic
 or order laws. A negated guard retains the original operator selection before
 deriving a consequence; integer order complements are not IEEE float laws.
+An early const-argument normalizer retains an application whose operator
+selection is unresolved rather than folding it with the token's builtin meaning.
+Retention does not establish support for later const evaluation.
 
 Every Exact operation owes its own representability proof in its actual carrier,
 including unsigned values beyond a signed analysis window. A safe final result,
@@ -42,12 +79,65 @@ intermediate. Wrapping loop updates need an independent no-wrap proof before
 monotonicity can be inferred; the proposed descent cannot supply its own premise.
 Runtime signed remainder is not mathematical Euclidean modulo.
 
+There is no implicit widening: arithmetic in `u8` must fit `u8` under Exact;
+use an explicit exact conversion to request a wider carrier. Each node produces
+its declared-width policy result before its parent consumes it. Wrapping reduces
+at that node, Saturating clamps there, and Trapping takes its executable failure
+route there. A proved overflow in an already-landed Trapping operation is still
+a runtime trap, not an Exact-style compile error; a demanded semantic-evaluation
+result separately requires [invocation admission](evaluation.md#invocation-admission).
+
+Policy selection and erasure are explicit and change future operations, not
+existing payloads. An implicitly bare binding cannot erase Wrapping meaning.
+After explicit same-carrier erasure, Exact operations act on the actual stored
+value, not a mathematical pre-wrap result. A machine naming no arithmetic policy
+publishes Exact; a caller-selectable policy must occur in its contract. The
+generic spelling for that choice remains unsettled. Omission does not choose a
+weaker policy, and incompatible policies do not mix implicitly.
+
 Exact, Wrapping, Saturating, and Trapping are distinct operation policies.
 Wrapping reduces representable-range overflow modulo the selected carrier;
 Saturating clamps it to carrier bounds; Trapping uses the primitive's exact
 crash predicate. An overflow policy does not invent a result for undefined
 operands such as an integer zero divisor. Any number of value qualifications
 may compose, but at most one arithmetic policy governs an operation.
+
+### Integer quotient and remainder
+
+Builtin `%` needs at least one already-integer-typed operand. The other operand
+lands to the required integer type; a fractional operand rejects. A destination
+annotation, proof context, positive operands, or known zero remainder cannot
+type an anonymous `%`. Its diagnostic requests a typed operand using supported
+source spelling, not a destination annotation or hypothetical Euclidean helper.
+Already-typed incompatible operands retain ordinary resolution rules.
+
+This includes builtin proof `Int`, whose quotient truncates toward zero with no
+width bound. For nonzero divisor `b`, integer quotient `q` and remainder `r` obey:
+
+```text
+a = q*b + r
+|r| < |b|
+r = 0 or sign(r) = sign(a)
+```
+
+Thus an `Int` value `-7` divided by `2` gives `-3` with remainder `-1`. A negative
+divisor changes the quotient sign, not the dividend-sign remainder convention.
+Both operations require a nonzero divisor. An anonymous rational quotient is
+not this `q`; proof algebra retains the selected operand kinds and operations.
+The library's constructed `IntPair` is a distinct nominal type, not builtin
+`Int`, and these rules grant neither its operators nor a runtime representation
+to proof-only values.
+
+Fixed-width integer division has the same truncation convention. Under Exact,
+signed `MIN / -1` and `MIN % -1` both reject because the common quotient is
+unrepresentable. Wrapping returns quotient `MIN`, Saturating returns `MAX`, and
+both return remainder zero. Neither policy licenses a zero divisor. The
+mathematical equation does not itself prove the safety of its authored machine
+intermediates or replace overflow-policy behavior.
+
+A separately named Euclidean modulo operation remains deferred with no selected
+spelling. There is no context-selected second meaning of `%`, or anonymous
+Euclidean-remainder warning: the untyped operation rejects.
 
 ### Shift counts
 
@@ -62,8 +152,9 @@ Exact left-shift result representability is a separate obligation. Hardware
 masking cannot discharge the Exact count proof or silently change its meaning.
 
 Integer bitwise AND, OR, XOR, and complement preserve their signed/unsigned
-carrier. They do not acquire Boolean bounds. Bitwise operations themselves add
-no overflow-policy requirement; nested and surrounding arithmetic still owes
+carrier and are total at its width; complement includes the full two's-complement
+width of a signed carrier. They do not acquire Boolean bounds. Bitwise operations
+themselves add no overflow-policy requirement; nested and surrounding arithmetic still owes
 its obligations. Boolean negation likewise does not skip validation of operands.
 Evaluating interval endpoints alone is not a sound bound for AND, OR, or XOR.
 
@@ -182,6 +273,8 @@ explicit same-carrier `as` erasure selects Exact for later arithmetic.
 Selection follows the general [result-domain overload rule](domains.md#result-domain-overloads).
 Predicate-only facts do not dispatch; they remain obligations after selecting
 the exact result-domain projection. Operator syntax remains operand-directed.
+Without an expected result type, the unqualified overload is selected; a failed
+finite/range proof diagnostic lists the available qualified overloads.
 
 Directed one-step conversions are separately named and cannot consult an
 ambient rounding mode. A wrapper composing rounding and conversion must prove
