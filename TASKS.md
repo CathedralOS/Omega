@@ -209,17 +209,22 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   They measure and read one shared parameter with runtime `u64` indices guarded
   by the exact view's length, observe checked subslices, and preserve the original
   descriptor and `u64`/Boolean inputs across repeated scalar-result and genuine
-  Unit helper calls. Complete derived-view calls/block transfers and Unit
+  Unit helper calls. Complete derived-view Unit calls, block transfers and Unit
   control before joining natural-ranked writer execution. Void-call return
   and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
   and source-place evidence when joining these dependencies.
-  Extend the activation-local descriptor homes in
-  `target-operations-to-selected-instructions/src/selection/` to derived-view
-  calls, preserving the original backing and exact subslice producer/bounds.
-  Reuse the native observations in `terminal_byte_views/literal_calls.rs`;
-  acceptance must pass an internally derived descriptor, not a synthetic
-  incoming parameter or a copied referent.
+  Derived-view Unit calls still need the upper ordered graph: in
+  `abstract-operations-to-target-operations/src/lowering/`, Unit preflight
+  requires one block, `unit/body.rs` rejects byte observations/subslices, and
+  `scalar/straight_line/operation.rs` rejects `CallUnit`. Unit argument
+  sourcing also lacks established-view producers. Join the ordinary call route
+  to the activation-local homes in
+  `target-operations-to-selected-instructions/src/selection/`, retaining
+  original backing, exact bounds and single fuel settlement. Reuse
+  `terminal_byte_views/subslice_calls.rs` for descriptor custody; Unit
+  acceptance needs observable effects and caller continuation, not merely a
+  resultless call or synthetic incoming descriptor.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.
