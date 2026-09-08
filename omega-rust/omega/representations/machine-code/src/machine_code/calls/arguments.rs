@@ -82,6 +82,12 @@ impl From<ValuePlacement> for InternalUnitStructuralArgumentSourceRecord {
 /// Exact semantic and physical source of one attached-Unit scalar argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InternalUnitScalarArgumentSourceRecord {
+    /// Terminal process-exit input; unlike byte output it owns no scratch storage.
+    SelectedProcessExit {
+        source_value: ValueId,
+        scalar_type: ScalarType,
+        instruction: selected_instructions::SelectedInstructionId,
+    },
     /// One ordered selected call operand. Its argument span is the actual
     /// call instruction; retained physical replay owns preceding SSA transport.
     /// The enclosing parameter index identifies the exact operand position.
@@ -123,7 +129,8 @@ pub enum InternalUnitScalarArgumentSourceRecord {
 impl InternalUnitScalarArgumentSourceRecord {
     pub const fn source_value(self) -> ValueId {
         match self {
-            Self::SelectedBoundary { source_value, .. }
+            Self::SelectedProcessExit { source_value, .. }
+            | Self::SelectedBoundary { source_value, .. }
             | Self::SelectedCall { source_value, .. } => source_value,
             Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
@@ -134,9 +141,9 @@ impl InternalUnitScalarArgumentSourceRecord {
 
     pub const fn scalar_type(self) -> ScalarType {
         match self {
-            Self::SelectedBoundary { scalar_type, .. } | Self::SelectedCall { scalar_type, .. } => {
-                scalar_type
-            }
+            Self::SelectedProcessExit { scalar_type, .. }
+            | Self::SelectedBoundary { scalar_type, .. }
+            | Self::SelectedCall { scalar_type, .. } => scalar_type,
             Self::Parameter { scalar_type, .. } => scalar_type,
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::BooleanImmediate { .. } => ScalarType::Boolean,

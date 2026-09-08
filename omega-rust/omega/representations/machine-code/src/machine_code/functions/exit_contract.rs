@@ -127,12 +127,23 @@ pub struct WholeFunctionReturnEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WholeFunctionProcessExitEvidence {
+    pub block: SelectedBlockId,
+    /// Retained source edge, not a physical return or successful termination claim.
+    pub nominal_return_edge: EdgeId,
+    pub instruction: SelectedInstructionId,
+    pub offset: u64,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WholeFunctionExitEvidence {
     pub machine: MachineId,
     pub entry_block: SelectedBlockId,
     pub body_stack_delta: i64,
     pub modified_callee_saved_units: Vec<RegisterUnitId>,
     pub returns: Vec<WholeFunctionReturnEvidence>,
+    pub process_exits: Vec<WholeFunctionProcessExitEvidence>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

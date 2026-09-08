@@ -12,6 +12,7 @@ use semantic_vocabulary::IntegerValue;
 use crate::aarch64_physical_register_model;
 
 mod float_bits;
+pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_write_byte;
 mod jump;
 pub use hosted_write_byte::{
@@ -589,6 +590,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
@@ -732,6 +734,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
@@ -1066,6 +1069,7 @@ fn validate_decoded(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
@@ -1204,6 +1208,7 @@ fn footprint(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }

@@ -356,7 +356,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &19_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &20_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -394,7 +394,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..19 {
+    for version in 0_u32..20 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -463,7 +463,7 @@ fn codec_u32_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..19 {
+    for version in 0_u32..20 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -547,4 +547,40 @@ fn structural_call_content_is_authenticated_and_closed() {
         Err(PreAllocationMachineEffectDecodeError::InvalidField)
             | Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
     ));
+}
+
+#[test]
+fn hosted_exit_codec_retains_nonreturning_effect_without_scratch() {
+    let mut source = plan();
+    let row = &mut source.functions[0].blocks[0].instructions[0];
+    row.kind = SelectedInstructionKind::HostedExitProcessI32;
+    row.memory = MachineMemoryEffect::NoneV1;
+    row.trap = MachineTrapBehavior::HostedExitReturnedV1;
+    row.barrier = MachineBarrier::ExternalEffect;
+    row.alternatives.truncate(1);
+    let alternative = &mut row.alternatives[0];
+    alternative.key.family = MachineAlternativeFamily::HostedExitProcessI32;
+    alternative.encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+    alternative.encoded.trap = MachineEncodedTrapBehavior::HostedExitReturnedV1;
+    alternative.encoded.control = MachineEncodedControlEffect::HostedExitOrTrapV1;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
+        source
+    );
+    for mutation in 0..4 {
+        let mut changed = source.clone();
+        let row = &mut changed.functions[0].blocks[0].instructions[0];
+        match mutation {
+            0 => row.kind = SelectedInstructionKind::ReturnUnit,
+            1 => row.trap = MachineTrapBehavior::NeverV1,
+            2 => row.barrier = MachineBarrier::None,
+            _ => row.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1,
+        }
+        assert_ne!(
+            pre_allocation_machine_effect_identity(&changed),
+            source.identity
+        );
+        assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+    }
 }

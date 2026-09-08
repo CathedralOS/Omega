@@ -339,6 +339,9 @@ fn find_instruction(
             }
             | SelectedTerminator::Return {
                 instruction: row, ..
+            }
+            | SelectedTerminator::HostedExitProcess {
+                instruction: row, ..
             } if row.id == instruction => Some(row),
             _ => None,
         })

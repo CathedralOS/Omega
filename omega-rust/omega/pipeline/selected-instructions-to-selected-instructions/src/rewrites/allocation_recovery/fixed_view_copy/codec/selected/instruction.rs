@@ -85,6 +85,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::Load32 { .. } => 30,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
+        SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
         SelectedInstructionKind::Store64 { .. } => 17,
@@ -216,6 +217,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         16 => SelectedInstructionKind::Load64 {
             byte_offset: cursor.u32()?,
         },
+        31 => SelectedInstructionKind::HostedExitProcessI32,
         30 => SelectedInstructionKind::Load32 {
             byte_offset: cursor.u32()?,
         },

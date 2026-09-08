@@ -22,7 +22,7 @@ use super::{
         EntryAssumptionKind, frame_permissions, target_contract_inputs,
         transformed_implicit_writes_any, unique_encoding_rows, unique_layout_rows,
         validate_internal_call, validate_layout_custody, validate_non_return,
-        validate_preservation_writes, validate_return, view,
+        validate_preservation_writes, validate_process_exit, validate_return, view,
     },
 };
 
@@ -255,6 +255,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
         }
 
         let mut returns = Vec::new();
+        let mut process_exits = Vec::new();
         for block in &function.blocks {
             let machine_block = machine_blocks.get(&block.id).ok_or(
                 WholeFunctionExitContractError::BlockRosterMismatch(block.id),
@@ -280,6 +281,9 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             instruction, ..
                         }
                         | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
+                        SelectedTerminator::HostedExitProcess { instruction, .. } => {
+                            (instruction, None)
+                        }
                         SelectedTerminator::Return {
                             instruction,
                             psi_return_edge,
@@ -334,7 +338,36 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     instruction.id,
                     &mut modified_callee_saved,
                 )?;
-                if let Some(psi_return_edge) = return_edge {
+                if let SelectedTerminator::HostedExitProcess {
+                    nominal_return_edge,
+                    instruction: terminal,
+                } = &block.terminator
+                    && terminal.id == instruction.id
+                {
+                    if machine_instruction
+                        .unit_defs
+                        .iter()
+                        .chain(&machine_instruction.unit_clobbers)
+                        .any(|unit| stack_units.contains(unit))
+                        || transformed_implicit_writes_any(encoding_row, &stack_units)
+                    {
+                        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
+                            instruction.id,
+                        ));
+                    }
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                    validate_process_exit(instruction, encoding_row, resolved_row, end)?;
+                    process_exits.push(machine_code::WholeFunctionProcessExitEvidence {
+                        block: block.id,
+                        nominal_return_edge: *nominal_return_edge,
+                        instruction: instruction.id,
+                        offset: resolved_row.offset,
+                        bytes: resolved_row.bytes.clone(),
+                    });
+                } else if let Some(psi_return_edge) = return_edge {
                     let layout_block_end = resolved_block
                         .offset
                         .checked_add(resolved_block.byte_count)
@@ -392,7 +425,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                 }
             }
         }
-        if returns.is_empty() {
+        if returns.is_empty() && process_exits.is_empty() {
             return Err(WholeFunctionExitContractError::MissingReturn(
                 function.machine,
             ));
@@ -408,6 +441,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
             body_stack_delta: 0,
             modified_callee_saved_units: modified_callee_saved.into_iter().collect(),
             returns,
+            process_exits,
         });
     }
 

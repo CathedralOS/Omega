@@ -13,6 +13,9 @@ pub(super) fn validate(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
+    if super::process_exit::validate(block, replay)? {
+        return Ok(());
+    }
     let function = replay.function;
     let invalid = || SelectedInstructionError::FunctionProjectionMismatch { function };
     let constraints = replay.constraints;

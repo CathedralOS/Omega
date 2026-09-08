@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v18\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v19\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -54,6 +54,7 @@ pub fn machine_effect_catalog_identity(
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::NeverV1 => 0,
+            crate::MachineTrapBehavior::HostedExitReturnedV1 => 3,
             crate::MachineTrapBehavior::HostedWriteFailureV1 => 2,
             crate::MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
         });
@@ -236,10 +237,12 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     }
     bytes.push(match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     match effects.control {
+        MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.push(7),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.push(6),
         MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
@@ -313,6 +316,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ZeroExtendU32 => 20,
         MachineSemanticKind::Load64 => 16,
         MachineSemanticKind::Load32 => 30,
+        MachineSemanticKind::HostedExitProcessI32 => 31,
         MachineSemanticKind::HostedWriteByteI32 => 23,
         MachineSemanticKind::Store => 24,
         MachineSemanticKind::AddressOffset => 25,
@@ -349,6 +353,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
+        MachineAlternativeFamily::HostedExitProcessI32 => 31,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,

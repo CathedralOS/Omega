@@ -71,9 +71,10 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             operation,
             TargetUnitOperation::BoundarySettlement {
                 realization: target_operations::BoundaryRealization::HostedExitProcessI32(_),
-                scalar_arguments,
+                runtime_scalar_arguments,
                 ..
-            } if scalar_arguments[0].immediate == IntegerValue::Signed(37)
+            } if matches!(runtime_scalar_arguments[0].source,
+                target_operations::TargetUnitScalarArgumentSource::IntegerImmediate { value: IntegerValue::Signed(37), .. })
         )));
     }
 
@@ -92,7 +93,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             NativeTarget::linux_x64(),
             std::slice::from_ref(&settlement),
         ),
-        Err(LoweringError::InvalidHostedExitProcessShape(
+        Err(LoweringError::UnsupportedOperationInUnitFunction(
             multi_block.entry
         )),
     );

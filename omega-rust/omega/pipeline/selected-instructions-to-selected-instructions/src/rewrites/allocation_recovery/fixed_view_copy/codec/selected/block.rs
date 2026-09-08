@@ -37,6 +37,14 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         encode_instruction(bytes, instruction);
     }
     match &block.terminator {
+        SelectedTerminator::HostedExitProcess {
+            instruction,
+            nominal_return_edge,
+        } => {
+            bytes.push(5);
+            encode_instruction(bytes, instruction);
+            bytes.extend_from_slice(&nominal_return_edge.get().to_le_bytes());
+        }
         SelectedTerminator::Jump {
             instruction,
             successor,
@@ -104,6 +112,10 @@ pub(super) fn decode_block(
         instructions.push(decode_instruction(cursor)?);
     }
     let terminator = match cursor.byte()? {
+        5 => SelectedTerminator::HostedExitProcess {
+            instruction: decode_instruction(cursor)?,
+            nominal_return_edge: decode_id(cursor, EdgeId::new)?,
+        },
         4 => SelectedTerminator::Jump {
             instruction: decode_instruction(cursor)?,
             successor: decode_successor(cursor)?,

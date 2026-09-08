@@ -18,10 +18,20 @@ pub(super) fn project(
             let [source] = arguments.as_slice() else {
                 return Err(Error::SourceCustodyMismatch);
             };
-            // Input admission has independently joined the exact target builtin.
-            LegalizedScalarInstructionKind::HostedWriteByteI32 {
-                boundary: *boundary,
-                source: *source,
+            match scalar_graph_input::hosted_execution(native, optimized.machine, operation)? {
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32 => {
+                    LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                        boundary: *boundary,
+                        source: *source,
+                    }
+                }
+                target_operations::CompilerBuiltinExecution::HostedExitProcessI32 => {
+                    LegalizedScalarInstructionKind::HostedExitProcessI32 {
+                        boundary: *boundary,
+                        source: *source,
+                    }
+                }
+                _ => return Err(Error::SourceCustodyMismatch),
             }
         }
         AbstractOperation::WriteOnlyPrimitiveStore {

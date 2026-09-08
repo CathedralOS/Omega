@@ -56,21 +56,33 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
-                if semantic == MachineSemanticKind::HostedWriteByteI32 {
-                    return crate::selected_form_encoding::hosted_write_byte::declaration(
+                if semantic == MachineSemanticKind::HostedExitProcessI32 {
+                    return crate::selected_form_encoding::hosted_exit_process::declaration(
                         target, constraint,
+                    )
+                    .map_err(|_| {
+                        Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch
+                    });
+                }
+                if semantic == MachineSemanticKind::HostedWriteByteI32 {
+                    return Ok(
+                        crate::selected_form_encoding::hosted_write_byte::declaration(
+                            target, constraint,
+                        ),
                     );
                 }
-                if matches!(
-                    semantic,
-                    MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
-                ) {
-                    scalar_call_declaration(semantic, constraint, constraints)
-                } else {
-                    declaration(semantic, &selected_keys)
-                }
+                Ok(
+                    if matches!(
+                        semantic,
+                        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+                    ) {
+                        scalar_call_declaration(semantic, constraint, constraints)
+                    } else {
+                        declaration(semantic, &selected_keys)
+                    },
+                )
             })
-            .collect(),
+            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
@@ -111,6 +123,13 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        hosted_exit_process_i32: if target == NativeTarget::linux_arm64() {
+            Some(crate::AARCH64_HOSTED_EXIT_PROCESS_I32)
+        } else if target == NativeTarget::macos_arm64() {
+            Some(crate::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
+        } else {
+            None
+        },
         hosted_write_byte_i32: if target == NativeTarget::linux_arm64() {
             Some(crate::AARCH64_HOSTED_WRITE_BYTE_I32)
         } else if target == NativeTarget::macos_arm64() {
@@ -266,7 +285,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::Store64 => (vec![0], vec![]),
         MachineSemanticKind::Store => (vec![0, 1], vec![]),
         MachineSemanticKind::FrameAddress => (vec![], vec![0]),
-        MachineSemanticKind::HostedWriteByteI32 | MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::HostedExitProcessI32
+        | MachineSemanticKind::HostedWriteByteI32
+        | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {
@@ -380,7 +401,9 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
-        MachineSemanticKind::HostedWriteByteI32 | MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::HostedExitProcessI32
+        | MachineSemanticKind::HostedWriteByteI32
+        | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {

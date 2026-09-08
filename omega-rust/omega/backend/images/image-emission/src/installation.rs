@@ -103,7 +103,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 90;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 91;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1688,6 +1688,7 @@ fn installed_scalar_source_is_exact(
 ) -> bool {
     match source {
         machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
         | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => false,
         machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
@@ -4057,6 +4058,17 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && function.scalar_stack.is_none()
             }
             BoundaryRealization::HostedExitProcessI32(_) => {
+                if installed.settlement.runtime_scalar_arguments.iter().any(|argument| matches!(argument.source, machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. })) {
+                    crate::runtime_scalar_custody::process_exit::shape_is_exact(record.target, &installed.settlement)
+                        && function.scalar_stack.is_none()
+                        && installed.settlement.operation_ordinal.checked_add(1).is_some_and(|ordinal| record.semantic_code_attribution.iter().filter(|row| {
+                            row.machine == installed.machine
+                                && matches!(row.attribution.site, SemanticCodeSite::Edge(_))
+                                && row.attribution.operation_ordinal == ordinal
+                                && row.attribution.byte_count == 0
+                                && installed.settlement.code_offset.checked_add(installed.settlement.byte_count) == Some(row.attribution.code_offset)
+                        }).count() == 1)
+                } else {
                 let [argument] = installed.settlement.scalar_arguments.as_slice() else {
                     return Err(InstallationError::BoundaryRealizationMismatch {
                         machine: installed.machine,
@@ -4142,6 +4154,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && installed.settlement.native_result.is_unit()
                     && function.scalar_stack.is_none()
                     && exact_nominal_tail
+                }
             }
             BoundaryRealization::HostedWriteByteI32(_) => {
                 if installed
@@ -4151,7 +4164,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .any(|argument| {
                         matches!(
                     argument.source,
-                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
                 )
                     })
                 {

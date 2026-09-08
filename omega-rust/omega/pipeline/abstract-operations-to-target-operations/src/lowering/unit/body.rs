@@ -67,6 +67,13 @@ pub(super) fn lower_unit_body(
         if returned {
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
+        if nonreturning_boundary
+            && !matches!(operation, AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty())
+        {
+            return Err(LoweringError::InvalidHostedExitProcessShape(
+                function.machine,
+            ));
+        }
         match operation {
             AbstractOperation::Jump { .. } if super::continuation::has_shape(function) => {
                 super::continuation::lower(
@@ -443,7 +450,6 @@ pub(super) fn lower_unit_body(
                 &mut shape_cache,
                 &mut active,
                 &established_byte_sequences,
-                &integer_constants,
                 &mut scalar_values,
                 &mut operations,
                 &mut provenance,

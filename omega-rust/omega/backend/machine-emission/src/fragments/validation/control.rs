@@ -59,6 +59,18 @@ pub(super) fn check(
             Predicate::I64LessThanV1,
             (when_less, when_not_less),
         ),
+        SelectedTerminator::HostedExitProcess {
+            instruction: terminal,
+            nominal_return_edge,
+        } => {
+            return if terminal.id == instruction.id {
+                require(
+                    matches!(actual, Control::HostedExitProcess { nominal_return_edge: edge } if edge == nominal_return_edge),
+                )
+            } else {
+                require(matches!(actual, Control::None))
+            };
+        }
         SelectedTerminator::Return {
             instruction: terminal,
             psi_return_edge,

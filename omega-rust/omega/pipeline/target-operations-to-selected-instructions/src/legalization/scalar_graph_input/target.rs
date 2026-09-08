@@ -5,9 +5,9 @@ use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression as Boolean, TargetIntegerControl as Control,
     TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
-mod byte_output;
 mod byte_view;
 mod expressions;
+mod hosted_scalar;
 mod scalar_definitions;
 mod structural_call;
 mod unit;
@@ -21,6 +21,7 @@ pub(super) fn validate_target(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
+    super::hosted_scalar::validate_tails(native, optimized)?;
     let operations = optimized
         .blocks
         .iter()

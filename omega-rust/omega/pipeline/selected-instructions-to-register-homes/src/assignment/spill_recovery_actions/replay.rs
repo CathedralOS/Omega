@@ -444,7 +444,8 @@ fn instruction_index(
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => {
+        | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. } => {
             index.insert(instruction.id, instruction);
         }
     }

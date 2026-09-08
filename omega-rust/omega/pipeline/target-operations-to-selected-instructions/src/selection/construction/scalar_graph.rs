@@ -8,6 +8,7 @@ use semantic_vocabulary::IntegerValue;
 
 mod byte_output;
 mod control;
+mod process_exit;
 mod scalar_call;
 mod scalar_stack;
 mod structural;
@@ -205,6 +206,15 @@ pub(super) fn build(
             builder.instructions.len()
         };
         for (operation_index, operation) in block.instructions.iter().enumerate() {
+            if matches!(
+                operation.kind,
+                LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+            ) {
+                if operation_index + 1 != block.instructions.len() {
+                    return Err(invalid());
+                }
+                continue;
+            }
             if byte_output::emit(operation, block_id, start, &mut builder)? {
                 continue;
             }
@@ -414,7 +424,8 @@ pub(super) fn build(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
+                LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+                | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
@@ -431,7 +442,11 @@ pub(super) fn build(
                 .push((result.value, output, result.definition_site, scalar_type));
         }
         let terminator =
-            control::build(function, source, block, &order, &mut builder, &environment)?;
+            if let Some(exited) = process_exit::build(block, block_id, start, &mut builder)? {
+                exited
+            } else {
+                control::build(function, source, block, &order, &mut builder, &environment)?
+            };
         let body_end = builder
             .instructions
             .len()

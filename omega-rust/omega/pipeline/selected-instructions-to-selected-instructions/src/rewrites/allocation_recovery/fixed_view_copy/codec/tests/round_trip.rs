@@ -5,6 +5,41 @@ use semantic_vocabulary::MachineId;
 use super::{plan, with_stale_version};
 
 #[test]
+fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch() {
+    let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let function = &mut std::sync::Arc::make_mut(&mut original.transformed).functions[0];
+    let SelectedTerminator::ConditionalBranch {
+        mut instruction, ..
+    } = function.blocks[0].terminator.clone()
+    else {
+        panic!("conditional fixture");
+    };
+    instruction.kind = SelectedInstructionKind::HostedExitProcessI32;
+    let block = &mut function.blocks[0];
+    block.terminator = SelectedTerminator::HostedExitProcess {
+        instruction,
+        nominal_return_edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
+    };
+    function
+        .boundary_settlements
+        .push(selected_instructions::SelectedBoundarySettlement {
+            block: block.id,
+            instruction_index: block.instructions.len() as u32,
+            settlement:
+                selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
+                    operation: semantic_vocabulary::OperationId::new(313).unwrap(),
+                    boundary: semantic_vocabulary::BoundaryMachineId::new(317).unwrap(),
+                    source: semantic_vocabulary::ValueId::new(331).unwrap(),
+                },
+        });
+    // Plain wire content only; this altered fixture has no new semantic authority.
+    assert_eq!(
+        FixedViewCopyPlan::decode(&original.encode()).unwrap(),
+        original
+    );
+}
+
+#[test]
 fn successor_transfer_vocabulary_requires_the_current_envelope() {
     use crate::FixedViewCopyDecodeError;
     let mut transferred = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
@@ -109,7 +144,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
     let encoded = plan.encode();
-    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 24);
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 25);
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
     for encoded in [
         with_stale_version(&plan, 10),

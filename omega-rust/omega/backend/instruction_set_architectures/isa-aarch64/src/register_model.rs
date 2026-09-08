@@ -219,7 +219,16 @@ pub const AARCH64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
     variant: 9,
 };
 
-/// Hosted byte output using the Linux syscall register convention.
+/// Process exit using the Linux syscall register convention.
+pub const AARCH64_HOSTED_EXIT_PROCESS_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 715,
+};
+pub const AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 716,
+};
+
 pub const AARCH64_HOSTED_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 14,
@@ -259,7 +268,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 67] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 69] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -432,6 +441,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 67] = [
     AARCH64_BITS_TO_FLOAT32,
     AARCH64_BITS_TO_FLOAT64,
     AARCH64_LOAD32,
+    AARCH64_HOSTED_EXIT_PROCESS_I32,
+    AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1165,6 +1176,27 @@ pub fn aarch64_register_constraint_catalog(
             clobbers: {
                 let mut units = Vec::new();
                 for name in ["x0", "x1", "x2", syscall_register, "nzcv"] {
+                    units.extend(view(name).units.iter().copied());
+                }
+                units.sort_unstable();
+                units.dedup();
+                units
+            },
+        });
+    }
+    for (key, syscall_register) in [
+        (AARCH64_HOSTED_EXIT_PROCESS_I32, "x8"),
+        (AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32, "x16"),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            implicit_uses: view("pc").units.clone(),
+            implicit_defs: Vec::new(),
+            clobbers: {
+                let mut units = Vec::new();
+                for name in ["x0", syscall_register, "nzcv"] {
                     units.extend(view(name).units.iter().copied());
                 }
                 units.sort_unstable();

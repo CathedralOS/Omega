@@ -5,7 +5,7 @@ use super::super::{
     validation_rules::{
         frame_permissions, transformed_implicit_writes_any, unique_encoding_rows,
         unique_layout_rows, validate_internal_call, validate_non_return,
-        validate_preservation_writes,
+        validate_preservation_writes, validate_process_exit,
     },
 };
 use super::{Inputs, context::Context, require, returned};
@@ -91,6 +91,7 @@ pub(super) fn check(
         let (allowed, link_write) = frame_permissions(physical, function_frame)?;
         let mut modified = BTreeSet::new();
         let mut returns = claimed.returns.iter();
+        let mut process_exits = claimed.process_exits.iter();
         for block in &function.blocks {
             let machine_block = machine_function
                 .blocks
@@ -118,6 +119,7 @@ pub(super) fn check(
                 | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
+                SelectedTerminator::HostedExitProcess { instruction, .. } => (instruction, None),
             };
             for (index, (instruction, actual)) in block
                 .instructions
@@ -172,7 +174,39 @@ pub(super) fn check(
                     &mut modified,
                 )?;
                 let terminal = index == block.instructions.len();
-                if let Some(edge) = edge.filter(|_| terminal) {
+                if let SelectedTerminator::HostedExitProcess {
+                    nominal_return_edge,
+                    ..
+                } = &block.terminator
+                    && terminal
+                {
+                    if actual
+                        .unit_defs
+                        .iter()
+                        .chain(&actual.unit_clobbers)
+                        .any(|unit| context.stack_units.contains(unit))
+                        || transformed_implicit_writes_any(encoded, &context.stack_units)
+                    {
+                        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
+                            instruction.id,
+                        ));
+                    }
+                    let exited = process_exits
+                        .next()
+                        .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                    validate_process_exit(instruction, encoded, resolved, end)?;
+                    require(
+                        exited.block == block.id
+                            && exited.nominal_return_edge == *nominal_return_edge
+                            && exited.instruction == instruction.id
+                            && exited.offset == resolved.offset
+                            && exited.bytes == resolved.bytes,
+                    )?;
+                } else if let Some(edge) = edge.filter(|_| terminal) {
                     let claimed_return = returns
                         .next()
                         .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
@@ -225,7 +259,11 @@ pub(super) fn check(
                 }
             }
         }
-        require(returns.next().is_none() && !claimed.returns.is_empty())?;
+        require(
+            returns.next().is_none()
+                && process_exits.next().is_none()
+                && (!claimed.returns.is_empty() || !claimed.process_exits.is_empty()),
+        )?;
         if function_frame.is_some() && modified != allowed {
             return Err(WholeFunctionExitContractError::FramePreservationMismatch(
                 claimed.machine,

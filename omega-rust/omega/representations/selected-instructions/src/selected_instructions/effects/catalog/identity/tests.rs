@@ -20,6 +20,7 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         hosted_write_byte_i32: Some(instruction(24)),
+        hosted_exit_process_i32: Some(instruction(32)),
         load64: Some(instruction(20)),
         load32: Some(instruction(27)),
         load8_indexed: Some(instruction(23)),
@@ -81,12 +82,17 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: if semantic == MachineSemanticKind::HostedWriteByteI32 {
+        trap: if semantic == MachineSemanticKind::HostedExitProcessI32 {
+            MachineTrapBehavior::HostedExitReturnedV1
+        } else if semantic == MachineSemanticKind::HostedWriteByteI32 {
             MachineTrapBehavior::HostedWriteFailureV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if semantic == MachineSemanticKind::HostedWriteByteI32 {
+        barrier: if matches!(
+            semantic,
+            MachineSemanticKind::HostedWriteByteI32 | MachineSemanticKind::HostedExitProcessI32
+        ) {
             MachineBarrier::ExternalEffect
         } else if matches!(
             semantic,
@@ -124,7 +130,12 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
             applicability: MachineAlternativeApplicability::Always,
             size: MachineSizeKnowledge::ExactBytes(4),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: if semantic == MachineSemanticKind::HostedWriteByteI32 {
+            encoded: if semantic == MachineSemanticKind::HostedExitProcessI32 {
+                let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![]);
+                encoded.trap = MachineEncodedTrapBehavior::HostedExitReturnedV1;
+                encoded.control = MachineEncodedControlEffect::HostedExitOrTrapV1;
+                encoded
+            } else if semantic == MachineSemanticKind::HostedWriteByteI32 {
                 let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![]);
                 encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {
                     stack_pointer: register_model::RegisterViewId(7),

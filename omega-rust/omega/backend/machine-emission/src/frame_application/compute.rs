@@ -109,7 +109,16 @@ fn apply_function(
     let epilogue_len =
         u64::try_from(epilogue.len()).map_err(|_| FrameApplicationError::OffsetOverflow)?;
     let return_sites = validate_and_collect_returns(function)?;
-    if return_sites.is_empty() {
+    if return_sites.is_empty()
+        && !function.blocks.iter().any(|block| {
+            block.instructions.last().is_some_and(|row| {
+                matches!(
+                    row.control,
+                    FunctionFragmentControlProvenance::HostedExitProcess { .. }
+                )
+            })
+        })
+    {
         return Err(FrameApplicationError::MissingFinalReturn(function.machine));
     }
 
@@ -235,6 +244,13 @@ fn validate_and_collect_returns(
             expected_row_offset = expected_row_offset
                 .checked_add(row_len)
                 .ok_or(FrameApplicationError::OffsetOverflow)?;
+            if matches!(
+                row.control,
+                FunctionFragmentControlProvenance::HostedExitProcess { .. }
+            ) && (index + 1 != block.instructions.len() || row.bytes.is_empty())
+            {
+                return Err(FrameApplicationError::MissingFinalReturn(function.machine));
+            }
             if let FunctionFragmentControlProvenance::Return { psi_return_edge } = row.control {
                 if index + 1 != block.instructions.len() {
                     return Err(FrameApplicationError::MissingFinalReturn(function.machine));
@@ -472,6 +488,53 @@ mod tests {
             application.fragments.identity,
             application.fragments.recomputed_identity()
         );
+    }
+
+    #[test]
+    fn process_exit_keeps_prologue_without_inventing_return_epilogue() {
+        let mut source = source_plan();
+        let machine = source.entry;
+        let row = &mut source.functions[0].blocks[0].instructions[1];
+        row.control = FunctionFragmentControlProvenance::HostedExitProcess {
+            nominal_return_edge: EdgeId::new(1).unwrap(),
+        };
+        // This tests frame projection only; ISA admission belongs to the source stage.
+        row.alternative.family = MachineAlternativeFamily::HostedExitProcessI32;
+        let manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
+        let application = apply(&source, manifest, &protocol(machine), &physical()).unwrap();
+        assert!(application.functions[0].epilogues.is_empty());
+        assert_eq!(
+            application.fragments.functions[0].bytes,
+            vec![0xaa, 0xe8, 0, 0, 0, 0, 0xc3]
+        );
+        super::super::validate_frame_protocol_application(
+            &source,
+            manifest,
+            &protocol(machine),
+            &physical(),
+            &application,
+        )
+        .unwrap();
+        let mut changed = application.clone();
+        changed.fragments.functions[0].blocks[0].instructions[1].control =
+            FunctionFragmentControlProvenance::HostedExitProcess {
+                nominal_return_edge: EdgeId::new(2).unwrap(),
+            };
+        assert!(
+            super::super::validate_frame_protocol_application(
+                &source,
+                manifest,
+                &protocol(machine),
+                &physical(),
+                &changed,
+            )
+            .is_err()
+        );
+        source.functions[0].blocks[0].instructions[0].control =
+            FunctionFragmentControlProvenance::HostedExitProcess {
+                nominal_return_edge: EdgeId::new(2).unwrap(),
+            };
+        assert!(apply(&source, manifest, &protocol(machine), &physical()).is_err());
     }
 
     #[test]

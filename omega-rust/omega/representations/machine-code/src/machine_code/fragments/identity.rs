@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v11";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v12";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -175,6 +175,12 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
             hasher.update([2]);
             hasher.update(psi_return_edge.get().to_le_bytes());
         }
+        FunctionFragmentControlProvenance::HostedExitProcess {
+            nominal_return_edge,
+        } => {
+            hasher.update([5]);
+            hasher.update(nominal_return_edge.get().to_le_bytes());
+        }
     }
 }
 
@@ -278,6 +284,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
+        MachineAlternativeFamily::HostedExitProcessI32 => 31,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
@@ -400,10 +407,12 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }
     hasher.update([match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
+        MachineEncodedControlEffect::HostedExitOrTrapV1 => hasher.update([7]),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => hasher.update([1]),

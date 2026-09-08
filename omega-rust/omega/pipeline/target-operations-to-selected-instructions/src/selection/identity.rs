@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v29\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v30\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -202,6 +202,7 @@ fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
+        SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
@@ -323,6 +324,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::ReturnI64
+        | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnUnit
         | SelectedInstructionKind::Jump => {}
         SelectedInstructionKind::CallI64 { callee }

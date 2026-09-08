@@ -91,6 +91,35 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             (Architecture::X86_64, ObjectFormat::Coff)
         );
         let unit_keys = &environment.selected_keys().call_unit;
+        let expected_exit = if target == NativeTarget::linux_x64() {
+            Some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32)
+        } else if target == NativeTarget::linux_arm64() {
+            Some(isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32)
+        } else if target == NativeTarget::macos_arm64() {
+            Some(isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
+        } else {
+            None
+        };
+        assert_eq!(
+            environment.selected_keys().hosted_exit_process_i32,
+            expected_exit
+        );
+        assert_eq!(
+            environment
+                .allocation_constraint_keys()
+                .hosted_exit_process_i32,
+            expected_exit
+        );
+        if let Some(key) = expected_exit {
+            let row = environment.constraint(key).unwrap();
+            assert_eq!(row.operands.len(), 1);
+            assert_eq!(
+                row.operands[0].access,
+                register_model::RegisterOperandAccess::Use
+            );
+            assert!(row.implicit_defs.is_empty());
+            assert!(!row.clobbers.is_empty());
+        }
         let expected_write = match (target.architecture, target.object_format) {
             (Architecture::X86_64, ObjectFormat::Elf) => {
                 Some(isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32)

@@ -126,6 +126,12 @@ pub(super) fn provenance(
                 fuel: when_not_less.fuel.clone(),
             },
         },
+        SelectedTerminator::HostedExitProcess {
+            instruction: exited,
+            nominal_return_edge,
+        } if exited.id == instruction.id => FunctionFragmentControlProvenance::HostedExitProcess {
+            nominal_return_edge: *nominal_return_edge,
+        },
         SelectedTerminator::Return {
             instruction: returned,
             psi_return_edge,

@@ -2,25 +2,6 @@
 
 use super::*;
 
-pub(super) fn has_installed_scalar_call(
-    function: &AbstractFunction,
-    installed_calls: &BTreeMap<
-        (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderCallEvidence,
-    >,
-) -> bool {
-    function.operations.iter().any(|operation| {
-        matches!(operation,
-            AbstractOperation::BoundaryCall {
-                psi_operation,
-                boundary,
-                arguments,
-                ..
-            } if !arguments.is_empty()
-                && installed_calls.contains_key(&(function.machine, *psi_operation, *boundary)))
-    })
-}
-
 pub(super) fn unsupported_scalar_call(
     function: &AbstractFunction,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,

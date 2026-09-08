@@ -1,6 +1,7 @@
 //! Structural signature and call records projected from ordinary function data.
 mod byte_output;
 mod established_views;
+mod process_exit;
 mod validation;
 use super::{Error, attribution, host, source};
 use crate::{ObjectBoundarySettlement, ObjectFunction};
@@ -201,6 +202,9 @@ fn settlement_offset(
     } else if index == block.instructions.len() {
         match &block.terminator {
             selected_instructions::SelectedTerminator::Return { instruction, .. }
+            | selected_instructions::SelectedTerminator::HostedExitProcess {
+                instruction, ..
+            }
             | selected_instructions::SelectedTerminator::Jump { instruction, .. }
             | selected_instructions::SelectedTerminator::ConditionalBranch {
                 instruction, ..
@@ -426,7 +430,10 @@ pub(super) fn settlements(
             let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(row) =
                 &located.settlement
             else {
-                result.push(byte_output::settlement(source, placed.machine, located)?);
+                result.push(match located.settlement {
+                    selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. } => process_exit::settlement(source, placed.machine, located)?,
+                    _ => byte_output::settlement(source, placed.machine, located)?,
+                });
                 continue;
             };
             let offset = settlement_offset(function, fragment, located)?;

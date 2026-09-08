@@ -1,0 +1,7 @@
+// Source i32 status crosses the selected exit lane and normalizes to the OS status.
+use omega_language_std::console;
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(293);
+}

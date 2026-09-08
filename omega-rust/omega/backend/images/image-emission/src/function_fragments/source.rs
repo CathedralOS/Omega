@@ -85,6 +85,28 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .find(|row| row.machine == fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let structural = selected.structural.as_ref();
+        // A provider service ceiling is declaration metadata, not a structural
+        // argument or an executable permission grant. Retain its exact canonical
+        // source identity even when the Unit ABI has no structural parameters.
+        let mut declarations = current
+            .optimized_target()
+            .optimized()
+            .unit()
+            .functions
+            .iter()
+            .filter(|row| row.machine == fragment.machine);
+        let declaration = declarations
+            .next()
+            .ok_or(Error::Mismatch("missing canonical function declaration"))?;
+        if declarations.next().is_some()
+            || declaration.attachment != abstracted.attachment
+            || declaration.entry_claim_declarations != abstracted.entry_claims
+            || declaration.published_service_ceiling != abstracted.published_service_ceiling
+        {
+            return Err(Error::Mismatch(
+                "function declaration metadata differs from canonical source",
+            ));
+        }
         let ranked = match &targeted.operation {
             target_operations::TargetOperation::RankedU32Countdown(ranked) => Some(ranked),
             _ => None,
@@ -111,7 +133,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             || (structural.is_some() && !unit)
             || (structural.is_none()
                 && (!abstracted.entry_claims.is_empty()
-                    || !abstracted.published_service_ceiling.is_empty()))
+                    || (!unit && !abstracted.published_service_ceiling.is_empty())))
             || (unit && targeted.scalar_abi.is_some())
             || (!unit && targeted.scalar_abi.is_none())
         {

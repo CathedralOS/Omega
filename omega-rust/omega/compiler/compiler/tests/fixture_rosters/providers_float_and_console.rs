@@ -43,6 +43,7 @@ pub(crate) const ASM_PORT_OUT_FINAL_VALIDATION: &str = "inline_asm/asm_port_out_
 pub(crate) const RUNTIME_BOUNDARY_CAPABILITY_STATE_FORWARDING_EXIT: &str =
     "providers/runtime_boundary_capability_state_forwarding_exit";
 pub(crate) const RUNTIME_CONSOLE_BYTE_LITERAL_EXIT: &str = "host/runtime_console_byte_literal_exit";
+pub(crate) const RUNTIME_CONSOLE_EXIT_I32_STATUS: &str = "host/runtime_console_exit_i32_status";
 pub(crate) const RUNTIME_CONSOLE_BYTE_READ_RETURN: &str = "host/runtime_console_byte_read_return";
 pub(crate) const RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT: &str =
     "host/runtime_console_byte_inspection_exit";
@@ -129,6 +130,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     ASM_PORT_OUT_FINAL_VALIDATION,
     RUNTIME_BOUNDARY_CAPABILITY_STATE_FORWARDING_EXIT,
     RUNTIME_CONSOLE_BYTE_LITERAL_EXIT,
+    RUNTIME_CONSOLE_EXIT_I32_STATUS,
     RUNTIME_CONSOLE_BYTE_READ_RETURN,
     RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT,
     RUNTIME_CONSOLE_BYTE_ECHO_EXIT,

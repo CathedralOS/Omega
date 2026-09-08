@@ -120,7 +120,8 @@ fn terminator_instruction_id(terminator: &SelectedTerminator) -> SelectedInstruc
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction.id,
+        | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id,
     }
 }
 

@@ -477,7 +477,6 @@ fn lower_exit_arm(
         shape_cache,
         active,
         &BTreeMap::new(),
-        integer_constants,
         scalar_values,
         operations,
         provenance,

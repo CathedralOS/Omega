@@ -529,9 +529,6 @@ fn derive_exit_group_child(
     installed: &image_emission::ObjectBoundarySettlement,
 ) -> Result<NativePhysicalChild, &'static str> {
     let settlement = &installed.settlement;
-    let [scalar_argument] = settlement.scalar_arguments.as_slice() else {
-        return Err("Hosted process-exit physical child requires one scalar argument");
-    };
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
     if !target_operations::HostedExitProcessI32Realization::supports_target(target) {
         return Err("Hosted process-exit physical child requires a canonical supported target");
@@ -540,10 +537,51 @@ fn derive_exit_group_child(
         Architecture::X86_64 => target_operations::MachineRegister::X86Rdi,
         Architecture::Aarch64 => target_operations::MachineRegister::Aarch64X(0),
     };
-    if scalar_argument.scalar_type != ScalarType::Integer(i32_type)
-        || !matches!(scalar_argument.immediate, semantic_vocabulary::IntegerValue::Signed(value) if i32::try_from(value).is_ok())
-        || scalar_argument.destination != expected_destination
-        || !settlement.arguments.is_empty()
+    let (role, parent_identity) = match (
+        settlement.scalar_arguments.as_slice(),
+        settlement.runtime_scalar_arguments.as_slice(),
+    ) {
+        ([scalar_argument], [])
+            if scalar_argument.scalar_type == ScalarType::Integer(i32_type)
+                && matches!(scalar_argument.immediate, semantic_vocabulary::IntegerValue::Signed(value) if i32::try_from(value).is_ok())
+                && scalar_argument.destination == expected_destination =>
+        {
+            (
+                BoundaryTraitSettlementRole::CompilerBuiltin {
+                    catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+                    execution: CompilerBuiltinExecution::HostedExitProcessI32,
+                    realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
+                    scalar_argument: *scalar_argument,
+                },
+                builtin_boundary_trait_settlement_identity(
+                    occurrence,
+                    requirement_identity,
+                    selected_plan_digest,
+                    target,
+                    scalar_argument,
+                ),
+            )
+        }
+        ([], [scalar_argument]) if matches!(scalar_argument.source, machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { scalar_type, .. } if scalar_type == ScalarType::Integer(i32_type)) => {
+            (
+                BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar {
+                    catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+                    execution: CompilerBuiltinExecution::HostedExitProcessI32,
+                    realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
+                    scalar_argument: scalar_argument.clone(),
+                },
+                builtin_runtime_scalar_boundary_trait_settlement_identity(
+                    occurrence,
+                    requirement_identity,
+                    selected_plan_digest,
+                    target,
+                    scalar_argument,
+                ),
+            )
+        }
+        _ => return Err("Hosted process-exit physical child requires one exact i32 source"),
+    };
+    if !settlement.arguments.is_empty()
         || !settlement.byte_sequence_arguments.is_empty()
         || !settlement.completion_claim_sources.is_empty()
         || !settlement.completion_receipts.is_empty()
@@ -589,19 +627,6 @@ fn derive_exit_group_child(
         return Err("Hosted process-exit physical child unexpectedly contains a relocation");
     }
 
-    let role = BoundaryTraitSettlementRole::CompilerBuiltin {
-        catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
-        execution: CompilerBuiltinExecution::HostedExitProcessI32,
-        realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
-        scalar_argument: *scalar_argument,
-    };
-    let parent_identity = builtin_boundary_trait_settlement_identity(
-        occurrence,
-        requirement_identity,
-        selected_plan_digest,
-        target,
-        scalar_argument,
-    );
     let parent = PhysicalChildParent::BoundaryTraitSettlement(
         BoundaryTraitSettlementParts {
             occurrence: *occurrence,
@@ -1521,9 +1546,25 @@ fn builtin_runtime_scalar_boundary_trait_settlement_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([1, 2, 2]);
+    if matches!(
+        scalar_argument.source,
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
+    ) {
+        digest.update([1, 1, 1]);
+    } else {
+        digest.update([1, 2, 2]);
+    }
     digest.update(scalar_argument.parameter_index.to_le_bytes());
     match scalar_argument.source {
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+            source_value,
+            instruction,
+            ..
+        } => {
+            digest.update([6]);
+            digest.update(source_value.get().to_le_bytes());
+            digest.update(instruction.0.to_le_bytes());
+        }
         machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
             source_value,
             instruction,

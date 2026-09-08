@@ -1,4 +1,4 @@
-//! Join a returning byte-output occurrence to the admitted hosted builtin and SSA input.
+//! Join a hosted scalar occurrence to its exact admitted builtin and SSA input.
 use super::*;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetBoundaryResult,
@@ -10,6 +10,7 @@ pub(super) fn validate(
     source: &AbstractOperation,
     native: ::target::NativeTarget,
     plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
     values: &[(ValueId, TargetUnitScalarArgumentSource)],
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
@@ -18,9 +19,8 @@ pub(super) fn validate(
             psi_operation,
             boundary,
             result: TargetBoundaryResult::Unit,
-            execution:
-                BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
-            realization: BoundaryRealization::HostedWriteByteI32(_),
+            execution,
+            realization,
             scalar_arguments,
             runtime_scalar_arguments,
             arguments: structural,
@@ -44,11 +44,34 @@ pub(super) fn validate(
     let ([value], [argument]) = (arguments.as_slice(), runtime_scalar_arguments.as_slice()) else {
         return Err(invalid);
     };
+    let supported = match (execution, realization) {
+        (
+            BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
+            BoundaryRealization::HostedWriteByteI32(_),
+        ) => target_operations::HostedWriteByteI32Realization::supports_target(native),
+        (
+            BoundaryExecutionBinding::CompilerBuiltin(
+                CompilerBuiltinExecution::HostedExitProcessI32,
+            ),
+            BoundaryRealization::HostedExitProcessI32(_),
+        ) => target_operations::HostedExitProcessI32Realization::supports_target(native),
+        _ => false,
+    };
     let mut declarations = plan
         .boundary_machines
         .iter()
         .filter(|row| row.id == *boundary);
     let declaration = declarations.next().ok_or(invalid.clone())?;
+    // Unit custody validates service catalogs and boundary reach against the
+    // caller's ceiling. Rejoin that exact declaration; permissions are not ABI inputs.
+    if unit
+        .boundary_machines
+        .iter()
+        .find(|row| row.id == *boundary)
+        != Some(declaration)
+    {
+        return Err(invalid);
+    }
     let expected_type = ScalarType::Integer(i32_type());
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(native),
@@ -59,7 +82,7 @@ pub(super) fn validate(
     )
     .map_err(|_| invalid.clone())?;
     if declarations.next().is_some()
-        || !target_operations::HostedWriteByteI32Realization::supports_target(native)
+        || !supported
         || psi_operation != expected_operation
         || boundary != expected_boundary
         || declaration.attachment.is_some()
@@ -69,7 +92,6 @@ pub(super) fn validate(
         || !declaration.requires.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
         || !declaration.content_guarantees.is_empty()
-        || !declaration.published_service_ceiling.is_empty()
         || !scalar_arguments.is_empty()
         || !structural.is_empty()
         || !structural_arguments.is_empty()

@@ -6,6 +6,7 @@ mod ieee_literal_sources;
 mod installed_provider;
 mod plain_unit;
 mod primitive_stores;
+mod process_exit;
 mod projected_structural_call_return;
 mod replay_corruption;
 mod scalar_call_unit;

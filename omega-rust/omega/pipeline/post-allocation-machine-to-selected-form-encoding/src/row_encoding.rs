@@ -128,14 +128,7 @@ pub(super) fn encode_row(
         | SelectedInstructionKind::Jump => SelectedFormEncodingState::DeferredControl {
             reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
         },
-        kind => encode_scalar(
-            architecture,
-            selected.id,
-            kind,
-            alternative,
-            machine,
-            physical,
-        )?,
+        kind => encode_scalar(target, selected.id, kind, alternative, machine, physical)?,
     };
     Ok(SelectedFormEncodingRow {
         instruction: selected.id,
@@ -147,7 +140,7 @@ pub(super) fn encode_row(
 }
 
 fn encode_scalar(
-    architecture: Architecture,
+    target: NativeTarget,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -159,10 +152,20 @@ fn encode_scalar(
         .iter()
         .map(|operand| operand.view)
         .collect::<Vec<_>>();
-    let (bytes, reads, writes, encoded_effects) = match architecture {
+    let (bytes, reads, writes, encoded_effects) = match target.architecture {
         Architecture::X86_64 => {
-            let encoded = encode_x86_64_selected_form(physical, kind, alternative, &views)
-                .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+            let encoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
+                isa_x86_64::encode_x86_64_selected_hosted_exit_process_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                )
+            } else {
+                encode_x86_64_selected_form(physical, kind, alternative, &views)
+            }
+            .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
@@ -171,8 +174,18 @@ fn encode_scalar(
             )
         }
         Architecture::Aarch64 => {
-            let encoded = encode_aarch64_selected_form(physical, kind, alternative, &views)
-                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+            let encoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
+                isa_aarch64::encode_aarch64_selected_hosted_exit_process_form(
+                    target,
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                )
+            } else {
+                encode_aarch64_selected_form(physical, kind, alternative, &views)
+            }
+            .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
             (
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),

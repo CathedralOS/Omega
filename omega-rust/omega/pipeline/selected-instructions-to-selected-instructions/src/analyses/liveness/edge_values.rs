@@ -24,7 +24,9 @@ pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegiste
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. } => Vec::new(),
+            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+                Vec::new()
+            }
         };
         edges.iter().any(|edge| {
             edge.bindings.iter().any(|binding| {
@@ -60,7 +62,9 @@ pub(crate) fn validate_transports(
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. } => Vec::new(),
+            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+                Vec::new()
+            }
         };
         for edge in edges {
             match (block.origin, edge.role) {

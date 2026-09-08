@@ -82,6 +82,8 @@ fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
         | SelectedTerminator::ConditionalBranchI64LessThan { when_not_less, .. } => {
             Some(when_not_less.block)
         }
-        SelectedTerminator::Jump { .. } | SelectedTerminator::Return { .. } => None,
+        SelectedTerminator::Jump { .. }
+        | SelectedTerminator::Return { .. }
+        | SelectedTerminator::HostedExitProcess { .. } => None,
     }
 }

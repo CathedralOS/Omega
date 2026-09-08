@@ -127,7 +127,7 @@ pub(super) fn validate(
             when_less,
             when_not_less,
         ),
-        SelectedTerminator::Return { .. } => {
+        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
             return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
         }
     };

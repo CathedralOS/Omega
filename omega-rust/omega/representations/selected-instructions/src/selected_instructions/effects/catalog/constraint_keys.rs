@@ -7,6 +7,7 @@ impl SelectedConstraintKeys {
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         [
             self.hosted_write_byte_i32,
+            self.hosted_exit_process_i32,
             self.store,
             self.address_offset,
             self.load64,
@@ -51,6 +52,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::BitsToFloat32 => return self.bits_to_float32,
             MachineSemanticKind::BitsToFloat64 => return self.bits_to_float64,
             MachineSemanticKind::HostedWriteByteI32 => return self.hosted_write_byte_i32,
+            MachineSemanticKind::HostedExitProcessI32 => return self.hosted_exit_process_i32,
             MachineSemanticKind::Store => return self.store,
             MachineSemanticKind::AddressOffset => return self.address_offset,
             MachineSemanticKind::Load8Indexed => return self.load8_indexed,

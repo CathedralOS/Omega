@@ -92,7 +92,7 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
             .any(|argument| {
                 matches!(
                     argument.source,
-                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
                 )
             })
         })

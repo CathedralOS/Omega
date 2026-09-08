@@ -33,6 +33,9 @@ pub struct FunctionFragmentJumpEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentControlProvenance {
+    HostedExitProcess {
+        nominal_return_edge: EdgeId,
+    },
     None,
     Jump {
         successor: FunctionFragmentSuccessorProvenance,

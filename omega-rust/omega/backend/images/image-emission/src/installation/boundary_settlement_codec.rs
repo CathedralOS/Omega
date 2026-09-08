@@ -810,6 +810,16 @@ fn encode_boundary_runtime_source(
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
+        InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+            source_value,
+            scalar_type,
+            instruction,
+        } => {
+            bytes.extend_from_slice(&[4, 0, 0, 0]);
+            push_u64(bytes, source_value.get());
+            encode_scalar_type(bytes, scalar_type)?;
+            push_u32(bytes, instruction.0);
+        }
         InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => {
             return Err(InstallationError::UnsupportedInstalledScalarSource);
         }
@@ -931,6 +941,14 @@ fn decode_boundary_runtime_source(
             instruction: selected_instructions::SelectedInstructionId(reader.u32()?),
             scratch_byte_offset: reader.u64()?,
         }),
+        4 => Ok(
+            InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+                source_value: ValueId::new(reader.u64()?)
+                    .ok_or(InstallationError::InvalidBoundaryScalarArgument)?,
+                scalar_type: decode_scalar_type(reader)?,
+                instruction: selected_instructions::SelectedInstructionId(reader.u32()?),
+            },
+        ),
         _ => Err(InstallationError::InvalidBoundaryScalarArgument),
     }
 }
@@ -938,6 +956,48 @@ fn decode_boundary_runtime_source(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_process_exit_source_has_no_scratch_and_preserves_exact_identity() {
+        let source = InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+            source_value: ValueId::new(17).unwrap(),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                    .unwrap(),
+            ),
+            instruction: selected_instructions::SelectedInstructionId(9),
+        };
+        let mut bytes = Vec::new();
+        encode_boundary_runtime_source(&mut bytes, source).unwrap();
+        assert_eq!(bytes[0], 4);
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_boundary_runtime_source(&mut reader).unwrap(), source);
+        assert_eq!(reader.remaining(), 0);
+        let mut wrong_role = bytes.clone();
+        wrong_role[0] = 3;
+        assert!(decode_boundary_runtime_source(&mut Reader::new(&wrong_role)).is_err());
+        for offset in [4, bytes.len() - 4] {
+            let mut changed = bytes.clone();
+            changed[offset] ^= 1;
+            assert_ne!(
+                decode_boundary_runtime_source(&mut Reader::new(&changed)).unwrap(),
+                source
+            );
+        }
+        let mut missing_source = bytes.clone();
+        missing_source[4..12].fill(0);
+        assert!(decode_boundary_runtime_source(&mut Reader::new(&missing_source)).is_err());
+        let mut reserved = bytes;
+        reserved[1] = 1;
+        assert!(decode_boundary_runtime_source(&mut Reader::new(&reserved)).is_err());
+        assert!(
+            super::super::internal_unit_scalar_call_codec::encode_argument_source(
+                &mut Vec::new(),
+                source
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn selected_boundary_source_round_trips_exact_occurrence_and_scratch() {
