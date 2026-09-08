@@ -80,6 +80,9 @@ and captured. Selecting a runtime `FilesystemHost` or `Console` provider does
 not route it into build execution. Additional host effects require explicit
 protocol operations and policy; package code gets no resolver credentials.
 
+[Build execution](execution.md) specifies admission, generated-source visibility,
+and dependency handoff.
+
 ## Exact-target evaluation
 
 An invocation selects one target or a nonempty explicit canonical set. Share
