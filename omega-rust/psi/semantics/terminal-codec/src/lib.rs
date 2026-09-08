@@ -1069,6 +1069,9 @@ fn validate_operation_foundation(
                             .then_some(&candidate.field_type)
                             .and_then(|field_type| match field_type {
                                 StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                                StructuralFieldType::IeeeFloat(format) => {
+                                    Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
+                                }
                                 _ => None,
                             })
                     }),

@@ -1,5 +1,151 @@
 use super::*;
 
+#[test]
+fn ieee_field_store_literals_require_their_exact_format() {
+    for (value, primitive_type, wrong_type) in [
+        (
+            semantic_vocabulary::IeeeFloatValue::Binary32(0x8000_0000),
+            PrimitiveType::F32,
+            PrimitiveType::F64,
+        ),
+        (
+            semantic_vocabulary::IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042),
+            PrimitiveType::F64,
+            PrimitiveType::F32,
+        ),
+    ] {
+        let expression = CheckedScalarExpression::IeeeFloatLiteral { value };
+        assert!(
+            crate::structural_scalar_store::checked_store_literal_matches(
+                &expression,
+                primitive_type
+            )
+        );
+        for rejected in [wrong_type, PrimitiveType::U64, PrimitiveType::Bool] {
+            assert!(
+                !crate::structural_scalar_store::checked_store_literal_matches(
+                    &expression,
+                    rejected
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn ieee_field_stores_retain_exact_parameters_and_literal_bits() {
+    for primitive in ["f32", "f64"] {
+        for access in ["write", "mut"] {
+            for replacement in ["value", "1.25"] {
+                let checked = checked_source(&format!(
+                    "data Record [copy] {{ value: {primitive}; }}
+                     machine Record::replace(&{access} self, value: {primitive}) {{
+                         self.value = {replacement};
+                     }}"
+                ));
+                let artifact = produce_terminal_artifact(&checked, "Record::replace")
+                    .expect("IEEE field store publishes canonical Terminal");
+                let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+                let entry = module
+                    .machines
+                    .iter()
+                    .find(|machine| machine.id == module.entry)
+                    .unwrap();
+                let operations = &entry.blocks[0].operations;
+                let OperationKind::StructuralScalarFieldStore { value, path, .. } =
+                    &operations.last().unwrap().kind
+                else {
+                    panic!("last operation is a non-observing field store")
+                };
+                assert!(path.is_empty());
+                if replacement == "value" {
+                    assert_eq!(
+                        operations.len(),
+                        1,
+                        "parameter forwarding introduces no load"
+                    );
+                    assert_eq!(*value, entry.parameters[0].id);
+                } else {
+                    assert_eq!(operations.len(), 2, "literal plus store introduces no load");
+                    let OperationKind::IeeeFloatConstant { value: literal } = operations[0].kind
+                    else {
+                        panic!("IEEE literal retains raw bits")
+                    };
+                    let expected = if primitive == "f32" {
+                        semantic_vocabulary::IeeeFloatValue::Binary32(1.25_f32.to_bits())
+                    } else {
+                        semantic_vocabulary::IeeeFloatValue::Binary64(1.25_f64.to_bits())
+                    };
+                    assert_eq!(literal, expected);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
+    for primitive in ["f32", "f64"] {
+        let checked = checked_source(&format!(
+            "data Record [copy] {{ value: {primitive}; other: {primitive}; }}
+             machine Record::replace(&write self, value: {primitive}, other: {primitive}) {{
+                 self.value = value;
+             }}"
+        ));
+        lower_machine(&checked, "Record::replace").expect("untampered IEEE field store lowers");
+        for corruption in 0..4 {
+            let mut changed = checked.clone();
+            let plan = changed
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .find(|plan| {
+                    plan.operations.iter().any(|operation| {
+                        matches!(
+                            operation,
+                            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                        )
+                    })
+                })
+                .expect("IEEE field store plan");
+            if corruption == 2 {
+                plan.structural_parameters[0].access =
+                    checked_trees::CheckedStructuralAccess::SharedBorrow;
+            } else {
+                let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
+                    &mut plan.operations[0]
+                else {
+                    panic!("IEEE field store")
+                };
+                match corruption {
+                    0 => {
+                        store.primitive_type = if primitive == "f32" {
+                            PrimitiveType::F64
+                        } else {
+                            PrimitiveType::F32
+                        }
+                    }
+                    1 => {
+                        let CheckedScalarExpression::Parameter { position, .. } = &mut store.value
+                        else {
+                            panic!("runtime IEEE parameter")
+                        };
+                        *position = 1;
+                    }
+                    3 => store.field_identity = "Record::other".into(),
+                    _ => unreachable!(),
+                }
+            }
+            assert!(
+                lower_machine(&changed, "Record::replace").is_err(),
+                "IEEE store corruption {corruption} must reject for {primitive}"
+            );
+        }
+    }
+}
+
 const SOURCE: &str = r#"
     data Pair { left: u8; right: u16; }
     data Inner { value: u8; }

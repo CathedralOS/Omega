@@ -237,8 +237,10 @@ fn build_structural_scalar_field_store_at(
         return None;
     }
     let primitive_type = program.primitive_type_reference(field.type_reference)?;
-    if primitive_type != PrimitiveType::Bool
-        && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
+    if !matches!(
+        primitive_type,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+    ) && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
     {
         return None;
     }
@@ -328,6 +330,9 @@ fn build_structural_scalar_field_store_at(
             && scalar_parameters.is_empty()
     );
     let literal = match value {
+        CheckedScalarExpression::IeeeFloatLiteral { .. } => {
+            crate::values::scalar_expression_type(value) == Some(primitive_type)
+        }
         CheckedScalarExpression::IntegerLiteral { .. } => {
             primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
         }
@@ -340,6 +345,14 @@ fn build_structural_scalar_field_store_at(
         }
         _ => false,
     };
+    // IEEE replacement forwards existing bits; selected floating computation
+    // must retain its own operation and call correspondence before admission.
+    if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64)
+        && !literal
+        && checked_parameter_source(value).is_none()
+    {
+        return None;
+    }
     let exact_source = if exact_sequence_frame || direct_result_is_exact || literal {
         true
     } else if scalar_parameters.is_empty() {

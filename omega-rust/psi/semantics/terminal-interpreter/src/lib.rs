@@ -4462,8 +4462,10 @@ fn direct_scalar_field_type(
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
                 terminal_psi::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
-                terminal_psi::StructuralFieldType::IeeeFloat(_)
-                | terminal_psi::StructuralFieldType::ByteSequence(_)
+                terminal_psi::StructuralFieldType::IeeeFloat(format) => {
+                    Some(ScalarType::IeeeFloat(*format))
+                }
+                terminal_psi::StructuralFieldType::ByteSequence(_)
                 | terminal_psi::StructuralFieldType::Structural(_)
                 | terminal_psi::StructuralFieldType::Erased { .. } => None,
             })
