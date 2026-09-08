@@ -124,6 +124,9 @@ pub(in crate::flow::terminal_unit) fn build(
                     CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
                         store.statement_index
                     }
+                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                        store.statement_index
+                    }
                     _ => return None,
                 };
                 if ordinal != statement_index {

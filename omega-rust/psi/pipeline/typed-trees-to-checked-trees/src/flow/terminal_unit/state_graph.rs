@@ -152,6 +152,7 @@ pub(super) fn build(
                             )
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 _ => return None,
             }

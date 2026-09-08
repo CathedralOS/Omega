@@ -9,9 +9,12 @@ mod block_bindings;
 mod byte_sequence_subslice;
 mod byte_sequence_view;
 mod effect_results;
+mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
 use byte_sequence_view::ByteSequenceView;
 mod semantic_value_comparison;
+#[cfg(test)]
+mod structural_argument_binding_tests;
 
 pub use effect_results::TerminalEffectResult;
 
@@ -2305,6 +2308,12 @@ impl TerminalExecution {
                     OperationKind::StructuralByteSequenceFieldStore { .. } => {
                         self.execute_structural_byte_sequence_field_store(&operation)?;
                     }
+                    OperationKind::StructuralByteSequenceFieldLength { .. } => {
+                        self.execute_structural_byte_sequence_field_length(&operation)?;
+                    }
+                    OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
+                        self.execute_structural_byte_sequence_field_byte_store(&operation)?;
+                    }
                     OperationKind::IntegerConstant { value } => {
                         let ScalarType::Integer(scalar_type) =
                             operation.result.expect_scalar().scalar_type
@@ -3954,9 +3963,8 @@ fn bind_structural_arguments(
             actual: arguments.len(),
         });
     }
-    let mut bound_identities = BTreeMap::new();
     let mut values = BTreeMap::new();
-    for (parameter, argument) in parameters.iter().zip(arguments) {
+    for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         if argument
             .qualifications
             .windows(2)
@@ -3980,14 +3988,33 @@ fn bind_structural_arguments(
                 parameter.place,
             ));
         }
-        if let Some(previous) =
-            bound_identities.insert(argument.opaque_identity, parameter.multiplicity)
-            && (previous != StructuralMultiplicity::Unrestricted
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+        for (previous_parameter, previous_argument) in parameters[..argument_index]
+            .iter()
+            .zip(&arguments[..argument_index])
         {
-            return Err(TerminalInterpretError::StructuralArgumentAliasing(
-                argument.opaque_identity,
-            ));
+            if previous_argument.opaque_identity != argument.opaque_identity {
+                continue;
+            }
+            let exclusive = matches!(
+                previous_parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) || matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            );
+            let overlapping = previous_argument.path.starts_with(&argument.path)
+                || argument.path.starts_with(&previous_argument.path);
+            // Multiplicity retains its existing whole-identity restriction.
+            // Exclusive access additionally forbids overlapping projected
+            // referents, even when both values are unrestricted.
+            if previous_parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || (exclusive && overlapping)
+            {
+                return Err(TerminalInterpretError::StructuralArgumentAliasing(
+                    argument.opaque_identity,
+                ));
+            }
         }
         if values.insert(parameter.place, argument.clone()).is_some() {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);

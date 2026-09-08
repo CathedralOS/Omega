@@ -230,6 +230,9 @@ pub(super) fn validate_unit_operation_static(
                 *field,
             )?;
         }
+        OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
+            super::structural_byte_sequence_fields::validate(module, machine, operation)?;
+        }
         OperationKind::StructuralByteSequenceFieldStore { .. } => {
             super::structural_byte_sequence_store::capacity(module, machine, operation)?;
         }

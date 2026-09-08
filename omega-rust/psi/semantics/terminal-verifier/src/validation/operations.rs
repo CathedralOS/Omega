@@ -11,6 +11,26 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::StructuralByteSequenceFieldByteStore {
+        index,
+        value,
+        length,
+        ..
+    } = operation.kind
+    {
+        for (operand, bits) in [(index, 64), (length, 64), (value, 8)] {
+            require_defined(operand, value_types, defined)?;
+            let expected = ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, bits).expect("valid byte operand"),
+            );
+            if value_types[&operand] != expected {
+                return Err(ModuleError::InvalidStructuralByteSequenceFieldAccess(
+                    operation.id,
+                ));
+            }
+        }
+        return Ok(());
+    }
     if let OperationKind::ByteSequenceSubslice {
         start, end, length, ..
     } = operation.kind
@@ -647,6 +667,8 @@ pub(super) fn validate_operation_operands(
         | OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteSequenceFieldLength { .. }
+        | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallDynamicScalar { .. }

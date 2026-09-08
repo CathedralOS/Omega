@@ -122,7 +122,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 80;
+const FORMAT_MARKER: u16 = 81;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1053,6 +1053,23 @@ fn validate_operation_foundation(
             {
                 return malformed("byte field store source or exact length is invalid");
             }
+        }
+        OperationKind::StructuralByteSequenceFieldLength { .. } => {
+            if operation.result.scalar().is_none_or(|result| {
+                !matches!(result.scalar_type, ScalarType::Integer(integer)
+                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+            }) {
+                return malformed("byte field length requires an unsigned 64-bit scalar result");
+            }
+            // Independent module validation checks the exact bounded field,
+            // borrowed parameter custody, and absence of live claims.
+        }
+        OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("byte field byte store requires Unit");
+            }
+            // Independent module validation reconstructs exact current length
+            // provenance, scalar operand types, custody, and index bounds.
         }
         OperationKind::ByteSequenceSubslice { .. } => {
             let Some(result) = operation.result.structural() else {

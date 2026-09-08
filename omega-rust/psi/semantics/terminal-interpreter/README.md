@@ -24,6 +24,18 @@ is admitted; cyclic block execution has its separate verified route above.
 Fixed-work composition distinguishes normal return bounds from crash bounds:
 only a normal return composes the caller's remaining work.
 
+## Bounded byte fields
+
+Whole-field replacement supplies live backing associated with the original
+structural referent, carrier path, and field. Field-length observations and
+indexed byte stores retain that backing across calls and fuel suspension.
+Indexed stores validate the current extent before mutation and detach shared
+immutable backing; they cannot change source literals or sibling fields.
+An opaque incoming structural identity does not supply initialized field bytes:
+measuring or indexing an unprovided field fails rather than assuming empty
+or zero-initialized storage. This execution support does not establish native
+byte-field realization.
+
 ## Boundary responses
 
 [effect_results.rs](src/effect_results.rs) distinguishes Unit, scalar, and opaque

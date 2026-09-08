@@ -247,6 +247,8 @@ pub enum CheckedScalarExpressionRole {
     /// statement-local and does not imply that every assignment is admitted
     /// by a later executable plan.
     AssignmentValue,
+    /// Evaluated scalar selector of an indexed assignment target, before its value.
+    AssignmentIndex,
     Return,
     /// Value returned by the false sibling of a combined transition.
     ContinuationReturn,

@@ -298,6 +298,49 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         }
                     }
                     StatementNode::Assignment(assignment) => {
+                        if let ExpressionNode::Indexed(indexed) =
+                            program.expression_table.expression(assignment.target)
+                            && !matches!(
+                                program.expression_table.expression(indexed.index),
+                                ExpressionNode::Range(_)
+                            )
+                            && let Some(expression) = lower_return_expression(
+                                program,
+                                operators,
+                                indexed.index,
+                                &scalar_parameters,
+                                parameters,
+                                &parameter_types,
+                                &locals,
+                                PrimitiveType::U64,
+                                exact_integer_casts,
+                            )
+                        {
+                            source_bindings.append(CheckedScalarExpressionBindings {
+                                destination: symbols::SymbolHandle::invalid(),
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::AssignmentIndex,
+                                expression: indexed.index,
+                                symbols: binding_symbols.insert_many(
+                                    scalar_parameters
+                                        .iter()
+                                        .map(|parameter| parameter.symbol)
+                                        .chain(
+                                            locals
+                                                .iter()
+                                                .filter(|local| !local.is_mutable)
+                                                .map(|local| local.symbol),
+                                        ),
+                                ),
+                            });
+                            expressions.push(CheckedLocatedScalarExpression {
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::AssignmentIndex,
+                                expression,
+                            });
+                        }
                         if let Some(expression) =
                             scalar_qualified_call_expression(program, assignment.value)
                             && let ExpressionNode::Call(call) =

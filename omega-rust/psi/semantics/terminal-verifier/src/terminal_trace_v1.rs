@@ -200,6 +200,8 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteSequenceFieldLength { .. }
+        | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }

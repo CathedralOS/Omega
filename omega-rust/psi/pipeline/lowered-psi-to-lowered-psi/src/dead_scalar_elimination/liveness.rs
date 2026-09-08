@@ -88,6 +88,14 @@ pub(super) fn eliminate(
 /// The exhaustive match forces new operation variants to declare that fact.
 fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
     match operation {
+        O::StructuralByteSequenceFieldByteStore {
+            index,
+            value,
+            length,
+            ..
+        } => {
+            values.extend([*index, *value, *length]);
+        }
         O::StructuralByteSequenceFieldStore { length, .. } => values.push(*length),
         O::ByteSequenceRead { index, length, .. } => values.extend([*index, *length]),
         O::ByteSequenceSubslice {
@@ -98,6 +106,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::IeeeFloatConstant { .. }
         | O::IntegerStructuralField { .. }
         | O::ByteSequenceLength { .. }
+        | O::StructuralByteSequenceFieldLength { .. }
         | O::BooleanStructuralField { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
@@ -176,4 +185,41 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::StoreDynamicDescriptor { .. } => return false,
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{ObligationId, PlaceId, StructuralFieldId};
+
+    #[test]
+    fn indexed_byte_store_demands_all_scalar_operands() {
+        let index = ValueId::new(1).unwrap();
+        let value = ValueId::new(2).unwrap();
+        let length = ValueId::new(3).unwrap();
+        let operation = O::StructuralByteSequenceFieldByteStore {
+            destination: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            field: StructuralFieldId::new(1).unwrap(),
+            index,
+            value,
+            length,
+            obligation: ObligationId::new(1).unwrap(),
+        };
+        let mut pending = Vec::new();
+        assert!(inputs(&operation, &mut pending));
+        assert_eq!(pending, vec![index, value, length]);
+    }
+
+    #[test]
+    fn byte_field_length_has_structural_source_not_scalar_operand() {
+        let operation = O::StructuralByteSequenceFieldLength {
+            source: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            field: StructuralFieldId::new(1).unwrap(),
+        };
+        let mut pending = Vec::new();
+        assert!(inputs(&operation, &mut pending));
+        assert!(pending.is_empty());
+    }
 }

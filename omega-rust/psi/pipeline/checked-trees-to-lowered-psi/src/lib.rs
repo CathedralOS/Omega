@@ -135,6 +135,7 @@ mod scalar_graph_lowering;
 mod scalar_graph_module;
 mod scalar_source_custody;
 mod shared_runtime_parameters;
+mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
 mod structural_call_return;
 mod structural_return;

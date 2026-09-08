@@ -171,11 +171,28 @@ fn build_structural_field_store_at(
     if !plain_record(root_owner, program) {
         return None;
     }
+    let (target, byte_index) = match program.expression_table.expression(assignment.target) {
+        ExpressionNode::Indexed(indexed) => {
+            if !validation::place_has_builtin_coordinates(
+                program,
+                machine,
+                Some(state),
+                assignment.target,
+            ) || matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) {
+                return None;
+            }
+            (indexed.collection, Some(indexed.index))
+        }
+        _ => (assignment.target, None),
+    };
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         usize::try_from(statement_index).ok()?,
-        assignment.target,
+        target,
     )?;
     if place.root != facts::PlaceRoot::Symbol(parameter.symbol) {
         return None;
@@ -297,6 +314,52 @@ fn build_structural_field_store_at(
         if result_local.is_some() || selected_result {
             return None;
         }
+        if let Some(byte_index) = byte_index {
+            if !crate::field_domain::domain_constraint_symbols(program, field.type_reference)
+                .into_iter()
+                .all(|symbol| {
+                    program
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == symbol)
+                        .is_some_and(|domain| {
+                            domain.establishment_routes.is_empty()
+                                && domain.semantic_roles == Default::default()
+                        })
+                })
+            {
+                return None;
+            }
+            let (index_binding, index) = facts.values.scalar_expressions.bound_expression_at(
+                state.symbol,
+                statement_index,
+                CheckedScalarExpressionRole::AssignmentIndex,
+            )?;
+            let (value_binding, value) = facts.values.scalar_expressions.bound_expression_at(
+                state.symbol,
+                statement_index,
+                CheckedScalarExpressionRole::AssignmentValue,
+            )?;
+            if index_binding.expression != byte_index
+                || value_binding.expression != assignment.value
+                || crate::values::scalar_expression_type(index) != Some(PrimitiveType::U64)
+                || crate::values::scalar_expression_type(value) != Some(PrimitiveType::U8)
+            {
+                return None;
+            }
+            return Some(
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(
+                    checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan {
+                        statement_index,
+                        destination_parameter_position: destination.position,
+                        carrier_path,
+                        field_identity: terminal_field_identity(program, field.symbol)?,
+                        index: index.clone(),
+                        value: value.clone(),
+                    },
+                ),
+            );
+        }
         let ExpressionNode::String(bytes) = program.expression_table.expression(assignment.value)
         else {
             return None;
@@ -333,6 +396,9 @@ fn build_structural_field_store_at(
                 },
             ),
         );
+    }
+    if byte_index.is_some() {
+        return None;
     }
     if !crate::field_domain::domain_constraint_symbols(program, field.type_reference).is_empty() {
         return None;

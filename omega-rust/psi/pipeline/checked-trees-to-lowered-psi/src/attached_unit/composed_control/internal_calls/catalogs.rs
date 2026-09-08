@@ -29,6 +29,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
             _ => return unsupported("composed root retained a non-call operation"),
         };

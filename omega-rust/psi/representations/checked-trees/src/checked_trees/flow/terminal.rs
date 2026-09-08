@@ -1498,6 +1498,17 @@ pub struct CheckedStructuralByteSequenceFieldStorePlan {
     pub bytes: Vec<u8>,
 }
 
+/// Exact source operands of a scalar byte replacement within the live prefix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
+    pub statement_index: u32,
+    pub destination_parameter_position: u32,
+    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub field_identity: String,
+    pub index: CheckedScalarExpression,
+    pub value: CheckedScalarExpression,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
     /// Normal edge after the named call completes. Cleanup belongs to this
@@ -1719,6 +1730,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// boundary-operator realization.
     StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
+    StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ReturnUnit {
         statement_index: u32,
         /// Exact local declaration coordinates cleaned before parameters, in

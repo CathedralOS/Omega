@@ -38,6 +38,7 @@ pub enum SuspensionCallPlanError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
     InvalidStructuralByteSequenceFieldStore(OperationId),
+    InvalidStructuralByteSequenceFieldAccess(OperationId),
     InvalidByteSequenceSubslice(OperationId),
     ByteSequenceSubsliceReturnUnsupported {
         machine: MachineId,
