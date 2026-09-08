@@ -45,6 +45,8 @@ pub(crate) const RUNTIME_BOUNDARY_CAPABILITY_STATE_FORWARDING_EXIT: &str =
 pub(crate) const RUNTIME_CONSOLE_BYTE_LITERAL_EXIT: &str = "host/runtime_console_byte_literal_exit";
 pub(crate) const RUNTIME_CONSOLE_EXIT_I32_STATUS: &str = "host/runtime_console_exit_i32_status";
 pub(crate) const RUNTIME_CONSOLE_BYTE_READ_RETURN: &str = "host/runtime_console_byte_read_return";
+pub(crate) const RUNTIME_CONSOLE_BYTE_BRANCH_RETURN: &str =
+    "host/runtime_console_byte_branch_return";
 pub(crate) const RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT: &str =
     "host/runtime_console_byte_inspection_exit";
 pub(crate) const RUNTIME_CONSOLE_BYTE_ECHO_EXIT: &str = "host/runtime_console_byte_echo_exit";
@@ -132,6 +134,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_CONSOLE_BYTE_LITERAL_EXIT,
     RUNTIME_CONSOLE_EXIT_I32_STATUS,
     RUNTIME_CONSOLE_BYTE_READ_RETURN,
+    RUNTIME_CONSOLE_BYTE_BRANCH_RETURN,
     RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT,
     RUNTIME_CONSOLE_BYTE_ECHO_EXIT,
     RUNTIME_IMPORT_CALL_ARGUMENT_EXIT,

@@ -1,6 +1,102 @@
 use super::*;
 
 #[test]
+fn hosted_read_returning_branches_replay_distinct_result_homes() {
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_BRANCH_RETURN);
+    for target in ["linux_x86_64", "linux_arm64", "macos_arm64"] {
+        let artifact = compile_rooted_backend_canary_without_output_for_target(&canary, target)
+            .unwrap_or_else(|error| panic!("{target} returning read branches compile: {error:?}"))
+            .into_retained_native_artifact()
+            .expect("complete native artifact");
+        artifact.validate().expect("independent native replay");
+        let results = artifact
+            .object()
+            .boundary_settlements()
+            .iter()
+            .filter(|row| {
+                row.settlement.execution
+                    == native_realization::BoundaryExecutionRecord::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::HostedReadByte,
+                    )
+            })
+            .map(|row| {
+                row.settlement
+                    .native_result
+                    .structural()
+                    .expect("owned read result")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            results.len(),
+            3,
+            "one initial read and one read in each arm"
+        );
+        for (position, result) in results.iter().enumerate() {
+            assert!(
+                results[..position]
+                    .iter()
+                    .all(
+                        |other| other.defining_operation != result.defining_operation
+                            && other.result.place != result.result.place
+                    )
+            );
+        }
+        let identity = artifact.identity();
+        let parts = artifact.into_parts();
+        assert_eq!(
+            native::NativeArtifact::from_replayed_parts(replay_parts(&parts))
+                .expect("return-edge cleanup survives native parts replay")
+                .identity(),
+            identity
+        );
+    }
+}
+
+#[test]
+fn hosted_read_returning_branches_execute_two_sequential_reads() {
+    if !cfg!(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        )
+    )) {
+        eprintln!("SKIP: returning byte branches require matching Linux or macOS ARM64 host");
+        return;
+    }
+    use std::io::Seek;
+    use std::process::Stdio;
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_BRANCH_RETURN);
+    let scratch =
+        std::env::temp_dir().join(format!("omega-read-branch-return-{}", std::process::id()));
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("returning read branches publish a native executable");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("publication receipt");
+    for input in [b"".as_slice(), b"A", b"ABC", &[0, 255, 128]] {
+        let input_path = scratch.join("input.bin");
+        fs::write(&input_path, input).expect("write exact input bytes");
+        let mut supplied = fs::File::open(&input_path).expect("open input");
+        let output = Command::new(executable)
+            .stdin(Stdio::from(
+                supplied.try_clone().expect("shared input cursor"),
+            ))
+            .output()
+            .expect("returning branch execution");
+        assert_eq!(output.status.code(), Some(0), "input {input:?}: {output:?}");
+        assert_eq!(output.stdout, &input[..input.len().min(1)]);
+        assert!(output.stderr.is_empty());
+        assert_eq!(
+            supplied.stream_position().unwrap(),
+            input.len().min(2) as u64,
+            "each selected branch must consume its second read exactly once"
+        );
+    }
+    fs::remove_dir_all(scratch).expect("remove completed returning branch output");
+}
+
+#[test]
 fn hosted_read_inspection_executes_every_byte_eof_and_failed_read() {
     if !cfg!(any(
         all(target_os = "macos", target_arch = "aarch64"),

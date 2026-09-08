@@ -122,6 +122,14 @@ them requires retained operations, successor bindings, and cleanup frontiers.
 General custody joins, computed structural transfers, and mixed cleanup must
 not inherit admission from a scalar/byte-view cyclic family.
 
+Closed-sum returning leaves can establish fresh claim-free affine boundary
+results. The shared statement planner retains each authored local and call;
+Terminal emission allocates distinct operation-owned places across states and
+discards only the current leaf's results in reverse establishment order. Source
+replay rejoins local statement, binding ordinal, boundary contract, and return
+disposition. This does not admit later structural consumption, nominal cleanup,
+or general result-bearing state transitions.
+
 The general state-graph path also retains one persistent unrestricted mutable
 record receiver. It shares ordinary Unit statement construction for ordered
 field writes and whole-receiver Unit calls. Direct relevant integer/Boolean

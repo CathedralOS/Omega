@@ -349,6 +349,7 @@ fn emit(
         .zip(leaf_parameters)
         .zip(&state_ids[1..])
     {
+        catalogs.next_place = next_place;
         let (fragment, mut occurrences) = emission::emit_call_leaf(
             checked,
             plan.machine,
@@ -363,6 +364,7 @@ fn emit(
             &mut next_operation,
             &mut next_edge,
         )?;
+        next_place = catalogs.next_place;
         blocks.extend(fragment);
         source_calls.append(&mut occurrences);
     }
@@ -392,6 +394,7 @@ fn emit(
             structural_type: boundary_result.structural_type,
         },
     }];
+    structural_places.append(&mut catalogs.result_places);
     structural_places.extend(
         super::super::provider_attachments::lower_provider_attachment_places(
             attachment,

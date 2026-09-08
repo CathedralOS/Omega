@@ -408,6 +408,108 @@ fn closed_sum_payload_calls_an_observable_ordinary_unit_body() {
 }
 
 #[test]
+fn closed_sum_returning_arms_discard_their_own_boundary_results() {
+    let source = CLOSED_SUM_UNIT_SOURCE
+        .replace(
+            "consume(identity(value));",
+            "self.console.write_byte(value);",
+        )
+        .replace(
+            "self.console.exit_process(value);",
+            "let second: ByteRead = self.console.read_byte();",
+        )
+        .replace(
+            "self.console.exit_process(70);",
+            "let second: ByteRead = self.console.read_byte();",
+        );
+    let checked = checked_source(&source);
+    let lowered = roundtrip(&checked);
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let mut result_places = Vec::new();
+    let mut returns = 0;
+    for block in &machine.blocks {
+        let results = block
+            .operations
+            .iter()
+            .filter_map(|operation| match &operation.result {
+                terminal_psi::OperationResult::Structural(result) => Some(result.place),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let terminal_psi::Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = &block.terminator
+        {
+            assert_eq!(results.len(), 1);
+            assert_eq!(trivial_affine_discards, &results);
+            returns += 1;
+        }
+        result_places.extend(results);
+    }
+    assert_eq!(returns, 2);
+    assert_eq!(result_places.len(), 3);
+    result_places.sort();
+    result_places.dedup();
+    assert_eq!(result_places.len(), 3, "state-local results do not alias");
+
+    let (plan_index, state_index, operation_index) = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .enumerate()
+        .find_map(|(plan_index, plan)| {
+            plan.states
+                .iter()
+                .enumerate()
+                .skip(1)
+                .find_map(|(state_index, state)| {
+                    state
+                        .operations
+                        .iter()
+                        .position(|operation| {
+                            matches!(operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. })
+                        })
+                        .map(|operation_index| (plan_index, state_index, operation_index))
+                })
+        })
+        .unwrap();
+    for mutation in 0..4 {
+        let mut changed = checked.clone();
+        let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            result,
+            discard_result_on_return,
+            ..
+        } = &mut changed.facts.flow.terminal_unit_effects.composed_machines[plan_index].states
+            [state_index]
+            .operations[operation_index]
+        else {
+            panic!("result call")
+        };
+        match mutation {
+            0 => *discard_result_on_return = false,
+            1 => result.statement_index += 1,
+            2 => coordinate.statement_index += 1,
+            3 => result.binding_ordinal += 1,
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(&changed, "Main::main").is_err(),
+            "result source/return custody mutation {mutation} must reject"
+        );
+    }
+}
+
+#[test]
 fn closed_sum_unit_closure_shares_helpers_and_preserves_payload_and_cleanup() {
     for qualified in [false, true] {
         for trailing in [false, true] {

@@ -26,7 +26,8 @@ fn decoded_home(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
     }
 }
 
-/// Trivial result discards emit no destructor, but retain their exact return-edge roster.
+/// Check supported no-code actions only. The retained, independently replayed
+/// graph owns each return's live frontier, action order, and edge fuel.
 pub(in crate::function_fragments) fn cleanup_actions_match(
     function: &abstract_operations::AbstractFunction,
     selected: &selected_instructions::SelectedFunction,
@@ -41,7 +42,7 @@ pub(in crate::function_fragments) fn cleanup_actions_match(
     ) {
         return false;
     }
-    let mut results = function
+    let results = function
         .operations
         .iter()
         .filter_map(|operation| match operation {
@@ -54,9 +55,16 @@ pub(in crate::function_fragments) fn cleanup_actions_match(
             _ => None,
         })
         .collect::<Vec<_>>();
-    results.sort_by_key(|(operation, _, _)| std::cmp::Reverse(*operation));
-    !results.is_empty() && results.len() == actions.len()
-        && actions.iter().zip(results).all(|(action, (operation, boundary, result))| {
+    let mut discarded = std::collections::BTreeSet::new();
+    !actions.is_empty()
+        && actions.iter().all(|action| {
+            let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) = action else {
+                return false;
+            };
+            if !discarded.insert(*place) { return false; }
+            let mut matching = results.iter().filter(|(_, _, result)| result.place == *place);
+            let Some(&(operation, boundary, result)) = matching.next() else { return false; };
+            if matching.next().is_some() { return false; }
             if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
                 || !result.claims.is_empty()
                 || !result.qualifications.is_empty()
@@ -85,85 +93,6 @@ pub(in crate::function_fragments) fn cleanup_actions_match(
                         if integer.sign() == semantic_vocabulary::IntegerSign::Signed && integer.bits() == 32
                 )
         })
-}
-
-pub(super) fn populate_cleanup(
-    container: &StagedOptimizedRelocationFreeObjectContainer,
-    function: &mut crate::ObjectFunction,
-    rows: &[machine_code::SemanticCodeAttribution],
-) -> Result<(), Error> {
-    let (abstracted, _) = source::function(container, function.machine)?;
-    let Some(abstract_operations::AbstractOperation::ReturnUnit {
-        psi_edge,
-        cleanup_actions,
-    }) = abstracted.operations.last()
-    else {
-        return Ok(());
-    };
-    let selected = selected(container, function.machine)?;
-    if cleanup_actions.is_empty() || !cleanup_actions_match(abstracted, selected, cleanup_actions) {
-        return Ok(());
-    }
-    let contract = selected
-        .structural
-        .as_ref()
-        .ok_or(Error::Mismatch("result cleanup has no structural contract"))?;
-    let span = rows
-        .iter()
-        .find(|row| row.site == SemanticCodeSite::Edge(*psi_edge))
-        .ok_or(Error::Mismatch("result cleanup has no return span"))?;
-    function.unit_affine_cleanup = Some(machine_code::UnitAffineCleanupRecord {
-        psi_edge: *psi_edge,
-        structural_types: contract.structural_types.clone(),
-        locals: Vec::new(),
-        actions: cleanup_actions.clone(),
-        code_offset: span.code_offset,
-        byte_count: span.byte_count,
-    });
-    Ok(())
-}
-
-pub(super) fn validate_cleanup(
-    container: &StagedOptimizedRelocationFreeObjectContainer,
-    function: &crate::ObjectFunction,
-    rows: &[machine_code::SemanticCodeAttribution],
-) -> Result<(), Error> {
-    let invalid = || Error::Mismatch("owned result return cleanup changed");
-    let (abstracted, _) = source::function(container, function.machine)?;
-    let selected = selected(container, function.machine)?;
-    let expected = match abstracted.operations.last() {
-        Some(abstract_operations::AbstractOperation::ReturnUnit {
-            psi_edge,
-            cleanup_actions,
-        }) if !cleanup_actions.is_empty()
-            && cleanup_actions_match(abstracted, selected, cleanup_actions) =>
-        {
-            Some((*psi_edge, cleanup_actions))
-        }
-        _ => None,
-    };
-    match (expected, &function.unit_affine_cleanup) {
-        (None, None) => Ok(()),
-        (Some((edge, actions)), Some(cleanup)) => {
-            let contract = selected.structural.as_ref().ok_or_else(invalid)?;
-            let mut spans = rows
-                .iter()
-                .filter(|row| row.site == SemanticCodeSite::Edge(edge));
-            let span = spans.next().ok_or_else(invalid)?;
-            if spans.next().is_some()
-                || cleanup.psi_edge != edge
-                || cleanup.structural_types != contract.structural_types
-                || !cleanup.locals.is_empty()
-                || cleanup.actions != *actions
-                || cleanup.code_offset != span.code_offset
-                || cleanup.byte_count != span.byte_count
-            {
-                return Err(invalid());
-            }
-            Ok(())
-        }
-        _ => Err(invalid()),
-    }
 }
 
 pub(super) fn settlement(
@@ -528,6 +457,13 @@ mod tests {
     fn read_result_cleanup_requires_exact_read_payload_type_function_and_actions() {
         let (source, selected, actions) = fixture();
         assert!(cleanup_actions_match(&source, &selected, &actions));
+        // Subsets and their authored order are a graph obligation, not a
+        // function-wide cleanup roster reconstructed by this capability check.
+        assert!(cleanup_actions_match(&source, &selected, &actions[..1]));
+        assert!(cleanup_actions_match(&source, &selected, &actions[1..]));
+        let mut reordered = actions.clone();
+        reordered.reverse();
+        assert!(cleanup_actions_match(&source, &selected, &reordered));
         for mutation in 0..7 {
             let mut source = source.clone();
             let mut selected = selected.clone();
@@ -548,9 +484,10 @@ mod tests {
                         ),
                     })
                 }
-                3 => actions.reverse(),
+                3 => actions.push(actions[0].clone()),
                 4 => {
-                    actions.pop();
+                    actions[0] =
+                        TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(99).unwrap());
                 }
                 5 => {
                     selected.boundary_settlements[0].settlement =

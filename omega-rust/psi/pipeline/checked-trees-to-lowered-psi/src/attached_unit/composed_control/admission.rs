@@ -404,7 +404,8 @@ pub(super) fn admit_call_targets<'a>(
         .iter()
         .flat_map(|state| &state.operations)
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
                 Some(*target_machine)
             }
             _ => None,
@@ -450,7 +451,8 @@ pub(super) fn retain_call_targets<'a>(
     for state in call_states.iter().copied() {
         for operation in &state.operations {
             match operation {
-                CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
+                CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
                     retain_call_boundary(
                         checked,
                         machine,
@@ -576,18 +578,54 @@ pub(super) fn retain_call_boundary<'a>(
         operation,
         &state.structural_parameters,
     )?;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
+    let (CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,
         target_machine,
         target_state,
         target_contract_report_fingerprint,
         service_reach,
         ..
-    } = operation
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        coordinate,
+        target_machine,
+        target_state,
+        target_contract_report_fingerprint,
+        service_reach,
+        ..
+    }) = operation
     else {
         unreachable!("leaf shape was validated")
     };
     retain_exact_flow_call(checked, machine, state.state, *coordinate, *target_state)?;
+    let expected_result = match operation {
+        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            result,
+            discard_result_on_return,
+            structural_arguments,
+            completion_receipts,
+            ..
+        } => {
+            let target = unique_unit_boundary(plans, *target_machine)?;
+            if !*discard_result_on_return
+                || result.binding_ordinal as usize != state.operations.iter().filter(|operation| {
+                    matches!(operation, CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        coordinate: previous, ..
+                    } if previous.statement_index < coordinate.statement_index)
+                }).count()
+                || !structural_arguments.is_empty()
+                || !completion_receipts.is_empty()
+                || result.multiplicity != Multiplicity::Affine
+                || !matches!(&target.result, CheckedBoundaryMachineResultPlan::Structural {
+                    type_identity, multiplicity: Multiplicity::Affine, qualifications,
+                } if type_identity == &result.type_identity && qualifications.is_empty())
+            {
+                return unsupported("composed Unit local result escaped claim-free affine return custody");
+            }
+            target.result.clone()
+        }
+        _ => CheckedBoundaryMachineResultPlan::Unit,
+    };
     retain_exact_unit_boundary(
         checked,
         plans,
@@ -596,7 +634,7 @@ pub(super) fn retain_call_boundary<'a>(
         *target_state,
         *target_contract_report_fingerprint,
         *service_reach,
-        CheckedBoundaryMachineResultPlan::Unit,
+        expected_result,
     )
 }
 

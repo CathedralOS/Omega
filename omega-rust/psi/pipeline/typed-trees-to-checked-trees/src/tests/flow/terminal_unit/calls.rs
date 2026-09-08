@@ -266,6 +266,68 @@ fn retains_closed_sum_inspection_after_structural_boundary_result() {
 }
 
 #[test]
+fn retains_arm_local_boundary_result_discard_on_each_closed_sum_return() {
+    let checked = checked(
+        r#"
+        data ByteRead { case Eof; case Byte(value: i32); }
+        boundary trait Console {
+            machine read_byte() -> ByteRead reaches Console;
+            machine write_byte(value: i32) reaches Console;
+        }
+        data Main { console: Console; }
+        machine Main::main(&mut self) {
+            let first: ByteRead = self.console.read_byte();
+            transition first {
+                ByteRead::Byte { value } -> byte(value)
+                ByteRead::Eof -> eof()
+            }
+            state byte(&mut self, value: i32) {
+                self.console.write_byte(value);
+                let second: ByteRead = self.console.read_byte();
+            }
+            state eof(&mut self) {
+                let second: ByteRead = self.console.read_byte();
+            }
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "main"))
+        .expect("each returning sum arm retains its local boundary result");
+    assert_eq!(plan.states.len(), 3);
+    for (state, statement_index) in plan.states[1..].iter().zip([1, 0]) {
+        assert!(matches!(
+            state.terminator,
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+        ));
+        let reads = state
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } => Some((result, discard_result_on_return)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(result, discard)] = reads.as_slice() else {
+            panic!("one arm-local read")
+        };
+        assert!(**discard);
+        assert_eq!(result.statement_index, statement_index);
+        assert_eq!(
+            result.binding_ordinal, 0,
+            "result ordinals are state-local, not preceding-call counts"
+        );
+    }
+}
+
+#[test]
 fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirements() {
     let checked = checked(
         r#"

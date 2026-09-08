@@ -145,7 +145,12 @@ pub(super) fn lower(
         let targets = match &function.operations[end - 1] {
             AbstractOperation::ReturnUnit {
                 cleanup_actions, ..
-            } if cleanup_actions.is_empty() => Vec::new(),
+            } if cleanup_actions
+                .iter()
+                .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_))) =>
+            {
+                Vec::new()
+            }
             AbstractOperation::Jump {
                 target,
                 trivial_affine_discards,
@@ -478,6 +483,24 @@ fn terminator(
             psi_edge,
             cleanup_actions,
         } => {
+            // Current ownership validation owns the exact live frontier and
+            // discard order. Native admission only proves each retained action
+            // is a no-code discard of an available boundary result home.
+            let mut discarded = BTreeSet::new();
+            for action in cleanup_actions {
+                let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
+                    return Err(invalid());
+                };
+                let home = live.structural_homes.get(place).ok_or_else(invalid)?;
+                if !discarded.insert(*place)
+                    || home.result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+                    || !home.result.claims.is_empty()
+                    || !home.result.qualifications.is_empty()
+                    || !home.result.projected_qualifications.is_empty()
+                {
+                    return Err(invalid());
+                }
+            }
             provenance.edges.push(*psi_edge);
             Ok(TargetUnitTerminator::Return {
                 psi_edge: *psi_edge,

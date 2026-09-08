@@ -2510,7 +2510,7 @@ fn runtime_console_byte_read_return_catalog_replays_supported_hosted_targets() {
                 panic!("hosted read-byte catalog must compile for {target}: {error:?}")
             });
         let artifact = compilation
-            .retained_native_artifact()
+            .into_retained_native_artifact()
             .expect("read-byte compilation retains native artifact");
         artifact
             .validate()
@@ -2528,17 +2528,13 @@ fn runtime_console_byte_read_return_catalog_replays_supported_hosted_targets() {
             calling_conventions::ValueShape::integer(8, 4)
         );
         assert!(result.home_byte_offset.is_multiple_of(4));
-        let cleanup = artifact
-            .object()
-            .functions()
-            .iter()
-            .find_map(|function| function.unit_affine_cleanup.as_ref())
-            .expect("owned byte result retains its final cleanup");
-        assert_eq!(
-            cleanup.actions,
-            [terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                result.result.place
-            )]
+        assert!(
+            artifact
+                .object()
+                .functions()
+                .iter()
+                .all(|function| function.unit_affine_cleanup.is_none()),
+            "edge-owned no-code cleanup uses retained graph replay, not a singular projection"
         );
         assert!(artifact.image().boundary_settlements().iter().any(|row| {
             row.settlement.execution
@@ -2547,6 +2543,13 @@ fn runtime_console_byte_read_return_catalog_replays_supported_hosted_targets() {
                 )
                 && row.settlement.native_result.structural().is_some()
         }));
+        let parts = artifact.into_parts();
+        let mut stripped = replay_parts(&parts);
+        stripped.object.clear_fragment_replay_for_test();
+        assert!(
+            native::NativeArtifact::from_replayed_parts(stripped).is_err(),
+            "even an uninspected read requires exact return cleanup replay"
+        );
     }
 }
 

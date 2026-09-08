@@ -1,6 +1,8 @@
 //! Exact Unit block replay into the existing scalar graph, without executable target rows.
 use super::*;
 use target_operations::{TargetUnitGraph, TargetUnitSuccessor, TargetUnitTerminator};
+#[cfg(test)]
+mod return_cleanup_tests;
 mod sources;
 #[cfg(test)]
 mod structural_case_tests;
@@ -87,7 +89,11 @@ pub(super) fn validate(
                     psi_edge: expected,
                     cleanup_actions: cleanup,
                 },
-            ) => psi_edge == expected && cleanup_actions == cleanup && cleanup.is_empty(),
+            ) => {
+                psi_edge == expected
+                    && cleanup_actions == cleanup
+                    && (cleanup.is_empty() || super::super::read_byte::cleanup(optimized, cleanup))
+            }
             (
                 TargetUnitTerminator::Jump { successor },
                 AbstractOperation::Jump {

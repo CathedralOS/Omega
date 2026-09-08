@@ -23,6 +23,7 @@ mod final_image_validation;
 mod forwarded_dynamic_descriptor;
 mod forwarded_dynamic_parameter;
 mod function_fragments;
+mod hosted_unit_entry;
 pub use function_fragments::{
     FunctionFragmentObjectArtifactError, build_function_fragment_object_artifact,
     validate_function_fragment_object_artifact,

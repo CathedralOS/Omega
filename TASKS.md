@@ -333,7 +333,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   failed read traps. This has run on macOS ARM64; Linux runtime remains unverified
   without a Linux host or emulator. Its selected-edge payload loads, exact
   destination definitions, and once-only cleanup/fuel must survive publication.
-  Multi-block return cleanup remains a separate admission limit.
+  Preserve branch-local normal-return cleanup with
+  `hosted_read_returning_branches`: cross-target artifact replay and matching-host
+  execution must retain distinct result homes, exactly two sequential reads,
+  first-byte output, and zero-status Unit completion. The macOS completion
+  adapter is a physical entry mapping, not closure of the canonical root contract.
   The macOS `cli_mvp` probe above still stops at the missing
   `Console::read_line` catalog identity. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected

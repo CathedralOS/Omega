@@ -237,7 +237,6 @@ pub(super) fn populate(
     function: &mut ObjectFunction,
     rows: &[SemanticCodeAttribution],
 ) -> Result<(), Error> {
-    byte_input::populate_cleanup(source, function, rows)?;
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
     if let Some(contract) = &selected.structural

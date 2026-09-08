@@ -85,8 +85,12 @@ Returning arms, ordinary joins, repeated field projections, and later dispatch
 before cleanup retain their source topology. The structural-home lookup proves
 definition availability, not ownership liveness; validated abstract frontiers
 remain authoritative. Independent target-input replay checks producer/home,
-layout, case, payload and cleanup correspondence. Legalized/selected case
-transport is still unsupported and grants no native execution claim. Hosted
+layout, case, payload and cleanup correspondence. The selected byte-read case
+route also retains returning arms with fresh affine read results. Their no-code
+discards remain on the exact return edge; validated current ownership determines
+which results remain live, independently of home availability. Mandatory fragment
+replay carries that complete graph through object/image publication without a
+redundant singular cleanup projection. Hosted
 exit arms retain every nominal Unit return; the canonical process-exit migration
 remains separate.
 

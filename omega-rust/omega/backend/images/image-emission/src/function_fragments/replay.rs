@@ -19,6 +19,22 @@ impl PartialEq for FragmentReplay {
 
 impl Eq for FragmentReplay {}
 
+pub(crate) fn has_free_unit_entry(
+    artifact: &crate::ObjectArtifact,
+) -> Result<bool, diagnostics::Diagnostic> {
+    let Some(replay) = &artifact.fragment_replay else {
+        return Ok(false);
+    };
+    let (function, _) = super::source::function(&replay.0, artifact.entry)
+        .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
+    Ok(matches!(
+        function.result,
+        abstract_operations::AbstractFunctionResult::Unit
+    ) && function.entry_claims.is_empty()
+        && function.parameters.is_empty()
+        && function.structural_parameters.is_empty())
+}
+
 pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnostics::Diagnostic> {
     if artifact.fragment_replay.is_none()
         && artifact.functions().iter().any(|function| {
@@ -99,6 +115,18 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
     {
         return Err(diagnostics::Diagnostic::error(
             "selected boundary output requires common-pipeline replay evidence",
+        ));
+    }
+    if artifact.fragment_replay.is_none()
+        && artifact.boundary_settlements().iter().any(|row| {
+            matches!(
+                row.settlement.realization,
+                target_operations::BoundaryRealization::HostedReadByte(_)
+            )
+        })
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "hosted byte input requires common-pipeline cleanup replay evidence",
         ));
     }
     if let Some(replay) = &artifact.fragment_replay {

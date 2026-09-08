@@ -194,12 +194,16 @@ pub(super) fn cleanup(
     function: &PsiOptimizationFunction,
     actions: &[TerminalAffineCleanupAction],
 ) -> bool {
-    if !roster(function) || function.blocks.len() != 1 {
+    if !roster(function) {
         return false;
     }
-    let mut results = function.blocks[0]
-        .nodes
+    // The independently validated current graph owns liveness and order on
+    // each return. This predicate restricts the supported no-code action kind;
+    // it must not reconstruct a frontier from all definitions in the function.
+    let results = function
+        .blocks
         .iter()
+        .flat_map(|block| &block.nodes)
         .filter_map(|node| match &node.operation {
             AbstractOperation::BoundaryCall {
                 psi_operation,
@@ -213,10 +217,12 @@ pub(super) fn cleanup(
             _ => None,
         })
         .collect::<Vec<_>>();
-    results.sort_by_key(|(operation, _)| std::cmp::Reverse(*operation));
-    actions.len() == results.len()
-        && actions
-            .iter()
-            .zip(results)
-            .all(|(action, (_, place))| *action == TerminalAffineCleanupAction::DiscardRoot(place))
+    let mut discarded = std::collections::BTreeSet::new();
+    actions.iter().all(|action| {
+        let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
+            return false;
+        };
+        discarded.insert(*place)
+            && results.iter().filter(|(_, result)| result == place).count() == 1
+    })
 }

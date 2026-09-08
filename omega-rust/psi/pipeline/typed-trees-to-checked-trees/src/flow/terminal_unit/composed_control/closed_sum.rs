@@ -385,8 +385,10 @@ fn build_leaf(
     let statements = program.statement_table.statements(state.statement_nodes);
     if statements.is_empty()
         || statements.iter().enumerate().any(|(index, statement)| {
-            !matches!(statement, StatementNode::Call(_))
-                && super::super::control::tail_call(program, state, index).is_none()
+            !matches!(
+                statement,
+                StatementNode::Call(_) | StatementNode::LocalData(_)
+            ) && super::super::control::tail_call(program, state, index).is_none()
         })
     {
         return None;
@@ -403,29 +405,43 @@ fn build_leaf(
         return None;
     }
     calls.sort_by_key(|call| call.statement_index);
-    let mut operations = Vec::with_capacity(calls.len() + 1);
     for (statement_index, call) in calls.iter().enumerate() {
         if call.statement_index != statement_index || call.call_ordinal != 0 {
             return None;
         }
-        let operation = build_call_operation(
-            program,
-            facts,
-            machine,
-            state,
-            &[],
-            &[],
-            &[],
-            &[],
-            call,
-            false,
-            None,
-            &[],
-        )?;
-        match &operation {
+    }
+    let sequence = super::super::control::statement_sequence::build(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        &[],
+        &scalar_parameters,
+        &[],
+        &calls,
+        &[],
+        &[],
+        0,
+    )?;
+    for operation in &sequence.operations {
+        match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
                 if boundaries.iter().any(|boundary| {
                     boundary.machine == *target_machine && boundary.result.is_unit()
+                }) => {}
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                target_machine, result, discard_result_on_return: true,
+                structural_arguments, completion_receipts, ..
+            } if structural_arguments.is_empty()
+                && completion_receipts.is_empty()
+                && result.multiplicity == Multiplicity::Affine
+                && boundaries.iter().any(|boundary| {
+                    boundary.machine == *target_machine
+                        && matches!(&boundary.result,
+                            CheckedBoundaryMachineResultPlan::Structural {
+                                type_identity, multiplicity: Multiplicity::Affine, qualifications,
+                            } if type_identity == &result.type_identity && qualifications.is_empty())
                 }) => {}
             CheckedUnitEffectOperationPlan::CallUnit {
                 structural_arguments,
@@ -434,7 +450,23 @@ fn build_leaf(
             } if structural_arguments.is_empty() && claim_transfers.is_empty() => {}
             _ => return None,
         }
-        operations.push(operation);
+    }
+    // Named result locals keep their operation-owned discard flags. Independently
+    // rejoin the state's remaining ownership events instead of assuming that
+    // accepting a local initializer makes its return cleanup complete.
+    if !return_unit_affine_discards(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        &[],
+        program.state_parameters(state),
+        &sequence.operations,
+        &sequence.structural_local_symbols,
+    )?
+    .is_empty()
+    {
+        return None;
     }
     Some(CheckedComposedUnitControlStatePlan {
         state: state.symbol,
@@ -443,7 +475,7 @@ fn build_leaf(
         entry_claims: Vec::new(),
         bindings: Vec::new(),
         binding_initializers: Vec::new(),
-        operations,
+        operations: sequence.operations,
         terminator: CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
     })
 }
