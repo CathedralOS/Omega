@@ -292,7 +292,9 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                 // pre-resolution pass so binder names and selected operators
                 // can acquire exact symbols later. Closed integer arithmetic
                 // keeps the existing eager fold and diagnostics.
-                if const_expression_contains_name(syntax, expression) {
+                if const_expression_contains_name(syntax, expression)
+                    || super::anonymous::requires_const_operator_selection(syntax, expression)
+                {
                     continue;
                 }
                 let destination =

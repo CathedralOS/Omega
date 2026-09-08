@@ -875,6 +875,14 @@ Owners include
   Close authored const-operator selection before folding: an unrelated
   declaration must not suppress builtin `%` formation checks, and selected
   declarations must retain their own meaning during const normalization.
+  The generic-data normalizer preserves possibly authored operator expressions;
+  executing them still needs selected const evaluation. On macOS, the source
+  probe `cargo run -p omega -- --check tests/omega/fail/generics/authored_const_operator_requires_selection/main.omg`
+  now rejects with `requires an integer literal argument` instead of synthesizing
+  `Buffer<1>` for a remainder provider returning zero. Owner:
+  `syntax-trees-to-symbol-resolved-trees/src/generic_data/const_evaluation/`.
+  Next acceptance: evaluate that selected provider to `Buffer<0>` while keeping
+  unrelated operator declarations from changing builtin arithmetic.
   Complete builtin proof `Int` division and remainder beyond exact constant
   operands, preserving their semantics in retained symbolic proof terms and
   independent checking. Source entailment of closed expressions and quotient bounds in

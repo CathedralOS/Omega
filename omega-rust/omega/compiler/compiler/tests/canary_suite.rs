@@ -985,6 +985,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/closed_indexed_domain_wrong_type",
     "generics/closed_indexed_struct_field_mismatch",
     "generics/colon_bound_rejected",
+    "generics/authored_const_operator_requires_selection",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_argument_requires_value",
     "generics/const_data_expression_division_by_zero",
