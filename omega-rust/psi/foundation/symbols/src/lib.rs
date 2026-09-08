@@ -25,6 +25,7 @@ pub use table::{
 #[cfg(test)]
 mod tests {
     mod filtered_lookup;
+    mod module_namespaces;
 
     use std::path::PathBuf;
     use std::sync::Arc;

@@ -486,10 +486,6 @@ Owners include
   those claims. Physical optimization replay belongs to
   `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
 
-  Complete intrinsic settlement with one exhaustive optional mapping in
-  `compiler/src/compiler/intrinsic_settlements.rs`: new planner variants must
-  require classification, and unsupported identities must refuse explicitly.
-
 - **GENERAL-CYCLIC-EXECUTION.** Implement the
   [settled cyclic control contract](wiki/spec/terminal-psi/control_flow.md)
   and [separate safety/progress rules](wiki/spec/language/termination.md)
@@ -775,14 +771,20 @@ Owners include
   trapping arms, duplicate/overlapping patterns, and nonnumeric results need
   controls; subtraction/multiplication is not a general match implementation.
 
-- **MODULE-NAMESPACE-RESOLUTION.** Implement the
-  [module/name contract](wiki/spec/language/modules.md) through source resolution
-  and artifact identity. The parser retains `ModuleDeclaration`, but
-  `syntax-trees-to-symbol-resolved-trees/src/item.rs` ignores it. Acceptance:
-  explicit module paths qualify declarations, cross-file imports resolve those
-  exact identities, ambiguity rejects, and module/qualified spelling cannot
-  bypass visibility or direct-dependency admission. A parse-only case is not
-  module support.
+- **MODULE-NAMESPACE-RESOLUTION.** Finish the
+  [module/name contract](wiki/spec/language/modules.md) for pre-resolution
+  constants/templates, trait defaults, operator homes, qualified constructors,
+  and remaining declaration forms. The explicit temporary fences live in
+  `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`; replace
+  them with exact namespace-aware normalization, not bare-name fallback.
+  Source-prefix imports and nominal/free-machine namespaces have focused
+  coverage in `tests/omega/pass/modules/qualified_declarations` and the owning
+  [source pipeline probes](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization).
+  Acceptance: remaining forms preserve exact module/package identity through
+  canonical artifacts; same-leaf ambiguity rejects; private and transitive-only
+  selection cannot gain authority through qualification. Extend package-alias
+  lookup to other already-loaded sources of the same exact dependency while
+  retaining exact-source validation of each import.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled

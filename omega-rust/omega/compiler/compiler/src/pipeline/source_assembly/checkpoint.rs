@@ -175,12 +175,19 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             timings,
         )?;
-        let source_scoped_top_level_bindings = inject_build_prelude(
+        let mut source_scoped_top_level_bindings = inject_build_prelude(
             &mut source_storage,
             self.build_source_id,
             target_name.is_some(),
             timings,
         )?;
+        source_scoped_top_level_bindings.extend(
+            crate::pipeline::frontend::retain_module_import_bindings(
+                &source_storage,
+                &self.root_path,
+                package_inputs,
+            )?,
+        );
         let source_file_count = source_storage.file_count();
         let syntax = assemble_syntax(
             source_storage,

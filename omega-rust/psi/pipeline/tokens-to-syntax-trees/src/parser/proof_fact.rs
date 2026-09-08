@@ -238,6 +238,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: false,
                         receiver: value,
                         target: predicate,
                         machine_arguments: Box::default(),

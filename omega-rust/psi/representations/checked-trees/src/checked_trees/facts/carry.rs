@@ -5,7 +5,11 @@
 
 use arena::{Arena, HandleSpan};
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
+use std::borrow::Cow;
 use symbols::SymbolHandle;
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CarryFacts {
@@ -140,11 +144,11 @@ pub fn canonical_suspension_crossing_id(
 ) -> Option<semantic_vocabulary::SuspensionCrossingId> {
     let mut hash = StableCrossingHash::new();
     hash.byte(0x73);
-    hash.string(symbol_identity(program, crossing.machine)?);
-    hash.string(symbol_identity(program, crossing.state)?);
+    hash.string(&symbol_identity(program, crossing.machine)?);
+    hash.string(&symbol_identity(program, crossing.state)?);
     hash.usize(crossing.statement_index);
     hash.usize(crossing.call_ordinal);
-    hash.string(symbol_identity(program, crossing.target)?);
+    hash.string(&symbol_identity(program, crossing.target)?);
     hash.policy(crossing.effective);
     for live in &crossing.live_values {
         hash.string(
@@ -163,20 +167,45 @@ pub fn canonical_suspension_crossing_id(
     semantic_vocabulary::SuspensionCrossingId::new(hash.finish())
 }
 
-fn symbol_identity(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Option<&str> {
+fn symbol_identity(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<Cow<'_, str>> {
     for machine in program.machines() {
         if machine.symbol == symbol {
-            return Some(machine.name.as_str());
+            return Some(crossing_declaration_name(
+                program,
+                symbol,
+                machine.name.as_str(),
+            ));
         }
         if let Some(state) = program
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == symbol)
         {
-            return Some(state.name.as_str());
+            return Some(crossing_declaration_name(
+                program,
+                symbol,
+                state.name.as_str(),
+            ));
         }
     }
     None
+}
+
+fn crossing_declaration_name<'program>(
+    program: &'program typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+    legacy_name: &'program str,
+) -> Cow<'program, str> {
+    // Preserve published identities for declarations without a module; new
+    // module-owned crossings require their complete logical declaration path.
+    if program.symbols.symbol_module(symbol).is_valid() {
+        Cow::Owned(program.symbols.display_path(symbol, "::"))
+    } else {
+        Cow::Borrowed(legacy_name)
+    }
 }
 
 struct StableCrossingHash(u64);

@@ -1,0 +1,13 @@
+use combat::Damage;
+use combat::damage;
+
+data Attack {
+    local: Damage;
+    qualified: combat::Damage;
+}
+
+machine score() -> u32 { damage() }
+machine qualified_score() -> u32 { combat::damage() }
+
+data Main {}
+machine Main::main(&mut self) {}

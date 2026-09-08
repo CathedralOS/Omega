@@ -52,11 +52,31 @@ and the current language specification must agree.
 
 ## Resolution and closed-instance normalization
 
-The parser retains `module` paths, but item lowering ignores those declarations;
-no resolved module namespace is established from them. The parse canary is not
-module-identity coverage. Implement the
-[module/name contract](../../../wiki/spec/language/modules.md) before relying
-on authored module paths to qualify declarations.
+Authored `module` paths establish namespace symbols without moving the ordered
+root declaration slots. Semantic paths include the namespace; physical member
+ownership and exact package provenance remain separate. Cross-file imports join
+logical paths to the exact loaded source. Package aliases do not rename nominal
+identities or grant transitive selection authority. Static namespace calls retain
+the authored `::` distinction from value-member `.` calls through parsing.
+
+Nominal data references and scalar free-machine calls have namespace coverage,
+including qualified Terminal selection and canonical nominal review rows. This
+is not completion of the [module/name contract](../../../wiki/spec/language/modules.md):
+constant/template normalization, trait defaults, operator homes, qualified
+constructors, and the remaining declaration forms still need exact
+namespace-aware resolution. Module-owned constants, generic templates, traits,
+conformances, domains, and operators currently reject before their bare-name
+transforms; so do generic carrier/argument collisions across module scopes.
+Import loading still uses source-path
+candidates, including enclosing prefixes for a module's declarations; it does
+not scan or parse a package-wide source inventory to discover arbitrary files.
+
+The focused source/Terminal probes run from the repository root:
+
+```sh
+cargo run -p omega -- --check tests/omega/pass/modules/qualified_declarations/main.omg
+cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_declarations/main.omg
+```
 
 [Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
 identity and exact lexical lookup, not type compatibility, borrow legality,

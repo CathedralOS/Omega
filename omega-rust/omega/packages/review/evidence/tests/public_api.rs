@@ -6,6 +6,8 @@ mod data_and_quotients;
 mod data_invariants;
 #[path = "public_api/domain_predicates.rs"]
 mod domain_predicates;
+#[path = "public_api/module_namespaces.rs"]
+mod module_namespaces;
 #[path = "public_api/public_domains.rs"]
 mod public_domains;
 #[path = "public_api/traits_and_lifetimes.rs"]

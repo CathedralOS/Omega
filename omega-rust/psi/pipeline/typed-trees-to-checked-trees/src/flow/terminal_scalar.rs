@@ -15,7 +15,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
             .iter()
             .map(|machine| CheckedTerminalMachineSelection {
                 machine: machine.symbol,
-                name: machine.name.as_str().to_owned(),
+                name: program.symbols.display_path(machine.symbol, "::"),
                 signature: if machine.attached_data.is_some() {
                     CheckedTerminalSignatureEligibility::Attached
                 } else if !machine.type_parameters.is_empty()

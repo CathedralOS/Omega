@@ -65,6 +65,7 @@ struct RequirementInstance {
 }
 
 pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+    crate::module_normalization::validate_module_normalization(syntax)?;
     let data_names = syntax
         .root_items()
         .filter_map(|item| match item {

@@ -440,6 +440,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         ));
     let argument = file.statements.append_expression_handle(argument);
     let call = file.statements.insert(StatementNode::Call(TableCall {
+        target_is_static: false,
         receiver,
         receiver_starts_at_self: true,
         target: Identifier::generated("take_non_negative"),
@@ -548,6 +549,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     let nested_call = file
         .expressions
         .insert(ExpressionNode::Call(TableCallExpression {
+            target_is_static: false,
             receiver: self_value,
             target: Identifier::generated("xp_required"),
             machine_arguments: Box::default(),
@@ -565,6 +567,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     let max_call = file
         .expressions
         .insert(ExpressionNode::Call(TableCallExpression {
+            target_is_static: false,
             receiver: ExpressionHandle::invalid(),
             target: Identifier::generated("max"),
             machine_arguments: Box::default(),

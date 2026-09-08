@@ -71,6 +71,18 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         }
 
         let receiver_kind = symbols.get(receiver_symbol).kind;
+        if receiver_kind == SymbolKind::Module {
+            let callable = child_symbol_by_kinds(
+                symbols,
+                receiver_symbol,
+                &[SymbolKind::Machine],
+                target.as_str(),
+            );
+            if symbols.get(callable).kind != SymbolKind::Machine {
+                return SymbolHandle::invalid();
+            }
+            return child_symbol_by_kinds(symbols, callable, &[SymbolKind::State], "entry");
+        }
         if let Some(parameter) = parameters
             .iter()
             .find(|parameter| parameter.symbol == receiver_symbol)

@@ -171,6 +171,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     input = rest.take_punctuation(PunctuationKind::RightParen, ")")?;
                     expression = syntax_trees.expressions.insert(ExpressionNode::Call(
                         TableCallExpression {
+                            target_is_static: false,
                             receiver: expression,
                             target: syntax_trees::identifier::Identifier::new(
                                 format!("bind_root#{slot}#{implementation}"),
@@ -224,6 +225,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     syntax_trees
                         .expressions
                         .insert(ExpressionNode::Call(TableCallExpression {
+                            target_is_static: false,
                             receiver: expression,
                             target: syntax_trees::identifier::Identifier::new(
                                 format!("accept_boundary#{rendered}"),
@@ -282,6 +284,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     syntax_trees
                         .expressions
                         .insert(ExpressionNode::Call(TableCallExpression {
+                            target_is_static: false,
                             receiver: expression,
                             target: member,
                             machine_arguments,
@@ -327,6 +330,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     syntax_trees
                         .expressions
                         .insert(ExpressionNode::Call(TableCallExpression {
+                            target_is_static: false,
                             receiver: expression,
                             target: member,
                             machine_arguments,
@@ -421,6 +425,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     syntax_trees
                         .expressions
                         .insert(ExpressionNode::Call(TableCallExpression {
+                            target_is_static: false,
                             receiver: expression,
                             target: syntax_trees::identifier::Identifier::generated(format!(
                                 "wire_compatibility#{}",
@@ -700,6 +705,9 @@ fn take_range_separator<'tokens, 'source>(
     }
 }
 
+#[cfg(test)]
+mod static_targets;
+
 fn build_call_expression_handle(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
@@ -738,6 +746,7 @@ fn build_call_expression_handle(
                 .tables
                 .expressions
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    target_is_static: true,
                     receiver,
                     target,
                     machine_arguments,
@@ -756,6 +765,7 @@ fn build_call_expression_handle(
             Ok(syntax_trees
                 .expressions
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    target_is_static: false,
                     receiver: member.receiver,
                     target: member.member,
                     machine_arguments,

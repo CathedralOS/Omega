@@ -5,6 +5,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
+mod modules;
 use super::{
     BuiltinFunction, BuiltinType, BuiltinTypeAtom, Symbol, SymbolHandle, SymbolKind, SymbolName,
     SymbolNameRef, SymbolNameStorageKind, SymbolPath,
@@ -19,6 +20,8 @@ pub struct SymbolTable {
     source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
     root: SymbolHandle,
     supplemental_top_level: Vec<SymbolHandle>,
+    module_symbols: Arena<SymbolHandle>,
+    source_modules: Arena<modules::SourceModule>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -40,6 +43,7 @@ pub struct SourceScopedTopLevelBinding {
     reference_source: SourceId,
     declaration_source: SourceId,
     name: Arc<str>,
+    module_import: Option<modules::ModuleImport>,
 }
 
 impl SourceScopedTopLevelBinding {
@@ -52,6 +56,7 @@ impl SourceScopedTopLevelBinding {
             reference_source,
             declaration_source,
             name: name.into(),
+            module_import: None,
         }
     }
 }
@@ -137,6 +142,8 @@ impl SymbolTableBuilder {
             source_scoped_top_level_bindings: self.source_scoped_top_level_bindings,
             root: self.root,
             supplemental_top_level: Vec::new(),
+            module_symbols: Arena::new(),
+            source_modules: Arena::new(),
         }
     }
 
@@ -366,13 +373,21 @@ impl SymbolTable {
     }
 
     pub fn child_handles(&self, parent: SymbolHandle) -> Option<SymbolChildHandles<'_>> {
+        if self.get(parent).kind == SymbolKind::Module {
+            return Some(SymbolChildHandles {
+                contiguous: None,
+                supplemental: [].iter(),
+                namespace: self.module_children(parent).into_iter(),
+            });
+        }
         Some(SymbolChildHandles {
-            contiguous: self.symbols.child_handles(parent)?,
+            contiguous: Some(self.symbols.child_handles(parent)?),
             supplemental: if parent == self.root {
                 self.supplemental_top_level.iter()
             } else {
                 [].iter()
             },
+            namespace: Vec::new().into_iter(),
         })
     }
 
@@ -381,8 +396,14 @@ impl SymbolTable {
             return None;
         }
 
-        self.child_handles(parent)?
-            .find(|symbol| self.name(*symbol) == name)
+        let mut candidates = self
+            .child_handles(parent)?
+            .filter(|symbol| self.name(*symbol) == name);
+        let first = candidates.next()?;
+        if self.get(parent).kind == SymbolKind::Module && candidates.next().is_some() {
+            return None;
+        }
+        Some(first)
     }
 
     pub fn find_child_by_name_and_kind(
@@ -395,8 +416,14 @@ impl SymbolTable {
             return None;
         }
 
-        self.child_handles(parent)?
-            .find(|symbol| self.get(*symbol).kind == kind && self.name(*symbol) == name)
+        let mut candidates = self
+            .child_handles(parent)?
+            .filter(|symbol| self.get(*symbol).kind == kind && self.name(*symbol) == name);
+        let first = candidates.next()?;
+        if self.get(parent).kind == SymbolKind::Module && candidates.next().is_some() {
+            return None;
+        }
+        Some(first)
     }
 
     /// Resolve one source-backed top-level reference without turning a
@@ -420,6 +447,11 @@ impl SymbolTable {
         reference: SourceSpan,
         mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
     ) -> Option<SymbolHandle> {
+        if let Some(result) =
+            self.find_module_qualified_reference(name, kinds, reference, &mut matches_candidate)
+        {
+            return result;
+        }
         let children = self.child_handles(self.root)?;
         let reference_is_source_backed = reference.span.start != reference.span.end;
         let candidates = children
@@ -440,7 +472,9 @@ impl SymbolTable {
             .source_scoped_top_level_bindings
             .iter()
             .find(|binding| {
-                binding.reference_source == reference.source_id && binding.name.as_ref() == name
+                binding.module_import.is_none()
+                    && binding.reference_source == reference.source_id
+                    && binding.name.as_ref() == name
             })
         {
             let mut targets = candidates.iter().copied().filter(|symbol| {
@@ -451,6 +485,9 @@ impl SymbolTable {
             return targets.next().is_none().then_some(target);
         }
 
+        if self.has_namespace_context(reference) {
+            return self.select_namespace_candidate(&candidates, reference);
+        }
         candidates
             .iter()
             .copied()
@@ -492,7 +529,9 @@ impl SymbolTable {
             .source_scoped_top_level_bindings
             .iter()
             .find(|binding| {
-                binding.reference_source == reference.source_id && binding.name.as_ref() == name
+                binding.module_import.is_none()
+                    && binding.reference_source == reference.source_id
+                    && binding.name.as_ref() == name
             })?;
         let mut family = self.child_handles(self.root)?.filter(|symbol| {
             self.get(*symbol).kind == SymbolKind::Operator
@@ -519,6 +558,9 @@ impl SymbolTable {
         if left_span.source_id == right_span.source_id {
             return false;
         }
+        if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
+            return true;
+        }
         if self
             .sources
             .as_deref()
@@ -531,7 +573,8 @@ impl SymbolTable {
             return false;
         }
         self.source_scoped_top_level_bindings.iter().any(|binding| {
-            binding.name.as_ref() == name
+            binding.module_import.is_none()
+                && binding.name.as_ref() == name
                 && (binding.declaration_source == left_span.source_id
                     || binding.declaration_source == right_span.source_id)
         })
@@ -627,7 +670,7 @@ impl SymbolTable {
 
         while current.is_valid() && current != self.root {
             names.push(self.name(current));
-            current = self.get(current).parent;
+            current = self.namespace_parent(current);
         }
 
         let byte_count = names.iter().map(|name| name.len()).sum::<usize>()
@@ -719,8 +762,9 @@ impl SymbolTable {
 }
 
 pub struct SymbolChildHandles<'table> {
-    contiguous: HierarchyChildHandles<Symbol>,
+    contiguous: Option<HierarchyChildHandles<Symbol>>,
     supplemental: std::slice::Iter<'table, SymbolHandle>,
+    namespace: std::vec::IntoIter<SymbolHandle>,
 }
 
 impl Iterator for SymbolChildHandles<'_> {
@@ -728,8 +772,10 @@ impl Iterator for SymbolChildHandles<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.contiguous
-            .next()
+            .as_mut()
+            .and_then(Iterator::next)
             .or_else(|| self.supplemental.next().copied())
+            .or_else(|| self.namespace.next())
     }
 }
 

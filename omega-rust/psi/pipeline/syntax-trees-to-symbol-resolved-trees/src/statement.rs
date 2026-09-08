@@ -119,6 +119,19 @@ fn lower_statement_node(
         }
         syntax::statement::StatementNode::Call(call) => {
             let receiver = lower_statement_path_members(lowerer, syntax_trees, call.receiver);
+            if call.target_is_static && !receiver.is_empty() {
+                let mut path = lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .statement_path_members
+                    .span_or_empty(receiver)
+                    .to_vec();
+                path.push(crate::name::lower_name(&call.target));
+                lowerer
+                    .pending_static_module_statement_calls
+                    .push((call.target.source_span(), path));
+            }
             let arguments = lower_statement_expressions(lowerer, syntax_trees, call.arguments)?;
             // A ref-param member as a CALL ARGUMENT (`out.output_string(
             // table.con_out, ..)`) folds flat -- slot+field frame read, silent

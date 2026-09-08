@@ -16,6 +16,7 @@ mod lowerer;
 mod machine;
 mod machine_parameter_requirements;
 mod measure;
+mod module_normalization;
 mod name;
 mod operator;
 mod proposition;

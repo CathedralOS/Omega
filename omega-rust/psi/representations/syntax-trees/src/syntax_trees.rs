@@ -962,6 +962,7 @@ impl SyntaxTrees {
                 value: self.copy_expression_handle(other, assignment.value),
             }),
             StatementNode::Call(call) => StatementNode::Call(TableCall {
+                target_is_static: call.target_is_static,
                 receiver: self.copy_statement_identifier_span(other, call.receiver),
                 receiver_starts_at_self: call.receiver_starts_at_self,
                 target: call.target.clone(),
@@ -1208,6 +1209,7 @@ impl SyntaxTrees {
                 form: cast.form,
             }),
             ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
+                target_is_static: call.target_is_static,
                 receiver: self.copy_expression_handle(other, call.receiver),
                 target: call.target.clone(),
                 machine_arguments: call.machine_arguments.clone(),

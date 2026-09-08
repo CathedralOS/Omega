@@ -26,6 +26,22 @@ pub(crate) fn lower_expression_into_table(
         syntax_trees.expressions.expression(expression),
     )?;
     expression_table(lowerer).set_source_span(lowered, source_span);
+    if let syntax::expression::ExpressionNode::Call(call) =
+        syntax_trees.expressions.expression(expression)
+        && call.target_is_static
+        && call.receiver.is_valid()
+        && let syntax::expression::ExpressionNode::Name(receiver) =
+            syntax_trees.expressions.expression(call.receiver)
+    {
+        let mut path = syntax_trees
+            .expressions
+            .identifier_path_members(*receiver)
+            .iter()
+            .map(lower_name)
+            .collect::<Vec<_>>();
+        path.push(lower_name(&call.target));
+        lowerer.pending_static_module_calls.push((lowered, path));
+    }
     if let Some(exposure) = lowerer.current_authored_expression_exposure {
         expression_table(lowerer).set_authored_expression_exposure(lowered, exposure);
         lowerer

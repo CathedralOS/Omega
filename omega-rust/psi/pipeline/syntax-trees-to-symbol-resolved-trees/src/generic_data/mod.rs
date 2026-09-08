@@ -88,6 +88,7 @@ pub fn normalize_generic_data(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Di
 fn normalize_generic_data_with_warnings(
     mut syntax: SyntaxTrees,
 ) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
+    crate::module_normalization::validate_module_normalization(&syntax)?;
     let mut warnings = Vec::new();
     desugar_generic_data_instances(&mut syntax, &mut warnings)?;
     deduplicate_generic_warnings(&mut warnings);
