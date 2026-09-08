@@ -16,6 +16,8 @@ use terminal_verifier::{ModuleError, reconstruct_operation_obligations, validate
 mod contract_fields;
 #[path = "structural_scalar_fields/cyclic_receiver.rs"]
 mod cyclic_receiver;
+#[path = "structural_scalar_fields/owned_reads.rs"]
+mod owned_reads;
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).expect("test identity is nonzero")

@@ -217,6 +217,7 @@ pub(super) fn prepare_scalar_graph_machine(
         ScalarContractMode::ClosedRuntimeValue,
         &[],
         &[],
+        &[],
     )
 }
 
@@ -230,6 +231,7 @@ fn prepare_standalone_scalar_graph_machine(
         machine,
         graph,
         ScalarContractMode::StandaloneProofOnlyFloatResult,
+        &[],
         &[],
         &[],
     )
@@ -251,6 +253,7 @@ pub(super) fn prepare_embedded_scalar_graph_machine(
         ScalarContractMode::EmbeddedByEnclosingCall,
         &[],
         &[],
+        &[],
     )
 }
 
@@ -260,6 +263,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
     embedded: bool,
     parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Result<PreparedScalarMachine, LoweringError> {
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
@@ -272,6 +276,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
         },
         parameters,
         primitive_locals,
+        structural_types,
     )
 }
 
@@ -289,6 +294,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     contract_mode: ScalarContractMode,
     structural_parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
@@ -356,6 +362,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             parameter_types,
             structural_parameters,
             primitive_locals,
+            structural_types,
         )?;
         let value_types = &prepared.value_types;
         let scalar_bindings = &prepared.scalar_bindings;
@@ -697,9 +704,9 @@ pub(super) fn lower_scalar_call(
         || !target.entry_claims().is_empty()
         || structural_arguments
             .iter()
-            .any(|argument| !argument.path.is_empty() || argument.access == StructuralAccess::Owned)
+            .any(|argument| !argument.path.is_empty())
     {
-        return unsupported("computed scalar call requires exact whole primitive borrow custody");
+        return unsupported("computed scalar call requires exact whole structural custody");
     }
     let target_parameter_types = target.parameter_types()?;
     if target.entry_state()? != target_state {

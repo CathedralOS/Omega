@@ -1319,7 +1319,8 @@ fn validate_operation_foundation(
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
             ) || !matches!(
                 parameter.access,
-                terminal_psi::StructuralAccess::SharedBorrow
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::SharedBorrow
                     | terminal_psi::StructuralAccess::MutableBorrow
             ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()

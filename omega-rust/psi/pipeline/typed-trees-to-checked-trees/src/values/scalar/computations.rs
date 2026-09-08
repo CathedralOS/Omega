@@ -557,7 +557,7 @@ impl Builder<'_, '_> {
                     } else {
                         let state =
                             crate::find_state_in_machine(self.program, self.machine, self.state)?;
-                        structural_arguments.push(crate::flow::primitive_computation_argument(
+                        structural_arguments.push(crate::flow::structural_computation_argument(
                             self.program,
                             self.borrow,
                             self.machine,

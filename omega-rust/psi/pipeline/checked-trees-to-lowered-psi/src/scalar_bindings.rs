@@ -125,6 +125,41 @@ impl ScalarBindings {
         })
     }
 
+    /// Resolve a source-validated whole owned parameter without inventing a loan.
+    pub(super) fn owned_argument(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<StructuralArgument, LoweringError> {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            argument.source
+        else {
+            return unsupported("computed owned operand requires an existing parameter");
+        };
+        let (_, parameter) = self
+            .structural_parameters
+            .get(parameter_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "computed owned operand lost its source parameter",
+            ))?;
+        if !argument.path.is_empty()
+            || argument.access != checked_trees::CheckedStructuralAccess::Owned
+            || parameter.access != StructuralAccess::Owned
+            || !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return unsupported("computed owned operand changes its source custody");
+        }
+        Ok(StructuralArgument {
+            place: parameter.place,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        })
+    }
+
     pub(super) fn initialize_parameter(
         &mut self,
         symbol: symbols::SymbolHandle,

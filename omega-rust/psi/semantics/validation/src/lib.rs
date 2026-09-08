@@ -35,7 +35,10 @@ mod machine_parameters;
 mod machine_specialization_identity;
 mod operators;
 mod owned_storage;
-pub use owned_storage::{has_plain_owned_contents, has_plain_owned_contents_with_substitutions};
+pub use owned_storage::{
+    has_plain_owned_contents, has_plain_owned_contents_with_numeric_constraints,
+    has_plain_owned_contents_with_substitutions,
+};
 mod placed_views;
 mod places;
 mod plan_laid;

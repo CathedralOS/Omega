@@ -1,8 +1,11 @@
-//! Whole primitive referents shared by Unit calls and scalar computations.
+//! Whole structural parameters and primitive referents in scalar computations.
 
 use super::*;
 
-pub(crate) fn primitive_computation_argument(
+#[cfg(test)]
+mod tests;
+
+pub(crate) fn structural_computation_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
@@ -14,7 +17,6 @@ pub(crate) fn primitive_computation_argument(
     if target.is_self || target.is_const {
         return None;
     }
-    let target_type = plain_primitive_referent(program, target.type_reference)?;
     let target_access = structural_access_for_type_reference(program, target.type_reference)?;
     let named = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(argument) => {
@@ -55,6 +57,35 @@ pub(crate) fn primitive_computation_argument(
         return None;
     }
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
+    let target_state = crate::find_state(program, call.target_symbol)?;
+    let target_position = program
+        .state_parameters(target_state)
+        .iter()
+        .position(|parameter| parameter == target)?;
+    let ExpressionNode::Call(authored) = program
+        .expression_table
+        .expression(call.authored_expression)
+    else {
+        return None;
+    };
+    if authored.target_symbol != call.target_symbol
+        || program
+            .expression_table
+            .expression_handles(authored.arguments)
+            .get(target_position)
+            != Some(&expression)
+    {
+        return None;
+    }
+    if target_access == CheckedStructuralAccess::Owned {
+        if named != expression {
+            return None;
+        }
+        // This retains authored actual identity. Graph publication rejoins
+        // affine transfers after multiplicity checking produces permissions.
+        return owned_parameter_argument(program, state, name.symbol, target);
+    }
+    let target_type = plain_primitive_referent(program, target.type_reference)?;
     if super::super::primitive_store::primitive_local_before(
         program,
         state,
@@ -129,6 +160,72 @@ pub(crate) fn primitive_computation_argument(
         path: Vec::new(),
         type_identity: base_type_identity(program, target.type_reference, &[])?,
         access,
+    })
+}
+
+fn owned_parameter_argument(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    source_symbol: SymbolHandle,
+    target: &StateParameter,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let parameters = program.state_parameters(state);
+    let source_position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == source_symbol)?;
+    let source = &parameters[source_position];
+    let mut shapes = ShapeCollector::new(program);
+    for parameter in [source, target] {
+        if parameter.is_self
+            || parameter.is_const
+            || parameter.is_mutable
+            || !matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Named { .. }
+            )
+            || program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+            || !matches!(
+                crate::checks::type_multiplicity(program, parameter.type_reference),
+                Multiplicity::Unrestricted | Multiplicity::Affine
+            )
+            || !validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                parameter.type_reference,
+            )
+            || structural_access_for_type_reference(program, parameter.type_reference)?
+                != CheckedStructuralAccess::Owned
+            || !parameter_qualifications(program, &mut shapes, parameter.type_reference, &[])?
+                .is_empty()
+        {
+            return None;
+        }
+    }
+    let type_identity = shapes.add_type(source.type_reference, &[], &[])?;
+    if type_identity != shapes.add_type(target.type_reference, &[], &[])?
+        || crate::checks::type_multiplicity(program, source.type_reference)
+            != crate::checks::type_multiplicity(program, target.type_reference)
+    {
+        return None;
+    }
+    let parameter_index = parameters[..source_position]
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_none()
+        })
+        .count();
+    Some(CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: u32::try_from(parameter_index).ok()?,
+        },
+        path: Vec::new(),
+        type_identity,
+        access: CheckedStructuralAccess::Owned,
     })
 }
 

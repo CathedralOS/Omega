@@ -5,8 +5,8 @@ use super::*;
 #[cfg(test)]
 mod tests;
 
-/// Rejoin mixed graph signatures before ordinary Unit calls acquire borrow lanes.
-pub(super) fn registered_primitive_graph_target<'facts>(
+/// Rejoin owned and borrowed graph signatures before ordinary Unit calls use them.
+pub(super) fn registered_structural_graph_target<'facts>(
     program: &TypedTrees,
     facts: &'facts CheckFacts,
     machine_symbol: SymbolHandle,
@@ -54,7 +54,7 @@ pub(super) fn registered_primitive_graph_target<'facts>(
     {
         return None;
     }
-    let (structural, scalar, shapes) = primitive_scalar_graph_signature(program, state)?;
+    let (structural, scalar, shapes) = structural_scalar_graph_signature(program, state)?;
     if structural != retained.structural_parameters
         || scalar != retained.scalar_parameters
         || retained.parameter_types
@@ -168,7 +168,7 @@ pub(super) fn is_available(
         .for_machine(*target_machine)
         .is_some()
     {
-        let Some(plan) = registered_primitive_graph_target(
+        let Some(plan) = registered_structural_graph_target(
             program,
             facts,
             *target_machine,

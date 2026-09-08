@@ -13,6 +13,7 @@ mod effect_results;
 mod primitive_storage;
 mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
+mod structural_scalar_fields;
 use byte_sequence_view::ByteSequenceView;
 mod semantic_value_comparison;
 #[cfg(test)]
@@ -20,6 +21,7 @@ mod structural_argument_binding_tests;
 
 pub use boundary_byte_buffers::TerminalBoundaryByteBuffer;
 pub use effect_results::TerminalEffectResult;
+pub use structural_scalar_fields::TerminalStructuralScalarFieldValue;
 
 pub use semantic_value_comparison::{
     TerminalTraceScalarComparisonError, TerminalTraceScalarValueSide,
@@ -679,6 +681,28 @@ impl TerminalExecution {
         )
     }
 
+    /// Decode and verify an artifact, then bind explicitly supplied scalar fields
+    /// by structural argument, typed path, and field identity. No native layout or
+    /// default field contents are inferred. Duplicate referents and mistyped values reject.
+    pub fn start_artifact_with_structural_arguments_and_scalar_fields(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &proof_admission::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+        structural_scalar_fields: &[TerminalStructuralScalarFieldValue],
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        Self::start_artifact_with_scalar_runtime_values(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            scalar_arguments,
+            structural_arguments,
+            structural_scalar_fields,
+            &[],
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn start_artifact_with_structural_runtime_values(
         semantic_bytes: &[u8],
@@ -687,6 +711,45 @@ impl TerminalExecution {
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
         structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
+        structural_primitive_values: &[TerminalStructuralPrimitiveValue],
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        let fields = structural_boolean_fields
+            .iter()
+            .map(TerminalStructuralScalarFieldValue::from)
+            .collect::<Vec<_>>();
+        Self::start_artifact_with_scalar_runtime_values(
+            semantic_bytes,
+            proof_bytes,
+            profile,
+            scalar_arguments,
+            structural_arguments,
+            &fields,
+            structural_primitive_values,
+        )
+        .map_err(|error| match error {
+            TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
+                    argument_index,
+                    field,
+                },
+            ) => TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
+                    argument_index,
+                    field,
+                },
+            ),
+            other => other,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn start_artifact_with_scalar_runtime_values(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &proof_admission::AdmissionProfile,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+        structural_scalar_fields: &[TerminalStructuralScalarFieldValue],
         structural_primitive_values: &[TerminalStructuralPrimitiveValue],
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
@@ -700,7 +763,7 @@ impl TerminalExecution {
             verified.module(),
             scalar_arguments,
             structural_arguments,
-            structural_boolean_fields,
+            structural_scalar_fields,
             structural_primitive_values,
             None,
         )
@@ -738,7 +801,7 @@ impl TerminalExecution {
         module: &terminal_psi::TerminalModule,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
-        structural_boolean_field_arguments: &[TerminalStructuralBooleanFieldValue],
+        structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
         structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
@@ -928,11 +991,11 @@ impl TerminalExecution {
                 &structural_values,
                 structural_primitive_value_arguments,
             )?;
-        let structural_boolean_fields = bind_structural_boolean_fields(
+        let structural_scalar_fields = structural_scalar_fields::bind(
             machine,
             &structural_types,
             &structural_values,
-            structural_boolean_field_arguments,
+            structural_scalar_field_arguments,
         )?;
         let live_affine_frontier =
             bind_affine_frontier(&machine.structural_parameters, &structural_values)?;
@@ -970,7 +1033,7 @@ impl TerminalExecution {
                 module,
                 structural_arguments,
             ),
-            structural_scalar_fields: structural_boolean_fields,
+            structural_scalar_fields,
             structural_byte_sequence_fields: BTreeMap::new(),
             payloadless_case_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
@@ -4155,97 +4218,6 @@ fn nearest_ieee_float_fused_multiply_add(
     }
 }
 
-fn bind_structural_boolean_fields(
-    machine: &ExecutableMachine,
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
-    structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
-    arguments: &[TerminalStructuralBooleanFieldValue],
-) -> Result<BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>, TerminalInterpretError> {
-    let required = machine
-        .blocks
-        .values()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| match operation.kind {
-            OperationKind::BooleanStructuralField { source, field } => {
-                let argument_index = machine
-                    .structural_parameters
-                    .iter()
-                    .position(|parameter| parameter.place == source)?;
-                Some((argument_index as u32, field))
-            }
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let mut values = BTreeMap::new();
-    for argument in arguments {
-        let parameter = machine
-            .structural_parameters
-            .get(argument.argument_index as usize)
-            .ok_or(
-                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
-                    argument_index: argument.argument_index,
-                    field: argument.field,
-                },
-            )?;
-        let root = structural_values.get(&parameter.place).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
-        )?;
-        let parent_type =
-            resolve_structural_path_type(structural_types, root.structural_type, &argument.path)
-                .map_err(
-                    |_| TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
-                        argument_index: argument.argument_index,
-                        field: argument.field,
-                    },
-                )?;
-        if direct_scalar_field_type(structural_types, parent_type, argument.field)
-            != Some(ScalarType::Boolean)
-        {
-            return Err(
-                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
-                    argument_index: argument.argument_index,
-                    field: argument.field,
-                },
-            );
-        }
-        let mut parent = StructuralRuntimePlace::from(root);
-        parent.path.extend(argument.path.clone());
-        if values
-            .insert(
-                StructuralScalarRuntimeField {
-                    parent,
-                    field: argument.field,
-                },
-                TerminalScalarValue::Boolean(argument.value),
-            )
-            .is_some()
-        {
-            return Err(
-                TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
-                    argument_index: argument.argument_index,
-                    field: argument.field,
-                },
-            );
-        }
-    }
-    for (argument_index, field) in required {
-        let parameter = &machine.structural_parameters[argument_index as usize];
-        let root = structural_values
-            .get(&parameter.place)
-            .expect("verified entry parameter has a bound structural value");
-        if !values.contains_key(&StructuralScalarRuntimeField {
-            parent: StructuralRuntimePlace::from(root),
-            field,
-        }) {
-            return Err(TerminalInterpretError::StructuralBooleanFieldMissing {
-                source: parameter.place,
-                field,
-            });
-        }
-    }
-    Ok(values)
-}
-
 fn bind_affine_frontier(
     parameters: &[StructuralParameterDeclaration],
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
@@ -4912,6 +4884,10 @@ pub enum TerminalInterpretError {
     StructuralIdentityExhausted,
     StructuralScalarFieldMissing {
         source: PlaceId,
+        field: StructuralFieldId,
+    },
+    StructuralScalarFieldArgumentInvalid {
+        argument_index: u32,
         field: StructuralFieldId,
     },
     StructuralBooleanFieldArgumentInvalid {

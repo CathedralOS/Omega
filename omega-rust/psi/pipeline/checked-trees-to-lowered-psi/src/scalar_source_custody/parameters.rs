@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod owned;
+mod owned_types;
+
 pub(crate) fn parameter_storage<'checked>(
     checked: &'checked CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -11,6 +14,7 @@ pub(crate) fn parameter_storage<'checked>(
     if owner.symbol != machine {
         return unsupported("scalar parameter storage belongs to another machine");
     }
+    owned::validate(checked, machine, state, &graph.structural_parameters)?;
     let parameters = checked.state_parameters(state);
     if parameters.len() != graph.parameter_types.len() + graph.structural_parameters.len()
         || graph.scalar_parameters.len() != graph.parameter_types.len()
@@ -43,7 +47,7 @@ pub(crate) fn parameter_storage<'checked>(
             let retained = structural.next().ok_or(LoweringError::Unsupported(
                 "scalar graph lost a structural parameter",
             ))?;
-            validate_primitive_reference(checked, parameter, position, retained)?;
+            validate_structural_parameter(checked, parameter, position, retained)?;
             continue;
         };
         let retained =
@@ -82,16 +86,47 @@ pub(crate) fn parameter_storage<'checked>(
     {
         return unsupported("scalar parameter storage contains an unauthored entry binding");
     }
+    owned_types::validate(checked, state, &graph.structural_parameters)?;
     Ok(rows)
 }
 
-fn validate_primitive_reference(
+fn validate_structural_parameter(
     checked: &CheckedTrees,
     parameter: &checked_trees::signature::StateParameter,
     position: usize,
     retained: &checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
     use checked_trees::types::TypeReferenceNode;
+    if matches!(
+        checked
+            .type_reference_table
+            .type_reference(parameter.type_reference),
+        TypeReferenceNode::Named { .. }
+    ) {
+        if parameter.is_mutable
+            || !validation::has_plain_owned_contents_with_numeric_constraints(
+                checked,
+                parameter.type_reference,
+            )
+            || retained.is_self
+            || retained.position as usize != position
+            || retained.access != checked_trees::CheckedStructuralAccess::Owned
+            || !matches!(
+                retained.multiplicity,
+                Multiplicity::Unrestricted | Multiplicity::Affine
+            )
+            || checked.type_multiplicity(parameter.type_reference) != retained.multiplicity
+            || !retained.qualifications.is_empty()
+            || retained.fused_service_erasure.is_some()
+            || retained.type_identity
+                != checked
+                    .normalized_type_identity(parameter.type_reference)
+                    .into_string()
+        {
+            return unsupported("scalar graph owned parameter differs from its authored signature");
+        }
+        return Ok(());
+    }
     let TypeReferenceNode::Reference {
         access, referee, ..
     } = checked

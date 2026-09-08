@@ -156,6 +156,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
         embedded_root: bool,
         structural_parameters: &[StructuralParameterDeclaration],
         primitive_locals: &[crate::scalar_graph_lowering::primitive_locals::PrimitiveLocal],
+        structural_types: &[StructuralTypeDeclaration],
     ) -> Result<PreparedScalarCallee<'checked>, LoweringError> {
         match self {
             Self::Graph(graph) => {
@@ -168,6 +169,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
                     embedded_root,
                     structural_parameters,
                     primitive_locals,
+                    structural_types,
                 )?;
                 if !prepared.identity_reshuffles.structural_places.is_empty()
                     || !prepared.identity_reshuffles.entry_claims.is_empty()

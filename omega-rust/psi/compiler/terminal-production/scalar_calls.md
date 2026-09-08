@@ -158,8 +158,26 @@ Scalar-only callers of helpers with local storage use the same closure and
 [`scalar_local_borrows.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_local_borrows.rs)
 checks canonical reload, independent verification, local identity, ordered
 mutations, snapshots, and one-unit fuel suspension without replay.
-Owned structural signatures and ranked cyclic publication remain required for
-the guarded customer below; primitive-local native realization is still separate.
+Immutable whole owned inputs retain their authored Affine or Unrestricted
+multiplicity alongside scalar and primitive-borrow formals. Graph discovery
+precedes ownership checking; finalization rejoins the completed permission ledger
+before the body becomes a Terminal candidate. Field reads retain exact source
+parameter/member identity, and owned call arguments retain their authored occurrence.
+The complete selected type catalog rejoins typed declarations, including unread
+fields, numeric IDs, generic arguments, arrays, and case payloads. Plain-content
+eligibility checks nested storage and excludes nominal cleanup recursively.
+Calls transfer affine inputs; each normal path disposes only its remaining owners
+in reverse declaration order. Short-circuit joins dispose an untransferred owner
+on the appropriate incoming edge, without runtime cleanup instructions.
+Claims, nominal cleanup, partial moves, and mutable owned formals remain outside
+this graph route. Affine permission alone never licenses erasing selected cleanup.
+[`owned_scalar_graphs.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/owned_scalar_graphs.rs)
+checks canonical publication, source-custody rejection, selected transfers, and
+integer/Boolean field execution under one-unit fuel pauses. The interpreter accepts
+explicit typed scalar-field inputs; it never invents missing field contents.
+Ranked cyclic publication remains required for the guarded customer below.
+Owned integer-field native lowering and primitive-local native storage are also
+unfinished; successful Terminal interpretation does not establish either.
 
 Empty standalone scalar contracts must also agree with the authored normal-clause
 and parameter-range roster; a missing checked row cannot erase either. Crash
@@ -231,8 +249,8 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 ```
 
 The existing argument hoist splits the edge into a rank-preserving hop and a
-decrement without its co-located guard. Extend scalar-result roots to owned
-structural signatures, then publish their cyclic control with exact structural
+decrement without its co-located guard. Publish scalar-result cyclic control
+with exact structural
 forwarding and natural-descent evidence. Reuse the
 computed borrowed calls already supported in ordinary Unit operands, then retire
 the hoist for the supported route independently of ranking annotations.

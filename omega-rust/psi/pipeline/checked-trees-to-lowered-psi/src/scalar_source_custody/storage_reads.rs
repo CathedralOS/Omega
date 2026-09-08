@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 /// Reads retain their occurrence, operand position, and exact binding or place.
 /// Unary and cast wrappers do not change the read's identity. Greater-than
 /// comparisons use the same operand normalization as the checked producer.
@@ -43,6 +46,7 @@ pub(crate) fn validate_expression(
 ) -> Result<(), LoweringError> {
     let (_, state) = authored_state(checked, state)?;
     let mut authored_reads = Vec::new();
+    let mut member_paths = Vec::new();
     collect_authored_storage_reads(
         checked,
         state,
@@ -51,6 +55,7 @@ pub(crate) fn validate_expression(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut authored_reads,
+        &mut member_paths,
     )?;
     let namespace = checked
         .state_parameters(state)
@@ -81,6 +86,19 @@ pub(crate) fn validate_expression(
                 }),
         )
         .collect::<Vec<_>>();
+    let namespace = ReadNamespace {
+        scalar: namespace,
+        owned_field_paths: member_paths,
+        owned: checked
+            .state_parameters(state)
+            .iter()
+            .map(|parameter| {
+                owned_record(checked, parameter)
+                    .map(|_| parameter.symbol)
+                    .unwrap_or_default()
+            })
+            .collect(),
+    };
     let mut retained_reads = Vec::new();
     collect_scalar_storage_reads(retained, &namespace, &mut Vec::new(), &mut retained_reads);
     if retained_reads != authored_reads {
@@ -115,14 +133,178 @@ fn guard_subject(checked: &CheckedTrees, expression: ExpressionHandle) -> Expres
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ReadKind {
     Storage,
     Parameter,
     Local,
+    OwnedField(Vec<checked_trees::CheckedStructuralPredicatePathSegment>),
 }
 
 type StorageReadOccurrence = (Vec<usize>, symbols::SymbolHandle, PrimitiveType, ReadKind);
+
+struct ReadNamespace {
+    scalar: Vec<symbols::SymbolHandle>,
+    owned_field_paths: Vec<Vec<usize>>,
+    // Structural positions are authored positions, including scalar formals.
+    owned: Vec<symbols::SymbolHandle>,
+}
+
+fn owned_record<'checked>(
+    checked: &'checked CheckedTrees,
+    parameter: &checked_trees::signature::StateParameter,
+) -> Option<&'checked checked_trees::data::DataDefinition> {
+    if parameter.is_self
+        || parameter.is_const
+        || parameter.is_mutable
+        || !parameter.symbol.is_valid()
+        || !matches!(
+            checked.type_multiplicity(parameter.type_reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
+    {
+        return None;
+    }
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    if !symbol.is_valid() || checked.symbols.get(*symbol).kind != symbols::SymbolKind::Data {
+        return None;
+    }
+    let mut definitions = checked
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == *symbol);
+    let definition = definitions.next()?;
+    if definitions.next().is_some()
+        || checked
+            .data_members(definition)
+            .iter()
+            .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
+    {
+        return None;
+    }
+    Some(definition)
+}
+
+fn authored_owned_field(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    expression: ExpressionHandle,
+) -> Result<Option<(symbols::SymbolHandle, PrimitiveType, ReadKind)>, LoweringError> {
+    let ExpressionNode::Member(member) = checked.expression_table.expression(expression) else {
+        return Ok(None);
+    };
+    if member.case_variant.is_some() {
+        return Ok(None);
+    }
+    let ExpressionNode::Name(name) = checked.expression_table.expression(member.receiver) else {
+        return Ok(None);
+    };
+    let mut parameters = checked
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.symbol == name.symbol);
+    let Some(parameter) = parameters.next() else {
+        return Ok(None);
+    };
+    let Some(owner) = owned_record(checked, parameter) else {
+        return Ok(None);
+    };
+    if parameters.next().is_some()
+        || name.head_symbol != parameter.symbol
+        || !matches!(checked.expression_table.name_path_members(name.members),
+            [spelling] if spelling.as_str() == parameter.name.as_str())
+        || !member.member_symbol.is_valid()
+    {
+        return unsupported("owned scalar field has no exact authored parameter or member");
+    }
+    let mut fields = checked
+        .data_members(owner)
+        .iter()
+        .filter_map(|candidate| match candidate {
+            checked_trees::data::DataMember::Field(field)
+                if field.symbol == member.member_symbol =>
+            {
+                Some(field)
+            }
+            _ => None,
+        });
+    let field = fields.next().ok_or(LoweringError::Unsupported(
+        "owned scalar field belongs to another record",
+    ))?;
+    if fields.next().is_some()
+        || field.name != member.member
+        || checked.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
+        || checked.symbols.get(field.symbol).parent != owner.symbol
+    {
+        return unsupported("owned scalar field differs from its resolved declaration");
+    }
+    let Some(primitive) = checked
+        .primitive_type_reference(field.type_reference)
+        .filter(|primitive| supported_mutable_parameter(*primitive))
+    else {
+        return Ok(None);
+    };
+    if field.relevance.is_erased() || checked.data_members(owner).iter().filter(|candidate| {
+        matches!(candidate, checked_trees::data::DataMember::Field(candidate)
+            if candidate.name == field.name || field.identity.is_some() && candidate.identity == field.identity)
+    }).count() != 1 {
+        return unsupported("owned scalar field has no unique relevant identity");
+    }
+    let (machine, _) = authored_state(checked, state.symbol)?;
+    if validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
+        .and_then(|reference| checked.primitive_type_reference(reference))
+        != Some(primitive)
+    {
+        return unsupported("owned scalar field differs from its declared place type");
+    }
+    let identity = field
+        .identity
+        .map(|identity| format!("#{identity}"))
+        .unwrap_or_else(|| field.name.as_str().to_owned());
+    Ok(Some((
+        parameter.symbol,
+        primitive,
+        ReadKind::OwnedField(vec![
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
+        ]),
+    )))
+}
+
+fn collect_owned_field(
+    parameter_position: u32,
+    field_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    primitive: PrimitiveType,
+    namespace: &ReadNamespace,
+    path: &[usize],
+    reads: &mut Vec<StorageReadOccurrence>,
+) {
+    // Nested, indexed, receiver and borrowed projections retain their existing owners.
+    if !supported_mutable_parameter(primitive)
+        || !matches!(field_path, [checked_trees::CheckedStructuralPredicatePathSegment::Field(_)])
+        // Match members present in typed source, including equality expanded
+        // during typing. Later plan-only expansion has no source member here.
+        || !namespace.owned_field_paths.iter().any(|authored| authored == path)
+    {
+        return;
+    }
+    if let Some(symbol) = namespace
+        .owned
+        .get(parameter_position as usize)
+        .filter(|symbol| symbol.is_valid())
+    {
+        reads.push((
+            path.to_vec(),
+            *symbol,
+            primitive,
+            ReadKind::OwnedField(field_path.to_vec()),
+        ));
+    }
+}
 
 fn authored_storage_read(
     checked: &CheckedTrees,
@@ -202,6 +384,7 @@ fn collect_authored_storage_reads(
     path: &mut Vec<usize>,
     active: &mut Vec<ExpressionHandle>,
     reads: &mut Vec<StorageReadOccurrence>,
+    member_paths: &mut Vec<Vec<usize>>,
 ) -> Result<(), LoweringError> {
     use checked_trees::expression::BinaryOperator;
     if !checked.expression_table.expression_is_valid(expression) || active.contains(&expression) {
@@ -212,6 +395,21 @@ fn collect_authored_storage_reads(
         ExpressionNode::Name(name) => {
             if let Some((symbol, primitive, kind)) =
                 authored_storage_read(checked, state, before, name)?
+            {
+                reads.push((path.clone(), symbol, primitive, kind));
+            }
+        }
+        ExpressionNode::Member(member) => {
+            if member.case_variant.is_none()
+                && matches!(
+                    checked.expression_table.expression(member.receiver),
+                    ExpressionNode::Name(_)
+                )
+            {
+                member_paths.push(path.clone());
+            }
+            if let Some((symbol, primitive, kind)) =
+                authored_owned_field(checked, state, expression)?
             {
                 reads.push((path.clone(), symbol, primitive, kind));
             }
@@ -228,7 +426,14 @@ fn collect_authored_storage_reads(
             for (position, operand) in [(0, left), (1, right)] {
                 path.push(position);
                 collect_authored_storage_reads(
-                    checked, state, before, operand, path, active, reads,
+                    checked,
+                    state,
+                    before,
+                    operand,
+                    path,
+                    active,
+                    reads,
+                    member_paths,
                 )?;
                 path.pop();
             }
@@ -242,11 +447,19 @@ fn collect_authored_storage_reads(
                 path,
                 active,
                 reads,
+                member_paths,
             )?;
         }
         ExpressionNode::Cast(cast) => {
             collect_authored_storage_reads(
-                checked, state, before, cast.value, path, active, reads,
+                checked,
+                state,
+                before,
+                cast.value,
+                path,
+                active,
+                reads,
+                member_paths,
             )?;
         }
         ExpressionNode::Indexed(indexed) => {
@@ -259,6 +472,7 @@ fn collect_authored_storage_reads(
                 path,
                 active,
                 reads,
+                member_paths,
             )?;
             path.pop();
         }
@@ -270,7 +484,6 @@ fn collect_authored_storage_reads(
         | ExpressionNode::Call(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::Member(_)
         | ExpressionNode::Borrow(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
@@ -283,7 +496,7 @@ fn collect_authored_storage_reads(
 
 fn collect_scalar_storage_reads(
     expression: &CheckedScalarExpression,
-    namespace: &[symbols::SymbolHandle],
+    namespace: &ReadNamespace,
     path: &mut Vec<usize>,
     reads: &mut Vec<StorageReadOccurrence>,
 ) {
@@ -327,7 +540,7 @@ fn collect_scalar_storage_reads(
             if supported_mutable_parameter(*primitive_type) {
                 reads.push((
                     path.clone(),
-                    namespace.get(*position).copied().unwrap_or_default(),
+                    namespace.scalar.get(*position).copied().unwrap_or_default(),
                     *primitive_type,
                     if matches!(expression, CheckedScalarExpression::Parameter { .. }) {
                         ReadKind::Parameter
@@ -337,16 +550,29 @@ fn collect_scalar_storage_reads(
                 ));
             }
         }
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path: field_path,
+            primitive_type,
+        } => {
+            collect_owned_field(
+                *parameter_position,
+                field_path,
+                *primitive_type,
+                namespace,
+                path,
+                reads,
+            );
+        }
         CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
-        | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. } => {}
     }
 }
 
 fn collect_boolean_storage_reads(
     expression: &CheckedBooleanExpression,
-    namespace: &[symbols::SymbolHandle],
+    namespace: &ReadNamespace,
     path: &mut Vec<usize>,
     reads: &mut Vec<StorageReadOccurrence>,
 ) {
@@ -382,7 +608,7 @@ fn collect_boolean_storage_reads(
         | CheckedBooleanExpression::Local { position } => {
             reads.push((
                 path.clone(),
-                namespace.get(*position).copied().unwrap_or_default(),
+                namespace.scalar.get(*position).copied().unwrap_or_default(),
                 PrimitiveType::Bool,
                 if matches!(expression, CheckedBooleanExpression::Parameter { .. }) {
                     ReadKind::Parameter
@@ -391,8 +617,20 @@ fn collect_boolean_storage_reads(
                 },
             ));
         }
+        CheckedBooleanExpression::StructuralParameterField {
+            parameter_position,
+            path: field_path,
+        } => {
+            collect_owned_field(
+                *parameter_position,
+                field_path,
+                PrimitiveType::Bool,
+                namespace,
+                path,
+                reads,
+            );
+        }
         CheckedBooleanExpression::Constant(_)
-        | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }

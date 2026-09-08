@@ -6,6 +6,7 @@ use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind
 use crate::attached_unit::primitive_locals::borrows as borrow_rows;
 mod mixed_arguments;
 mod operand_scopes;
+mod owned_arguments;
 mod primitive_arguments;
 
 pub(crate) use mixed_arguments::{RejoinedComputationArgument, rejoin_computation_call_arguments};
