@@ -83,6 +83,7 @@ the language guarantees, not today's implementation coverage.
 | Deadlocks and indefinite waits | Conditional | Protocol proofs rule out wait cycles and missing wakeups for the checked composition and its stated external assumptions. Ownership alone does not promise progress. |
 | Unintended infinite loops | Conditional | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
 | Hidden filesystem or process authority | Prevented | Boundary effects propagate through calls; a build cannot silently grant authority its receiving policy disallows. |
+| Supply-chain attacks | Conditional | Package review exposes dependency changes, trust assumptions, and requested authority. New authority needs acceptance; malicious use of already-approved permissions is not automatically detected. |
 
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
