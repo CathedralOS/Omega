@@ -36,6 +36,21 @@ measuring or indexing an unprovided field fails rather than assuming empty
 or zero-initialized storage. This execution support does not establish native
 byte-field realization.
 
+At an external boundary, an initialized bounded byte field can supply an
+unqualified mutable borrowed-byte parameter. The boundary-specific resolver
+retains the original referent, complete record/array path, and capacity; it does
+not make bounded storage interchangeable with views at ordinary calls.
+`TerminalEffectHandler::handle_effect_with_byte_buffers` receives the pre-call
+bytes and stages whole live-sequence replacements through
+`TerminalBoundaryByteBuffer::replace`. Oversized replacements reject without
+changing the staged value. All buffers and the declared response must validate
+before any field writeback or completion is committed. The effect trace records
+pre-call bytes; `structural_byte_sequence_field` observes committed replacements.
+Handlers without this callback reject mutable buffers before performing an
+effect. Missing backing remains an error, including for an opaque entry object.
+Checked provider-body dispatch of these mutable views and native `read_line`
+realization remain unsupported.
+
 ## Boundary responses
 
 [effect_results.rs](src/effect_results.rs) distinguishes Unit, scalar, and opaque
