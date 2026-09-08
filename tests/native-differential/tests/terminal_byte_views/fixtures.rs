@@ -298,3 +298,51 @@ pub(super) fn byte_view_read_proof(module: &TerminalModule) -> ProofBundle {
         .expect("the selected guard proves byte-read safety without admission");
     proof
 }
+
+pub(super) fn byte_view_read_call_module() -> TerminalModule {
+    let mut module = byte_view_read_module();
+    let mut caller = byte_view_length_module().machines.remove(0);
+    let caller_id = MachineId::new(100).unwrap();
+    let source = PlaceId::new(102).unwrap();
+    let byte_index = ValueId::new(103).unwrap();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    caller.id = caller_id;
+    caller.entry = BlockId::new(101).unwrap();
+    caller.parameters = vec![ValueDeclaration { id: byte_index, scalar_type }];
+    caller.structural_parameters[0].place = source;
+    caller.structural_places[0].id = source;
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: ValueId::new(104).unwrap(), scalar_type,
+    });
+    caller.contract.id = ContractId::new(110).unwrap();
+    caller.blocks = vec![Block {
+        id: caller.entry,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        // The second invocation requires both original inputs to survive the first call.
+        operations: [(105, 106), (107, 108)].into_iter().map(|(operation, result)| Operation {
+            id: OperationId::new(operation).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(result).unwrap(), scalar_type,
+            }),
+            kind: OperationKind::CallStructuralScalar {
+                callee: module.entry,
+                arguments: vec![byte_index],
+                structural_arguments: vec![terminal_psi::StructuralArgument {
+                    place: source, path: Vec::new(), access: StructuralAccess::SharedBorrow,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        }).collect(),
+        terminator: Terminator::Return {
+            edge: EdgeId::new(109).unwrap(),
+            value: ValueId::new(108).unwrap(),
+            cleanup_actions: Vec::new(),
+        },
+    }];
+    module.entry = caller_id;
+    module.machines.push(caller);
+    module
+}

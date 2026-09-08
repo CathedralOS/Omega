@@ -17,7 +17,7 @@ use terminal_verifier::ProofBundle;
 
 #[path = "terminal_byte_views/fixtures.rs"]
 mod fixtures;
-use fixtures::{byte_view_length_module, byte_view_read_module, byte_view_read_proof};
+use fixtures::{byte_view_length_module, byte_view_read_module, byte_view_read_proof, byte_view_read_call_module};
 #[path = "terminal_byte_views/helper_admission.rs"]
 mod helper_admission;
 #[path = "terminal_byte_views/subslice.rs"]
@@ -225,6 +225,18 @@ fn byte_view_read_cross_lowers_on_hosted_targets() {
         let layout = stage_byte_view(&module, &proof, target);
         assert_eq!(layout.functions().len(), 1);
         assert!(layout.functions()[0].byte_count > 0);
+    }
+}
+
+#[test]
+fn byte_view_read_call_cross_lowers_on_hosted_targets() {
+    let module = byte_view_read_call_module();
+    let proof = byte_view_read_proof(&module);
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let layout = stage_byte_view(&module, &proof, target);
+        assert_eq!(layout.functions().len(), 2, "ordinary helper remains a separate function");
+        assert!(layout.functions().iter().all(|function| function.byte_count > 0));
     }
 }
 
