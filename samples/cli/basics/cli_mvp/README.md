@@ -56,8 +56,12 @@ Remove-Item Env:OMEGA_SAMPLE_RUNTIME_FILTER
 
 On macOS use the same test command with the inline environment assignment
 `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp`. This test exercises compilation,
-publication, output, and exit through the compiler library; it bypasses the CLI's
-local-project package review route. Keep its result separate from the outer command.
+publication, output, and exit through the compiler library. Its explicit fixture
+policy accepts the exact selected std Console binding and corresponding
+termination/byte-output/byte-input permissions using the existing canary helper.
+It does not perform the CLI's local-project package review or change `omega.lock`.
+Checking-only sample probes retain unaccepted package inputs. Keep these results
+separate from the outer command.
 
 ## Trace the actual route
 
@@ -76,10 +80,10 @@ findings, not implicit grants. Do not supply blanket acceptance merely to advanc
 the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
-The compiler-library sample test bypasses project acceptance and stops later at
-native ranked-module admission after Terminal production. Neither package
-acceptance nor that failing probe establishes native execution. Current commands,
-tested revisions, and the next implementation step remain on the execution board.
+The compiler-library sample test supplies test-owned acceptance and stops later
+at unsupported native provider leaves. Neither package acceptance nor that
+failing probe establishes native execution. Current commands, tested revisions,
+and the next implementation step remain on the execution board.
 
 Use `omega audit packages --project samples/cli/basics/cli_mvp
 --target macos_arm64 --details` to inspect the current macOS package findings;
@@ -103,18 +107,16 @@ native production, and execution.
 | Checked writer body | [`std/console.omg`](../../../../source/library/std/console.omg) implements `ConsoleNativeProvider::write_line(text)` by calling `console_write_bytes(text, true)`. That helper is one five-state slice-ranked machine. Its `emit` state writes a byte and transfers the guarded tail; completion optionally emits newline and returns. |
 | Complete callable closure | [`terminal_unit.rs`](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit.rs) builds ordinary/composed bodies and prunes callers whose targets are missing. [`call_closure.rs`](../../../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs) requires every reached body before lowering. Preserve exact view/scalar state transfers, effect order, and slice-decrease evidence. |
 | Portable execution | [`terminal-production`](../../../../omega-rust/psi/compiler/terminal-production/src/lib.rs) produces the canonical Terminal artifact with source-entry evidence. Codec replay, independent verification, and interpretation must agree on the writer's bytes and continuation. |
-| Native operations | [`operation/routing.rs`](../../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs) retains byte length, proof-bearing indexed reads, and checked subslices. Scalar functions can observe derived views and forward whole descriptor parameters with runtime `u64` arguments through ordinary native calls. Literal descriptor creation, derived-view calls/block transfers, and Unit writer calls remain missing; layout alone is not operation support. |
+| Native operations | [`operation/routing.rs`](../../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs) retains byte length, proof-bearing indexed reads, and checked subslices. Ordinary scalar and Unit calls retain descriptors and scalar arguments; block transfers snapshot source descriptors before writing destinations. Natural-cycle lowering and literal descriptor creation remain separate from those transfers; layout alone is not operation support. |
 | Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) rejects an executable entry retaining unprovisioned `self`. `Main` needs real storage, including its 256-byte buffer, and a loan from the entry bridge. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for the selected Windows output, input, and exit leaves; declarations alone are not native implementations. |
 | Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
 
-The observed compiler-library failure with production checkpoint `cbad71e423`
-on macOS ARM64 is `Verification(Module(NonExecutableRankedScc(MachineId(3))))`.
 Terminal transport retains the exact `pause` field and inline capacity when
-presented to the boundary's mutable byte parameter. Native admission currently
-routes every ranked module to the restricted unsigned-countdown implementation;
-the writer needs natural slice-decrease control and native byte-view realization.
-Do not replace its evidence with a countdown or silently fall back to ordinary
-admission. Terminal production uses the validated
+presented to the boundary's mutable byte parameter. Natural slice-decrease
+modules use ordinary independently verified native admission and retain grouped
+proofs. Only unsigned-countdown modules use the restricted countdown route.
+Downstream cycle lowering must preserve the natural evidence rather than
+fabricating countdown or fixed-fuel certificates. Terminal production uses the validated
 boundary-call source view; direct selected-adapter calls belong to interpreter
 dispatch, while native adapter selection remains on the Omega side. Source
 custody and structural validation must not be bypassed.
@@ -133,8 +135,8 @@ interpretation with raw bytes, both newline choices, caller continuation, and
 fuel suspension. This does not establish that the unchanged std provider closure
 or this native sample executes.
 
-The next writer acceptance is the actual authored closure through verified
-Terminal execution: empty/nonempty bytes, both newline choices, exact output
+Writer acceptance requires the actual authored closure through verified Terminal
+and native execution: empty/nonempty bytes, both newline choices, exact output
 order, and caller continuation. Unguarded head reads and unchanged tails reject.
 The producer's [writer composition notes](../../../../omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
 describe support and acceptance; the [byte-view specification](../../../../wiki/spec/terminal-psi/byte_views.md)
@@ -152,8 +154,10 @@ inputs take the non-reading branch. Missing, changed, or wrong-view bounds
 evidence rejects. Checked nested subslices and framed helper calls also execute;
 repeated whole-view calls preserve the caller's descriptor pointer and runtime
 index across both invocations. These regressions start at Terminal, not source
-helper lowering. Literal descriptor creation, derived-view calls/block transfers,
-general Unit calls, and the ranked writer remain separate dependencies.
+helper lowering. The Unit byte-output fixtures also retain object/image and
+installation custody, with actual macOS byte output and caller continuation.
+Literal descriptor creation, natural-cycle lowering, and the complete authored
+writer remain separate dependencies.
 
 ## Read the evidence at the boundary reached
 

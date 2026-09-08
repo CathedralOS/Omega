@@ -76,6 +76,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+#[path = "support/console_acceptance.rs"]
+mod console_acceptance;
+#[path = "samples_compile/native_acceptance.rs"]
+mod native_acceptance;
+
 fn sample_package_identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("sample package identity is nonzero")
 }
@@ -151,15 +156,75 @@ fn compile_native_and_publish(
     options: CompileOptions,
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
     let build_dir = options.build_dir();
-    let package_inputs = sample_package_inputs(&options.root_path);
+    let package_inputs =
+        sample_native_package_inputs(&options.root_path, options.target_name.as_deref())?;
+    let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
+        package_inputs
+            .accepted_semantic_bindings()
+            .flat_map(|binding| binding.terminal_authority_permissions())
+            .cloned()
+            .collect(),
+    )
+    .map_err(|error| {
+        vec![diagnostics::Diagnostic::error(format!(
+            "cannot construct sample fixture terminal-authority policy: {error:?}"
+        ))]
+    })?;
     let report = compiler::compile(
         compiler::CompileRequest::new(options)
             .with_package_inputs(package_inputs)
+            .with_terminal_authority_permission_policy(permission_policy)
             .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
     )?;
     report
         .publish_retained_native_artifact(&build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])
+}
+
+fn sample_native_package_inputs(
+    root_path: &Path,
+    target_name: Option<&str>,
+) -> Result<PackageCompilationInputs, Vec<diagnostics::Diagnostic>> {
+    let package_inputs = sample_package_inputs(root_path);
+    let standard_library = sample_package_identity(2);
+    if package_inputs.package_root(standard_library).is_none() {
+        return Ok(package_inputs);
+    }
+    let preliminary =
+        compile_to_checked_with_packages(root_path, target_name, package_inputs.clone())?;
+    let has_standard_console = preliminary
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(preliminary.selected_provider_provenance())
+        .any(|(plan, provenance)| {
+            plan.schema.trait_name == "Console"
+                && preliminary
+                    .typed
+                    .symbols
+                    .symbol_package_identity(provenance.provider.schema.symbol())
+                    == Some(standard_library)
+        });
+    if !has_standard_console {
+        return Ok(package_inputs);
+    }
+    // This runtime harness explicitly permits Console termination, byte output
+    // and byte input. Reuse the canary policy over the exact checked std plan;
+    // this is test-owned acceptance, not a package-review receipt or production
+    // permission inference. Checking-only sample probes remain unaccepted.
+    let binding = console_acceptance::candidate_console_exit_binding(
+        &preliminary,
+        standard_library,
+        true,
+        true,
+    )?;
+    package_inputs
+        .with_accepted_semantic_bindings(vec![binding])
+        .map_err(|errors| {
+            vec![diagnostics::Diagnostic::error(format!(
+                "cannot accept sample fixture Console binding: {errors:?}"
+            ))]
+        })
 }
 
 const HOSTED_SAMPLE_TARGETS: &[&str] = &[
