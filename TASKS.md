@@ -877,7 +877,8 @@ Owners include
   operands and its shared Terminal closure, reusing ordinary Unit primitive
   local establishment and storage reads. Realize their native storage and
   borrowed-call observations without substituting snapshots. Preserve the authored
-  guard and structural payload; the generated hop currently rejects the range.
+  guard and structural payload; the linked command still rejects the rank range
+  on macOS at `8e57b67917` because of the generated hop.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
   calls and boundary calls, plus the remaining

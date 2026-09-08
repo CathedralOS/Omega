@@ -109,6 +109,56 @@ pub(super) fn module() -> TerminalModule {
     module
 }
 
+#[test]
+fn ranked_primitive_local_borrow_supports_unit_mutators() {
+    let mut module = module();
+    let operation = &mut module.machines[0].blocks[0].operations[2];
+    let OperationKind::CallStructuralScalar {
+        callee,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = operation.kind.clone()
+    else {
+        panic!("borrowed primitive mutator");
+    };
+    operation.result = OperationResult::Unit;
+    operation.kind = OperationKind::CallUnit {
+        callee,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    };
+    module.machines[1].result = TerminalMachineResult::Unit;
+    module.machines[1].blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(92),
+        trivial_affine_discards: Vec::new(),
+    };
+    assert_eq!(run(&module, true), run(&module, false));
+    assert_eq!(run(&module, false).0, expected(0));
+    let identities = observe_local_identities(&module);
+    assert_eq!(identities.len(), 3);
+    assert_eq!(
+        identities
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        3
+    );
+    let mut missing_rank_proof = proof(&module);
+    missing_rank_proof.control_cycles.clear();
+    assert!(verify_module(&module, &missing_rank_proof, &AdmissionProfile::default()).is_err());
+    module.machines[0].blocks[0].operations.swap(1, 2);
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::PrimitiveLocalNotAvailable { .. })
+    ));
+}
+
 fn axiom(axioms: &[Proposition], conclusion: Proposition) -> ProofNode {
     let index = axioms
         .iter()

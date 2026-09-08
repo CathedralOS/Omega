@@ -151,6 +151,12 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                                         parameter.place == argument.place
                                             && persistent_receiver(module, parameter)
                                     }))
+                                    || (argument.access != StructuralAccess::Owned
+                                        && primitive_storage::local_result(
+                                            machine,
+                                            argument.place,
+                                        )
+                                        .is_some())
                                     || (argument.access == StructuralAccess::SharedBorrow
                                         && super::super::byte_sequence_length::validate_source(
                                             module,
