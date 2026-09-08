@@ -81,9 +81,16 @@ every self-edge and complete prefix/operand write frames. A sufficient type rang
 does not permit replacing an invocation's endpoint. Construction, arithmetic and
 strict descent are independent obligations; permissive Wrapping storage supplies
 no such bounds.
+Computed endpoints use the shared immutable integer interval analysis for
+builtin add/subtract/multiply/divide/remainder trees. Each distinct parameter
+input must remain fixed; a small final bound cannot excuse a partial or
+overflowing intermediate. Diagnostic expressions come from retained handles,
+not the normalized witness's fallback display labels. Constant endpoints use
+the same formation checks: suffixes preserve their carriers, and anonymous
+subtrees use exact rational evaluation before integer landing.
 Descent also requires complete write frames preserving the ranked field through
 the preceding statements and edge operands; a reset cannot count as progress.
-Relational or computed field endpoints, named-state transport, broader
+Relational field bounds or endpoint equality, named-state transport, broader
 projections and constrained measure parameters still need application/projection
 evidence.
 
