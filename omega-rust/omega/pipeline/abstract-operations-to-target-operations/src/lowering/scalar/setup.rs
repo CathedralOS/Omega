@@ -103,7 +103,15 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
                     && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
                     || carries_boundary_custody);
             if usize::try_from(parameter.position) != Ok(position)
-                || (!direct_borrowed_self && !custody_bearing_parameter && !shared_byte_view)
+                || (!direct_borrowed_self
+                    && !custody_bearing_parameter
+                    && !shared_byte_view
+                    && !(crate::lowering::function_signature::is_primitive_write_parameter(
+                        parameter,
+                        structural_types,
+                    ) && function.operations.iter().any(|operation| {
+                        matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+                    })))
             {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,

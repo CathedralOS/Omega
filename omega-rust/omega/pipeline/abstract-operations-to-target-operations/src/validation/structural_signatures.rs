@@ -23,6 +23,15 @@ pub(super) fn validate(
             declarations,
         )?;
     }
+    if let TargetOperation::ControlGraph(graph) = &target.operation {
+        header(
+            source,
+            &graph.call_plan,
+            &graph.parameters,
+            native_target,
+            declarations,
+        )?;
+    }
     if let Some(abi) = &target.mixed_structural_scalar_abi {
         header(
             source,

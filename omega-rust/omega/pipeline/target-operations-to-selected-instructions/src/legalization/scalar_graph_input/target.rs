@@ -345,4 +345,8 @@ fn bind(
 }
 fn location_matches(location: ScalarParameterLocation, placement: &ValuePlacement) -> bool {
     matches!(placement.locations.as_slice(),[ValueLocation::Register {register,value_byte_offset:0,byte_size}] if *byte_size == placement.shape.byte_size && location == ScalarParameterLocation::Register(*register))
+        || (super::scalar_stack(placement)
+            && matches!(placement.locations.as_slice(),
+                [ValueLocation::Stack { stack_byte_offset, .. }]
+                    if location == ScalarParameterLocation::IncomingStack { byte_offset: *stack_byte_offset }))
 }

@@ -68,7 +68,12 @@ pub(super) fn lower_function(
         );
     };
 
-    if super::control_flow::has_cycle(function)? {
+    if super::control_flow::has_cycle(function)?
+        || function
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. }))
+    {
         return super::control_flow::lower(
             function,
             target,

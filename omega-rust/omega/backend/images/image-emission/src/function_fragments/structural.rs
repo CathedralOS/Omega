@@ -242,16 +242,27 @@ pub(super) fn populate(
     if let Some(contract) = &selected.structural
         && selected.ranked.is_none()
     {
+        let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
+            (
+                &mut function.scalar_structural_parameters,
+                &mut function.scalar_structural_parameter_homes,
+            )
+        } else {
+            (
+                &mut function.unit_parameters,
+                &mut function.unit_parameter_homes,
+            )
+        };
         for parameter in &contract.parameters {
             let target = &parameter.target;
-            function.unit_parameters.push(UnitParameterRecord {
+            parameters.push(UnitParameterRecord {
                 place: target.place,
                 structural_type: target.structural_type,
                 multiplicity: target.multiplicity,
                 access: target.access,
                 shape: target.shape,
             });
-            function.unit_parameter_homes.push(UnitParameterHomeRecord {
+            homes.push(UnitParameterHomeRecord {
                 place: target.place,
                 structural_type: target.structural_type,
                 multiplicity: target.multiplicity,

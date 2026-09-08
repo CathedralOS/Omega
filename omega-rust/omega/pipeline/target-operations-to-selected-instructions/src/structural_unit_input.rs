@@ -25,6 +25,21 @@ pub(crate) fn accepts_write_borrow(
         return false;
     };
     let semantic = parameter.semantic;
+    // Scalar results compose with a primitive write through the same reference
+    // ABI. Record-field and other scalar structural bodies retain their fences.
+    let result_shape = call_plan.result.as_ref().map(|placement| placement.shape);
+    if result_shape.is_some_and(|shape| {
+        shape != calling_conventions::ValueShape::integer(8, 8)
+            || !structural_types.iter().any(|declaration| {
+                declaration.id == semantic.structural_type
+                    && matches!(declaration.shape,
+                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                        if integer.carrier() == IntegerCarrier::Fixed
+                            && [8, 16, 32, 64].contains(&integer.bits()))
+            })
+    }) {
+        return false;
+    }
     let Some(referent) =
         crate::structural_reference_input::shape(semantic.structural_type, structural_types)
     else {
@@ -52,7 +67,7 @@ pub(crate) fn accepts_write_borrow(
         call_plan.policy,
         &calling_conventions::CallSignature {
             parameters: shapes,
-            result: None,
+            result: result_shape,
         },
     )
     .is_ok_and(|expected| expected == *call_plan)

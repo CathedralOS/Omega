@@ -43,7 +43,7 @@ fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
 }
 
 /// The pointer's ABI location is distinct from any activation-local value copy.
-fn pointer_location(placement: &ValuePlacement) -> Option<IndirectPointerLocation> {
+pub(super) fn pointer_location(placement: &ValuePlacement) -> Option<IndirectPointerLocation> {
     if placement.shape.class != ValueClass::BorrowedReference
         || placement.shape.alignment == 0
         || !placement.shape.alignment.is_power_of_two()

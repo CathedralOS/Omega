@@ -47,6 +47,12 @@ pub(super) fn lower(
         AbstractFunctionResult::Unit | AbstractFunctionResult::Scalar(_)
     ) || !function.structural_parameters.iter().all(|parameter| {
         super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
+            || (super::function_signature::is_primitive_write_parameter(
+                parameter,
+                structural_types,
+            ) && function.operations.iter().any(|operation| {
+                matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+            }))
     }) || !function.entry_claims.is_empty()
     {
         return Err(invalid());

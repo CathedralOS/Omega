@@ -25,8 +25,26 @@ pub(in crate::function_fragments) fn validate_function(
             .as_ref()
             .map_or(&[][..], |contract| contract.parameters.as_slice())
     };
-    if function.unit_parameters.len() != parameters.len()
-        || function.unit_parameter_homes.len() != parameters.len()
+    let (records, homes, unused_records, unused_homes) =
+        if function.mixed_structural_scalar_abi.is_some() {
+            (
+                &function.scalar_structural_parameters,
+                &function.scalar_structural_parameter_homes,
+                &function.unit_parameters,
+                &function.unit_parameter_homes,
+            )
+        } else {
+            (
+                &function.unit_parameters,
+                &function.unit_parameter_homes,
+                &function.scalar_structural_parameters,
+                &function.scalar_structural_parameter_homes,
+            )
+        };
+    if !unused_records.is_empty()
+        || !unused_homes.is_empty()
+        || records.len() != parameters.len()
+        || homes.len() != parameters.len()
         || function.internal_unit_calls.len()
             != selected
                 .calls
@@ -36,12 +54,7 @@ pub(in crate::function_fragments) fn validate_function(
     {
         return Err(invalid());
     }
-    for ((parameter, home), expected) in function
-        .unit_parameters
-        .iter()
-        .zip(&function.unit_parameter_homes)
-        .zip(parameters)
-    {
+    for ((parameter, home), expected) in records.iter().zip(homes).zip(parameters) {
         let expected = &expected.target;
         if parameter.place != expected.place
             || parameter.structural_type != expected.structural_type

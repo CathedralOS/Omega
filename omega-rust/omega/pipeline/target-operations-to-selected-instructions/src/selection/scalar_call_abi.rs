@@ -7,6 +7,27 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 
 use crate::structural_reference_input::stack_pointer_offset;
 
+/// Incoming scalar slots compose with the admitted primitive-write result ABI.
+/// Other result-bearing structural signatures retain their current admission.
+pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) -> bool {
+    source.call_plan.result.is_none()
+        || source.structural.as_ref().is_some_and(|signature| {
+            let parameters = signature
+                .parameters
+                .iter()
+                .map(|parameter| crate::structural_unit_input::Parameter {
+                    semantic: &parameter.semantic,
+                    target: &parameter.target,
+                })
+                .collect::<Vec<_>>();
+            crate::structural_unit_input::accepts_write_borrow(
+                &source.call_plan,
+                &parameters,
+                &signature.structural_types,
+            )
+        })
+}
+
 /// One complete scalar ABI stack fragment, excluding borrowed-pointer placement.
 pub(super) fn scalar_stack_placement(
     placement: &calling_conventions::ValuePlacement,

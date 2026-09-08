@@ -7,7 +7,7 @@ use semantic_vocabulary::IeeeFloatValue;
 use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_write_only_primitive_store(
+pub(in crate::lowering) fn lower_write_only_primitive_store(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

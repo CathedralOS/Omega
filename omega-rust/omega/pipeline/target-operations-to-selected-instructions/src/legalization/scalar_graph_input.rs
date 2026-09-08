@@ -209,7 +209,11 @@ pub(super) fn match_input(
                 .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
                 && !(Some(placement.shape) == (if ranked && parameter.scalar_type == ScalarType::Integer(u32_type()) { Some(ValueShape::integer(4, 4)) } else { scalar_shape(parameter.scalar_type) })
                     && (matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size)
-                        || !ranked && matches!(abstracted.result, AbstractFunctionResult::Unit) && scalar_stack(placement)))
+                        || !ranked
+                            && (matches!(abstracted.result, AbstractFunctionResult::Unit)
+                                || (target.mixed_structural_scalar_abi.is_some()
+                                    && matches!(target.operation, TargetOperation::ControlGraph(_))))
+                            && scalar_stack(placement)))
         })
     {
         return Err(invalid);
