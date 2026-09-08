@@ -1,6 +1,7 @@
-//! Ordinary acyclic Unit control; live definitions are intersected at joins.
+//! Ordinary Unit control; available definitions belong to dominating blocks.
 use super::super::shared::*;
 use super::scalar_call::KnownUnitInteger;
+mod dominance;
 mod observations;
 mod transfers;
 use target_operations::{
@@ -19,25 +20,6 @@ struct LiveDefinitions {
     lengths: BTreeMap<ValueId, PlaceId>,
 }
 
-impl LiveDefinitions {
-    fn intersect(&mut self, other: &Self) {
-        self.integers
-            .retain(|value, definition| other.integers.get(value) == Some(definition));
-        self.booleans
-            .retain(|value, definition| other.booleans.get(value) == Some(definition));
-        self.boolean_homes
-            .retain(|value, definition| other.boolean_homes.get(value) == Some(definition));
-        self.boolean_parameters
-            .retain(|value, definition| other.boolean_parameters.get(value) == Some(definition));
-        self.views
-            .retain(|place, definition| other.views.get(place) == Some(definition));
-        self.block_views
-            .retain(|place| other.block_views.contains(place));
-        self.lengths
-            .retain(|value, place| other.lengths.get(value) == Some(place));
-    }
-}
-
 pub(super) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,
@@ -54,7 +36,6 @@ pub(super) fn lower(
             )
         })
         || !function.entry_claims.is_empty()
-        || !function.published_service_ceiling.is_empty()
     {
         return Err(invalid());
     }
@@ -183,8 +164,7 @@ pub(super) fn lower(
     if !incoming[entry_position].is_empty() {
         return Err(invalid());
     }
-    let mut remaining = incoming.iter().map(Vec::len).collect::<Vec<_>>();
-    let mut pending = vec![entry_position];
+    let schedule = dominance::schedule(&incoming, &outgoing, entry_position).ok_or_else(invalid)?;
     let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
@@ -197,16 +177,10 @@ pub(super) fn lower(
         block_views: BTreeSet::new(),
         lengths: BTreeMap::new(),
     };
-    while let Some(position) = pending.pop() {
-        let mut live = if position == entry_position {
-            initial.clone()
-        } else {
-            let first = *incoming[position].first().ok_or_else(invalid)?;
-            let mut live = live_exits[first].as_ref().ok_or_else(invalid)?.clone();
-            for predecessor in incoming[position].iter().skip(1) {
-                live.intersect(live_exits[*predecessor].as_ref().ok_or_else(invalid)?);
-            }
-            live
+    for (position, dominator) in schedule {
+        let mut live = match dominator {
+            None => initial.clone(),
+            Some(dominator) => live_exits[dominator].as_ref().ok_or_else(invalid)?.clone(),
         };
         if position != entry_position {
             transfers::enter(&entries[position], &mut live);
@@ -256,12 +230,6 @@ pub(super) fn lower(
             terminator,
         });
         live_exits[position] = Some(live);
-        for successor in &outgoing[position] {
-            remaining[*successor] = remaining[*successor].checked_sub(1).ok_or_else(invalid)?;
-            if remaining[*successor] == 0 {
-                pending.push(*successor);
-            }
-        }
     }
     let blocks = lowered
         .into_iter()

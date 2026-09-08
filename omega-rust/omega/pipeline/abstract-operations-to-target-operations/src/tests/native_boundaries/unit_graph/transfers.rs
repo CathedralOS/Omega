@@ -2,7 +2,7 @@
 use super::*;
 use abstract_operations::ValueBinding;
 
-fn transferred() -> AbstractOperationPlan {
+pub(super) fn transferred() -> AbstractOperationPlan {
     let mut plan = fixture();
     let caller = &mut plan.functions[1];
     let byte = caller.parameters[0].scalar_type;

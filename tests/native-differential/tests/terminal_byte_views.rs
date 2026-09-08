@@ -41,6 +41,9 @@ mod subslice_calls;
 #[path = "terminal_byte_views/unit_calls.rs"]
 mod unit_calls;
 
+#[path = "terminal_byte_views/natural_writer.rs"]
+mod natural_writer;
+
 #[test]
 fn byte_view_length_helper_cross_lowers_on_hosted_targets() {
     for target in [
