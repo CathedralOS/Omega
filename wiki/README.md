@@ -35,6 +35,7 @@ beside code; completed work belongs in Git, not current reference material.
   [content custody](spec/resources/content_custody.md), and
   [placed access](spec/resources/placed_access.md).
 - Build: [declarations and package identity](spec/build/declarations.md),
+  [execution and generated source](spec/build/execution.md),
   [native products and component publication](spec/build/component_publication.md)
   and [private callbacks](spec/build/private_callbacks.md).
 - Packages: [acceptance](spec/packages/acceptance.md) and the
