@@ -274,6 +274,34 @@ acyclic: adding a wrapper does not break a cycle, while a queue or genuine new
 activation can. Root admission separately checks the concrete future handler.
 See [callback lifetime](../spec/build/private_callbacks.md#registration-and-lifetime).
 
+## Bounded Line Input
+
+`Console::read_line` fills a caller-supplied mutable byte slice and returns a
+`LineReadResult`. This is the [settled bounded-input API](../spec/resources/bounded_input.md),
+not completed implementation support. The supplied slice length is the write
+bound. The reader neither grows storage nor updates a container's live length;
+owners and allocating wrappers perform their own explicit bookkeeping.
+
+`Invalid` is the result's zero-initialized state, meaning no read result has
+been established. A normal read instead returns `LineComplete(count)`,
+`EndOfInput(count)`, or `Full(count)`. Only that count's prefix is newly read
+data; the remaining destination is unchanged.
+
+The reader continues until LF, EOF, or the supplied range fills. LF is stored
+and counted, and wins over Full if it occupies the final slot. Zero capacity
+returns `Full(0)` without reading. Filling without LF returns Full without
+consuming another byte; it does not prove that the line is too long. The next
+call continues the same stream. Greedy filling may block and is not a query
+for currently available input.
+
+This is raw byte input: CRLF, NUL, and non-ASCII bytes remain unchanged. A
+partial prefix may split a UTF-8 sequence. Import the library's encoding domain
+and validate the reported prefix before treating it as text; naming a domain
+or previously holding valid text does not establish validity after a write.
+Shared checked adapters can compose OS byte reads, while a target may supply
+the same complete contract directly. Neither route implies a resizable OS
+buffer API, automatic allocation, or rollback after an I/O failure.
+
 ## Process Exit
 
 The canonical core `ProcessExit` boundary service separates process-exit authority

@@ -274,24 +274,51 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   any write or its exact frame; ordered literal/parameter scalar field stores
   do not cover that complete body.
 
-  Byte-carrier boundary forwarding must retain the exact source place, path,
-  capacity, and live-length writeback separately from the borrowed-view
-  parameter. Omega's `abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
-  still rejects byte-field projections; canonical transport and verifier admission
-  do not implement the call. Bounded inline storage and borrowed descriptors
-  have different layouts. Use the source-produced `boundary_byte_buffers`
-  regressions in `checked-trees-to-lowered-psi/src/tests/` as the writeback
-  oracle for field/array destinations, including installed checked providers
-  and fuel suspension. Interpreter forwarding retains a frame-owned mutable
-  field binding; source correspondence rejoins an exact authored `&mut [u8]`
-  parameter reborrow without granting ordinary inline-storage conversion.
-  The checked line adapter and its native mutable-buffer presentation are
-  **OWNER-BLOCKED** on `BOUNDED-BYTE-OUTPUT-SURFACE` in
-  [owner questions](OWNER_QUESTIONS.md): ordinary `&mut [u8]` supplies neither
-  spare-capacity observation nor owner live-length replacement. Do not invent
-  those operations from interpreter-only backing metadata. Each target's
-  `console_impl.omg` currently declares bodyless `read_line`; native byte leaves
-  and independently motivated field operations are not blocked by this question.
+  Implement the settled [bounded byte input](wiki/spec/resources/bounded_input.md)
+  contract for `cli_mvp` and line-reading callers. Change `Console::read_line`
+  from Unit/hidden replacement to a fixed mutable slice plus `LineReadResult`:
+  ZII `Invalid`, and normal `LineComplete(count)`, `EndOfInput(count)`, or
+  `Full(count)` outcomes. Migrate declarations, selected provider signatures,
+  result-case evidence, and callers together. A raw fixed array supplies its
+  writable range; the reader changes neither its extent nor owner live length.
+  No resizable output descriptor or allocator feature is a prerequisite.
+
+  Implement shared checked line assembly over `read_byte` with bounded indexed
+  writes, or an exact conforming target provider. Preserve source place, path,
+  borrowed extent, returned prefix/count, and once-only effects through Psi,
+  Terminal, native realization, and replay. The current boundary-only
+  `TerminalBoundaryByteBuffer::replace` path and source-produced
+  `boundary_byte_buffers` tests establish owner replacement, not this fixed-range
+  contract. Migrate its line-input uses without extending ordinary slices to
+  spare capacity or retaining hidden length writeback. Preserve independently
+  motivated whole-field operations and their own regression coverage.
+
+  Acceptance: zero capacity returns `Full(0)` without reading; LF is stored and
+  included in `LineComplete`, including at the last writable byte; EOF retains
+  the partial count; filling without LF returns `Full` without one extra read.
+  Test empty lines, initial EOF, exact fill followed by LF/EOF, repeated chunk
+  reads, short OS reads, CRLF/NUL/non-ASCII preservation, untouched destination
+  tails, alias/access rejection, and exact result identity. `Invalid` must not
+  escape a completed call or fabricate EOF. Full is not a capacity trap or proof
+  of an overlong line. Preserve the selected byte leaf's failed-read trap and
+  required crash/progress contracts; do not invent recoverable errors or bounded
+  wait from buffer size. Record native runtime passes separately on Windows,
+  macOS, and Linux; unavailable hosts remain explicit validation gaps.
+
+  Replace sample-local capacity-specific `Utf8` declarations and compiler-name
+  `valid_utf8` dependence with imported checked library encoding vocabulary.
+  `cli_mvp` only pauses: its scratch buffer needs no text qualification, and
+  its new non-Unit result must be explicitly handled or discarded. Text consumers
+  validate only the returned prefix. Migrate the byte-predicate recognizer in
+  `psi/foundation/language-semantics/src/byte_predicates.rs` and its checked-tree
+  readers under the [encoding contract](wiki/spec/language/domains.md#byte-containers-and-encoding-domains),
+  rather than renaming a compiler primitive or duplicating it per capacity.
+  The legacy checked interpreter's `byte as char` line construction is not UTF-8
+  validation: preserve input bytes instead of re-encoding them, distinguish empty
+  lines from EOF, and stop using its Boolean/whole-replacement result as an oracle.
+  Acceptance includes valid multibyte sequences, invalid bytes, split codepoints
+  at Full boundaries, and rejection of unproved output qualification. Native
+  byte leaves and unrelated bounded-field operations remain independently actionable.
   Native byte input still needs matching Linux runtime evidence and a Windows
   realization. Retain the shared hosted read leaf and connected case-selection
   path as the regression floor:
@@ -312,8 +339,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
   results or replace the structural home with boundary scratch.
-  Close this slice with the existing carrier round-trip and sequential-read
-  native canaries, preserving capacity, overwrite, access, and alias checks.
+  Close this slice with migrated fixed-range round-trip and sequential-read
+  native canaries, preserving bounds, exact bytes, prefix/count, access, and
+  alias checks. The old hidden-replacement signature is not an acceptance target.
 
   Extend retained receiver forwarding to shared and indexed projections,
   owned/local receiver roots, composed control flow, and scalar-result receiver

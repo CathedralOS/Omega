@@ -22,14 +22,20 @@ Borrowed arguments retain the caller's referent across completion. Only owned
 arguments transfer custody; eventual owner cleanup remains separate even when
 another argument in that call is consumed.
 
-A boundary's unqualified mutable byte-view parameter may receive an inline
-bounded-owned byte field through its exact non-erased record/fixed-array path.
-The operand retains the caller's owner and capacity; this is a boundary
-presentation, not equality between inline storage and a borrowed descriptor.
-Source access, multiplicity, disjointness, and completion checks still apply.
-It grants neither view qualifications nor ordinary-call conversion. Runtime
-realization must preserve capacity and live-length writeback on that exact
-field; canonical transport alone establishes no interpreter or native support.
+A mutable byte-view parameter lends the exact writable range selected by the
+caller. [Bounded line input](../resources/bounded_input.md) returns a count and
+stopping reason; it does not resize that range or replace its owner's live
+length. Source access, initialization, disjointness, and completion checks still
+apply. A fixed array may supply its range without changing fixed-array length;
+a slice of a variable-fill owner does not expose unused capacity.
+
+The current interpreter's boundary-only bounded-field replacement carrier is a
+migration implementation, not source authority to resize through an ordinary
+slice. Its exact path, capacity, and staged length-writeback evidence do not
+establish the settled `read_line` contract. Remove this use from the line-input
+route as source signatures, checked providers, and consumers migrate together.
+Independently specified whole-field stores retain their explicit destination
+and immutable source under [structural access](structural_access.md).
 
 Trait requirements and explicit top-level boundary requirements have distinct
 canonical kinds. A top-level requirement retains its package-qualified operation,
