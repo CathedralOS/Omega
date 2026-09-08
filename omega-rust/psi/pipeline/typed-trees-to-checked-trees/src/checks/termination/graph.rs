@@ -161,21 +161,18 @@ fn outgoing_state_indices(
             continue;
         };
 
-        if let Some(index) = target_state_index(
-            program,
-            machine,
-            program.statement_table.transition_target(transition.target),
-        ) {
-            outgoing.push(index);
-        }
-        if let Some(index) = target_state_index(
-            program,
-            machine,
-            program
-                .statement_table
-                .transition_target(transition.continuation),
-        ) {
-            outgoing.push(index);
+        for target in [transition.target, transition.continuation] {
+            if !target.is_valid() {
+                continue;
+            }
+            if let Some(index) = target_state_index(
+                program,
+                machine,
+                state_symbol,
+                program.statement_table.transition_target(target),
+            ) {
+                outgoing.push(index);
+            }
         }
     }
 
@@ -185,11 +182,14 @@ fn outgoing_state_indices(
 fn target_state_index(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
+    source_symbol: symbols::SymbolHandle,
     target: &TransitionTargetNode,
 ) -> Option<usize> {
     let target_symbol = match target {
         TransitionTargetNode::Named { path, .. } => path.symbol,
-        TransitionTargetNode::SelfTarget => return None,
+        // An implicit self transition repeats its exact current state, which
+        // may be a named state rather than the machine's entry.
+        TransitionTargetNode::SelfTarget => source_symbol,
         TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => return None,
     };
 

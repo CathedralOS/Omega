@@ -67,6 +67,14 @@ proof nor an acyclic body excuses an invalid authored rank. Named-state,
 mutable, custom-view, and call-component range transport require their own proof
 support. Slice ranking shares validation's exact nonempty-slice/`1..` rule.
 
+Computed state arrivals may use multiple copies of the same authored scalar
+rank. Mapping discovery identifies that entry role; the arithmetic edge judgment
+separately proves required copies equal on every arrival before using equality
+as an invariant. Diverged copies cannot select a convenient representative.
+These are private ranking premises, not ordinary store-range facts. Explicit
+`self` targets remain current-state edges in both topology and occurrence readers;
+the absence of authored arguments supplies no decrease evidence.
+
 `checks/termination/progress/` replays structural qualification correspondence
 before transporting entry subjects. Exact formation-state declarations and
 Field/Case/literal FixedIndex paths must agree. Owned captures use source values

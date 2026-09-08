@@ -1,5 +1,7 @@
 use super::{lower_typed_trees, typed};
 
+mod computed_copies;
+
 const ALTERNATING: &str = r#"
 machine walk(remaining: u32 [0..=5])
 terminates by remaining in 0..=5;
@@ -300,8 +302,8 @@ fn nested_auxiliary_computations_keep_one_current_rank_representative() {
 }
 
 #[test]
-fn computed_arrivals_cannot_choose_between_two_current_rank_copies() {
-    reject(
+fn computed_arrivals_transport_inductively_equal_rank_copies() {
+    prove(
         r#"
         machine walk(remaining: u32 [0..=5])
         terminates by remaining in 0..=5;

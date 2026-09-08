@@ -287,8 +287,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/` and
   `validation/src/call_cycles/runtime_ranking/`.
-  Computed-only paths with ambiguous current representatives of the authored
-  rank or auxiliary-only multi-parameter arithmetic,
+  Computed-only paths with auxiliary-only multi-parameter arithmetic,
   transfers with diverging copies of rank inputs, and call components with
   internal state arrivals, or slice-length,
   bounded-distance, or custom views need

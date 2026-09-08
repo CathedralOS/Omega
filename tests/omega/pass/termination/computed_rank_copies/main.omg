@@ -1,0 +1,9 @@
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> prepare(remaining, remaining) }
+    state prepare(left: u32 [0..=5], right: u32 [0..=5]) {
+        transition { _ -> finish(left + (right - right)) }
+    }
+    state finish(result: u32 [0..=5]) { result }
+}

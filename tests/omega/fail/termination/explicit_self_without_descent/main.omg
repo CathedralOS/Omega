@@ -1,0 +1,3 @@
+machine spin(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 { transition { _ -> self } }

@@ -711,6 +711,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/increasing_cursor_rank_range",
     "termination/rank_range_disjoint_receiver_write",
     "termination/rank_range_named_state",
+    "termination/computed_rank_copies",
     "termination/rank_range_state_cycle",
     "termination/rank_range_entry_reentry",
     "termination/rank_range_slice_length",
@@ -732,6 +733,8 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "termination/unequal_computed_rank_copies",
+    "termination/explicit_self_without_descent",
     "termination/cross_machine_tail_requires",
     "arithmetic/fractional_integer_landing",
     "arithmetic/fractional_integer_argument",
