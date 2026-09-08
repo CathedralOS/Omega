@@ -6,6 +6,7 @@
 //! boundary.
 
 mod block_bindings;
+mod boundary_byte_buffers;
 mod byte_sequence_subslice;
 mod byte_sequence_view;
 mod effect_results;
@@ -16,6 +17,7 @@ mod semantic_value_comparison;
 #[cfg(test)]
 mod structural_argument_binding_tests;
 
+pub use boundary_byte_buffers::TerminalBoundaryByteBuffer;
 pub use effect_results::TerminalEffectResult;
 
 pub use semantic_value_comparison::{
@@ -306,8 +308,10 @@ pub enum TerminalEffect {
         arguments: Vec<TerminalScalarValue>,
         structural_arguments: Vec<TerminalStructuralValue>,
         /// Exact byte payload aligned with `structural_arguments`. Whole
-        /// immutable literals and forwarded views contribute `Some`; other
-        /// structural types contribute `None`. A byte view without executable
+        /// immutable literals, forwarded views, and mutable inline fields
+        /// contribute `Some`; other structural types contribute `None`.
+        /// Mutable payloads record the pre-call snapshot, not replacement bytes.
+        /// A byte view without executable
         /// contents rejects before invoking the handler.
         byte_sequence_arguments: Vec<Option<Vec<u8>>>,
         completion_receipts: Vec<CompletionReceipt>,
@@ -325,6 +329,22 @@ pub enum TerminalEffect {
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;
+
+    /// Handle an effect with staged, bounded mutable byte arguments. The
+    /// default rejects before performing an effect whose writeback it cannot
+    /// supply; existing immutable effects retain their result handler.
+    fn handle_effect_with_byte_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        buffers: &mut [TerminalBoundaryByteBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if !buffers.is_empty() {
+            return Err(TerminalEffectRejection::new(
+                "handler does not support mutable boundary byte buffers",
+            ));
+        }
+        self.handle_effect_result(effect)
+    }
 
     /// Return the boundary's exact declared result. The default Unit handler
     /// rejects structural results before performing an effect it cannot finish.
@@ -1983,17 +2003,20 @@ impl TerminalExecution {
                             &boundary_declaration.scalar_parameters,
                             &scalar_arguments,
                         )?;
-                        let arguments = resolve_structural_arguments(
-                            &self.structural_types,
-                            &self.structural_values,
-                            &structural_arguments,
-                        )?;
-                        bind_structural_arguments(
-                            &boundary_declaration.structural_parameters,
-                            &arguments,
-                        )?;
-                        validate_boundary_requirements(boundary_declaration, &arguments)?;
                         if self.provider_candidates.contains(&boundary) {
+                            // Checked provider bodies retain ordinary call
+                            // binding; external mutable-buffer presentation
+                            // does not supply a callee view/writeback protocol.
+                            let arguments = resolve_structural_arguments(
+                                &self.structural_types,
+                                &self.structural_values,
+                                &structural_arguments,
+                            )?;
+                            bind_structural_arguments(
+                                &boundary_declaration.structural_parameters,
+                                &arguments,
+                            )?;
+                            validate_boundary_requirements(boundary_declaration, &arguments)?;
                             let supported_result = match &operation.result {
                                 terminal_psi::OperationResult::Unit => {
                                     scalar_argument_ids.is_empty()
@@ -2046,6 +2069,18 @@ impl TerminalExecution {
                             }
                             continue;
                         }
+                        let mut boundary_arguments = self.resolve_boundary_arguments(
+                            &boundary_declaration.structural_parameters,
+                            &structural_arguments,
+                        )?;
+                        bind_structural_arguments(
+                            &boundary_declaration.structural_parameters,
+                            &boundary_arguments.values,
+                        )?;
+                        validate_boundary_requirements(
+                            boundary_declaration,
+                            &boundary_arguments.values,
+                        )?;
                         self.preflight_boundary_result(&operation.result)?;
                         let remaining_claims = complete_claims(
                             &self.live_claims,
@@ -2053,35 +2088,25 @@ impl TerminalExecution {
                             &completion_receipts,
                             &boundary_declaration.structural_parameters,
                         )?;
-                        let mut byte_sequence_values = self.bind_byte_sequence_arguments(
-                            &boundary_declaration.structural_parameters,
-                            &structural_arguments,
-                            &arguments,
-                        )?;
                         let effect = TerminalEffect::BoundaryCall {
                             operation: operation.id,
                             boundary,
                             arguments: scalar_arguments,
-                            structural_arguments: arguments,
-                            byte_sequence_arguments: boundary_declaration
-                                .structural_parameters
-                                .iter()
-                                .map(|parameter| {
-                                    byte_sequence_values
-                                        .remove(&parameter.place)
-                                        .map(|view| view.bytes().to_vec())
-                                })
-                                .collect(),
+                            structural_arguments: std::mem::take(&mut boundary_arguments.values),
+                            byte_sequence_arguments: std::mem::take(&mut boundary_arguments.bytes),
                             completion_receipts,
                             result: boundary_declaration.result.clone(),
                         };
-                        let returned =
-                            handler.handle_effect_result(&effect).map_err(|rejection| {
-                                TerminalInterpretError::EffectRejected {
-                                    operation: operation.id,
-                                    rejection,
-                                }
+                        let returned = handler
+                            .handle_effect_with_byte_buffers(
+                                &effect,
+                                &mut boundary_arguments.buffers,
+                            )
+                            .map_err(|rejection| TerminalInterpretError::EffectRejected {
+                                operation: operation.id,
+                                rejection,
                             })?;
+                        boundary_arguments.validate_writeback()?;
                         effect_results::commit_boundary_result(
                             &mut self.values,
                             &mut self.structural_values,
@@ -2112,6 +2137,7 @@ impl TerminalExecution {
                             }
                         }
                         self.live_claims = remaining_claims;
+                        boundary_arguments.commit(self);
                         self.effects.push(effect);
                     }
                     OperationKind::PortWrite {

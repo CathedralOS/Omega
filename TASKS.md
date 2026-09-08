@@ -242,13 +242,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Byte-carrier boundary forwarding must retain the exact source place, path,
   capacity, and live-length writeback separately from the borrowed-view
-  parameter. `terminal-interpreter::resolve_structural_arguments` and Omega's
-  `abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
-  still reject byte-field projections; canonical transport and verifier admission
+  parameter. Omega's `abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
+  still rejects byte-field projections; canonical transport and verifier admission
   do not implement the call. Bounded inline storage and borrowed descriptors
-  have different layouts. Add runtime byte-field view forwarding to the interpreter and
-  an admitted `read_line` realization through native emission and installation
-  replay; each target's `console_impl.omg` declares a bodyless intrinsic.
+  have different layouts. Use the interpreter's bounded external-boundary
+  writeback as the execution oracle; checked provider-body dispatch of mutable
+  byte views still needs forwarding. Add an admitted `read_line` realization
+  through native emission and installation replay; each target's
+  `console_impl.omg` declares a bodyless intrinsic.
   Close this slice with the existing carrier round-trip and sequential-read
   native canaries, preserving capacity, overwrite, access, and alias checks.
 
