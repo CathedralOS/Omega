@@ -32,15 +32,18 @@
         (pair 1 (second row))
         (capture_find_binding node (- count 1) (second rows))))))
 
+; Produced plans give each identity one lexical binder. A previously captured
+; free identity cannot later be bound inside this fragment. Reuse its mapping
+; before scanning the local spine; only unseen references need classification.
 (def capture_reference
   ((node Int) (bound_count Int) (bound Int) (state Int)
    (depth Int) (frames Int)) Int
-  (if (capture_is_bound node bound_count bound)
-    (capture_resume node state depth frames)
-    (let mappings Int (second state)
-      (let found Int (capture_find_binding node (first mappings) (second mappings))
-        (if (first found)
-          (capture_resume (second found) state depth frames)
+  (let mappings Int (second state)
+    (let found Int (capture_find_binding node (first mappings) (second mappings))
+      (if (first found)
+        (capture_resume (second found) state depth frames)
+        (if (capture_is_bound node bound_count bound)
+          (capture_resume node state depth frames)
           (let parameter Int (gamma_generated 99 (first state))
             (capture_resume parameter
               (capture_state (+ (first state) 1) (+ (first mappings) 1)
