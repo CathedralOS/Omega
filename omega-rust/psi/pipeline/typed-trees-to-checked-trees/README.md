@@ -98,9 +98,22 @@ selected edge, including reversed comparisons and Boolean wrappers. Step inputs
 may change on arrival when they remain positive, unlike invocation-fixed range
 endpoints. The [batch-size countdown](../../../../tests/omega/pass/termination/measure_field_rank_step/README.md)
 exercises this source-checking tier; it supplies no native custom-view certificate.
-Relational field bounds or endpoint equality, named-state transport, broader
-projections and constrained measure parameters still need application/projection
-evidence.
+
+For single-state owned direct-field measures, relational membership shares the
+ordinary scalar range proof. Entry requirements may relate the selected field
+to scalar endpoints, including nonzero floors and exclusive ceilings. Every
+self-edge substitutes the exact reconstructed field and scalar actuals, proves
+endpoint equality and membership, and establishes strict descent. Entry facts
+may recur only if every edge re-establishes them; a backedge guard cannot prove
+initial membership. Prefix stores need complete disjoint frames, and calls in
+edge operands cannot supply immutable snapshots. Unrelated mutable scratch
+locals introduce no ranking facts and do not invalidate preserved inputs.
+The [relational countdown](../../../../tests/omega/pass/termination/measure_field_relational_range/README.md)
+exercises that boundary. Computed scalar endpoints still need independent
+immutable-expression formation; the relational fallback cannot excuse overflow
+or reinterpret anonymous rational arithmetic. Relations requiring additional
+field coordinates, named-state transport, broader projections and constrained
+measure parameters still need application/projection evidence.
 
 Computed state arrivals may use multiple copies of the same authored scalar
 rank. Mapping discovery identifies that entry role; the arithmetic edge judgment

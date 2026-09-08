@@ -6,8 +6,10 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
 mod calls;
+mod fields;
 mod lengths;
 mod meanings;
+mod projections;
 mod state_aliases;
 
 pub(crate) use calls::{
@@ -23,6 +25,10 @@ mod tests;
 pub enum RankingRangeMeasure {
     Single(ExpressionHandle),
     SliceLength(ExpressionHandle),
+    Field {
+        subject: ExpressionHandle,
+        field: symbols::SymbolHandle,
+    },
     Distance {
         lower: ExpressionHandle,
         upper: ExpressionHandle,
@@ -171,6 +177,17 @@ fn prove_edge(
 ) -> Option<RankingRangeEdgeProof> {
     let states = program.machine_states(machine);
     let root = states.first()?;
+    let field_rank = match measure {
+        RankingRangeMeasure::Field { subject, field } => {
+            // Field arrival mappings are not scalar aliases. Only exact root
+            // self-edges currently supply the record reconstruction evidence.
+            if states.len() != 1 || !matches!(context, EdgeContext::Root) {
+                return None;
+            }
+            Some(fields::FieldRank::resolve(program, root, subject, field)?)
+        }
+        _ => None,
+    };
     if !states
         .iter()
         .any(|candidate| candidate.symbol == state.symbol)
@@ -202,11 +219,16 @@ fn prove_edge(
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
         return None;
     };
+    if field_rank.is_some() {
+        fields::endpoints_formed(program, machine, root, range)?;
+    }
     let admit_template = |expression| meanings::builtin(program, machine, root, expression, 0);
     admit_template(range.start)?;
     admit_template(range.end)?;
     match measure {
-        RankingRangeMeasure::Single(subject) | RankingRangeMeasure::SliceLength(subject) => {
+        RankingRangeMeasure::Single(subject)
+        | RankingRangeMeasure::SliceLength(subject)
+        | RankingRangeMeasure::Field { subject, .. } => {
             admit_template(subject)?;
         }
         RankingRangeMeasure::Distance { lower, upper }
@@ -327,56 +349,18 @@ fn prove_edge(
         return None;
     }
     let length_bindings = lengths::bindings(program, state, entry_parameters);
-    if !length_bindings.is_empty() {
-        let mut expressions = vec![range.start, range.end];
-        match measure {
-            RankingRangeMeasure::Single(subject) | RankingRangeMeasure::SliceLength(subject) => {
-                expressions.push(subject)
-            }
-            RankingRangeMeasure::Distance { lower, upper }
-            | RankingRangeMeasure::IncreasingTo {
-                subject: lower,
-                limit: upper,
-            } => expressions.extend([lower, upper]),
-        }
-        expressions.extend(arguments.unwrap_or_default());
-        expressions.extend(guards.iter().map(|(expression, _)| *expression));
-        expressions.extend(evaluated_prefix);
-        if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
-            for contract in program
-                .machine_contracts(machine)
-                .iter()
-                .filter(|contract| contract.kind == SignatureContractKind::Requires)
-            {
-                for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    if let ProofFact::Expression(expression) = fact {
-                        expressions.push(*expression);
-                    }
-                }
-            }
-            for parameter in program
-                .state_parameters(root)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-            {
-                if exact_integer_parameter(program, parameter.type_reference).is_none() {
-                    continue;
-                }
-                let mut reference = parameter.type_reference;
-                while let TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } = program.type_reference_table.type_reference(reference)
-                {
-                    for constraint in program.type_reference_table.constraints(*constraints) {
-                        if let TypeConstraintNode::Range { minimum, maximum } = constraint {
-                            expressions.extend([*minimum, *maximum]);
-                        }
-                    }
-                    reference = *base_type;
-                }
-            }
-        }
+    if !length_bindings.is_empty() || field_rank.is_some() {
+        let expressions = projections::expressions(
+            program,
+            machine,
+            root,
+            range,
+            measure,
+            premises,
+            arguments,
+            guards,
+            evaluated_prefix,
+        );
         lengths::install(
             program,
             machine,
@@ -386,6 +370,9 @@ fn prove_edge(
             &mut engine,
             &expressions,
         )?;
+        if let Some(field) = &field_rank {
+            field.install(program, state, &mut engine, &expressions)?;
+        }
     }
     let auxiliary =
         if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
@@ -394,6 +381,9 @@ fn prove_edge(
             Vec::new()
         };
     let mut comparisons = auxiliary.clone();
+    if let Some(field) = &field_rank {
+        comparisons.extend(field.comparisons(program));
+    }
     comparisons.extend(alias_comparisons);
     comparisons.extend(length_bindings.iter().map(|(_, identity)| {
         (
@@ -410,6 +400,7 @@ fn prove_edge(
     let ceiling = engine.normalize(range.end)?;
     let rank = match measure {
         RankingRangeMeasure::Single(subject) => engine.normalize(subject)?,
+        RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value(),
         RankingRangeMeasure::SliceLength(subject) => {
             let parameter = lengths::parameter(program, root, subject)?;
             let (_, identity) = length_bindings
@@ -478,6 +469,15 @@ fn prove_edge(
         let source_symbol = destination.map_or(parameter.symbol, |destination| {
             destination.entry_parameters[position]
         });
+        if let Some(field) = &field_rank
+            && source_symbol == field.parameter.symbol
+        {
+            substitutions.insert(
+                field.identity.clone(),
+                field.actual(program, state, &mut engine, *argument)?,
+            );
+            continue;
+        }
         if destination.is_some_and(|destination| {
             destination
                 .entry_parameters
@@ -546,6 +546,7 @@ fn prove_edge(
         }
         RankingRangeMeasure::Single(_)
         | RankingRangeMeasure::SliceLength(_)
+        | RankingRangeMeasure::Field { .. }
         | RankingRangeMeasure::Distance { .. } => None,
     };
     for (operator, left, right) in auxiliary
@@ -864,6 +865,11 @@ fn collect_guard(
         return None;
     }
     match engine.program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary)
+            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
+        {
+            collect_guard(engine, unary.operand, !holds, comparisons, depth + 1)
+        }
         ExpressionNode::Atomic(atomic) => {
             collect_guard(engine, atomic.value, holds, comparisons, depth + 1)
         }

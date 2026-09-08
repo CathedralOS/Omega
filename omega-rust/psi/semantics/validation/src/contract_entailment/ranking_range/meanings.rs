@@ -29,6 +29,9 @@ pub(super) fn builtin(
         }
         ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
         ExpressionNode::Member(_) => {
+            if let Some(reference) = fields::projected_type(program, state, expression) {
+                return Some(Some(reference));
+            }
             let receiver = crate::places::collection_length_receiver(
                 program,
                 machine,
@@ -39,6 +42,21 @@ pub(super) fn builtin(
             // Builtin collection metadata is a natural numeric coordinate;
             // it has no authored nominal operator implementation.
             Some(None)
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            if !literal.type_symbol.is_valid() {
+                return None;
+            }
+            for field in program.expression_table.struct_fields(literal.fields) {
+                builtin(program, machine, state, field.value, depth + 1)?;
+            }
+            // Constructor operands keep their resolved nominal carrier when
+            // checking an enclosing operator's selected declaration.
+            Some(Some(
+                program
+                    .type_reference_table
+                    .find_named_type_reference(literal.type_symbol)?,
+            ))
         }
         ExpressionNode::Indexed(indexed) => {
             lengths::parameter(program, state, indexed.collection)?;

@@ -76,6 +76,19 @@ also checks unconditional termination and crash freedom.
 proof-only components require strict structural subterms at every resolved call
 occurrence. No parallel edge may supply an unclassified call's certificate.
 
+`contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
+scalar ranks, slice lengths, and exact direct-field coordinates. `fields.rs`
+binds an immutable owned parameter's selected builtin `u64` field, not its whole
+record or another same-named projection. Reconstruction retains the nominal
+owner and declared field identity. The shared judgment proves simultaneous
+endpoint pinning, next-rank membership, and strict descent; an entry-only
+requirement is not silently renewed. `projections.rs` collects the expression
+roots for metadata binding without constructing source expressions. Direct-field
+transport currently covers root self-edges and scalar endpoints whose arithmetic
+has independent formation evidence; other fields, references, and named-state
+field mappings remain unbound. This is source automation, not a Terminal
+custom-view certificate.
+
 ## Write frames and reference origins
 
 `calls/write_frames/` owns one complete-or-opaque may-write analysis used by
