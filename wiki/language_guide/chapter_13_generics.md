@@ -1,10 +1,10 @@
 # Chapter 13: Generics
 
-Generics let one declaration work over different types, static values, or named
-implementations. The body is checked against its declared requirements; concrete
-uses select applications satisfying those requirements. Static dispatch and
-monomorphization are the baseline, not a change to the language's ownership or
-proof rules.
+Generics let one declaration work over different types, values, or named
+implementations. A value binder can be runtime-capable or explicitly `const`.
+The body is checked against its declared requirements; uses select applications
+satisfying those requirements. Static applications can monomorphize; dynamic
+value arguments can share ordinary code. Neither changes ownership or proof rules.
 
 [Generic declarations](../spec/language/generics.md) owns the source contracts.
 Examples here assume their named types, traits, and conformances are in scope;
@@ -53,6 +53,58 @@ Explicit conformance selection is different from guessing a machine from its
 name or finding a visible implementation. [Chapter 14](chapter_14_traits.md)
 explains the complete map and its laws.
 
+## Runtime-Capable Value Parameters
+
+Value binders distinguish two staging contracts:
+
+```text
+<Count: u32>        runtime-capable; a static argument is also permitted
+<const Count: u32>  statically known within the compiled specialization
+```
+
+`const` is a requirement, not an optimization hint. Without it, known arguments
+may still specialize. With it, a declaration can require fixed layout or static
+instruction operands without supplying a runtime fallback. Runtime-capable
+binder support remains implementation work; these examples specify the intended
+contract rather than currently executable source.
+
+```omega
+machine prefix_count<Count: u32>(items: &[u8]) -> u32
+requires
+    embed(Count) <= embed(items.len);
+{
+    Count
+}
+```
+
+`prefix_count<16>(items)` supplies a static value. If `count` is a runtime `u32`,
+`prefix_count<count>(items)` is also eligible once the caller proves the bound.
+The latter can compile to one body with an ordinary Count argument, not one
+machine per observed count. A plain parameter would suffice for this example;
+generic indices also connect dependent types and results, such as
+`data Index<Limit: u32> { value: u32 [0..Limit]; }`.
+
+An index binds the exact supplied value, not its variable name. Reassigning
+`count` later does not retag an earlier indexed object. To use an object indexed
+by one runtime value where another is required, establish their applicable
+relationship, often equality. Dependent borrows, mutation, and linear custody
+retain their ordinary rules. Retain a witness as ordinary data when runtime
+operations need it; proof-only uses may erase.
+
+A static-only use inside a runtime-capable body needs a valid bridge or rejects;
+the compiler does not quietly rewrite the public binder to `const`. For a small
+supported set, ordinary dispatch can select a literal specialization and retain
+the equality to the runtime choice. The remaining values need an authored
+fallback, a proved supported-set precondition, or an explicit failure outcome.
+The finite size of `u32` is not permission to enumerate all its inhabitants.
+
+Squalr's runtime-selected SIMD widths motivate this distinction: widths 16, 32,
+and 64 select different kernels without requiring arbitrary dynamic layouts.
+Reducing repeated width methods on dynamic datatype interfaces additionally
+needs a finite indexed-interface and prepared-result representation. That
+automatic interface/dispatch design is not supplied by the binder syntax alone;
+see the [specialization boundary](../spec/language/generics.md#finite-specialization-boundary).
+
 ## Const And Proof Parameters
 
 Static values can parameterize stored shape or contracts:
@@ -65,7 +117,8 @@ data FixedBuffer<T, const N: u64> {
 
 `N` is a static value of its declared carrier. Each application proves its kinds,
 ranges, and constraints even if the body never uses it. A runtime length remains
-a runtime witness, not a const argument.
+a runtime witness, not an argument to this `const` binder. Use a runtime-capable
+value binder when the declaration supports dynamic execution instead.
 
 Anonymous arithmetic lands exactly under the expected carrier.
 `FixedBuffer<u8, 0.1 * 70>` has length seven; `FixedBuffer<u8, 7.5>` rejects
@@ -224,8 +277,9 @@ See [named conformance selection](../spec/language/conformances.md#declaration-a
 
 Static `where` obligations are checked at instantiation. Data `where` facts over
 runtime fields instead define a default domain maintained at consumption points.
-These are different binding times for stated constraints, not permission to
-compute arbitrary runtime types.
+Runtime value-binder requirements are proved for the exact subjects at each
+application; a runtime guard may establish them. These are different binding
+times, not permission to reinterpret runtime data as arbitrary type declarations.
 
 ## Static Dispatch
 
@@ -244,14 +298,24 @@ mechanism for runtime-selected interfaces, with its own evidence and custody.
 ## Monomorphization
 
 ```text
-generic declaration + exact arguments -> concrete application
+declaration + static arguments + exact runtime-index bindings -> checked application
 ```
 
 Substitution preserves declaration identities through bodies, contracts, fields,
 and nested applications. A shadowing local cannot rewrite another binder.
-Substituted field types determine layout, not the display spelling of a generic
-origin. Inferred call-result types follow the selected instance; authored local
-annotations still impose their own store obligations.
+Substituted field types determine eligible layout, not the display spelling of
+a generic origin. Runtime values do not enter a cache as if their contents were
+already known constants. Inferred call-result types retain the selected static
+arguments and dynamic subjects; authored local annotations still impose their
+own store obligations.
+
+Logical extent is not allocation. A runtime-capacity owner may use explicitly
+supplied backing or an allocator with an ordinary failure outcome. It need not
+be growable. Inline fixed storage still needs static extent and a fitting stack
+plan; neither `0..=65536` nor a full `u32` range orders the compiler to reserve
+the maximum. Runtime-dependent indices authorize no hidden boxing, dynamic
+stack allocation, or runtime code generation. See
+[runtime index storage](../spec/language/generics.md#runtime-index-identity-and-storage).
 
 Physical code sharing is possible as an optimization only when it preserves
 these semantics. It does not merge distinct application identities, change

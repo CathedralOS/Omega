@@ -10,14 +10,17 @@ restrict the general mathematical quantification and foundations required by
 
 | Dependency | Representation and checking |
 | --- | --- |
-| Const/domain index | Canonical static value or licensed symbolic expression participating in application identity. |
+| Const index | Canonical static value or licensed symbolic expression participating in static application identity. |
+| Runtime-capable generic index | Exact value subject bound by a non-const value binder; its runtime content is not a static specialization key. |
 | Stored witness | Ordinary field/parameter whose value constrains another field or region. |
 | View witness | Ordinary value such as count or stride fixed when a borrowed view is established. |
 | Flow fact | Erased proposition valid for its exact subjects and current program point. |
 
-Runtime dependencies do not become const-generic arguments. Closed eligibility
-and canonical encoding follow [semantic evaluation](evaluation.md#canonical-static-identities);
-local proof can establish compatibility without changing normalized index identity.
+Runtime dependencies do not become const-generic arguments. They may supply
+runtime-capable value binders under [generic staging](generics.md#value-binders-and-const-requirements).
+Static eligibility and canonical encoding follow
+[semantic evaluation](evaluation.md#canonical-static-identities); runtime-index
+compatibility instead retains exact subjects and checked relationships.
 Type relevance and erased witness identity/multiplicity follow
 [proof erasure](../proofs/contracts.md#identity-availability-and-erasure), not a
 blanket prohibition on proof-only values.
@@ -35,6 +38,13 @@ or a hidden global layout descriptor. [Layout plans](../layouts/plans.md) and
 [recasts](../layouts/recasts.md) determine representation and view legality.
 Runtime values have no implicit proof tuple or hidden witness allocation merely
 because a fact names them.
+
+`Buffer<count>` can retain a runtime extent when Buffer declares a runtime-capable
+value binder and has a valid storage realization. It does not by itself allocate
+count elements, instantiate count-specific code, or authorize runtime-sized inline
+stack storage. A `const` binder still requires static knowledge. Existing
+const-indexed domain families retain their declared binding time; runtime-capable
+indices do not reinterpret them or turn arbitrary runtime data into nominal types.
 
 ## Establishment and witness loans
 
