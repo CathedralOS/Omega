@@ -125,19 +125,6 @@ pub(super) fn validate_integer_structural_field(
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
     ) || !has_readable_structural_access(parameter.access)
         || !has_empty_structural_custody(machine, source)
-        || machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|candidate| {
-                matches!(
-                    candidate.kind,
-                    OperationKind::IntegerStructuralField {
-                        source: other_source,
-                        field: other_field,
-                    } if (other_source, other_field) != (source, field)
-                )
-            })
     {
         return Err(invalid());
     }
@@ -173,19 +160,6 @@ pub(super) fn validate_boolean_structural_field(
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
     ) || !has_readable_structural_access(parameter.access)
         || !has_empty_structural_custody(machine, source)
-        || machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|candidate| {
-                matches!(
-                    candidate.kind,
-                    OperationKind::BooleanStructuralField {
-                        source: other_source,
-                        field: other_field,
-                    } if (other_source, other_field) != (source, field)
-                )
-            })
         || direct_relevant_scalar_field(module, parameter.structural_type, field)
             != Some(ScalarType::Boolean)
     {

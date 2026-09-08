@@ -51,7 +51,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         .unwrap()
         .frame;
     assert!(
-        assignment_frame_matches(program, state, parameters[0].symbol, "$P0", frame),
+        assignment_frame_matches(program, state, parameters[0].symbol, "$P0", frame, &[]),
         "assignment frame does not match exact authored record.enabled store: {frame:?}"
     );
     assert!(
@@ -73,6 +73,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         state,
         &structural_parameters,
         &[],
+        0,
     )
     .expect("exact ordered scalar field store sequence");
     assert_eq!(stores.len(), 1);

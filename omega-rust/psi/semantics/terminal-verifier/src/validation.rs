@@ -71,6 +71,7 @@ pub use frontier::{
 };
 use partial_affine::{is_partial_affine_path, partial_affine_residuals, partial_affine_root_type};
 use proof_recursion::validate_proof_recursive_components;
+pub(crate) use propositions::proposition_observes_places;
 pub(crate) use structural_operations::{
     exact_payloadless_case_return_exits, structural_argument_canonical_prefix,
 };

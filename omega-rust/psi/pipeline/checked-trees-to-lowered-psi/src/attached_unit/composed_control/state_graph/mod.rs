@@ -7,11 +7,15 @@ use checked_trees::{
 };
 
 mod admission;
+pub(super) mod body;
 mod edges;
 mod emission;
+mod parameters;
 mod ranking;
 mod scalars;
 mod subslices;
+#[cfg(test)]
+mod tests;
 mod topology;
 
 pub(in crate::attached_unit) use admission::AdmittedGraph;

@@ -277,6 +277,16 @@ pub(super) fn locate(
                                 })
                         })
                 }
+                ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                    validation::declared_place_type_raw(
+                        program,
+                        machine,
+                        Some(state),
+                        assignment.target,
+                    )
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    .map(|primitive| (assignment.value, absent, primitive))
+                }
                 _ => None,
             }
         }

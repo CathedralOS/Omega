@@ -81,11 +81,14 @@ pub(super) fn emit_prefix(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     parameters: &[(u32, StructuralParameterDeclaration)],
+    structural_types: &[StructuralTypeDeclaration],
     values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<ScalarBindings, LoweringError> {
-    let mut bindings = ScalarBindings::new(values.len()).with_structural_parameters(parameters);
+    let mut bindings = ScalarBindings::new(values.len())
+        .with_structural_parameters(parameters)
+        .with_structural_fields(structural_types);
     let (_, authored) = crate::scalar_source_custody::authored_state(checked, state.state)?;
     for (position, parameter) in state.scalar_parameters.iter().enumerate() {
         let source = &checked.state_parameters(authored)[parameter.source_position as usize];

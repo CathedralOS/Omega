@@ -8,6 +8,7 @@ pub(crate) struct Evaluation {
     /// Other callers retain the ordinary dense source-prefix mapping.
     pub scalar_bindings: Option<crate::scalar_bindings::ScalarBindings>,
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
+    pub structural_fields: Vec<crate::scalar_bindings::StructuralScalarFieldBinding>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -59,6 +60,7 @@ impl Evaluation {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
             scalar_bindings: None,
+            structural_fields: Vec::new(),
             structural_parameters: Vec::new(),
             entry,
             current: entry,
@@ -162,7 +164,8 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(source_value_count))
-            .with_structural_parameters(&self.structural_parameters);
+            .with_structural_parameters(&self.structural_parameters)
+            .with_resolved_structural_fields(&self.structural_fields);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,

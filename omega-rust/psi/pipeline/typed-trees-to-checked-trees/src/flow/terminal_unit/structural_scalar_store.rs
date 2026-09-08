@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod frame;
 #[cfg(test)]
 mod tests;
 
@@ -50,10 +51,12 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_start: usize,
 ) -> Option<Vec<CheckedStructuralScalarFieldStorePlan>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     if !statements
         .iter()
+        .skip(statement_start)
         .any(|statement| matches!(statement, StatementNode::Assignment(_)))
     {
         return Some(Vec::new());
@@ -74,12 +77,21 @@ pub(super) fn build_structural_scalar_field_store_sequence(
         .iter()
         .find(|frame| frame.state == state.symbol)?
         .frame;
-    if !assignment_frame_matches(program, state, parameter.symbol, &mutation_root, frame) {
+    if !frame::matches(
+        program,
+        machine,
+        state,
+        parameter.symbol,
+        destination.is_self,
+        &mutation_root,
+        frame,
+    ) {
         return None;
     }
     statements
         .iter()
         .enumerate()
+        .skip(statement_start)
         .filter_map(|(statement_index, statement)| {
             let StatementNode::Assignment(assignment) = statement else {
                 return None;
@@ -301,11 +313,14 @@ fn build_structural_scalar_field_store_at(
     {
         return None;
     }
-    let value = facts.values.scalar_expressions.expression_at(
+    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
+    if binding.expression != assignment.value {
+        return None;
+    }
     let direct_result_is_exact = matches!(
         (result_local, value),
         (
@@ -342,7 +357,7 @@ fn build_structural_scalar_field_store_at(
         }
         _ => false,
     };
-    let exact_source = if direct_result_is_exact || literal {
+    let exact_source = if exact_sequence_frame || direct_result_is_exact || literal {
         true
     } else if scalar_parameters.is_empty() {
         false
@@ -381,11 +396,14 @@ fn assignment_frame_matches(
     parameter: SymbolHandle,
     mutation_root: &str,
     frame: &facts::NormalizedWriteFrame,
+    call_paths: &[String],
 ) -> bool {
     let Some(paths) = frame.complete_paths() else {
         return false;
     };
-    let mut expected = Vec::new();
+    let mut expected = call_paths.to_vec();
+    expected.sort();
+    expected.dedup();
     for (statement_index, statement) in program
         .statement_table
         .statements(state.statement_nodes)

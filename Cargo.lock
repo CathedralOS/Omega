@@ -459,6 +459,7 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
+ "terminal-fuel",
  "terminal-interpreter",
  "terminal-production",
  "terminal-psi",

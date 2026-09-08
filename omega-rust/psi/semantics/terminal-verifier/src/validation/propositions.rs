@@ -2,6 +2,16 @@
 
 use super::*;
 
+/// Unversioned observations of a written root cannot describe its new contents.
+/// Until a checked write frame preserves individual paths, forget the complete
+/// root, including observations nested under logical or arithmetic operators.
+pub(crate) fn proposition_observes_places(proposition: &Proposition, places: &[PlaceId]) -> bool {
+    proposition_boolean_field_roots(proposition)
+        .into_iter()
+        .chain(proposition_content_roots(proposition))
+        .any(|root| places.contains(&root))
+}
+
 pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
     match proposition {
         Proposition::ContentConservation(_) => true,

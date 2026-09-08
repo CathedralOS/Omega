@@ -6,7 +6,9 @@ use proof_admission::{Obligation, ObligationClass};
 use semantic_vocabulary::{
     MachineId, Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId,
 };
-use terminal_psi::{Operation, OperationKind, TerminalMachine, TerminalModule};
+use terminal_psi::{
+    Operation, OperationKind, StructuralAccess, StructuralArgument, TerminalMachine, TerminalModule,
+};
 use terminal_semantics::{CallResultRule, call_composition_semantic_row};
 
 use crate::ModuleError;
@@ -159,6 +161,7 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
+            invalidate_mutated_arguments(axioms, structural_arguments);
             for guarantee in &callee.contract.ensures {
                 push_unique(axioms, substitute(&guarantee.proposition));
             }
@@ -421,7 +424,15 @@ pub(super) fn compose_call_operation(
                 );
             }
         }
-        (CallResultRule::BoundaryDeclaredResult, OperationKind::BoundaryCall { .. }) => {}
+        (
+            CallResultRule::BoundaryDeclaredResult,
+            OperationKind::BoundaryCall {
+                structural_arguments,
+                ..
+            },
+        ) => {
+            invalidate_mutated_arguments(axioms, structural_arguments);
+        }
         _ => {
             return Err(ModuleError::OperationSemanticSchema(
                 terminal_semantics::OperationSemanticError::CallCompositionSchemaMismatch(
@@ -506,6 +517,7 @@ fn compose_structural_scalar_call(
             canonical_certificate: false,
         });
     }
+    invalidate_mutated_arguments(axioms, structural_arguments);
     for guarantee in &callee.contract.ensures {
         push_unique(axioms, substitute(&guarantee.proposition));
     }
@@ -523,5 +535,25 @@ fn value_term(value: ValueId, value_types: &BTreeMap<ValueId, ScalarType>) -> Sc
 fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
     if !propositions.contains(&proposition) {
         propositions.push(proposition);
+    }
+}
+
+/// Requirements use the pre-call state; only guarantees may describe a
+/// mutable argument after completion. No callee write-frame summary is assumed.
+fn invalidate_mutated_arguments(axioms: &mut Vec<Proposition>, arguments: &[StructuralArgument]) {
+    let written = arguments
+        .iter()
+        .filter(|argument| {
+            matches!(
+                argument.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+        })
+        .map(|argument| argument.place)
+        .collect::<Vec<_>>();
+    if !written.is_empty() {
+        axioms.retain(|proposition| {
+            !crate::validation::proposition_observes_places(proposition, &written)
+        });
     }
 }

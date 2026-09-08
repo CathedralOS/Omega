@@ -23,6 +23,32 @@ pub(super) fn lower_structural_scalar_store_destination(
     available_scalar_types: &[ScalarType],
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
+    if !checked_store_source_matches(
+        &store.value,
+        store.primitive_type,
+        scalar_parameters,
+        available_scalar_types,
+    ) {
+        return unsupported("structural scalar store lost exact exclusive custody");
+    }
+    lower_structural_scalar_store_place(
+        store,
+        expected_statement_index,
+        parameter,
+        structural_types,
+        access_policy,
+    )
+}
+
+/// Resolve the destination independently of the ordered source expression.
+/// Callers must validate and emit that expression in its current scalar namespace.
+pub(super) fn lower_structural_scalar_store_place(
+    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    expected_statement_index: u32,
+    parameter: &StructuralParameterDeclaration,
+    structural_types: &[StructuralTypeDeclaration],
+    access_policy: StoreAccessPolicy,
+) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let access_matches = match access_policy {
         StoreAccessPolicy::MutableOnly => parameter.access == StructuralAccess::MutableBorrow,
         StoreAccessPolicy::Exclusive => matches!(
@@ -39,12 +65,6 @@ pub(super) fn lower_structural_scalar_store_destination(
         || !parameter.projected_qualifications.is_empty()
         || store.statement_index != expected_statement_index
         || store.destination_parameter_position != parameter.position
-        || !checked_store_source_matches(
-            &store.value,
-            store.primitive_type,
-            scalar_parameters,
-            available_scalar_types,
-        )
     {
         return unsupported("structural scalar store lost exact exclusive custody");
     }

@@ -28,6 +28,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
             _ => return unsupported("composed root retained a non-call operation"),
         };
         collect_service_summary(&checked.facts.service_reaches.rows, reach, &mut services)?;
@@ -100,15 +101,14 @@ pub(in crate::attached_unit::composed_control) fn lower(
                 .ok_or(LoweringError::Unsupported(
                     "shared Unit target declaration is absent",
                 ))?;
-            if !declaration.structural_parameters.is_empty()
-                || !declaration.contract.requires.is_empty()
-            {
+            if !declaration.contract.requires.is_empty() {
                 return unsupported(
                     "composed Unit call needs structural arguments or caller-specific requirements",
                 );
             }
             Ok(super::super::catalogs::LoweredComposedInternalTarget {
                 source: entry.machine,
+                structural_parameters: entry.structural_parameters.to_vec(),
                 id,
                 scalar_parameters: declaration
                     .parameters

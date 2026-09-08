@@ -57,7 +57,13 @@ pub(super) fn validate(
             "Unit graph successor target is missing",
         ))?;
     let arguments = checked.statement_table.expression_handles(*arguments);
-    if arguments.len() != target.structural_parameters.len() + target.scalar_parameters.len()
+    if arguments.len()
+        != target
+            .structural_parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+            + target.scalar_parameters.len()
         || edge.transfers.len() != target.structural_parameters.len()
         || edge.scalar_arguments.len() != target.scalar_parameters.len()
     {
@@ -66,12 +72,17 @@ pub(super) fn validate(
     let source_parameters = checked.state_parameters(source);
     let validate_argument =
         |argument_position: u32, source_position: u32| {
-            let expression =
-                arguments
-                    .get(argument_position as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph source argument missing",
-                    ))?;
+            let argument_position = argument_position as usize
+                - target
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.is_self && parameter.position < argument_position)
+                    .count();
+            let expression = arguments
+                .get(argument_position)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph source argument missing",
+                ))?;
             let source = source_parameters.get(source_position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph source parameter missing"),
             )?;
@@ -118,7 +129,13 @@ pub(super) fn validate(
         }
         match transfer.source {
             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
-                validate_argument(target.position, source.position)?;
+                if target.is_self {
+                    if source != target {
+                        return unsupported("Unit graph persistent receiver transfer drifted");
+                    }
+                } else {
+                    validate_argument(target.position, source.position)?;
+                }
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 expression,

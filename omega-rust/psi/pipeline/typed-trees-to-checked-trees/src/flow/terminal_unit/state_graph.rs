@@ -12,6 +12,17 @@ pub(super) fn build(
     if states.len() < 2 || !machine_binders(program, machine).is_empty() {
         return None;
     }
+    let slice_length_ranks = if machine.termination_plan.implementation_witness.is_some() {
+        // Other retained witnesses belong to their existing producer until this
+        // path can preserve them. Never publish an unranked replacement.
+        let ranks = crate::checks::termination::proven_slice_length_ranks(program, machine)?;
+        if ranks.is_empty() {
+            return None;
+        }
+        ranks
+    } else {
+        Vec::new()
+    };
     let mut attachment = None;
     let mut signatures = Vec::new();
     for state in states {
@@ -26,18 +37,22 @@ pub(super) fn build(
         } else {
             free_structural_scalar_signature(program, shapes, state, &[])?
         };
-        // These views have invocation lifetime and no owned frontier. Other
-        // structural values need their state-edge ownership transfer retained.
+        // Persistent receivers keep their invocation place. Non-receiver views
+        // retain the existing explicit descriptor transfer on every edge.
         if structural.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.multiplicity != Multiplicity::Unrestricted
-                || parameter.access != CheckedStructuralAccess::SharedBorrow
+            parameter.multiplicity != Multiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
-                || byte_sequence_carrier(
-                    program,
-                    program.state_parameters(state)[parameter.position as usize].type_reference,
-                    &[],
-                ) != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                || if parameter.is_self {
+                    parameter.access != CheckedStructuralAccess::MutableBorrow
+                } else {
+                    parameter.access != CheckedStructuralAccess::SharedBorrow
+                        || byte_sequence_carrier(
+                            program,
+                            program.state_parameters(state)[parameter.position as usize]
+                                .type_reference,
+                            &[],
+                        ) != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                }
         }) {
             return None;
         }
@@ -59,23 +74,23 @@ pub(super) fn build(
     for (state_index, state) in states.iter().enumerate() {
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
-        let bindings = crate::flow::terminal_scalar::checked_binding_prefix(
+        let bindings = match crate::flow::terminal_scalar::checked_binding_prefix(
             program,
             state,
             &facts.values.scalar_computations,
-        )?;
+        ) {
+            Some(bindings) => bindings,
+            // A structural assignment is an ordered effect, not scalar storage.
+            // The shared sequence must account for every statement below.
+            None if matches!(statements.first(), Some(StatementNode::Assignment(_))) => Vec::new(),
+            None => return None,
+        };
         let binding_initializers = prefix_initializers(program, facts, state, &bindings)?;
         let binding_count = bindings.len();
-        let call_count = statements
+        let terminator_index = statements
             .iter()
-            .enumerate()
-            .skip(binding_count)
-            .take_while(|(ordinal, statement)| {
-                matches!(statement, StatementNode::Call(_))
-                    || control::tail_call(program, state, *ordinal).is_some()
-            })
-            .count();
-        let terminator_index = binding_count.checked_add(call_count)?;
+            .position(|statement| matches!(statement, StatementNode::Transition(_)))
+            .unwrap_or(statements.len());
         let flow = state_flow(facts, machine.symbol, state.symbol)?;
         let source_calls = facts.flow.control.calls.span_or_empty(flow.calls);
         if source_calls
@@ -96,29 +111,25 @@ pub(super) fn build(
             state,
             &source_calls[first_call..after_calls],
         )?;
-        if calls.len() != call_count {
+        let sequence = control::statement_sequence::build(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            structural,
+            scalar,
+            &[],
+            &calls,
+            &[],
+            &[],
+            binding_count,
+        )?;
+        if sequence.local_count != binding_count || !sequence.structural_local_symbols.is_empty() {
             return None;
         }
-        let mut operations = Vec::new();
-        for (ordinal, call) in calls.iter().enumerate() {
-            if call.statement_index != binding_count.checked_add(ordinal)? || call.call_ordinal != 0
-            {
-                return None;
-            }
-            let operation = build_call_operation(
-                program,
-                facts,
-                machine,
-                state,
-                structural,
-                &[],
-                &[],
-                &[],
-                call,
-                false,
-                None,
-                &[],
-            )?;
+        let operations = sequence.operations;
+        for operation in &operations {
             match &operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     structural_arguments,
@@ -130,10 +141,19 @@ pub(super) fn build(
                     structural_arguments,
                     claim_transfers,
                     ..
-                } if structural_arguments.is_empty() && claim_transfers.is_empty() => {}
+                } if claim_transfers.is_empty()
+                    && structural_arguments.iter().all(|argument| {
+                        argument.source_parameter_index().is_some()
+                            && argument.path.is_empty()
+                            && matches!(
+                                argument.access,
+                                CheckedStructuralAccess::MutableBorrow
+                                    | CheckedStructuralAccess::SharedBorrow
+                            )
+                    }) => {}
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 _ => return None,
             }
-            operations.push(operation);
         }
         let ordinal = u32::try_from(terminator_index).ok()?;
         let edge = |transition, edge_ordinal| {
@@ -222,8 +242,7 @@ pub(super) fn build(
         provider_attachment_requirements,
         planned,
     )?;
-    plan.slice_length_ranks =
-        crate::checks::termination::proven_slice_length_ranks(program, machine).unwrap_or_default();
+    plan.slice_length_ranks = slice_length_ranks;
     Some(plan)
 }
 
@@ -327,13 +346,27 @@ fn successor(
     let source = &states[source_index];
     let target = &states[target_index];
     let arguments = program.statement_table.expression_handles(*arguments);
-    if arguments.len() != program.state_parameters(target).len() {
+    let target_parameters = program.state_parameters(target);
+    if arguments.len()
+        != target_parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+    {
         return None;
     }
     let (source_structural, source_scalar) = &signatures[source_index];
     let (target_structural, target_scalar) = &signatures[target_index];
+    let argument_at = |position: u32| {
+        let position = target_parameters
+            .iter()
+            .take(position as usize)
+            .filter(|parameter| !parameter.is_self)
+            .count();
+        arguments.get(position).copied()
+    };
     let source_position = |position: u32| {
-        let argument = *arguments.get(position as usize)?;
+        let argument = argument_at(position)?;
         let place = crate::flow::canonical_place_from_expression_in_state(
             program,
             source.symbol,
@@ -351,12 +384,23 @@ fn successor(
             .iter()
             .position(|parameter| parameter.symbol == symbol)
     };
-    let target_parameters = program.state_parameters(target);
     let transfers = target_structural
         .iter()
         .enumerate()
         .map(|(target_index, target)| {
-            let expression = *arguments.get(target.position as usize)?;
+            if target.is_self {
+                let source_index = source_structural.iter().position(|parameter| parameter.is_self)?;
+                if source_structural[source_index] != *target {
+                    return None;
+                }
+                return Some(CheckedStructuralControlTransferPlan {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                        index: u32::try_from(source_index).ok()?,
+                    },
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
+            }
+            let expression = argument_at(target.position)?;
             if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
                 && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
             {
@@ -426,7 +470,7 @@ fn successor(
         .iter()
         .enumerate()
         .map(|(target_index, target)| {
-            let argument = *arguments.get(target.source_position as usize)?;
+            let argument = argument_at(target.source_position)?;
             let (custody, expression) = facts.values.scalar_expressions.bound_expression_at(
                 source.symbol,
                 ordinal,

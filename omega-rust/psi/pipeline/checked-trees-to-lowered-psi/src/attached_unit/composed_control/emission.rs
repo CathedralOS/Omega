@@ -265,6 +265,7 @@ pub(crate) fn emit_call_leaf(
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
         scalar_bindings: None,
+        structural_fields: Vec::new(),
         structural_parameters: Vec::new(),
         entry: block,
         current: block,
@@ -317,6 +318,13 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     for operation in &state.operations {
+        if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation {
+            state_graph::body::emit_store(
+                checked, state, store, catalogs, parameters, evaluation, values, next_value,
+                operations,
+            )?;
+            continue;
+        }
         let mut calls = catalogs.scalar_calls.emission_context();
         let arguments = evaluation.arguments(
             checked,
@@ -348,6 +356,9 @@ pub(super) fn emit_call_operations(
                     state,
                     operation,
                     &catalogs.internal_targets,
+                    parameters,
+                    &catalogs.type_ids,
+                    &catalogs.structural_types,
                     arguments.as_deref(),
                     operations,
                 )?

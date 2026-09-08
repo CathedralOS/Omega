@@ -229,6 +229,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         &mut shapes,
         &boundary_machines,
     );
+    receiver_calls::reconcile_composed(program, facts, &candidates, &mut composed_machines);
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
@@ -329,6 +330,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                             target_machine,
                             ..
                         } => boundary_symbols.contains(target_machine),
+                        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => true,
                         _ => false,
                     })
         });

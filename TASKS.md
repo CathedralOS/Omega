@@ -134,7 +134,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   At code checkpoint `6e0afc54a4` on Windows x64, this still exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
-  The verifier admits scalar computations, immutable byte views, and Unit-effect unranked
+  The verifier admits scalar computations, immutable byte views, persistent
+  claim-free mutable receivers, and Unit-effect unranked
   `Conditional`/`Jump` cycles in
   `terminal-verifier/src/validation/control_flow.rs`; their focused
   `ranked_scc` checks pass, but the source producer does not reach Terminal
@@ -143,7 +144,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
   authored state. Shared unranked graphs retain scalar prefixes and calls, but
   aggregate construction and interleaved writes still need shared body lowering.
-  Producer widening alone cannot close this: mutable/owned cyclic validation
+  Producer widening alone cannot close this: general owned cyclic validation
   and native execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
   runtime-indexed byte stores; do not synthesize separate one-state machines.
@@ -422,8 +423,9 @@ Owners include
   and ordinary operations. No new loop opcode, fabricated per-state machine,
   private countdown, or second interpreter is needed.
 
-  Extend `terminal-verifier/src/validation/control_flow.rs` beyond scalar and
-  immutable-byte-view loops to persistent mutable receivers and owned custody.
+  Extend `terminal-verifier/src/validation/control_flow.rs` beyond the
+  claim-free mutable-receiver and immutable-byte-view slices to owned custody,
+  projected claims, and required effectful call families.
   Reuse full-graph dominance, exact successor transfers, and ownership-frontier
   replay. Current-iteration guards are reconstructed after resetting incoming
   facts at every proof-scheduling cut target; general cyclic proposition
@@ -435,16 +437,17 @@ Owners include
   authorize general effectful cyclic callers or callees by relaxing its shape
   guard alone.
 
-  Share state-body construction and lowering across ordinary/composed Unit
+  Extend shared state-body construction and lowering across ordinary/composed Unit
   plans in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`; replace graph-shape routing
   as the shared path closes, rather than adding another recognized topology.
-  First executable acceptance: source-produced cyclic Terminal code with a
-  persistent mutable receiver, computed guards, ordered field writes and an
-  ordinary effectful call; verify observable iteration/call order, caller-visible
-  writes, and test-fuel suspension/resumption. Reject stale successor bindings,
-  inconsistent ownership, and missing/reordered effects. An unranked machine
-  may execute without a termination or finite-fuel claim.
+  Generalize beyond direct scalar receiver fields to the projected Console calls,
+  indexed/aggregate writes, and computed results in the unchanged customer.
+  Preserve observable order, caller-visible writes, test-fuel suspension/resumption,
+  and rejection of stale successor bindings, inconsistent ownership, and
+  missing/reordered effects. Current source boundaries and the executable
+  regression are documented in
+  [Terminal production](omega-rust/psi/compiler/terminal-production/README.md#multi-state-control).
 
   Native completion must replace the straight-line/adjacent-fallthrough limits
   in `abstract-operations-to-target-operations/src/lowering/unit/`, preserve

@@ -6,6 +6,9 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     operation: &CheckedUnitEffectOperationPlan,
     targets: &[super::super::catalogs::LoweredComposedInternalTarget],
+    parameters: &[StructuralParameterDeclaration],
+    type_ids: &[(String, StructuralTypeId)],
+    structural_types: &[StructuralTypeDeclaration],
     scalar_values: Option<&[ValueDeclaration]>,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
@@ -20,7 +23,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
     else {
         return unsupported("composed internal operation is not a Unit call");
     };
-    if !structural_arguments.is_empty() || !claim_transfers.is_empty() {
+    if !claim_transfers.is_empty() {
         return unsupported("composed internal Unit call custody drifted before emission");
     }
     let target = targets
@@ -33,6 +36,20 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         scalar_values,
         &target.scalar_parameters,
     )?;
+    validate_transfer_shape(
+        structural_arguments,
+        &[],
+        parameters,
+        &[],
+        &[],
+        &[],
+        &target.structural_parameters,
+        type_ids,
+        structural_types,
+        &[],
+    )?;
+    let structural_arguments =
+        lower_structural_arguments(structural_arguments, parameters, &[], &[], &[], &[])?;
     // Instantiate against completed arguments, never callee-local value IDs or
     // a second evaluation of the authored argument expressions.
     let crash_continuations =
@@ -57,7 +74,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         kind: OperationKind::CallUnit {
             callee: target.id,
             arguments: arguments.into_iter().map(|value| value.id).collect(),
-            structural_arguments: Vec::new(),
+            structural_arguments,
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations,

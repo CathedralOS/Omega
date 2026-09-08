@@ -629,6 +629,19 @@ pub(super) fn emit_direct_expression(
     operations: &mut OperationBuffer,
 ) -> ValueId {
     match expression {
+        LoweredDirectExpression::StructuralField {
+            source,
+            field,
+            scalar_type,
+        } => emit_scalar_leaf(
+            OperationKind::IntegerStructuralField {
+                source: *source,
+                field: *field,
+            },
+            *scalar_type,
+            next_value_identity,
+            operations,
+        ),
         LoweredDirectExpression::Parameter { position, .. }
         | LoweredDirectExpression::Local { position, .. } => parameters[*position].id,
         LoweredDirectExpression::IntegerLiteral { value, scalar_type } => emit_scalar_leaf(

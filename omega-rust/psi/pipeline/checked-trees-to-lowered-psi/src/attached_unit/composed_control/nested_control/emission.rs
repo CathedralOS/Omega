@@ -47,6 +47,7 @@ pub(super) fn emit(
         let mut operations = OperationBuffer::new(next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
             scalar_bindings: None,
+            structural_fields: Vec::new(),
             structural_parameters: Vec::new(),
             entry: state_ids[index],
             current: state_ids[index],

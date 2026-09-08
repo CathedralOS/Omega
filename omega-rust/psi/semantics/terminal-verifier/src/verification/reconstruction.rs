@@ -195,11 +195,19 @@ pub(super) fn reconstruct_validated_terminal_obligations(
     let mut obligations = Vec::new();
     for machine in &module.machines {
         let semantics = reconstruct_machine_semantics(module, machine)?;
+        let observations = mutable_entry_observations(machine);
+        let requirements = machine
+            .contract
+            .requires
+            .iter()
+            .filter(|requirement| !observations.contains(requirement))
+            .cloned()
+            .collect::<Vec<_>>();
         obligations.extend(semantics.operation_obligations.into_iter().map(|site| {
             ReconstructedTerminalObligation {
                 owner: site.owner,
                 obligation: site.obligation,
-                requirements: machine.contract.requires.clone(),
+                requirements: requirements.clone(),
                 semantic_axioms: site.semantic_axioms,
                 canonical_certificate: site.canonical_certificate,
             }
@@ -218,7 +226,7 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                         proposition: clause.proposition.clone(),
                         class: proof_admission::ObligationClass::Derivable,
                     },
-                    requirements: machine.contract.requires.clone(),
+                    requirements: requirements.clone(),
                     semantic_axioms: semantics.exit_axioms.clone(),
                     canonical_certificate: false,
                 }
@@ -251,7 +259,7 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                                     proposition: clause.proposition.clone(),
                                     class: proof_admission::ObligationClass::Derivable,
                                 },
-                                requirements: machine.contract.requires.clone(),
+                                requirements: requirements.clone(),
                                 semantic_axioms: exit_axioms.clone(),
                                 canonical_certificate: false,
                             })
@@ -271,6 +279,30 @@ pub(super) fn reconstruct_machine_semantics(
     machine: &TerminalMachine,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
     reconstruct_machine_semantics_with_crash_facts(module, machine, false)
+}
+
+fn mutable_entry_observations(machine: &TerminalMachine) -> Vec<Proposition> {
+    let mutable_roots = machine
+        .structural_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
+        })
+        .map(|parameter| parameter.place)
+        .collect::<Vec<_>>();
+    machine
+        .contract
+        .requires
+        .iter()
+        .filter(|requirement| {
+            crate::validation::proposition_observes_places(requirement, &mutable_roots)
+        })
+        .cloned()
+        .collect()
 }
 
 fn reconstruct_machine_semantics_with_crash_facts(
@@ -293,7 +325,10 @@ fn reconstruct_machine_semantics_with_crash_facts(
 
     // Result-content equalities become true only when an exact structural
     // return edge transfers the corresponding live claims.
-    let base_axioms = Vec::new();
+    // Unversioned mutable field terms denote current storage, not an entry
+    // snapshot. These hypotheses follow the same invalidation and all-path
+    // intersection as operation-derived observations.
+    let base_axioms = mutable_entry_observations(machine);
     let mut incoming = BTreeMap::<_, Vec<Vec<Proposition>>>::new();
     incoming.insert(machine.entry, vec![base_axioms]);
     let mut exits = Vec::<Vec<Proposition>>::new();

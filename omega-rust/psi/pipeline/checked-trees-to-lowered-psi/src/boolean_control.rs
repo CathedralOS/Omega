@@ -632,6 +632,7 @@ pub(super) fn build_scalar_conditional_target(
                 _ => None,
             },
             LoweredDirectExpression::IntegerLiteral { .. }
+            | LoweredDirectExpression::StructuralField { .. }
             | LoweredDirectExpression::ByteSequenceLength { .. }
             | LoweredDirectExpression::ByteSequenceRead { .. }
             | LoweredDirectExpression::IeeeFloatLiteral { .. }

@@ -122,6 +122,22 @@ them requires retained operations, successor bindings, and cleanup frontiers.
 General custody joins, computed structural transfers, and mixed cleanup must
 not inherit admission from a scalar/byte-view cyclic family.
 
+The general state-graph path also retains one persistent unrestricted mutable
+record receiver. It shares ordinary Unit statement construction for ordered
+field writes and whole-receiver Unit calls. Direct relevant integer/Boolean
+field reads occur at their expression positions; successor states keep the
+original invocation place rather than copied field values. Scalar expressions
+use the existing checked arithmetic and call-argument evaluation paths.
+
+The source publication/reload regression is
+`cargo nextest run -p compiler --test cyclic_receiver_execution --no-fail-fast`.
+It checks computed guards, effectful helper calls, caller-visible updates, and
+every fuel suspension point without a termination claim. Canonical interpreter
+tests additionally cover projected receiver calls. General owned cyclic custody,
+projected source helpers, indexed/aggregate mutation, guarded crashes, and native
+realization remain separate dependencies; this does not make `print_squares`
+an executable native product.
+
 Natural-cycle production retains the authored witness in
 [ranking.rs](../../pipeline/checked-trees-to-lowered-psi/src/attached_unit/composed_control/state_graph/ranking.rs).
 [control_cycle_proofs.rs](../../pipeline/checked-trees-to-lowered-psi/src/control_cycle_proofs.rs)
@@ -200,10 +216,12 @@ Whole-root stores accept exactly typed literals and bounded fixed-integer/Boolea
 scalar sources. Ordinary or selected fixed-integer call results retain their
 checked call identity and durable result, including provider-plan correspondence
 for selected calls. Plain-record stores share path/type reconstruction with
-dynamic realizations; attached Unit bodies admit bounded single-store forms,
-including one literal record-array index. General arithmetic locals, delayed
-results, runtime IEEE sources, multi-write bodies, and richer indexed/aggregate
-forms must not inherit admission from these cases.
+dynamic realizations. Attached Unit bodies retain ordered direct scalar-field
+store sequences and branch-free computed values, including direct integer field
+observations. Bounded projected single-store forms include one literal record-array
+index. Interleaved mutable scalar locals, delayed results, runtime IEEE sources,
+short-circuit store values, and richer indexed/aggregate forms need further
+producer support.
 
 Keep semantic scalar and structural ordinals distinct while preserving authored
 argument order. Receiver `Self` resolves through the attachment and uses the

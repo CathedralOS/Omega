@@ -78,6 +78,7 @@ serde_json = "1"
 
 [dev-dependencies]
 sha2 = "0.10.9"
+terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 
 terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
 bounded-process = { path = "../../tooling/bounded-process" }
