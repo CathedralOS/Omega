@@ -683,7 +683,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
-                destination_parameter_index: 0,
+                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: CheckedScalarExpression::IntegerLiteral { literal },
             },
             CheckedUnitEffectOperationPlan::ReturnUnit {
@@ -751,7 +751,7 @@ fn retains_one_direct_mutable_primitive_literal_store() {
         fill.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                destination_parameter_index: 0,
+                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: CheckedScalarExpression::IntegerLiteral { literal },
                 ..
             },
@@ -1071,7 +1071,7 @@ fn retains_one_direct_write_only_boolean_literal_store() {
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
-                destination_parameter_index: 0,
+                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: CheckedScalarExpression::Boolean(expression),
             },
             CheckedUnitEffectOperationPlan::ReturnUnit {
@@ -1119,7 +1119,9 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
-                destination_parameter_index: 0,
+                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                    parameter_index: 0
+                },
                 value: CheckedScalarExpression::IeeeFloatLiteral {
                     value: semantic_vocabulary::IeeeFloatValue::Binary32(0x3fa0_0000),
                 },
@@ -1158,7 +1160,9 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
         [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
-                destination_parameter_index: 0,
+                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                    parameter_index: 0
+                },
                 value: CheckedScalarExpression::Parameter {
                     position: 1,
                     primitive_type: PrimitiveType::I32,
@@ -1173,7 +1177,7 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
 }
 
 #[test]
-fn scalar_store_planning_fails_closed_for_computed_sources_and_multiple_stores() {
+fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order() {
     let cases = [
         (
             "computed runtime replacement",
@@ -1205,18 +1209,88 @@ fn scalar_store_planning_fails_closed_for_computed_sources_and_multiple_stores()
         ),
     ];
 
-    for (case, source) in cases {
+    for (case_index, (case, source)) in cases.into_iter().enumerate() {
         let checked = checked(source);
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "Sink::fill"))
+            .unwrap_or_else(|| panic!("missing ordinary store sequence: {case}"));
+        let (last, stores) = plan.operations.split_last().unwrap();
         assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine_named(&checked, "Sink::fill"))
-                .is_none(),
-            "unsupported primitive store shape crossed checked planning: {case}"
+            matches!(last, CheckedUnitEffectOperationPlan::ReturnUnit { statement_index, .. }
+            if *statement_index as usize == stores.len())
         );
+        assert_eq!(stores.len(), if case_index == 2 { 2 } else { 1 });
+        for (ordinal, operation) in stores.iter().enumerate() {
+            let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index,
+                destination:
+                    checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                value,
+            } = operation
+            else {
+                panic!("exact parameter store: {case}");
+            };
+            assert_eq!(*statement_index as usize, ordinal);
+            match case_index {
+                0 => {
+                    let CheckedScalarExpression::IntegerBinary {
+                        kind: checked_trees::CheckedIntegerBinaryKind::BitwiseXor,
+                        primitive_type: PrimitiveType::I32,
+                        left,
+                        right,
+                    } = value
+                    else {
+                        panic!("retained XOR");
+                    };
+                    assert!(matches!(
+                        left.as_ref(),
+                        CheckedScalarExpression::Parameter {
+                            position: 0,
+                            primitive_type: PrimitiveType::I32
+                        }
+                    ));
+                    assert!(
+                        matches!(right.as_ref(), CheckedScalarExpression::IntegerLiteral { literal } if literal.value_i64() == Some(1))
+                    );
+                }
+                1 => {
+                    assert_eq!(
+                        value,
+                        &CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(
+                            Box::new(CheckedBooleanExpression::Constant(true))
+                        ),))
+                    );
+                }
+                _ => assert!(
+                    matches!(value, CheckedScalarExpression::IntegerLiteral { literal }
+                    if literal.value_i64() == Some(2 + ordinal as i64))
+                ),
+            }
+        }
     }
+}
+
+#[test]
+fn scalar_store_planning_still_rejects_short_circuit_replacement() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write bool, replacement: bool) {
+            destination = replacement && true;
+        }
+    "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "Sink::fill"))
+            .is_none()
+    );
 }
 
 #[test]

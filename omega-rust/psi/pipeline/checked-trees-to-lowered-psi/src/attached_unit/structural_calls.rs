@@ -257,6 +257,7 @@ pub(super) fn emit(
         type_ids,
         structural_types,
         &[],
+        &[],
     )?;
     let scalar_types = target
         .scalar_parameters
@@ -278,6 +279,7 @@ pub(super) fn emit(
         &[],
         &[],
         earlier_results,
+        &[],
         &[],
     )?;
     let id = operations.allocate();

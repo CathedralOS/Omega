@@ -281,7 +281,10 @@ pub(super) fn validate_unit_operation_sequence(
                 }
                 *coordinate
             }
-            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                statement_index, ..
+            }
+            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index, ..
             } => checked_trees::CheckedUnitCallCoordinate {
                 statement_index: *statement_index,

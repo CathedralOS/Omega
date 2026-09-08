@@ -1,4 +1,4 @@
-//! Resolve checked-local storage against the exact current emitted value.
+//! Resolve checked-local storage against its current SSA value or primitive place.
 
 use super::*;
 use crate::scalar_source_custody as source_custody;
@@ -12,6 +12,7 @@ pub(super) use structural_fields::StructuralScalarFieldBinding;
 pub(super) struct ScalarBindings {
     immutable: Vec<Option<usize>>,
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
+    primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     structural_fields: Vec<StructuralScalarFieldBinding>,
@@ -22,6 +23,7 @@ impl ScalarBindings {
         Self {
             immutable: (offset..offset + count).map(Some).collect(),
             storage: Vec::new(),
+            primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
             structural_fields: Vec::new(),
         }
@@ -31,6 +33,7 @@ impl ScalarBindings {
         Self {
             immutable: (0..parameters).map(Some).collect(),
             storage: Vec::new(),
+            primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
             structural_fields: Vec::new(),
         }
@@ -42,6 +45,16 @@ impl ScalarBindings {
     ) -> Self {
         self.structural_parameters = parameters.to_vec();
         self.structural_fields.clear();
+        self
+    }
+
+    /// Register initialized primitive places supplied by the enclosing Unit producer.
+    /// Reads use these places even if an earlier SSA storage row still exists.
+    pub(super) fn with_primitive_storage(
+        mut self,
+        storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
+    ) -> Self {
+        self.primitive_storage = storage.to_vec();
         self
     }
 
@@ -134,6 +147,10 @@ impl ScalarBindings {
                 symbol,
                 primitive_type,
             } => {
+                if self.primitive_storage.iter().any(|row| row.0 == *symbol) {
+                    // Retain the read occurrence for emission, not an entry snapshot.
+                    return Ok(());
+                }
                 *expression = CheckedScalarExpression::Local {
                     position: self
                         .storage_position(*symbol, terminal_scalar_type(*primitive_type)?)?,
@@ -173,6 +190,9 @@ impl ScalarBindings {
                 *position = self.immutable_position(*position)?
             }
             CheckedBooleanExpression::StorageRead { symbol } => {
+                if self.primitive_storage.iter().any(|row| row.0 == *symbol) {
+                    return Ok(());
+                }
                 *expression = CheckedBooleanExpression::Local {
                     position: self.storage_position(*symbol, ScalarType::Boolean)?,
                 }
@@ -228,6 +248,25 @@ impl ScalarBindings {
             &expression,
             &self.structural_parameters,
             &self.structural_fields,
+            &self.primitive_storage,
         )
     }
+}
+
+pub(super) fn primitive_storage_place(
+    storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
+    symbol: symbols::SymbolHandle,
+    scalar_type: ScalarType,
+) -> Result<PlaceId, LoweringError> {
+    let mut matching = storage.iter().filter(|row| row.0 == symbol);
+    let Some((_, place, declared_type)) = matching.next() else {
+        return unsupported("primitive storage read has no initialized place");
+    };
+    if !symbol.is_valid() || matching.next().is_some() {
+        return unsupported("primitive storage read identity is missing or duplicated");
+    }
+    if *declared_type != scalar_type {
+        return unsupported("primitive storage read changes its declared type");
+    }
+    Ok(*place)
 }

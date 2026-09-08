@@ -10,6 +10,7 @@ mod boundary_byte_buffers;
 mod byte_sequence_subslice;
 mod byte_sequence_view;
 mod effect_results;
+mod primitive_storage;
 mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
 use byte_sequence_view::ByteSequenceView;
@@ -517,6 +518,7 @@ pub struct TerminalExecution {
     /// place maps are only views into this stable logical storage arena.
     structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
+    primitive_local_identities: primitive_storage::PrimitiveLocalIdentities,
     /// Scalar leaves written below aggregate structural values. Keys use the
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
@@ -964,6 +966,10 @@ impl TerminalExecution {
             structural_values,
             structural_primitive_storage,
             structural_primitive_entry_places,
+            primitive_local_identities: primitive_storage::PrimitiveLocalIdentities::new(
+                module,
+                structural_arguments,
+            ),
             structural_scalar_fields: structural_boolean_fields,
             structural_byte_sequence_fields: BTreeMap::new(),
             payloadless_case_values: BTreeMap::new(),
@@ -1584,6 +1590,12 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::EstablishPrimitiveLocal { value } => {
+                        self.execute_primitive_establishment(&operation, value)?;
+                    }
+                    OperationKind::PrimitiveScalarRead { source } => {
+                        self.execute_primitive_read(&operation, source)?;
+                    }
                     OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
                         if operation.result != terminal_psi::OperationResult::Unit
                             || !self
@@ -2107,6 +2119,9 @@ impl TerminalExecution {
                                 rejection,
                             })?;
                         boundary_arguments.validate_writeback()?;
+                        if let TerminalEffectResult::Structural(value) = &returned {
+                            self.primitive_local_identities.reserve_host(value)?;
+                        }
                         effect_results::commit_boundary_result(
                             &mut self.values,
                             &mut self.structural_values,
@@ -2218,56 +2233,7 @@ impl TerminalExecution {
                         continue;
                     }
                     OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
-                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let machine = self.machines.get(&self.current_machine).ok_or(
-                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-                        )?;
-                        let parameter = machine
-                            .structural_parameters
-                            .iter()
-                            .find(|parameter| parameter.place == destination)
-                            .filter(|parameter| {
-                                matches!(
-                                    parameter.access,
-                                    StructuralAccess::MutableBorrow
-                                        | StructuralAccess::WriteOnlyBorrow
-                                ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                    && parameter.qualifications.is_empty()
-                            })
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let Some(StructuralTypeShape::PrimitiveScalar(expected_type)) = self
-                            .structural_types
-                            .get(&parameter.structural_type)
-                            .map(|declaration| &declaration.shape)
-                        else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let source = self
-                            .values
-                            .get(&value)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
-                        if source.scalar_type() != *expected_type
-                            || !terminal_scalar_belongs_to_type(source)
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let destination_view = self.structural_values.get(&destination).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(destination),
-                        )?;
-                        if destination_view.structural_type != parameter.structural_type {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let storage_place = StructuralRuntimePlace::from(destination_view);
-                        let stored = self
-                            .structural_primitive_storage
-                            .get_mut(&storage_place)
-                            .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
-                                destination,
-                            ))?;
-                        *stored = source;
+                        self.execute_primitive_store(&operation, destination, value)?;
                     }
                     OperationKind::StructuralScalarFieldStore {
                         destination,
@@ -3121,7 +3087,8 @@ impl TerminalExecution {
                         )?;
                         cleanup_values.push((cleanup.clone(), value));
                     }
-                    if self.structural_values.len() != cleanup_values.len()
+                    if self.structural_values.len()
+                        != cleanup_values.len() + self.primitive_local_count()
                         || self.live_affine_frontier != expected_frontier
                     {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
@@ -3134,6 +3101,7 @@ impl TerminalExecution {
                             "validated nominal cleanup roots remain live through edge charge",
                         );
                     }
+                    self.retire_primitive_locals();
                     if !self.structural_values.is_empty() {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
@@ -3255,6 +3223,7 @@ impl TerminalExecution {
                         }
                         self.blocks = caller.blocks;
                         self.values = caller.values;
+                        self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
@@ -3267,6 +3236,7 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Unit;
+                    self.retire_primitive_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -3407,6 +3377,7 @@ impl TerminalExecution {
                         self.structural_values.remove(place);
                     }
                     self.byte_sequence_values.clear();
+                    self.retire_primitive_locals();
                     let cleanups = commit_cleanup_actions(
                         &self.structural_types,
                         &self.machines,
@@ -3460,6 +3431,7 @@ impl TerminalExecution {
                         self.blocks = caller.blocks;
                         self.values = caller.values;
                         self.values.insert(result_value, result);
+                        self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
@@ -3472,6 +3444,7 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Scalar(result);
+                    self.retire_primitive_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -3502,6 +3475,7 @@ impl TerminalExecution {
                         let result = caller.result;
                         self.blocks = caller.blocks;
                         self.values = caller.values;
+                        self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
@@ -3592,6 +3566,7 @@ impl TerminalExecution {
                                     self.blocks = caller.blocks;
                                     self.values = caller.values;
                                     self.values.insert(result_value, returned);
+                                    self.retire_primitive_locals();
                                     self.structural_values = caller.structural_values;
                                     self.payloadless_case_values = caller.payloadless_case_values;
                                     self.byte_sequence_values = caller.byte_sequence_values;
@@ -3607,6 +3582,7 @@ impl TerminalExecution {
                                     TerminalExecutionResult::Unit,
                                     TerminalExecutionResult::Scalar,
                                 );
+                                self.retire_primitive_locals();
                                 self.result = Some(result.clone());
                                 return Ok(TerminalExecutionStatus::Complete(result));
                             }
@@ -3618,6 +3594,7 @@ impl TerminalExecution {
                         continue;
                     }
                     let result = TerminalExecutionResult::Unit;
+                    self.retire_primitive_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -3694,6 +3671,7 @@ impl TerminalExecution {
                             };
                             self.blocks = caller.blocks;
                             self.values = caller.values;
+                            self.retire_primitive_locals();
                             self.structural_values = caller.structural_values;
                             self.payloadless_case_values = caller.payloadless_case_values;
                             self.byte_sequence_values = caller.byte_sequence_values;
@@ -3715,6 +3693,7 @@ impl TerminalExecution {
                         let result = TerminalExecutionResult::PayloadlessCase(
                             TerminalPayloadlessCaseResult { value },
                         );
+                        self.retire_primitive_locals();
                         self.result = Some(result.clone());
                         return Ok(TerminalExecutionStatus::Complete(result));
                     }
@@ -3811,6 +3790,7 @@ impl TerminalExecution {
                         };
                         self.blocks = caller.blocks;
                         self.values = caller.values;
+                        self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
@@ -3837,6 +3817,7 @@ impl TerminalExecution {
                         value,
                         claims: returned_claims.clone(),
                     });
+                    self.retire_primitive_locals();
                     self.result = Some(result.clone());
                     return Ok(TerminalExecutionStatus::Complete(result));
                 }
@@ -4928,6 +4909,7 @@ pub enum TerminalInterpretError {
         actual: ScalarType,
     },
     StructuralPrimitiveStorageMissing(PlaceId),
+    StructuralIdentityExhausted,
     StructuralScalarFieldMissing {
         source: PlaceId,
         field: StructuralFieldId,

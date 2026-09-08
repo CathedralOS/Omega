@@ -171,7 +171,216 @@ pub(super) fn build_write_only_primitive_store(
     }
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         statement_index,
-        destination_parameter_index: 0,
+        destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+            parameter_index: 0,
+        },
         value: value.clone(),
     })
+}
+
+/// Find only initialized primitive storage established before this occurrence.
+pub(super) fn primitive_local_before<'program>(
+    program: &'program TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    symbol: SymbolHandle,
+) -> Option<&'program typed_trees::statement::TableLocalData> {
+    let mut locals = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..statement_index)?
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+            _ => None,
+        });
+    let local = locals.next()?;
+    if locals.next().is_some()
+        || !local.is_mutable
+        || !program
+            .expression_table
+            .expression_is_valid(local.initial_value)
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(local.type_reference),
+            TypeReferenceNode::Named { .. }
+        )
+        || program
+            .primitive_type_reference(local.type_reference)
+            .is_none()
+    {
+        return None;
+    }
+    Some(local)
+}
+
+/// The shared statement roster validates the complete state write frame.
+pub(super) fn build_primitive_store_at(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::try_from(statement_index).ok()?,
+        assignment.target,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    if !place.segments.is_empty() {
+        return None;
+    }
+    let (destination, primitive_type) = if let Some(local) = primitive_local_before(
+        program,
+        state,
+        usize::try_from(statement_index).ok()?,
+        symbol,
+    ) {
+        (
+            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
+            program.primitive_type_reference(local.type_reference)?,
+        )
+    } else {
+        let (parameter_index, destination) =
+            structural_parameters
+                .iter()
+                .enumerate()
+                .find(|(_, destination)| {
+                    program
+                        .state_parameters(state)
+                        .get(destination.position as usize)
+                        .is_some_and(|parameter| parameter.symbol == symbol)
+                })?;
+        if destination.is_self
+            || destination.multiplicity != Multiplicity::Unrestricted
+            || !destination.qualifications.is_empty()
+            || !matches!(
+                destination.access,
+                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+            )
+        {
+            return None;
+        }
+        let parameter = program
+            .state_parameters(state)
+            .get(destination.position as usize)?;
+        if parameter.is_const || !parameter.is_mutable {
+            return None;
+        }
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            return None;
+        };
+        let expected_access = match access {
+            language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+            language_semantics::ReferenceAccess::WriteOnly => {
+                CheckedStructuralAccess::WriteOnlyBorrow
+            }
+            language_semantics::ReferenceAccess::Shared => return None,
+        };
+        if destination.access != expected_access
+            || !matches!(
+                program.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Named { .. }
+            )
+        {
+            return None;
+        }
+        (
+            checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            program.primitive_type_reference(*referee)?,
+        )
+    };
+    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+        state.symbol,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentValue,
+    )?;
+    if binding.expression != assignment.value
+        || binding.destination != symbol
+        || crate::values::scalar_expression_type(value) != Some(primitive_type)
+        || !scalar_custody_is_exact(program, facts, state, binding, value, primitive_type)
+        || matches!(value, CheckedScalarExpression::Boolean(expression) if checked_boolean_contains_short_circuit(expression))
+    {
+        return None;
+    }
+    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        statement_index,
+        destination,
+        value: value.clone(),
+    })
+}
+
+pub(super) fn scalar_custody_is_exact(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    binding: &checked_trees::CheckedScalarExpressionBindings,
+    value: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> bool {
+    let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
+        return false;
+    };
+    let Some(prefix) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..statement_index)
+    else {
+        return false;
+    };
+    let symbols = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .map(|parameter| parameter.symbol)
+        .chain(prefix.iter().filter_map(|statement| {
+            match statement {
+                StatementNode::LocalData(local)
+                    if !local.is_mutable
+                        && program
+                            .primitive_type_reference(local.type_reference)
+                            .is_some() =>
+                {
+                    Some(local.symbol)
+                }
+                _ => None,
+            }
+        }));
+    if !symbols.eq(facts
+        .values
+        .scalar_expressions
+        .binding_symbols
+        .span_or_empty(binding.symbols)
+        .iter()
+        .copied())
+    {
+        return false;
+    }
+    crate::values::lower_unit_scalar_argument(
+        program,
+        &facts.operators,
+        state,
+        statement_index,
+        binding.expression,
+        primitive_type,
+    )
+    .as_ref()
+        == Some(value)
 }

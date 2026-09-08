@@ -28,11 +28,488 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
+fn borrowed_primitive_local_read_observes_the_callee_write() {
+    let checked = checked(
+        r#"
+        machine reset(value: &mut u64) -> u64 { value = 0; 7 }
+        machine enter(value: &mut u64) {
+            let mut scratch: u64 = 91;
+            let returned: u64 = reset(&mut scratch);
+            value = scratch;
+        }
+    "#,
+    );
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+        .expect("borrowing local storage must preserve the callee's write for a later read");
+    execute_with_expectations(
+        &artifact,
+        &[],
+        ExecutionExpectations {
+            calls: 1,
+            store_sites: 2,
+            callee_store_executions: 1,
+            primitive_locals: 1,
+            primitive_reads: 1,
+            observations: &[91, 0],
+        },
+    );
+}
+
+#[test]
 fn borrowed_scalar_callee_and_returned_value_reach_the_callers_closure() {
     let checked = checked(SOURCE);
     let artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
         .expect("borrowed scalar callee belongs to the ordinary shared call closure");
     execute(&artifact, &[], 7);
+}
+
+#[test]
+fn immutable_snapshot_precedes_the_call_and_fresh_local_read_observes_zero() {
+    let checked = checked(
+        r#"
+        machine reset(value: &mut u64) -> u64 { value = 0; 7 }
+        machine enter(value: &mut u64) {
+            let mut scratch: u64 = 41;
+            let before: u64 = scratch;
+            let returned: u64 = reset(&mut scratch);
+            value = before;
+            value = scratch;
+        }
+    "#,
+    );
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter").unwrap();
+    execute_with_expectations(
+        &artifact,
+        &[],
+        ExecutionExpectations {
+            calls: 1,
+            store_sites: 3,
+            callee_store_executions: 1,
+            primitive_locals: 1,
+            primitive_reads: 2,
+            observations: &[91, 41, 0],
+        },
+    );
+}
+
+#[test]
+fn local_overwrite_commits_the_returned_scalar_before_a_fresh_read() {
+    let checked = checked(
+        r#"
+        machine reset(value: &mut u64) -> u64 { value = 0; 7 }
+        machine enter(value: &mut u64) {
+            let mut scratch: u64 = 41;
+            let returned: u64 = reset(&mut scratch);
+            scratch = returned;
+            value = scratch;
+        }
+    "#,
+    );
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter").unwrap();
+    execute_with_expectations(
+        &artifact,
+        &[],
+        ExecutionExpectations {
+            calls: 1,
+            store_sites: 3,
+            callee_store_executions: 1,
+            primitive_locals: 1,
+            primitive_reads: 1,
+            observations: &[91, 7],
+        },
+    );
+}
+
+#[test]
+fn repeated_calls_keep_distinct_local_referents_and_charge_each_invocation() {
+    let checked = checked(
+        r#"
+        machine reset(value: &mut u64) -> u64 { value = 0; 7 }
+        machine enter(value: &mut u64) {
+            let mut first: u64 = 41;
+            let mut second: u64 = 53;
+            let first_returned: u64 = reset(&mut first);
+            value = second;
+            let second_returned: u64 = reset(&mut second);
+            value = first;
+            first = first_returned;
+            value = first;
+            value = second;
+        }
+    "#,
+    );
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "enter").unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(
+        module.machines.len(),
+        2,
+        "repeated calls share one callee body"
+    );
+    execute_with_expectations(
+        &artifact,
+        &[],
+        ExecutionExpectations {
+            calls: 2,
+            store_sites: 6,
+            callee_store_executions: 2,
+            primitive_locals: 2,
+            primitive_reads: 4,
+            observations: &[91, 53, 0, 7, 0],
+        },
+    );
+}
+
+#[test]
+fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplicated() {
+    let original =
+        checked("machine enter(value: &mut u64) { let mut unused: u64 = 13; value = 7; }");
+    let artifact = terminal_production::produce_terminal_artifact(&original, "enter").unwrap();
+    execute_with_expectations(
+        &artifact,
+        &[],
+        ExecutionExpectations {
+            calls: 0,
+            store_sites: 1,
+            callee_store_executions: 0,
+            primitive_locals: 1,
+            primitive_reads: 0,
+            observations: &[91, 7],
+        },
+    );
+    for duplicate in [false, true] {
+        let mut changed = original.clone();
+        let operations = &mut changed.facts.flow.terminal_unit_effects.machines[0].operations;
+        assert!(matches!(
+            operations[0],
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+        ));
+        if duplicate {
+            operations.insert(0, operations[0].clone());
+        } else {
+            operations.remove(0);
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "enter").is_err(),
+            "unused establishment roster mutation, duplicate={duplicate}"
+        );
+    }
+}
+
+const TWO_LOCAL_SOURCE: &str = r#"
+    machine reset(value: &mut u64) -> u64 { value = 0; 7 }
+    machine enter(value: &mut u64) {
+        let mut first: u64 = 41;
+        let mut second: u64 = 53;
+        let returned: u64 = reset(&mut first);
+        value = first;
+    }
+"#;
+
+#[test]
+fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbol() {
+    let original = checked(TWO_LOCAL_SOURCE);
+    let artifact = terminal_production::produce_terminal_artifact(&original, "enter").unwrap();
+    execute_with_expectations(
+        &artifact,
+        &[],
+        ExecutionExpectations {
+            calls: 1,
+            store_sites: 2,
+            callee_store_executions: 1,
+            primitive_locals: 2,
+            primitive_reads: 1,
+            observations: &[91, 0],
+        },
+    );
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        let operations = &mut changed.facts.flow.terminal_unit_effects.machines[0].operations;
+        let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+            symbol: second,
+            ..
+        } = operations[1]
+        else {
+            panic!("second primitive declaration");
+        };
+        match mutation {
+            0 => {
+                let initializer = operations.remove(0);
+                operations.insert(2, initializer);
+            }
+            1 => {
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                    symbol,
+                    ..
+                } = &mut operations[0]
+                else {
+                    panic!("first primitive declaration");
+                };
+                *symbol = second;
+            }
+            2 => {
+                let checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+                    structural_arguments,
+                    ..
+                } = &mut operations[2]
+                else {
+                    panic!("borrowed scalar call");
+                };
+                structural_arguments[0].source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                        symbol: second,
+                    };
+            }
+            3 => {
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                    statement_index,
+                    ..
+                } = &mut operations[0]
+                else {
+                    panic!("first primitive declaration");
+                };
+                *statement_index = 2;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "enter").is_err(),
+            "primitive declaration/borrow custody mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar_binding() {
+    let original = checked(TWO_LOCAL_SOURCE);
+    let _ = terminal_production::produce_terminal_artifact(&original, "enter")
+        .expect("original storage read");
+    let caller_state = original.facts.flow.terminal_unit_effects.machines[0].state;
+    for (mutation, synchronize_expression) in
+        (0..5).flat_map(|mutation| [false, true].map(|synchronize| (mutation, synchronize)))
+    {
+        let mut changed = original.clone();
+        let operations = &mut changed.facts.flow.terminal_unit_effects.machines[0].operations;
+        let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+            symbol: second,
+            ..
+        } = operations[1]
+        else {
+            panic!("second primitive declaration");
+        };
+        let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+            value: initializer,
+            ..
+        } = &operations[0]
+        else {
+            panic!("first primitive initializer");
+        };
+        let initializer = initializer.clone();
+        let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            value, ..
+        } = &mut operations[3]
+        else {
+            panic!("caller read and store");
+        };
+        let checked_trees::CheckedScalarExpression::StorageRead {
+            symbol,
+            primitive_type,
+        } = value
+        else {
+            panic!("authored read retains storage identity");
+        };
+        *value = match mutation {
+            0 => checked_trees::CheckedScalarExpression::StorageRead {
+                symbol: symbols::SymbolHandle::invalid(),
+                primitive_type: *primitive_type,
+            },
+            1 => checked_trees::CheckedScalarExpression::StorageRead {
+                symbol: second,
+                primitive_type: *primitive_type,
+            },
+            2 => initializer,
+            3 => checked_trees::CheckedScalarExpression::Local {
+                position: 0,
+                primitive_type: *primitive_type,
+            },
+            4 => checked_trees::CheckedScalarExpression::StorageRead {
+                symbol: symbols::SymbolHandle::from_parts(
+                    symbol.arena_index(),
+                    symbol.generation() + 1,
+                ),
+                primitive_type: *primitive_type,
+            },
+            _ => unreachable!(),
+        };
+        let replacement = value.clone();
+        if synchronize_expression {
+            let mut expressions = changed
+                .facts
+                .values
+                .scalar_expressions
+                .expressions
+                .iter_mut()
+                .filter(|expression| {
+                    expression.state == caller_state
+                        && expression.statement_ordinal == 3
+                        && expression.role
+                            == checked_trees::CheckedScalarExpressionRole::AssignmentValue
+                });
+            let expression = expressions
+                .next()
+                .expect("exact authored assignment expression");
+            assert!(expressions.next().is_none());
+            assert!(matches!(
+                expression.expression,
+                checked_trees::CheckedScalarExpression::StorageRead { .. }
+            ));
+            expression.expression = replacement;
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "enter").is_err(),
+            "storage read custody mutation {mutation}, synchronized expression={synchronize_expression}"
+        );
+    }
+}
+
+#[test]
+fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding() {
+    let mut changed = checked(TWO_LOCAL_SOURCE);
+    let _ = terminal_production::produce_terminal_artifact(&changed, "enter")
+        .expect("original mutable local");
+    let state_symbol = changed.facts.flow.terminal_unit_effects.machines[0].state;
+    let statements = changed
+        .machines()
+        .iter()
+        .flat_map(|machine| changed.machine_states(machine))
+        .find(|state| state.symbol == state_symbol)
+        .unwrap()
+        .statement_nodes;
+    let checked_trees::statement::StatementNode::LocalData(local) =
+        &mut changed.typed.statement_table.statements_mut(statements)[0]
+    else {
+        panic!("first authored local");
+    };
+    assert!(local.is_mutable);
+    local.is_mutable = false;
+    assert!(terminal_production::produce_terminal_artifact(&changed, "enter").is_err());
+}
+
+#[test]
+fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads_agree() {
+    let original = checked(
+        r#"
+        machine consume(value: u64) -> u64 { value }
+        machine enter(value: &mut u64) {
+            let mut first: u64 = 41;
+            let mut second: u64 = 53;
+            let returned: u64 = consume(first);
+            value = returned;
+        }
+    "#,
+    );
+    let artifact = terminal_production::produce_terminal_artifact(&original, "enter").unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert_eq!(
+        caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+            .count(),
+        1
+    );
+    execute_with_expectations(
+        &artifact,
+        &[],
+        ExecutionExpectations {
+            calls: 0,
+            store_sites: 1,
+            callee_store_executions: 0,
+            primitive_locals: 2,
+            primitive_reads: 1,
+            observations: &[91, 41],
+        },
+    );
+
+    for synchronize_expression in [false, true] {
+        let mut changed = original.clone();
+        let plan = &mut changed.facts.flow.terminal_unit_effects.machines[0];
+        let caller_state = plan.state;
+        let locals = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                    symbol,
+                    ..
+                } => Some(*symbol),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(locals.len(), 2);
+        assert_ne!(locals[0], locals[1]);
+        let call = plan
+            .operations
+            .iter_mut()
+            .find(|operation| {
+                matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                )
+            })
+            .unwrap();
+        let checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+            coordinate,
+            scalar_arguments,
+            ..
+        } = call
+        else {
+            panic!("consume scalar call");
+        };
+        let coordinate = *coordinate;
+        let [checked_trees::CheckedCallScalarArgument::Pure(expression)] =
+            scalar_arguments.as_mut_slice()
+        else {
+            panic!("one pure local read argument");
+        };
+        let checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } = expression else {
+            panic!("consume reads current primitive storage");
+        };
+        assert_eq!(*symbol, locals[0]);
+        *symbol = locals[1];
+        let substituted = expression.clone();
+        if synchronize_expression {
+            let mut cached = changed
+                .facts
+                .values
+                .scalar_expressions
+                .expressions
+                .iter_mut()
+                .filter(|row| {
+                    row.state == caller_state
+                        && row.statement_ordinal == coordinate.statement_index
+                        && row.role
+                            == checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
+                                call_ordinal: coordinate.call_ordinal,
+                                argument_ordinal: 0,
+                            }
+                });
+            let cached_row = cached.next().expect("source-bound consume argument");
+            assert!(cached.next().is_none());
+            assert!(matches!(cached_row.expression,
+                checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } if symbol == locals[0]));
+            cached_row.expression = substituted;
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&changed, "enter").is_err(),
+            "same-typed consume argument substitution, synchronized expression={synchronize_expression}"
+        );
+    }
 }
 
 fn unsigned(value: u128) -> TerminalScalarValue {
@@ -46,6 +523,34 @@ fn execute(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     arguments: &[TerminalScalarValue],
     expected: u128,
+) {
+    execute_with_expectations(
+        artifact,
+        arguments,
+        ExecutionExpectations {
+            calls: 1,
+            store_sites: 2,
+            callee_store_executions: 1,
+            primitive_locals: 0,
+            primitive_reads: 0,
+            observations: &[91, 0, expected],
+        },
+    );
+}
+
+struct ExecutionExpectations<'values> {
+    calls: usize,
+    store_sites: usize,
+    callee_store_executions: u64,
+    primitive_locals: usize,
+    primitive_reads: usize,
+    observations: &'values [u128],
+}
+
+fn execute_with_expectations(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    arguments: &[TerminalScalarValue],
+    expected: ExecutionExpectations<'_>,
 ) {
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -64,21 +569,54 @@ fn execute(
         .flat_map(|block| &block.operations)
         .filter(|operation| matches!(operation.kind, OperationKind::CallStructuralScalar { .. }))
         .collect::<Vec<_>>();
-    assert_eq!(calls.len(), 1);
+    assert_eq!(calls.len(), expected.calls);
     let stores = module
         .machines
         .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
+        .flat_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .map(move |operation| (machine.id, operation))
+        })
+        .filter(|(_, operation)| {
             matches!(
                 operation.kind,
                 OperationKind::WriteOnlyPrimitiveStore { .. }
             )
         })
-        .map(|operation| operation.id)
+        .map(|(machine, operation)| (machine, operation.id))
         .collect::<Vec<_>>();
-    assert_eq!(stores.len(), 2);
+    assert_eq!(stores.len(), expected.store_sites);
+    let locals = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishPrimitiveLocal { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    let reads = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
+        .collect::<Vec<_>>();
+    assert_eq!(locals.len(), expected.primitive_locals);
+    assert_eq!(reads.len(), expected.primitive_reads);
+    let local_places = locals
+        .iter()
+        .map(|operation| operation.result.structural().unwrap().place)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        local_places.len(),
+        locals.len(),
+        "each local has its own referent"
+    );
     let mut execution =
         TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
             artifact.semantic_bytes(),
@@ -114,22 +652,51 @@ fn execute(
         }
     }
     assert!(complete);
-    assert!(
-        observations.contains(&unsigned(0)),
-        "the callee write precedes the caller's result write"
+    observations.dedup();
+    let mut expected_observations = expected
+        .observations
+        .iter()
+        .copied()
+        .map(unsigned)
+        .collect::<Vec<_>>();
+    expected_observations.dedup();
+    assert_eq!(
+        observations, expected_observations,
+        "ordered caller-visible writes"
     );
-    assert_eq!(observations.last(), Some(&unsigned(expected)));
-    for operation in stores
+    for (operation, executions) in stores
         .into_iter()
-        .chain(calls.iter().map(|operation| operation.id))
+        .map(|(machine, operation)| {
+            (
+                operation,
+                if machine == caller.id {
+                    1
+                } else {
+                    expected.callee_store_executions
+                },
+            )
+        })
+        .chain(
+            calls
+                .iter()
+                .chain(&locals)
+                .chain(&reads)
+                .map(|operation| (operation.id, 1)),
+        )
     {
+        let usage = meter
+            .usage()
+            .at(terminal_fuel::FuelChargeSite::Operation(operation))
+            .unwrap();
         assert_eq!(
-            meter
-                .usage()
-                .at(terminal_fuel::FuelChargeSite::Operation(operation))
-                .unwrap()
-                .executions(),
-            1
+            usage.executions(),
+            executions,
+            "operation {operation:?} must not replay across suspension"
+        );
+        assert_eq!(
+            usage.units(),
+            executions,
+            "one fuel unit per committed operation"
         );
     }
 }

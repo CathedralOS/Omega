@@ -125,6 +125,12 @@ arrays retain exact lengths/element types rather than synthetic record leaves.
 Assignment and replay derive shape and target pointer placement from declarations;
 only the target-prescribed rank register is admitted.
 
+`EstablishPrimitiveLocal` and `PrimitiveScalarRead` have verified interpreter
+semantics but no native storage realization yet. Ordinary operation routing
+rejects both with operation-specific errors; it cannot replace a borrowed
+referent with an SSA snapshot. Native local allocation, lifetime, load/store,
+and call-observation controls remain required.
+
 The retained countdown projection contains canonical semantics/proof bytes,
 fixed-fuel fields, header/backedge frontiers, graph, ABI, and type closure. Object
 replay decodes the proof again, reconstructs graph/frontiers and physical body,

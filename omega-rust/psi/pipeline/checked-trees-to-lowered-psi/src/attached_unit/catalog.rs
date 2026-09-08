@@ -154,7 +154,10 @@ pub(super) fn lower_unit_structural_types_including(
         }
         for operation in body.operations() {
             match operation {
-                CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                    type_identity, ..
+                }
+                | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
                     type_identity,
                     ..
                 } => roots.push(type_identity.clone()),
@@ -713,7 +716,8 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
-                CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }

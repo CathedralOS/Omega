@@ -141,6 +141,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(catalogs.next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
             structural_parameters: state

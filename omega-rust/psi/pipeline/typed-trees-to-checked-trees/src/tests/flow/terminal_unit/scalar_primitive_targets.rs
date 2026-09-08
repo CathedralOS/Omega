@@ -40,7 +40,8 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 1,
-            destination_parameter_index: 0,
+            destination:
+                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             ..
         },
         CheckedUnitEffectOperationPlan::ReturnUnit { .. },
@@ -265,7 +266,8 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
         },
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index: 1,
-            destination_parameter_index: 0,
+            destination:
+                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             value:
                 CheckedScalarExpression::Local {
                     position: 1,

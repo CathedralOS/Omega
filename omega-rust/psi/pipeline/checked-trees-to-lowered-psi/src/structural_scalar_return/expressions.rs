@@ -53,6 +53,7 @@ pub(super) fn is_structural_boolean_return_expression(
             path.len() == 1
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
+        LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -90,6 +91,7 @@ pub(super) fn is_branch_free_structural_integer_expression(
                 && *position < scalar_parameters.saturating_add(available_locals)
         }
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
@@ -153,6 +155,7 @@ pub(super) fn is_branch_free_structural_boolean_expression(
             path.len() == 1
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
+        LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
                 && *position < scalar_parameters.saturating_add(available_locals)
@@ -188,6 +191,7 @@ pub(super) fn boolean_local_reference_count(
                 .saturating_add(boolean_local_reference_count(right, local))
         }
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
@@ -223,7 +227,15 @@ pub(super) fn inline_boolean_local(
             left: Box::new(inline_boolean_local(left, local, replacement)),
             right: Box::new(inline_boolean_local(right, local, replacement)),
         },
-        expression => expression.clone(),
+        expression @ (LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
+        | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
+            ..
+        }
+        | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. }) => expression.clone(),
     }
 }
 

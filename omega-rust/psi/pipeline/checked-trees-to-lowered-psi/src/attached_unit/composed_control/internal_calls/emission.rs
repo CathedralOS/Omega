@@ -48,6 +48,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         type_ids,
         structural_types,
         &[],
+        &[],
     )?;
     let structural_arguments = lower_structural_arguments(
         structural_arguments,
@@ -56,6 +57,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         &[],
         &[],
         byte_argument_places,
+        &[],
     )?;
     // Instantiate against completed arguments, never callee-local value IDs or
     // a second evaluation of the authored argument expressions.

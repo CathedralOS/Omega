@@ -29,7 +29,7 @@ pub(super) fn validate(
     let [
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,
-            destination_parameter_index,
+            destination,
             value,
         },
     ] = plan.effects.as_slice()
@@ -37,7 +37,8 @@ pub(super) fn validate(
         return unsupported("scalar return effect roster omits or duplicates its primitive store");
     };
     if *statement_index != 0
-        || *destination_parameter_index != 0
+        || *destination
+            != (checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 })
         || plan.return_statement_ordinal != 1
         || !plan.bindings.is_empty()
         || !plan.cleanup_actions.is_empty()
@@ -234,7 +235,8 @@ pub(super) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in &plan.effects {
         let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            destination_parameter_index,
+            destination:
+                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index },
             value,
             ..
         } = effect
@@ -242,7 +244,7 @@ pub(super) fn emit(
             return unsupported("scalar return acquired an unsupported prefix effect");
         };
         let kind = crate::primitive_store::emit(
-            *destination_parameter_index,
+            *parameter_index,
             value,
             parameters,
             structural_types,

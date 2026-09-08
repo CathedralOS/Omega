@@ -784,7 +784,7 @@ pub(super) fn lower_checked_scalar_expression_at(
 pub(super) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    lower_checked_scalar_expression_with_parameters(expression, &[], &[])
+    lower_checked_scalar_expression_with_parameters(expression, &[], &[], &[])
 }
 
 fn immutable_byte_parameter(
@@ -811,6 +811,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
     expression: &CheckedScalarExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
     structural_fields: &[crate::scalar_bindings::StructuralScalarFieldBinding],
+    primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { parameter_position } => {
@@ -819,8 +820,20 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
             })
         }
-        CheckedScalarExpression::StorageRead { .. } => {
-            unsupported("scalar storage read requires an exact current storage mapping")
+        CheckedScalarExpression::StorageRead {
+            symbol,
+            primitive_type,
+        } => {
+            let scalar_type = terminal_scalar_type(*primitive_type)?;
+            let source = crate::scalar_bindings::primitive_storage_place(
+                primitive_storage,
+                *symbol,
+                scalar_type,
+            )?;
+            Ok(LoweredDirectExpression::PrimitiveRead {
+                source,
+                scalar_type,
+            })
         }
         CheckedScalarExpression::Parameter {
             position,
@@ -928,11 +941,13 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
             right: Box::new(lower_checked_scalar_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         }),
         CheckedScalarExpression::IntegerBitwiseNot {
@@ -944,6 +959,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         }),
         CheckedScalarExpression::IntegerWiden {
@@ -955,6 +971,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         }),
         CheckedScalarExpression::StructuralParameterIndexedRead {
@@ -971,6 +988,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 index,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?;
             if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
                 return unsupported("byte-view indexed reads require an exact u64 index");
@@ -997,6 +1015,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
@@ -1004,6 +1023,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 expression,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         }),
     }
@@ -1013,13 +1033,14 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
 pub(super) fn lower_checked_boolean_expression(
     expression: &CheckedBooleanExpression,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    lower_checked_boolean_expression_with_parameters(expression, &[], &[])
+    lower_checked_boolean_expression_with_parameters(expression, &[], &[], &[])
 }
 
 fn lower_checked_boolean_expression_with_parameters(
     expression: &CheckedBooleanExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
     structural_fields: &[crate::scalar_bindings::StructuralScalarFieldBinding],
+    primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => {
@@ -1030,8 +1051,13 @@ fn lower_checked_boolean_expression_with_parameters(
                 position: *position,
             }
         }
-        CheckedBooleanExpression::StorageRead { .. } => {
-            return unsupported("Boolean storage read requires an exact current storage mapping");
+        CheckedBooleanExpression::StorageRead { symbol } => {
+            let source = crate::scalar_bindings::primitive_storage_place(
+                primitive_storage,
+                *symbol,
+                ScalarType::Boolean,
+            )?;
+            LoweredBooleanReturnExpression::PrimitiveRead { source }
         }
         CheckedBooleanExpression::Local { position } => LoweredBooleanReturnExpression::Local {
             position: *position,
@@ -1070,6 +1096,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
@@ -1077,11 +1104,13 @@ fn lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
@@ -1099,11 +1128,13 @@ fn lower_checked_boolean_expression_with_parameters(
                     left,
                     structural_parameters,
                     structural_fields,
+                    primitive_storage,
                 )?),
                 right: Box::new(lower_checked_scalar_expression_with_parameters(
                     right,
                     structural_parameters,
                     structural_fields,
+                    primitive_storage,
                 )?),
             }
         }
@@ -1118,11 +1149,13 @@ fn lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         },
         CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
@@ -1130,11 +1163,13 @@ fn lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
                 structural_fields,
+                primitive_storage,
             )?),
         },
     })
@@ -1146,7 +1181,8 @@ pub(super) fn validate_boolean_parameter_types(
 ) -> Result<(), LoweringError> {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
-        LoweredBooleanReturnExpression::StructuralField { .. } => Ok(()),
+        LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. } => Ok(()),
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed Boolean type validation")
         }
@@ -1194,6 +1230,7 @@ pub(super) fn validate_direct_parameter_types(
             }
         }
         LoweredDirectExpression::IntegerLiteral { .. }
+        | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => Ok(()),
@@ -1243,6 +1280,7 @@ fn validate_scalar_graph(
 pub(super) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression) -> bool {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
@@ -1295,6 +1333,7 @@ fn validate_short_circuit_expression(
 ) -> Result<(), LoweringError> {
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::Local { .. }
@@ -1336,6 +1375,7 @@ fn evaluate_direct_expression(
             Some(KnownDirectScalar::Integer(*value))
         }
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => None,
@@ -1500,6 +1540,7 @@ fn evaluate_compile_known_boolean_expression(
             Some(value)
         }
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. } => None,
         LoweredBooleanReturnExpression::Not { operand } => Some(
             !evaluate_compile_known_boolean_expression(operand, parameters)?,
@@ -1819,4 +1860,50 @@ pub(super) fn integer_value(
         return Err(LoweringError::IntegerLiteralOutsidePsiType);
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod primitive_read_tests {
+    use super::*;
+
+    #[test]
+    fn primitive_read_values_cannot_be_recovered_from_known_ssa_inputs() {
+        let source = PlaceId::new(1).unwrap();
+        let scalar_type = terminal_scalar_type(PrimitiveType::U64).unwrap();
+        let integer_read = LoweredDirectExpression::PrimitiveRead {
+            source,
+            scalar_type,
+        };
+        assert_eq!(
+            evaluate_direct_expression(
+                &integer_read,
+                &[Some(KnownDirectScalar::Integer(IntegerValue::Unsigned(7)))],
+            ),
+            None,
+        );
+        let boolean_read = LoweredBooleanReturnExpression::PrimitiveRead { source };
+        assert_eq!(
+            evaluate_compile_known_boolean_expression(
+                &boolean_read,
+                &[Some(KnownDirectScalar::Boolean(true))],
+            ),
+            None,
+        );
+        let equality = LoweredBooleanReturnExpression::Equal {
+            left: Box::new(boolean_read.clone()),
+            right: Box::new(boolean_read),
+        };
+        assert_eq!(
+            evaluate_compile_known_boolean_expression(&equality, &[]),
+            None
+        );
+        assert!(
+            crate::shared_runtime_parameters::shared_boolean_runtime_parameters(&equality)
+                .is_none()
+        );
+        assert!(
+            crate::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves(&equality)
+                .is_none()
+        );
+    }
 }

@@ -130,6 +130,16 @@ impl OperationResult {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Establish initialized, unrestricted primitive storage as this operation's
+    /// structural result. Later borrows name this place, not a copied SSA value.
+    EstablishPrimitiveLocal {
+        value: ValueId,
+    },
+    /// Observe one initialized primitive referent through owned or readable
+    /// access. Write-only custody cannot authorize this observation.
+    PrimitiveScalarRead {
+        source: PlaceId,
+    },
     /// Observe current live byte length, not capacity or stored byte content.
     StructuralByteSequenceFieldLength {
         source: PlaceId,
@@ -148,7 +158,8 @@ pub enum OperationKind {
         obligation: ObligationId,
     },
     /// Store one already-defined scalar value through one exact whole-root
-    /// mutable or write-only structural parameter. The operation does not
+    /// mutable/write-only structural parameter or initialized primitive local.
+    /// The operation does not
     /// observe the previous referent value, and structural custody is
     /// preserved.
     WriteOnlyPrimitiveStore {

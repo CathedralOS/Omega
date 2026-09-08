@@ -275,7 +275,11 @@ pub(super) fn validate_operation(
                 {
                     return unsupported("call scalar operand disagrees with its authored argument");
                 }
-                crate::scalar_source_custody::validate_namespace(checked, binding)?;
+                crate::scalar_source_custody::validate_pure(
+                    checked,
+                    binding,
+                    terminal_scalar_type(*primitive_type)?,
+                )?;
             }
             checked_trees::CheckedCallScalarArgument::Computation(computation) => {
                 let plans = &checked.facts.values.scalar_computations;

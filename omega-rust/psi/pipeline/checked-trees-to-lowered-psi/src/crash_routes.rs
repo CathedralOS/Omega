@@ -2176,6 +2176,11 @@ fn lowered_direct_scalar_term(
     values: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     Ok(match expression {
+        LoweredDirectExpression::PrimitiveRead { .. } => {
+            return unsupported(
+                "primitive storage read requires an occurrence-bound crash predicate",
+            );
+        }
         LoweredDirectExpression::StructuralField { .. } => {
             return unsupported("runtime field read requires an occurrence-bound crash predicate");
         }
@@ -2422,6 +2427,9 @@ fn checked_boolean_scalar_term_from_lowered(
     values: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     match expression {
+        LoweredBooleanReturnExpression::PrimitiveRead { .. } => {
+            unsupported("primitive storage read requires an occurrence-bound crash predicate")
+        }
         LoweredBooleanReturnExpression::Constant { value } => Ok(ScalarTerm::boolean(*value)),
         LoweredBooleanReturnExpression::Parameter { position }
         | LoweredBooleanReturnExpression::Local { position } => {

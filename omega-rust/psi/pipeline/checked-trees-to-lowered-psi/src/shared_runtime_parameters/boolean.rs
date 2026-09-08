@@ -114,7 +114,12 @@ pub(super) fn resolve_shared_boolean_member_fields(
                 structural_types,
             )?),
         },
-        expression => expression,
+        expression @ (LoweredBooleanReturnExpression::Constant { .. }
+        | LoweredBooleanReturnExpression::Parameter { .. }
+        | LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
+        | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::IntegerComparison { .. }) => expression,
     })
 }
 
@@ -169,6 +174,7 @@ pub(super) fn normalize_shared_boolean_comparison_leaves(
             right: Box::new(normalize_shared_boolean_comparison_leaves(right)?),
         },
         LoweredBooleanReturnExpression::Local { .. }
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => return None,
     })
 }

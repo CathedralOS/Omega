@@ -46,6 +46,7 @@ pub(super) fn emit(
         validate_direct_parameter_types(&guard, &parameter_types)?;
         let mut operations = OperationBuffer::new(next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            primitive_storage: Vec::new(),
             scalar_bindings: None,
             structural_fields: Vec::new(),
             structural_parameters: Vec::new(),

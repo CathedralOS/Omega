@@ -13,6 +13,7 @@ pub(super) fn lower_scalar_expression_local(
     scalar_values: &[ValueDeclaration],
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
+    primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
 ) -> Result<ValueDeclaration, LoweringError> {
     if usize::try_from(result.binding_ordinal)
         .ok()
@@ -38,7 +39,9 @@ pub(super) fn lower_scalar_expression_local(
     if retained != value {
         return unsupported("Unit scalar expression local drifted from its checked value fact");
     }
-    let expression = lower_checked_scalar_expression(value)?;
+    let expression = crate::scalar_bindings::ScalarBindings::new(scalar_values.len())
+        .with_primitive_storage(primitive_storage)
+        .expression(value)?;
     if direct_expression_contains_short_circuit(&expression) {
         return unsupported("Unit scalar expression locals do not admit short-circuit control");
     }

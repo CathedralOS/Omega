@@ -1521,7 +1521,7 @@ mod tests {
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { result, .. },
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 1,
-                    destination_parameter_index: 0,
+                    destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                     value: checked_trees::CheckedScalarExpression::Local {
                         position: 0,
                         primitive_type: typed_trees::types::PrimitiveType::I32,

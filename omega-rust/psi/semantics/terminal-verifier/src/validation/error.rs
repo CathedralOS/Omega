@@ -537,6 +537,20 @@ pub enum ModuleError {
         operation: OperationId,
         place: PlaceId,
     },
+    InvalidPrimitiveLocalEstablishment(OperationId),
+    InvalidPrimitiveScalarRead {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    PrimitiveLocalValueTypeMismatch {
+        operation: OperationId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
+    PrimitiveLocalNotAvailable {
+        operation: OperationId,
+        place: PlaceId,
+    },
     WriteOnlyPrimitiveStoreRequiresPrimitiveScalar {
         operation: OperationId,
         structural_type: StructuralTypeId,

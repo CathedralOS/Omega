@@ -256,7 +256,10 @@ for selected calls. Plain-record stores share path/type reconstruction with
 dynamic realizations. Attached Unit bodies retain ordered direct scalar-field
 store sequences and branch-free computed values, including direct integer field
 observations. Bounded projected single-store forms include one literal record-array
-index. Interleaved mutable scalar locals, delayed results, computed IEEE sources,
+index. Ordinary Unit primitive locals use initialized referents and current
+storage reads through the [shared call producer](scalar_calls.md#unit-and-boundary-integration);
+immutable snapshots survive borrowed mutations. Native establishment/read
+realization remains unsupported. Delayed results, computed IEEE sources,
 short-circuit store values, and richer indexed/aggregate forms need further
 producer support.
 

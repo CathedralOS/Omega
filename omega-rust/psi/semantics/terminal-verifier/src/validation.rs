@@ -46,6 +46,7 @@ mod frontier;
 mod machine;
 mod operations;
 mod partial_affine;
+mod primitive_storage;
 mod proof_recursion;
 mod propositions;
 mod quotient_correspondence;

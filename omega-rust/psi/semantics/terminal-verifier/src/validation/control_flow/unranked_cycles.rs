@@ -1,6 +1,6 @@
-//! Eligibility for cyclic scalar work, immutable views, and persistent receivers.
+//! Eligibility for cyclic scalar work, primitive locals, views, and receivers.
 
-use super::super::{block_views, byte_sequence_subslice};
+use super::super::{block_views, byte_sequence_subslice, primitive_storage};
 use super::*;
 
 /// Eligibility carries no proof or dominance authority. The caller runs the
@@ -68,6 +68,45 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             .iter()
             .all(|operation| match &operation.kind {
                 OperationKind::PortWrite { .. } => operation.result == OperationResult::Unit,
+                OperationKind::EstablishPrimitiveLocal { .. } => {
+                    primitive_storage::validate_establishment(module, machine, operation).is_ok()
+                }
+                OperationKind::PrimitiveScalarRead { source } => {
+                    operation.result.scalar().is_some_and(|result| {
+                        primitive_storage::read_type(module, machine, operation.id, *source)
+                            == Ok(result.scalar_type)
+                    })
+                }
+                OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
+                    operation.result == OperationResult::Unit
+                        && primitive_storage::local_result(machine, *destination).is_some()
+                        && primitive_storage::store_type(
+                            module,
+                            machine,
+                            operation.id,
+                            *destination,
+                        )
+                        .is_ok()
+                }
+                OperationKind::CallStructuralScalar {
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                } => {
+                    operation.result.scalar().is_some()
+                        && !structural_arguments.is_empty()
+                        && structural_arguments.iter().all(|argument| {
+                            argument.path.is_empty()
+                                && argument.access != StructuralAccess::Owned
+                                && primitive_storage::local_result(machine, argument.place)
+                                    .is_some()
+                        })
+                        && claim_transfers.is_empty()
+                        && requirement_obligations.is_empty()
+                        && crash_continuations.is_empty()
+                }
                 OperationKind::BoundaryCall {
                     structural_arguments,
                     completion_receipts,

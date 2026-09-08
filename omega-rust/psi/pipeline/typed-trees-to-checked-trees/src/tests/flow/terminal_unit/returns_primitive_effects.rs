@@ -37,7 +37,7 @@ fn primitive_store_scalar_return_retains_source_effect_and_borrow() {
             plan.effects.as_slice(),
             [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
-                destination_parameter_index: 0,
+                destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: CheckedScalarExpression::IntegerLiteral { literal },
             }] if literal.value_i64() == Some(0)
         ));

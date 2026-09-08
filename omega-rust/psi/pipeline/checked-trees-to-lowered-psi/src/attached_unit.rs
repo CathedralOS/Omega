@@ -17,6 +17,7 @@ mod catalog;
 mod claims;
 mod composed_control;
 mod parameters;
+pub(crate) mod primitive_locals;
 mod provider_attachments;
 mod providers;
 mod scalar_boundaries;
@@ -832,6 +833,7 @@ fn assemble_unit_closure(
                     )?;
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
@@ -1403,6 +1405,7 @@ fn assemble_unit_closure(
         let mut next_value_identity = next_value;
         let mut scalar_result_values = scalar_parameters.clone();
         let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
+        let mut primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
         evaluation.structural_parameters = plan
@@ -1589,6 +1592,56 @@ fn assemble_unit_closure(
             next_call_obligation = scalar_calls.next_obligation_identity;
             let mut source_call = None;
             let kind = match operation {
+                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                    statement_index,
+                    symbol,
+                    type_identity,
+                    primitive_type,
+                    ..
+                } => {
+                    if primitive_local_places
+                        .iter()
+                        .any(|local| local.symbol == *symbol)
+                    {
+                        return unsupported("primitive local is established more than once");
+                    }
+                    let value = crate::scalar_bindings::ScalarBindings::new(source_value_count)
+                        .with_primitive_storage(&evaluation.primitive_storage)
+                        .expression_at(
+                            checked,
+                            plan.state,
+                            *statement_index,
+                            CheckedScalarExpressionRole::StorageInitializer,
+                        )?;
+                    let structural_type = lookup_type_id(&type_ids, type_identity)?;
+                    if value.scalar_type() != terminal_scalar_type(*primitive_type)?
+                        || !structural_types.iter().any(|declaration| {
+                            declaration.id == structural_type
+                                && declaration.shape
+                                    == StructuralTypeShape::PrimitiveScalar(value.scalar_type())
+                        })
+                    {
+                        return unsupported(
+                            "primitive local initializer and referent types disagree",
+                        );
+                    }
+                    let local = primitive_locals::emit(
+                        *symbol,
+                        structural_type,
+                        &value,
+                        &scalar_result_values,
+                        &mut next_place,
+                        &mut next_value_identity,
+                        &mut operations,
+                    )?;
+                    evaluation.primitive_storage.push((
+                        local.symbol,
+                        local.declaration.id,
+                        local.scalar_type,
+                    ));
+                    primitive_local_places.push(local);
+                    continue;
+                }
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
                     declaration_ordinal,
                     type_identity,
@@ -1733,6 +1786,7 @@ fn assemble_unit_closure(
                             .iter()
                             .map(|claim| claim.parameter_index)
                             .collect::<Vec<_>>(),
+                        &primitive_local_places,
                     )?;
                     let call_byte_places = byte_subslices::argument_places(
                         structural_arguments,
@@ -1747,6 +1801,7 @@ fn assemble_unit_closure(
                         &affine_scalar_record_places,
                         &structural_result_places,
                         &call_byte_places,
+                        &primitive_local_places,
                     )?;
                     let target_parameters = lowered_machine_parameters
                         .iter()
@@ -2061,6 +2116,7 @@ fn assemble_unit_closure(
                                 .iter()
                                 .map(|claim| claim.parameter_index)
                                 .collect::<Vec<_>>(),
+                            &primitive_local_places,
                         )?;
                         OperationKind::CallStructuralScalar {
                             callee,
@@ -2072,6 +2128,7 @@ fn assemble_unit_closure(
                                 &affine_scalar_record_places,
                                 &structural_result_places,
                                 &[],
+                                &primitive_local_places,
                             )?,
                             claim_transfers: claim_transfers
                                 .iter()
@@ -2122,6 +2179,7 @@ fn assemble_unit_closure(
                         &scalar_result_values,
                         &mut next_value_identity,
                         &mut operations,
+                        &evaluation.primitive_storage,
                     )?;
                     scalar_result_values.push(lowered);
                     continue;
@@ -2171,6 +2229,7 @@ fn assemble_unit_closure(
                         &type_ids,
                         &structural_types,
                         &[],
+                        &primitive_local_places,
                     )?;
                     if scalar_arguments.len() != target.scalar_parameters.len() {
                         return unsupported(
@@ -2213,6 +2272,7 @@ fn assemble_unit_closure(
                         &[],
                         &[],
                         &[],
+                        &primitive_local_places,
                     )?;
                     let value = ValueDeclaration {
                         id: value_id(next_value_identity),
@@ -2314,6 +2374,7 @@ fn assemble_unit_closure(
                         &type_ids,
                         &structural_types,
                         &[],
+                        &primitive_local_places,
                     )?;
                     if scalar_arguments.len() != target.scalar_parameters.len() {
                         return unsupported(
@@ -2356,6 +2417,7 @@ fn assemble_unit_closure(
                         &[],
                         &[],
                         &[],
+                        &primitive_local_places,
                     )?;
                     let operation_id = operations.allocate();
                     let result_place = place_id(allocate_dense(&mut next_place)?);
@@ -2561,6 +2623,7 @@ fn assemble_unit_closure(
                         &type_ids,
                         &structural_types,
                         &expected_claim_arguments,
+                        &primitive_local_places,
                     )?;
                     let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
                         .iter()
@@ -2596,6 +2659,7 @@ fn assemble_unit_closure(
                             &[],
                             &structural_result_places,
                             &call_byte_places,
+                            &primitive_local_places,
                         )?,
                         completion_receipts: completion_receipts
                             .iter()
@@ -2675,6 +2739,7 @@ fn assemble_unit_closure(
                         &type_ids,
                         &structural_types,
                         &expected_claim_arguments,
+                        &primitive_local_places,
                     )?;
                     let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
                         .iter()
@@ -2710,6 +2775,7 @@ fn assemble_unit_closure(
                             &[],
                             &structural_result_places,
                             &call_byte_places,
+                            &primitive_local_places,
                         )?,
                         completion_receipts: completion_receipts
                             .iter()
@@ -2848,6 +2914,7 @@ fn assemble_unit_closure(
                         &type_ids,
                         &structural_types,
                         &expected_claim_arguments,
+                        &primitive_local_places,
                     )?;
                     let (_, boundary, _, target_scalar_parameters) = lowered_boundary_parameters
                         .iter()
@@ -2883,6 +2950,7 @@ fn assemble_unit_closure(
                             &[],
                             &structural_result_places,
                             &call_byte_places,
+                            &primitive_local_places,
                         )?,
                         completion_receipts: completion_receipts
                             .iter()
@@ -2987,19 +3055,62 @@ fn assemble_unit_closure(
                     }
                 }
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                    destination_parameter_index,
-                    value,
+                    statement_index,
+                    destination,
                     ..
-                } => crate::primitive_store::emit(
-                    *destination_parameter_index,
-                    value,
-                    parameters,
-                    &structural_types,
-                    scalar_parameters.len(),
-                    &scalar_result_values,
-                    &mut next_value_identity,
-                    &mut operations,
-                )?,
+                } => {
+                    let (destination, destination_type) = match destination {
+                        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+                            parameter_index,
+                        } => {
+                            let parameter = parameters.get(*parameter_index as usize).ok_or(
+                                LoweringError::Unsupported("primitive store parameter is absent"),
+                            )?;
+                            if !matches!(
+                                parameter.access,
+                                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                                || !parameter.qualifications.is_empty()
+                            {
+                                return unsupported(
+                                    "primitive store parameter lost its exclusive custody",
+                                );
+                            }
+                            let declaration = structural_types
+                                .iter()
+                                .find(|declaration| declaration.id == parameter.structural_type)
+                                .ok_or(LoweringError::Unsupported(
+                                    "primitive store type is absent",
+                                ))?;
+                            let StructuralTypeShape::PrimitiveScalar(scalar_type) =
+                                declaration.shape
+                            else {
+                                return unsupported("primitive store destination is not primitive");
+                            };
+                            (parameter.place, scalar_type)
+                        }
+                        checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } => {
+                            let local = primitive_locals::find(&primitive_local_places, *symbol)?;
+                            (local.declaration.id, local.scalar_type)
+                        }
+                    };
+                    let value = crate::scalar_bindings::ScalarBindings::new(source_value_count)
+                        .with_primitive_storage(&evaluation.primitive_storage)
+                        .expression_at(
+                            checked,
+                            plan.state,
+                            *statement_index,
+                            CheckedScalarExpressionRole::AssignmentValue,
+                        )?;
+                    crate::primitive_store::emit_value(
+                        destination,
+                        destination_type,
+                        &value,
+                        &scalar_result_values,
+                        &mut next_value_identity,
+                        &mut operations,
+                    )?
+                }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
                     crate::structural_byte_sequence_store::emit(
                         store,
@@ -3015,6 +3126,7 @@ fn assemble_unit_closure(
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
                     let bindings =
                         crate::scalar_bindings::ScalarBindings::new(scalar_result_values.len())
+                            .with_primitive_storage(&evaluation.primitive_storage)
                             .with_structural_parameters(&evaluation.structural_parameters)
                             .with_resolved_structural_fields(&evaluation.structural_fields);
                     let index = bindings.expression_at(
@@ -3064,9 +3176,15 @@ fn assemble_unit_closure(
                         )?;
                     let value =
                         crate::scalar_bindings::ScalarBindings::new(scalar_result_values.len())
+                            .with_primitive_storage(&evaluation.primitive_storage)
                             .with_structural_parameters(&evaluation.structural_parameters)
                             .with_resolved_structural_fields(&evaluation.structural_fields)
-                            .expression(&store.value)?;
+                            .expression_at(
+                                checked,
+                                plan.state,
+                                store.statement_index,
+                                CheckedScalarExpressionRole::AssignmentValue,
+                            )?;
                     if value.scalar_type() != lowered.scalar_type
                         || direct_expression_contains_short_circuit(&value)
                     {
@@ -3218,6 +3336,7 @@ fn assemble_unit_closure(
             .chain(provider_places.iter().copied())
             .chain(local_places.iter().copied())
             .chain(affine_scalar_record_places.iter().copied())
+            .chain(primitive_local_places.iter().map(|local| local.declaration))
             .chain(literal_places.iter().copied())
             .chain(subslice_places.iter().copied())
             .chain(structural_result_places.iter().map(|(place, _)| *place))

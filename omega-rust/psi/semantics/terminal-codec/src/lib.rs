@@ -122,7 +122,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 81;
+const FORMAT_MARKER: u16 = 82;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1121,41 +1121,70 @@ fn validate_operation_foundation(
             if operation.result != OperationResult::Unit {
                 return malformed("write-only primitive store declares a non-Unit result");
             }
-            let Some(parameter) = machine
+            let destination_type = if let Some(parameter) = machine
                 .structural_parameters
                 .iter()
                 .find(|parameter| parameter.place == *destination)
-            else {
-                return malformed("write-only primitive store destination is not a parameter");
-            };
-            if !matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || machine
+            {
+                if !matches!(
+                    parameter.access,
+                    terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || machine
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == *destination)
+                    || machine
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == *destination)
+                    || !matches!(
+                        machine.structural_places.iter().find(|place| place.id == *destination),
+                        Some(StructuralPlaceDeclaration {
+                            kind: StructuralPlaceKind::Parameter { position, is_self },
+                            ..
+                        }) if *position == parameter.position && *is_self == parameter.is_self
+                    )
+                {
+                    return malformed("write-only primitive store has invalid destination custody");
+                }
+                parameter.structural_type
+            } else {
+                let Some(result) = machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|producer| {
+                        matches!(producer.kind, OperationKind::EstablishPrimitiveLocal { .. })
+                    })
+                    .filter_map(|producer| producer.result.structural())
+                    .find(|result| result.place == *destination)
+                else {
+                    return malformed(
+                        "primitive store destination is neither a parameter nor an initialized local",
+                    );
+                };
+                // Each establishment is independently checked against its exact
+                // operation-result declaration below; the verifier checks dominance.
+                if machine
                     .entry_claims
                     .iter()
                     .any(|claim| claim.input == *destination)
-                || machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == *destination)
-                || !matches!(
-                    machine.structural_places.iter().find(|place| place.id == *destination),
-                    Some(StructuralPlaceDeclaration {
-                        kind: StructuralPlaceKind::Parameter { position, is_self },
-                        ..
-                    }) if *position == parameter.position && *is_self == parameter.is_self
-                )
-            {
-                return malformed("write-only primitive store has invalid destination custody");
-            }
+                    || machine
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == *destination)
+                {
+                    return malformed("primitive local store cannot carry entry claims");
+                }
+                result.structural_type
+            };
             let Some(expected) = module
                 .structural_types
                 .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)
+                .find(|declaration| declaration.id == destination_type)
                 .and_then(|declaration| match declaration.shape {
                     StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),
                     _ => None,
@@ -1846,6 +1875,27 @@ fn validate_operation_foundation(
             ) || !matches!(value, IntegerValue::Signed(value) if i64::try_from(*value).is_ok())
             {
                 return malformed("affine scalar record is not one exact signed-i64 field");
+            }
+        }
+        OperationKind::EstablishPrimitiveLocal { .. } => {
+            let Some(result) = operation.result.structural() else {
+                return malformed("primitive local has no structural result");
+            };
+            if result.multiplicity != StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !machine.structural_places.iter().any(|place| {
+                    place.id == result.place && matches!(place.kind,
+                        StructuralPlaceKind::OperationResult { producer, structural_type }
+                            if producer == operation.id && structural_type == result.structural_type)
+                })
+                || !module.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+                })
+            {
+                return malformed("primitive local result custody is noncanonical");
             }
         }
         OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {

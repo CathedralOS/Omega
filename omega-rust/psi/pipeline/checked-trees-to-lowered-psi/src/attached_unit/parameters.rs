@@ -412,6 +412,7 @@ pub(crate) fn validate_transfer_shape(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     expected_claim_arguments: &[u32],
+    primitive_locals: &[super::primitive_locals::PrimitiveLocal],
 ) -> Result<(), LoweringError> {
     if arguments.len() != target_parameters.len() {
         return unsupported(
@@ -419,6 +420,27 @@ pub(crate) fn validate_transfer_shape(
         );
     }
     for (argument, target) in arguments.iter().zip(target_parameters) {
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
+            argument.source
+        {
+            let local = super::primitive_locals::find(primitive_locals, symbol)?;
+            let expected_type = lookup_type_id(type_ids, &argument.type_identity)?;
+            if !argument.path.is_empty()
+                || argument.type_identity != target.type_identity
+                || !matches!(local.declaration.kind, StructuralPlaceKind::OperationResult { structural_type, .. }
+                    if structural_type == expected_type)
+                || argument.access == checked_trees::CheckedStructuralAccess::Owned
+                || argument.access != target.access
+                || target.multiplicity != Multiplicity::Unrestricted
+                || !target.qualifications.is_empty()
+                || target.fused_service_erasure.is_some()
+                || !matches!(structural_types.iter().find(|declaration| declaration.id == expected_type).map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::PrimitiveScalar(scalar_type)) if *scalar_type == local.scalar_type)
+            {
+                return unsupported("primitive local borrow has invalid target custody");
+            }
+            continue;
+        }
         if argument.byte_sequence_literal().is_some()
             || matches!(
                 argument.source,
@@ -658,11 +680,23 @@ pub(crate) fn lower_structural_arguments(
     affine_scalar_record_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(StructuralPlaceDeclaration, bool)],
     byte_argument_places: &[PlaceId],
+    primitive_locals: &[super::primitive_locals::PrimitiveLocal],
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
     let mut next_byte_argument = 0usize;
     arguments
         .iter()
         .map(|argument| {
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = argument.source {
+                let local = super::primitive_locals::find(primitive_locals, symbol)?;
+                if !argument.path.is_empty() { return unsupported("primitive local borrow has a projection"); }
+                let access = match argument.access {
+                    checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+                    checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
+                    checked_trees::CheckedStructuralAccess::Owned => return unsupported("primitive local cannot transfer owned custody"),
+                };
+                return Ok(StructuralArgument { place: local.declaration.id, path: Vec::new(), access });
+            }
             if argument.byte_sequence_literal().is_some()
                 || matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
             {

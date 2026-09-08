@@ -198,6 +198,8 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::BoundaryCall { .. } => TerminalTraceV1OperationClassification::BoundaryCall,
         OperationKind::PortWrite { .. } => TerminalTraceV1OperationClassification::PortWrite,
         OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::EstablishPrimitiveLocal { .. }
+        | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }

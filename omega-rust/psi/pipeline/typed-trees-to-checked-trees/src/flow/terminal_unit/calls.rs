@@ -2006,6 +2006,41 @@ pub(super) fn structural_call_arguments(
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
+        if let Some(local) = super::primitive_store::primitive_local_before(
+            program,
+            caller_state,
+            statement_index,
+            source_symbol,
+        ) {
+            let target_access =
+                structural_access_for_type_reference(program, target.type_reference)?;
+            let access = exact_structural_argument_access(
+                program,
+                facts,
+                caller_machine.symbol,
+                caller_state.symbol,
+                call,
+                &authored_place,
+                target_access,
+            )?;
+            if !place.segments.is_empty()
+                || restored_alias.is_some()
+                || target_access == CheckedStructuralAccess::Owned
+                || access != target_access
+                || base_type_identity(program, local.type_reference, &[])? != target_identity
+            {
+                return None;
+            }
+            output.push(CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                    symbol: source_symbol,
+                },
+                path: Vec::new(),
+                type_identity: target_identity,
+                access,
+            });
+            continue;
+        }
         if let Some((local, _)) = caller_trivial_affine_locals
             .iter()
             .find(|(_, symbol)| *symbol == source_symbol)
@@ -2564,6 +2599,15 @@ pub(super) fn call_claim_transfers(
         .collect::<Vec<_>>();
     let mut output = Vec::new();
     for (argument_index, argument) in arguments.iter().enumerate() {
+        if matches!(
+            argument.source,
+            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+        ) {
+            if !argument.path.is_empty() || argument.access == CheckedStructuralAccess::Owned {
+                return None;
+            }
+            continue;
+        }
         if argument.byte_sequence_literal().is_some()
             || matches!(
                 argument.source,

@@ -228,6 +228,65 @@ fn sponsor_allowance_exhausts_atomically_before_execution() {
 }
 
 #[test]
+fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
+    let establish = Operation {
+        id: operation_id(31),
+        result: terminal_psi::OperationResult::Structural(
+            terminal_psi::StructuralOperationResult {
+                place: place_id(23),
+                structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+        ),
+        kind: OperationKind::EstablishPrimitiveLocal {
+            value: value_id(11),
+        },
+    };
+    let read = Operation {
+        id: operation_id(32),
+        result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
+            id: value_id(47),
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::PrimitiveScalarRead {
+            source: place_id(23),
+        },
+    };
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+    for operation in [establish, read] {
+        assert_eq!(
+            TerminalFuelSchedule::CURRENT.operation_units(&operation.kind),
+            1
+        );
+        let usage_before = meter.usage().clone();
+        assert_eq!(
+            meter.charge_operation(&operation),
+            Err(FuelMeterError::Exhausted(FuelExhaustion {
+                schedule: TerminalFuelSchedule::CURRENT.identity(),
+                site: FuelChargeSite::Operation(operation.id),
+                required_units: 1,
+                remaining_units: 0,
+            })),
+        );
+        assert_eq!(meter.usage(), &usage_before);
+        meter.replenish(1).unwrap();
+        meter.charge_operation(&operation).unwrap();
+        assert_eq!(meter.remaining_allowance(), Some(0));
+        let usage = meter
+            .usage()
+            .at(FuelChargeSite::Operation(operation.id))
+            .unwrap();
+        assert_eq!(usage.executions(), 1);
+        assert_eq!(usage.units(), 1);
+    }
+    assert_eq!(meter.usage().total_units(), 2);
+    assert_eq!(meter.usage().attribution().len(), 2);
+}
+
+#[test]
 fn allowance_replenishment_fails_closed_on_overflow() {
     let mut meter = TerminalFuelMeter::with_allowance(u64::MAX);
     assert_eq!(meter.replenish(1), Err(FuelMeterError::AllowanceOverflow));

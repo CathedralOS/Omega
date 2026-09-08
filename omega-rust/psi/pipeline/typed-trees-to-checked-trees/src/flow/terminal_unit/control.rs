@@ -1441,10 +1441,9 @@ pub(super) fn build_checked_machine_with(
         {
             return None;
         }
-        // Primitive structural places are introduced solely for the bounded
-        // write-only store/call closure. One exact empty write-only sink must
-        // remain available as the target of a projected forwarding call; other
-        // primitive leaves with no store and no call would widen the roster.
+        // Primitive structural places belong to the checked store/call closure,
+        // including stores retained by the shared statement sequence. One exact
+        // empty write-only sink also remains a projected forwarding target.
         let carries_primitive = structural_parameters.iter().any(|parameter| {
             shapes
                 .types
@@ -1486,6 +1485,14 @@ pub(super) fn build_checked_machine_with(
                 .all(|parameter| !parameter.is_self && !parameter.is_const);
         if carries_primitive
             && calls.is_empty()
+            && !statement_sequence.as_ref().is_some_and(|sequence| {
+                sequence.operations.iter().any(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    )
+                })
+            })
             && !exact_write_only_primitive_sink
             && !exact_shared_primitive_observer
         {
@@ -1848,6 +1855,7 @@ pub(super) fn build_checked_machine_with(
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
