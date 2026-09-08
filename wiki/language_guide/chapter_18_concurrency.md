@@ -8,7 +8,7 @@ let task: Task<WorkResult> =
 
 do_other_work();
 
-let outcome: TaskOutcome<WorkResult> = suspend task.finish();
+let outcome: TaskOutcome<WorkResult> = suspend block task.finish();
 ```
 
 `Worker::run` is not a special async function. Calling `Worker::run(job)` runs
@@ -28,8 +28,9 @@ distinct activation.
 language construct. Starting and controlling a task reach that service through
 the ordinary reach/provider model from chapter 19.
 
-The full custody/storage/claim model and implementation sequence are recorded
-in [Task Runtime And Lifecycle](../pre_migration/design_briefs/task_runtime_and_lifecycle.md).
+The [task activation and lifecycle contract](../spec/build/task_runtime.md)
+defines runtime custody, storage, and claims. Its linked implementation note
+distinguishes planning support from executable task support.
 
 ## Starting Is A Provider Operation
 

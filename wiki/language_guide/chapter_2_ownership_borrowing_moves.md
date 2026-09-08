@@ -8,7 +8,7 @@ This chapter is the place for the rules other chapters rely on.
 > **Core multiplicity.** Usage is an explicit type
 > property with three cases: unrestricted, affine, and linear. Facts and
 > permissions share control-flow/place infrastructure but not one algebra. See
-> [core_multiplicity_and_linearity.md](../pre_migration/design_briefs/core_multiplicity_and_linearity.md).
+> [ownership and multiplicity](../spec/language/ownership.md).
 
 ## Usage Multiplicity
 

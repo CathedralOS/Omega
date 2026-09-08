@@ -386,7 +386,7 @@ This is a proof-stratum interpretation of the machine parameters already
 defined above, not a runtime machine value and not a runtime-dependent carrier.
 General relation expressions that consume these telescopes precede full
 quotient implementation; see [chapter 10](chapter_10_compile_time_proofs.md)
-and the [relation brief](../pre_migration/design_briefs/law_bearing_relations_and_quotients.md).
+and the [relation contract](../spec/proofs/quotients.md).
 
 Mathematical quantification is broader than the static machine-symbol binders
 above. General contracts must admit arbitrary mathematical functions and

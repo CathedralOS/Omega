@@ -15,6 +15,8 @@ beside code; completed work belongs in Git, not current reference material.
 ## Current specification subjects
 
 - Source semantics: [state contracts and live facts](spec/language/state_contracts.md),
+  [ownership and multiplicity](spec/language/ownership.md),
+  [concurrency and atomics](spec/language/concurrency.md),
   [machines and refinement](spec/language/machines.md),
   [termination and progress](spec/language/termination.md),
   [domains and qualification](spec/language/domains.md),
@@ -25,7 +27,8 @@ beside code; completed work belongs in Git, not current reference material.
   and [counts, indices, and addresses](spec/language/counts_and_addresses.md).
 - Representation policies: [layout plans](spec/layouts/plans.md),
   [recasts](spec/layouts/recasts.md), and [codecs](spec/layouts/codecs.md).
-- Mathematical proofs: [contracts, bundles, normalization, and trust](spec/proofs/contracts.md).
+- Mathematical proofs: [contracts, bundles, normalization, and trust](spec/proofs/contracts.md)
+  and [relations and quotients](spec/proofs/quotients.md).
 - Terminal Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [control flow and ranking](spec/terminal-psi/control_flow.md),
@@ -63,6 +66,7 @@ beside code; completed work belongs in Git, not current reference material.
   [foreign storage and lifetime](spec/build/foreign_storage.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
   [provider selection](spec/build/provider_selection.md),
+  [task activation and lifecycle](spec/build/task_runtime.md),
   [service permissions](spec/build/permissions.md),
   [opaque representations](spec/build/opaque_representations.md),
   [execution and generated source](spec/build/execution.md),

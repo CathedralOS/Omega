@@ -92,5 +92,5 @@ architectural seams to design in from the start:
 
 [Cathedral alignment](../../drafts/cathedral_alignment.md)
 (TCB / trusting-trust, constant-time, IFC labels);
-design_briefs/separate_compilation.md; Cathedral kernel_architecture.md (the
+[component publication](../../spec/build/component_publication.md); Cathedral kernel_architecture.md (the
 performance claim this raises the ceiling of) and omega_substrate.md.
