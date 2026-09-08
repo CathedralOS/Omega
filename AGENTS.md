@@ -161,8 +161,9 @@ The [compiler observation owner](omega-rust/omega/compiler/compiler/README.md#pr
 documents the current writer and required records rather than a fixed numbered
 artifact inventory here.
 
-`OMEGA_LIBRARY_ROOT` overrides the bundled `source/library/` root when testing
-an alternate toolchain layout.
+The bundled `source/library/` location is derived from the compiler checkout
+captured at build time. Rebuild the binary from the retained checkout before
+removing the checkout used to build it.
 
 ### Running one test
 
