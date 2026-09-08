@@ -14,7 +14,10 @@ pub(super) fn validate_declaration(
     declaration: &MachineEffectDeclaration,
 ) -> Result<(), MachineEffectCatalogValidationError> {
     let semantic = declaration.semantic;
-    let expected_barrier = if semantic == MachineSemanticKind::HostedWriteByteI32 {
+    let expected_barrier = if matches!(
+        semantic,
+        MachineSemanticKind::HostedWriteByteI32 | MachineSemanticKind::HostedExitProcessI32
+    ) {
         MachineBarrier::ExternalEffect
     } else if matches!(
         semantic,
@@ -167,6 +170,17 @@ fn validate_encoded_effects(
     {
         return Err(());
     }
+    if declaration.semantic == MachineSemanticKind::HostedExitProcessI32
+        && (declaration.memory != crate::MachineMemoryEffect::NoneV1
+            || declaration.trap != crate::MachineTrapBehavior::HostedExitReturnedV1
+            || encoded.memory != MachineEncodedMemoryEffect::NoneV1
+            || encoded.trap != MachineEncodedTrapBehavior::HostedExitReturnedV1
+            || encoded.stack != MachineEncodedStackEffect::UnchangedV1
+            || encoded.control != MachineEncodedControlEffect::HostedExitOrTrapV1
+            || declaration.call != crate::MachineCallEffect::NoneV1)
+    {
+        return Err(());
+    }
     if declaration.semantic == MachineSemanticKind::HostedWriteByteI32
         && (declaration.memory != crate::MachineMemoryEffect::HostedWriteByteV1
             || declaration.trap != crate::MachineTrapBehavior::HostedWriteFailureV1
@@ -220,7 +234,8 @@ fn validate_encoded_effects(
         return Err(());
     }
     let expected_barrier = match encoded.control {
-        MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
+        MachineEncodedControlEffect::HostedExitOrTrapV1
+        | MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::ConditionalRelativeBranchV1
@@ -234,6 +249,21 @@ fn validate_encoded_effects(
         return Err(());
     }
     match (encoded.memory, encoded.stack, encoded.trap) {
+        (
+            MachineEncodedMemoryEffect::NoneV1,
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::HostedExitReturnedV1,
+        ) if declaration.semantic == MachineSemanticKind::HostedExitProcessI32
+            && declaration.memory == crate::MachineMemoryEffect::NoneV1
+            && declaration.trap == crate::MachineTrapBehavior::HostedExitReturnedV1
+            && encoded.control == MachineEncodedControlEffect::HostedExitOrTrapV1
+            && encoded.external_operand_reads == [0]
+            && encoded.external_operand_writes.is_empty()
+            && constraint.operands.len() == 1
+            && constraint.operands[0].access == RegisterOperandAccess::Use
+            && encoded.implicit_unit_uses == constraint.implicit_uses
+            && encoded.implicit_unit_defs == constraint.implicit_defs
+            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
         (
             MachineEncodedMemoryEffect::HostedWriteByteV1 { .. },
             MachineEncodedStackEffect::UnchangedV1,

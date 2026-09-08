@@ -140,7 +140,8 @@ pub(super) fn encode_argument_source(
             encode_scalar_type(bytes, scalar_type)?;
             push_u32(bytes, instruction.0);
         }
-        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => {
+        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. } => {
             return Err(InstallationError::UnsupportedInstalledScalarSource);
         }
         InternalUnitScalarArgumentSourceRecord::Parameter {

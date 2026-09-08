@@ -17,7 +17,7 @@ use super::{
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
 
-const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v7";
+const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v8";
 const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v3";
 
 #[derive(Clone, Copy)]
@@ -191,6 +191,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
+        MachineAlternativeFamily::HostedExitProcessI32 => 31,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
@@ -281,10 +282,12 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }
     hasher.update([match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
+        MachineEncodedControlEffect::HostedExitOrTrapV1 => hasher.update([7]),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => hasher.update([1]),

@@ -1,12 +1,11 @@
 //! The target operation vocabulary consumed by physical assignment.
 
 use crate::{
-    BoundaryExecutionBinding, BoundaryScalarArgument, DirectPortReadU8Realization,
-    HostedExitProcessI32Realization, ScalarAbiValue, ScalarParameterLocation, TargetBooleanControl,
-    TargetBooleanExpression, TargetConditionalBooleanArm, TargetConditionalIntegerArm,
-    TargetDynamicDescriptorParameterAbi, TargetIntegerExpression, TargetRankedU32Countdown,
-    TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
-    TargetUnitBody,
+    BoundaryExecutionBinding, DirectPortReadU8Realization, ScalarAbiValue, ScalarParameterLocation,
+    TargetBooleanControl, TargetBooleanExpression, TargetConditionalBooleanArm,
+    TargetConditionalIntegerArm, TargetDynamicDescriptorParameterAbi, TargetIntegerExpression,
+    TargetRankedU32Countdown, TargetScalarStructuralFieldStore, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitBody,
 };
 use abstract_operations::{AbstractDynamicDescriptorArgument, CompletionClaimSource};
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
@@ -171,21 +170,6 @@ pub enum TargetOperation {
         completion_receipts: Vec<CompletionReceipt>,
         call_plan: CallPlan,
         structural_parameters: Vec<TargetStructuralParameter>,
-    },
-    /// One verified `exit_process(i32)` call realized directly by the selected
-    /// kernel's process-exit syscall. `nominal_return_edge` remains zero-byte
-    /// provenance: if the syscall returns, the emitted code traps before that
-    /// semantic tail can execute.
-    ExitProcessI32 {
-        constant_operation: OperationId,
-        psi_operation: OperationId,
-        nominal_return_edge: EdgeId,
-        boundary: BoundaryMachineId,
-        execution: BoundaryExecutionBinding,
-        realization: HostedExitProcessI32Realization,
-        argument: BoundaryScalarArgument,
-        completion_claim_sources: Vec<CompletionClaimSource>,
-        completion_receipts: Vec<CompletionReceipt>,
     },
     /// One finite short-circuit Boolean tree whose value-return leaves all
     /// execute the same complete structural cleanup stream. Each leaf retains

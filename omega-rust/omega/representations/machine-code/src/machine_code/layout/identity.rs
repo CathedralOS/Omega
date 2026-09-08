@@ -31,7 +31,7 @@ impl ResolvedSelectedFormLayoutIdentity {
     }
 }
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v14";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v15";
 
 pub fn resolved_machine_layout_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -187,6 +187,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::AddressOffset => 25,
         Family::Load64 => 16,
         Family::Load32 => 30,
+        Family::HostedExitProcessI32 => 31,
         Family::HostedWriteByteI32 => 23,
         Family::ByteViewAddress => 22,
         Family::Load8Indexed => 21,
@@ -277,10 +278,12 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }
     hasher.update([match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
+        MachineEncodedControlEffect::HostedExitOrTrapV1 => hasher.update([7]),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => hasher.update([1]),

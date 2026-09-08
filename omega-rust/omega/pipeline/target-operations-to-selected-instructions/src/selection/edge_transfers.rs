@@ -30,7 +30,9 @@ fn successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut SelectedSucce
             when_not_less,
             ..
         } => vec![when_less, when_not_less],
-        SelectedTerminator::Return { .. } => Vec::new(),
+        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+            Vec::new()
+        }
     }
 }
 

@@ -450,7 +450,7 @@ fn text_placement_data_and_independent_checking_have_separate_owners() {
     let data = rust_source(&root.join(
         "omega-rust/omega/representations/machine-code/src/machine_code/layout/text_section",
     ));
-    assert!(data.contains("omega.terminal.relocation-free-text-section.v7"));
+    assert!(data.contains("omega.terminal.relocation-free-text-section.v8"));
     let record = std::fs::read_to_string(root.join(
         "omega-rust/omega/representations/machine-code/src/machine_code/layout/text_section.rs",
     ))
@@ -1016,8 +1016,8 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(!pipeline.contains(record));
     assert!(!machine.contains("post_allocation_machine_to_post_allocation_machine::"));
     assert!(!machine.contains("pub struct StagedOptimizedResolvedSelectedFormLayout"));
-    assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v14"));
-    assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v14"));
+    assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v15"));
+    assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v15"));
 
     let stage = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
     let wrapper = std::fs::read_to_string(stage.join("model.rs")).unwrap();
@@ -1081,8 +1081,8 @@ fn exit_contract_records_and_identities_are_representation_owned() {
     assert!(emission.contains(wrapper));
     assert!(!pipeline.contains(wrapper));
     assert!(!machine.contains(wrapper));
-    assert!(machine.contains("omega.terminal.whole-function-exit-contract.v11"));
-    assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v11"));
+    assert!(machine.contains("omega.terminal.whole-function-exit-contract.v12"));
+    assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v12"));
     assert!(!machine.contains("post_allocation_machine_to_post_allocation_machine::"));
     assert!(!machine.contains("native_realization::"));
     assert!(

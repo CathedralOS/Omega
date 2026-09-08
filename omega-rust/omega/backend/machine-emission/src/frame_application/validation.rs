@@ -127,6 +127,7 @@ fn validate_function(
         .map(|block| (block.block, block.offset))
         .collect::<BTreeMap<_, _>>();
     let mut expected_epilogues = Vec::new();
+    let mut process_exits = 0usize;
     let mut cursor = prologue.len() as u64;
     for (source_block, candidate_block) in source.blocks.iter().zip(&candidate.blocks) {
         if source_block.block != candidate_block.block
@@ -148,6 +149,15 @@ fn validate_function(
                 || source_row.control != candidate_row.control
             {
                 return Err(FrameApplicationError::ArtifactMismatch);
+            }
+            if matches!(
+                source_row.control,
+                FunctionFragmentControlProvenance::HostedExitProcess { .. }
+            ) {
+                if index + 1 != source_block.instructions.len() || source_row.bytes.is_empty() {
+                    return Err(FrameApplicationError::MissingFinalReturn(source.machine));
+                }
+                process_exits += 1;
             }
             if let FunctionFragmentControlProvenance::Return { psi_return_edge } =
                 source_row.control
@@ -195,7 +205,7 @@ fn validate_function(
             return Err(FrameApplicationError::ArtifactMismatch);
         }
     }
-    if expected_epilogues.is_empty()
+    if (expected_epilogues.is_empty() && process_exits == 0)
         || application.epilogues != expected_epilogues
         || cursor != candidate.byte_count
     {

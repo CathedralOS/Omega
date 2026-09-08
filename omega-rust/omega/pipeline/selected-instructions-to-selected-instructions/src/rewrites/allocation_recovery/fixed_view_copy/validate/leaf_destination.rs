@@ -54,7 +54,8 @@ pub(super) fn terminator(
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. } => instruction,
+        | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
     }
 }
 

@@ -30,6 +30,17 @@ pub(super) fn encode_boundary_settlement(
     payload: &selected_instructions::SelectedBoundarySettlementPayload,
 ) {
     let settlement = match payload {
+        selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
+            operation,
+            boundary,
+            source,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.extend_from_slice(&source.get().to_le_bytes());
+            return;
+        }
         selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(settlement) => {
             bytes.push(0);
             settlement
@@ -72,6 +83,15 @@ pub(super) fn decode_boundary_settlement(
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::SelectedBoundarySettlementPayload, FixedViewCopyDecodeError> {
     match cursor.byte()? {
+        2 => {
+            return Ok(
+                selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
+                    operation: decode_id(cursor, semantic_vocabulary::OperationId::new)?,
+                    boundary: decode_id(cursor, BoundaryMachineId::new)?,
+                    source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+                },
+            );
+        }
         0 => {}
         1 => {
             return Ok(

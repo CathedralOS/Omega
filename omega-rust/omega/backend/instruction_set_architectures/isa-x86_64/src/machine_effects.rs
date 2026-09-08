@@ -56,30 +56,40 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::HostedExitProcessI32 {
+                    return crate::selected_form_encoding::hosted_exit_process::declaration(
+                        target, constraint,
+                    )
+                    .map_err(|_| {
+                        X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch
+                    });
+                }
                 if semantic == MachineSemanticKind::HostedWriteByteI32 {
-                    return crate::selected_form_encoding::hosted_write_byte::declaration(
-                        constraint,
+                    return Ok(
+                        crate::selected_form_encoding::hosted_write_byte::declaration(constraint),
                     );
                 }
-                if matches!(
-                    semantic,
-                    MachineSemanticKind::Load32
-                        | MachineSemanticKind::Load64
-                        | MachineSemanticKind::Store
-                        | MachineSemanticKind::AddressOffset
-                        | MachineSemanticKind::Load8Indexed
-                        | MachineSemanticKind::Store64
-                        | MachineSemanticKind::FrameAddress
-                        | MachineSemanticKind::CallUnit
-                ) {
-                    memory::declaration(semantic, constraint, constraints)
-                } else if semantic == MachineSemanticKind::CallI64 {
-                    scalar_call_declaration(constraint, constraints)
-                } else {
-                    declaration(semantic, &selected_keys)
-                }
+                Ok(
+                    if matches!(
+                        semantic,
+                        MachineSemanticKind::Load32
+                            | MachineSemanticKind::Load64
+                            | MachineSemanticKind::Store
+                            | MachineSemanticKind::AddressOffset
+                            | MachineSemanticKind::Load8Indexed
+                            | MachineSemanticKind::Store64
+                            | MachineSemanticKind::FrameAddress
+                            | MachineSemanticKind::CallUnit
+                    ) {
+                        memory::declaration(semantic, constraint, constraints)
+                    } else if semantic == MachineSemanticKind::CallI64 {
+                        scalar_call_declaration(constraint, constraints)
+                    } else {
+                        declaration(semantic, &selected_keys)
+                    },
+                )
             })
-            .collect(),
+            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
@@ -120,6 +130,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        hosted_exit_process_i32: (target == NativeTarget::linux_x64())
+            .then_some(crate::X86_64_HOSTED_EXIT_PROCESS_I32),
         hosted_write_byte_i32: (target.object_format == ObjectFormat::Elf)
             .then_some(crate::X86_64_HOSTED_WRITE_BYTE_I32),
         load64: Some(crate::X86_64_LOAD64),
@@ -323,6 +335,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
@@ -473,6 +486,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
@@ -612,7 +626,11 @@ mod tests {
                         MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
                     ) {
                         MachineBarrier::Call
-                    } else if row.semantic == MachineSemanticKind::HostedWriteByteI32 {
+                    } else if matches!(
+                        row.semantic,
+                        MachineSemanticKind::HostedWriteByteI32
+                            | MachineSemanticKind::HostedExitProcessI32
+                    ) {
                         MachineBarrier::ExternalEffect
                     } else {
                         MachineBarrier::None

@@ -138,7 +138,10 @@ fn selected<'a>(
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. } => instruction,
+            | SelectedTerminator::Return { instruction, .. }
+            | selected_instructions::SelectedTerminator::HostedExitProcess {
+                instruction, ..
+            } => instruction,
         }))
         .find(|instruction| instruction.id == row.instruction)
         .ok_or(ResolvedFragmentEmissionError::MissingInstruction(

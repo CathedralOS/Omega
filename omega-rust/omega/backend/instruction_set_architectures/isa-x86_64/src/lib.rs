@@ -129,6 +129,12 @@ pub use xor_zero_i64_materialization::{
 };
 
 use diagnostics::Diagnostic;
+pub use register_model::X86_64_HOSTED_EXIT_PROCESS_I32;
+pub use selected_form_encoding::hosted_exit_process::{
+    decode_x86_64_selected_hosted_exit_process_i32,
+    encode_x86_64_selected_hosted_exit_process_form,
+    validate_x86_64_selected_hosted_exit_process_form,
+};
 
 /// Exact import-free Linux x86-64 realization of `exit_process(i32)`.
 pub fn encode_hosted_exit_process_i32(value: i32) -> Vec<u8> {

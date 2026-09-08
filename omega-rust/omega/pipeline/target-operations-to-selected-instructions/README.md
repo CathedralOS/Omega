@@ -127,6 +127,15 @@ syscall sequence and resolved slot. Object evidence distinguishes this selected
 input transport from legacy immediate materialization. This Linux realization
 does not authorize a macOS/Windows provider or establish writer control flow.
 
+Hosted `exit_process(i32)` uses the ordinary Unit scalar graph rather than an
+isolated literal-only target operation. Its last boundary node becomes an explicit
+process-exit terminator on Linux x86-64/AArch64 and macOS AArch64. The source's
+following empty Unit return remains nominal custody: its edge is retained, but
+its fuel is not charged as executed work and no native return or epilogue is
+emitted. The terminal reads the original runtime i32 carrier, needs no scratch,
+and traps if the kernel returns. Source, target, builtin, operand, and complete
+exit span are independently replayed through publication.
+
 Ordered Unit scalar definitions join their exact source operations before
 entering the same legalized SSA graph. Explicit `u8` widening to fixed
 16/32/64-bit signed or unsigned integers reuses ordinary copies after byte

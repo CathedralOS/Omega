@@ -320,6 +320,7 @@ fn instruction(
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::HostedExitProcess { instruction, .. }
                 if instruction.id == id =>
             {
                 Some(instruction)

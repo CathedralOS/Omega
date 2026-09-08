@@ -36,7 +36,6 @@ pub(super) fn lower_boundary_call(
         PlaceId,
         (OperationId, StructuralTypeDeclaration, Vec<u8>),
     >,
-    integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
     scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -190,7 +189,7 @@ pub(super) fn lower_boundary_call(
                     );
                 }
             };
-            let mut scalar_arguments = Vec::new();
+            let scalar_arguments = Vec::new();
             let mut runtime_scalar_arguments = Vec::new();
             let mut byte_sequence_arguments = Vec::new();
             if !matches!(realization, BoundaryRealization::LinuxReadByte(_))
@@ -295,42 +294,6 @@ pub(super) fn lower_boundary_call(
                         bytes: bytes.clone(),
                     });
                 }
-                BoundaryRealization::HostedExitProcessI32(_) => {
-                    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
-                    let [argument] = arguments.as_slice() else {
-                        return Err(LoweringError::InvalidHostedExitProcessShape(
-                            function.machine,
-                        ));
-                    };
-                    let Some((_, actual_type, value)) = integer_constants.get(argument) else {
-                        return Err(LoweringError::InvalidHostedExitProcessShape(
-                            function.machine,
-                        ));
-                    };
-                    if !target_operations::HostedExitProcessI32Realization::supports_target(target)
-                        || declaration.scalar_parameters.as_slice()
-                            != [ScalarType::Integer(i32_type)]
-                        || !declaration.structural_parameters.is_empty()
-                        || !declaration.result.is_unit()
-                        || *actual_type != i32_type
-                        || !i32_type.admits(*value)
-                        || !structural_arguments.is_empty()
-                    {
-                        return Err(LoweringError::InvalidHostedExitProcessShape(
-                            function.machine,
-                        ));
-                    }
-                    scalar_arguments.push(BoundaryScalarArgument {
-                        source_value: *argument,
-                        scalar_type: ScalarType::Integer(*actual_type),
-                        immediate: *value,
-                        destination: match target.architecture {
-                            Architecture::X86_64 => MachineRegister::X86Rdi,
-                            Architecture::Aarch64 => MachineRegister::Aarch64X(0),
-                        },
-                    });
-                    *nonreturning_boundary = true;
-                }
                 BoundaryRealization::LinuxReadByte(_) => {
                     if target.object_format != ObjectFormat::Elf
                         || !matches!(
@@ -353,7 +316,8 @@ pub(super) fn lower_boundary_call(
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
                 }
-                BoundaryRealization::HostedWriteByteI32(_) => {
+                BoundaryRealization::HostedWriteByteI32(_)
+                | BoundaryRealization::HostedExitProcessI32(_) => {
                     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
                     let [source_value] = arguments.as_slice() else {
                         return Err(LoweringError::InvalidHostedExitProcessShape(
@@ -379,7 +343,20 @@ pub(super) fn lower_boundary_call(
                             function.machine,
                         ));
                     };
-                    if !target_operations::HostedWriteByteI32Realization::supports_target(target)
+                    let exits_process =
+                        matches!(realization, BoundaryRealization::HostedExitProcessI32(_));
+                    let supports_target = if exits_process {
+                        target_operations::HostedExitProcessI32Realization::supports_target(target)
+                    } else {
+                        target_operations::HostedWriteByteI32Realization::supports_target(target)
+                    };
+                    if exits_process && !supports_target {
+                        return Err(LoweringError::HostedExitProcessUnsupportedTarget {
+                            machine: function.machine,
+                            target,
+                        });
+                    }
+                    if !supports_target
                         || declaration.scalar_parameters.as_slice()
                             != [ScalarType::Integer(i32_type)]
                         || !declaration.structural_parameters.is_empty()
@@ -397,6 +374,7 @@ pub(super) fn lower_boundary_call(
                         source: known.into_target_source(*source_value),
                         placement: placement.clone(),
                     });
+                    *nonreturning_boundary = exits_process;
                 }
                 BoundaryRealization::DirectPortReadU8(_) => {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));

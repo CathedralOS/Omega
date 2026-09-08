@@ -96,6 +96,34 @@ fn fixture() -> (FunctionFragment, AbstractFunction) {
 }
 
 #[test]
+fn process_exit_nominal_edge_is_zero_width_and_never_a_return_span() {
+    let (mut fragment, source) = fixture();
+    let terminal = fragment.blocks[0].instructions.last_mut().unwrap();
+    let Control::Return { psi_return_edge } = &terminal.control else {
+        panic!("return fixture");
+    };
+    let psi_return_edge = *psi_return_edge;
+    terminal.control = Control::HostedExitProcess {
+        nominal_return_edge: psi_return_edge,
+    };
+    let end = usize::try_from(terminal.offset).unwrap() + terminal.bytes.len();
+    let rows = produce(&fragment, &source).unwrap();
+    validate(&fragment, &source, &rows).unwrap();
+    let position = rows
+        .iter()
+        .position(|row| row.site == SemanticCodeSite::Edge(psi_return_edge))
+        .unwrap();
+    assert_eq!(rows[position].code_offset, end);
+    assert_eq!(rows[position].byte_count, 0);
+    let mut changed = rows.clone();
+    changed[position].byte_count = 1;
+    assert!(validate(&fragment, &source, &changed).is_err());
+    let mut changed = rows;
+    changed[position].code_offset -= 1;
+    assert!(validate(&fragment, &source, &changed).is_err());
+}
+
+#[test]
 fn boolean_constant_attribution_requires_its_exact_operation_ordinal() {
     let (fragment, mut source) = fixture();
     source.operations[0] = AbstractOperation::BooleanConstant {

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn hosted_exit_process_i32_requires_exact_literal_shape_and_stays_fail_closed_elsewhere() {
+fn hosted_exit_process_i32_retains_runtime_source_abi_and_nonreturning_tail() {
     let machine = MachineId::new(901).unwrap();
     let boundary = BoundaryMachineId::new(901).unwrap();
     let constant_operation = OperationId::new(901).unwrap();
@@ -80,68 +80,119 @@ fn hosted_exit_process_i32_requires_exact_literal_shape_and_stays_fail_closed_el
         realization: target_operations::HostedExitProcessI32Realization.into(),
     };
 
-    let x86 = lower_to_target_operations_with_settlements(
-        &plan,
+    for target in [
         NativeTarget::linux_x64(),
-        std::slice::from_ref(&binding),
-    )
-    .expect("Linux x86-64 exit_group lowering");
-    assert_eq!(
-        x86,
-        lower_to_target_operations_with_settlements(
-            &plan,
-            NativeTarget::linux_x64(),
-            std::slice::from_ref(&binding),
-        )
-        .expect("deterministic lowering")
-    );
-    assert!(matches!(
-        &x86.functions[0].operation,
-        TargetOperation::ExitProcessI32 { argument, nominal_return_edge, .. }
-            if argument.source_value == value
-                && argument.scalar_type == scalar_type
-                && argument.immediate == IntegerValue::Signed(37)
-                && argument.destination == MachineRegister::X86Rdi
-                && *nominal_return_edge == return_edge
-    ));
-    let arm = lower_to_target_operations_with_settlements(
-        &plan,
         NativeTarget::linux_arm64(),
-        std::slice::from_ref(&binding),
-    )
-    .expect("Linux AArch64 exit_group lowering");
-    assert!(matches!(
-        &arm.functions[0].operation,
-        TargetOperation::ExitProcessI32 { argument, .. }
-            if argument.destination == MachineRegister::Aarch64X(0)
-    ));
-    assert!(matches!(
-        lower_to_target_operations_with_settlements(
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations_with_settlements(
             &plan,
-            NativeTarget::windows_x64(),
-            std::slice::from_ref(&binding),
-        ),
-        Err(LoweringError::HostedExitProcessUnsupportedTarget { .. })
-    ));
-    assert!(matches!(
-        lower_to_target_operations_with_settlements(
-            &plan,
-            NativeTarget::macos_arm64(),
+            target,
             std::slice::from_ref(&binding),
         )
-        .expect("macOS AArch64 exit lowering")
-        .functions[0]
-            .operation,
-        TargetOperation::ExitProcessI32 { .. }
-    ));
-
-    let mut wrong_signature = plan;
+        .unwrap();
+        assert_eq!(
+            lowered,
+            lower_to_target_operations_with_settlements(
+                &plan,
+                target,
+                std::slice::from_ref(&binding)
+            )
+            .unwrap()
+        );
+        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+            panic!("ordinary Unit body");
+        };
+        let [
+            TargetUnitOperation::IntegerConstant { .. },
+            TargetUnitOperation::BoundarySettlement {
+                psi_operation,
+                boundary: actual_boundary,
+                execution,
+                realization,
+                scalar_arguments,
+                runtime_scalar_arguments,
+                ..
+            },
+            TargetUnitOperation::Return { psi_edge, .. },
+        ] = body.operations.as_slice()
+        else {
+            panic!("ordered constant, exit, nominal return");
+        };
+        assert_eq!(*psi_operation, settlement_operation);
+        assert_eq!(*actual_boundary, boundary);
+        assert_eq!(*execution, binding.execution);
+        assert_eq!(
+            *realization,
+            target_operations::BoundaryRealization::HostedExitProcessI32(Default::default())
+        );
+        assert_eq!(*psi_edge, return_edge);
+        assert!(scalar_arguments.is_empty());
+        let [argument] = runtime_scalar_arguments.as_slice() else {
+            panic!("one i32 source");
+        };
+        assert_eq!(argument.parameter_index, 0);
+        assert_eq!(
+            argument.source,
+            target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                defining_operation: constant_operation,
+                source_value: value,
+                scalar_type: i32_type,
+                value: IntegerValue::Signed(37),
+            }
+        );
+        let call_plan = calling_conventions::evaluate_call_plan(
+            calling_conventions::CallingPolicy::native_for_target(target),
+            &calling_conventions::CallSignature {
+                parameters: vec![calling_conventions::ValueShape::integer(4, 4)],
+                result: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(argument.placement, call_plan.parameters[0]);
+    }
+    for target in [
+        NativeTarget::windows_x64(),
+        NativeTarget {
+            pointer_size: 4,
+            ..NativeTarget::macos_arm64()
+        },
+    ] {
+        assert_eq!(
+            lower_to_target_operations_with_settlements(
+                &plan,
+                target,
+                std::slice::from_ref(&binding)
+            ),
+            Err(LoweringError::HostedExitProcessUnsupportedTarget { machine, target })
+        );
+    }
+    let mut wrong_signature = plan.clone();
     wrong_signature.boundary_machines[0].scalar_parameters[0] = ScalarType::Boolean;
-    assert_eq!(
+    assert!(
         lower_to_target_operations_with_settlements(
             &wrong_signature,
             NativeTarget::linux_x64(),
-            std::slice::from_ref(&binding),
+            std::slice::from_ref(&binding)
+        )
+        .is_err()
+    );
+
+    let mut after_exit = plan;
+    after_exit.functions[0].operations.insert(
+        2,
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(903).unwrap(),
+            result: ValueId::new(903).unwrap(),
+            scalar_type,
+            value: IntegerValue::Signed(1),
+        },
+    );
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &after_exit,
+            NativeTarget::linux_x64(),
+            std::slice::from_ref(&binding)
         ),
         Err(LoweringError::InvalidHostedExitProcessShape(machine))
     );

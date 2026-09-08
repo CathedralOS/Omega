@@ -35,6 +35,7 @@ pub(super) fn encode_ordinary_instruction(
 fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffects) {
     bytes.push(match instruction.trap {
         MachineTrapBehavior::NeverV1 => 0,
+        MachineTrapBehavior::HostedExitReturnedV1 => 3,
         MachineTrapBehavior::HostedWriteFailureV1 => 2,
         MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
@@ -110,6 +111,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::Load32 { .. } => 30,
+        SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
@@ -197,6 +199,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
         SelectedInstructionKind::CallI64 { callee }

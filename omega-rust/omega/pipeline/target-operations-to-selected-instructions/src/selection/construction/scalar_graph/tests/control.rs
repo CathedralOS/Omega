@@ -400,7 +400,8 @@ fn scalar_control_keeps_blocks_branches_calls_and_parallel_bindings() {
                             .iter()
                             .map(|row| row.id.0)
                             .chain(std::iter::once(match &block.terminator {
-                                SelectedTerminator::Return { instruction, .. }
+                                SelectedTerminator::HostedExitProcess { instruction, .. }
+                                | SelectedTerminator::Return { instruction, .. }
                                 | SelectedTerminator::Jump { instruction, .. }
                                 | SelectedTerminator::ConditionalBranch { instruction, .. }
                                 | SelectedTerminator::ConditionalBranchI64LessThan {

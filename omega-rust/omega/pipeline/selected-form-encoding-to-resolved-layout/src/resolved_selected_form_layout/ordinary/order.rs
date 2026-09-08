@@ -38,7 +38,9 @@ pub(super) fn derive(
             | SelectedTerminator::ConditionalBranchI64LessThan { when_not_less, .. } => {
                 Some(when_not_less)
             }
-            SelectedTerminator::Jump { .. } | SelectedTerminator::Return { .. } => None,
+            SelectedTerminator::Jump { .. }
+            | SelectedTerminator::Return { .. }
+            | SelectedTerminator::HostedExitProcess { .. } => None,
         };
         if let Some(successor) = successor {
             let destination = function

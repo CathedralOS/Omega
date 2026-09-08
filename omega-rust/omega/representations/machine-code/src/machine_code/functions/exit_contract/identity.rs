@@ -10,7 +10,7 @@ use super::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v11\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v12\0";
 
 pub fn whole_function_exit_contract_identity(
     contract: &WholeFunctionExitContract,
@@ -82,6 +82,15 @@ pub fn whole_function_exit_contract_identity(
         hasher.update(function.entry_block.0.to_le_bytes());
         hasher.update(function.body_stack_delta.to_le_bytes());
         encode_units(&mut hasher, &function.modified_callee_saved_units);
+        hasher.update((function.process_exits.len() as u64).to_le_bytes());
+        for exited in &function.process_exits {
+            hasher.update(exited.block.0.to_le_bytes());
+            hasher.update(exited.nominal_return_edge.get().to_le_bytes());
+            hasher.update(exited.instruction.0.to_le_bytes());
+            hasher.update(exited.offset.to_le_bytes());
+            hasher.update((exited.bytes.len() as u64).to_le_bytes());
+            hasher.update(&exited.bytes);
+        }
         hasher.update((function.returns.len() as u64).to_le_bytes());
         for returned in &function.returns {
             hasher.update(returned.block.0.to_le_bytes());

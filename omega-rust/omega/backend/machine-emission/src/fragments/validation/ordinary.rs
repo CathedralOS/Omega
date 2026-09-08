@@ -51,7 +51,11 @@ pub(super) fn check(
                     | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                     | SelectedTerminator::Jump { instruction, .. }
-                    | SelectedTerminator::Return { instruction, .. } => instruction,
+                    | SelectedTerminator::Return { instruction, .. }
+                    | selected_instructions::SelectedTerminator::HostedExitProcess {
+                        instruction,
+                        ..
+                    } => instruction,
                 };
                 let selected_instruction = selected_block
                     .instructions

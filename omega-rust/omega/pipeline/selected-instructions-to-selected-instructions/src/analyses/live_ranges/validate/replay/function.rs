@@ -131,7 +131,9 @@ fn replay_edge_transfers(
     let mut transfers = BTreeSet::new();
     for predecessor in &selected.blocks {
         let edges = match &predecessor.terminator {
-            SelectedTerminator::Return { .. } => Vec::new(),
+            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+                Vec::new()
+            }
             SelectedTerminator::Jump { successor, .. } => vec![successor],
             SelectedTerminator::ConditionalBranch {
                 when_nonzero,

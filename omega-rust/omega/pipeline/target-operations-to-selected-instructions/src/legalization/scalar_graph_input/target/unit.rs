@@ -142,7 +142,7 @@ pub(super) fn validate_operation(
             TargetUnitOperation::BoundarySettlement { .. },
             AbstractOperation::BoundaryCall { .. },
         ) => {
-            super::byte_output::validate(target, abstracted, native.target, plan, sources)?;
+            super::hosted_scalar::validate(target, abstracted, native.target, plan, unit, sources)?;
         }
         (
             TargetUnitOperation::StructuralScalarFieldStore {

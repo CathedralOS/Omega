@@ -56,7 +56,8 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                 | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. }
-                | SelectedTerminator::Return { instruction, .. } => instruction,
+                | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
             };
             instructions.push(compute_instruction(terminator, constraints, catalog)?);
             blocks.push(BlockMachineEffects {
@@ -107,6 +108,7 @@ fn terminal_selected_keys(
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
+        hosted_exit_process_i32: keys.hosted_exit_process_i32,
         load64: keys.load64,
         load32: keys.load32,
         load8_indexed: keys.load8_indexed,
@@ -220,6 +222,7 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
             MachineSemanticKind::HostedWriteByteI32
         }
         SelectedInstructionKind::ByteViewAddress => MachineSemanticKind::ByteViewAddress,
+        SelectedInstructionKind::HostedExitProcessI32 => MachineSemanticKind::HostedExitProcessI32,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate

@@ -32,7 +32,21 @@ pub(super) fn validate(
                 arguments,
                 ..
             },
-        ) if boundary == expected && arguments.as_slice() == [*source] => {}
+        ) if boundary == expected
+            && arguments.as_slice() == [*source]
+            && scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
+                == target_operations::CompilerBuiltinExecution::HostedWriteByteI32 => {}
+        (
+            LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source },
+            AbstractOperation::BoundaryCall {
+                boundary: expected,
+                arguments,
+                ..
+            },
+        ) if boundary == expected
+            && arguments.as_slice() == [*source]
+            && scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
+                == target_operations::CompilerBuiltinExecution::HostedExitProcessI32 => {}
         (
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                 destination,

@@ -88,6 +88,12 @@ pub use selected_form_encoding::{
 };
 
 use diagnostics::Diagnostic;
+pub use register_model::{AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32, AARCH64_HOSTED_EXIT_PROCESS_I32};
+pub use selected_form_encoding::hosted_exit_process::{
+    decode_aarch64_selected_hosted_exit_process_i32,
+    encode_aarch64_selected_hosted_exit_process_form,
+    validate_aarch64_selected_hosted_exit_process_form,
+};
 
 /// Exact import-free hosted AArch64 realization of `exit_process(i32)`.
 /// Darwin uses syscall 1 in x16 and SVC 0x80; Linux uses exit_group 94 in x8.

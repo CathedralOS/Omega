@@ -23,6 +23,7 @@ impl MachineEffectCatalogIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineSemanticKind {
+    HostedExitProcessI32,
     Load32,
     Float32ToBits,
     Float64ToBits,
@@ -57,7 +58,8 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 31] = [
+    pub const ALL: [Self; 32] = [
+        Self::HostedExitProcessI32,
         Self::Load32,
         Self::Float32ToBits,
         Self::Float64ToBits,
@@ -94,6 +96,7 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    HostedExitProcessI32,
     Load32,
     Float32ToBits,
     Float64ToBits,
@@ -130,6 +133,7 @@ pub enum MachineAlternativeFamily {
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::HostedExitProcessI32 => Self::HostedExitProcessI32,
             MachineSemanticKind::Load32 => Self::Load32,
             MachineSemanticKind::Float32ToBits => Self::Float32ToBits,
             MachineSemanticKind::Float64ToBits => Self::Float64ToBits,
@@ -214,6 +218,7 @@ pub enum MachineMemoryEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineTrapBehavior {
+    HostedExitReturnedV1,
     HostedWriteFailureV1,
     NeverV1,
     MayArchitecturalFaultV1,
@@ -340,6 +345,7 @@ pub enum MachineEncodedStackEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedTrapBehavior {
+    HostedExitReturnedV1,
     /// Architectural faults remain possible; a nonpositive syscall result traps.
     HostedWriteFailureV1,
     NeverV1,
@@ -348,6 +354,7 @@ pub enum MachineEncodedTrapBehavior {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedControlEffect {
+    HostedExitOrTrapV1,
     HostedWriteReturnOrTrapV1,
     FallThroughV1,
     ConditionalRelativeBranchV1,

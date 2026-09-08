@@ -227,7 +227,10 @@ pub(super) fn selected_instructions(
             ..
         }
         | selected_instructions::SelectedTerminator::Jump { instruction, .. }
-        | selected_instructions::SelectedTerminator::Return { instruction, .. } => instruction,
+        | selected_instructions::SelectedTerminator::Return { instruction, .. }
+        | selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
+            instruction
+        }
     };
     block.instructions.iter().chain(std::iter::once(terminator))
 }

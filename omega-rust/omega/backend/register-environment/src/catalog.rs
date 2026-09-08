@@ -68,6 +68,7 @@ pub(super) fn selected_environment_keys(
         store64: keys.store64,
         frame_address: keys.frame_address,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
+        hosted_exit_process_i32: keys.hosted_exit_process_i32,
         call_unit: keys.call_unit,
         call_i64: keys.call_i64,
         materialize_i64: keys.materialize_i64,
@@ -94,6 +95,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             hosted_write_byte_i32: Some(isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32),
+            hosted_exit_process_i32: (target == NativeTarget::linux_x64())
+                .then_some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32),
             load64: Some(isa_x86_64::X86_64_LOAD64),
             load32: Some(isa_x86_64::X86_64_LOAD32),
             load8_indexed: Some(isa_x86_64::X86_64_LOAD8_INDEXED),
@@ -123,6 +126,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             hosted_write_byte_i32: None,
+            hosted_exit_process_i32: None,
             load64: Some(isa_x86_64::X86_64_LOAD64),
             load32: Some(isa_x86_64::X86_64_LOAD32),
             load8_indexed: Some(isa_x86_64::X86_64_LOAD8_INDEXED),
@@ -153,6 +157,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             hosted_write_byte_i32: (target == NativeTarget::linux_arm64())
                 .then_some(isa_aarch64::AARCH64_HOSTED_WRITE_BYTE_I32),
+            hosted_exit_process_i32: (target == NativeTarget::linux_arm64())
+                .then_some(isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32),
             load64: Some(isa_aarch64::AARCH64_LOAD64),
             load32: Some(isa_aarch64::AARCH64_LOAD32),
             load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
@@ -183,6 +189,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
             hosted_write_byte_i32: (target == NativeTarget::macos_arm64())
                 .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32),
+            hosted_exit_process_i32: (target == NativeTarget::macos_arm64())
+                .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32),
             load64: Some(isa_aarch64::AARCH64_LOAD64),
             load32: Some(isa_aarch64::AARCH64_LOAD32),
             load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),

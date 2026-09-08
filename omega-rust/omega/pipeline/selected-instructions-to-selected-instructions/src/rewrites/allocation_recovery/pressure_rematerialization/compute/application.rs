@@ -99,7 +99,8 @@ pub(super) fn apply(
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. } => instruction.id,
+            | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id,
         };
         if terminator_id != first.instruction {
             return Err(PressureRematerializationError::DecisionMismatch {
@@ -138,7 +139,8 @@ fn rewrite_operand(
                 | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. }
-                | SelectedTerminator::Return { instruction, .. } => instruction,
+                | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
             };
             (terminator.id == rewrite.instruction).then_some(terminator)
         })

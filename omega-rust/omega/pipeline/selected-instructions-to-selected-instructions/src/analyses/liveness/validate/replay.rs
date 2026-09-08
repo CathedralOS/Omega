@@ -46,7 +46,8 @@ pub(super) fn replay_function(
                     ..
                 } => vec![when_less, when_not_less],
                 SelectedTerminator::Jump { successor, .. } => vec![successor],
-                SelectedTerminator::Return { .. } => Vec::new(),
+                SelectedTerminator::Return { .. }
+                | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
             };
             let mut vo = BTreeSet::new();
             for edge in &targets {
@@ -263,7 +264,9 @@ fn replay_block(
                 unit_live: collect(&u_in[&successor.block]),
             })
             .collect(),
-        SelectedTerminator::Return { .. } => Vec::new(),
+        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+            Vec::new()
+        }
         SelectedTerminator::Jump {
             instruction,
             successor,
@@ -295,7 +298,9 @@ fn replay_block(
                 ..
             } => [when_less, when_not_less][usize::from(row.polarity_ordinal)],
             SelectedTerminator::Jump { successor, .. } => successor,
-            SelectedTerminator::Return { .. } => unreachable!("return has no successor rows"),
+            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+                unreachable!("return has no successor rows")
+            }
         };
         let mut incoming = BTreeSet::new();
         for destination in row.virtual_live {

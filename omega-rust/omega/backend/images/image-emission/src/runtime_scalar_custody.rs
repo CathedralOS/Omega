@@ -6,6 +6,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::CompilerBuiltinExecution;
 
+pub(crate) mod process_exit;
+
 pub(crate) fn decode_selected_byte_output(
     target: NativeTarget,
     bytes: &[u8],
@@ -175,6 +177,7 @@ pub(crate) fn hosted_write_byte_custody_is_exact(
     };
     let source_is_exact = match argument.source {
         InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
         | InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => return false,
         InternalUnitScalarArgumentSourceRecord::Parameter { .. } => false,
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {

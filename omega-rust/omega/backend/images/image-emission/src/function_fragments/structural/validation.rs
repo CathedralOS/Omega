@@ -334,7 +334,10 @@ pub(in crate::function_fragments) fn validate_settlements(
             let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(expected) =
                 &located.settlement
             else {
-                byte_output::validate(source, placed.machine, located, actual)?;
+                match located.settlement {
+                    selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. } => process_exit::validate(source, placed.machine, located, actual)?,
+                    _ => byte_output::validate(source, placed.machine, located, actual)?,
+                }
                 continue;
             };
             let row = &actual.settlement;
@@ -421,6 +424,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
         let expected_byte_count = if matches!(
             located.settlement,
             selected_instructions::SelectedBoundarySettlementPayload::HostedWriteByteI32 { .. }
+                | selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. }
         ) {
             let block = function
                 .blocks
@@ -430,6 +434,15 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
             let instruction = block
                 .instructions
                 .get(located.instruction_index as usize)
+                .or(match &block.terminator {
+                    selected_instructions::SelectedTerminator::HostedExitProcess {
+                        instruction,
+                        ..
+                    } if located.instruction_index as usize == block.instructions.len() => {
+                        Some(instruction)
+                    }
+                    _ => None,
+                })
                 .ok_or_else(invalid)?;
             fragment
                 .blocks
@@ -486,6 +499,9 @@ fn validate_settlement_position(
         Some(instruction) => instruction.id,
         None if position == block.instructions.len() => match &block.terminator {
             selected_instructions::SelectedTerminator::Return { instruction, .. }
+            | selected_instructions::SelectedTerminator::HostedExitProcess {
+                instruction, ..
+            }
             | selected_instructions::SelectedTerminator::Jump { instruction, .. }
             | selected_instructions::SelectedTerminator::ConditionalBranch {
                 instruction, ..

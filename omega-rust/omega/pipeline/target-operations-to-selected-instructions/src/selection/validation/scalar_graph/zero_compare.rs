@@ -41,7 +41,8 @@ pub(super) fn folded_zero<'a>(
                 continue;
             }
             let uses = match &instruction.kind {
-                LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. } => {
+                LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
+                | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => {
                     *source == definition.value
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore { value, .. }

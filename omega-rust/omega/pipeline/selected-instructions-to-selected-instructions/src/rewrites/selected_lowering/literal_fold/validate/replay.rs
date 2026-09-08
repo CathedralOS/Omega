@@ -206,7 +206,8 @@ fn validate_dense_identifiers(
                     | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                     | SelectedTerminator::Jump { instruction, .. }
-                    | SelectedTerminator::Return { instruction, .. } => instruction.id.0,
+                    | SelectedTerminator::Return { instruction, .. }
+                    | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
                 }))
         })
         .collect::<Vec<_>>();
@@ -387,7 +388,9 @@ fn redensify(
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. } => Vec::new(),
+            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+                Vec::new()
+            }
         };
         for successor in successors {
             for binding in &mut successor.structural_bindings {
@@ -415,7 +418,8 @@ fn redensify(
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. } => {
+            | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::HostedExitProcess { instruction, .. } => {
                 lower_selected_instruction(
                     function_index,
                     instruction,

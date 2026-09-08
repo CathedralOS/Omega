@@ -118,19 +118,12 @@ pub(crate) fn validate(
             }
             Ok(())
         }
-        kind => validate_baseline(
-            architecture,
-            selected.id,
-            kind,
-            machine,
-            physical,
-            &row.state,
-        ),
+        kind => validate_baseline(target, selected.id, kind, machine, physical, &row.state),
     }
 }
 
 fn validate_baseline(
-    architecture: Architecture,
+    target: NativeTarget,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
@@ -141,15 +134,26 @@ fn validate_baseline(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
     let views = operand_views(machine);
-    let decoded = match architecture {
+    let decoded = match target.architecture {
         Architecture::X86_64 => {
-            let decoded = validate_x86_64_selected_form_encoding(
-                physical,
-                kind,
-                machine.alternative.key,
-                &views,
-                bytes,
-            )
+            let decoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
+                isa_x86_64::validate_x86_64_selected_hosted_exit_process_form(
+                    target,
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    bytes,
+                )
+            } else {
+                validate_x86_64_selected_form_encoding(
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    bytes,
+                )
+            }
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
             decoded_footprint(
                 &decoded.footprint().register_reads,
@@ -158,13 +162,24 @@ fn validate_baseline(
             )
         }
         Architecture::Aarch64 => {
-            let decoded = validate_aarch64_selected_form_encoding(
-                physical,
-                kind,
-                machine.alternative.key,
-                &views,
-                bytes,
-            )
+            let decoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
+                isa_aarch64::validate_aarch64_selected_hosted_exit_process_form(
+                    target,
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    bytes,
+                )
+            } else {
+                validate_aarch64_selected_form_encoding(
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &views,
+                    bytes,
+                )
+            }
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
             decoded_footprint(
                 &decoded.footprint().register_reads,

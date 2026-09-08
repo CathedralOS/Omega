@@ -2,6 +2,29 @@
 use super::*;
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 
+/// Provider roots are specialization witnesses, not literal storage or ABI inputs.
+/// The enclosing unit custody check independently validates their exact field,
+/// boundary roster, and service authority. Keep this separate from `roster` so
+/// metadata alone never manufactures a runtime structural contract.
+pub(super) fn provider_metadata_roster(function: &PsiOptimizationFunction) -> bool {
+    !function.structural_places.is_empty()
+        && function.declared_places.is_empty()
+        && function.structural_places.iter().all(|place| {
+            matches!(place.kind, StructuralPlaceKind::ProviderAttachment { attachment, .. }
+                if function.attachment == Some(attachment))
+        })
+        && !function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                matches!(
+                    node.operation,
+                    AbstractOperation::EstablishByteSequenceLiteral { .. }
+                )
+            })
+}
+
 pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
     if function.structural_places.is_empty() {
         return function.declared_places.is_empty()

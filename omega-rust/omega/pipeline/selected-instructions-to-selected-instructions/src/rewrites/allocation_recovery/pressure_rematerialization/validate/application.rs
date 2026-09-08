@@ -76,7 +76,8 @@ pub(super) fn replay(
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. } => instruction,
+            | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         };
         if terminator.id == rewrite_row.instruction {
             rewrite(
@@ -118,7 +119,8 @@ pub(super) fn replay(
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. } => instruction,
+            | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         };
         if terminator.id != first.instruction {
             return Err(PressureRematerializationError::DecisionMismatch { function: index });

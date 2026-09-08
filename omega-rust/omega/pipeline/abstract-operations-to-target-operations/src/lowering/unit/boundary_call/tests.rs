@@ -1,6 +1,7 @@
 //! Focused normalized foreign-scalar boundary-call lowering tests.
 
 use super::*;
+use calling_conventions::MachineRegister;
 
 fn declaration(
     boundary: BoundaryMachineId,

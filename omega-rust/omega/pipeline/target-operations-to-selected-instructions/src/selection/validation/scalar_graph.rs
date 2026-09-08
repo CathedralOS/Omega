@@ -10,6 +10,7 @@ use semantic_vocabulary::IntegerValue;
 
 mod byte_output;
 mod control;
+mod process_exit;
 mod register_entry;
 mod scalar_call;
 mod scalar_stack;
@@ -102,6 +103,15 @@ pub(in crate::selection) fn validate(
             replay.block_cursor = 0;
         }
         for (operation_index, operation) in source_block.instructions.iter().enumerate() {
+            if matches!(
+                operation.kind,
+                LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+            ) {
+                if operation_index + 1 != source_block.instructions.len() {
+                    return Err(invalid());
+                }
+                continue;
+            }
             if byte_output::validate(operation, &mut replay)? {
                 continue;
             }
@@ -314,7 +324,8 @@ pub(in crate::selection) fn validate(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
+                LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+                | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)

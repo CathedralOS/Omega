@@ -31,7 +31,8 @@ impl LegalizedScalarFunction {
                 .instructions
                 .iter()
                 .any(|instruction| match &instruction.kind {
-                    LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. } => *source == value,
+                    LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
+                    | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
                     LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
@@ -103,6 +104,11 @@ pub enum LegalizedScalarInstructionKind {
     /// Exact admitted hosted byte-output boundary, with its original i32 SSA input.
     /// The receiving target catalog owns syscall realization and failure behavior.
     HostedWriteByteI32 {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        source: ValueId,
+    },
+    /// Terminates the process; the following Unit return is nominal source custody only.
+    HostedExitProcessI32 {
         boundary: semantic_vocabulary::BoundaryMachineId,
         source: ValueId,
     },

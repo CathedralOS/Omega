@@ -173,21 +173,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   classification succeed; fixture acceptance does not replace the CLI's package review.
   Checking-only sample probes remain unaccepted, and stale-target bindings reject.
   macOS input still needs its provider definition and native realization; do not
-  substitute Linux or interpreter output. Shared `HostedExitProcessI32` catalog,
-  target encoding and object/image/installation replay are available, but source
-  exit still needs selected nonreturning exit-or-trap control. The existing
-  `linux_console_exit_catalog_settlement_emits_elf` canary fails on baseline
-  `f77b65a6a0` with `Selection(Legalization(UnsupportedSourceShape { function: 0 }))`:
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/header.rs`
-  cannot consume the isolated `ExitProcessI32` target operation, and composed Unit
-  exit operands remain constant-only. Reuse ordinary Unit scalar custody for exact
-  runtime `i32` inputs, retaining provider/target/source identities and nominal-edge
-  accounting. Do not encode process exit as ordinary return or fallthrough.
-  Acceptance: restore that canary and exercise source-produced runtime exit codes
-  on matching hosts. The physical regression floor is
-  `cargo nextest run -p image-emission --test artifacts hosted_exit_process
-  --no-fail-fast --no-tests fail`; it executes emitted Mach-O images on macOS
-  and replays Linux images, not the source-to-selected route.
+  substitute Linux or interpreter output.
   Natural slice-decrease graphs use ordinary verified native admission, retaining
   their grouped proofs and exact transfers. Downstream source inspection also
   identifies countdown-only cycle replay in

@@ -84,6 +84,15 @@ pub(super) fn produce(
             push(SemanticCodeSite::Operation(*operation), offset, length)?;
         }
         match &instruction.control {
+            Control::HostedExitProcess {
+                nominal_return_edge,
+            } => {
+                push(
+                    SemanticCodeSite::Edge(*nominal_return_edge),
+                    offset.checked_add(length).ok_or(Error::Overflow)?,
+                    0,
+                )?;
+            }
             Control::Return { psi_return_edge } => {
                 push(SemanticCodeSite::Edge(*psi_return_edge), offset, length)?
             }
@@ -203,6 +212,9 @@ pub(super) fn validate(
             }
         }
         let edges: Vec<_> = match &instruction.control {
+            Control::HostedExitProcess {
+                nominal_return_edge,
+            } => vec![*nominal_return_edge],
             Control::Return { psi_return_edge } => vec![*psi_return_edge],
             Control::Jump { successor } => {
                 if successor.role == SelectedSuccessorRole::Semantic {
@@ -252,6 +264,16 @@ fn supports(
             ordinary && instruction.provenance.operations.contains(&operation)
         }
         SemanticCodeSite::Edge(edge) => match &instruction.control {
+            Control::HostedExitProcess {
+                nominal_return_edge,
+            } => {
+                edge == *nominal_return_edge
+                    && length == 0
+                    && instruction
+                        .offset
+                        .checked_add(instruction.bytes.len() as u64)
+                        == u64::try_from(offset).ok()
+            }
             Control::Return { psi_return_edge } => ordinary && edge == *psi_return_edge,
             Control::Jump { successor } => {
                 successor.role == SelectedSuccessorRole::Semantic

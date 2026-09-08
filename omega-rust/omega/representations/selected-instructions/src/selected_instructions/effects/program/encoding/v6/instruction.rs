@@ -21,6 +21,7 @@ pub(super) fn decode_instruction(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
+        3 => MachineTrapBehavior::HostedExitReturnedV1,
         2 => MachineTrapBehavior::HostedWriteFailureV1,
         0 => MachineTrapBehavior::NeverV1,
         1 if allow_scalar_call => MachineTrapBehavior::MayArchitecturalFaultV1,
@@ -153,6 +154,7 @@ fn decode_kind(
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
+        31 => SelectedInstructionKind::HostedExitProcessI32,
         7 => SelectedInstructionKind::ReturnI64,
         8 => SelectedInstructionKind::ExactSubtractI64Immediate {
             immediate: decode_integer(cursor)?,
@@ -287,6 +289,7 @@ fn decode_alternative_for_version(
         29 => MachineAlternativeFamily::BitsToFloat64,
         15 => MachineAlternativeFamily::ZeroExtendU8,
         20 => MachineAlternativeFamily::ZeroExtendU32,
+        31 => MachineAlternativeFamily::HostedExitProcessI32,
         23 => MachineAlternativeFamily::HostedWriteByteI32,
         22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
@@ -428,12 +431,14 @@ fn decode_encoded_effects(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
+        3 => MachineEncodedTrapBehavior::HostedExitReturnedV1,
         2 => MachineEncodedTrapBehavior::HostedWriteFailureV1,
         0 => MachineEncodedTrapBehavior::NeverV1,
         1 => MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let control = match cursor.byte()? {
+        7 => MachineEncodedControlEffect::HostedExitOrTrapV1,
         6 => MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
         0 => MachineEncodedControlEffect::FallThroughV1,
         1 => MachineEncodedControlEffect::ConditionalRelativeBranchV1,

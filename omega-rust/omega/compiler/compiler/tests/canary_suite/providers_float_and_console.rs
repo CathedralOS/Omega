@@ -6,6 +6,9 @@ mod console_writer;
 #[path = "providers_float_and_console/hosted_byte.rs"]
 mod hosted_byte;
 
+#[path = "providers_float_and_console/hosted_exit.rs"]
+mod hosted_exit;
+
 #[path = "../fixture_rosters/providers_float_and_console.rs"]
 pub(super) mod fixture_roster;
 
@@ -1901,7 +1904,7 @@ fn hosted_console_compiler_intrinsic_review_identities_are_exact() {
 }
 
 #[test]
-fn linux_console_exit_catalog_settlement_emits_elf() {
+fn hosted_console_exit_catalog_settlement_emits_and_executes_native_image() {
     use native_realization as native;
 
     fn replay_parts(parts: &native::NativeArtifactParts) -> native::NativeArtifactParts {
@@ -1940,7 +1943,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
     }
 
     let canary = pass_canary(fixture_roster::ADAPTER_SATISFIES_COMPILE);
-    for target in ["linux_x86_64", "linux_arm64"] {
+    for target in ["linux_x86_64", "linux_arm64", "macos_arm64"] {
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
             .expect("Console permission preflight should reach checked custody");
         let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
@@ -1977,15 +1980,21 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             permission_policy,
         )
             .unwrap_or_else(|diagnostics| {
-                panic!("exact Linux Console exit catalog row should compile for {target}: {diagnostics:#?}")
+                panic!("exact hosted Console exit catalog row should compile for {target}: {diagnostics:#?}")
             });
         let artifact = compilation
             .retained_native_artifact()
             .expect("NativeArtifact compilation should retain its exact product");
+        let expected_magic: &[u8] = if target == "macos_arm64" {
+            &[0xcf, 0xfa, 0xed, 0xfe]
+        } else {
+            b"\x7fELF"
+        };
         assert!(
-            artifact.image().output().bytes.starts_with(b"\x7fELF"),
-            "selected Linux Console exit settlement must retain an ELF image for {target}",
+            artifact.image().output().bytes.starts_with(expected_magic),
+            "selected hosted Console exit must retain the exact target image for {target}"
         );
+        hosted_exit::assert_matching_host_exit(target, &artifact.image().output().bytes, 70);
         let [settlement] = artifact.image().boundary_settlements() else {
             panic!("exactly one Console exit boundary settlement for {target}")
         };
@@ -2022,9 +2031,12 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         let evidence = artifact
             .physical_evidence()
             .unwrap_or_else(|| panic!("{target} exit_group must retain complete D32 evidence"));
-        assert_eq!(
-            artifact.physical_evidence_scope(),
-            native::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
+        assert!(
+            matches!(
+                artifact.physical_evidence_scope(),
+                native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+            ),
+            "selected exit retains the validated source-to-physical projection",
         );
         assert!(
             artifact
@@ -2190,7 +2202,10 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         ));
         assert!(native::NativeArtifact::from_replayed_parts(padded).is_err());
     }
+}
 
+#[test]
+fn checked_physical_terminal_role_remains_explicit() {
     let port_canary = pass_canary(fixture_roster::ASM_PORT_OUT_FINAL_VALIDATION);
     let port_diagnostics =
         compile_rooted_backend_canary_without_output_for_target(&port_canary, "linux_x86_64")
@@ -2199,7 +2214,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         port_diagnostics.iter().any(|diagnostic| diagnostic
             .message
             .contains("checked physical terminal operation unsupported")),
-        "the bounded current-role review must fail closed on checked physical leaves",
+        "the bounded current-role review must fail closed on checked physical leaves: {port_diagnostics:#?}",
     );
 }
 

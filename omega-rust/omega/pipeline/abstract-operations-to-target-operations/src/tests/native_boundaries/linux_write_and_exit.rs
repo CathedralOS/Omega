@@ -171,9 +171,10 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
             &body.operations[3],
             TargetUnitOperation::BoundarySettlement {
                 realization: target_operations::BoundaryRealization::HostedExitProcessI32(_),
-                scalar_arguments,
+                runtime_scalar_arguments,
                 ..
-            } if scalar_arguments[0].immediate == IntegerValue::Signed(37)
+            } if matches!(runtime_scalar_arguments[0].source,
+                target_operations::TargetUnitScalarArgumentSource::IntegerImmediate { value: IntegerValue::Signed(37), .. })
         ));
     }
     assert!(matches!(

@@ -19,6 +19,8 @@ mod custody;
 pub(super) use custody::validate_unit_custody;
 mod byte_views;
 mod header;
+mod hosted_scalar;
+pub(super) use hosted_scalar::hosted_execution;
 mod literals;
 mod ranked;
 pub(super) mod structural_call;

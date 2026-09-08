@@ -1924,6 +1924,16 @@ fn build_object_artifact_with_x86_feature_profile(
                         && function.scalar_stack.is_none()
                 }
                 BoundaryRealization::HostedExitProcessI32(_) => {
+                    if settlement.runtime_scalar_arguments.iter().any(|argument| matches!(argument.source, machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. })) {
+                        crate::runtime_scalar_custody::process_exit::bytes_are_exact(plan.target, settlement, &function.bytes)
+                            && function.scalar_stack.is_none()
+                            && settlement.operation_ordinal.checked_add(1).is_some_and(|ordinal| function.semantic_code_attribution.iter().filter(|row| {
+                                matches!(row.site, SemanticCodeSite::Edge(_))
+                                    && row.operation_ordinal == ordinal
+                                    && row.byte_count == 0
+                                    && settlement.code_offset.checked_add(settlement.byte_count) == Some(row.code_offset)
+                            }).count() == 1)
+                    } else {
                     let [argument] = settlement.scalar_arguments.as_slice() else {
                         return Err(ObjectError::BoundaryRealizationMismatch {
                             machine: function.machine,
@@ -2001,6 +2011,7 @@ fn build_object_artifact_with_x86_feature_profile(
                         && settlement.native_result.is_unit()
                         && function.scalar_stack.is_none()
                         && exact_nominal_tail
+                    }
                 }
                 BoundaryRealization::HostedWriteByteI32(_) => {
                     hosted_write_byte_custody_is_exact(
@@ -3949,6 +3960,7 @@ fn validate_foreign_scalar_source(
     };
     let exact_sources = match argument.source {
         machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
         | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. }
         | machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
             return Err(invalid());
@@ -4014,6 +4026,7 @@ fn expected_foreign_scalar_argument_bytes(
     let mut bytes = Vec::new();
     match argument.source {
         machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
         | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. }
         | machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
             return None;

@@ -31,6 +31,7 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
+        MachineAlternativeFamily::HostedExitProcessI32 => 31,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,
@@ -201,10 +202,12 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     }
     bytes.push(match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     match effects.control {
+        MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.push(7),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.push(6),
         MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),

@@ -171,6 +171,11 @@ pub struct SelectedBoundarySettlement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedBoundarySettlementPayload {
+    HostedExitProcessI32 {
+        operation: OperationId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        source: semantic_vocabulary::ValueId,
+    },
     ClaimCompletion(legalized_operations::LegalizedBoundarySettlement),
     HostedWriteByteI32 {
         operation: OperationId,
@@ -183,7 +188,8 @@ impl SelectedBoundarySettlementPayload {
     pub fn operation(&self) -> OperationId {
         match self {
             Self::ClaimCompletion(settlement) => settlement.operation,
-            Self::HostedWriteByteI32 { operation, .. } => *operation,
+            Self::HostedWriteByteI32 { operation, .. }
+            | Self::HostedExitProcessI32 { operation, .. } => *operation,
         }
     }
 
@@ -193,6 +199,16 @@ impl SelectedBoundarySettlementPayload {
             Self::ClaimCompletion(settlement) => {
                 bytes.push(0);
                 bytes.extend_from_slice(&settlement.canonical_bytes());
+            }
+            Self::HostedExitProcessI32 {
+                operation,
+                boundary,
+                source,
+            } => {
+                bytes.push(2);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                bytes.extend_from_slice(&source.get().to_le_bytes());
             }
             Self::HostedWriteByteI32 {
                 operation,
