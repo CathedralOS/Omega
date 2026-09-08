@@ -43,6 +43,25 @@ pub trait BuildTimeSelectionAuthority: Send + Sync {
     fn package_label(&self, identity: semantic_vocabulary::PackageKeyIdentity) -> String;
 }
 
+/// Check the existing declaration-selection gate for a call-free expression probe.
+pub(crate) fn require_const_expression_selection(
+    program: &TypedTrees,
+    machine: &Machine,
+    source: source::SourceSpan,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
+) -> Result<(), String> {
+    match selection_authority_violation(
+        &[],
+        program,
+        machine,
+        Some(BuildTimeInvocationCustody::Source(source)),
+        authority,
+    ) {
+        Some(reason) => Err(reason),
+        None => Ok(()),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildTimeInvocationCustody {
     Source(source::SourceSpan),

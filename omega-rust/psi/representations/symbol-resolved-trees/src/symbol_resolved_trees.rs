@@ -436,6 +436,21 @@ impl SymbolResolvedTrees {
             .record_late_bound(source_span, exposure, kind, late_binding)
     }
 
+    /// Finalize a retained occurrence whose checked meaning is compiler-owned.
+    pub fn finalize_intrinsic_authored_declaration_selection(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        expected_binding: AuthoredDeclarationSelectionLateBinding,
+        intrinsic: language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
+    ) -> Result<
+        (),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .finalize_intrinsic(occurrence, expected_binding, intrinsic)
+    }
+
     pub fn record_late_bound_authored_declaration_selection_in_partition(
         &mut self,
         source_span: SourceSpan,
@@ -842,6 +857,67 @@ impl DerefMut for SymbolResolvedTrees {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn intrinsic_finalization_preserves_occurrence_state_checks() {
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionExposure as Exposure,
+            AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+            AuthoredDeclarationSelectionKind as Kind,
+            AuthoredDeclarationSelectionLateBinding as Binding,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        let mut trees = super::SymbolResolvedTrees::default();
+        let occurrence = trees
+            .record_late_bound_authored_declaration_selection(
+                Default::default(),
+                Exposure::PrivateImplementation,
+                Kind::Operator,
+                Binding::CheckedOperator,
+            )
+            .expect("record operator");
+        assert!(
+            trees
+                .finalize_intrinsic_authored_declaration_selection(
+                    occurrence,
+                    Binding::CheckedCall,
+                    Intrinsic::BuiltinOperator
+                )
+                .is_err()
+        );
+        assert_eq!(
+            trees
+                .authored_declaration_selections()
+                .get(occurrence)
+                .expect("retained occurrence")
+                .target(),
+            Target::LateBound(Binding::CheckedOperator)
+        );
+        trees
+            .finalize_intrinsic_authored_declaration_selection(
+                occurrence,
+                Binding::CheckedOperator,
+                Intrinsic::BuiltinOperator,
+            )
+            .expect("finalize checked builtin");
+        assert_eq!(
+            trees
+                .authored_declaration_selections()
+                .get(occurrence)
+                .expect("retained occurrence")
+                .target(),
+            Target::Intrinsic(Intrinsic::BuiltinOperator)
+        );
+        assert!(
+            trees
+                .finalize_intrinsic_authored_declaration_selection(
+                    occurrence,
+                    Binding::CheckedOperator,
+                    Intrinsic::BuiltinOperator
+                )
+                .is_err()
+        );
+    }
+
     use crate::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         AuthoredSelectionExtensionRebaseError, AuthoredSelectionOccurrenceStore,

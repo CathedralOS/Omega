@@ -15,6 +15,7 @@ pub(crate) fn lower_data_definition(
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
     let prior_origins = lowerer.derived_const_argument_origins.len();
+    let prior_operators = lowerer.derived_const_argument_builtin_operators.len();
     if let Some(application) = data_definition.generic_instance {
         retain_derived_const_argument_origins(lowerer, syntax_trees, application);
     }
@@ -23,6 +24,9 @@ pub(crate) fn lower_data_definition(
     lowerer
         .derived_const_argument_origins
         .truncate(prior_origins);
+    lowerer
+        .derived_const_argument_builtin_operators
+        .truncate(prior_operators);
     result
 }
 
@@ -43,8 +47,15 @@ fn retain_derived_const_argument_origins(
         }
         visited.push(handle);
         let table = &syntax_trees.type_references;
-        if let Some(origin) = table.const_argument_origin(handle) {
-            lowerer.derived_const_argument_origins.push(origin.clone());
+        if let Some(normalization) = table.const_argument_normalization(handle) {
+            lowerer
+                .derived_const_argument_origins
+                .extend_from_slice(table.const_argument_origins(normalization.selections));
+            lowerer
+                .derived_const_argument_builtin_operators
+                .extend_from_slice(
+                    table.const_argument_builtin_operators(normalization.builtin_operators),
+                );
         }
         let authored = table.generic_application_origin(handle);
         if authored.is_valid() {

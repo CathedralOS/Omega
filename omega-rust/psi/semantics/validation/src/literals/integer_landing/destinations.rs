@@ -118,15 +118,10 @@ fn append_integer_landing_warning(
     if primitive.is_some_and(|primitive| land_integer_value(&integer, primitive).is_none()) {
         return;
     }
-    let Some(fractional) =
-        anonymous_numeric_value(program, evaluated.fractional_origin, &mut builtin)
-    else {
+    let Some(warning) = integer_landing_warning(program, &evaluated, &integer, &mut builtin) else {
         return;
     };
-    warnings.push(Diagnostic::warning(format!(
-        "anonymous arithmetic preserves the exact fractional intermediate `{}` before landing as integer `{integer}`; type an operand if typed integer division was intended",
-        fractional.value,
-    )).with_source_span(program.expression_table.source_span(evaluated.fractional_origin)));
+    warnings.push(warning);
     warned.push(expression);
 }
 

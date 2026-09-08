@@ -10,10 +10,12 @@ pub struct TypeReferenceTable {
     type_reference_handles: Arena<TypeReferenceHandle>,
     constraints: Arena<TypeConstraintNode>,
     generic_application_origins: Arena<GenericApplicationOrigin>,
-    const_argument_origins: Arena<RetainedConstArgumentOrigin>,
+    const_argument_normalizations: Arena<RetainedConstArgumentNormalization>,
+    const_argument_origins: Arena<ConstArgumentOrigin>,
+    const_argument_builtin_operators: Arena<source::SourceSpan>,
 }
 
-/// Exact source custody captured by resolution before a named constant index
+/// Exact source custody captured before a selected constant index operand
 /// becomes a canonical value. These coordinates join to the retained declaration;
 /// they are not exported semantic identity.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -21,13 +23,24 @@ pub struct ConstArgumentOrigin {
     pub reference: source::SourceSpan,
     pub declaration: source::SourceSpan,
     pub initializer: source::SourceSpan,
+    /// The selected declaration's value, independently of the argument result.
     pub canonical_value_encoding: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-struct RetainedConstArgumentOrigin {
+struct RetainedConstArgumentNormalization {
     argument: TypeReferenceHandle,
-    origin: ConstArgumentOrigin,
+    normalization: ConstArgumentNormalization,
+}
+
+/// One completed canonical result and the exact selected leaves it consumed.
+/// The selections retain authority custody, not canonical value identity.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConstArgumentNormalization {
+    pub reference: source::SourceSpan,
+    pub canonical_result_encoding: String,
+    pub selections: HandleSpan<ConstArgumentOrigin>,
+    pub builtin_operators: HandleSpan<source::SourceSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -43,7 +56,9 @@ impl TypeReferenceTable {
             type_reference_handles: Arena::new(),
             constraints: Arena::new(),
             generic_application_origins: Arena::new(),
+            const_argument_normalizations: Arena::new(),
             const_argument_origins: Arena::new(),
+            const_argument_builtin_operators: Arena::new(),
         }
     }
 
@@ -51,24 +66,56 @@ impl TypeReferenceTable {
         self.type_references.insert(type_reference)
     }
 
-    pub fn const_argument_origin(
+    pub fn const_argument_normalization(
         &self,
         argument: TypeReferenceHandle,
-    ) -> Option<&ConstArgumentOrigin> {
-        self.const_argument_origins
+    ) -> Option<&ConstArgumentNormalization> {
+        self.const_argument_normalizations
             .iter()
-            .find_map(|(_, retained)| (retained.argument == argument).then_some(&retained.origin))
+            .find_map(|(_, retained)| {
+                (retained.argument == argument).then_some(&retained.normalization)
+            })
     }
 
-    pub fn retain_const_argument_origin(
+    pub fn const_argument_origins(
+        &self,
+        selections: HandleSpan<ConstArgumentOrigin>,
+    ) -> &[ConstArgumentOrigin] {
+        self.const_argument_origins.span_or_empty(selections)
+    }
+
+    pub fn retain_const_argument_normalization(
         &mut self,
         argument: TypeReferenceHandle,
-        origin: ConstArgumentOrigin,
+        reference: source::SourceSpan,
+        canonical_result_encoding: String,
+        origins: impl IntoIterator<Item = ConstArgumentOrigin>,
+        builtin_operators: impl IntoIterator<Item = source::SourceSpan>,
     ) {
         assert!(argument.is_valid());
-        assert!(self.const_argument_origin(argument).is_none());
-        self.const_argument_origins
-            .insert(RetainedConstArgumentOrigin { argument, origin });
+        assert!(self.const_argument_normalization(argument).is_none());
+        let selections = self.const_argument_origins.insert_many(origins);
+        let builtin_operators = self
+            .const_argument_builtin_operators
+            .insert_many(builtin_operators);
+        self.const_argument_normalizations
+            .insert(RetainedConstArgumentNormalization {
+                argument,
+                normalization: ConstArgumentNormalization {
+                    reference,
+                    canonical_result_encoding,
+                    selections,
+                    builtin_operators,
+                },
+            });
+    }
+
+    pub fn const_argument_builtin_operators(
+        &self,
+        operators: HandleSpan<source::SourceSpan>,
+    ) -> &[source::SourceSpan] {
+        self.const_argument_builtin_operators
+            .span_or_empty(operators)
     }
 
     /// The authored application replaced at this exact occurrence. Its child

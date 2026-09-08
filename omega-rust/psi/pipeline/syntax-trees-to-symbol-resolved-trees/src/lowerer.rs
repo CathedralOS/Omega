@@ -267,6 +267,7 @@ pub(crate) struct Lowerer {
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
     pub(crate) pending_const_argument_selections: Vec<PendingConstArgumentSelection>,
     pub(crate) derived_const_argument_origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
+    pub(crate) derived_const_argument_builtin_operators: Vec<source::SourceSpan>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
     /// Scalar initializer handles retained only until namespace-aware substitution.
     pub(crate) pending_const_values: Vec<(usize, ExpressionHandle)>,
@@ -435,6 +436,7 @@ impl Lowerer {
             current_authored_expression_exposure: None,
             pending_const_argument_selections: Vec::new(),
             derived_const_argument_origins: Vec::new(),
+            derived_const_argument_builtin_operators: Vec::new(),
             current_compiler_selection_partition: None,
             sources,
             source_scoped_top_level_bindings,

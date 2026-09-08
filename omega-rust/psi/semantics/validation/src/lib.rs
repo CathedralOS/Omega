@@ -140,6 +140,7 @@ pub use float_projection_bindings::{
 };
 pub use literals::has_anonymous_operator_meaning;
 pub use literals::land_anonymous_integer_expression;
+pub use literals::land_anonymous_integer_expression_with_warning;
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.

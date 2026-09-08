@@ -1,0 +1,339 @@
+//! Exact integer evaluation after declaration and operator selection.
+
+use diagnostics::Diagnostic;
+use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
+use numerics::{
+    arithmetic::ArithmeticDomain,
+    literals::{IntegerLiteral, LandedIntegerType},
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use typed_trees::{
+    TypedTrees,
+    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
+    machine::Machine,
+    state::State,
+    types::PrimitiveType,
+};
+
+#[derive(Clone, Copy)]
+enum Value {
+    Anonymous(ExpressionHandle),
+    Landed(LandedIntegerType, IntegerValue),
+}
+
+/// Only a wholly anonymous final value uses `destination`. A previously
+/// landed result retains its carrier for the caller's destination check.
+pub(super) fn evaluate(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    enum Step {
+        Enter(ExpressionHandle),
+        Binary(ExpressionHandle, BinaryOperator),
+    }
+    let mut pending = vec![Step::Enter(expression)];
+    let mut active = Vec::new();
+    let mut values = Vec::new();
+    let mut warnings = Vec::new();
+    while let Some(step) = pending.pop() {
+        match step {
+            Step::Enter(expression) => {
+                if !program.expression_table.expression_is_valid(expression)
+                    || active.contains(&expression)
+                {
+                    return Err("invalid or cyclic constant expression".into());
+                }
+                match program.expression_table.expression(expression) {
+                    ExpressionNode::Integer(literal) if literal.landing().is_some() => {
+                        values.push(landed_literal(literal)?);
+                    }
+                    ExpressionNode::Integer(_) => values.push(Value::Anonymous(expression)),
+                    ExpressionNode::Float(literal) if literal.landing().is_none() => {
+                        values.push(Value::Anonymous(expression));
+                    }
+                    ExpressionNode::Binary(binary) => {
+                        if !validation::has_builtin_binary_expression_meaning(
+                            program,
+                            machine,
+                            Some(state),
+                            expression,
+                        ) {
+                            return Err(
+                                "constant expression has no selected builtin operator meaning"
+                                    .into(),
+                            );
+                        }
+                        active.push(expression);
+                        pending.push(Step::Binary(expression, binary.operator));
+                        pending.push(Step::Enter(binary.right));
+                        pending.push(Step::Enter(binary.left));
+                    }
+                    _ => return Err("unsupported node in exact integer constant expression".into()),
+                }
+            }
+            Step::Binary(expression, operator) => {
+                if active.pop() != Some(expression) {
+                    return Err("invalid constant expression traversal".into());
+                }
+                let right = values.pop().ok_or("missing right constant operand")?;
+                let left = values.pop().ok_or("missing left constant operand")?;
+                let value = match (left, right) {
+                    (Value::Anonymous(_), Value::Anonymous(_)) => {
+                        if !matches!(
+                            operator,
+                            BinaryOperator::Add
+                                | BinaryOperator::Subtract
+                                | BinaryOperator::Multiply
+                                | BinaryOperator::Divide
+                        ) {
+                            return Err(
+                                "anonymous constant operation requires a selected fixed carrier"
+                                    .into(),
+                            );
+                        }
+                        Value::Anonymous(expression)
+                    }
+                    (Value::Landed(carrier, left), Value::Anonymous(right)) => {
+                        let right_destination = if matches!(
+                            operator,
+                            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                        ) {
+                            PrimitiveType::U64
+                        } else {
+                            primitive(carrier)?
+                        };
+                        let right = land_anonymous(
+                            program,
+                            machine,
+                            state,
+                            right,
+                            right_destination,
+                            &mut warnings,
+                        )?;
+                        apply(operator, Value::Landed(carrier, left), right)?
+                    }
+                    (Value::Anonymous(left), Value::Landed(carrier, right)) => {
+                        if matches!(
+                            operator,
+                            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                        ) {
+                            return Err("shift value requires a selected fixed carrier".into());
+                        }
+                        let left = land_anonymous(
+                            program,
+                            machine,
+                            state,
+                            left,
+                            primitive(carrier)?,
+                            &mut warnings,
+                        )?;
+                        apply(operator, left, Value::Landed(carrier, right))?
+                    }
+                    (left, right) => apply(operator, left, right)?,
+                };
+                values.push(value);
+            }
+        }
+    }
+    if values.len() != 1 {
+        return Err("constant expression did not produce one value".into());
+    }
+    let value = match values.pop().ok_or("missing constant expression value")? {
+        Value::Anonymous(expression) => land_anonymous(
+            program,
+            machine,
+            state,
+            expression,
+            destination,
+            &mut warnings,
+        )?,
+        value => value,
+    };
+    let Value::Landed(carrier, value) = value else {
+        return Err("constant expression has no integer landing".into());
+    };
+    let value = match value {
+        IntegerValue::Signed(value) => value,
+        IntegerValue::Unsigned(value) => i128::try_from(value)
+            .map_err(|_| "constant value exceeds canonical integer encoding")?,
+    };
+    let identity = CanonicalConstIdentity::integer(carrier.name(), value);
+    Ok((
+        CanonicalConstValue::new(identity.type_name, identity.encoding, value.to_string()),
+        warnings,
+    ))
+}
+
+fn land_anonymous(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Value, String> {
+    let (literal, warning) = validation::land_anonymous_integer_expression_with_warning(
+        program,
+        expression,
+        destination,
+        |expression| {
+            validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            )
+        },
+    )
+    .ok_or("anonymous constant expression cannot land exactly at the selected integer carrier")?;
+    warnings.extend(warning);
+    landed_literal(&literal)
+}
+
+fn landed_literal(literal: &IntegerLiteral) -> Result<Value, String> {
+    let landing = literal.landing().ok_or("missing integer landing")?;
+    if landing.domain != ArithmeticDomain::Exact {
+        return Err("constant generic arithmetic requires Exact integer policy".into());
+    }
+    let carrier = integer_type(landing.landed_type)?;
+    let value = if landing.landed_type.is_signed() {
+        IntegerValue::Signed(i128::from(
+            literal
+                .value_i64()
+                .ok_or("invalid signed constant literal")?,
+        ))
+    } else {
+        IntegerValue::Unsigned(u128::from(
+            literal
+                .value_u64()
+                .ok_or("invalid unsigned constant literal")?,
+        ))
+    };
+    if !carrier.admits(value) {
+        return Err("constant literal is outside its selected integer carrier".into());
+    }
+    Ok(Value::Landed(landing.landed_type, value))
+}
+
+fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, String> {
+    let (Value::Landed(left_carrier, left), Value::Landed(right_carrier, right)) = (left, right)
+    else {
+        return Err("integer operation requires landed operands".into());
+    };
+    let integer = integer_type(left_carrier)?;
+    let shifts = matches!(
+        operator,
+        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+    );
+    if !shifts && left_carrier != right_carrier {
+        return Err("constant operands have incompatible landed integer carriers".into());
+    }
+    let result = match operator {
+        BinaryOperator::Add => integer.exact_add(left, right),
+        BinaryOperator::Subtract => integer.exact_sub(left, right),
+        BinaryOperator::Multiply => integer.exact_mul(left, right),
+        BinaryOperator::Divide => integer.exact_div(left, right),
+        BinaryOperator::Modulo => integer.exact_rem(left, right),
+        BinaryOperator::BitwiseAnd => integer.bitwise_and(left, right),
+        BinaryOperator::BitwiseOr => integer.bitwise_or(left, right),
+        BinaryOperator::BitwiseXor => integer.bitwise_xor(left, right),
+        BinaryOperator::ShiftLeft => integer.exact_shift_left(left, integer_type(right_carrier)?, right),
+        BinaryOperator::ShiftRight => integer.exact_shift_right(left, integer_type(right_carrier)?, right),
+        _ => return Err("unsupported builtin integer constant operator".into()),
+    }.ok_or("Exact integer constant operation overflows, divides by zero, or has an invalid shift count")?;
+    Ok(Value::Landed(left_carrier, result))
+}
+
+fn integer_type(carrier: LandedIntegerType) -> Result<IntegerType, String> {
+    if carrier == LandedIntegerType::Addr {
+        return Err("address constant evaluation requires target authority".into());
+    }
+    let sign = if carrier.is_signed() {
+        IntegerSign::Signed
+    } else {
+        IntegerSign::Unsigned
+    };
+    IntegerType::new(sign, carrier.bit_width() as u16).map_err(|_| "invalid integer carrier".into())
+}
+
+fn primitive(carrier: LandedIntegerType) -> Result<PrimitiveType, String> {
+    Ok(match carrier {
+        LandedIntegerType::I8 => PrimitiveType::I8,
+        LandedIntegerType::I16 => PrimitiveType::I16,
+        LandedIntegerType::I32 => PrimitiveType::I32,
+        LandedIntegerType::I64 => PrimitiveType::I64,
+        LandedIntegerType::U8 => PrimitiveType::U8,
+        LandedIntegerType::U16 => PrimitiveType::U16,
+        LandedIntegerType::U32 => PrimitiveType::U32,
+        LandedIntegerType::U64 => PrimitiveType::U64,
+        LandedIntegerType::Addr => {
+            return Err("address constant evaluation requires target authority".into());
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Value, apply, landed_literal};
+    use numerics::{
+        arithmetic::ArithmeticDomain,
+        literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
+    };
+    use semantic_vocabulary::IntegerValue;
+    use typed_trees::expression::BinaryOperator;
+
+    #[test]
+    fn exact_nodes_reject_overflow_before_later_cancellation() {
+        let maximum = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(255));
+        let one = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(1));
+        assert!(apply(BinaryOperator::Add, maximum, one).is_err());
+    }
+
+    #[test]
+    fn remainder_rejects_signed_minimum_divided_by_negative_one() {
+        let minimum = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-128));
+        let negative_one = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-1));
+        assert!(apply(BinaryOperator::Modulo, minimum, negative_one).is_err());
+    }
+
+    #[test]
+    fn shift_uses_value_width_and_independent_count_carrier() {
+        let one = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(1));
+        let invalid_count = Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(8));
+        assert!(apply(BinaryOperator::ShiftLeft, one, invalid_count).is_err());
+        let count = Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(7));
+        assert!(matches!(
+            apply(BinaryOperator::ShiftLeft, one, count),
+            Ok(Value::Landed(
+                LandedIntegerType::U8,
+                IntegerValue::Unsigned(128)
+            ))
+        ));
+    }
+
+    #[test]
+    fn arithmetic_never_relands_incompatible_carriers() {
+        let left = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(1));
+        let right = Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(1));
+        assert!(apply(BinaryOperator::Add, left, right).is_err());
+    }
+
+    #[test]
+    fn unsigned_literal_preserves_values_above_signed_maximum() {
+        let literal =
+            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551615")
+                .expect("u64 maximum literal")
+                .with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U64,
+                    domain: ArithmeticDomain::Exact,
+                });
+        assert!(matches!(
+            landed_literal(&literal),
+            Ok(Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(value)))
+                if value == u128::from(u64::MAX)
+        ));
+    }
+}

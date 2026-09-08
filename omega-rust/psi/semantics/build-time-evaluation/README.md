@@ -19,6 +19,20 @@ requires declaration admission before early evaluation. The
 [selection-custody note](../../pipeline/typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
 maps that gate to exact calls, candidate sets, and authored application sites.
 
+Closed integer indices in concrete data fields and payloads use
+[typed expression probes](src/const_generic_expressions.rs) before generic data
+synthesis. The temporary probe carries original source/import custody; its
+symbols and placeholder layouts never become the published program. Exact
+unconstrained builtin integer destinations and each operator's builtin meaning
+are required. Declaration visibility and direct package selection are checked
+before arithmetic. Existing fixed-integer kernels enforce every node's carrier
+bounds; anonymous arithmetic lands once through the shared rational evaluator,
+including fractional-intermediate warnings. The canonical result is distinct
+from the arena-backed constant and operator occurrences retained at the real use.
+Machine-local scopes, open templates, authored operator execution, constrained
+destinations and address-dependent arithmetic need their own complete contexts;
+the standalone probe does not claim those forms.
+
 ## Semantic admission boundary
 
 The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)

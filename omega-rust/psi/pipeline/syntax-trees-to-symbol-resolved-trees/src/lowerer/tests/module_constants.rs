@@ -36,7 +36,13 @@ fn origin(syntax: &SyntaxTrees) -> ConstArgumentOrigin {
         .find_map(|(handle, _)| {
             syntax
                 .type_references
-                .const_argument_origin(handle)
+                .const_argument_normalization(handle)
+                .and_then(|normalization| {
+                    syntax
+                        .type_references
+                        .const_argument_origins(normalization.selections)
+                        .first()
+                })
                 .cloned()
         })
         .expect("retained constant origin")
@@ -115,7 +121,13 @@ fn synthetic_instance_exclusion_does_not_hide_independent_same_value_field_origi
         let argument = syntax.type_references.type_reference_handles(*arguments)[0];
         syntax
             .type_references
-            .const_argument_origin(argument)
+            .const_argument_normalization(argument)
+            .and_then(|normalization| {
+                syntax
+                    .type_references
+                    .const_argument_origins(normalization.selections)
+                    .first()
+            })
             .expect("constant argument custody")
             .clone()
     };
@@ -200,7 +212,7 @@ fn rewritten_constant_payload_cannot_drift_from_its_origin() {
         .filter_map(|(handle, _)| {
             syntax
                 .type_references
-                .const_argument_origin(handle)
+                .const_argument_normalization(handle)
                 .is_some()
                 .then_some(handle)
         })
@@ -225,13 +237,174 @@ fn dead_constant_argument_origins_do_not_become_authored_selections() {
     let dead = syntax
         .type_references
         .insert_named(Identifier::generated("3"));
-    syntax
-        .type_references
-        .retain_const_argument_origin(dead, ConstArgumentOrigin::default());
+    syntax.type_references.retain_const_argument_normalization(
+        dead,
+        Default::default(),
+        String::new(),
+        [ConstArgumentOrigin::default()],
+        [],
+    );
     let program =
         lower_syntax_trees(&syntax).expect("unreachable type arena nodes are not lowered");
     assert_eq!(
         program.authored_declaration_selections(),
         original.authored_declaration_selections()
     );
+}
+
+#[test]
+fn normalized_result_is_independent_of_each_selected_declaration_value() {
+    let mut syntax = SyntaxTrees::default();
+    for (source_id, text) in [
+        (SourceId(1), "pub data Buffer<const N: u64> { value: u64; }"),
+        (
+            SourceId(2),
+            "module combat; pub const SIZE: u64 = 2; data Use { first: Buffer<SIZE>; second: Buffer<SIZE>; }",
+        ),
+    ] {
+        let tokens = Lexer::new(text)
+            .tokenize()
+            .expect("tokenize repeated selection");
+        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+            .expect("parse repeated selection");
+    }
+    let syntax = crate::normalize_generic_data(syntax).expect("normalize repeated selection");
+    let mut origins = Vec::new();
+    for (handle, _) in syntax.type_references.named_nodes_from(0) {
+        if let Some(normalization) = syntax.type_references.const_argument_normalization(handle) {
+            for origin in syntax
+                .type_references
+                .const_argument_origins(normalization.selections)
+            {
+                if !origins.contains(origin) {
+                    origins.push(origin.clone());
+                }
+            }
+        }
+    }
+    assert_eq!(origins.len(), 2);
+    assert_ne!(origins[0].reference, origins[1].reference);
+    assert_eq!(origins[0].declaration, origins[1].declaration);
+    let mut table = syntax_trees::types::TypeReferenceTable::new();
+    let argument = table.insert_named(Identifier::generated("4"));
+    table.retain_const_argument_normalization(
+        argument,
+        origins[0].reference,
+        "integer3:u641:4".to_owned(),
+        origins.clone(),
+        [],
+    );
+    let normalization = table
+        .const_argument_normalization(argument)
+        .expect("completed result");
+    crate::constant::validate_normalized_const_argument(
+        table.type_reference(argument),
+        normalization,
+    )
+    .expect("result 4 is not either selected declaration's value 2");
+    let mut drifted_result = normalization.clone();
+    drifted_result.canonical_result_encoding = "integer3:u641:2".to_owned();
+    assert!(
+        crate::constant::validate_normalized_const_argument(
+            table.type_reference(argument),
+            &drifted_result
+        )
+        .is_err()
+    );
+
+    let mut program = lower_syntax_trees(&syntax).expect("resolve selected declaration");
+    let pending = table
+        .const_argument_origins(normalization.selections)
+        .iter()
+        .map(|origin| crate::lowerer::PendingConstArgumentSelection {
+            origin: origin.clone(),
+            exposure: AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        })
+        .collect::<Vec<_>>();
+    crate::constant::finalize_const_argument_selections(&mut program, &pending)
+        .expect("both occurrences retain declaration value 2 independently of result 4");
+    for origin in &origins {
+        assert!(
+            program
+                .authored_declaration_selections()
+                .iter()
+                .any(|selection| selection.source_span() == origin.reference)
+        );
+    }
+    let mut drifted_leaf = pending[0].clone();
+    drifted_leaf.origin.canonical_value_encoding = normalization.canonical_result_encoding.clone();
+    assert!(
+        crate::constant::finalize_const_argument_selections(&mut program, &[drifted_leaf]).is_err(),
+        "argument result cannot stand in for the declaration value"
+    );
+}
+
+#[test]
+fn normalized_builtin_operators_keep_occurrence_exposure_and_exact_exclusions() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+    let first = SourceSpan::new(SourceId(2), Span::new(40, 41));
+    let independent = SourceSpan::new(SourceId(2), Span::new(48, 49));
+    for exposure in [
+        AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        AuthoredDeclarationSelectionExposure::PublicInterface,
+    ] {
+        let mut syntax = SyntaxTrees::default();
+        let argument = syntax
+            .type_references
+            .insert_named(Identifier::generated("4"));
+        syntax.type_references.retain_const_argument_normalization(
+            argument,
+            SourceSpan::new(SourceId(2), Span::new(36, 50)),
+            "integer3:u641:4".to_owned(),
+            [],
+            [first, independent],
+        );
+        let mut lowerer = crate::lowerer::Lowerer::new(None, Vec::new());
+        lowerer.current_authored_expression_exposure = Some(exposure);
+        lowerer.derived_const_argument_builtin_operators.push(first);
+        crate::type_reference::lower_type_reference_handle(&mut lowerer, &syntax, argument)
+            .expect("lower completed builtin result");
+        let selections = lowerer
+            .symbol_resolved_trees
+            .authored_declaration_selections();
+        assert_eq!(selections.len(), 1);
+        let selected = selections.iter().next().expect("independent operator");
+        assert_eq!(selected.source_span(), independent);
+        assert_eq!(selected.exposure(), exposure);
+        assert_eq!(selected.kind(), Kind::Operator);
+        assert_eq!(
+            selected.target(),
+            Target::Intrinsic(Intrinsic::BuiltinOperator)
+        );
+
+        // A later real use of the copied occurrence remains visible once its
+        // synthetic derivation scope has ended.
+        lowerer.derived_const_argument_builtin_operators.clear();
+        crate::type_reference::lower_type_reference_handle(&mut lowerer, &syntax, argument)
+            .expect("lower actual occurrence");
+        assert!(
+            lowerer
+                .symbol_resolved_trees
+                .authored_declaration_selections()
+                .iter()
+                .any(|selection| selection.source_span() == first
+                    && selection.exposure() == exposure)
+        );
+
+        syntax.type_references.replace_type_reference(
+            argument,
+            TypeReferenceNode::Named(Identifier::generated("5")),
+        );
+        lowerer
+            .derived_const_argument_builtin_operators
+            .extend([first, independent]);
+        assert!(
+            crate::type_reference::lower_type_reference_handle(&mut lowerer, &syntax, argument)
+                .is_err(),
+            "synthetic exclusion must not suppress payload validation"
+        );
+    }
 }

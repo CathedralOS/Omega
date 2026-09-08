@@ -31,7 +31,8 @@ mod type_reference;
 mod wire;
 
 pub use generic_data::{
-    normalize_generic_data, normalize_generic_data_with_sources_and_top_level_bindings,
+    closed_data_const_argument_expressions, normalize_generic_data,
+    normalize_generic_data_with_sources_and_top_level_bindings,
 };
 pub use lowerer::{
     RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,

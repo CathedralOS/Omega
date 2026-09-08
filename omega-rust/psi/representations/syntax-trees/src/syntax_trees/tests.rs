@@ -29,12 +29,23 @@ fn constant_argument_origin_survives_deep_copy_and_root_extension() {
         canonical_value_encoding: "integer3:u641:2".to_owned(),
     };
     let mut source = SyntaxTrees::new(Default::default());
+    let second = crate::types::ConstArgumentOrigin {
+        reference: span(1, 48),
+        ..origin.clone()
+    };
+    let origins = [origin.clone(), second];
+    let operators = [span(1, 44), span(1, 52)];
+    let result_encoding = "integer3:u641:4";
     let argument = source
         .type_references
-        .insert_named(Identifier::generated("2"));
-    source
-        .type_references
-        .retain_const_argument_origin(argument, origin.clone());
+        .insert_named(Identifier::generated("4"));
+    source.type_references.retain_const_argument_normalization(
+        argument,
+        span(1, 40),
+        result_encoding.to_owned(),
+        origins.clone(),
+        operators,
+    );
     let arguments = source
         .type_references
         .insert_type_reference_handles([argument]);
@@ -66,11 +77,25 @@ fn constant_argument_origin_survives_deep_copy_and_root_extension() {
         .type_references
         .type_reference_handles(*arguments)[0];
     assert_ne!(copied_argument, argument);
+    let copied_normalization = destination
+        .type_references
+        .const_argument_normalization(copied_argument)
+        .expect("copied normalization");
+    assert_eq!(
+        copied_normalization.canonical_result_encoding,
+        result_encoding
+    );
     assert_eq!(
         destination
             .type_references
-            .const_argument_origin(copied_argument),
-        Some(&origin)
+            .const_argument_builtin_operators(copied_normalization.builtin_operators),
+        &operators
+    );
+    assert_eq!(
+        destination
+            .type_references
+            .const_argument_origins(copied_normalization.selections),
+        &origins
     );
 
     source.push_root_item(Item::Data(DataDefinition {
@@ -99,15 +124,35 @@ fn constant_argument_origin_survives_deep_copy_and_root_extension() {
         .type_references
         .type_reference_handles(*arguments)[0];
     assert_ne!(extended_argument, copied_argument);
+    let extended_normalization = destination
+        .type_references
+        .const_argument_normalization(extended_argument)
+        .expect("extended normalization");
+    assert_eq!(
+        extended_normalization.canonical_result_encoding,
+        result_encoding
+    );
     assert_eq!(
         destination
             .type_references
-            .const_argument_origin(extended_argument),
-        Some(&origin)
+            .const_argument_builtin_operators(extended_normalization.builtin_operators),
+        &operators
     );
     assert_eq!(
-        source.type_references.const_argument_origin(argument),
-        Some(&origin)
+        destination
+            .type_references
+            .const_argument_origins(extended_normalization.selections),
+        &origins
+    );
+    let original_normalization = source
+        .type_references
+        .const_argument_normalization(argument)
+        .expect("original normalization");
+    assert_eq!(
+        source
+            .type_references
+            .const_argument_origins(original_normalization.selections),
+        &origins
     );
 }
 
@@ -118,12 +163,20 @@ fn duplicate_constant_argument_origin_cannot_overwrite_custody() {
     let argument = syntax
         .type_references
         .insert_named(Identifier::generated("2"));
-    syntax
-        .type_references
-        .retain_const_argument_origin(argument, Default::default());
-    syntax
-        .type_references
-        .retain_const_argument_origin(argument, Default::default());
+    syntax.type_references.retain_const_argument_normalization(
+        argument,
+        Default::default(),
+        String::new(),
+        [],
+        [],
+    );
+    syntax.type_references.retain_const_argument_normalization(
+        argument,
+        Default::default(),
+        String::new(),
+        [],
+        [],
+    );
 }
 
 #[test]

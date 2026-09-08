@@ -2,6 +2,7 @@
 //! The authored expression remains intact; consumers retain the rendered value
 //! at its actual destination, not widths on the anonymous intermediate nodes.
 
+use diagnostics::Diagnostic;
 use numerics::{
     arithmetic::ArithmeticDomain,
     bignum::{BigInt, BigRational},
@@ -31,6 +32,37 @@ pub fn land_anonymous_integer_expression(
 ) -> Option<IntegerLiteral> {
     let value = anonymous_numeric_value(program, expression, &mut builtin)?;
     land_integer_value(&value.value.to_integer_exact()?, destination)
+}
+
+/// Land one selected anonymous subtree and retain its first fractional
+/// intermediate warning. Callers publish the warning only after full admission.
+pub fn land_anonymous_integer_expression_with_warning(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    mut builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Option<(IntegerLiteral, Option<Diagnostic>)> {
+    let value = anonymous_numeric_value(program, expression, &mut builtin)?;
+    let integer = value.value.to_integer_exact()?;
+    let literal = land_integer_value(&integer, destination)?;
+    let warning = integer_landing_warning(program, &value, &integer, &mut builtin);
+    Some((literal, warning))
+}
+
+fn integer_landing_warning(
+    program: &TypedTrees,
+    evaluated: &AnonymousNumericValue,
+    integer: &BigInt,
+    builtin: &mut impl FnMut(ExpressionHandle) -> bool,
+) -> Option<Diagnostic> {
+    if !evaluated.fractional_origin.is_valid() {
+        return None;
+    }
+    let fractional = anonymous_numeric_value(program, evaluated.fractional_origin, builtin)?;
+    Some(Diagnostic::warning(format!(
+        "anonymous arithmetic preserves the exact fractional intermediate `{}` before landing as integer `{integer}`; type an operand if typed integer division was intended",
+        fractional.value,
+    )).with_source_span(program.expression_table.source_span(evaluated.fractional_origin)))
 }
 
 pub(crate) fn land_integer_value(

@@ -21,9 +21,8 @@
 //! - A const may not collide with a case of its scope type: `Type::NAME` must
 //!   stay unambiguous against case-constructor paths, which substitution
 //!   would otherwise shadow.
-//! - The declared type is v0-DOCUMENTATION at the declaration; every USE is
-//!   checked by the ordinary store/narrowing machinery after substitution.
-//!   (Declaration-site conformance for unused consts joins build-time eval.)
+//! - Selected primitive numeric constants retain their declared literal landing
+//!   before typing; aggregate declaration conformance remains a separate check.
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -35,6 +34,8 @@ use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, DataMember, Item};
+
+mod carrier;
 
 /// Declaration-site checks, run when item lowering reaches the const.
 pub(crate) fn validate_const_definition(
@@ -582,6 +583,12 @@ pub(crate) fn finalize_const_selections(
                 "failed to retain const declaration selection provenance",
             ));
         };
+        carrier::retain_declared_carrier(
+            program,
+            selection.expression,
+            symbol,
+            selection.source_span,
+        )?;
         let occurrence = program
             .record_resolved_authored_declaration_selection(
                 selection.source_span,
@@ -649,10 +656,10 @@ fn const_selection_record_diagnostic(error: AuthoredDeclarationSelectionRecordEr
 /// binding the selected declaration to a final symbol.
 pub(crate) fn validate_normalized_const_argument(
     argument: &syntax_trees::types::TypeReferenceNode,
-    origin: &syntax_trees::types::ConstArgumentOrigin,
+    normalization: &syntax_trees::types::ConstArgumentNormalization,
 ) -> Result<(), Diagnostic> {
     use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-    let encoded = CanonicalConstValue::new("", &origin.canonical_value_encoding, "");
+    let encoded = CanonicalConstValue::new("", &normalization.canonical_result_encoding, "");
     let matches = match (argument, encoded.decode_encoding()) {
         (
             syntax_trees::types::TypeReferenceNode::Named(name),
@@ -667,7 +674,7 @@ pub(crate) fn validate_normalized_const_argument(
                     | DecodedCanonicalConstValue::Variant { type_name, .. }
                     | DecodedCanonicalConstValue::Integer { type_name, .. } => type_name.as_str(),
                 };
-                value.encoding == origin.canonical_value_encoding
+                value.encoding == normalization.canonical_result_encoding
                     && value.type_name == carrier
                     && value.decode_encoding() == Some(decoded)
             })
@@ -678,9 +685,9 @@ pub(crate) fn validate_normalized_const_argument(
         Ok(())
     } else {
         Err(Diagnostic::error(
-            "normalized constant argument value drifted from its selected declaration",
+            "normalized constant argument value drifted from its retained canonical result",
         )
-        .with_source_span(origin.reference))
+        .with_source_span(normalization.reference))
     }
 }
 
