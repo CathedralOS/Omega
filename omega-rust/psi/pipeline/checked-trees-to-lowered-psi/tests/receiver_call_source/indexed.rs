@@ -135,6 +135,20 @@ fn erased_indexed_alias_executes_once_across_every_fuel_boundary() {
     assert_indexed_receiver_fuel(&checked);
 }
 
+#[test]
+fn nested_indexed_alias_executes_once_across_every_fuel_boundary() {
+    let checked = checked_from_source(
+        "data Record [copy] { value: u16; }
+         machine Record::replace(&write self) { self.value = 17; }
+         machine forward(records: &write [[Record; 2]; 2]) {
+             let held: &write [[Record; 2]; 2] = &write records;
+             let child: &write [[Record; 2]; 2] = &write held;
+             child[1][0].replace();
+         }",
+    );
+    assert_indexed_receiver_fuel(&checked);
+}
+
 fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
     let artifact = terminal_production::produce_terminal_artifact(checked, "forward").unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

@@ -20,7 +20,7 @@ fn forwarded_primitive_store_publishes_on_hosted_targets() {
     }
 }
 
-fn published_text(source_text: &str, target: NativeTarget) -> (Vec<u8>, usize) {
+pub(super) fn published_text(source_text: &str, target: NativeTarget) -> (Vec<u8>, usize) {
     let placed = native_text(source_text, target);
     let entry = placed.text_section().semantic_entry;
     let source = std::sync::Arc::new(

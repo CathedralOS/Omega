@@ -1,18 +1,22 @@
-//! Source replay for erased direct-root receiver carriers.
+//! Source replay for erased whole-referent receiver alias chains.
 //!
-//! This checks an erasure correspondence. It does not publish a restored-use
-//! judgment or turn a source-local lifetime into portable lineage evidence.
+//! This binds erased names to their exact loans. The separate root-handoff
+//! receiving pass retains complete lineage; neither pass grants restored use.
 
 use crate::{CheckedTrees, LoweringError, unsupported};
+use arena::Handle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use checked_trees::types::TypeReferenceNode;
 use checked_trees::{
-    BorrowAccessKind, BorrowLoanLineage, FlowBorrowWeakeningReason, FlowConstraintKind,
-    FlowInvalidationSource,
+    BorrowAccessKind, BorrowLoanFact, BorrowLoanLineage, CheckedParentBorrowResource,
+    FlowBorrowWeakeningReason, FlowConstraintKind, FlowInvalidationSource,
 };
 use language_semantics::ReferenceAccess;
 use symbols::SymbolHandle;
+
+mod reborrow;
+use reborrow::reborrow_resource;
 
 pub(super) fn parameter_root(
     checked: &CheckedTrees,
@@ -20,6 +24,17 @@ pub(super) fn parameter_root(
     state: SymbolHandle,
     statement_index: usize,
     owner: SymbolHandle,
+) -> Result<Option<SymbolHandle>, LoweringError> {
+    replay_alias(checked, machine, state, statement_index, owner, false)
+}
+
+fn replay_alias(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    owner: SymbolHandle,
+    formation: bool,
 ) -> Result<Option<SymbolHandle>, LoweringError> {
     let (authored_machine, authored_state) =
         crate::scalar_source_custody::authored_state(checked, state)?;
@@ -50,7 +65,11 @@ pub(super) fn parameter_root(
             unsupported("receiver alias has duplicate declarations")
         };
     };
-    if local.is_mutable || !owner.is_valid() || statement_index < prefix {
+    if local.is_mutable
+        || !owner.is_valid()
+        || statement_index <= *declaration_index
+        || (!formation && statement_index < prefix)
+    {
         return unsupported("receiver alias is mutable or used before its prefix ends");
     }
     let ExpressionNode::Borrow(initializer) =
@@ -83,11 +102,29 @@ pub(super) fn parameter_root(
     {
         return unsupported("receiver alias initializer identity or access changed");
     }
+    let parent_declaration = statements[..*declaration_index].iter().any(|statement| {
+        matches!(statement, StatementNode::LocalData(parent) if parent.symbol == name.symbol)
+    });
+    let root_symbol = if parent_declaration {
+        replay_alias(
+            checked,
+            machine,
+            state,
+            *declaration_index,
+            name.symbol,
+            true,
+        )?
+        .ok_or(LoweringError::Unsupported(
+            "receiver alias lost its immediate parent",
+        ))?
+    } else {
+        name.symbol
+    };
     let roots = checked
         .state_parameters(authored_state)
         .iter()
         .filter(|parameter| {
-            parameter.symbol == name.symbol || (parameter.is_self && name.symbol == machine)
+            parameter.symbol == root_symbol || (parameter.is_self && root_symbol == machine)
         })
         .collect::<Vec<_>>();
     let [root] = roots.as_slice() else {
@@ -164,11 +201,26 @@ pub(super) fn parameter_root(
     let [(loan_handle, loan)] = loans.as_slice() else {
         return unsupported("receiver alias has no unique loan occurrence");
     };
+    let parent_loans = borrow
+        .loans
+        .iter()
+        .filter(|(handle, candidate)| {
+            borrow.state_owns_loan(borrow_state, *handle) && candidate.owner_symbol == name.symbol
+        })
+        .collect::<Vec<_>>();
+    let exact_lineage = if parent_declaration {
+        matches!(parent_loans.as_slice(), [(parent_handle, parent)]
+            if loan.lineage == BorrowLoanLineage::Reborrow { parent_loan: *parent_handle }
+                && loan.source_owner_symbol == name.symbol
+                && loan.root_symbol == parent.root_symbol)
+    } else {
+        loan.lineage == BorrowLoanLineage::DirectRoot
+            && !loan.source_owner_symbol.is_valid()
+            && loan.root_symbol == name.symbol
+    };
     if loan.statement_index != *declaration_index
         || loan.kind != BorrowAccessKind::WriteOnly
-        || loan.lineage != BorrowLoanLineage::DirectRoot
-        || loan.source_owner_symbol.is_valid()
-        || loan.root_symbol != name.symbol
+        || !exact_lineage
         || !borrow.loan_segments(loan).is_empty()
         || !borrow.loan_owner_path(loan).is_empty()
     {
@@ -187,8 +239,31 @@ pub(super) fn parameter_root(
     };
     let mut last_use = None;
     let mut current_use = false;
-    for (position, statement) in statements.iter().enumerate().skip(prefix) {
+    for (position, statement) in statements.iter().enumerate().skip(*declaration_index + 1) {
         let (receiver, arguments) = match statement {
+            StatementNode::LocalData(child) if position < prefix => {
+                if !contains_owner(checked, child.initial_value, owner) {
+                    continue;
+                }
+                let ExpressionNode::Borrow(initializer) =
+                    checked.expression_table.expression(child.initial_value)
+                else {
+                    return unsupported("receiver alias escapes through a local initializer");
+                };
+                let ExpressionNode::Name(name) =
+                    checked.expression_table.expression(initializer.target)
+                else {
+                    return unsupported("receiver alias child is not a whole referent");
+                };
+                if child.is_mutable
+                    || initializer.access != ReferenceAccess::WriteOnly
+                    || name.symbol != owner
+                    || name.head_symbol != owner
+                {
+                    return unsupported("receiver alias child formation changed");
+                }
+                (owner, &[][..])
+            }
             StatementNode::Call(call) => (
                 call.receiver_root_symbol,
                 checked.statement_table.expression_handles(call.arguments),
@@ -273,6 +348,26 @@ pub(super) fn parameter_root(
         || !matches!(weakenings.as_slice(), [row] if row.source == weakening && row.reason == reason)
     {
         return unsupported("receiver alias activation or weakening changed");
+    }
+    if parent_declaration {
+        if !formation && reason != FlowBorrowWeakeningReason::StateExit {
+            return unsupported("receiver alias chain has no state-exit root handoff");
+        }
+        let [(parent_handle, _)] = parent_loans.as_slice() else {
+            return unsupported("receiver alias has no exact parent loan");
+        };
+        reborrow_resource(
+            checked,
+            machine,
+            state,
+            *loan_handle,
+            *parent_handle,
+            owner,
+            activation,
+            weakening,
+            reason,
+        )?;
+        return Ok(Some(root.symbol));
     }
     let resources = borrow
         .direct_loan_resources

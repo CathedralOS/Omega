@@ -362,7 +362,11 @@ fn validate_reborrow_root_handoffs(
                 .segments
                 .iter()
                 .all(valid_place_segment)
-            || row.direct_root_access != terminal_psi::StructuralAccess::MutableBorrow
+            || !matches!(
+                row.direct_root_access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
             || row.direct_root_lifetime_identity != row.direct_root_place.root_identity
             || !valid_borrow_boundary(&row.direct_root_activation)
             || !valid_borrow_boundary(&row.direct_root_weakening);

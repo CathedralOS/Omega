@@ -205,7 +205,10 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
         let parent = borrow.direct_loan_resources.get(parent_handle);
         if parent.machine_symbol != source_machine
             || parent.state_symbol != event.state_symbol
-            || parent.access != BorrowAccessKind::Mutable
+            || !matches!(
+                parent.access,
+                BorrowAccessKind::Mutable | BorrowAccessKind::WriteOnly
+            )
             || parent.parent_lifetime.machine_symbol != source_machine
             || parent.parent_lifetime.state_symbol != event.state_symbol
             || parent.parent_lifetime.root_symbol != parent.captured_place.root_symbol
