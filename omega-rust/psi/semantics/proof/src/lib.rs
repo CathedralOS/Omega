@@ -552,6 +552,83 @@ mod tests {
     use super::build_proof_surface_report;
 
     #[test]
+    fn integer_remainder_ranges_contain_truncating_results() {
+        use super::obligations::{IntegerRange, integer_binary_range};
+        use numerics::bignum::BigInt;
+        use typed_trees::expression::BinaryOperator;
+
+        for (minimum, maximum, divisor_minimum, divisor_maximum) in [
+            (-7, -7, 2, 2),
+            (-7, -7, -2, -2),
+            (-7, 7, -3, -2),
+            (0, 0, 2, 9),
+            (-1, 1, 1, 1),
+            (-9, -2, 2, 5),
+            (2, 9, -5, -2),
+            (0, 9, 2, 5),
+        ] {
+            let range = integer_binary_range(
+                BinaryOperator::Modulo,
+                IntegerRange {
+                    minimum: BigInt::from_i64(minimum),
+                    maximum: BigInt::from_i64(maximum),
+                },
+                IntegerRange {
+                    minimum: BigInt::from_i64(divisor_minimum),
+                    maximum: BigInt::from_i64(divisor_maximum),
+                },
+            )
+            .expect("nonzero divisor range");
+            for dividend in minimum..=maximum {
+                for divisor in divisor_minimum..=divisor_maximum {
+                    let remainder = BigInt::from_i64(dividend % divisor);
+                    assert!(range.minimum <= remainder && remainder <= range.maximum);
+                }
+            }
+            if minimum >= 0 {
+                assert_eq!(range.minimum, BigInt::zero());
+            }
+            if maximum <= 0 {
+                assert_eq!(range.maximum, BigInt::zero());
+            }
+        }
+        for (minimum, maximum) in [(-1, 1), (0, 0), (-2, 0), (0, 2)] {
+            assert!(
+                integer_binary_range(
+                    BinaryOperator::Modulo,
+                    IntegerRange {
+                        minimum: BigInt::from_i64(-7),
+                        maximum: BigInt::from_i64(7),
+                    },
+                    IntegerRange {
+                        minimum: BigInt::from_i64(minimum),
+                        maximum: BigInt::from_i64(maximum),
+                    },
+                )
+                .is_none()
+            );
+        }
+        let magnitude = BigInt::from_u128(u128::MAX).mul(&BigInt::from_i64(2));
+        let dividend = magnitude.negate();
+        let divisor = magnitude.sub(&BigInt::from_i64(1)).negate();
+        let range = integer_binary_range(
+            BinaryOperator::Modulo,
+            IntegerRange {
+                minimum: dividend.clone(),
+                maximum: dividend.clone(),
+            },
+            IntegerRange {
+                minimum: divisor.clone(),
+                maximum: divisor.clone(),
+            },
+        )
+        .expect("unbounded negative operands");
+        let remainder = dividend.div_rem(&divisor).expect("nonzero divisor").1;
+        assert!(range.minimum <= remainder && remainder <= range.maximum);
+        assert_eq!(range.maximum, BigInt::zero());
+    }
+
+    #[test]
     fn collects_domain_surface() {
         let mut syntax_trees = SyntaxTrees::new(Default::default());
         let target_type = syntax_trees

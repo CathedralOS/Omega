@@ -1156,15 +1156,23 @@ impl<'program> Engine<'program> {
                 BinaryOperator::Modulo => {
                     let operand = self.normalize(binary.left)?;
                     let modulus = self.normalize(binary.right)?.constant_value()?;
-                    if modulus.is_negative() || modulus.is_zero() {
+                    if modulus.is_zero() {
                         return None;
                     }
+                    let magnitude = modulus.abs().sub(&BigInt::from_i64(1));
+                    let operand_interval = self.polynomial_interval(&self.substituted(&operand));
                     let display = format!("({}) % {}", polynomial_display(&operand), modulus);
                     self.mod_intervals.insert(
                         display.clone(),
                         Interval {
-                            low: Some(BigInt::zero()),
-                            high: Some(modulus.sub(&BigInt::from_i64(1))),
+                            low: Some(operand_interval.low.map_or_else(
+                                || magnitude.negate(),
+                                |minimum| minimum.min(BigInt::zero()).max(magnitude.negate()),
+                            )),
+                            high: Some(operand_interval.high.map_or_else(
+                                || magnitude.clone(),
+                                |maximum| maximum.max(BigInt::zero()).min(magnitude.clone()),
+                            )),
                         },
                     );
                     Some(Polynomial::atom(display))

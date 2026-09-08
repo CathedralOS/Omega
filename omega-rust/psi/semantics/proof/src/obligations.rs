@@ -2623,13 +2623,15 @@ pub(crate) fn integer_binary_range(
             })
         }
         BinaryOperator::Modulo => {
-            if right.minimum.is_negative() || right.minimum.is_zero() {
+            if right.minimum <= BigInt::zero() && right.maximum >= BigInt::zero() {
                 return None;
             }
-
+            let magnitude = right.minimum.abs().max(right.maximum.abs()).sub(&one);
+            // Truncating remainder follows the dividend's sign, independently
+            // of the divisor's sign. Its magnitude cannot exceed the dividend.
             Some(IntegerRange {
-                minimum: BigInt::zero(),
-                maximum: right.maximum.sub(&one),
+                minimum: left.minimum.min(BigInt::zero()).max(magnitude.negate()),
+                maximum: left.maximum.max(BigInt::zero()).min(magnitude),
             })
         }
         BinaryOperator::ShiftRight => {
