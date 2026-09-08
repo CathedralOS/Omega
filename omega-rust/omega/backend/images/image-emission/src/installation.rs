@@ -4174,7 +4174,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     ) && function
                         .unit_scalar_abi
                         .as_ref()
-                        .is_some_and(|abi| abi.call_plan.result.is_none())
+                        .is_none_or(|abi| abi.call_plan.result.is_none())
                         && function.unit_stack.is_some()
                         && function.scalar_stack.is_none()
                 } else {

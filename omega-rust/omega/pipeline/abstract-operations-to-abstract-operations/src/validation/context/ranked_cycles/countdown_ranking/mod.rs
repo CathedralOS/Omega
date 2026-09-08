@@ -24,8 +24,19 @@ pub(super) fn rederive_exact_certificates(
     unit: &PsiOptimizationUnit,
     components: &OptimizerCycleComponentSnapshot,
 ) -> Result<OptimizerRankingCertificateSnapshot, OptimizationUnitValidationError> {
-    let terminal = self::terminal::derive(module, components)?;
-    let current = current::derive(unit, components)?;
+    // Natural components retain the original grouped proof and frozen body.
+    // They supply no unsigned-countdown analysis certificate or fixed-work bound.
+    let countdown = OptimizerCycleComponentSnapshot {
+        terminal_psi: components.terminal_psi,
+        components: components
+            .components
+            .iter()
+            .filter(|component| !super::natural::is_natural(module, component.id.machine))
+            .cloned()
+            .collect(),
+    };
+    let terminal = self::terminal::derive(module, &countdown)?;
+    let current = current::derive(unit, &countdown)?;
     if terminal != current {
         let machine = components
             .components

@@ -285,7 +285,12 @@ pub(super) fn lower_unit_body(
                 structural_types,
                 &parameters_by_place,
                 &established_affine_local_sources,
-                &BTreeMap::new(),
+                &established_byte_sequences
+                    .iter()
+                    .map(|(place, (operation, declaration, _))| {
+                        (*place, (*operation, declaration.id))
+                    })
+                    .collect(),
                 &scalar_values,
                 &scalar_aliases,
                 &boolean_constants,

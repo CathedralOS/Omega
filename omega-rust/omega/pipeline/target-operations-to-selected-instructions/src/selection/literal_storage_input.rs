@@ -10,12 +10,10 @@ pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
     let [block] = source.blocks.as_slice() else {
         return false;
     };
-    if source.attachment.is_some()
-        || source.ranked.is_some()
+    if source.ranked.is_some()
         || !signature.parameters.is_empty()
         || signature.structural_places.is_empty()
         || !signature.entry_claims.is_empty()
-        || !signature.published_service_ceiling.is_empty()
         || source.parameters.len() != source.call_plan.parameters.len()
         || source
             .parameters

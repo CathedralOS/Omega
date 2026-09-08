@@ -9,7 +9,7 @@ pub(crate) fn accepts(
     unit: &PsiOptimizationUnit,
 ) -> bool {
     if native.functions.is_empty()
-        || super::custody::validate_source_custody(native, plan, unit).is_err()
+        || super::custody::validate_source_custody(native, plan, unit, None).is_err()
     {
         return false;
     }

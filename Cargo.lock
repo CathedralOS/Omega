@@ -2028,6 +2028,7 @@ name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "calling-conventions",
  "isa-x86_64",
@@ -2045,6 +2046,7 @@ dependencies = [
  "terminal-codec",
  "terminal-fixed-fuel",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "terminal-verifier",
 ]
 

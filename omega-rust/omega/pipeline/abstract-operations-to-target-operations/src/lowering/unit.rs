@@ -70,7 +70,14 @@ pub(super) fn lower_unit_function(
             super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
         }) || !continuation::has_shape(function))
     {
-        return graph::lower(function, target, functions, structural_types);
+        return graph::lower(
+            function,
+            target,
+            functions,
+            structural_types,
+            boundary_machines,
+            settlements,
+        );
     }
     if !bounded_conditional_exit && !bounded_closed_sum && !dynamic_descriptor_join {
         validate_unit_function_shape(function)?;

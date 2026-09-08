@@ -390,56 +390,14 @@ pub(super) fn block_order(
     if source.blocks.len() != selected.blocks.len() || selected.blocks.is_empty() {
         return Err(invalid);
     }
-    let mut seen = Vec::new();
+    let order = crate::selection::block_order::derive(source)?;
     for (position, actual) in selected.blocks.iter().enumerate() {
-        if actual.id.0 as usize != position || seen.contains(&actual.source_block()) {
+        if actual.id.0 as usize != position {
             return Err(invalid);
         }
-        let expected = if position == 0 {
-            source.entry_block
-        } else if source.ranked.is_some() {
-            source
-                .blocks
-                .iter()
-                .find(|block| !seen.contains(&block.id))
-                .map(|block| block.id)
-                .ok_or(invalid.clone())?
-        } else {
-            source
-                .blocks
-                .iter()
-                .find(|candidate| {
-                    !seen.contains(&candidate.id)
-                        && source.blocks.iter().all(|predecessor| {
-                            let names_candidate = match &predecessor.terminator {
-                                LegalizedScalarTerminator::Return(_) => false,
-                                LegalizedScalarTerminator::Jump { successor, .. } => {
-                                    successor.target == candidate.id
-                                }
-                                LegalizedScalarTerminator::Conditional {
-                                    when_true,
-                                    when_false,
-                                    ..
-                                } => {
-                                    when_true.target == candidate.id
-                                        || when_false.target == candidate.id
-                                }
-                            };
-                            !names_candidate || seen.contains(&predecessor.id)
-                        })
-                })
-                .map(|block| block.id)
-                .ok_or(invalid.clone())?
-        };
-        if actual.source_block() != expected
-            || !source
-                .blocks
-                .iter()
-                .any(|block| block.id == actual.source_block())
-        {
+        if actual.source_block() != source.blocks[order[position]].id {
             return Err(invalid);
         }
-        seen.push(actual.source_block());
     }
     Ok(())
 }

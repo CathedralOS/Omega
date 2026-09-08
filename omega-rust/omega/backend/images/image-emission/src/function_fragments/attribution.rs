@@ -28,6 +28,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::IntegerWiden { psi_operation, .. }
                 | AbstractOperation::ExactIntegerAdd { psi_operation, .. }
                 | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
+                | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
                 | AbstractOperation::ByteSequenceLength { psi_operation, .. }
                 | AbstractOperation::ByteSequenceRead { psi_operation, .. }
                 | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }

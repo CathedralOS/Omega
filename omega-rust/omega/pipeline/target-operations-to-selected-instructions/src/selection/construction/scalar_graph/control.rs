@@ -323,41 +323,5 @@ fn successor(
 pub(super) fn block_order(
     source: &LegalizedScalarFunction,
 ) -> Result<Vec<usize>, SelectedInstructionError> {
-    let invalid = SelectedInstructionError::SourceCustodyMismatch;
-    let entry = source
-        .blocks
-        .iter()
-        .position(|block| block.id == source.entry_block)
-        .ok_or(invalid.clone())?;
-    let mut order = vec![entry];
-    if source.ranked.is_some() {
-        order.extend((0..source.blocks.len()).filter(|index| *index != entry));
-        return Ok(order);
-    }
-    while order.len() < source.blocks.len() {
-        let next = source
-            .blocks
-            .iter()
-            .enumerate()
-            .position(|(index, block)| {
-                !order.contains(&index)
-                    && source.blocks.iter().enumerate().all(|(predecessor, row)| {
-                        let targets = match &row.terminator {
-                            LegalizedScalarTerminator::Return(_) => [None, None],
-                            LegalizedScalarTerminator::Jump { successor, .. } => {
-                                [Some(successor.target), None]
-                            }
-                            LegalizedScalarTerminator::Conditional {
-                                when_true,
-                                when_false,
-                                ..
-                            } => [Some(when_true.target), Some(when_false.target)],
-                        };
-                        !targets.contains(&Some(block.id)) || order.contains(&predecessor)
-                    })
-            })
-            .ok_or(invalid.clone())?;
-        order.push(next);
-    }
-    Ok(order)
+    crate::selection::block_order::derive(source)
 }

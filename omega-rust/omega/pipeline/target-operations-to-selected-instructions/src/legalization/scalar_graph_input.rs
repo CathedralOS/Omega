@@ -321,9 +321,8 @@ pub(super) fn match_input(
             }
         }
     }
-    if !ranked && !acyclic(optimized) {
-        return Err(invalid);
-    }
+    // Complete-unit custody admits cycles only after independent source proof
+    // replay. Per-function matching below retains every executable edge.
     if !ranked {
         validate_target(target, abstracted, optimized, native, plan, unit)?;
     }
@@ -451,27 +450,4 @@ pub(super) fn value_type(function: &PsiOptimizationFunction, value: ValueId) -> 
         }))
         .find(|definition| definition.value == value)
         .map(|definition| definition.scalar_type)
-}
-fn acyclic(function: &PsiOptimizationFunction) -> bool {
-    let mut completed = Vec::new();
-    loop {
-        let before = completed.len();
-        for block in &function.blocks {
-            if !completed.contains(&block.id)
-                && block
-                    .nodes
-                    .iter()
-                    .flat_map(|node| &node.successors)
-                    .all(|edge| completed.contains(&edge.target))
-            {
-                completed.push(block.id);
-            }
-        }
-        if completed.len() == function.blocks.len() {
-            return true;
-        }
-        if before == completed.len() {
-            return false;
-        }
-    }
 }

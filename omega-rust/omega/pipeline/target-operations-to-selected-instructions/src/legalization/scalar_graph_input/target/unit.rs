@@ -76,6 +76,23 @@ pub(super) fn validate_operation(
     };
     match (target, abstracted) {
         (
+            TargetUnitOperation::EstablishByteSequenceLiteral {
+                psi_operation,
+                place,
+                structural_type,
+                bytes,
+            },
+            AbstractOperation::EstablishByteSequenceLiteral {
+                psi_operation: expected_operation,
+                place: expected_place,
+                structural_type: expected_type,
+                bytes: expected_bytes,
+            },
+        ) if psi_operation == expected_operation
+            && place == expected_place
+            && structural_type == expected_type
+            && bytes == expected_bytes => {}
+        (
             TargetUnitOperation::IeeeFloatConstant {
                 psi_operation,
                 result,

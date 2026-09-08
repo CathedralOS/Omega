@@ -30,7 +30,7 @@ pub fn validate_optimized_selection_custody(
     let relegalized = validate_legalized_operations(
         target,
         optimized_target.optimized().plan(),
-        optimized_target.optimized().unit(),
+        optimized_target.optimized(),
         legalized.plan().clone(),
     )
     .map_err(|_| OptimizedSelectionCustodyError::LegalizedPlanRevalidationFailed)?;

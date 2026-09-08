@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Instruction selection: propose one bounded selected CFG, then validate it independently.
 
+mod block_order;
 mod byte_view_homes;
 mod constraints;
 mod construction;

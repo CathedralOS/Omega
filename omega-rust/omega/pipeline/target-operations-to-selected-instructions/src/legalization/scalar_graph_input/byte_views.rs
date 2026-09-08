@@ -88,8 +88,7 @@ pub(super) fn validate(
         || !optimized.entry_claims.is_empty()
         || !optimized.entry_claim_declarations.is_empty()
         || !optimized.content_entry_claims.is_empty()
-        || !abstracted.published_service_ceiling.is_empty()
-        || !optimized.published_service_ceiling.is_empty()
+        || abstracted.published_service_ceiling != optimized.published_service_ceiling
         || optimized.declared_places
             != optimized
                 .structural_places

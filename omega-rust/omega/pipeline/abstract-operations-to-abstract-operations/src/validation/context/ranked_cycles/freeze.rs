@@ -34,6 +34,22 @@ pub(super) fn validate_frozen_component_blocks(
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
                 machine,
             ))?;
+        if super::natural::is_natural(input.context().module(), machine) {
+            // Rank-producing prefix definitions and exit observations matter too.
+            // Topology equality or frozen SCC members alone cannot preserve them.
+            // Immutable signature/contract and accepted-fact custody are checked
+            // separately by the enclosing context validator. The bare seed has
+            // not yet acquired that verified metadata.
+            if current_function.blocks != expected_function.blocks {
+                return Err(
+                    OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                        machine,
+                        block: current_function.entry,
+                    },
+                );
+            }
+            continue;
+        }
         let certificates = rankings
             .iter()
             .filter(|certificate| certificate.component == component.id)

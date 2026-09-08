@@ -4,9 +4,15 @@ pub(super) fn validate_source_custody(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<(), LegalizationError> {
-    if crate::legalization::scalar_graph_input::validate_unit_custody(target, abstract_plan, unit)
-        .is_err()
+    if crate::legalization::scalar_graph_input::validate_unit_custody(
+        target,
+        abstract_plan,
+        unit,
+        verified_input,
+    )
+    .is_err()
         || target.psi != abstract_plan.psi
         || target.psi != unit.psi
         || target.entry != abstract_plan.entry

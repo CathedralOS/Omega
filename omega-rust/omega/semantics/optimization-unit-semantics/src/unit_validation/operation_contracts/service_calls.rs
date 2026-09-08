@@ -104,7 +104,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 &callee.structural_parameters,
                 types,
                 StructuralProjectionPolicy::Unit,
-                false,
+                true,
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,

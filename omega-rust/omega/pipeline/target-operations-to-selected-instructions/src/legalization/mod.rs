@@ -9,6 +9,8 @@ mod projected_structural_call_return;
 mod replay;
 mod scalar_graph_input;
 mod source;
+mod source_input;
+pub use source_input::LegalizationSource;
 
 pub use model::{
     LegalizationError, LegalizationValidationReceipt,
@@ -22,20 +24,22 @@ pub use model::{
 
 use abstract_operations::AbstractOperationPlan;
 use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
-use optimization_unit::PsiOptimizationUnit;
 use target_operations::TargetOperationPlan;
 
 use admission::reject_attached_unit_structural_scalar;
 use replay::replay_terminal_legalized_plan;
 use source::derive_source_function_rosters;
 
-pub fn legalize_target_operations(
+pub fn legalize_target_operations<'source>(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    source: impl Into<LegalizationSource<'source>>,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
+    let source = source.into();
+    let unit = source.unit;
     reject_attached_unit_structural_scalar(target)?;
-    let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
+    let rosters =
+        derive_source_function_rosters(target, abstract_plan, unit, source.verified_input)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: unit.identity,
@@ -45,21 +49,23 @@ pub fn legalize_target_operations(
         scalar_functions: rosters.scalar_functions,
         projected_structural_call_returns: rosters.projected_structural_call_returns,
     };
-    validate_legalized_operations(target, abstract_plan, unit, plan)
+    validate_legalized_operations(target, abstract_plan, source, plan)
 }
 
 /// Independently replay the admitted projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
-pub fn validate_legalized_operations(
+pub fn validate_legalized_operations<'source>(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    source: impl Into<LegalizationSource<'source>>,
     plan: LegalizedOperationPlan,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
+    let source = source.into();
+    let unit = source.unit;
     reject_attached_unit_structural_scalar(target)?;
     let (decomposition_count, projected_structural_call_return) =
-        replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
+        replay_terminal_legalized_plan(target, abstract_plan, unit, &plan, source.verified_input)?;
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),

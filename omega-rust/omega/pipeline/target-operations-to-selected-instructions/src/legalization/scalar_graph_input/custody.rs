@@ -4,9 +4,26 @@ pub(in crate::legalization) fn validate_unit_custody(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     let mut admitted = Vec::new();
+    if let Some(input) = verified_input {
+        let validated = abstract_operations_to_abstract_operations::validation::validate_transformed_psi_cycle_components(input, unit)
+            .map_err(|_| invalid.clone())?;
+        for component in validated.components() {
+            if input.context().module().machines.iter().any(|machine| {
+                machine.id == component.id.machine
+                    && matches!(
+                        machine.ranked_scc,
+                        Some(terminal_psi::TerminalRankedScc::Natural(_))
+                    )
+            }) && !admitted.contains(&component.id.machine)
+            {
+                admitted.push(component.id.machine);
+            }
+        }
+    }
     for function in &target.functions {
         if !matches!(function.operation, TargetOperation::RankedU32Countdown(_)) {
             continue;
