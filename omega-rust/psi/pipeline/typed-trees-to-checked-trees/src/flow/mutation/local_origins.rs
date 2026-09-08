@@ -16,7 +16,28 @@ pub(crate) fn close_storage_places_over_aliases(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
+    places: Vec<CanonicalPlace>,
+) -> Option<Vec<CanonicalPlace>> {
+    if places.is_empty() {
+        return Some(places);
+    }
+    close_storage_places_over_aliases_with_resolver(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        places,
+        validation::CallFrameResolver::new(program).as_ref(),
+    )
+}
+
+pub(in crate::flow) fn close_storage_places_over_aliases_with_resolver(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
     mut places: Vec<CanonicalPlace>,
+    resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if places.is_empty() {
         return Some(places);
@@ -30,7 +51,7 @@ pub(crate) fn close_storage_places_over_aliases(
         .statement_table
         .statements(state.statement_nodes)
         .get(statement_index)?;
-    let resolver = validation::CallFrameResolver::new(program)?;
+    let resolver = resolver?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
     let storage = places.clone();
     for origin in origins {
@@ -246,3 +267,6 @@ pub(super) fn place_from_origin_path(
     }
     Some(place)
 }
+
+#[cfg(test)]
+mod tests;

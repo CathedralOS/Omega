@@ -42,11 +42,13 @@ fn preserves_values(checked: &CheckedTrees) -> bool {
         ))],
         storage: Vec::new(),
     };
+    let call_frames = validation::CallFrameResolver::new(program);
     let mut context = FlowBuildContext::new(
         &checked.facts.borrow,
         &checked.facts.proof,
         &checked.facts.semantic,
         &checked.facts.values.scalar_expressions,
+        call_frames.as_ref(),
     );
     retains_values_across_unit_call(
         program,
@@ -217,11 +219,13 @@ fn captured_range(checked: &CheckedTrees) -> Option<facts::IntegerRange> {
         .find(|statement| statement.statement_index == statement_index)
         .expect("call initializer entry")
         .entry_semantic_contexts;
+    let call_frames = validation::CallFrameResolver::new(&checked.typed);
     let mut context = FlowBuildContext::new(
         &checked.facts.borrow,
         &checked.facts.proof,
         &checked.facts.semantic,
         &checked.facts.values.scalar_expressions,
+        call_frames.as_ref(),
     );
     context.contexts = checked.facts.flow.contexts.clone();
     super::capture_bounds(

@@ -62,6 +62,7 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
         &Default::default(),
         &Default::default(),
         &scalar_expressions,
+        None,
     );
     super::join(
         &mut context,
@@ -237,6 +238,7 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
             &Default::default(),
             &semantic,
             &plans,
+            None,
         );
         let value = super::capture_argument(
             program,

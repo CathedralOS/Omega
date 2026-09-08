@@ -2,6 +2,7 @@ use super::*;
 
 pub(super) struct FlowBuildContext<'plans> {
     pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
+    pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) built_state_value_inputs: Vec<SymbolHandle>,
     pub(super) state_value_inputs_changed_after_build: bool,
@@ -21,9 +22,11 @@ impl<'plans> FlowBuildContext<'plans> {
         proof: &ProofFacts,
         semantic: &FactPlan,
         scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
+        call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
     ) -> Self {
         Self {
             scalar_expressions,
+            call_frames,
             state_value_inputs: Vec::new(),
             built_state_value_inputs: Vec::new(),
             state_value_inputs_changed_after_build: false,

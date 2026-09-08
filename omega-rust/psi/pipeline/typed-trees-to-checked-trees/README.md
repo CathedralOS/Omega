@@ -96,6 +96,10 @@ The shared implementation and conservative fallback rules live beside
 Flow invalidation projects its complete-or-opaque result into structured places;
 do not create a second recursion or alias-admission policy here.
 
+Flow construction borrows one call-frame resolver across its value-input passes.
+Only program-wide preparation is shared: each call's alias closure still queries
+its exact statement prefix, and unavailable resolution remains conservative.
+
 `checks/borrows/persistent.rs` admits artifact-lifetime borrow storage and exact
 persistent copies. Named-state must-analysis preserves stable field/case/index
 paths only when every predecessor agrees; runtime index rebinding needs exact
