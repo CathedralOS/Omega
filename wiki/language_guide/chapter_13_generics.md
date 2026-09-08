@@ -100,10 +100,82 @@ The finite size of `u32` is not permission to enumerate all its inhabitants.
 
 Squalr's runtime-selected SIMD widths motivate this distinction: widths 16, 32,
 and 64 select different kernels without requiring arbitrary dynamic layouts.
-Reducing repeated width methods on dynamic datatype interfaces additionally
-needs a finite indexed-interface and prepared-result representation. That
-automatic interface/dispatch design is not supplied by the binder syntax alone;
-see the [specialization boundary](../spec/language/generics.md#finite-specialization-boundary).
+An explicit OR constraint can describe the family once:
+
+```omega
+trait ByteScanner {
+    machine scan<Width: u32>(&self, bytes: &[u8]) -> u64
+    where
+        Width == 16 || Width == 32 || Width == 64;
+}
+```
+
+The intended compiler route emits the required static bodies and dispatches at
+the method boundary for a runtime width. The caller proves roster membership;
+an arbitrary input needs an authored guard or failure outcome. There is no
+automatic fallback or enumeration of the entire u32 range. Each body still owes
+its target, bounds, and effect obligations. A const-only inner kernel receives
+the selected constant; const itself does not become a runtime parameter.
+
+A named dynamic conformance supplies one concrete row per declared width, with
+one exact index shared by the scanner, comparator, and prepared state. The row
+can call a specialized loop rather than redispatching on every vector. Escaping
+results need a common representation or an explicit finite sum/eligible owner;
+no implicit boxing or variable-layout return is introduced. The
+[specialization contract](../spec/language/generics.md#finite-specialization-boundary)
+and [dynamic-family contract](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
+define the rules. This is intended support, not implemented generic virtual calls.
+
+## Type Equality And Range Matching
+
+Exact type comparisons use ordinary Boolean connectives:
+
+```omega
+where
+    T == u16 || T == u32 || T == u64
+```
+
+This restricts T to those exact normalized types, not anything with a compatible
+layout or conformance. A static branch establishing `T == u32` can check its
+operations using that equality. It does not need runtime reflection or a special
+value-comparison implementation. Generic bodies must cover all admitted cases.
+
+A type equation can also recover a declared generic binder from known structure:
+
+```omega
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+```
+
+`TinyBytes<u64[0..=256]>` infers Capacity as 256. The array extent is static;
+only the live length varies at runtime. This uses no dummy Length value or
+compiler bound-query intrinsic. A general vector still needs its own element
+initialization/disposition rules. Placement must fit the complete stack/storage
+plan; choosing capacity explicitly does not guarantee available backing.
+
+The matching rules normalize `u64[0..257]` and `u64[0..=256]` to the same
+integer interval. They extract declared endpoints, not a tight bound discovered
+from runtime flow facts or arbitrary domain predicates. Empty domains remain
+legal, but missing or ambiguous endpoint information cannot select an arbitrary
+capacity. Repeated binders must agree; explicit arguments cannot be overwritten.
+Aliases use their defined expansion, and named domains retain their identities.
+
+Given `upper_bound<const N: u64>(value: u64[0..=N])`, an actual declared
+`u64[0..=256]` selects N = 256 when omitted. Explicit N = 512 can still pass
+ordinary value compatibility. A type equation such as TinyBytes' is stronger:
+it requires exact equality, not a larger containing interval. Selection and
+proof of call legality are separate. A zero-argument `upper_bound<N>()` merely
+returns an already bound N; an unconstrained `upper_bound()` cannot infer it.
+
+These are settled source rules with incomplete implementation. See
+[structural inference](../spec/language/generics.md#structural-type-equations-and-inference).
+They do not approve general compile-time inspection of declarations or predicates;
+[reflection remains separate](../spec/language/generics.md#reflection-boundary).
 
 ## Const And Proof Parameters
 

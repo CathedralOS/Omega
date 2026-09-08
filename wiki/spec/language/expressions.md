@@ -63,6 +63,12 @@ cannot substitute for that identity.
 
 ## Operator declarations
 
+Equality between type expressions in generic constraints and static branches
+uses [static type equality](generics.md#static-type-equality), not runtime value
+comparison or user operator discovery. Type/value role resolution happens before
+choosing that operation. It produces no type object or runtime metadata lookup;
+ordinary `==` on values keeps its selected value-comparison semantics.
+
 An operator is an independently named declaration, package-private unless
 declared `pub operator`. A qualified path does not inherit its namespace type's
 visibility. A fixed-token binding writes the token after `operator`:

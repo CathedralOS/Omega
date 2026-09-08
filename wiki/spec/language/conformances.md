@@ -82,7 +82,12 @@ Each inherited requirement overload contributes one key:
 ```
 
 The overload includes its parameter signature and dispatch-bearing result-domain
-set. A short member name is not a row identity. The row is supplied by a checked
+set. For an explicitly finite generic method family, concrete executable rows
+also retain the [canonical value tuple](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
+One selected conformance covers the whole declared roster; a generic member may
+provide its checked specializations without separately authored width methods.
+This does not permit arbitrary generic virtual methods or partial coverage.
+A short member name is not a row identity. The row is supplied by a checked
 member, an explicitly referenced existing machine, that exact overload's
 instantiated default, or an authorized synthesized member with its rule/evidence.
 It occurs exactly once. Missing rows without defaults and duplicate rows reject.

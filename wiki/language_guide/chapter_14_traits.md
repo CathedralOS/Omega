@@ -523,8 +523,11 @@ A borrowed dynamic value is two runtime words:
 └──────────────────┴──────────────────────────────┘
 ```
 
-The exact requirement identity `(declaring trait, complete overload identity)`
-selects a table slot. The overload identity includes the normalized parameter
+For nongeneric methods, the exact requirement identity
+`(declaring trait, complete overload identity)` selects a table slot.
+[Finite value-generic families](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
+also retain the exact canonical argument tuple. The overload identity includes
+the normalized parameter
 signature and dispatch-bearing result-domain set described in chapter 3. Call
 typing retains the resulting requirement symbol even when the slot is inherited;
 lowering never chooses a row from the leaf spelling alone. The table entry calls
@@ -590,6 +593,16 @@ The [dynamic surface contract](../spec/terminal-psi/dynamic_dispatch.md#source-e
 checks receiver access, generic parameters, concrete representations, returned
 borrow lifetimes, and public operational contracts. One selected conformance
 supplies the entire eligible surface, so laws relating its members remain valid.
+
+A method with an explicit finite OR/equality constraint over value binders can
+expand into a complete family of concrete rows. Widths 16, 32, and 64 need no
+separately named methods; every row still has a checked signature, result shape,
+and operational contract. Ordinary arbitrary generic methods are not made
+dynamic by this rule. Runtime-capable calls dispatch to the exact tuple, while
+const-only methods still need a static argument or an enclosing checked bridge.
+An escaping specialized result requires a common representation or an explicit
+finite sum/eligible descriptor with its ownership intact. This is the settled
+family contract, not a claim that current dynamic lowering implements it.
 
 ### Proof projection and carrierless evidence
 

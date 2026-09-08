@@ -44,10 +44,11 @@ nor runtime table slots. An empty table alone cannot erase a runtime instance
 with unknown size or cleanup obligations.
 
 A requirement belongs to the dynamic surface only when its receiver is `&self`
-or `&mut self`, `Self` occurs nowhere else (including nested runtime contracts),
-and it has no requirement-local generic parameters. After binding trait arguments,
-parameter/result representations must be concrete, returned borrow lifetimes
-must be expressible from inputs, and the public contract must name no
+or `&mut self` and `Self` occurs nowhere else (including nested runtime contracts).
+Requirement-local generic parameters are ineligible except for the closed
+value families described below. After binding trait arguments and any exact
+family tuple, parameter/result representations must be concrete, returned borrow
+lifetimes must be expressible from inputs, and the public contract must name no
 satisfier-private identity. Boundary-machine requirements are ineligible.
 An ineligible requirement is excluded individually, not by rejecting unrelated
 requirements on the trait. No `Self: Sized` escape hatch is needed.
@@ -73,6 +74,59 @@ instead requires the storage type's bound. This changes static contract checking
 not runtime representation, and does not require code monomorphization.
 
 ## Complete application identity
+
+### Finite generic method families
+
+An explicit finite value family under the
+[generic specialization contract](../language/generics.md#finite-specialization-boundary)
+may expose requirement-local value binders through a borrowed dynamic interface.
+Unrestricted local type/machine binders or ranges requiring arbitrary enumeration
+do not acquire dynamic eligibility. Every tuple must close the method's remaining
+local parameters and yield an eligible concrete call shape and contract.
+
+The declaring requirement, not the selected provider or set of current callers,
+owns the complete family roster. One named conformance supplies all its rows:
+
+```text
+(declaring trait, complete requirement overload, canonical value tuple)
+```
+
+A nongeneric requirement uses the empty tuple. A generic body or explicit
+existing implementation can provide several rows through checked specialization;
+authors need not spell width-suffixed method names. Partial provider coverage
+rejects. If unsupported execution is intended, the public result contract must
+say so and every row must implement that outcome rather than disappear.
+
+Canonical tuple order determines row order independently of source disjunction
+order, runtime values, and provider traversal. Each row retains its own exact
+parameter/result shape, operational envelope, implementation, and adapter.
+Inherited requirement identity and the selected conformance remain intact.
+Tables cannot combine widths from unrelated conformances. Expanding a public
+family changes its contract and coverage obligations, requiring ordinary
+compatibility checks rather than silently adding unbound slots.
+
+A static family argument selects the exact row; a runtime-capable family call
+selects a row after proving its argument belongs to the roster. `const` arguments
+still require a literal/static selection through the enclosing checked dispatch.
+The selected tuple governs operands, result representation, and continuation;
+forwarding or storing a prepared value must not disconnect its index from its
+actual data and callable selection.
+
+Use a common concrete result, keep the result inside the selected static branch,
+or author a finite sum/eligible descriptor with an explicit ownership contract.
+A bare unknown-layout `Prepared<runtime_width>` does not acquire a uniform ABI
+from table membership. This introduces no implicit allocation, existential
+packaging construct, or general runtime type representation.
+
+Refinement, table completeness, call-site selection, and artifact replay include
+the exact tuple. Width/shape/slot substitutions reject even when byte widths
+coincide. Known finite indices do not make external plugin bodies statically
+known or remove their ordinary admission and resource obligations. Current
+nongeneric dispatch support is not evidence of implemented family expansion;
+the implementation migration is tracked beside
+[source staging](../../../omega-rust/psi/pipeline/README.md#value-generic-staging).
+
+### Selection retention
 
 Each selection retains the complete canonical `ClosedConformanceApplication`:
 telescope, ordered requirement-row map, callable registry, report coordinate,

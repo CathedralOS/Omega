@@ -97,6 +97,9 @@ or convert a runtime type choice into an unrelated statically selected type.
 
 ## Runtime index identity and storage
 
+Type equations and range decomposition follow the static rules below; knowing
+the type of a runtime argument does not make that argument's value static.
+
 An application binds the exact argument value at that program point under
 ordinary evaluation and lifetime rules. Later assignment to the source variable
 does not retag existing indexed values. Compatibility between applications with
@@ -126,32 +129,211 @@ Insufficient static placement rejects; explicit runtime storage acquisition
 handles its own failure. The compiler cannot silently box a value to make an
 otherwise unsupported application work.
 
+## Static type equality
+
+`==` between type expressions states exact normalized type equality, not value
+equality, assignability, compatible layout, or conformance. Generic constraints
+may combine these propositions with ordinary Boolean connectives:
+
+```omega
+where
+    T == u16 || T == u32 || T == u64
+```
+
+Each operand must resolve in its type role. A type/value mixture rejects rather
+than converting a type to a runtime identifier. These propositions also serve
+as static branch conditions: a branch with established `T == u32` may use that
+equality to check its operations and values as u32. On leaving the branch, only
+facts common to its surviving predecessors remain. An unspecialized body checks
+every admitted alternative; one consumer cannot authorize an otherwise invalid
+generic body. Type parameters remain static even when their admissible set has
+several alternatives. No runtime type objects or RTTI are introduced.
+
+Comparisons of closed static types resolve during compilation. Types containing
+runtime indices retain the corresponding exact subject/equality obligations;
+the static comparison facility cannot turn an unknown runtime endpoint into a
+constant or silently generate a runtime type test.
+
+One normalizer owns source equality, generic matching, and canonical type
+identity. It retains exact nominal owner, carrier, generic arguments, reference
+access/lifetimes, and domain roles/provenance. Equal layout or equal bytes do not
+identify different nominal types. Transparent aliases use their specified
+expansion; independently named domains are not merged because a proof suggests
+that their predicates have the same inhabitants. Type equality does not perform
+ambient conformance selection or permit changing the meaning of `==` on values.
+
+## Structural type equations and inference
+
+A `where` type equation relates already declared binders. Its structural matching
+may recover omitted type/value arguments from known type structure:
+
+```omega
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+```
+
+`TinyBytes<u64[0..=256]>` binds Capacity to 256 without constructing a dummy
+Length value. The array has a static extent and length remains an ordinary
+runtime field. This illustrates the settled inference contract, not current
+parser or compiler support. Ordinary initialization and invariant checking
+remain required. A general element-owning vector also needs its initialized
+prefix and element-disposition protocol; the equation does not supply those.
+
+Every recovered parameter has an explicit binder and declared kind. Match known
+structures by exact constructor and parameter position, including scalar range
+shells, fixed arrays, and declared generic applications. Repeated occurrences
+must agree under defined normalization. An explicitly supplied argument is fixed;
+it cannot be overwritten by inference. Missing, cyclic, conflicting, or
+underdetermined bindings reject with a request for an explicit argument. An
+occurs check prevents a parameter being defined through itself.
+
+For ordinary data and machine applications, omitted arguments can be recovered
+only when the combined structural equations and existing argument/result
+inference determine one substitution. Unanchored disjunctions do not choose a
+type or integer by declaration order. All applicable occurrences must be
+consistent, not just the first one visited. Named conformance selection retains
+its [explicit telescope rule](conformances.md#declaration-and-selection); this
+does not introduce ambient conformance search or omit its required arguments.
+
+Inference selects arguments before checking ordinary compatibility. For example:
+
+```omega
+machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 {
+    N
+}
+```
+
+Calling this with a value declared `u64[0..=256]` and omitting N selects 256
+from its declared range, not a tighter bound on that particular value. Explicit
+`upper_bound<512>(value)` can still satisfy ordinary range compatibility; there
+is no separate exact type equation on that call. In contrast, the TinyBytes
+equation requires Capacity to equal the matched endpoint, not merely contain it.
+
+Temporary branch facts, a literal's observed value, or a satisfier's stronger
+private contract cannot redefine declared type structure for this inference.
+They can prove obligations after selection. A larger compatible interval is not
+an alternative inferred endpoint. If an actual lacks the required declared range
+structure, supply the argument explicitly rather than deriving its type from a
+value. Endpoint expressions may be bound as a whole; matching `0..=N` can bind
+the expression `Limit + 1`, but solving `N * 2 == 256` is not structural inference.
+A `const` endpoint needs static inputs; a runtime endpoint can bind only where
+the value binder and its exact subject/lifetime rules permit dynamic values.
+
+A zero-argument machine `upper_bound<const N: u64>() -> u64 { N }` merely
+returns an already bound N. `upper_bound<N>()` needs no reflection, and
+`upper_bound()` cannot discover an unconstrained N from nothing. No compiler
+primitive with the name upper_bound is required.
+
+## Canonical integer range matching
+
+The same explicit integer interval has one normalized range meaning. In
+particular, `u64[0..257]` and `u64[0..=256]` match identically. Closed endpoint
+expressions evaluate under their exact selected arithmetic, then interval
+normalization expresses the inclusive upper bound in proof-integer arithmetic.
+Converting an exclusive end to its predecessor must not underflow or overflow a
+runtime carrier. Range formation, subject carrier, and endpoint evaluation retain
+their own obligations; normalization cannot repair an ill-formed expression.
+Runtime collection slicing keeps its separate executable endpoint rules.
+
+Use transparent alias expansion and defined canonical normalization, not general
+predicate equivalence or heuristic theorem search. Symbolic endpoints retain
+their exact bindings and permitted normalized expressions. A repeated inferred
+parameter must match consistently; stronger proof automation must not change an
+application's inferred constants, storage layout, or public identity. Separately
+proved relationships may establish compatibility without renaming either index.
+
+Explicitly uninhabited intervals and domains remain legal. A decomposition
+request that lacks a unique usable endpoint rejects; emptiness cannot choose an
+arbitrary capacity. An opaque domain or an unbounded classification does not
+implicitly expose a finite bound. Additional domain predicates are not searched
+for a smaller maximum, and equal inhabitant sets do not collapse distinct domain
+identities. This is declared-interval normalization, not a general greatest-member
+operation or satisfiability solver.
+
+## Explicitly derived bounded storage
+
+An author may deliberately use an extracted static endpoint as backing capacity,
+as in TinyBytes above. That is distinct from the compiler implicitly allocating
+the maximum of every runtime binder's range. A static capacity can also be
+computed from explicitly supplied constants through an eligible ordinary machine
+under [semantic evaluation](evaluation.md). Extracting an endpoint already
+present in type structure needs no such computation or predicate reflection.
+
+The chosen capacity is an element count, not its representation's number of
+inhabitants: a length in `0..=256` needs up to 256 elements. The byte requirement
+also includes element size, alignment, and metadata. Placement and total stack
+supply must fit independently before optional optimization. Runtime live length
+does not change fixed backing extent; growth and spill allocation need the
+container's explicit contract. Logical qualification supplies no backing or
+initialization authority.
+
 ## Finite specialization boundary
 
-A runtime-selected member of a small supported set can enter a static
-specialization through explicit dispatch. For vector widths 16, 32, and 64,
-each branch selects a literal width and proves its correspondence to the
-runtime choice. This does not make an arbitrary runtime expression a `const`
-argument. A general fallback must be authored, or the caller must establish
-membership in the supported set or handle an unsupported result.
+An explicit finite disjunction of equalities in a generic `where` clause can
+define the supported specialization family. No separate roster keyword or
+reflection API is required. This example illustrates a runtime-capable method
+family with one common result shape:
 
-Finite integer representation alone is not a request to enumerate every value.
-Neither a range proof nor generic syntax authorizes uncontrolled specialization
-across widths, datatypes, operations, and other configuration axes. SIMD target
-availability, legal lane shapes, and immediate constraints remain separate
-obligations. Derived indices such as lanes from byte width and element size need
-their exact arithmetic and divisibility relationships, not independent numbers
-that happen to agree at existing call sites.
+```omega
+trait ByteScanner {
+    machine scan<Width: u32>(&self, bytes: &[u8]) -> u64
+    where
+        Width == 16 || Width == 32 || Width == 64;
+}
+```
 
-Squalr's runtime-selected 16/32/64-byte scanners, repeated datatype comparison
-families, and const-only rotation bridges motivate reducing manual dispatch.
-Preserving a selected width together with its prepared comparator is a useful
-customer beyond storage sizing. The binder decision does not itself define
-automatic dispatch generation, finite generic methods on dynamic interfaces,
-or packaging of differently represented specialized results. Those routes need
-explicit coverage, ownership, and representation design before implementation;
-existing explicit branches and static calls remain valid. A dynamically loaded
-implementation does not become statically known merely because an index is finite.
+Each closed alternative binds the relevant parameter to a constant of its exact
+carrier. Normalize explicit alternatives to a deterministic duplicate-free set.
+For multiple parameters, each alternative supplies a complete tuple and retains
+its correlations; do not silently specialize a cross-product of unrelated
+runtime settings. Opaque predicates, arbitrary inequality ranges, and mere
+finiteness of an integer carrier do not request enumeration. Caller membership
+is a proof obligation; invalid runtime inputs need authored guards and outcomes.
+
+A runtime-capable family may lower to generated dispatch among those closed
+bodies when static-only operations require specialization. Static arguments
+select their exact body directly. A `const` binder remains strict: runtime values
+enter const-only kernels through a runtime-capable family or explicit branch,
+not a silent relaxation of the const API. A general body outside the listed
+alternatives must be authored under a contract admitting those inputs; the
+compiler invents neither a fallback nor a failure outcome.
+
+Every specialization must satisfy the public contract and be valid for its
+selected target. SIMD availability, legal lane counts, instruction immediates,
+and exact mask conversion remain checked independently. Derived indices such as
+lanes from byte width and element size need arithmetic/divisibility evidence.
+Generate only demanded static applications or the complete family needed by a
+dynamic selection. Compilation resource exhaustion reports incomplete production,
+not permission to drop cases, change behavior, or emit unbounded JIT code.
+
+Dispatch owns one exact selected index throughout an operation, including calls
+into its specialized loop. Width selection need not recur per SIMD instruction;
+per-region scan methods make that boundary explicit. Repeated public invocations
+may still dispatch, and unknown plugin implementations remain dynamic. A finite
+width set does not prove a particular machine instruction or performance result.
+
+[Finite dynamic families](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
+retain canonical requirement-and-tuple rows in one named conformance. A result
+may remain inside a statically selected branch or use a common representation.
+If different specialized results must escape together, author an ordinary finite
+sum with exact case payloads or an already specified owner/descriptor contract.
+Index and result custody stay joined. No implicit boxing, arbitrary existential
+type, or unspecified variable-layout result ABI is introduced.
+
+## Reflection boundary
+
+Static type equality and structural parameter binding do not require runtime
+type objects or general compile-time reflection. Existing layout schemas keep
+their [defined vocabulary](../layouts/plans.md). General field/predicate
+inspection, declaration traversal, and generated-body facilities remain a
+separate design discussion. Any future reflected type identity must use the
+same canonical equality, not names, matching layouts, or a second equivalence
+relation. No general reflection API is approved by these generic rules.
 
 ## Requirements and conformance evidence
 
