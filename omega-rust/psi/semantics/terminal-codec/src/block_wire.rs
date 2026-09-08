@@ -104,6 +104,42 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.id(length);
                 writer.id(obligation);
             }
+            OperationKind::StructuralByteSequenceFieldLength {
+                source,
+                path,
+                field,
+            } => {
+                writer.u8(59);
+                writer.id(source);
+                encode_structural_path(
+                    writer,
+                    "structural byte sequence field length path",
+                    &path,
+                )?;
+                writer.id(field);
+            }
+            OperationKind::StructuralByteSequenceFieldByteStore {
+                destination,
+                path,
+                field,
+                index,
+                value,
+                length,
+                obligation,
+            } => {
+                writer.u8(60);
+                writer.id(destination);
+                encode_structural_path(
+                    writer,
+                    "structural byte sequence field byte store path",
+                    &path,
+                )?;
+                writer.id(field);
+                writer.id(index);
+                writer.id(value);
+                writer.id(length);
+                writer.id(obligation);
+            }
             OperationKind::StructuralScalarFieldStore {
                 destination,
                 path,
@@ -854,6 +890,20 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 path: decode_structural_path(reader)?,
                 field: reader.id("StructuralFieldId")?,
                 source: reader.id("PlaceId")?,
+                length: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            },
+            59 => OperationKind::StructuralByteSequenceFieldLength {
+                source: reader.id("PlaceId")?,
+                path: decode_structural_path(reader)?,
+                field: reader.id("StructuralFieldId")?,
+            },
+            60 => OperationKind::StructuralByteSequenceFieldByteStore {
+                destination: reader.id("PlaceId")?,
+                path: decode_structural_path(reader)?,
+                field: reader.id("StructuralFieldId")?,
+                index: reader.id("ValueId")?,
+                value: reader.id("ValueId")?,
                 length: reader.id("ValueId")?,
                 obligation: reader.id("ObligationId")?,
             },
@@ -1608,6 +1658,67 @@ mod tests {
             &id::<StructuralFieldId>(11).get().to_le_bytes(),
         );
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(read));
+    }
+
+    #[test]
+    fn byte_field_index_operations_roundtrip_exact_operands_and_paths() {
+        let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let operations = [
+            Operation {
+                id: id::<OperationId>(2),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: id::<ValueId>(3),
+                    scalar_type: count_type,
+                }),
+                kind: OperationKind::StructuralByteSequenceFieldLength {
+                    source: id::<PlaceId>(4),
+                    path: vec![
+                        StructuralPathSegment::Field("buffer".into()),
+                        StructuralPathSegment::FixedIndex(2),
+                    ],
+                    field: id::<StructuralFieldId>(5),
+                },
+            },
+            Operation {
+                id: id::<OperationId>(6),
+                result: OperationResult::Unit,
+                kind: OperationKind::StructuralByteSequenceFieldByteStore {
+                    destination: id::<PlaceId>(7),
+                    path: vec![
+                        StructuralPathSegment::Field("nested".into()),
+                        StructuralPathSegment::FixedIndex(3),
+                    ],
+                    field: id::<StructuralFieldId>(8),
+                    index: id::<ValueId>(9),
+                    value: id::<ValueId>(10),
+                    length: id::<ValueId>(11),
+                    obligation: id::<ObligationId>(12),
+                },
+            },
+        ];
+        for (operation, tag) in operations.into_iter().zip([59, 60]) {
+            let block = Block {
+                structural_parameters: Vec::new(),
+                id: id::<BlockId>(1),
+                parameters: Vec::new(),
+                operations: vec![operation],
+                terminator: Terminator::ReturnUnit {
+                    edge: id::<EdgeId>(13),
+                    trivial_affine_discards: Vec::new(),
+                },
+            };
+            let mut writer = Writer::default();
+            encode_block(&mut writer, &block).unwrap();
+            let bytes = writer.finish();
+            let operation_tag_offset = if tag == 59 { 41 } else { 29 };
+            assert_eq!(bytes[operation_tag_offset], tag);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_block(&mut reader), Ok(block));
+            assert_eq!(reader.remaining(), 0);
+            for prefix_length in 0..bytes.len() {
+                assert!(decode_block(&mut Reader::new(&bytes[..prefix_length])).is_err());
+            }
+        }
     }
 
     #[test]

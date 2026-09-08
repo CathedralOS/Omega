@@ -30,6 +30,18 @@ pub(super) fn validate(
         let statement_index = u32::try_from(statement_index).map_err(|_| {
             LoweringError::Unsupported("structural scalar store statement ordinal exceeds u32")
         })?;
+        let indexed_stores = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
+                    if store.statement_index == statement_index =>
+                {
+                    Some(store)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         let byte_stores = plan
             .operations
             .iter()
@@ -42,6 +54,25 @@ pub(super) fn validate(
                 _ => None,
             })
             .collect::<Vec<_>>();
+        if let [store] = indexed_stores.as_slice() {
+            if !byte_stores.is_empty()
+                || stores
+                    .iter()
+                    .any(|scalar| scalar.statement_index == statement_index)
+            {
+                return unsupported("indexed assignment has conflicting store custody");
+            }
+            crate::structural_byte_sequence_index_store::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                store,
+            )?;
+            continue;
+        } else if !indexed_stores.is_empty() {
+            return unsupported("indexed assignment has duplicate byte-store custody");
+        }
         if let [store] = byte_stores.as_slice() {
             if stores
                 .iter()
@@ -118,7 +149,27 @@ pub(super) fn validate(
             store,
         )?;
     }
-    if (!stores.is_empty() || !byte_stores.is_empty())
+    let mut has_indexed_stores = false;
+    for operation in &plan.operations {
+        if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
+            operation
+        {
+            has_indexed_stores = true;
+            let Some(StatementNode::Assignment(assignment)) =
+                statements.get(store.statement_index as usize)
+            else {
+                return unsupported("byte replacement has no authored assignment");
+            };
+            crate::structural_byte_sequence_index_store::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                store,
+            )?;
+        }
+    }
+    if (!stores.is_empty() || !byte_stores.is_empty() || has_indexed_stores)
         && !matches!(plan.operations.last(),
         Some(CheckedUnitEffectOperationPlan::ReturnUnit { statement_index, .. })
             if usize::try_from(*statement_index).ok() == Some(statements.len()))

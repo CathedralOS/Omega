@@ -257,9 +257,14 @@ erasure; the Terminal operation independently proves the exact source length fit
 the destination capacity. Literal establishment stays at the assignment's authored
 position. Artifact interpretation replaces live bytes and live length on the
 original referent, including empty and shorter values across ordinary calls.
-Runtime-indexed byte mutation and native byte-field replacement are not realized;
-the native consumer explicitly rejects `StructuralByteSequenceFieldStore` before
-projection. This support does not make the unchanged `print_squares` sample runnable.
+Runtime-indexed byte replacement retains checked index and value operands in
+authored order, followed by a current field-length observation and the
+independently reconstructed bounds obligation. Source encoding predicates remain
+checked before erasure. Artifact interpretation preserves caller-visible writes,
+live length, and sibling fields. Native byte-field operations are not realized;
+the consumer explicitly rejects whole replacement, field length, and indexed
+replacement before projection. This support does not make the unchanged
+`print_squares` sample runnable.
 
 Keep semantic scalar and structural ordinals distinct while preserving authored
 argument order. Receiver `Self` resolves through the attachment and uses the

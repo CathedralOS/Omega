@@ -322,6 +322,47 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     for operation in &state.operations {
+        if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
+            operation
+        {
+            let bindings =
+                evaluation
+                    .scalar_bindings
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "indexed byte store has no scalar namespace",
+                    ))?;
+            let index = bindings.expression_at(
+                checked,
+                state.state,
+                store.statement_index,
+                CheckedScalarExpressionRole::AssignmentIndex,
+            )?;
+            let value = bindings.expression_at(
+                checked,
+                state.state,
+                store.statement_index,
+                CheckedScalarExpressionRole::AssignmentValue,
+            )?;
+            let kind = crate::structural_byte_sequence_index_store::emit(
+                store,
+                parameters,
+                &catalogs.structural_types,
+                &index,
+                &value,
+                values,
+                next_value,
+                &mut catalogs.scalar_calls.next_call_obligation,
+                operations,
+            )?;
+            let id = operations.allocate();
+            operations.push(Operation {
+                id,
+                result: OperationResult::Unit,
+                kind,
+            });
+            continue;
+        }
         if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) = operation {
             let kind = crate::structural_byte_sequence_store::emit(
                 store,

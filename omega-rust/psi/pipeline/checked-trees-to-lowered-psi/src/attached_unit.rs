@@ -835,6 +835,7 @@ fn assemble_unit_closure(
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
@@ -3003,6 +3004,35 @@ fn assemble_unit_closure(
                         &mut structural_types,
                         &mut literal_places,
                         &mut next_place,
+                        &mut next_value_identity,
+                        &mut next_call_obligation,
+                        &mut operations,
+                    )?
+                }
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                    let bindings =
+                        crate::scalar_bindings::ScalarBindings::new(scalar_result_values.len())
+                            .with_structural_parameters(&evaluation.structural_parameters)
+                            .with_resolved_structural_fields(&evaluation.structural_fields);
+                    let index = bindings.expression_at(
+                        checked,
+                        plan.state,
+                        store.statement_index,
+                        CheckedScalarExpressionRole::AssignmentIndex,
+                    )?;
+                    let value = bindings.expression_at(
+                        checked,
+                        plan.state,
+                        store.statement_index,
+                        CheckedScalarExpressionRole::AssignmentValue,
+                    )?;
+                    crate::structural_byte_sequence_index_store::emit(
+                        store,
+                        parameters,
+                        &structural_types,
+                        &index,
+                        &value,
+                        &scalar_result_values,
                         &mut next_value_identity,
                         &mut next_call_obligation,
                         &mut operations,

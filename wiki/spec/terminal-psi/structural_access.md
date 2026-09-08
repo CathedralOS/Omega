@@ -89,6 +89,7 @@ and receipt, unless installation supplies physical isolation evidence.
 | `WriteOnlyPrimitiveStore` | Destination structural parameter and already-defined, exactly typed SSA value. The primitive referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination parameter, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
+| `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.
@@ -117,6 +118,24 @@ Source encoding predicates still require source-level proof. Immutable source
 backing may be shared, provided later writes cannot mutate that source or aliases.
 The store costs one logical operation unit and invalidates destination observations;
 it creates no new ownership frontier entry.
+
+Indexed replacement changes one byte without changing live length.
+`StructuralByteSequenceFieldLength` observes the selected field's current live
+length as `u64`, not capacity or displaced contents. It permits shared, mutable,
+or write-only access with the same claim-free, unqualified static field custody.
+The byte store requires mutable or write-only access and reconstructs
+`index < length` from a dominating observation of the identical root, path,
+and field. Any intervening overlapping length-changing replacement or mutable
+call, including one on a backedge, invalidates that observation. Disjoint sibling
+writes and length-preserving byte stores do not.
+
+A field-length observation may derive its extent from a still-current earlier
+whole-field replacement. An established literal gives its exact octet count;
+other replacements retain their source-length scalar only while that scalar
+cannot reexecute between replacement and observation. These facts neither
+substitute capacity for live length nor discharge source encoding predicates.
+Both operations cost one logical operation unit. Indexed writes detach shared
+immutable backing before mutation, preserving the source and sibling values.
 
 Receiver writes require an actual mutable or write-only receiver. An attached
 namespace alone grants no storage authority. Source `Self`, receiver position,

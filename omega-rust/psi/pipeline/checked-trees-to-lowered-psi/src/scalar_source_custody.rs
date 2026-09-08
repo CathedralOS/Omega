@@ -232,6 +232,19 @@ pub(super) fn locate(
                 .primitive_type_reference(local.type_reference)
                 .map(|primitive| (local.initial_value, local.symbol, primitive))
         }
+        (StatementNode::Assignment(assignment), CheckedScalarExpressionRole::AssignmentIndex) => {
+            match program.expression_table.expression(assignment.target) {
+                ExpressionNode::Indexed(indexed)
+                    if !matches!(
+                        program.expression_table.expression(indexed.index),
+                        ExpressionNode::Range(_)
+                    ) =>
+                {
+                    Some((indexed.index, absent, PrimitiveType::U64))
+                }
+                _ => None,
+            }
+        }
         (StatementNode::Assignment(assignment), CheckedScalarExpressionRole::AssignmentValue) => {
             match program.expression_table.expression(assignment.target) {
                 ExpressionNode::Name(path)

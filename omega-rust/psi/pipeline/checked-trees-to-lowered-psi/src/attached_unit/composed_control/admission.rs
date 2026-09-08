@@ -471,6 +471,7 @@ pub(super) fn retain_call_targets<'a>(
                     )?;
                 }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }

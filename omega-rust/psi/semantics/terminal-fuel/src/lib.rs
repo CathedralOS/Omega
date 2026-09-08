@@ -56,6 +56,8 @@ impl TerminalFuelSchedule {
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
+            | OperationKind::StructuralByteSequenceFieldLength { .. }
+            | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::BoundaryCall { .. }
             | OperationKind::PortWrite { .. }
             | OperationKind::IntegerConstant { .. }

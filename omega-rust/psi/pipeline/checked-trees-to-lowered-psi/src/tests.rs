@@ -45,6 +45,7 @@ mod proof_recursion;
 mod quotient_correspondence;
 mod scalar_graph;
 mod service_reach_contracts;
+mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
 mod structural_control_cases;
 mod structural_return_cases;

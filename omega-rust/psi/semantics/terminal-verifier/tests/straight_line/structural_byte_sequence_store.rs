@@ -2,6 +2,9 @@ use super::*;
 use semantic_vocabulary::{PsiSemanticId, StructuralFieldId};
 use terminal_psi::{BindingRelevance, ByteSequenceCarrier};
 
+#[path = "structural_byte_sequence_store/indexed.rs"]
+mod indexed;
+
 fn id<T: PsiSemanticId>(raw: u64) -> T {
     T::new(raw).unwrap()
 }

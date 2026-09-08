@@ -1844,6 +1844,7 @@ pub(super) fn build_checked_machine_with(
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }

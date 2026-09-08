@@ -1,6 +1,7 @@
 //! Exact source-bound construction of the current migration trust graph.
 use super::{
     BYTE_BLOCK_BINDINGS_SOURCE, BYTE_CYCLIC_ELIGIBILITY_SOURCE, BYTE_EXTENT_RECONSTRUCTION_SOURCE,
+    BYTE_FIELD_ACCESS_VALIDATION_SOURCE, BYTE_FIELD_FRESHNESS_SOURCE,
     BYTE_FIELD_STORE_VALIDATION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
     BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
     BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE, LITERAL_FOUNDATION_SOURCE,
@@ -44,7 +45,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-80-vocabulary-86"
+    "root:canonical-terminal-bytes-format-81-vocabulary-87"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -465,7 +466,9 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
             if matches!(row.tag(), terminal_semantics::OperationSemanticTag::ByteSequenceRead
                 | terminal_semantics::OperationSemanticTag::ByteSequenceLength
                 | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice
-                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore) {
+                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore
+                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldLength
+                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldByteStore) {
                 exact_sources.extend([
                     ("terminal-verifier/validation/foundation.rs", LITERAL_FOUNDATION_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_subslice.rs", BYTE_SUBSLICE_VALIDATION_SOURCE),
@@ -486,6 +489,16 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
             }
             if row.tag() == terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore {
                 exact_sources.push(("terminal-verifier/validation/structural_byte_sequence_store.rs", BYTE_FIELD_STORE_VALIDATION_SOURCE));
+            }
+            if matches!(row.tag(),
+                terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldLength
+                    | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldByteStore)
+            {
+                exact_sources.extend([
+                    ("terminal-verifier/validation/structural_byte_sequence_store.rs", BYTE_FIELD_STORE_VALIDATION_SOURCE),
+                    ("terminal-verifier/validation/structural_byte_sequence_fields.rs", BYTE_FIELD_ACCESS_VALIDATION_SOURCE),
+                    ("terminal-verifier/validation/structural_byte_sequence_fields/freshness.rs", BYTE_FIELD_FRESHNESS_SOURCE),
+                ]);
             }
             if proof_bearing_scalar.is_some() {
                 exact_sources.push((

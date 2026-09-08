@@ -130,6 +130,23 @@ impl OperationResult {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Observe current live byte length, not capacity or stored byte content.
+    StructuralByteSequenceFieldLength {
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+    },
+    /// Replace one live byte without changing length. The exact field's length
+    /// observation must remain current and the certificate proves index < length.
+    StructuralByteSequenceFieldByteStore {
+        destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Store one already-defined scalar value through one exact whole-root
     /// mutable or write-only structural parameter. The operation does not
     /// observe the previous referent value, and structural custody is

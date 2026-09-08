@@ -1,6 +1,6 @@
 //! Non-observing bounded byte replacement with invocation-independent backing.
 
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralArgument, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
@@ -53,58 +53,15 @@ impl TerminalExecution {
         if operation.result != OperationResult::Unit || destination == source {
             return Err(invalid());
         }
-        let machine = self
-            .machines
-            .get(&self.current_machine)
-            .ok_or_else(invalid)?;
-        let parameter = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *destination)
-            .ok_or_else(invalid)?;
-        if !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ) || !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || !terminal_psi::is_bounded_structural_scalar_store_path(path)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(*destination) || claim.place == Some(*source))
+        let (destination_field, capacity) =
+            self.resolve_structural_byte_sequence_field(*destination, path, *field, true)?;
+        if self
+            .live_claims
+            .values()
+            .any(|claim| claim.place == Some(*source))
         {
             return Err(invalid());
         }
-        let parent = resolve_structural_arguments(
-            &self.structural_types,
-            &self.structural_values,
-            &[StructuralArgument {
-                place: *destination,
-                path: path.clone(),
-                access: parameter.access,
-            }],
-        )?
-        .pop()
-        .ok_or_else(invalid)?;
-        let declaration = self
-            .structural_types
-            .get(&parent.structural_type)
-            .ok_or_else(invalid)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return Err(invalid());
-        };
-        let field_declaration = fields
-            .iter()
-            .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
-            .ok_or_else(invalid)?;
-        let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
-            field_declaration.field_type
-        else {
-            return Err(invalid());
-        };
         let TerminalScalarValue::Integer {
             scalar_type,
             value: IntegerValue::Unsigned(length),
@@ -129,15 +86,82 @@ impl TerminalExecution {
         if bytes.len() as u128 != *length {
             return Err(invalid());
         }
-        // The backing is immutable. Sharing it copies the semantic byte value;
-        // subsequent field replacement cannot modify this source or other views.
-        self.structural_byte_sequence_fields.insert(
+        // Sharing immutable backing copies the semantic value. An indexed
+        // destination mutation detaches it before changing any byte.
+        self.structural_byte_sequence_fields
+            .insert(destination_field, bytes.clone());
+        Ok(())
+    }
+
+    pub(super) fn resolve_structural_byte_sequence_field(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: StructuralFieldId,
+        requires_mutation: bool,
+    ) -> Result<(StructuralByteSequenceRuntimeField, u64), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let machine = self
+            .machines
+            .get(&self.current_machine)
+            .ok_or_else(invalid)?;
+        let parameter = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == root)
+            .ok_or_else(invalid)?;
+        if !matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        ) || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || (requires_mutation && parameter.access == StructuralAccess::SharedBorrow)
+            || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(root))
+        {
+            return Err(invalid());
+        }
+        let parent = resolve_structural_arguments(
+            &self.structural_types,
+            &self.structural_values,
+            &[StructuralArgument {
+                place: root,
+                path: path.to_vec(),
+                access: parameter.access,
+            }],
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        let declaration = self
+            .structural_types
+            .get(&parent.structural_type)
+            .ok_or_else(invalid)?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return Err(invalid());
+        };
+        let field_declaration = fields
+            .iter()
+            .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+            .ok_or_else(invalid)?;
+        let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
+            field_declaration.field_type
+        else {
+            return Err(invalid());
+        };
+        Ok((
             StructuralByteSequenceRuntimeField {
                 parent: StructuralRuntimePlace::from(&parent),
-                field: *field,
+                field,
             },
-            bytes.clone(),
-        );
-        Ok(())
+            capacity,
+        ))
     }
 }

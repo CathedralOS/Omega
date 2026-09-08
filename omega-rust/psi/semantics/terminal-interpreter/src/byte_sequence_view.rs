@@ -1,4 +1,5 @@
-//! Invocation-private immutable storage. Identity never enters Terminal bytes.
+//! Invocation-private byte backing with immutable shared views.
+//! Storage identity never enters Terminal bytes.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -30,6 +31,23 @@ impl ByteSequenceView {
         self.bytes().get(index)
     }
 
+    /// Replace one live byte without changing another view's immutable value.
+    /// Shared backing detaches only this window, not unused source bytes.
+    pub(super) fn replace_byte(&mut self, byte_index: usize, value: u8) -> Option<()> {
+        if byte_index >= self.len() {
+            return None;
+        }
+        let storage_index = self.window.start.checked_add(byte_index)?;
+        if let Some(bytes) = Arc::get_mut(&mut self.backing) {
+            *bytes.get_mut(storage_index)? = value;
+        } else {
+            let mut bytes = self.bytes().to_vec();
+            *bytes.get_mut(byte_index)? = value;
+            *self = Self::new(bytes);
+        }
+        Some(())
+    }
+
     pub(super) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
         self.bytes().get(start..end)?;
         Some(Self {
@@ -59,5 +77,35 @@ mod tests {
         drop(source);
         drop(call);
         assert_eq!(nested.bytes(), &[255]);
+    }
+
+    #[test]
+    fn replacement_detaches_shared_windows_and_reuses_exclusive_backing() {
+        let source = ByteSequenceView::new(vec![10, 20, 30, 40]);
+        let sibling = source.clone();
+        let mut destination = source.subslice(1, 3).unwrap();
+        assert_eq!(destination.replace_byte(1, 255), Some(()));
+        assert_eq!(source.bytes(), &[10, 20, 30, 40]);
+        assert_eq!(sibling.bytes(), source.bytes());
+        assert_eq!(destination.bytes(), &[20, 255]);
+        assert_eq!(destination.backing.len(), 2);
+        let backing = destination.bytes().as_ptr();
+        assert_eq!(destination.replace_byte(0, 0), Some(()));
+        assert_eq!(destination.bytes().as_ptr(), backing);
+        assert_eq!(destination.bytes(), &[0, 255]);
+    }
+
+    #[test]
+    fn invalid_replacement_does_not_detach_or_change_length() {
+        let source = ByteSequenceView::new(vec![1, 2]);
+        let mut destination = source.clone();
+        for byte_index in [2, usize::MAX] {
+            assert_eq!(destination.replace_byte(byte_index, 9), None);
+            assert!(Arc::ptr_eq(&source.backing, &destination.backing));
+            assert_eq!(destination.bytes(), &[1, 2]);
+        }
+        let mut empty = source.subslice(1, 1).unwrap();
+        assert_eq!(empty.replace_byte(0, 9), None);
+        assert_eq!(empty.len(), 0);
     }
 }

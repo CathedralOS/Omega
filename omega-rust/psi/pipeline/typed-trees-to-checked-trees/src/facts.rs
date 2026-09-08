@@ -1567,7 +1567,7 @@ fn build_structural_runtime_requirements(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<Vec<checked_trees::CheckedBooleanExpression>> {
     let entry = program.machine_states(machine).first()?;
-    program
+    let mut requirements = program
         .machine_contracts(machine)
         .iter()
         .chain(program.state_contracts(entry))
@@ -1585,7 +1585,13 @@ fn build_structural_runtime_requirements(
                 exact_integer_casts,
             )
         })
-        .collect()
+        .collect::<Option<Vec<_>>>()?;
+    requirements.extend(
+        crate::values::lower_integer_parameter_range_requirements(program, operators, machine)
+            .into_iter()
+            .collect::<Option<Vec<_>>>()?,
+    );
+    Some(requirements)
 }
 
 pub(crate) fn derive_authored_machine_crash_buckets(

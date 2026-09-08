@@ -124,6 +124,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     })
                 }
                 OperationKind::ByteSequenceLength { .. }
+                | OperationKind::StructuralByteSequenceFieldLength { .. }
                 | OperationKind::ByteSequenceRead { .. }
                 | OperationKind::IntegerStructuralField { .. }
                 | OperationKind::BooleanStructuralField { .. } => {
@@ -131,6 +132,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                 }
                 OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::StructuralByteSequenceFieldStore { .. }
+                | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. } => {
                     operation.result == OperationResult::Unit
                 }

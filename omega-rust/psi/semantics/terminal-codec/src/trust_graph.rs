@@ -121,6 +121,11 @@ const BYTE_VIEW_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/byte_sequence_length.rs");
 const BYTE_FIELD_STORE_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/structural_byte_sequence_store.rs");
+const BYTE_FIELD_ACCESS_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/structural_byte_sequence_fields.rs");
+const BYTE_FIELD_FRESHNESS_SOURCE: &[u8] = include_bytes!(
+    "../../terminal-verifier/src/validation/structural_byte_sequence_fields/freshness.rs"
+);
 const LITERAL_FOUNDATION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/foundation.rs");
 const OPERATION_FACTS_SOURCE: &[u8] =
@@ -564,7 +569,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            13
+            15
         );
         assert_eq!(
             graph
@@ -574,7 +579,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 58);
+        assert_eq!(OperationSemanticRow::ALL.len(), 60);
         let descriptor_store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::StoreDynamicDescriptor)

@@ -210,6 +210,7 @@ pub(super) fn validate_machine(
                     | OperationKind::WriteOnlyPrimitiveStore { .. }
                     | OperationKind::StructuralScalarFieldStore { .. }
                     | OperationKind::StructuralByteSequenceFieldStore { .. }
+                    | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
@@ -219,7 +220,8 @@ pub(super) fn validate_machine(
                     return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
                 }
                 validate_unit_operation_static(module, machine, machines, operation)?;
-                if let OperationKind::StructuralByteSequenceFieldStore { obligation, .. } =
+                if let OperationKind::StructuralByteSequenceFieldStore { obligation, .. }
+                | OperationKind::StructuralByteSequenceFieldByteStore { obligation, .. } =
                     &operation.kind
                 {
                     insert_unique(
@@ -316,6 +318,9 @@ pub(super) fn validate_machine(
                 result.scalar_type,
             )?;
             match operation.kind.clone() {
+                OperationKind::StructuralByteSequenceFieldLength { .. } => {
+                    super::structural_byte_sequence_fields::validate(module, machine, operation)?;
+                }
                 OperationKind::ByteSequenceLength { source } => {
                     super::byte_sequence_length::validate(module, machine, operation, source)?;
                 }
@@ -338,6 +343,7 @@ pub(super) fn validate_machine(
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::StructuralByteSequenceFieldStore { .. }
+                | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallDynamicScalar { .. }
                 | OperationKind::CallDynamicParameterScalar { .. }

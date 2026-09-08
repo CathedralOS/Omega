@@ -337,6 +337,8 @@ operation_semantic_rows! {
     WriteOnlyPrimitiveStore => ("schema:operation:write-only-primitive-store", LeafDenotation, None),
     StructuralScalarFieldStore => ("schema:operation:structural-scalar-field-store", LeafDenotation, None),
     StructuralByteSequenceFieldStore => ("schema:operation:structural-byte-sequence-field-store", LeafDenotation, None),
+    StructuralByteSequenceFieldLength => ("schema:operation:structural-byte-sequence-field-length", LeafDenotation, None),
+    StructuralByteSequenceFieldByteStore => ("schema:operation:structural-byte-sequence-field-byte-store", LeafDenotation, None),
     EstablishPayloadlessCase => ("schema:operation:establish-payloadless-case", LeafDenotation, None),
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     ByteSequenceLength => ("schema:operation:byte-sequence-length", LeafDenotation, None),
@@ -763,14 +765,14 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 58);
-        assert_eq!(OperationSemanticRow::ALL.len(), 58);
+        assert_eq!(OperationSemanticTag::ALL.len(), 60);
+        assert_eq!(OperationSemanticRow::ALL.len(), 60);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            48,
+            50,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -792,7 +794,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            58,
+            60,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -800,7 +802,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            58,
+            60,
         );
         assert!(
             OperationSemanticRow::ALL

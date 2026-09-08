@@ -28,6 +28,12 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::StructuralByteSequenceFieldLength { .. } => Err(
+            LoweringError::UnsupportedStructuralByteSequenceFieldLength(operation.id),
+        ),
+        OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
+            Err(LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(operation.id))
+        }
         OperationKind::StructuralByteSequenceFieldStore { .. } => Err(
             LoweringError::UnsupportedStructuralByteSequenceFieldStore(operation.id),
         ),

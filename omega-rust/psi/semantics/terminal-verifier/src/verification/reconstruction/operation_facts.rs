@@ -56,11 +56,17 @@ pub(super) fn append_operation(
 ) -> Result<(), ModuleError> {
     if let OperationKind::WriteOnlyPrimitiveStore { destination, .. }
     | OperationKind::StructuralScalarFieldStore { destination, .. }
-    | OperationKind::StructuralByteSequenceFieldStore { destination, .. } = &operation.kind
+    | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+    | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. } = &operation.kind
     {
         axioms.retain(|proposition| {
             !crate::validation::proposition_observes_places(proposition, &[*destination])
         });
+    }
+    if let Some(equation) = crate::validation::structural_byte_sequence_field_length_equation(
+        module, machine, operation,
+    )? {
+        axioms.push(equation);
     }
     if let OperationKind::StructuralByteSequenceFieldStore {
         length, obligation, ..
@@ -222,6 +228,8 @@ pub(super) fn append_operation(
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteSequenceFieldLength { .. }
+        | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }
