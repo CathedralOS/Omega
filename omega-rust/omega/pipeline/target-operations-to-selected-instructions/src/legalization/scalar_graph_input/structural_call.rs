@@ -12,105 +12,106 @@ use terminal_psi::{StructuralAccess, StructuralArgument};
 pub(in crate::legalization) fn validate_argument(
     argument: &StructuralArgument,
     target_argument: &TargetStructuralArgument,
+    call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
     callee: MachineId,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
-    let target_caller = native
-        .functions
-        .iter()
-        .find(|function| function.machine == caller.machine)
-        .ok_or(invalid.clone())?;
-    let parameters = super::structural_parameters(target_caller).ok_or(invalid.clone())?;
-    let [source] = caller.structural_parameters.as_slice() else {
-        return Err(invalid);
-    };
-    let [parameter] = parameters else {
-        return Err(invalid);
-    };
-    let callee_plan = super::callee_plan(callee, native, plan, unit)?;
-    let callee = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == callee)
-        .ok_or(invalid.clone())?;
-    let [callee_parameter] = callee.structural_parameters.as_slice() else {
-        return Err(invalid);
-    };
-    let destination = callee_plan
-        .parameters
-        .get(callee.parameters.len())
-        .ok_or(invalid.clone())?;
-    if argument.place != source.place
-        || argument.access != StructuralAccess::SharedBorrow
-        || !argument.path.is_empty()
-        || source.access != argument.access
-        || callee_parameter.access != argument.access
-        || source.structural_type != callee_parameter.structural_type
-        || source.multiplicity != callee_parameter.multiplicity
-        || parameter.place != source.place
-        || parameter.access != source.access
-        || parameter.structural_type != source.structural_type
-        || target_argument.place != source.place
-        || target_argument.access != argument.access
-        || !target_argument.path.is_empty()
-        || target_argument.root_structural_type != source.structural_type
-        || target_argument.structural_type != source.structural_type
-        || target_argument.shape != ValueShape::borrowed_reference(16, 8)
-        || parameter.shape != target_argument.shape
-        || target_argument.source != parameter.placement
-        || target_argument.destination != *destination
-        || target_argument.source_byte_offset != 0
-        || target_argument.fixed_array_length.is_some()
-        || target_argument.element_stride.is_some()
+    if self::argument(argument, call_operation, caller, callee, native, plan, unit)?
+        != *target_argument
     {
-        return Err(invalid);
+        return Err(LegalizationError::SourceCustodyMismatch);
     }
-    Ok(callee_plan)
+    super::callee_plan(callee, native, plan, unit)
 }
 
-/// Reconstruct the whole-reference transport from validated caller and callee ABIs.
-/// Ordered calls whose results are unused have no target expression tree.
+/// Reconstruct source storage separately from the callee's incoming pointer ABI.
 pub(in crate::legalization) fn argument(
     semantic: &StructuralArgument,
+    call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
     callee: MachineId,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
+    use target_operations::TargetStructuralArgumentSource;
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let parameter = native
+    let call = super::callee_plan(callee, native, plan, unit)?;
+    let called = unit
         .functions
         .iter()
-        .find(|function| function.machine == caller.machine)
-        .and_then(super::structural_parameters)
-        .and_then(|parameters| {
-            parameters
-                .iter()
-                .find(|parameter| parameter.place == semantic.place)
-        })
+        .find(|function| function.machine == callee)
         .ok_or(invalid.clone())?;
-    let call = super::callee_plan(callee, native, plan, unit)?;
-    let destination = call.parameters.last().ok_or(invalid.clone())?;
-    let argument = TargetStructuralArgument {
+    let [destination_parameter] = called.structural_parameters.as_slice() else {
+        return Err(invalid);
+    };
+    if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
+        return Err(invalid);
+    }
+    let (structural_type, source) = if let Some((producer, structural_type)) =
+        super::literals::producer(caller, call_operation, semantic.place)
+    {
+        if !super::literals::roster(caller) {
+            return Err(invalid);
+        }
+        (
+            structural_type,
+            TargetStructuralArgumentSource::ByteSequenceLiteral {
+                psi_operation: producer,
+            },
+        )
+    } else {
+        let [source] = caller.structural_parameters.as_slice() else {
+            return Err(invalid);
+        };
+        let target_caller = native
+            .functions
+            .iter()
+            .find(|function| function.machine == caller.machine)
+            .ok_or(invalid.clone())?;
+        let parameters = super::structural_parameters(target_caller).ok_or(invalid.clone())?;
+        let [parameter] = parameters else {
+            return Err(invalid);
+        };
+        if semantic.place != source.place
+            || source.access != StructuralAccess::SharedBorrow
+            || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !source.qualifications.is_empty()
+            || !source.projected_qualifications.is_empty()
+            || parameter.place != source.place
+            || parameter.structural_type != source.structural_type
+            || parameter.access != source.access
+            || parameter.multiplicity != source.multiplicity
+            || parameter.shape != ValueShape::borrowed_reference(16, 8)
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return Err(invalid);
+        }
+        (source.structural_type, parameter.placement.clone().into())
+    };
+    if structural_type != destination_parameter.structural_type {
+        return Err(invalid);
+    }
+    Ok(TargetStructuralArgument {
         place: semantic.place,
         access: semantic.access,
-        path: semantic.path.clone(),
-        root_structural_type: parameter.structural_type,
-        structural_type: parameter.structural_type,
-        shape: parameter.shape,
+        path: Vec::new(),
+        root_structural_type: structural_type,
+        structural_type,
+        shape: ValueShape::borrowed_reference(16, 8),
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
-        source: parameter.placement.clone(),
-        destination: destination.clone(),
-    };
-    validate_argument(semantic, &argument, caller, callee, native, plan, unit)?;
-    Ok(argument)
+        source,
+        destination: call
+            .parameters
+            .get(called.parameters.len())
+            .ok_or(invalid)?
+            .clone(),
+    })
 }
 
 pub(super) fn validate_target(
@@ -194,6 +195,7 @@ pub(super) fn validate_target(
     validate_argument(
         argument,
         target_argument,
+        *psi_operation,
         optimized,
         *callee,
         native,

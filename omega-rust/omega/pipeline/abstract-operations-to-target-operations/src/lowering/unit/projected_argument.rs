@@ -67,7 +67,7 @@ pub(super) fn lower(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
-        source: source.placement.clone(),
+        source: source.placement.clone().into(),
         destination: destination.clone(),
     })
 }

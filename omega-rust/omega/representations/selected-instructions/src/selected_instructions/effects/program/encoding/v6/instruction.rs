@@ -15,7 +15,7 @@ pub(super) fn decode_instruction(
     let memory = match cursor.byte()? {
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
-        2 => MachineMemoryEffect::WriteOutgoingArgumentV1,
+        2 => MachineMemoryEffect::WriteFrameStorageV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
@@ -86,10 +86,19 @@ fn decode_kind(
             byte_offset: cursor.u32()?,
         },
         tag @ (17 | 18) => {
-            let slot = crate::OutgoingArgumentSlotId {
-                operation: OperationId::new(cursor.u64()?)
-                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-                argument_index: cursor.u32()?,
+            let slot = match cursor.byte()? {
+                0 => crate::FrameStorageSlotId::Outgoing(crate::OutgoingArgumentSlotId {
+                    operation: OperationId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                    argument_index: cursor.u32()?,
+                }),
+                1 => crate::FrameStorageSlotId::Local(crate::LocalStorageSlotId {
+                    operation: OperationId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                    place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                }),
+                _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
             };
             let byte_offset = cursor.u32()?;
             if tag == 17 {
@@ -317,7 +326,7 @@ fn decode_encoded_effects(
             pointer_operand: cursor.u16()?,
             byte_count: cursor.u16()?,
         },
-        4 => MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+        4 => MachineEncodedMemoryEffect::WriteFrameStorageV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
             byte_count: cursor.u16()?,
         },

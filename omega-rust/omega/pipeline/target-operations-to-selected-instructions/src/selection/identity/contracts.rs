@@ -8,6 +8,22 @@ pub(super) fn slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
     bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
 }
+fn local_slot(bytes: &mut Vec<u8>, slot: selected_instructions::LocalStorageSlotId) {
+    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+    bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+}
+pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: selected_instructions::FrameStorageSlotId) {
+    match slot {
+        selected_instructions::FrameStorageSlotId::Outgoing(value) => {
+            bytes.push(0);
+            self::slot(bytes, value);
+        }
+        selected_instructions::FrameStorageSlotId::Local(value) => {
+            bytes.push(1);
+            local_slot(bytes, value);
+        }
+    }
+}
 pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     match &function.ranked {
         None => bytes.push(0),
@@ -35,6 +51,12 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
         bytes.extend_from_slice(&row.byte_size.to_le_bytes());
         bytes.extend_from_slice(&row.alignment.to_le_bytes());
         bytes.extend_from_slice(&row.abi_stack_byte_offset.to_le_bytes());
+    }
+    encode_len(bytes, function.local_storage_slots.len());
+    for row in &function.local_storage_slots {
+        local_slot(bytes, row.id);
+        bytes.extend_from_slice(&row.byte_size.to_le_bytes());
+        bytes.extend_from_slice(&row.alignment.to_le_bytes());
     }
     encode_len(bytes, function.calls.len());
     for row in &function.calls {
@@ -74,6 +96,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
             SelectedMemoryAccessRole::AddressOutgoing { slot: value } => {
                 bytes.push(2);
                 slot(bytes, value);
+            }
+            SelectedMemoryAccessRole::WriteLocal { slot: value } => {
+                bytes.push(4);
+                local_slot(bytes, value);
+            }
+            SelectedMemoryAccessRole::AddressLocal { slot: value } => {
+                bytes.push(5);
+                local_slot(bytes, value);
             }
         }
     }

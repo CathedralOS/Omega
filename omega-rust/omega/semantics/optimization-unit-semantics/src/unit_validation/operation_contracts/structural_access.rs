@@ -177,7 +177,7 @@ pub(crate) fn structural_source_contract(
                     (declaration.id == place).then_some(StructuralSourceContract {
                         structural_type: structural_type.id,
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                        access: terminal_psi::StructuralAccess::Owned,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
                         qualifications: &[],
                         projected_qualifications: &[],
                     })

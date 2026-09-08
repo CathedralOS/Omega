@@ -45,8 +45,9 @@ pub(super) fn selected(selected: &mut SelectedFunction, scalar_count: usize, mut
             else {
                 unreachable!();
             };
-            target.source = target.destination.clone();
-            target.source.shape = ValueShape::integer(8, 8);
+            let mut placement = target.destination.clone();
+            placement.shape = ValueShape::integer(8, 8);
+            target.source = placement.into();
         }
         10 => {
             let LegalizedScalarArgument::Structural { target, .. } =
@@ -146,7 +147,14 @@ pub(super) fn source(source: &mut LegalizedScalarFunction, scalar_count: usize, 
         8 => target.source_byte_offset = 8,
         9 => target.fixed_array_length = Some(2),
         10 => target.element_stride = Some(8),
-        11 => target.source.shape = ValueShape::integer(16, 8),
+        11 => {
+            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                &mut target.source
+            else {
+                panic!("borrowed placement");
+            };
+            placement.shape = ValueShape::integer(16, 8);
+        }
         12 => target.destination.shape = ValueShape::integer(16, 8),
         13 => semantic
             .path
@@ -277,7 +285,7 @@ pub(super) fn source(source: &mut LegalizedScalarFunction, scalar_count: usize, 
             source.structural.as_mut().unwrap().parameters[0]
                 .target
                 .placement = pointer_placement.clone();
-            target.source = pointer_placement.clone();
+            target.source = pointer_placement.clone().into();
         }
         31 => {
             // An absent scalar declaration cannot be inferred from ABI shape.

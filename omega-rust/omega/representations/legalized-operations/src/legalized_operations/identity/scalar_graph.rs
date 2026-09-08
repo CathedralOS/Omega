@@ -70,6 +70,17 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+                    destination,
+                    structural_type,
+                    bytes: literal_bytes,
+                } => {
+                    bytes.push(10);
+                    super::structural_types::encode_structural_place(bytes, *destination);
+                    super::structural_types::encode_structural_type(bytes, structural_type);
+                    encode_len(bytes, literal_bytes.len());
+                    bytes.extend_from_slice(literal_bytes);
+                }
                 LegalizedScalarInstructionKind::ByteSequenceSubslice {
                     result,
                     source,

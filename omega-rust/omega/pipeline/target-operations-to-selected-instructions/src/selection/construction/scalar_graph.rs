@@ -361,6 +361,7 @@ pub(super) fn build(
                     output
                 }
                 LegalizedScalarInstructionKind::BoundarySettlement(_)
+                | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
                     return Err(invalid());
                 }
@@ -393,6 +394,7 @@ pub(super) fn build(
         structural: source.structural.clone(),
         ranked: source.ranked.clone(),
         outgoing_arguments: builder.transport.slots,
+        local_storage_slots: builder.transport.local_slots,
         calls: builder.transport.calls,
         memory_accesses: builder.transport.memory,
         boundary_settlements: builder.transport.settlements,

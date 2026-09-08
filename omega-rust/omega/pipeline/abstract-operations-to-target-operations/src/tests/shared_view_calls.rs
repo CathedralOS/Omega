@@ -131,6 +131,8 @@ fn repeated_mixed_view_calls_use_ordinary_scalar_graph_and_original_pointer() {
                 .unwrap()
                 .structural_parameters[0]
                 .placement
+                .clone()
+                .into()
         );
         assert_eq!(argument.destination, call_plan.parameters[1]);
         assert_eq!(
@@ -340,7 +342,10 @@ fn repeated_unit_view_calls_preserve_boolean_sources_and_have_no_result() {
             };
             assert_eq!(psi_operation.get(), expected_operation);
             assert!(call_plan.result.is_none());
-            assert_eq!(arguments[0].source, body.parameters[0].placement);
+            assert_eq!(
+                arguments[0].source,
+                body.parameters[0].placement.clone().into()
+            );
             assert_eq!(arguments[0].destination, call_plan.parameters[2]);
             assert!(matches!(
                 arguments[0].destination.locations.as_slice(),
@@ -398,4 +403,61 @@ fn unit_view_calls_reject_substituted_referents_access_and_boolean_actuals() {
         }
         assert!(lower_to_target_operations(&source, NativeTarget::macos_arm64()).is_err());
     }
+}
+
+#[test]
+fn literal_call_source_is_an_earlier_local_producer_not_a_parameter() {
+    let mut source = fixture();
+    let literal_type = source.structural_types[0].clone();
+    let caller = &mut source.functions[0];
+    caller.structural_parameters.clear();
+    caller.operations.insert(
+        0,
+        AbstractOperation::EstablishByteSequenceLiteral {
+            psi_operation: OperationId::new(10).unwrap(),
+            place: terminal_psi::StructuralPlaceDeclaration {
+                id: PlaceId::new(1).unwrap(),
+                kind: semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal: 0,
+                    structural_type: literal_type.id,
+                },
+            },
+            structural_type: literal_type,
+            bytes: vec![0, 0x80, 0xff],
+        },
+    );
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations(&source, target).unwrap();
+        let caller = &lowered.functions[0];
+        assert!(caller.mixed_structural_scalar_abi.is_none());
+        assert_eq!(caller.scalar_abi.as_ref().unwrap().parameters.len(), 1);
+        let TargetOperation::ReturnIntegerExpression { expression, .. } = &caller.operation else {
+            panic!("ordinary scalar result");
+        };
+        let TargetIntegerExpression::StructuralCall {
+            structural_arguments,
+            ..
+        } = expression
+        else {
+            panic!("ordinary call");
+        };
+        assert_eq!(
+            structural_arguments[0].source,
+            target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+                psi_operation: OperationId::new(10).unwrap(),
+            }
+        );
+        assert_eq!(
+            caller.provenance.operations[0],
+            OperationId::new(10).unwrap()
+        );
+    }
+    let producer = source.functions[0].operations.remove(0);
+    source.functions[0].operations.insert(2, producer);
+    assert!(lower_to_target_operations(&source, NativeTarget::macos_arm64()).is_err());
 }

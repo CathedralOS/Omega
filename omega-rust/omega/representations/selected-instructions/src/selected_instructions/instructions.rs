@@ -24,11 +24,11 @@ pub enum SelectedInstructionKind {
         byte_offset: u32,
     },
     Store64 {
-        slot: super::OutgoingArgumentSlotId,
+        slot: super::FrameStorageSlotId,
         byte_offset: u32,
     },
     FrameAddress {
-        slot: super::OutgoingArgumentSlotId,
+        slot: super::FrameStorageSlotId,
         byte_offset: u32,
     },
     CallUnit {

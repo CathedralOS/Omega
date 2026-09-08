@@ -10,6 +10,16 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::EstablishByteSequenceLiteral {
+            place,
+            structural_type,
+            bytes,
+            ..
+        } => LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+            destination: *place,
+            structural_type: structural_type.clone(),
+            bytes: bytes.clone(),
+        },
         AbstractOperation::ByteSequenceSubslice {
             psi_operation,
             result,
@@ -60,10 +70,10 @@ pub(super) fn project(
                 return Err(Error::SourceCustodyMismatch);
             };
             let target = scalar_graph_input::structural_call::argument(
-                semantic, optimized, *callee, native, plan, unit,
+                semantic, operation, optimized, *callee, native, plan, unit,
             )?;
             let call_plan = scalar_graph_input::structural_call::validate_argument(
-                semantic, &target, optimized, *callee, native, plan, unit,
+                semantic, &target, operation, optimized, *callee, native, plan, unit,
             )?;
             if call_plan.parameters.len() != scalar_arguments.len() + 1 {
                 return Err(Error::SourceCustodyMismatch);

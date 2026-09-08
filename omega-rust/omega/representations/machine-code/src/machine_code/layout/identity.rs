@@ -214,7 +214,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(pointer_operand.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }
-        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+        MachineEncodedMemoryEffect::WriteFrameStorageV1 {
             stack_pointer,
             byte_count,
         } => {

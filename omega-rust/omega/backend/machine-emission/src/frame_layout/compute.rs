@@ -86,6 +86,7 @@ pub(super) fn derive(
                     machine_function.machine,
                     contains_call,
                     &machine_function.outgoing_arguments,
+                    &machine_function.local_storage_slots,
                     storage_function.abstract_area_bytes,
                     callee_save_slots,
                 )
@@ -113,6 +114,7 @@ fn function_layout(
     machine: semantic_vocabulary::MachineId,
     contains_call: bool,
     outgoing_arguments: &[selected_instructions::SelectedOutgoingArgumentSlot],
+    local_storage: &[selected_instructions::SelectedLocalStorageSlot],
     callee_save_area_bytes: u64,
     mut callee_save_slots: Vec<CalleeSaveFrameSlot>,
 ) -> Result<FunctionTargetFrameLayout, TargetFrameLayoutError> {
@@ -144,14 +146,52 @@ fn function_layout(
         byte_size: outgoing_extent,
         shadow_bytes,
     };
+    let mut local_extent = outgoing_extent;
+    let mut local_storage_slots = Vec::with_capacity(local_storage.len());
+    for (index, slot) in local_storage.iter().enumerate() {
+        if slot.byte_size == 0
+            || !slot.alignment.is_power_of_two()
+            || slot.alignment > 8
+            || local_storage[..index]
+                .iter()
+                .any(|earlier| earlier.id == slot.id)
+        {
+            return Err(TargetFrameLayoutError::NonCanonicalLayout);
+        }
+        let frame_offset_bytes = align_up(local_extent, u64::from(slot.alignment))?;
+        local_extent = frame_offset_bytes
+            .checked_add(u64::from(slot.byte_size))
+            .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+        local_storage_slots.push(machine_code::LocalStorageFrameSlot {
+            id: slot.id,
+            frame_offset_bytes,
+            size_bytes: slot.byte_size,
+            alignment_bytes: slot.alignment,
+        });
+    }
+    // Preservation storage retains its own alignment after arbitrary local extents.
+    let preservation_offset = if local_storage_slots.is_empty() {
+        outgoing_extent
+    } else {
+        let preservation_alignment = callee_save_slots
+            .iter()
+            .map(|slot| slot.alignment_bytes)
+            .max()
+            .unwrap_or(8)
+            .max(8);
+        if !preservation_alignment.is_power_of_two() {
+            return Err(TargetFrameLayoutError::NonCanonicalLayout);
+        }
+        align_up(local_extent, preservation_alignment)?
+    };
     for slot in &mut callee_save_slots {
         slot.frame_offset_bytes = slot
             .frame_offset_bytes
-            .checked_add(outgoing_abi_area.byte_size)
+            .checked_add(preservation_offset)
             .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
     }
     let used_area_bytes = callee_save_area_bytes
-        .checked_add(outgoing_abi_area.byte_size)
+        .checked_add(preservation_offset)
         .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
     let (stack_pointer, frame_size_bytes, return_address) =
         match (environment.target().architecture, abi) {
@@ -171,7 +211,7 @@ fn function_layout(
                 // Outgoing ABI storage precedes all preservation storage.
                 let frame_size = if contains_call
                     || (convention == FrameAbiPreservationConvention::MicrosoftX64
-                        && callee_save_area_bytes != 0)
+                        && used_area_bytes != 0)
                 {
                     align_to_residue(used_area_bytes, 16, 8)?
                 } else {
@@ -238,6 +278,7 @@ fn function_layout(
         frame_size_bytes,
         abi_stack_alignment_bytes: 16,
         outgoing_abi_area,
+        local_storage_slots,
         callee_save_slots,
         return_address,
     })
@@ -270,6 +311,72 @@ mod tests {
     use super::*;
 
     #[test]
+    fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
+        let id = selected_instructions::LocalStorageSlotId {
+            operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+            place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+        };
+        let local = selected_instructions::SelectedLocalStorageSlot {
+            id,
+            byte_size: 24,
+            alignment: 8,
+        };
+        for target in [
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ] {
+            let environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let abi = match (target.architecture, target.object_format) {
+                (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
+                    FrameAbiPreservationConvention::MicrosoftX64
+                }
+                (target::Architecture::X86_64, _) => FrameAbiPreservationConvention::SystemVAMD64,
+                (_, target::ObjectFormat::MachO) => FrameAbiPreservationConvention::DarwinAapcs64,
+                _ => FrameAbiPreservationConvention::Aapcs64,
+            };
+            let layout = function_layout(
+                &environment,
+                abi,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                semantic_vocabulary::MachineId::new(1).unwrap(),
+                true,
+                &[],
+                std::slice::from_ref(&local),
+                0,
+                Vec::new(),
+            )
+            .unwrap();
+            let outgoing = if abi == FrameAbiPreservationConvention::MicrosoftX64 {
+                32
+            } else {
+                0
+            };
+            assert_eq!(layout.outgoing_abi_area.byte_size, outgoing);
+            assert_eq!(layout.local_storage_slots[0].id, id);
+            assert_eq!(layout.local_storage_slots[0].frame_offset_bytes, outgoing);
+            assert_eq!(layout.local_storage_slots[0].size_bytes, 24);
+            assert!(layout.frame_size_bytes >= outgoing + 24);
+            assert!(
+                function_layout(
+                    &environment,
+                    abi,
+                    TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                    semantic_vocabulary::MachineId::new(1).unwrap(),
+                    true,
+                    &[],
+                    &[local.clone(), local.clone()],
+                    0,
+                    Vec::new()
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn windows_frames_separate_shadow_space_from_preservation_storage() {
         let environment = register_environment::baseline_target_register_environment(
             target::NativeTarget::windows_x64(),
@@ -282,6 +389,7 @@ mod tests {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 false,
+                &[],
                 &[],
                 area,
                 Vec::new(),
@@ -317,6 +425,7 @@ mod tests {
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
                 &[],
+                &[],
                 area,
                 slots,
             )
@@ -338,6 +447,7 @@ mod tests {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
+                &[],
                 &[],
                 u64::MAX,
                 Vec::new(),

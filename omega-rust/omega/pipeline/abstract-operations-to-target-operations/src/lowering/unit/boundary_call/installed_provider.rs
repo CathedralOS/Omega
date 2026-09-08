@@ -226,7 +226,7 @@ pub(super) fn try_lower(
             source_byte_offset: 0,
             fixed_array_length: None,
             element_stride: None,
-            source: source.placement.clone(),
+            source: source.placement.clone().into(),
             destination: callee_plan.parameters[scalar_shapes.len() + index].clone(),
         });
     }

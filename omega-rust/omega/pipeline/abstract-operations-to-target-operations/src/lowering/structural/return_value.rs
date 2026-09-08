@@ -469,8 +469,7 @@ pub(in crate::lowering) fn exact_fully_consumed_affine_root(
             || argument.root_structural_type != parameter.structural_type
             || argument.structural_type != projected_type
             || argument.shape != shape
-            || argument.source != parameter.placement
-            || argument.source.shape != parameter.shape
+            || argument.source != parameter.placement.clone().into()
             || argument.source_byte_offset != offset
             || (argument.fixed_array_length, argument.element_stride) != metadata
             || parameter.shape != root_shape

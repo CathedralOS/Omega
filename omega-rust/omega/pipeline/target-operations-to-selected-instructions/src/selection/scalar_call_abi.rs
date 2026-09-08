@@ -9,6 +9,7 @@ pub(super) fn validate(
     function: usize,
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
+    operation: semantic_vocabulary::OperationId,
     key: RegisterConstraintKey,
     row: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -23,7 +24,7 @@ pub(super) fn validate(
         if source.call_plan.policy != CallingPolicy::native_for_target(environment.target()) {
             return Err(invalid());
         }
-        validate_borrowed_argument(source, call).ok_or_else(invalid)?;
+        validate_borrowed_argument(source, call, operation).ok_or_else(invalid)?;
     }
     let count = call.arguments.len();
     let result = call.call_plan.result.as_ref();
@@ -102,23 +103,25 @@ pub(super) fn validate(
     Ok(())
 }
 
-/// Rejoin the original descriptor parameter before permitting pointer transport.
+/// Rejoin the original parameter or earlier literal before pointer transport.
 /// Callee declarations and source-call correspondence remain legalization inputs.
 fn validate_borrowed_argument(
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
+    operation: semantic_vocabulary::OperationId,
 ) -> Option<()> {
     let signature = source.structural.as_ref()?;
-    let [parameter] = signature.parameters.as_slice() else {
-        return None;
-    };
     let (last, scalars) = call.arguments.split_last()?;
     let LegalizedScalarArgument::Structural { semantic, target } = last else {
         return None;
     };
-    // The structural vector has its own positions; its single descriptor follows
-    // the complete declared scalar prefix in the caller's physical signature.
-    if source.parameters.len().checked_add(1)? != source.call_plan.parameters.len()
+    // Only incoming structural parameters participate in the caller's ABI.
+    // Local literal descriptors are established in the activation instead.
+    if source
+        .parameters
+        .len()
+        .checked_add(signature.parameters.len())?
+        != source.call_plan.parameters.len()
         || source
             .parameters
             .iter()
@@ -144,10 +147,14 @@ fn validate_borrowed_argument(
             (placement.shape == shape).then_some(shape)
         })
         .collect::<Option<Vec<_>>>()?;
-    let parameters = [crate::structural_unit_input::Parameter {
-        semantic: &parameter.semantic,
-        target: &parameter.target,
-    }];
+    let parameters = signature
+        .parameters
+        .iter()
+        .map(|parameter| crate::structural_unit_input::Parameter {
+            semantic: &parameter.semantic,
+            target: &parameter.target,
+        })
+        .collect::<Vec<_>>();
     let shape = ValueShape::borrowed_reference(16, 8);
     let expected = evaluate_call_plan(
         source.call_plan.policy,
@@ -167,32 +174,71 @@ fn validate_borrowed_argument(
         || source.ranked.is_some()
         || !signature.entry_claims.is_empty()
         || !signature.published_service_ceiling.is_empty()
-        || !crate::structural_unit_input::accepts_borrowed_view(
-            &source.call_plan,
-            &parameters,
-            &signature.structural_types,
-        )
+        || (!parameters.is_empty()
+            && !crate::structural_unit_input::accepts_borrowed_view(
+                &source.call_plan,
+                &parameters,
+                &signature.structural_types,
+            ))
         || call.source != legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit
         || !call.claim_transfers.is_empty()
         || !call.requirement_obligations.is_empty()
         || !call.crash_continuations.is_empty()
         || call.call_plan != expected
-        || semantic.place != parameter.semantic.place
         || semantic.access != StructuralAccess::SharedBorrow
         || !semantic.path.is_empty()
         || target.place != semantic.place
         || target.access != semantic.access
         || !target.path.is_empty()
-        || target.root_structural_type != parameter.semantic.structural_type
-        || target.structural_type != parameter.semantic.structural_type
+        || target.root_structural_type != target.structural_type
         || target.shape != shape
         || target.source_byte_offset != 0
         || target.fixed_array_length.is_some()
         || target.element_stride.is_some()
-        || target.source != parameter.target.placement
         || Some(&target.destination) != expected.parameters.last()
     {
         return None;
+    }
+    match &target.source {
+        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            let parameter = signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == semantic.place)?;
+            if target.structural_type != parameter.semantic.structural_type
+                || *placement != parameter.target.placement
+            {
+                return None;
+            }
+        }
+        target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+            psi_operation,
+        } => {
+            let [block] = source.blocks.as_slice() else {
+                return None;
+            };
+            let call_position = block
+                .instructions
+                .iter()
+                .position(|row| row.operation == operation)?;
+            let producer = block.instructions[..call_position]
+                .iter()
+                .find(|row| row.operation == *psi_operation)?;
+            let legalized_operations::LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { destination, structural_type, .. } = &producer.kind else { return None; };
+            if producer.result.is_some()
+                || destination.id != semantic.place
+                || !signature.structural_places.contains(destination)
+                || !signature.structural_types.contains(structural_type)
+                || structural_type.id != target.structural_type
+                || structural_type.shape
+                    != terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    )
+                || !matches!(destination.kind, semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. } if identity == structural_type.id)
+            {
+                return None;
+            }
+        }
     }
     Some(())
 }

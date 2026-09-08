@@ -76,7 +76,7 @@ fn mixed_call_receiving_rejects_substituted_scalar_and_reference_arguments() {
                 3 => arguments.clear(),
                 4 => structural_arguments[0].source_byte_offset = 8,
                 5 => structural_arguments[0].destination = call_plan.parameters[0].clone(),
-                6 => structural_arguments[0].source = call_plan.parameters[0].clone(),
+                6 => structural_arguments[0].source = call_plan.parameters[0].clone().into(),
                 7 => {
                     let copied = evaluate_call_plan(
                         call_plan.policy,
@@ -171,7 +171,7 @@ fn mixed_call_replay_rejects_changed_scalar_and_reference_custody() {
                     else {
                         panic!("structural suffix")
                     };
-                    target.source = call.result_placement.clone().unwrap();
+                    target.source = call.result_placement.clone().unwrap().into();
                 }
                 6 => call.call_plan.parameters.swap(0, 1),
                 7 => {

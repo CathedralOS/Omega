@@ -52,11 +52,11 @@ pub(super) fn declaration(
             },
         ),
         MachineSemanticKind::Store64 => (
-            MachineMemoryEffect::WriteOutgoingArgumentV1,
+            MachineMemoryEffect::WriteFrameStorageV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0],
             vec![],
-            MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
                 stack_pointer,
                 byte_count: 8,
             },

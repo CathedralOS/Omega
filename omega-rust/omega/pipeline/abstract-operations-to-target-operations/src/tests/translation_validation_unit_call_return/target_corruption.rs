@@ -57,6 +57,11 @@ fn unit_call_target_envelope_corruption_fails_closed() {
                 unreachable!()
             };
             let argument = target_structural_argument();
+            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                argument.source
+            else {
+                panic!("structural placement fixture");
+            };
             body.parameters.push(TargetStructuralParameter {
                 place: argument.place,
                 structural_type: argument.structural_type,
@@ -64,7 +69,7 @@ fn unit_call_target_envelope_corruption_fails_closed() {
                 access: StructuralAccess::Owned,
                 projected_qualifications: Vec::new(),
                 shape: argument.shape,
-                placement: argument.source,
+                placement,
             });
         }),
         StraightLineUnitCallReturnTranslationError::TargetParameters

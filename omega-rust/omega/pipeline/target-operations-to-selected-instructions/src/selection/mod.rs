@@ -4,6 +4,7 @@ mod byte_view_homes;
 mod constraints;
 mod construction;
 mod identity;
+mod literal_storage_input;
 mod model;
 mod scalar_call_abi;
 mod shared;

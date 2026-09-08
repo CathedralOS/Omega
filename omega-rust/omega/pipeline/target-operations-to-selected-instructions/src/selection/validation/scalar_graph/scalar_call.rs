@@ -28,6 +28,7 @@ pub(super) fn validate(
         function,
         source,
         call,
+        operation.operation,
         key,
         row(catalog, key)?,
         environment,

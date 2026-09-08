@@ -39,7 +39,7 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
-            crate::MachineMemoryEffect::WriteOutgoingArgumentV1 => 2,
+            crate::MachineMemoryEffect::WriteFrameStorageV1 => 2,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::NeverV1 => 0,
@@ -169,7 +169,7 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&index_operand.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
-        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+        MachineEncodedMemoryEffect::WriteFrameStorageV1 {
             stack_pointer,
             byte_count,
         } => {

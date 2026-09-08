@@ -9,6 +9,26 @@ pub struct OutgoingArgumentSlotId {
     pub argument_index: u32,
 }
 
+/// Activation-local storage identity, independent of any call's ABI copies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LocalStorageSlotId {
+    pub operation: OperationId,
+    pub place: PlaceId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FrameStorageSlotId {
+    Outgoing(OutgoingArgumentSlotId),
+    Local(LocalStorageSlotId),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedLocalStorageSlot {
+    pub id: LocalStorageSlotId,
+    pub byte_size: u32,
+    pub alignment: u16,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedOutgoingArgumentSlot {
     pub id: OutgoingArgumentSlotId,
@@ -37,6 +57,12 @@ pub enum SelectedMemoryAccessRole {
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ReadPlace,
+    WriteLocal {
+        slot: LocalStorageSlotId,
+    },
+    AddressLocal {
+        slot: LocalStorageSlotId,
+    },
     WriteOutgoing {
         slot: OutgoingArgumentSlotId,
     },

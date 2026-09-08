@@ -142,7 +142,14 @@ pub(super) fn validate(
                     return Err(invalid);
                 }
                 super::super::structural_call::validate_argument(
-                    semantic, argument, optimized, *callee, native, plan, unit,
+                    semantic,
+                    argument,
+                    *psi_operation,
+                    optimized,
+                    *callee,
+                    native,
+                    plan,
+                    unit,
                 )?;
             }
             (

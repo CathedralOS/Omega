@@ -170,7 +170,7 @@ pub enum MachineAlternativeApplicability {
 pub enum MachineMemoryEffect {
     NoneV1,
     ReadPointerV1,
-    WriteOutgoingArgumentV1,
+    WriteFrameStorageV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -262,7 +262,7 @@ pub enum MachineEncodedMemoryEffect {
         pointer_operand: u16,
         byte_count: u16,
     },
-    WriteOutgoingArgumentV1 {
+    WriteFrameStorageV1 {
         stack_pointer: RegisterViewId,
         byte_count: u16,
     },

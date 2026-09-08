@@ -86,8 +86,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             load64: Some(isa_x86_64::X86_64_LOAD64),
             load8_indexed: Some(isa_x86_64::X86_64_LOAD8_INDEXED),
-            store64: None,
-            frame_address: None,
+            store64: Some(isa_x86_64::X86_64_STORE64),
+            frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
             call_unit: isa_x86_64::x86_64_system_v_register_unit_call_keys(),
             call_i64: isa_x86_64::x86_64_system_v_register_call_keys(),
             materialize_i64: X86_64_MATERIALIZE_I64,
@@ -126,8 +126,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             load64: Some(isa_aarch64::AARCH64_LOAD64),
             load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
-            store64: None,
-            frame_address: None,
+            store64: Some(isa_aarch64::AARCH64_STORE64),
+            frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
             call_unit: isa_aarch64::aarch64_aapcs64_register_unit_call_keys(),
             call_i64: isa_aarch64::aarch64_aapcs64_register_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
@@ -146,8 +146,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
             load64: Some(isa_aarch64::AARCH64_LOAD64),
             load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
-            store64: None,
-            frame_address: None,
+            store64: Some(isa_aarch64::AARCH64_STORE64),
+            frame_address: Some(isa_aarch64::AARCH64_FRAME_ADDRESS),
             call_unit: isa_aarch64::aarch64_darwin_register_unit_call_keys(),
             call_i64: isa_aarch64::aarch64_darwin_register_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,

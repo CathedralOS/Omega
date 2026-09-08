@@ -52,6 +52,7 @@ pub(super) fn folded_zero<'a>(
                     *index == definition.value || *length == definition.value
                 }
                 LegalizedScalarInstructionKind::Constant(_)
+                | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
                 LegalizedScalarInstructionKind::BooleanNot { operand }

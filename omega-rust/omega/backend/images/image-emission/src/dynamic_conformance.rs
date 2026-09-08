@@ -437,8 +437,9 @@ fn validate_stored_instance(
         || record.source.path != selection.source.path
         || Some(record.source_home_byte_offset) != home.location.stack_byte_offset()
         || record.source_home_indirect != home.indirect
-        || record.source.source != home.source
-        || record.source.source.shape != home.shape
+        || record.source.source
+            != target_operations::TargetStructuralArgumentSource::Placement(home.source.clone())
+        || home.source.shape != home.shape
         || record
             .source
             .source_byte_offset
@@ -560,7 +561,8 @@ fn validate_stored_argument(
         || argument.source_byte_offset != source.source_byte_offset
         || argument.source_location.stack_byte_offset()
             != Some(call.establishment.descriptor_home_byte_offset)
-        || argument.source != source.source
+        || target_operations::TargetStructuralArgumentSource::Placement(argument.source.clone())
+            != source.source
         || argument.destination != source.destination
         || argument.bytes.len() != argument.byte_count
     {
@@ -692,8 +694,9 @@ fn validate_instance(
         || record.source.path != selection.source.path
         || Some(record.source_home_byte_offset) != home.location.stack_byte_offset()
         || record.source_home_indirect != home.indirect
-        || record.source.source != home.source
-        || record.source.source.shape != home.shape
+        || record.source.source
+            != target_operations::TargetStructuralArgumentSource::Placement(home.source.clone())
+        || home.source.shape != home.shape
         || record
             .source
             .source_byte_offset
@@ -841,7 +844,8 @@ fn validate_argument(
         || argument.shape != call.rebound_instance.source.shape
         || argument.source_byte_offset != call.rebound_instance.source.source_byte_offset
         || argument.source_location.stack_byte_offset() != Some(call.descriptor_home_byte_offset)
-        || argument.source != call.rebound_instance.source.source
+        || target_operations::TargetStructuralArgumentSource::Placement(argument.source.clone())
+            != call.rebound_instance.source.source
         || argument.destination != call.rebound_instance.source.destination
         || argument.bytes.len() != argument.byte_count
     {

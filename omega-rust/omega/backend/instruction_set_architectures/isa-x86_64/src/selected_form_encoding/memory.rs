@@ -141,7 +141,7 @@ fn request(
         SelectedInstructionKind::Store64 { .. } => (
             vec![0],
             vec![],
-            MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
                 stack_pointer,
                 byte_count: 8,
             },
@@ -187,6 +187,55 @@ mod tests {
     use semantic_vocabulary::OperationId;
 
     #[test]
+    fn local_frame_forms_reject_corrupt_stack_base_and_address_bytes() {
+        let physical =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let slot = selected_instructions::FrameStorageSlotId::Local(
+            selected_instructions::LocalStorageSlotId {
+                operation: OperationId::new(104).unwrap(),
+                place: semantic_vocabulary::PlaceId::new(102).unwrap(),
+            },
+        );
+        let operands = [physical.model().view_named("r9").unwrap().id];
+        for (kind, family) in [
+            (
+                SelectedInstructionKind::Store64 {
+                    slot,
+                    byte_offset: 0,
+                },
+                MachineAlternativeFamily::Store64,
+            ),
+            (
+                SelectedInstructionKind::FrameAddress {
+                    slot,
+                    byte_offset: 0,
+                },
+                MachineAlternativeFamily::FrameAddress,
+            ),
+        ] {
+            let alternative = MachineAlternativeKey { family, variant: 0 };
+            let encoded =
+                encode_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 24)
+                    .unwrap();
+            for bit in 0..encoded.bytes().len() * 8 {
+                let mut corrupt = encoded.bytes().to_vec();
+                corrupt[bit / 8] ^= 1 << (bit % 8);
+                assert!(
+                    validate_x86_64_selected_memory_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        24,
+                        &corrupt
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn stack_pointer_is_not_an_allocatable_pointer_operand() {
         let physical =
             validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
@@ -213,10 +262,10 @@ mod tests {
     fn ordinary_memory_forms_replay_registers_displacements_and_every_encoded_byte() {
         let physical =
             validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
-        let slot = OutgoingArgumentSlotId {
+        let slot = selected_instructions::FrameStorageSlotId::Outgoing(OutgoingArgumentSlotId {
             operation: OperationId::new(7).unwrap(),
             argument_index: 1,
-        };
+        });
         for name in ["rax", "rbp", "r8", "r12", "r15"] {
             let pointer = physical.model().view_named(name).unwrap().id;
             let value = physical.model().view_named("r11").unwrap().id;

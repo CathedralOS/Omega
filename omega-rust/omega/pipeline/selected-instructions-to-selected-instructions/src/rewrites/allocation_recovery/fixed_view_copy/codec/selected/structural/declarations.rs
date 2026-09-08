@@ -13,6 +13,7 @@ use terminal_psi::{
 
 use crate::FixedViewCopyDecodeError;
 
+use super::argument_source::{decode_argument_source, encode_argument_source};
 use super::calling::{decode_placement, decode_shape, encode_placement, encode_shape};
 use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::rewrites::allocation_recovery::fixed_view_copy::codec::{
@@ -310,7 +311,7 @@ pub(super) fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStruc
     bytes.extend_from_slice(&argument.source_byte_offset.to_le_bytes());
     encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
-    encode_placement(bytes, &argument.source);
+    encode_argument_source(bytes, &argument.source);
     encode_placement(bytes, &argument.destination);
 }
 
@@ -327,7 +328,7 @@ pub(super) fn decode_target_argument(
         source_byte_offset: cursor.u32()?,
         fixed_array_length: decode_option_u64(cursor)?,
         element_stride: decode_option_u32(cursor)?,
-        source: decode_placement(cursor)?,
+        source: decode_argument_source(cursor)?,
         destination: decode_placement(cursor)?,
     })
 }

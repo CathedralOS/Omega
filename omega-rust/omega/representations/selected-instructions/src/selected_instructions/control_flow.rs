@@ -12,6 +12,7 @@ pub struct SelectedFunction {
     pub provenance: TerminalPsiProvenance,
     pub ranked: Option<abstract_operations::RankedU32CountdownCustody>,
     pub structural: Option<legalized_operations::LegalizedStructuralContract>,
+    pub local_storage_slots: Vec<super::SelectedLocalStorageSlot>,
     pub outgoing_arguments: Vec<super::SelectedOutgoingArgumentSlot>,
     pub calls: Vec<super::SelectedCallContract>,
     pub memory_accesses: Vec<super::SelectedMemoryAccess>,

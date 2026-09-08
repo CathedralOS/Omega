@@ -32,8 +32,22 @@ pub struct TargetStructuralArgument {
     pub source_byte_offset: u32,
     pub fixed_array_length: Option<u64>,
     pub element_stride: Option<u32>,
-    pub source: ValuePlacement,
+    pub source: TargetStructuralArgumentSource,
     pub destination: ValuePlacement,
+}
+
+/// An incoming value placement and an established local descriptor have
+/// different storage origins, even when the callee receives the same pointer ABI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetStructuralArgumentSource {
+    Placement(ValuePlacement),
+    ByteSequenceLiteral { psi_operation: OperationId },
+}
+
+impl From<ValuePlacement> for TargetStructuralArgumentSource {
+    fn from(placement: ValuePlacement) -> Self {
+        Self::Placement(placement)
+    }
 }
 
 /// One exact immediate scalar replacement performed before a scalar return.

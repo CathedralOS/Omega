@@ -75,7 +75,14 @@ pub(super) fn replay(
         ),
         (
             SelectedStructuralFragmentSite::CallerArgumentSource,
-            argument.source.clone(),
+            match &argument.source {
+                target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+                    placement.clone()
+                }
+                target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+                    ..
+                } => return Err(SelectedInstructionError::UnsupportedProjectedStructuralShape),
+            },
         ),
         (
             SelectedStructuralFragmentSite::CallerArgumentDestination,

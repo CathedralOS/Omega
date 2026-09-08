@@ -25,7 +25,7 @@ pub(super) fn encode_ordinary_instruction(
     bytes.push(match instruction.memory {
         MachineMemoryEffect::NoneV1 => 0,
         MachineMemoryEffect::ReadPointerV1 => 1,
-        MachineMemoryEffect::WriteOutgoingArgumentV1 => 2,
+        MachineMemoryEffect::WriteFrameStorageV1 => 2,
     });
     encode_effect_tail(bytes, instruction);
 }
@@ -110,8 +110,18 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         }
         SelectedInstructionKind::Store64 { slot, byte_offset }
         | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
-            bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-            bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+            match slot {
+                crate::FrameStorageSlotId::Outgoing(slot) => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+                }
+                crate::FrameStorageSlotId::Local(slot) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+                }
+            }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),

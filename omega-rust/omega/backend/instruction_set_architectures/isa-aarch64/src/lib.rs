@@ -41,7 +41,9 @@ pub use register_model::{
     aarch64_physical_register_model, aarch64_preservation_convention_for_target,
     aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
-pub use register_model::{AARCH64_LOAD8_INDEXED, AARCH64_LOAD64};
+pub use register_model::{
+    AARCH64_FRAME_ADDRESS, AARCH64_LOAD8_INDEXED, AARCH64_LOAD64, AARCH64_STORE64,
+};
 pub use register_model::{
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };

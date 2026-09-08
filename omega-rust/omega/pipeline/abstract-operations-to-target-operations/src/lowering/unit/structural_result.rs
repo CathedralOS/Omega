@@ -252,7 +252,7 @@ pub(super) fn lower_structural_result_call(
             source_byte_offset: 0,
             fixed_array_length: None,
             element_stride: None,
-            source: source_parameter.placement.clone(),
+            source: source_parameter.placement.clone().into(),
             destination: call_plan.parameters[source_index].clone(),
         }],
         claim_transfers: Vec::new(),

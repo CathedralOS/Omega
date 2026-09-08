@@ -33,6 +33,13 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
             encode_signature(bytes, value);
         }
     }
+    length(bytes, function.local_storage_slots.len());
+    for slot in &function.local_storage_slots {
+        bytes.extend_from_slice(&slot.id.operation.get().to_le_bytes());
+        bytes.extend_from_slice(&slot.id.place.get().to_le_bytes());
+        bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
+        bytes.extend_from_slice(&slot.alignment.to_le_bytes());
+    }
     length(bytes, function.outgoing_arguments.len());
     for row in &function.outgoing_arguments {
         encode_slot(bytes, row.id);
@@ -64,6 +71,18 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
                 bytes.extend_from_slice(&obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
+            SelectedMemoryAccessRole::WriteLocal { slot }
+            | SelectedMemoryAccessRole::AddressLocal { slot } => {
+                bytes.push(
+                    if matches!(row.role, SelectedMemoryAccessRole::WriteLocal { .. }) {
+                        4
+                    } else {
+                        5
+                    },
+                );
+                bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+            }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WriteOutgoing { slot } => {
                 bytes.push(1);
@@ -91,6 +110,19 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
         1 => Some(decode_signature(cursor)?),
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
+    let local_count = cursor.length()?;
+    for _ in 0..local_count {
+        function
+            .local_storage_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: selected_instructions::LocalStorageSlotId {
+                    operation: decode_id(cursor, OperationId::new)?,
+                    place: decode_id(cursor, PlaceId::new)?,
+                },
+                byte_size: cursor.u32()?,
+                alignment: cursor.u16()?,
+            });
+    }
     let count = cursor.length()?;
     for _ in 0..count {
         function
@@ -122,6 +154,17 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
                     cursor.array()?,
                 ),
             },
+            tag @ (4 | 5) => {
+                let slot = selected_instructions::LocalStorageSlotId {
+                    operation: decode_id(cursor, OperationId::new)?,
+                    place: decode_id(cursor, PlaceId::new)?,
+                };
+                if tag == 4 {
+                    SelectedMemoryAccessRole::WriteLocal { slot }
+                } else {
+                    SelectedMemoryAccessRole::AddressLocal { slot }
+                }
+            }
             0 => SelectedMemoryAccessRole::ReadPlace,
             1 => SelectedMemoryAccessRole::WriteOutgoing {
                 slot: decode_slot(cursor)?,

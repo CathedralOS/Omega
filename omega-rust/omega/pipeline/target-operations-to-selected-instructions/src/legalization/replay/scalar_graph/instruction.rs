@@ -26,6 +26,23 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+                destination,
+                structural_type,
+                bytes,
+            },
+            AbstractOperation::EstablishByteSequenceLiteral {
+                place,
+                structural_type: expected_type,
+                bytes: expected_bytes,
+                ..
+            },
+        ) => {
+            if destination != place || structural_type != expected_type || bytes != expected_bytes {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::ByteSequenceSubslice {
                 result,
                 source,
@@ -88,7 +105,7 @@ pub(super) fn validate(
                 return Err(invalid);
             };
             let expected = scalar_graph_input::structural_call::validate_argument(
-                argument, target, optimized, *callee, native, plan, unit,
+                argument, target, operation, optimized, *callee, native, plan, unit,
             )?;
             if semantic != argument
                 || call.arguments.len() != scalar_arguments.len() + 1

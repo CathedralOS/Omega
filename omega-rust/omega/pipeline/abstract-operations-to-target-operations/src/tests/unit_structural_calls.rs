@@ -174,7 +174,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
     let TargetUnitOperation::Call { arguments, .. } = &linux_root.operations[0] else {
         panic!("root must call helper")
     };
-    assert_eq!(arguments[0].source, arguments[0].destination);
+    assert_eq!(arguments[0].source, arguments[0].destination.clone().into());
 
     let windows = lower_to_target_operations(&plan, NativeTarget::windows_x64()).unwrap();
     let TargetOperation::UnitBody(windows_root) = &windows.functions[0].operation else {
@@ -194,5 +194,5 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
     let TargetUnitOperation::Call { arguments, .. } = &windows_root.operations[0] else {
         panic!("root must call helper")
     };
-    assert_eq!(arguments[0].source, arguments[0].destination);
+    assert_eq!(arguments[0].source, arguments[0].destination.clone().into());
 }

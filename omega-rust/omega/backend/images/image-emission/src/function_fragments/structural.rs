@@ -213,6 +213,13 @@ pub(super) fn populate(
             let LegalizedScalarArgument::Structural { target, .. } = argument else {
                 return Err(Error::Unsupported("Unit call scalar publication"));
             };
+            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                &target.source
+            else {
+                return Err(Error::Unsupported(
+                    "owned Unit copy requires incoming placement",
+                ));
+            };
             let (code_offset, byte_count) =
                 copy_extent(selected, fragment, contract.operation, target.place)?;
             arguments.push(InternalUnitCallArgumentRecord {
@@ -227,7 +234,7 @@ pub(super) fn populate(
                 call_stack_bytes: frame_bytes,
                 fixed_array_length: target.fixed_array_length,
                 element_stride: target.element_stride,
-                source: target.source.clone(),
+                source: placement.clone(),
                 destination: target.destination.clone(),
                 code_offset,
                 byte_count,

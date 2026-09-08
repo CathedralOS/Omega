@@ -204,11 +204,19 @@ pub const AARCH64_LOAD8_INDEXED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 11,
 };
+pub const AARCH64_STORE64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 12,
+};
+pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 13,
+};
 
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 56] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 58] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -370,6 +378,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 56] = [
     AARCH64_JUMP,
     AARCH64_LOAD64,
     AARCH64_LOAD8_INDEXED,
+    AARCH64_STORE64,
+    AARCH64_FRAME_ADDRESS,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1013,6 +1023,19 @@ pub fn aarch64_register_constraint_catalog(
         implicit_defs: Vec::new(),
         clobbers: Vec::new(),
     });
+    for (key, access) in [
+        (AARCH64_STORE64, RegisterOperandAccess::Use),
+        (AARCH64_FRAME_ADDRESS, RegisterOperandAccess::Def),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![allocatable(0, access, GPR64)],
+            implicit_uses: view("sp").units.clone(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        });
+    }
     let scalar_call = constraints
         .iter()
         .find(|row| row.key == AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64)

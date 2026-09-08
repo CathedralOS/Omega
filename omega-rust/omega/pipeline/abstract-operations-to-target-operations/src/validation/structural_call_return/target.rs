@@ -74,7 +74,7 @@ pub(super) fn replay(
         || argument.source_byte_offset != 0
         || argument.fixed_array_length.is_some()
         || argument.element_stride.is_some()
-        || argument.source != *expected_parameter_placement
+        || argument.source != expected_parameter_placement.clone().into()
         || argument.destination != *expected_parameter_placement
     {
         return Err(Error::TargetShape);

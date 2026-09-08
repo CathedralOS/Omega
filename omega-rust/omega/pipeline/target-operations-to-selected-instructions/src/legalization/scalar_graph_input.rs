@@ -19,6 +19,7 @@ mod custody;
 pub(super) use custody::validate_unit_custody;
 mod byte_views;
 mod header;
+mod literals;
 mod ranked;
 pub(super) mod structural_call;
 fn structural_parameters(
@@ -38,7 +39,9 @@ pub(super) fn structural_contract(
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
-    if let Some(parameters) = structural_parameters(target) {
+    if let Some(parameters) = structural_parameters(target).or_else(|| {
+        (!optimized.structural_places.is_empty() && literals::roster(optimized)).then_some(&[][..])
+    }) {
         return Some(legalized_operations::LegalizedStructuralContract {
             structural_types: plan.structural_types.clone(),
             parameters: abstracted
@@ -178,6 +181,14 @@ pub(super) fn match_input(
     // Ordered source calls execute even when their result is not returned.
     // Target expression trees witness referenced values, not execution order.
     for node in optimized.blocks.iter().flat_map(|block| &block.nodes) {
+        if let AbstractOperation::EstablishByteSequenceLiteral {
+            structural_type, ..
+        } = &node.operation
+            && (!plan.structural_types.contains(structural_type)
+                || !unit.structural_types.contains(structural_type))
+        {
+            return Err(invalid);
+        }
         if let AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,
@@ -219,12 +230,14 @@ pub(super) fn match_input(
             }
         }
         if let AbstractOperation::CallStructuralScalar {
+            psi_operation,
             callee,
             arguments,
             structural_arguments,
             ..
         }
         | AbstractOperation::CallUnit {
+            psi_operation,
             callee,
             arguments,
             structural_arguments,
@@ -259,7 +272,15 @@ pub(super) fn match_input(
             {
                 return Err(invalid);
             }
-            structural_call::argument(argument, optimized, *callee, native, plan, unit)?;
+            structural_call::argument(
+                argument,
+                *psi_operation,
+                optimized,
+                *callee,
+                native,
+                plan,
+                unit,
+            )?;
         }
     }
     if !ranked && !acyclic(optimized) {
