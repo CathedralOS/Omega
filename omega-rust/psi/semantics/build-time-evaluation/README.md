@@ -13,3 +13,8 @@ Target decisions must not become Psi language elaboration.
 The [logical-work specification](../../../../wiki/spec/resources/logical_work.md)
 owns budget meaning and the separation between executed work and verifier work.
 Per-invocation telemetry is not another interchangeable work currency.
+
+[Package boundaries](../../../../wiki/spec/packages/boundaries.md#admit-before-execution)
+requires declaration admission before early evaluation. The
+[selection-custody note](../../pipeline/typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
+maps that gate to exact calls, candidate sets, and authored application sites.

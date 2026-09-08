@@ -100,3 +100,13 @@ not completeness of a support/test/deployment matrix. A fat/universal artifact
 is a separate explicit envelope over independently committed subjects. CI may
 cross-compile several targets on one host or check without physical realization;
 neither activity creates a language support set.
+
+## Directional wire compatibility
+
+The authoritative Build may request
+`builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`.
+Only the directional facts named after the first four type arguments are required.
+Evaluate them against published schema, codec, unknown-member, canonicalization,
+and `FormatMigration` evidence; report every fact and reject unmet requests.
+This is channel/store deployment policy, not intrinsic version metadata on the
+two data types.

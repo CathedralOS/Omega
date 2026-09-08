@@ -113,3 +113,18 @@ Build-generated source belongs to the checked candidate and remains in custody
 through its use. Compiler transcripts, replay records, and certificate caches
 are not ordinary lock acceptance. Existing ledger wrappers do not mandate an
 additional lock-certification or package-promotion workflow.
+
+## Target-dependent public identity
+
+A public constant or type application depending on sealed target semantics or a
+selected realization retains that exact dependency, not only its folded value.
+Independent artifacts compose only with compatible applications. Adding/removing
+or changing a public dependency changes API compatibility even when all current
+targets happen to compute the same scalar. Private dependencies instead change
+content/target identity and require rebuilding or relinking.
+
+Diagnostics retain producer/consumer closures and the origin chain through
+aliases, constants, generic applications, and plans. Target selection chooses
+declarations; it cannot splice fields/cases into an existing nominal type.
+Different field sets use distinct ABI schemas behind a portable requirement.
+Different sizes, offsets, padding, and alignment of one schema remain layout facts.

@@ -7,8 +7,8 @@ records do not certify acceptance or prove an audit.
 
 The [evidence entrance](README.md) maps capture and encoding.
 The [lock owner](../../manager/src/lock/README.md) owns source/target joins,
-historical decision framing, and aggregate recovery limits. The build model
-owns [user-visible lock meaning](../../../../../wiki/pre_migration/design_briefs/build_and_package_model.md#dependencies-and-the-lock-artifact).
+historical decision framing, and aggregate recovery limits. The
+[lock specification](../../../../../wiki/spec/packages/locks.md) owns user-visible meaning.
 
 ## Compiler projection and component recovery
 

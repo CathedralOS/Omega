@@ -28,6 +28,18 @@ targets when legal, or reject. Duplicable immutable dependencies may be shared o
 copied. Mutable state and linear custody have one owner: fuse them above dependent
 closures or mediate them through a selected service.
 
+Initial composition freezes an independent slot's replacement envelope: imports
+and authority, compatibility/observation profile, target semantics, resource
+ceilings, execution modalities, admission policy, and continuity constraints.
+A runtime verifier may accept a candidate inside that envelope without rerunning
+the build program. Widening requires a new owner-controlled composition, never
+permission issued by provider code or downloaded artifacts.
+
+A first implementation may restrict independent closures to whole packages;
+that does not define components as packages. Calls crossing a replaceable closure
+name ordinary requirements, not concrete machine identities. The same requirement
+may be statically selected and inlined elsewhere; no hot-swap call syntax is implied.
+
 ## Products and authority
 
 | Product | Contains | Does not establish |
