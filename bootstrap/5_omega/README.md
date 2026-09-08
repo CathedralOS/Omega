@@ -80,7 +80,11 @@ that payload provision; finalization additionally requires every target to lie
 on an instruction start inside the actual payload. The
 [whole-member D customer](../../tests/epsilon/interpreted-omega-experiment/README.md)
 checks exact forward fixups, sealing, undefined-label failure, and exact/adjacent
-address admission through the selected Epsilon evaluator. It does not establish
+address admission through the selected Epsilon evaluator. It also constructs
+a 79-byte echo/count tape through D's emitters and executes those exact emitted
+bytes with the selected Alpha seed, covering all three symbolic operand shapes,
+forward/backward targets, and call/return on empty, NUL, and high-byte input.
+This is execution evidence, not a checked compiler refinement. It does not establish
 full-size tape realization or a completed D compiler.
 
 Epsilon cannot safely express a reusable validate-once source cursor: machines

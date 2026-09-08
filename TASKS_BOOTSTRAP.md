@@ -186,6 +186,14 @@ prerequisite to every lower-rung milestone.
   entry. Justify retained features by the Epsilon-written D source.
   Use concrete existing D slices for intermediate acceptance; do not invent
   speculative language facilities while D is incomplete.
+  The [whole-member D customers](tests/epsilon/interpreted-omega-experiment/README.md)
+  include actual tape construction and target execution: at base `497e21fb9a`
+  with the customer identity pinned in that gate, on macOS arm64,
+  `sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D Alpha tape buffers'`
+  checks D's fixed-up 79-byte echo/count tape and runs its exact emitted bytes
+  with the selected Alpha seed. This covers a concrete D dependency, not the
+  complete source or final resource envelope; the remaining acceptance below
+  must not be replaced by further emitter-only controls.
   Final acceptance depends on complete D: that exact source executes through
   the selected lower chain and refines `RunEpsilon`, with no Epsilon-owned
   Alpha backend or hidden host implementation.

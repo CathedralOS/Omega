@@ -56,6 +56,7 @@ EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
     EPSILON_SELECTED_CUSTOMER="$EPSILON_SELECTED_CUSTOMER" \
+    EPSILON_ALPHA_TAPE="$TMP/customer.tape" \
     EVALUATOR="$TMP/evaluator" python3 - <<'PY'
 import csv
 import hashlib
@@ -124,15 +125,32 @@ add_customer("Omega D lexical helpers", (
      "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2"),
 ), 34911, "45447a0cc81353c88d341354b444537bfb113b304fcab50659d774a5fab08e1b", b"\x00\x00\x00\x00\x00A")
 
+# Independent literal oracle, not a host encoder. Only the actual successful
+# observation's suffix is stamped below. Offsets follow Alpha SEMANTICS.md.
+alpha_program = bytes.fromhex(
+    "01 ff ffffffffffffffff"  # 0: imm EOF sentinel
+    "01 fe 0100000000000000"  # 10: imm counter increment
+    "01 fd 0000000000000000"  # 20: imm counter
+    "11 00"                  # 30: read byte
+    "10 00 ff 4a00000000000000"  # 32: jeq EOF -> halt at 74
+    "13 4c00000000000000"     # 43: call writer at 76
+    "03 fd fe"               # 52: increment counter
+    "0e 00 1e00000000000000"  # 55: jnz -> read at 30
+    "0c 1e00000000000000"     # 65: zero-byte back edge
+    "00 fd"                  # 74: halt with count
+    "12 00"                  # 76: write byte
+    "14"                     # 78: ret
+)
 add_customer("Omega D Alpha tape buffers", (
     (compiler / "representations.epsilon", 30905,
      "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
     (compiler / "alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    (test_directory / "customers/omega_alpha_tape/main.epsilon", 5752,
-     "b838a398907a2e4a7f81f5a15dddec4c8a3f96f920fc560f2b2d326548734208"),
-), 67489, "56eea535c8c3b59e87612d257d8e07c13f4924f87b4240a492b8a7ad946507b4",
-    b"\x00\x00\x00\x00\x00ABCDEFGH\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14")
+    (test_directory / "customers/omega_alpha_tape/main.epsilon", 7274,
+     "a186166b32d38cfafdc02fc47f1ad46f2af7d18ed15b5bb0f18b0caa525bb35d"),
+), 69011, "23918d9bc7a1717756a9cec729713d0d75a554dfd7948e55d76656d49981451e",
+    b"\x00\x00\x00\x00\x00ABCDEFGH\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14"
+    + alpha_program)
 
 add_customer("Omega D request and UTF-8", (
     (compiler / "representations.epsilon", 30905,
@@ -235,8 +253,31 @@ for name, (source, stdin, expected) in controls.items():
             f"{name}: exact observation passes in {time.monotonic() - started:.3f}s",
             flush=True,
         )
+    if name == "Omega D Alpha tape buffers":
+        Path(os.environ["EPSILON_ALPHA_TAPE"]).write_bytes(observation[-len(alpha_program):])
 print(f"Epsilon execution: {len(controls)} exact diagnostic results pass", flush=True)
 PY
+
+if [ -z "$EPSILON_SELECTED_CUSTOMER" ] || [ "$EPSILON_SELECTED_CUSTOMER" = 'Omega D Alpha tape buffers' ]; then
+    stamp_seed "$TMP/customer.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/customer.exe"
+    python3 - "$TMP/customer.exe" <<'PY'
+import subprocess
+import sys
+
+controls = ((b"", 0), (b"\x00", 1), (b"\x80\xff", 2), (b"\x00\x80\xff", 3))
+for sealed_input, expected_exit in controls:
+    process = subprocess.run(
+        [sys.argv[1]], input=sealed_input, stdout=subprocess.PIPE, timeout=30,
+    )
+    if (process.returncode, process.stdout) != (expected_exit, sealed_input):
+        raise SystemExit(
+            f"D-produced Alpha for stdin {sealed_input.hex()}: "
+            f"expected exit {expected_exit} and stdout {sealed_input.hex()}, "
+            f"received exit {process.returncode} and stdout {process.stdout.hex()}"
+        )
+print(f"D-produced Alpha: {len(controls)} exact echo/count executions pass", flush=True)
+PY
+fi
 
 if [ -n "$EPSILON_SELECTED_CUSTOMER" ]; then
     echo "Interpreted Omega customer: $EPSILON_SELECTED_CUSTOMER passes"
