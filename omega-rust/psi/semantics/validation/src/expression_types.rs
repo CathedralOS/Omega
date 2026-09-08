@@ -337,7 +337,8 @@ pub(crate) fn named_value_type_reference(
 /// Mirror the backend layout classifier for an owned variable-fill text
 /// carrier. A named value domain changes `[u8; N]` from an always-full fixed
 /// array into `{len, bytes[N]}`; layout-policy domains do not.
-pub(crate) fn bounded_byte_buffer_capacity(
+/// The returned capacity is not evidence of the value's live length.
+pub fn bounded_byte_buffer_capacity(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {

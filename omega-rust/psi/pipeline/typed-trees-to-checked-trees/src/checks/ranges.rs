@@ -1,4 +1,7 @@
+#[cfg(test)]
+mod alias_lengths_tests;
 mod arrays;
+mod assignment_lengths;
 #[cfg(test)]
 mod cache_tests;
 mod dependent_params;
@@ -47,6 +50,7 @@ pub(crate) fn check_indexed_accesses(
             machine,
             call_frames,
             borrows,
+            operators,
             &mutation_summaries,
         );
         let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);

@@ -111,7 +111,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Work from the unchanged `print_squares` [outer command](samples/cli/basics/print_squares/README.md).
   Resume its native compiler-library probe with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  At base `9b2eba98e3` on macOS arm64, this exits 100 before
+  At base `93affbf21c` on macOS arm64, this exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
   The verifier admits scalar computations, immutable byte views, persistent
@@ -125,7 +125,10 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   retains ordered field replacement, but runtime-indexed byte writes remain
   absent from the portable store vocabulary. Implement indexed mutation with
   exact source byte, destination live-length evidence, bounds, and invariant
-  preservation. The bounded replacement owner is
+  preservation. Retain the source live-prefix judgments in
+  `typed-trees-to-checked-trees/src/checks/ranges/assignment_lengths.rs`;
+  capacity must not substitute for live length in the portable plan.
+  The bounded replacement owner is
   `checked-trees-to-lowered-psi/src/structural_byte_sequence_store.rs`;
   its native consumer still rejects `StructuralByteSequenceFieldStore` before
   projection. Reuse literal/length observations and checked source predicate

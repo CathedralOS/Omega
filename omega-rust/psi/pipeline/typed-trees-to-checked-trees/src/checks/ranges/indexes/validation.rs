@@ -36,6 +36,33 @@ pub(super) enum BoundsCheckResult {
     Unsupported,
 }
 
+pub(in crate::checks::ranges) fn is_builtin_scalar_index(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    facts: &RangeFacts<'_>,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    !matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Range(_)
+    ) && matches!(
+        selected::obligation(
+            program,
+            machine,
+            state,
+            facts,
+            expression,
+            indexed,
+            OperatorSpelling::Index
+        ),
+        Ok(None)
+    )
+}
+
 pub(super) fn check_indexed_access(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
@@ -86,7 +113,13 @@ pub(super) fn check_indexed_access(
             attribution,
             diagnostics,
         )
-    } else if expression_is_slice(program, machine, state, indexed.collection) {
+    } else if expression_is_slice(program, machine, state, indexed.collection)
+        || expression_type_reference(program, machine, state, indexed.collection)
+            .and_then(|reference| {
+                super::super::arrays::bounded_byte_type_capacity(program, reference)
+            })
+            .is_some()
+    {
         check_unknown_length_slice_index(
             program,
             machine,

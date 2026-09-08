@@ -35,19 +35,35 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 collected,
             );
             // RHS effects and values are evaluated before replacing the target.
-            let next_length = expression_indexable_length(
+            let next_length = crate::checks::ranges::assignment_lengths::replacement_length(
                 program,
                 machine,
                 context.state,
                 facts,
+                assignment.target,
                 assignment.value,
             );
             let next_integer = expression_integer_value(program, facts, assignment.value);
+            let extent = crate::checks::ranges::assignment_lengths::assigned_extent(
+                program,
+                machine,
+                context.state,
+                facts,
+                assignment.target,
+                assignment.value,
+            );
             facts.invalidate_assignment_bounds(program, machine, context.state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
                 seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
             }
+            crate::checks::ranges::assignment_lengths::seed_assigned_extent(
+                program,
+                machine,
+                context.state,
+                facts,
+                extent,
+            );
         }
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
@@ -60,6 +76,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 facts,
                 call.target_symbol,
                 program.statement_table.expression_handles(call.arguments),
+                false,
                 collected,
             );
             let paths = context
@@ -89,14 +106,15 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 local.initial_value,
                 collected,
             );
-            let length = expression_indexable_length(
-                program,
-                machine,
-                context.state,
-                facts,
-                local.initial_value,
-            )
-            .or_else(|| fixed_array_type_length(program, local.type_reference));
+            let length = fixed_array_type_length(program, local.type_reference).or_else(|| {
+                expression_indexable_length(
+                    program,
+                    machine,
+                    context.state,
+                    facts,
+                    local.initial_value,
+                )
+            });
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(
@@ -190,13 +208,26 @@ fn collect_state_argument_facts_from_target(
                 facts,
                 target_state.symbol,
                 program.statement_table.expression_handles(*arguments),
+                true,
                 collected,
             );
         }
         TransitionTargetNode::Value(value) => {
             collect_state_argument_facts_from_expression(context, facts, *value, collected);
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::SelfTarget => {
+            collect_state_argument_facts_for_call(
+                program,
+                machine,
+                context.state,
+                facts,
+                context.state.symbol,
+                &[],
+                true,
+                collected,
+            );
+        }
+        TransitionTargetNode::Terminal => {}
     }
 }
 

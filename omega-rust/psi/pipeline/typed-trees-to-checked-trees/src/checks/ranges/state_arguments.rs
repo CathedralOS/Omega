@@ -21,8 +21,10 @@ struct StateArgumentContext<'program, 'frames> {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct StateArgumentFacts {
     state: SymbolHandle,
+    machine: SymbolHandle,
     parameters: Vec<ParameterFacts>,
     index_proofs: MergedIndexProofs,
+    receiver_lengths: Option<Vec<super::facts::ReceiverLength>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -137,6 +139,7 @@ pub(super) fn collect_state_argument_facts<'program>(
     machine: &'program Machine,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
     borrows: &checked_trees::BorrowFacts,
+    operators: &checked_trees::CheckedOperatorFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
     // Facts about a state's arguments are derived from the call/transition
@@ -179,6 +182,7 @@ pub(super) fn collect_state_argument_facts<'program>(
             // any branch snapshots clone these per-state facts.
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_borrows = Some(borrows);
+            facts.checked_operators = Some(operators);
             for parameter in program.state_parameters(state) {
                 facts.define_local(
                     parameter.symbol,
@@ -230,6 +234,12 @@ pub(super) fn seed_state_argument_facts(
     let Some(state_facts) = collected.iter().find(|entry| entry.state == state.symbol) else {
         return;
     };
+
+    facts.seed_receiver_lengths(
+        state_facts.machine,
+        state.symbol,
+        state_facts.receiver_lengths.as_deref().unwrap_or(&[]),
+    );
 
     for parameter in &state_facts.parameters {
         facts.define_local(

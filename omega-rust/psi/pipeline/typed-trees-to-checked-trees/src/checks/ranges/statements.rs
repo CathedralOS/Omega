@@ -35,6 +35,15 @@ pub(super) fn check_statement<'program>(
                 assignment.target,
                 diagnostics,
             );
+            let extent_survives = super::assignment_lengths::value_preserves_indexed_extent(
+                program,
+                machine,
+                state,
+                call_frames,
+                facts,
+                assignment.target,
+                assignment.value,
+            );
             check_expression(
                 program,
                 machine,
@@ -44,10 +53,29 @@ pub(super) fn check_statement<'program>(
                 assignment.value,
                 diagnostics,
             );
+            if !extent_survives {
+                diagnostics.push(Diagnostic::error(
+                    "cannot prove index remains within the captured byte collection's live length across RHS mutation",
+                ));
+            }
             // RHS effects and values are evaluated before replacing the target.
-            let next_length =
-                expression_indexable_length(program, machine, state, facts, assignment.value);
+            let next_length = super::assignment_lengths::replacement_length(
+                program,
+                machine,
+                state,
+                facts,
+                assignment.target,
+                assignment.value,
+            );
             let next_integer = expression_integer_value(program, facts, assignment.value);
+            let extent = super::assignment_lengths::assigned_extent(
+                program,
+                machine,
+                state,
+                facts,
+                assignment.target,
+                assignment.value,
+            );
             facts.invalidate_assignment_bounds(program, machine, state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
@@ -75,6 +103,7 @@ pub(super) fn check_statement<'program>(
                 facts.assign_field_integer(symbol, name, next_integer);
                 seed_offset_index_bound(program, facts, assignment.target, assignment.value);
             }
+            super::assignment_lengths::seed_assigned_extent(program, machine, state, facts, extent);
         }
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
@@ -125,9 +154,9 @@ pub(super) fn check_statement<'program>(
                 local.initial_value,
                 diagnostics,
             );
-            let length =
+            let length = fixed_array_type_length(program, local.type_reference).or_else(|| {
                 expression_indexable_length(program, machine, state, facts, local.initial_value)
-                    .or_else(|| fixed_array_type_length(program, local.type_reference));
+            });
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(

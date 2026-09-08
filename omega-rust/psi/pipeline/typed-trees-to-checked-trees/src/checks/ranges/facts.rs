@@ -5,6 +5,7 @@ mod dependencies;
 mod invalidation;
 mod proofs;
 mod values;
+pub(super) use dependencies::ReceiverLength;
 
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {

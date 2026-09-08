@@ -27,6 +27,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
             facts,
             call.target_symbol,
             arguments,
+            false,
             collected,
         );
         let paths = context.call_frames.and_then(|frames| {
