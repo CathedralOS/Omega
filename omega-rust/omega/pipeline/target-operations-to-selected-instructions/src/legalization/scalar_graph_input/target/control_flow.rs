@@ -47,10 +47,11 @@ pub(super) fn validate(
             if graph.call_plan != expected
                 || graph.scalar_parameters != abi.scalar_parameters
                 || graph.parameters != abi.structural_parameters
-                || graph
-                    .blocks
-                    .iter()
-                    .any(|block| !block.structural_parameters.is_empty())
+                || (!super::super::unobserved_owned::body(optimized)
+                    && graph
+                        .blocks
+                        .iter()
+                        .any(|block| !block.structural_parameters.is_empty()))
             {
                 return Err(invalid);
             }
@@ -136,7 +137,9 @@ pub(super) fn validate(
                     && source_value == value
                     && *expected_type == ScalarType::Integer(*scalar_type)
                     && cleanup_actions == expected_cleanup
-                    && cleanup_actions.is_empty()
+                    && (cleanup_actions.is_empty()
+                        || (super::super::unobserved_owned::body(optimized)
+                            && super::super::unobserved_owned::cleanup(optimized, cleanup_actions)))
                     && available.iter().any(|(identity, source)| {
                         identity == value && source.scalar_type() == *expected_type
                     })
@@ -178,7 +181,10 @@ pub(super) fn validate(
                 optimized.result == AbstractFunctionResult::Unit
                     && psi_edge == expected
                     && cleanup_actions == cleanup
-                    && (cleanup.is_empty() || super::super::read_byte::cleanup(optimized, cleanup))
+                    && (cleanup.is_empty()
+                        || super::super::read_byte::cleanup(optimized, cleanup)
+                        || (super::super::unobserved_owned::body(optimized)
+                            && super::super::unobserved_owned::cleanup(optimized, cleanup)))
             }
             (
                 TargetControlTerminator::Jump { successor },

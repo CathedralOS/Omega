@@ -276,8 +276,14 @@ fixed-work deriver does not close this graph. The
 keeps proof checking mandatory and fixed-work evidence separate; termination
 alone cannot supply a work ceiling. Here the `Limits` field reads occur only
 in erased ranking expressions; this customer does not require runtime field
-loads. Native owned block arrivals, activation-local primitive storage, and
-their selected structural-scalar call integration remain required.
+loads. Unobserved plain owned block arrivals retain their exact semantic transfers
+and value ABI through native publication without payload copies or homes. The
+[`owned_control_cycles`](../../../../tests/native-differential/tests/owned_control_cycles.rs)
+companions exercise those arrivals with the same ranking-only field reads, a
+selected scalar call, and two-owner backedge swaps. They do not replace this
+customer's acceptance: activation-local primitive storage and its selected
+structural-scalar call integration remain required. The unchanged source now
+rejects at `UnsupportedPrimitiveLocalEstablishment(OperationId(6))`.
 
 The exact `reset` callee is exercised independently through native publication
 and execution by

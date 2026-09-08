@@ -24,6 +24,7 @@ struct LiveDefinitions {
     boolean_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     block_views: BTreeSet<PlaceId>,
+    owned_arrivals: BTreeSet<PlaceId>,
     lengths: BTreeMap<ValueId, PlaceId>,
 }
 
@@ -42,18 +43,21 @@ pub(super) fn lower(
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let unobserved_owned = super::unobserved_owned::accepts(function, structural_types);
     if !matches!(
         function.result,
         AbstractFunctionResult::Unit | AbstractFunctionResult::Scalar(_)
-    ) || !function.structural_parameters.iter().all(|parameter| {
-        super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
-            || (super::function_signature::is_primitive_write_parameter(
-                parameter,
-                structural_types,
-            ) && function.operations.iter().any(|operation| {
-                matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
-            }))
-    }) || !function.entry_claims.is_empty()
+    ) || (!unobserved_owned
+        && !function.structural_parameters.iter().all(|parameter| {
+            super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
+                || (super::function_signature::is_primitive_write_parameter(
+                    parameter,
+                    structural_types,
+                ) && function.operations.iter().any(|operation| {
+                    matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+                }))
+        }))
+        || !function.entry_claims.is_empty()
     {
         return Err(invalid());
     }
@@ -99,10 +103,11 @@ pub(super) fn lower(
         for (position, parameter) in entry.structural_parameters.iter().enumerate() {
             if entry.block == function.entry
                 || parameter.position as usize != position
-                || !super::scalar::byte_views::is_immutable_byte_parameter(
-                    parameter,
-                    structural_types,
-                )
+                || (!unobserved_owned
+                    && !super::scalar::byte_views::is_immutable_byte_parameter(
+                        parameter,
+                        structural_types,
+                    ))
                 || !places.insert(parameter.place)
             {
                 return Err(invalid());
@@ -157,7 +162,12 @@ pub(super) fn lower(
         let targets = match &function.operations[end - 1] {
             AbstractOperation::Return {
                 cleanup_actions, ..
-            } if cleanup_actions.is_empty() => Vec::new(),
+            } if cleanup_actions.is_empty()
+                || (unobserved_owned
+                    && super::unobserved_owned::cleanup(function, cleanup_actions)) =>
+            {
+                Vec::new()
+            }
             AbstractOperation::ReturnUnit {
                 cleanup_actions, ..
             } if cleanup_actions
@@ -219,6 +229,7 @@ pub(super) fn lower(
         boolean_parameters: BTreeMap::new(),
         views: BTreeMap::new(),
         block_views: BTreeSet::new(),
+        owned_arrivals: BTreeSet::new(),
         lengths: BTreeMap::new(),
     };
     for (position, dominator) in schedule {
@@ -233,6 +244,14 @@ pub(super) fn lower(
                 entries[position]
                     .structural_parameters
                     .iter()
+                    .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+                    .map(|parameter| parameter.place),
+            );
+            live.owned_arrivals.extend(
+                entries[position]
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.access == StructuralAccess::Owned)
                     .map(|parameter| parameter.place),
             );
         }

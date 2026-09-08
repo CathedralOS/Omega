@@ -1,4 +1,4 @@
-//! Admit only the retained whole immutable byte-view structural edge vocabulary.
+//! Admit whole immutable byte views and plain owned structural arrivals.
 
 use terminal_psi::{TerminalModule, Terminator};
 
@@ -23,19 +23,29 @@ pub(super) fn validate_structural_block_bindings(
                     block.id == machine.entry
                         || parameter.position as usize != position
                         || parameter.is_self
-                        || parameter.access != terminal_psi::StructuralAccess::SharedBorrow
-                        || parameter.multiplicity
-                            != terminal_psi::StructuralMultiplicity::Unrestricted
                         || !parameter.qualifications.is_empty()
                         || !parameter.projected_qualifications.is_empty()
                         || !module.structural_types.iter().any(|declaration| {
                             declaration.id == parameter.structural_type
-                                && matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView
-                                    )
-                                )
+                                && match parameter.access {
+                                    terminal_psi::StructuralAccess::Owned => matches!(
+                                        parameter.multiplicity,
+                                        terminal_psi::StructuralMultiplicity::Affine
+                                            | terminal_psi::StructuralMultiplicity::Unrestricted
+                                    ),
+                                    terminal_psi::StructuralAccess::SharedBorrow => {
+                                        parameter.multiplicity
+                                            == terminal_psi::StructuralMultiplicity::Unrestricted
+                                            && matches!(
+                                                declaration.shape,
+                                                terminal_psi::StructuralTypeShape::ByteSequence(
+                                                    terminal_psi::ByteSequenceCarrier::BorrowedView
+                                                )
+                                            )
+                                    }
+                                    terminal_psi::StructuralAccess::MutableBorrow
+                                    | terminal_psi::StructuralAccess::WriteOnlyBorrow => false,
+                                }
                         })
                 })
             {
@@ -86,5 +96,9 @@ pub(super) fn validate_structural_block_bindings(
 }
 
 fn unsupported_argument(argument: &terminal_psi::StructuralArgument) -> bool {
-    !argument.path.is_empty() || argument.access != terminal_psi::StructuralAccess::SharedBorrow
+    !argument.path.is_empty()
+        || !matches!(
+            argument.access,
+            terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::Owned
+        )
 }

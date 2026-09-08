@@ -78,11 +78,11 @@ pub(in crate::selection) fn project(
                 {
                     return Err(error());
                 }
-                if !successor.structural_bindings.is_empty()
-                    || successor.bindings.iter().any(|binding| {
-                        matches!(binding.transport, SelectedValueTransport::Registers { .. })
-                    })
-                {
+                if successor.structural_bindings.iter().any(|binding| {
+                    binding.transport != selected_instructions::SelectedStructuralTransport::Unused
+                }) || successor.bindings.iter().any(|binding| {
+                    matches!(binding.transport, SelectedValueTransport::Registers { .. })
+                }) {
                     return Err(error());
                 }
                 continue;
@@ -168,7 +168,14 @@ pub(in crate::selection) fn project(
                 .collect::<Vec<_>>();
             let descriptor_words = continuation
                 .structural_bindings
-                .len()
+                .iter()
+                .filter(|binding| {
+                    matches!(
+                        binding.transport,
+                        selected_instructions::SelectedStructuralTransport::Descriptor { .. }
+                    )
+                })
+                .count()
                 .checked_mul(2)
                 .ok_or_else(error)?;
             let register_delta = active

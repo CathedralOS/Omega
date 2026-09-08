@@ -1122,11 +1122,13 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  realize owned structural block arrivals, native primitive-local storage, and
+  realize native primitive-local storage and
   selected structural-scalar calls from those locals without substituting
   snapshots. Reuse the scalar-returning primitive-store callee route covered by
-  `primitive_store_return`. The native entrance rejects `UnsupportedStructuralBlockParameters`
-  for this source (macOS, `1bc4ba47f9`); its ranking-only field reads are erased,
+  `primitive_store_return` and the unobserved owned-arrival route in
+  `owned_control_cycles`. The unchanged source's native entrance now rejects
+  `UnsupportedPrimitiveLocalEstablishment(OperationId(6))` (macOS; owned-arrival
+  implementation based on `5a4e452d2b`, empty optimization selections); its ranking-only field reads are erased,
   not a runtime load dependency. Preserve the authored guard,
   structural payload, selected call order, and Natural descent through native
   lowering. The source-to-Terminal acceptance lives in `owned_scalar_cycles`.

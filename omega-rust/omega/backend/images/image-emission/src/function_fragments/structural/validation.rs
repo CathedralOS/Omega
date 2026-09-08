@@ -15,6 +15,8 @@ pub(in crate::function_fragments) fn validate_function(
     let invalid = || Error::Mismatch("structural object differs from current ABI or call evidence");
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
+    let (abstracted, targeted) = source::function(source, function.machine)?;
+    let unused_owned = source::unobserved_owned_arrivals(abstracted, targeted, selected);
     // Ranked referents are retained semantic ownership, not materialized homes.
     // Complete source admission rejects executable accesses to those referents.
     let parameters = if selected.ranked.is_some() {
@@ -44,7 +46,7 @@ pub(in crate::function_fragments) fn validate_function(
     if !unused_records.is_empty()
         || !unused_homes.is_empty()
         || records.len() != parameters.len()
-        || homes.len() != parameters.len()
+        || homes.len() != if unused_owned { 0 } else { parameters.len() }
         || function.internal_unit_calls.len()
             != selected
                 .calls
@@ -54,14 +56,20 @@ pub(in crate::function_fragments) fn validate_function(
     {
         return Err(invalid());
     }
-    for ((parameter, home), expected) in records.iter().zip(homes).zip(parameters) {
+    for (parameter, expected) in records.iter().zip(parameters) {
         let expected = &expected.target;
         if parameter.place != expected.place
             || parameter.structural_type != expected.structural_type
             || parameter.multiplicity != expected.multiplicity
             || parameter.access != expected.access
             || parameter.shape != expected.shape
-            || home.place != expected.place
+        {
+            return Err(invalid());
+        }
+    }
+    for (home, expected) in homes.iter().zip(parameters) {
+        let expected = &expected.target;
+        if home.place != expected.place
             || home.structural_type != expected.structural_type
             || home.multiplicity != expected.multiplicity
             || home.access != expected.access

@@ -2106,25 +2106,49 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             && cleanup.actions.is_empty()
                     )
             });
+        // This is a record-shape check, not erasure authority. The installation
+        // is joined field-for-field to the independently admitted image below;
+        // image replay requires retained source for every missing home.
+        let unmaterialized_owned = function.scalar_structural_parameter_homes.is_empty()
+            && function
+                .mixed_structural_scalar_abi
+                .as_ref()
+                .is_some_and(|abi| {
+                    !abi.structural_parameters.is_empty()
+                        && abi.structural_parameters.iter().all(|parameter| {
+                            parameter.access == terminal_psi::StructuralAccess::Owned
+                                && matches!(
+                                    parameter.multiplicity,
+                                    StructuralMultiplicity::Affine
+                                        | StructuralMultiplicity::Unrestricted
+                                )
+                                && parameter.projected_qualifications.is_empty()
+                                && parameter.shape.class
+                                    != calling_conventions::ValueClass::BorrowedReference
+                        })
+                });
         let mixed_structural_roster_is_exact = function
             .mixed_structural_scalar_abi
             .as_ref()
             .is_none_or(|abi| {
                 function.scalar_structural_parameters.len() == abi.structural_parameters.len()
-                    && function.scalar_structural_parameter_homes.len()
-                        == abi.structural_parameters.len()
+                    && (unmaterialized_owned || function.scalar_structural_parameter_homes.len()
+                        == abi.structural_parameters.len())
                     && function
                         .scalar_structural_parameters
                         .iter()
-                        .zip(&function.scalar_structural_parameter_homes)
                         .zip(&abi.structural_parameters)
-                        .all(|((parameter, home), retained)| {
+                        .all(|(parameter, retained)| {
                             parameter.place == retained.place
                                 && parameter.structural_type == retained.structural_type
                                 && parameter.multiplicity == retained.multiplicity
                                 && parameter.access == retained.access
                                 && parameter.shape == retained.shape
-                                && home.place == retained.place
+                        })
+                    && function.scalar_structural_parameter_homes.iter()
+                        .zip(&abi.structural_parameters)
+                        .all(|(home, retained)| {
+                            home.place == retained.place
                                 && home.structural_type == retained.structural_type
                                 && home.multiplicity == retained.multiplicity
                                 && home.access == retained.access
@@ -2150,8 +2174,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && !has_scalar_cleanup
                 && (!function.unit_parameters.is_empty()
                     || !function.unit_parameter_homes.is_empty()))
-            || function.scalar_structural_parameters.len()
-                != function.scalar_structural_parameter_homes.len()
+            || (!unmaterialized_owned
+                && function.scalar_structural_parameters.len()
+                    != function.scalar_structural_parameter_homes.len())
             || (!function.scalar_control_affine_cleanups.is_empty()
                 && function.scalar_control_affine_cleanups.len() < 2)
             || (function.scalar_affine_cleanup.is_some() && has_scalar_control_cleanup)

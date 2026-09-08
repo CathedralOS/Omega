@@ -484,6 +484,13 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut outgoing,
                 &edge.trivial_affine_discards,
             )?;
+            bind_owned_parameters(
+                function,
+                block_id,
+                &mut outgoing,
+                &edge.structural_bindings,
+                blocks[&edge.target],
+            )?;
             if let Some(existing) = incoming.get(&edge.target) {
                 if existing.claims != outgoing.claims {
                     return Err(OptimizationUnitValidationError::CurrentClaimJoinMismatch {

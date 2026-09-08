@@ -92,8 +92,18 @@ no termination certificate or fixed-work bound. The
 [source-produced scalar cycles](../../../../tests/native-differential/tests/scalar_control_cycles.rs)
 exercise selected calls, scalar returns, and simultaneous backedge swaps through
 object/image/installation replay on four hosted targets and execution on supported
-hosts. Owned structural arrivals, primitive locals, and scalar return cleanup
-remain separate native dependencies.
+hosts. Whole plain-owned, unqualified, claim-free Affine or Unrestricted inputs
+can also cross exact block arrivals when the entire body has no runtime
+structural observer. Their full value ABI, declarations, ordered bindings, and
+no-code affine return discards remain in the graph. Scalar-only calls remain
+ordinary executable operations. Current ownership validates the exact live
+frontier and disposal order; target availability supplies no ownership authority.
+The input-only selected reader independently checks this bounded route and its
+ABI. Observed owned values, projected or structural call actuals, executable
+cleanup, and primitive locals require separate native realization.
+The [owned control-cycle regressions](../../../../tests/native-differential/tests/owned_control_cycles.rs)
+exercise ranking-only field erasure, selected scalar calls, and simultaneous
+owned swaps through four-target publication and matching-host execution.
 
 Scalar-returning primitive-store callees retain the same exclusive reference
 parameter, ordered store, and mixed scalar/structural ABI as their source.

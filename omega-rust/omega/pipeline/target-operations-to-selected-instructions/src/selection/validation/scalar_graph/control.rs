@@ -101,7 +101,7 @@ pub(super) fn validate(
                     successor: actual,
                 },
             ) => {
-                check_successor(replay, successor, actual)?;
+                check_successor(source, replay, successor, actual)?;
                 (
                     instruction,
                     SelectedInstructionKind::Jump,
@@ -277,8 +277,8 @@ pub(super) fn validate(
                 } else {
                     (actual_true, actual_false)
                 };
-                check_successor(replay, when_true, actual_true)?;
-                check_successor(replay, when_false, actual_false)?;
+                check_successor(source, replay, when_true, actual_true)?;
+                check_successor(source, replay, when_false, actual_false)?;
                 (
                     instruction,
                     kind,
@@ -305,6 +305,7 @@ pub(super) fn validate(
 }
 
 fn check_successor(
+    function: &LegalizedScalarFunction,
     replay: &Replay<'_>,
     source: &LegalizedScalarSuccessor,
     actual: &SelectedSuccessor,
@@ -335,6 +336,18 @@ fn check_successor(
         .iter()
         .zip(&source.structural_bindings)
     {
+        if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
+            // The receiving input validator admits only unobserved owned graphs.
+            // Exact selected metadata and the complete register/storage roster
+            // are replayed by the enclosing function checker.
+            if !crate::unobserved_owned_input::accepts(function)
+                || actual.semantic != *semantic
+                || actual.transport != selected_instructions::SelectedStructuralTransport::Unused
+            {
+                return Err(SelectedInstructionError::SourceCustodyMismatch);
+            }
+            continue;
+        }
         let pointer = replay
             .transport
             .pointers

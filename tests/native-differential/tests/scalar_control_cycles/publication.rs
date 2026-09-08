@@ -96,6 +96,84 @@ fn publish(
     let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     assert_eq!(object.text_bytes(), source.source().text_section().bytes);
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    if !entry.structural_parameters.is_empty() {
+        let function = object.entry_function();
+        assert_eq!(
+            function.scalar_structural_parameters.len(),
+            entry.structural_parameters.len()
+        );
+        for (record, parameter) in function
+            .scalar_structural_parameters
+            .iter()
+            .zip(&entry.structural_parameters)
+        {
+            assert_eq!(record.place, parameter.place);
+            assert_eq!(record.access, parameter.access);
+            assert_eq!(record.multiplicity, parameter.multiplicity);
+            assert_eq!(record.structural_type, parameter.structural_type);
+        }
+        assert!(
+            function.scalar_structural_parameter_homes.is_empty(),
+            "unobserved payload has no home"
+        );
+        assert!(
+            function.mixed_structural_scalar_abi.is_some(),
+            "owned value ABI is retained"
+        );
+        let mut stripped = object.clone();
+        stripped.clear_fragment_replay_for_test();
+        assert!(
+            image_emission::emit_executable_image(&stripped, 3).is_err(),
+            "stripped owned replay"
+        );
+        let mut erased = object.clone();
+        let function = erased
+            .functions_mut_for_test()
+            .iter_mut()
+            .find(|function| function.machine == module.entry)
+            .unwrap();
+        function.scalar_structural_parameters.clear();
+        function.mixed_structural_scalar_abi = None;
+        assert!(
+            image_emission::validate_function_fragment_object_artifact(&source, &erased).is_err(),
+            "erased owned ABI and roster"
+        );
+        let mut forged = object.clone();
+        let function = forged
+            .functions_mut_for_test()
+            .iter_mut()
+            .find(|function| function.machine == module.entry)
+            .unwrap();
+        let parameter = function.scalar_structural_parameters[0];
+        let placement = function
+            .mixed_structural_scalar_abi
+            .as_ref()
+            .unwrap()
+            .structural_parameters[0]
+            .placement
+            .clone();
+        function
+            .scalar_structural_parameter_homes
+            .push(machine_code::UnitParameterHomeRecord {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                access: parameter.access,
+                multiplicity: parameter.multiplicity,
+                shape: parameter.shape,
+                source: placement,
+                location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
+                indirect: false,
+            });
+        assert!(
+            image_emission::validate_function_fragment_object_artifact(&source, &forged).is_err(),
+            "invented payload home cannot replace unused transport"
+        );
+    }
     let entry_offset = object.entry_function().text_offset;
     let image = image_emission::emit_executable_image(&object, 3).unwrap();
     image_emission::validate_executable_image(&object, &image).unwrap();
@@ -113,7 +191,48 @@ fn publish(
         image_emission::derive_stack_demand(&object, module.entry).unwrap(),
         image_emission::derive_installation_stack_demand(&decoded, &image, module.entry).unwrap(),
     );
-    (image, entry_offset)
+    let canonical = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let selected = effects::SelectedProviderPlanFacts::default();
+    let selected_digest = selected.identity_digest();
+    let physical_policy =
+        native_realization::current_compiler_intrinsic_terminal_authority_policy();
+    let permission_policy = native_realization::current_terminal_authority_permission_policy();
+    let closure_review = effects::TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+        *canonical.manifest().identity().as_bytes(),
+        target,
+        selected_digest,
+        physical_policy.identity(),
+        permission_policy.identity(),
+        Vec::new(),
+    )
+    .expect("exact empty authority closure for ordinary source cycles");
+    let native = native_artifact::NativeArtifact::from_emitted_parts(
+        native_artifact::NativeArtifactEmissionParts {
+            target,
+            psi_artifact: canonical,
+            object,
+            image,
+            selected_provider_closure_report_identity: 1,
+            selected_provider_closure_digest:
+                native_artifact::NativeSelectedProviderClosureDigest::from_digest(
+                    *selected_digest.as_bytes(),
+                ),
+            selected_provider_plans: Vec::new(),
+            provider_executions: Vec::new(),
+            terminal_authority_policy_identity: physical_policy.identity(),
+            terminal_authority_permission_policy_identity: permission_policy.identity(),
+            terminal_authority_closure_review: closure_review,
+            boundary_application_coverage: None,
+            // Ordinary physical replay is retained; no provider/operator
+            // occurrence evidence is claimed by this fixture.
+            physical_evidence_scope: native_artifact::NativePhysicalEvidenceScope::Unavailable,
+        },
+    )
+    .unwrap_or_else(|error| panic!("native cycle artifact on {target:?}: {error}"));
+    native
+        .validate()
+        .expect("independent native artifact replay");
+    (native.into_parts().image, entry_offset)
 }
 
 pub(super) fn assert_four_targets(artifact: &CanonicalTerminalArtifact, expected_calls: usize) {

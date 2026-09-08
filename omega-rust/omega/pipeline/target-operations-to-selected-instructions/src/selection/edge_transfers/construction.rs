@@ -40,7 +40,11 @@ pub(in crate::selection) fn prepare(
                     SelectedValueTransport::Unused => None,
                 })
                 .collect::<Vec<_>>();
-            if active.is_empty() && successor.structural_bindings.is_empty() {
+            if active.is_empty()
+                && successor.structural_bindings.iter().all(|binding| {
+                    binding.transport == selected_instructions::SelectedStructuralTransport::Unused
+                })
+            {
                 continue;
             }
             let bridge_id = SelectedBlockId(

@@ -107,6 +107,16 @@ retains the canonical Terminal module and proof bundle. Native artifact admissio
 alone does not establish downstream optimization, target lowering, or publication
 support for these cycles.
 
+Whole plain owned structural block arrivals retain exact source/destination
+types, access, multiplicity, and ordered bindings. Independent current ownership
+replay consumes all old affine roots before establishing destinations, including
+swaps and self-loops; cleanup follows reverse establishment order derived from
+dominance, not serialized block IDs. Retained frontier snapshots independently
+rejoin cleanup and rebinding. Claims, qualifications, projected transfers, and
+linear arrivals remain outside this bounded admission. Unobserved plain owned
+payloads use the ordinary native graph without copies; this is not admission of
+runtime field observations or structural call transport.
+
 Unranked modules take the same ordinary verification and abstract route without
 a progress claim. Scalar cycles proceed through the shared
 [target control graph](../abstract-operations-to-target-operations/README.md)

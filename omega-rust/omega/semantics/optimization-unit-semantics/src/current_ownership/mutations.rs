@@ -82,9 +82,8 @@ pub(super) fn expected_trivial_affine_discards(
     locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
     output.extend(locals.into_iter().map(|(_, place)| place));
     output.extend(
-        function
-            .structural_parameters
-            .iter()
+        parameter_establishment_order(function)
+            .into_iter()
             .rev()
             .filter_map(|parameter| {
                 (parameter.multiplicity == StructuralMultiplicity::Affine

@@ -38,7 +38,9 @@ pub(super) fn lower_terminator(
             let expected = function.result.scalar().ok_or_else(invalid)?;
             if *result != expected.value
                 || *scalar_type != expected.scalar_type
-                || !cleanup_actions.is_empty()
+                || (!cleanup_actions.is_empty()
+                    && !(super::super::unobserved_owned::accepts(function, structural_types)
+                        && super::super::unobserved_owned::cleanup(function, cleanup_actions)))
             {
                 return Err(invalid());
             }
@@ -71,10 +73,15 @@ pub(super) fn lower_terminator(
             // discard order. Native admission only proves each retained action
             // is a no-code discard of an available boundary result home.
             let mut discarded = BTreeSet::new();
+            let unobserved_owned =
+                super::super::unobserved_owned::accepts(function, structural_types);
             for action in cleanup_actions {
                 let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
                     return Err(invalid());
                 };
+                if unobserved_owned {
+                    continue;
+                }
                 let home = live.structural_homes.get(place).ok_or_else(invalid)?;
                 if !discarded.insert(*place)
                     || home.result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
