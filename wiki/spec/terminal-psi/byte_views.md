@@ -43,10 +43,13 @@ trust-source identity.
 
 ## Calls and control transfers
 
-Ordinary Unit helpers and bodyless boundaries can receive whole views through
-the structural lane. Invocation storage preserves nested/repeated calls and
-their independent contents. Descriptors may share immutable backing; deriving
-a view does not require copying its bytes.
+Ordinary helpers with Unit or scalar results and bodyless boundaries can receive
+whole views through the structural lane. The result kind does not restrict an
+argument to a machine parameter: established literals, dominating subslices,
+and available block parameters retain the same shared access and source custody.
+Invocation storage preserves nested/repeated calls and their independent contents.
+Descriptors may share immutable backing; deriving a view does not require copying
+its bytes.
 
 A block's ordered structural parameters each bind one
 `BlockParameter { block, position }` place. Structural positions are dense

@@ -24,6 +24,8 @@ mod calls;
 mod calls_admission;
 #[path = "terminal_byte_views/helper_admission.rs"]
 mod helper_admission;
+#[path = "terminal_byte_views/literal_calls.rs"]
+mod literal_calls;
 #[path = "terminal_byte_views/mixed_helpers.rs"]
 mod mixed_helpers;
 #[path = "terminal_byte_views/subslice.rs"]

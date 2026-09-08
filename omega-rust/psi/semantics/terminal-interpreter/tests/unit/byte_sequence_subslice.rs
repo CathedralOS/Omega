@@ -240,7 +240,7 @@ fn prove(goal: &Proposition, axioms: &[Proposition]) -> ProofNode {
     }
 }
 
-fn certificate(module: &TerminalModule) -> ProofBundle {
+pub(super) fn certificate(module: &TerminalModule) -> ProofBundle {
     let questions = terminal_verifier::reconstruct_terminal_obligations(module).unwrap();
     let mut evidence = questions
         .obligations()
