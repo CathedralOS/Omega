@@ -87,6 +87,9 @@ pub enum CheckedScalarComputationKind {
         structural_arguments: HandleSpan<CheckedUnitStructuralArgumentPlan>,
     },
     Select {
+        /// Exact conditional occurrence, retained when an enclosing constant
+        /// condition folds away and the destination root names that outer form.
+        source_expression: typed_trees::expression::ExpressionHandle,
         condition: CheckedScalarComputationHandle,
         when_true: CheckedScalarComputationHandle,
         when_false: CheckedScalarComputationHandle,

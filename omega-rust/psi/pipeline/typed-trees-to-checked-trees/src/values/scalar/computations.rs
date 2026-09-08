@@ -610,6 +610,7 @@ impl Builder<'_, '_> {
                 Some(self.insert(
                     PrimitiveType::Bool,
                     CheckedScalarComputationKind::Select {
+                        source_expression: expression,
                         condition,
                         when_true,
                         when_false,

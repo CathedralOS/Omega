@@ -40,6 +40,16 @@ pub(super) fn selection(
     checked: &CheckedTrees,
     source: ExpressionHandle,
 ) -> Result<(ExpressionHandle, ExpressionHandle, bool), LoweringError> {
+    if checked
+        .facts
+        .operators
+        .expression_use(source)
+        .is_some_and(|operator_use| {
+            operator_use.status != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+        })
+    {
+        return unsupported("computed selection is not an authored builtin conditional");
+    }
     if let ExpressionNode::Binary(binary) = checked.expression_table.expression(source) {
         match binary.operator {
             BinaryOperator::And => return Ok((binary.left, binary.right, true)),

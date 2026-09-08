@@ -10,7 +10,9 @@ Call-bearing initializers, assignments, guards, state arguments, and returns use
 arena-backed checked computation plans, separate from proof-side pure expressions.
 Value leaves retain the source namespace; call nodes retain generational authored
 expression handles, exact flow calls, and occurrence ordinals. Conditional nodes
-select a result; pure templates consume completed operands.
+select a result and retain the exact conditional expression handle, separately
+from the destination root when an enclosing constant condition folds away;
+pure templates consume completed operands.
 
 Rejoin each root with its exact state, statement, destination role, expression,
 carrier, and declaration namespace. Pure roots use the same locator and require

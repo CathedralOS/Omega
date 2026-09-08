@@ -193,6 +193,7 @@ pub(crate) fn computation_targets(
                 condition,
                 when_true,
                 when_false,
+                ..
             } => pending.extend([*condition, *when_true, *when_false]),
             CheckedScalarComputationKind::Call {
                 target_machine,

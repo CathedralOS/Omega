@@ -191,6 +191,7 @@ fn borrowed_computation_arguments_keep_dynamic_mutation_in_selected_operand() {
         condition,
         when_true,
         when_false,
+        ..
     } = plans.nodes.get(root(&checked)).kind
     else {
         panic!("dynamic short-circuit selection");
