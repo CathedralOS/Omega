@@ -53,6 +53,19 @@ unchanged. Compiler-rendered triage uses bounded escaped identifiers. Source dif
 remain untrusted input even when their structure is escaped. No model service or
 audit attestation is required for the package workflow.
 
+Review input joins complete candidate resolver custody and compiler rows
+bijectively by exact package key and immutable resolution. Duplicate rows,
+package/projection mismatch, and mixed deployment targets reject before policy
+comparison or source rendering. Recovered old-source custody must match its
+baseline row; unavailable source is recorded as absence, not guessed content.
+
+Keep compiler findings and hostile source in separate bounded frames. Source
+packets preserve deterministic raw-tree changes, including modes, directories,
+symlinks, entry kinds, and line endings, under independent capture, metadata,
+line, algorithm-work, trace-memory, and output limits. Binary/non-UTF-8 changes
+remain commitment-visible but incomplete for model review; recommend standalone
+audit. Exceeding a packet limit rejects rather than silently truncating evidence.
+
 ## Authority boundaries
 
 Build execution may perform its admitted scoped effects even if later checking

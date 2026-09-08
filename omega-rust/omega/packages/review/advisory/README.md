@@ -22,3 +22,17 @@ suppressing compiler findings, resolving decisions, or claiming an audit.
 Use the current lock-policy comparison and separately rendered source diffs;
 do not introduce a second persisted baseline or certification requirement to
 connect this adapter. No built-in model service is required.
+
+## Protocol boundary
+
+[src/protocol.rs](src/protocol.rs) owns the closed response envelope. Only its
+canonical `recommend_audit` or `no_additional_audit` result is accepted, with no
+prose. The runner selects no model and grants no ambient network access. Fixed
+system instructions stay separate from bounded manager-rendered hostile input;
+an owned streaming sink enforces the caller's output ceiling.
+
+Advice is monotone: it can add an audit recommendation, never suppress compiler
+recommendations, alter blockers, resolve decisions, admit evidence/packages, set
+policy, or mutate accepted state. Bind a response to its exact rendered input
+for stale-result detection, not as proof of an audit. Byte escaping protects the
+packet grammar; it does not neutralize instructions embedded in reviewed code.

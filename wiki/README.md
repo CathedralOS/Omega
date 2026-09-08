@@ -40,8 +40,9 @@ beside code; completed work belongs in Git, not current reference material.
   [provider selection](spec/build/provider_selection.md),
   [opaque representations](spec/build/opaque_representations.md),
   [execution and generated source](spec/build/execution.md),
+  [observations and reproducibility](spec/build/observations.md),
   [standalone compiler request](spec/build/compiler_request.md),
-  [native products and component publication](spec/build/component_publication.md)
+  [native products and component publication](spec/build/component_publication.md),
   [macOS applications](spec/build/macos_application.md),
   and [private callbacks](spec/build/private_callbacks.md).
 - Packages: [source selection](spec/packages/sources.md),
