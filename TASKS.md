@@ -798,12 +798,16 @@ Owners include
   lookup to other already-loaded sources of the same exact dependency while
   retaining exact-source validation of each import.
 
-  Resume evidence: `979eb95128`, macOS arm64 with Cargo and
-  `RUST_MIN_STACK=33554432`. The source pipeline probes check both imported
-  files and select `combat::damage` returning `7`; serialized scalar execution
-  and relocated canonical nominal rows have regression controls. The next
-  acceptance is exact namespace-aware normalization of the fenced forms,
-  retaining duplicate-name and package-authority rejection controls.
+  Resume evidence: `e3212d05be`, macOS arm64 with Cargo and
+  `RUST_MIN_STACK=33554432`. The qualified-constant CLI probes in the source
+  pipeline README check three files and select `combat::damage` returning `7`;
+  independent execution and relocated public-constant review rows retain the
+  distinct module values. The next constant acceptance is `Buffer<SIZE>` with
+  different root/module values: `generic_data/module_constants.rs` currently
+  rejects the pre-symbol fold until normalization can consume exact selected
+  declarations. Compound domain expressions retain their unresolved names.
+  Preserve duplicate-name, lexical-precedence and package-authority controls
+  when replacing that fence and the remaining declaration-family fences.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
