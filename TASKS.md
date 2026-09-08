@@ -878,7 +878,7 @@ Owners include
   local establishment and storage reads. Realize their native storage and
   borrowed-call observations without substituting snapshots. Preserve the authored
   guard and structural payload; the linked command still rejects the rank range
-  on macOS at `8e57b67917` because of the generated hop.
+  on macOS with primitive-local checkpoint `80ebfee112` because of the generated hop.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
   calls and boundary calls, plus the remaining

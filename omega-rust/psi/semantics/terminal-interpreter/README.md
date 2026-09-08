@@ -6,7 +6,8 @@ and [structural ownership](../../../../wiki/spec/terminal-psi/ownership.md).
 
 ## Cyclic execution
 
-Ordinary interpretation accepts verified natural-ranked scalar/immutable-view
+Ordinary interpretation accepts verified natural-ranked scalar, immutable-view,
+receiver, and primitive-local
 graphs under the [control contract](../../../../wiki/spec/terminal-psi/control_flow.md).
 The legacy one-machine structural Unit countdown uses its own verifier entrance:
 it reconstructs `0 < remaining` as the unsigned `1 <= remaining` premise and
@@ -23,6 +24,16 @@ Ordinary recursive call graphs remain fenced until their tail/ranking evidence
 is admitted; cyclic block execution has its separate verified route above.
 Fixed-work composition distinguishes normal return bounds from crash bounds:
 only a normal return composes the caller's remaining work.
+
+## Primitive local storage
+
+[primitive_storage.rs](src/primitive_storage.rs) establishes fresh referents on
+each activation or loop reentry. Borrowed calls share their backing; reads copy
+the current scalar, so earlier snapshots survive later writes. Suspension retains
+the storage, and departure reclaims it without affine cleanup. Local identities
+cannot collide with declared places or supplied host identities. This support
+does not provide native allocation or permit owned local escape; see
+[structural access](../../../../wiki/spec/terminal-psi/structural_access.md).
 
 ## Bounded byte fields
 
