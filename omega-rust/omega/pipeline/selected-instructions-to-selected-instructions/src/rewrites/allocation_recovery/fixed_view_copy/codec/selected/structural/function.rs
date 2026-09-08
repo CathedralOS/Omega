@@ -10,6 +10,21 @@ use selected_instructions::{
     SelectedOutgoingArgumentSlot,
 };
 use semantic_vocabulary::{OperationId, PlaceId};
+pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) fn decode_local_slot(
+    cursor: &mut Cursor<'_>,
+) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
+    let tag = cursor.byte()?;
+    let operation = decode_id(cursor, OperationId::new)?;
+    match tag {
+        0 => Ok(selected_instructions::LocalStorageSlotId::Structural {
+            operation,
+            place: decode_id(cursor, PlaceId::new)?,
+        }),
+        1 => Ok(selected_instructions::LocalStorageSlotId::Boundary { operation }),
+        tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    }
+}
+
 fn encode_slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
     bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
@@ -35,8 +50,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     }
     length(bytes, function.local_storage_slots.len());
     for slot in &function.local_storage_slots {
-        bytes.extend_from_slice(&slot.id.operation.get().to_le_bytes());
-        bytes.extend_from_slice(&slot.id.place.get().to_le_bytes());
+        slot.id.encode_identity(bytes);
         bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
         bytes.extend_from_slice(&slot.alignment.to_le_bytes());
     }
@@ -80,8 +94,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
                         5
                     },
                 );
-                bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-                bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+                slot.encode_identity(bytes);
             }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WriteOutgoing { slot } => {
@@ -115,10 +128,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
         function
             .local_storage_slots
             .push(selected_instructions::SelectedLocalStorageSlot {
-                id: selected_instructions::LocalStorageSlotId {
-                    operation: decode_id(cursor, OperationId::new)?,
-                    place: decode_id(cursor, PlaceId::new)?,
-                },
+                id: decode_local_slot(cursor)?,
                 byte_size: cursor.u32()?,
                 alignment: cursor.u16()?,
             });
@@ -155,10 +165,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
                 ),
             },
             tag @ (4 | 5) => {
-                let slot = selected_instructions::LocalStorageSlotId {
-                    operation: decode_id(cursor, OperationId::new)?,
-                    place: decode_id(cursor, PlaceId::new)?,
-                };
+                let slot = decode_local_slot(cursor)?;
                 if tag == 4 {
                     SelectedMemoryAccessRole::WriteLocal { slot }
                 } else {

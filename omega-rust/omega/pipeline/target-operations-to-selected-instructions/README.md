@@ -56,6 +56,17 @@ dereference either. The original bounds and backing remain the access authority;
 this address calculation introduces no Psi operation or additional fuel charge.
 See [extent endpoints](../../../../wiki/spec/resources/extents.md#conservation-and-loans).
 
+The admitted Linux `write_byte(i32)` boundary retains its exact SSA input and
+builtin identity in the same graph. Its selected form owns one byte of local
+scratch identified by the boundary operation, not a fabricated structural place.
+The ISA realization stores the low byte, performs the existing stdout write,
+and continues only on a positive result; failure traps. Registers, flags, local
+memory and the external effect are explicit, and the form does not adjust the
+stack pointer behind frame allocation. Independent decoding checks the complete
+syscall sequence and resolved slot. Object evidence distinguishes this selected
+input transport from legacy immediate materialization. This Linux realization
+does not authorize a macOS/Windows provider or establish writer control flow.
+
 [Construction](src/selection/construction/mod.rs) and independent validation
 derive separate projections. Replay checks the complete selected content against
 the semantic/optimized input, target plan and register catalog, including exact

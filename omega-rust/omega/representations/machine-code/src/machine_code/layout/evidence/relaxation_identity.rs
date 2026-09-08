@@ -17,7 +17,7 @@ use super::{
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
 
-const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v5";
+const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v6";
 const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v3";
 
 #[derive(Clone, Copy)]
@@ -184,6 +184,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LinuxWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
@@ -209,6 +210,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(pointer_operand.to_le_bytes());
             hasher.update(index_operand.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
+            hasher.update([6]);
+            hasher.update(stack_pointer.0.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
         MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -265,9 +270,11 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }
     hasher.update([match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::LinuxWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
+        MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1 => hasher.update([6]),
         MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => hasher.update([1]),
         MachineEncodedControlEffect::ReturnFromActivationStackV1 => hasher.update([2]),

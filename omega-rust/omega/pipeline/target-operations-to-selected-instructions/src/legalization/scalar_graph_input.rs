@@ -77,11 +77,15 @@ pub(super) fn u8_type() -> IntegerType {
 pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) if integer == i32_type() => Some(ValueShape::integer(4, 4)),
         ScalarType::Integer(integer) if integer == u64_type() || integer == i64_type() => {
             Some(ValueShape::integer(8, 8))
         }
         _ => None,
     }
+}
+pub(super) fn i32_type() -> IntegerType {
+    IntegerType::new(IntegerSign::Signed, 32).expect("I32")
 }
 pub(super) fn u64_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 64).expect("U64")
@@ -114,6 +118,18 @@ pub(super) fn match_input(
     } else {
         function_abi(native.target, target, abstracted, optimized)?
     };
+    // Only the Unit-body target reader currently rejoins executable boundary
+    // settlements. An unused scalar-tree row is not a builtin realization witness.
+    if optimized
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .any(|node| matches!(node.operation, AbstractOperation::BoundaryCall { .. }))
+        && (!matches!(target.operation, TargetOperation::UnitBody(_))
+            || abstracted.result != AbstractFunctionResult::Unit)
+    {
+        return Err(invalid);
+    }
     if optimized.blocks.is_empty()
         || optimized.entry != abstracted.entry
         || abstracted.block_entries.len() != optimized.blocks.len()

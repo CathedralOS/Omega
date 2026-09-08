@@ -1522,6 +1522,17 @@ fn builtin_runtime_scalar_boundary_trait_settlement_identity(
     digest.update([1, 2, 2]);
     digest.update(scalar_argument.parameter_index.to_le_bytes());
     match scalar_argument.source {
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+            source_value,
+            instruction,
+            scratch_byte_offset,
+            ..
+        } => {
+            digest.update([4]);
+            digest.update(source_value.get().to_le_bytes());
+            digest.update(instruction.0.to_le_bytes());
+            digest.update(scratch_byte_offset.to_le_bytes());
+        }
         machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,

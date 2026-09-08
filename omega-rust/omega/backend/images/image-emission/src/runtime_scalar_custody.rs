@@ -6,6 +6,103 @@ use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::CompilerBuiltinExecution;
 
+pub(crate) fn decode_selected_byte_output(
+    target: NativeTarget,
+    bytes: &[u8],
+) -> Option<(MachineRegister, u32)> {
+    if target.object_format != ObjectFormat::Elf {
+        return None;
+    }
+    match target.architecture {
+        Architecture::X86_64 => isa_x86_64::decode_x86_64_selected_linux_write_byte_i32(bytes),
+        Architecture::Aarch64 => isa_aarch64::decode_aarch64_selected_linux_write_byte_i32(bytes),
+    }
+}
+
+/// Byte/shape checking only. Publication separately rejoins the selected SSA
+/// source and operation-owned scratch against current fragment/frame evidence.
+pub(crate) fn selected_byte_output_bytes_are_exact(
+    target: NativeTarget,
+    settlement: &BoundarySettlementRecord,
+    function_bytes: &[u8],
+) -> bool {
+    let [argument] = settlement.runtime_scalar_arguments.as_slice() else {
+        return false;
+    };
+    let InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+        scratch_byte_offset,
+        ..
+    } = argument.source
+    else {
+        return false;
+    };
+    let Some(end) = settlement.code_offset.checked_add(settlement.byte_count) else {
+        return false;
+    };
+    let Some(bytes) = function_bytes.get(settlement.code_offset..end) else {
+        return false;
+    };
+    let Some((register, offset)) = decode_selected_byte_output(target, bytes) else {
+        return false;
+    };
+    selected_byte_output_shape_is_exact(target, settlement)
+        && scratch_byte_offset == u64::from(offset)
+        && argument.placement.locations.as_slice()
+            == [ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 4,
+            }]
+}
+
+/// This validates transport shape, not source authority. Installation separately
+/// compares the complete record against the replay-validated executable image.
+pub(crate) fn selected_byte_output_shape_is_exact(
+    target: NativeTarget,
+    settlement: &BoundarySettlementRecord,
+) -> bool {
+    let [argument] = settlement.runtime_scalar_arguments.as_slice() else {
+        return false;
+    };
+    let InternalUnitScalarArgumentSourceRecord::SelectedBoundary { scalar_type, .. } =
+        argument.source
+    else {
+        return false;
+    };
+    target.object_format == ObjectFormat::Elf
+        && matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+        && settlement.byte_count
+            == match target.architecture {
+                Architecture::X86_64 => 40,
+                Architecture::Aarch64 => 36,
+            }
+        && settlement.execution
+            == BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32)
+        && matches!(
+            settlement.realization,
+            target_operations::BoundaryRealization::LinuxWriteByteI32(_)
+        )
+        && settlement.native_result.is_unit()
+        && settlement.scalar_arguments.is_empty()
+        && settlement.arguments.is_empty()
+        && settlement.byte_sequence_arguments.is_empty()
+        && settlement.completion_claim_sources.is_empty()
+        && settlement.completion_receipts.is_empty()
+        && settlement.completion_provider_custody.is_empty()
+        && argument.parameter_index == 0
+        && argument.code_offset == settlement.code_offset
+        && argument.byte_count == settlement.byte_count
+        && argument.placement.shape == ValueShape::integer(4, 4)
+        && matches!(
+            argument.placement.locations.as_slice(),
+            [ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size: 4,
+                ..
+            }]
+        )
+}
+
 pub(crate) fn inspected_linux_read_byte_roots(
     settlements: &[BoundarySettlementRecord],
 ) -> std::collections::BTreeSet<semantic_vocabulary::PlaceId> {
@@ -72,6 +169,7 @@ pub(crate) fn linux_write_byte_custody_is_exact(
         _ => return false,
     };
     let source_is_exact = match argument.source {
+        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => return false,
         InternalUnitScalarArgumentSourceRecord::Parameter { .. } => false,
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,

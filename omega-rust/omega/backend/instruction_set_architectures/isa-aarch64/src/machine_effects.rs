@@ -56,6 +56,11 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                    return crate::selected_form_encoding::linux_write_byte::declaration(
+                        constraint,
+                    );
+                }
                 if matches!(
                     semantic,
                     MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
@@ -106,6 +111,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        linux_write_byte_i32: (target.object_format == ObjectFormat::Elf)
+            .then_some(crate::AARCH64_LINUX_WRITE_BYTE_I32),
         load64: Some(crate::AARCH64_LOAD64),
         load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
         store64: Some(crate::AARCH64_STORE64),
@@ -229,7 +236,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::Store64 => (vec![0], vec![]),
         MachineSemanticKind::FrameAddress => (vec![], vec![0]),
-        MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::LinuxWriteByteI32 | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {
@@ -331,7 +338,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
-        MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::LinuxWriteByteI32 | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {

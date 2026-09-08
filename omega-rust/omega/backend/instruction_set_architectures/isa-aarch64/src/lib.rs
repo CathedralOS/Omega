@@ -42,11 +42,13 @@ pub use register_model::{
     aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
 pub use register_model::{
-    AARCH64_FRAME_ADDRESS, AARCH64_LOAD8_INDEXED, AARCH64_LOAD64, AARCH64_STORE64,
+    AARCH64_FRAME_ADDRESS, AARCH64_LINUX_WRITE_BYTE_I32, AARCH64_LOAD8_INDEXED, AARCH64_LOAD64,
+    AARCH64_STORE64,
 };
 pub use register_model::{
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };
+pub use selected_form_encoding::linux_write_byte::decode_aarch64_selected_linux_write_byte_i32;
 pub use selected_form_encoding::{
     AARCH64_SCALAR_CALL_OPCODE_OFFSET, AARCH64_SCALAR_CALL_PATCH_OFFSET,
     AARCH64_SCALAR_CALL_PATCH_WIDTH, AARCH64_SCALAR_CALL_REFERENCE_OFFSET,
@@ -67,6 +69,9 @@ pub use selected_form_encoding::{
     validate_aarch64_selected_scalar_call_template,
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_shortest_movn_materialization,
+};
+pub use selected_form_encoding::{
+    encode_aarch64_selected_linux_write_byte_form, validate_aarch64_selected_linux_write_byte_form,
 };
 pub use selected_form_encoding::{
     encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form,

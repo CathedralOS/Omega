@@ -33,6 +33,12 @@ pub(super) fn validate(
     for (target, abstracted) in body.operations.iter().zip(&abstracted.operations) {
         match (target, abstracted) {
             (
+                TargetUnitOperation::BoundarySettlement { .. },
+                AbstractOperation::BoundaryCall { .. },
+            ) => {
+                super::byte_output::validate(target, abstracted, native.target, plan, &sources)?;
+            }
+            (
                 TargetUnitOperation::BooleanConstant {
                     psi_operation,
                     result,

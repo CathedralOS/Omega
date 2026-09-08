@@ -191,7 +191,7 @@ mod tests {
         let physical =
             validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
         let slot = selected_instructions::FrameStorageSlotId::Local(
-            selected_instructions::LocalStorageSlotId {
+            selected_instructions::LocalStorageSlotId::Structural {
                 operation: OperationId::new(104).unwrap(),
                 place: semantic_vocabulary::PlaceId::new(102).unwrap(),
             },

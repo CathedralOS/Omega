@@ -32,6 +32,7 @@ pub(crate) fn validate(
     }
     match selected.kind {
         kind @ (SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
@@ -55,7 +56,12 @@ pub(crate) fn validate(
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             };
             let decoded = if architecture == Architecture::Aarch64 {
-                let encoded = isa_aarch64::validate_aarch64_selected_memory_form(
+                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
+                    isa_aarch64::validate_aarch64_selected_linux_write_byte_form
+                } else {
+                    isa_aarch64::validate_aarch64_selected_memory_form
+                };
+                let encoded = encode(
                     physical,
                     kind,
                     machine.alternative.key,
@@ -70,7 +76,12 @@ pub(crate) fn validate(
                     &encoded.footprint().encoded,
                 )
             } else {
-                let encoded = isa_x86_64::validate_x86_64_selected_memory_form(
+                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
+                    isa_x86_64::validate_x86_64_selected_linux_write_byte_form
+                } else {
+                    isa_x86_64::validate_x86_64_selected_memory_form
+                };
+                let encoded = encode(
                     physical,
                     kind,
                     machine.alternative.key,

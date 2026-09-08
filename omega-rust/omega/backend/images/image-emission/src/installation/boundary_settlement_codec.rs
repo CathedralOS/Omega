@@ -1,4 +1,4 @@
-//! Canonical format-36 codec for boundary-settlement rows.
+//! Canonical installation codec for boundary-settlement rows.
 //!
 //! The installation parent retains upfront count conversion, settlement order,
 //! validation, and admission replay. This child composes the exact row bytes.
@@ -808,6 +808,18 @@ fn encode_boundary_runtime_source(
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
+        InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+            source_value,
+            scalar_type,
+            instruction,
+            scratch_byte_offset,
+        } => {
+            bytes.extend_from_slice(&[3, 0, 0, 0]);
+            push_u64(bytes, source_value.get());
+            encode_scalar_type(bytes, scalar_type)?;
+            push_u32(bytes, instruction.0);
+            push_u64(bytes, scratch_byte_offset);
+        }
         InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,
@@ -907,6 +919,13 @@ fn decode_boundary_runtime_source(
         2 => Ok(InternalUnitScalarArgumentSourceRecord::Home(
             decode_unit_scalar_home(reader)?,
         )),
+        3 => Ok(InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+            source_value: ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidBoundaryScalarArgument)?,
+            scalar_type: decode_scalar_type(reader)?,
+            instruction: selected_instructions::SelectedInstructionId(reader.u32()?),
+            scratch_byte_offset: reader.u64()?,
+        }),
         _ => Err(InstallationError::InvalidBoundaryScalarArgument),
     }
 }
@@ -914,6 +933,45 @@ fn decode_boundary_runtime_source(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_boundary_source_round_trips_exact_occurrence_and_scratch() {
+        let source = InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
+            source_value: ValueId::new(17).unwrap(),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                    .unwrap(),
+            ),
+            instruction: selected_instructions::SelectedInstructionId(9),
+            scratch_byte_offset: 24,
+        };
+        let mut bytes = Vec::new();
+        encode_boundary_runtime_source(&mut bytes, source).unwrap();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_boundary_runtime_source(&mut reader).unwrap(), source);
+        assert_eq!(reader.remaining(), 0);
+        let mut changed = bytes.clone();
+        changed[1] = 1;
+        assert!(decode_boundary_runtime_source(&mut Reader::new(&changed)).is_err());
+        let mut changed = bytes.clone();
+        changed[4..12].fill(0);
+        assert!(decode_boundary_runtime_source(&mut Reader::new(&changed)).is_err());
+        for index in [4, bytes.len() - 1] {
+            let mut changed = bytes.clone();
+            changed[index] ^= 1;
+            assert_ne!(
+                decode_boundary_runtime_source(&mut Reader::new(&changed)).unwrap(),
+                source
+            );
+        }
+        assert!(
+            super::super::internal_unit_scalar_call_codec::encode_argument_source(
+                &mut Vec::new(),
+                source,
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn structural_boundary_result_round_trips_with_exact_sum_layout() {

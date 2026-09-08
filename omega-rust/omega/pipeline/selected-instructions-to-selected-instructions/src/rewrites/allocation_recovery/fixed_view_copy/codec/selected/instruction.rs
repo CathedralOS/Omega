@@ -81,6 +81,7 @@ pub(super) fn decode_instruction(
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::LinuxWriteByteI32 { .. } => 23,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
         SelectedInstructionKind::Store64 { .. } => 17,
@@ -119,12 +120,12 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
                 }
                 selected_instructions::FrameStorageSlotId::Local(slot) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-                    bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+                    slot.encode_identity(bytes);
                 }
             }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
+        SelectedInstructionKind::LinuxWriteByteI32 { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::ExactAddI64 {
             obligation,
@@ -191,10 +192,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
                     },
                 ),
                 1 => selected_instructions::FrameStorageSlotId::Local(
-                    selected_instructions::LocalStorageSlotId {
-                        operation: decode_id(cursor, OperationId::new)?,
-                        place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
-                    },
+                    super::structural::decode_local_slot(cursor)?,
                 ),
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
@@ -218,6 +216,9 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         4 => SelectedInstructionKind::CopyI64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
+        23 => SelectedInstructionKind::LinuxWriteByteI32 {
+            slot: super::structural::decode_local_slot(cursor)?,
+        },
         22 => SelectedInstructionKind::ByteViewAddress,
         21 => SelectedInstructionKind::Load8Indexed,
         5 => SelectedInstructionKind::ExactAddI64 {

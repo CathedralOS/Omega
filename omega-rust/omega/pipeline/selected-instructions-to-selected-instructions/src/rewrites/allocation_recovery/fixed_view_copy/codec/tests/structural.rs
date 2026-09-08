@@ -131,7 +131,7 @@ fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_ro
 fn activation_local_roster_and_memory_roles_round_trip() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let mut function = structural_function();
-    let slot = selected_instructions::LocalStorageSlotId {
+    let slot = selected_instructions::LocalStorageSlotId::Structural {
         operation: OperationId::new(53).unwrap(),
         place: PlaceId::new(59).unwrap(),
     };
@@ -148,8 +148,8 @@ fn activation_local_roster_and_memory_roles_round_trip() {
     ] {
         function.memory_accesses.push(SelectedMemoryAccess {
             instruction: SelectedInstructionId(1),
-            operation: slot.operation,
-            place: slot.place,
+            operation: slot.operation(),
+            place: slot.structural_place().unwrap(),
             byte_offset: 0,
             byte_count: 8,
             role,

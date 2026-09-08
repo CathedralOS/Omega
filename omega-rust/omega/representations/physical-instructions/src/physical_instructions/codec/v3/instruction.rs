@@ -35,6 +35,9 @@ pub(super) fn decode_instruction(
         operands.push(decode_operand(cursor)?);
     }
     let address = match byte(cursor)? {
+        5 => Some(crate::PhysicalAddressOperation::LinuxWriteByteI32 {
+            slot: effect_codec::decode_local_storage_slot(cursor).map_err(map_field_error)?,
+        }),
         0 => None,
         4 => Some(crate::PhysicalAddressOperation::Load8Indexed {
             base_operand: u16_field(cursor)?,
@@ -54,12 +57,7 @@ pub(super) fn decode_instruction(
                     },
                 ),
                 1 => selected_instructions::FrameStorageSlotId::Local(
-                    selected_instructions::LocalStorageSlotId {
-                        operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
-                            .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
-                        place: semantic_vocabulary::PlaceId::new(u64_field(cursor)?)
-                            .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
-                    },
+                    effect_codec::decode_local_storage_slot(cursor).map_err(map_field_error)?,
                 ),
                 _ => return Err(PostAllocationMachineDecodeError::InvalidField),
             };

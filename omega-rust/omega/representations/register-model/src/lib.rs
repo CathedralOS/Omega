@@ -196,6 +196,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
+    pub linux_write_byte_i32: Option<RegisterConstraintKey>,
     /// Target-owned resultless call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no Unit register-call form.
     pub call_unit: Vec<RegisterConstraintKey>,
@@ -1613,6 +1614,7 @@ mod tests {
             load8_indexed: None,
             store64: Some(instruction_key(31)),
             frame_address: Some(instruction_key(32)),
+            linux_write_byte_i32: None,
             call_unit: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,

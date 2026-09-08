@@ -18,6 +18,8 @@ use terminal_verifier::ProofBundle;
 #[path = "terminal_byte_views/fixtures.rs"]
 mod fixtures;
 use fixtures::{byte_view_length_module, byte_view_read_module, byte_view_read_proof};
+#[path = "terminal_byte_views/byte_output.rs"]
+mod byte_output;
 #[path = "terminal_byte_views/calls.rs"]
 mod calls;
 #[path = "terminal_byte_views/calls_admission.rs"]

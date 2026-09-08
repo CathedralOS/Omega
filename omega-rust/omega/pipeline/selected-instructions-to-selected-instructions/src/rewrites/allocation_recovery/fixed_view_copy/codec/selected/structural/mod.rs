@@ -9,4 +9,4 @@ mod projected_qualifications;
 mod provider;
 mod settlements;
 mod signature;
-pub(super) use function::{decode_contracts, encode_contracts};
+pub(super) use function::{decode_contracts, decode_local_slot, encode_contracts};

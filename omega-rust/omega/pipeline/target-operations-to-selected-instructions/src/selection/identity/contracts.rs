@@ -9,8 +9,7 @@ pub(super) fn slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
     bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
 }
 fn local_slot(bytes: &mut Vec<u8>, slot: selected_instructions::LocalStorageSlotId) {
-    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-    bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+    slot.encode_identity(bytes);
 }
 pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: selected_instructions::FrameStorageSlotId) {
     match slot {

@@ -18,6 +18,10 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// Closed Linux write(1, &low_byte(input), 1), continuing only on a positive result.
+    LinuxWriteByteI32 {
+        slot: super::LocalStorageSlotId,
+    },
     /// Private 64-bit byte-view descriptor address: (backing + offset) modulo 2^64.
     /// Valid backing and subslice bounds restrict wrap to an exclusive-bound empty
     /// view, whose zero pointer is a valid empty carrier. No memory is accessed,

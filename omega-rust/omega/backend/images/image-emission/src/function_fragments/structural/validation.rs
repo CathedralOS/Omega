@@ -156,11 +156,16 @@ pub(in crate::function_fragments) fn validate_settlements(
         let fragment = fragment(source, placed.machine)?;
         let (abstracted, _) = source::function(source, placed.machine)?;
         for located in &function.boundary_settlements {
-            let expected = &located.settlement;
             let actual = rows
                 .get(cursor)
                 .ok_or(Error::Mismatch("missing structural settlement"))?;
             cursor += 1;
+            let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(expected) =
+                &located.settlement
+            else {
+                byte_output::validate(source, placed.machine, located, actual)?;
+                continue;
+            };
             let row = &actual.settlement;
             validate_settlement_position(function, fragment, located, row.code_offset)?;
             if actual.machine != placed.machine
@@ -235,15 +240,39 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
     let invalid = || Error::Mismatch("settlement attribution differs from admitted operation");
     let mut sites = Vec::new();
     for located in &function.boundary_settlements {
-        let site = SemanticCodeSite::Operation(located.settlement.operation);
+        let site = SemanticCodeSite::Operation(located.settlement.operation());
         if sites.contains(&site) {
             return Err(invalid());
         }
         sites.push(site);
         let mut matching = rows.iter().filter(|row| row.site == site);
         let row = matching.next().ok_or_else(invalid)?;
+        let expected_byte_count = if matches!(
+            located.settlement,
+            selected_instructions::SelectedBoundarySettlementPayload::LinuxWriteByteI32 { .. }
+        ) {
+            let block = function
+                .blocks
+                .iter()
+                .find(|block| block.id == located.block)
+                .ok_or_else(invalid)?;
+            let instruction = block
+                .instructions
+                .get(located.instruction_index as usize)
+                .ok_or_else(invalid)?;
+            fragment
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|span| span.instruction == instruction.id)
+                .ok_or_else(invalid)?
+                .bytes
+                .len()
+        } else {
+            0
+        };
         if matching.next().is_some()
-            || row.byte_count != 0
+            || row.byte_count != expected_byte_count
             || row.operation_ordinal != attribution::ordinal(abstracted, site)?
         {
             return Err(invalid());
@@ -252,7 +281,14 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
     }
     Ok(rows
         .iter()
-        .filter(|row| !sites.contains(&row.site))
+        .filter(|row| {
+            !function.boundary_settlements.iter().any(|located| {
+                matches!(
+                    located.settlement,
+                    selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(_)
+                ) && row.site == SemanticCodeSite::Operation(located.settlement.operation())
+            })
+        })
         .copied()
         .collect())
 }

@@ -26,6 +26,14 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::LinuxWriteByteI32 { boundary, source },
+            AbstractOperation::BoundaryCall {
+                boundary: expected,
+                arguments,
+                ..
+            },
+        ) if boundary == expected && arguments.as_slice() == [*source] => {}
+        (
             LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
                 destination,
                 structural_type,

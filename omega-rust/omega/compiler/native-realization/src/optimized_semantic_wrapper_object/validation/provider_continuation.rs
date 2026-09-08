@@ -137,22 +137,32 @@ pub fn validate_installed_program_storage_continuation_evidence(
     let settled_provider_claims = provider_function
         .boundary_settlements
         .iter()
-        .map(
-            |settlement| match settlement.settlement.completion_receipts.as_slice() {
+        .map(|settlement| {
+            let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                settlement,
+            ) = &settlement.settlement
+            else {
+                return None;
+            };
+            match settlement.completion_receipts.as_slice() {
                 [receipt] => Some(receipt.claim),
                 _ => None,
-            },
-        )
+            }
+        })
         .collect::<Option<Vec<_>>>();
     let settlement_sources_match =
         provider_function
             .boundary_settlements
             .iter()
             .all(|settlement| {
-                settlement.settlement.completion_claim_sources.len()
-                    == provider_structural.entry_claims.len()
+                let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                    settlement,
+                ) = &settlement.settlement
+                else {
+                    return false;
+                };
+                settlement.completion_claim_sources.len() == provider_structural.entry_claims.len()
                     && settlement
-                        .settlement
                         .completion_claim_sources
                         .iter()
                         .zip(&provider_structural.entry_claims)

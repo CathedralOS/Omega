@@ -159,6 +159,7 @@ pub fn target_register_environment_identity(
         selected_keys.load8_indexed,
         selected_keys.store64,
         selected_keys.frame_address,
+        selected_keys.linux_write_byte_i32,
     ] {
         optional_constraint_key(&mut bytes, key);
     }

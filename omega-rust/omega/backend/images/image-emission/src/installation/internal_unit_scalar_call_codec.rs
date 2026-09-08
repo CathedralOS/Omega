@@ -130,6 +130,9 @@ pub(super) fn encode_argument_source(
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
+        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => {
+            return Err(InstallationError::UnsupportedInstalledScalarSource);
+        }
         InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,

@@ -8,6 +8,7 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
+mod byte_output;
 mod control;
 mod scalar_call;
 mod structural;
@@ -77,11 +78,7 @@ pub(in crate::selection) fn validate(
             != match parameter.scalar_type {
                 ScalarType::Boolean => 1,
                 ScalarType::Integer(integer) if integer.bits() == 64 => 8,
-                ScalarType::Integer(integer)
-                    if integer.bits() == 32 && integer.sign() == IntegerSign::Unsigned =>
-                {
-                    4
-                }
+                ScalarType::Integer(integer) if integer.bits() == 32 => 4,
                 _ => return Err(invalid()),
             }
         {
@@ -117,7 +114,7 @@ pub(in crate::selection) fn validate(
     for index in 0..replay.definitions.len() {
         let (value, input, site, scalar_type) = replay.definitions[index];
         let output = if scalar_type == ScalarType::Boolean
-            || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Unsigned)
+            || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32)
         {
             let output = replay.result_register(value, site, scalar_type)?;
             replay.check_instruction(
@@ -176,6 +173,9 @@ pub(in crate::selection) fn validate(
             replay.block_cursor = 0;
         }
         for (operation_index, operation) in source_block.instructions.iter().enumerate() {
+            if byte_output::validate(operation, &mut replay)? {
+                continue;
+            }
             if zero_compare::folded_zero(source, source_block, operation_index + 1).is_some() {
                 continue;
             }
@@ -372,7 +372,8 @@ pub(in crate::selection) fn validate(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::BoundarySettlement(_)
+                LegalizedScalarInstructionKind::LinuxWriteByteI32 { .. }
+                | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
                     return Err(invalid());

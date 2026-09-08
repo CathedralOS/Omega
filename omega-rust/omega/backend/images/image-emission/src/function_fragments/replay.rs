@@ -30,6 +30,23 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
             "ranked body requires common-pipeline replay evidence",
         ));
     }
+    if artifact.fragment_replay.is_none()
+        && artifact.boundary_settlements().iter().any(|row| {
+            row.settlement
+            .runtime_scalar_arguments
+            .iter()
+            .any(|argument| {
+                matches!(
+                    argument.source,
+                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+                )
+            })
+        })
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "selected boundary output requires common-pipeline replay evidence",
+        ));
+    }
     if let Some(replay) = &artifact.fragment_replay {
         super::validate_function_fragment_object_artifact(&replay.0, artifact)
             .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;

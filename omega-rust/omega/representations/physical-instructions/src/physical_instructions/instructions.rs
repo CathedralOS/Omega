@@ -29,6 +29,9 @@ pub struct PostAllocationMachineInstruction {
 /// Address semantics remain symbolic until a validated frame is supplied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalAddressOperation {
+    LinuxWriteByteI32 {
+        slot: selected_instructions::LocalStorageSlotId,
+    },
     Load8Indexed {
         base_operand: u16,
         index_operand: u16,

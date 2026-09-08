@@ -12,6 +12,11 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+pub const X86_64_LINUX_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 704,
+};
+
 pub const X86_64_LOAD64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 700,
@@ -240,7 +245,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 46] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 47] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -353,6 +358,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 46] = [
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,
     X86_64_LOAD8_INDEXED,
+    X86_64_LINUX_WRITE_BYTE_I32,
 ];
 
 struct ModelBuilder {
@@ -1017,6 +1023,28 @@ pub fn x86_64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_LINUX_WRITE_BYTE_I32,
+        operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+        implicit_uses: {
+            let mut units = view("rsp").units.clone();
+            units.extend(view("rip").units.iter().copied());
+            units.sort_unstable();
+            units.dedup();
+            units
+        },
+        implicit_defs: Vec::new(),
+        clobbers: {
+            let mut units = Vec::new();
+            for name in ["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"] {
+                units.extend(view(name).units.iter().copied());
+            }
+            units.sort_unstable();
+            units.dedup();
+            units
+        },
+    });
     for (scalar_key, unit_key) in x86_64_system_v_register_call_keys()
         .into_iter()
         .zip(x86_64_system_v_register_unit_call_keys())

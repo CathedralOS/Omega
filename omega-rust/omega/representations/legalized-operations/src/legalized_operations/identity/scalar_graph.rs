@@ -70,6 +70,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::LinuxWriteByteI32 { boundary, source } => {
+                    bytes.push(11);
+                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
                     destination,
                     structural_type,

@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v23\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v24\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -175,6 +175,7 @@ fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
+        SelectedInstructionKind::LinuxWriteByteI32 { .. } => 23,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::Load8Indexed => 21,
         SelectedInstructionKind::ByteViewAddress => 22,
@@ -201,6 +202,12 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
+        SelectedInstructionKind::LinuxWriteByteI32 { slot } => {
+            contracts::frame_slot(
+                bytes,
+                selected_instructions::FrameStorageSlotId::Local(slot),
+            );
+        }
         SelectedInstructionKind::Load64 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }

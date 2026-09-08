@@ -46,10 +46,11 @@ pub enum MachineSemanticKind {
     FrameAddress,
     CallUnit,
     ByteViewAddress,
+    LinuxWriteByteI32,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 24] = [
         Self::Load8Indexed,
         Self::CompareI64Zero,
         Self::MaterializeI64,
@@ -73,6 +74,7 @@ impl MachineSemanticKind {
         Self::FrameAddress,
         Self::CallUnit,
         Self::ByteViewAddress,
+        Self::LinuxWriteByteI32,
     ];
 }
 
@@ -101,11 +103,13 @@ pub enum MachineAlternativeFamily {
     FrameAddress,
     CallUnit,
     ByteViewAddress,
+    LinuxWriteByteI32,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::LinuxWriteByteI32 => Self::LinuxWriteByteI32,
             MachineSemanticKind::ByteViewAddress => Self::ByteViewAddress,
             MachineSemanticKind::Load8Indexed => Self::Load8Indexed,
             MachineSemanticKind::CompareI64Zero => Self::CompareI64Zero,
@@ -172,6 +176,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Private-byte initialization and kernel read, with an observable stdout write.
+    LinuxWriteByteV1,
     NoneV1,
     ReadPointerV1,
     WriteFrameStorageV1,
@@ -179,12 +185,14 @@ pub enum MachineMemoryEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineTrapBehavior {
+    LinuxWriteFailureV1,
     NeverV1,
     MayArchitecturalFaultV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineBarrier {
+    ExternalEffect,
     None,
     ControlFlow,
     Call,
@@ -256,6 +264,10 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Write one frame byte, then let Linux read that byte for stdout.
+    LinuxWriteByteV1 {
+        stack_pointer: RegisterViewId,
+    },
     ReadIndexedPointerV1 {
         pointer_operand: u16,
         index_operand: u16,
@@ -295,12 +307,15 @@ pub enum MachineEncodedStackEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedTrapBehavior {
+    /// Architectural faults remain possible; a nonpositive syscall result traps.
+    LinuxWriteFailureV1,
     NeverV1,
     MayArchitecturalFaultV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedControlEffect {
+    LinuxWriteReturnOrTrapV1,
     FallThroughV1,
     ConditionalRelativeBranchV1,
     ReturnFromActivationStackV1,

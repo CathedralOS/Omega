@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group. Legalization by admitted Unit and structural-call form.
 
+mod byte_output;
 mod claim_completion;
 mod installed_provider;
 mod plain_unit;

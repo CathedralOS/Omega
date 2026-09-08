@@ -27,7 +27,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v10\0",
+        b"omega.terminal-postallocation-machine.v11\0",
     )
 }
 
@@ -66,8 +66,7 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
         encode_len(&mut bytes, function.local_storage_slots.len());
         for slot in &function.local_storage_slots {
-            bytes.extend_from_slice(&slot.id.operation.get().to_le_bytes());
-            bytes.extend_from_slice(&slot.id.place.get().to_le_bytes());
+            slot.id.encode_identity(&mut bytes);
             bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
             bytes.extend_from_slice(&slot.alignment.to_le_bytes());
         }
@@ -133,6 +132,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             bytes.extend_from_slice(&base_operand.to_le_bytes());
             bytes.extend_from_slice(&index_operand.to_le_bytes());
         }
+        Some(crate::PhysicalAddressOperation::LinuxWriteByteI32 { slot }) => {
+            bytes.push(5);
+            slot.encode_identity(bytes);
+        }
         None => bytes.push(0),
         Some(crate::PhysicalAddressOperation::Load64 {
             base_operand,
@@ -162,8 +165,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
                 }
                 selected_instructions::FrameStorageSlotId::Local(slot) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-                    bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+                    slot.encode_identity(bytes);
                 }
             }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
@@ -197,6 +199,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LinuxWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
@@ -311,6 +314,10 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
+            bytes.push(6);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,
@@ -350,9 +357,11 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     }
     bytes.push(match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::LinuxWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     match effects.control {
+        MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1 => bytes.push(6),
         MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
         MachineEncodedControlEffect::ReturnFromActivationStackV1 => bytes.push(2),

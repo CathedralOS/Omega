@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v14";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v15";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -67,6 +67,12 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
             match address.symbolic {
+                Address::LinuxWriteByteI32 { slot } => {
+                    hasher.update([5]);
+                    let mut identity = Vec::new();
+                    slot.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
                 Address::Load8Indexed {
                     base_operand,
                     index_operand,
@@ -98,8 +104,9 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                         }
                         selected_instructions::FrameStorageSlotId::Local(slot) => {
                             hasher.update([1]);
-                            hasher.update(slot.operation.get().to_le_bytes());
-                            hasher.update(slot.place.get().to_le_bytes());
+                            let mut identity = Vec::new();
+                            slot.encode_identity(&mut identity);
+                            hasher.update(identity);
                         }
                     }
                     hasher.update(byte_offset.to_le_bytes());
@@ -226,6 +233,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(index_operand.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }
+        Memory::LinuxWriteByteV1 { stack_pointer } => {
+            hasher.update([6]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+        }
         Memory::NoneV1 => hasher.update([0]),
         Memory::ReadPointerV1 {
             pointer_operand,
@@ -281,9 +292,11 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }
     hasher.update([match effects.trap {
         Trap::NeverV1 => 0,
+        Trap::LinuxWriteFailureV1 => 2,
         Trap::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
+        Control::LinuxWriteReturnOrTrapV1 => hasher.update([6]),
         Control::FallThroughV1 => hasher.update([0]),
         Control::ConditionalRelativeBranchV1 => hasher.update([1]),
         Control::ReturnFromActivationStackV1 => hasher.update([2]),
@@ -316,6 +329,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LinuxWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,

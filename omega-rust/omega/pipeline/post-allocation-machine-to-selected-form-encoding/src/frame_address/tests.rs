@@ -12,7 +12,7 @@ fn fixture() -> (
     TargetFrameLayoutPlan,
     PostAllocationMachineInstruction,
 ) {
-    let id = LocalStorageSlotId {
+    let id = LocalStorageSlotId::Structural {
         operation: OperationId::new(3).unwrap(),
         place: PlaceId::new(5).unwrap(),
     };
@@ -77,6 +77,79 @@ fn fixture() -> (
 }
 
 #[test]
+fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
+    let (mut function, mut frame, mut instruction) = fixture();
+    let slot = LocalStorageSlotId::Boundary {
+        operation: OperationId::new(3).unwrap(),
+    };
+    function.local_storage_slots[0] = SelectedLocalStorageSlot {
+        id: slot,
+        byte_size: 1,
+        alignment: 1,
+    };
+    frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
+        id: slot,
+        frame_offset_bytes: 0,
+        size_bytes: 1,
+        alignment_bytes: 1,
+    };
+    instruction.address = Some(Address::LinuxWriteByteI32 { slot });
+    let resolved = resolve(&function, Some(&frame), &instruction).unwrap();
+    validate_address(&function, Some(&frame), &instruction, resolved).unwrap();
+    for mutation in 0..6 {
+        let mut changed_function = function.clone();
+        let mut changed_frame = frame.clone();
+        let mut changed_instruction = instruction.clone();
+        let mut candidate = resolved.unwrap();
+        match mutation {
+            0 => candidate.displacement = 1,
+            1 => {
+                changed_instruction.address = Some(Address::LinuxWriteByteI32 {
+                    slot: LocalStorageSlotId::Structural {
+                        operation: slot.operation(),
+                        place: PlaceId::new(5).unwrap(),
+                    },
+                })
+            }
+            2 => {
+                changed_frame.functions[0].local_storage_slots[0].id =
+                    LocalStorageSlotId::Boundary {
+                        operation: OperationId::new(7).unwrap(),
+                    }
+            }
+            3 => {
+                changed_function.local_storage_slots[0].byte_size = 2;
+                changed_frame.functions[0].local_storage_slots[0].size_bytes = 2;
+            }
+            4 => {
+                changed_function.local_storage_slots[0].alignment = 2;
+                changed_frame.functions[0].local_storage_slots[0].alignment_bytes = 2;
+            }
+            _ => changed_frame.functions[0].frame_size_bytes = 0,
+        }
+        if mutation != 0 {
+            assert!(
+                resolve(
+                    &changed_function,
+                    Some(&changed_frame),
+                    &changed_instruction
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            validate_address(
+                &changed_function,
+                Some(&changed_frame),
+                &changed_instruction,
+                Some(candidate)
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn empty_local_backing_allows_address_but_not_one_past_store() {
     let (function, frame, mut instruction) = fixture();
     let resolved = resolve(&function, Some(&frame), &instruction).unwrap();
@@ -121,8 +194,18 @@ fn local_address_replay_rejects_displacement_source_and_extent_substitution() {
         let mut changed = frame.clone();
         let local = &mut changed.functions[0].local_storage_slots[0];
         match mutation {
-            0 => local.id.place = PlaceId::new(7).unwrap(),
-            1 => local.id.operation = OperationId::new(11).unwrap(),
+            0 => {
+                local.id = selected_instructions::LocalStorageSlotId::Structural {
+                    operation: local.id.operation(),
+                    place: PlaceId::new(7).unwrap(),
+                }
+            }
+            1 => {
+                local.id = selected_instructions::LocalStorageSlotId::Structural {
+                    operation: OperationId::new(11).unwrap(),
+                    place: local.id.structural_place().unwrap(),
+                }
+            }
             2 => local.size_bytes += 8,
             _ => local.alignment_bytes = 4,
         }
