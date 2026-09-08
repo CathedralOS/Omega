@@ -3,6 +3,8 @@
 use super::*;
 use language_core::OperatorSpelling;
 
+mod fields;
+
 /// Bounds enforced by an exact owned integer type at storage boundaries.
 /// References and atomic/policy carriers supply no invariant here. A caller
 /// using a field type must separately establish its exact declaration identity.
@@ -51,14 +53,22 @@ fn exact_integer_primitive(
 }
 
 /// Bound a literal or builtin arithmetic tree over exact immutable primitive
-/// parameters. No initializer, caller flow fact, callee body, or mutable place
-/// is read: the interval is valid independently of the evaluation snapshot.
+/// parameters or their direct owned integer fields. No initializer, caller flow
+/// fact, callee body, or mutable place is read: the interval is valid independently
+/// of the evaluation snapshot.
 pub fn immutable_integer_expression_bounds(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
+    if !program
+        .machine_states(machine)
+        .iter()
+        .any(|candidate| candidate.symbol == state.symbol)
+    {
+        return None;
+    }
     let value = bounds(program, machine, state, expression)?;
     Some((value.interval.low?, value.interval.high?))
 }
@@ -72,6 +82,13 @@ pub(super) fn builtin_comparison_intervals(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(Interval, Interval)> {
+    if !program
+        .machine_states(machine)
+        .iter()
+        .any(|candidate| candidate.symbol == state.symbol)
+    {
+        return None;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -98,6 +115,17 @@ struct Bounds {
     interval: Interval,
     primitive: Option<PrimitiveType>,
     type_reference: Option<TypeReferenceHandle>,
+}
+
+fn type_bounds(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<Bounds> {
+    let primitive = exact_integer_primitive(program, type_reference)?;
+    let carrier = primitive_range(primitive)?;
+    Some(Bounds {
+        interval: enforced_declared_range(program, type_reference)
+            .map_or(carrier, |range| range.intersect(carrier)),
+        primitive: Some(primitive),
+        type_reference: Some(type_reference),
+    })
 }
 
 fn bounds(
@@ -161,14 +189,10 @@ fn bounds(
             if parameter.is_self || parameter.is_mutable || parameter.is_const {
                 return None;
             }
-            let primitive = exact_integer_primitive(program, parameter.type_reference)?;
-            let carrier = primitive_range(primitive)?;
-            Some(Bounds {
-                interval: enforced_declared_range(program, parameter.type_reference)
-                    .map_or(carrier, |range| range.intersect(carrier)),
-                primitive: Some(primitive),
-                type_reference: Some(parameter.type_reference),
-            })
+            type_bounds(program, parameter.type_reference)
+        }
+        ExpressionNode::Member(_) => {
+            type_bounds(program, fields::type_reference(program, state, expression)?)
         }
         ExpressionNode::Binary(binary) => {
             let spelling = match binary.operator {

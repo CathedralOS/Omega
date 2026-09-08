@@ -32,6 +32,20 @@ pub(super) fn has_builtin_ordering(
         && meaning::folded_constant_is_builtin(program, machine, state, comparison.right)
 }
 
+fn has_builtin_equality(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    meaning::builtin_boolean_equality(program, machine, state, expression, comparison)
+        && meaning::folded_constant_is_builtin(program, machine, state, comparison.left)
+        && meaning::folded_constant_is_builtin(program, machine, state, comparison.right)
+}
+
 pub(super) fn has_builtin_bound_arithmetic(
     program: &TypedTrees,
     machine: &Machine,
@@ -54,19 +68,24 @@ pub(crate) fn requires_value_env(
     entry_state: &State,
 ) -> ValueEnv {
     // Both interval and joint-relation projection must consume the selected
-    // ordering, not its token. Other fact kinds retain their existing owners.
-    let ordered_meaning_is_available = |expression| {
+    // comparison, not its token. Other fact kinds retain their existing owners.
+    let comparison_meaning_is_available = |expression| {
         let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression)
         else {
             return true;
         };
-        !matches!(
-            comparison.operator,
+        match comparison.operator {
+            BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                has_builtin_equality(program, machine, Some(entry_state), expression)
+            }
             BinaryOperator::Less
-                | BinaryOperator::LessOrEqual
-                | BinaryOperator::Greater
-                | BinaryOperator::GreaterOrEqual
-        ) || has_builtin_ordering(program, machine, Some(entry_state), expression)
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual => {
+                has_builtin_ordering(program, machine, Some(entry_state), expression)
+            }
+            _ => true,
+        }
     };
     let mut bounds: BTreeMap<String, (Option<i64>, Option<i64>)> = BTreeMap::new();
     for contract in program.machine_contracts(machine) {
@@ -77,7 +96,7 @@ pub(crate) fn requires_value_env(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if !ordered_meaning_is_available(*expression) {
+            if !comparison_meaning_is_available(*expression) {
                 continue;
             }
             if let Some((name, low, high)) = comparison_bound(program, *expression) {
@@ -104,7 +123,7 @@ pub(crate) fn requires_value_env(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if !ordered_meaning_is_available(*expression) {
+            if !comparison_meaning_is_available(*expression) {
                 continue;
             }
             let ExpressionNode::Binary(comparison) =
@@ -381,7 +400,7 @@ pub(super) fn narrow_env_by_condition(
         BinaryOperator::And | BinaryOperator::Or => return,
         _ => {}
     }
-    // An authored ordered operator does not imply the primitive comparison
+    // An authored comparison does not imply the primitive comparison
     // relation, even when one operand happens to be a literal or singleton.
     // Gate every fact consumer below, not only immutable-parameter projection.
     if matches!(
@@ -391,6 +410,13 @@ pub(super) fn narrow_env_by_condition(
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
     ) && !has_builtin_ordering(program, machine, state, condition)
+    {
+        return;
+    }
+    if matches!(
+        comparison.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) && !has_builtin_equality(program, machine, state, condition)
     {
         return;
     }

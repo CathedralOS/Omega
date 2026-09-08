@@ -48,6 +48,14 @@ literal landing types and evaluates anonymous subtrees with the existing rationa
 evaluator. Its immutable expression queries check operand landing,
 each intermediate's unsigned representability, and the signed `MIN / -1`
 definedness pair shared by division and remainder before reporting bounds.
+Direct integer fields on immutable owned parameters use their exact nominal
+owner and retained field handle before contributing declared bounds. References,
+locals, mutable parameters, and nested projections supply no snapshot-independent
+field interval. The same arithmetic rules retain each field's carrier and policy;
+neither a small final result nor algebraic cancellation excuses overflow.
+Guard and entry-requirement readers check the selected equality or ordering
+before treating a literal or singleton field as a primitive bound. An authored
+`==` or `!=` supplies no builtin range or non-NaN fact merely through its spelling.
 
 `struct_literals/guard_bounds.rs` passes the selected transition arm's numeric
 facts to constructor checks only for exact immutable owned inputs and builtin
@@ -87,11 +95,15 @@ The shared judgment proves simultaneous
 endpoint pinning, next-rank membership, and strict descent; an entry-only
 requirement is not silently renewed. `projections.rs` collects the expression
 roots for metadata binding without constructing source expressions. Direct-field
-transport currently covers root self-edges, direct field endpoints, and scalar
-endpoints whose arithmetic has independent formation evidence. Mere membership
+transport currently covers root self-edges and direct or computed field/scalar
+endpoints with independent formation and supported normalization. Mere membership
 in a changed endpoint does not prove pinning. References, nested projections,
 and named-state field mappings remain unbound. This is source automation, not
 a Terminal custom-view certificate.
+
+Closed anonymous arithmetic inside strict relational expressions shares the
+ordinary rational evaluator. Only an integral final subtree becomes an integer
+constant; this does not relabel typed division or discharge carrier formation.
 
 The shared `ranking_range/requirements.rs` adapter also proves ordinary call
 requirements with no ranking assumptions. Separate caller and goal engines

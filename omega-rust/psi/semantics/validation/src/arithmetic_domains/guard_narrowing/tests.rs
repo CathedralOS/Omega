@@ -1,6 +1,8 @@
 use super::*;
 use typed_trees::statement::StatementNode;
 
+mod equality_meaning;
+
 fn arrival_program(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

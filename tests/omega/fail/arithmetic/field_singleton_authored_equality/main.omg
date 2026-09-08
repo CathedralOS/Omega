@@ -1,0 +1,10 @@
+operator == u64::same(left: u64, right: u64) -> bool;
+
+data Limit { value: u64 [1..=1]; }
+
+machine decrement(amount: u64, limit: Limit) -> u64 {
+    transition amount == limit.value {
+        true -> (amount - 1)
+        false -> 0
+    }
+}

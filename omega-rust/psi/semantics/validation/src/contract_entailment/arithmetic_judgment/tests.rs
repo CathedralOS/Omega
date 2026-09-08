@@ -1,6 +1,44 @@
 use super::*;
 
 #[test]
+fn strict_arithmetic_retains_complete_anonymous_rational_values() {
+    for (expression, expected) in [
+        ("1 / 2 * 2", Some(1)),
+        ("1 / 2 * 12", Some(6)),
+        ("0.0", Some(0)),
+        ("0.5 * 2", Some(1)),
+        ("0.0f32", None),
+        ("0.0f64", None),
+        ("0.5f64 * 2.0f64", None),
+        ("1 / 2", None),
+        ("1 / 0 * 0", None),
+        ("1u8 / 2u8 * 2u8", None),
+    ] {
+        let source = format!("machine value() -> u64 {{ {expression} }}");
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let typed_trees::statement::StatementNode::Expression(value) =
+            program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("value");
+        };
+        let mut engine = Engine::strict_with_symbol_bindings(&program, machine, &[]);
+        assert_eq!(
+            engine.normalize(value),
+            expected.map(|value| Polynomial::constant(BigInt::from_i64(value))),
+            "{expression}"
+        );
+    }
+}
+
+#[test]
 fn proof_integer_arithmetic_lands_complete_anonymous_peers() {
     for (arithmetic, expected) in [
         ("embed(7i32) / (1 + 1)", Some(3)),
