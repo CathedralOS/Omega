@@ -107,20 +107,20 @@ fn execute(
     };
     let boolean_fields: Vec<_> = fields
         .iter()
-        .filter_map(|field| {
-            (field.field_type
+        .filter(|field| {
+            field.field_type
                 == terminal_psi::StructuralFieldType::Scalar(
                     semantic_vocabulary::ScalarType::Boolean,
-                ))
-            .then(
-                || terminal_interpreter::TerminalStructuralBooleanFieldValue {
-                    argument_index: 0,
-                    path: Vec::new(),
-                    field: field.id,
-                    value: false,
-                },
-            )
+                )
         })
+        .map(
+            |field| terminal_interpreter::TerminalStructuralBooleanFieldValue {
+                argument_index: 0,
+                path: Vec::new(),
+                field: field.id,
+                value: false,
+            },
+        )
         .collect();
     let mut execution =
         TerminalExecution::start_artifact_with_structural_arguments_and_boolean_fields(
@@ -221,6 +221,32 @@ fn nested_and_cast_wrapped_field_rhs_reads_prewrite_value() {
     "#,
         &[],
         &[unsigned(17), unsigned(19)],
+        false,
+        3,
+    );
+}
+
+#[test]
+fn pure_and_computed_field_rhs_observe_mutated_primitive_local() {
+    execute(
+        r#"
+        boundary trait Trace { machine observe(value: u16) reaches Trace; }
+        data Main { value: u16; }
+        machine identity(value: u16) -> u16 { value }
+        machine reset(value: &mut u16) -> u16 { value = 19; 19 }
+        machine Main::main(&mut self) reaches Trace {
+            let mut scratch: u16 = 17;
+            self.value = identity(scratch);
+            Trace::observe(self.value);
+            let returned: u16 = reset(&mut scratch);
+            self.value = scratch;
+            Trace::observe(self.value);
+            self.value = identity(scratch);
+            Trace::observe(self.value);
+        }
+        "#,
+        &[],
+        &[unsigned(17), unsigned(19), unsigned(19)],
         false,
         3,
     );
