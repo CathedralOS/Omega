@@ -26,7 +26,7 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
-            LegalizedScalarInstructionKind::LinuxWriteByteI32 { boundary, source },
+            LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source },
             AbstractOperation::BoundaryCall {
                 boundary: expected,
                 arguments,

@@ -378,7 +378,7 @@ pub(in crate::selection) fn validate(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::LinuxWriteByteI32 { .. }
+                LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)

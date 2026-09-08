@@ -50,8 +50,8 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
             PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32
         }
-        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
-            PackageReviewCompilerIntrinsicExecution::LinuxWriteByteI32
+        CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
+            PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32
         }
         CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
             PackageReviewCompilerIntrinsicExecution::LinuxReadByte
@@ -82,8 +82,8 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
             "Linux exit-group with one `i32` argument".to_owned()
         }
-        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
-            "Linux write-byte with one `i32` argument".to_owned()
+        CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
+            "Hosted write-byte with one `i32` argument".to_owned()
         }
         CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
             "Linux read-byte returning `ByteRead`".to_owned()

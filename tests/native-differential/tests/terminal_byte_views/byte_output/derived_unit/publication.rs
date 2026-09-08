@@ -13,9 +13,12 @@ fn container(
     )
 }
 
-#[cfg(all(
-    target_os = "linux",
-    any(target_arch = "x86_64", target_arch = "aarch64")
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
 ))]
 pub(super) fn published_image(target: NativeTarget) -> (image_emission::ExecutableImage, usize) {
     let source = container(target);
@@ -38,7 +41,11 @@ pub(super) fn published_image(target: NativeTarget) -> (image_emission::Executab
 #[test]
 fn derived_view_unit_output_publishes_objects_images_and_installation() {
     let module = derived_unit_output_module();
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let source = std::sync::Arc::new(
             object_file::stage_optimized_relocation_free_object_container(
                 stage_derived_unit_output(target, &module),
@@ -123,7 +130,11 @@ fn corrupt_descriptor(call: &mut machine_code::InternalUnitCallRecord, mutation:
 
 #[test]
 fn derived_view_unit_output_publication_rejects_descriptor_substitution() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let source = container(target);
         let object =
             image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();

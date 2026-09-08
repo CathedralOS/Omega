@@ -351,7 +351,7 @@ pub(super) fn lower_boundary_call(
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
                 }
-                BoundaryRealization::LinuxWriteByteI32(_) => {
+                BoundaryRealization::HostedWriteByteI32(_) => {
                     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
                     let [source_value] = arguments.as_slice() else {
                         return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
@@ -372,11 +372,7 @@ pub(super) fn lower_boundary_call(
                     let [placement] = call_plan.parameters.as_slice() else {
                         return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
                     };
-                    if target.object_format != ObjectFormat::Elf
-                        || !matches!(
-                            target.architecture,
-                            Architecture::X86_64 | Architecture::Aarch64
-                        )
+                    if !target_operations::HostedWriteByteI32Realization::supports_target(target)
                         || declaration.scalar_parameters.as_slice()
                             != [ScalarType::Integer(i32_type)]
                         || !declaration.structural_parameters.is_empty()

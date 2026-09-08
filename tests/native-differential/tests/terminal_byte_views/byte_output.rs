@@ -1,16 +1,18 @@
-//! A generated Unit function invokes the real returning Linux byte-output leaf.
+//! A generated Unit function invokes the real returning hosted byte-output leaf.
 use super::*;
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
 use semantic_vocabulary::{BoundaryMachineId, EdgeId, IntegerSign, IntegerType, ScalarType};
-use target_operations::{CompilerBuiltinExecution, LinuxWriteByteI32Realization};
+use target_operations::{CompilerBuiltinExecution, HostedWriteByteI32Realization};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, Operation, OperationResult,
     TerminalMachineResult, Terminator, ValueDeclaration,
 };
 #[path = "byte_output/derived_unit.rs"]
 mod derived_unit;
+#[path = "byte_output/hosted_runtime.rs"]
+mod hosted_runtime;
 #[path = "byte_output/scalar_transfers.rs"]
 mod scalar_transfers;
 #[path = "byte_output/unit_calls.rs"]
@@ -83,16 +85,20 @@ fn stage_byte_output_module(
         &[AdmittedBoundarySettlement {
             boundary: module.boundary_machines[0].id,
             execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                CompilerBuiltinExecution::LinuxWriteByteI32,
+                CompilerBuiltinExecution::HostedWriteByteI32,
             ),
-            realization: LinuxWriteByteI32Realization.into(),
+            realization: HostedWriteByteI32Realization.into(),
         }],
     )
 }
 
 #[test]
-fn returning_byte_output_cross_lowers_on_linux_targets() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+fn returning_byte_output_cross_lowers_on_supported_hosted_targets() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let placed = stage_byte_output(target);
         assert!(!placed.text_section().bytes.is_empty());
         assert_eq!(placed.text_section().functions.len(), 1);
@@ -102,7 +108,11 @@ fn returning_byte_output_cross_lowers_on_linux_targets() {
 #[test]
 fn returning_byte_output_publishes_objects_and_images_with_exact_source_custody() {
     use machine_code::{BoundaryExecutionRecord, InternalUnitScalarArgumentSourceRecord};
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let text = stage_byte_output(target);
         let source = std::sync::Arc::new(
             object_file::stage_optimized_relocation_free_object_container(text).unwrap(),
@@ -116,7 +126,7 @@ fn returning_byte_output_publishes_objects_and_images_with_exact_source_custody(
         assert_eq!(settlement.psi_operation, OperationId::new(7).unwrap());
         assert_eq!(
             settlement.execution,
-            BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32)
+            BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32)
         );
         assert!(matches!(settlement.runtime_scalar_arguments[0].source,
             InternalUnitScalarArgumentSourceRecord::SelectedBoundary { source_value, .. }

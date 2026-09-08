@@ -18,7 +18,7 @@ pub(super) fn settlement(
     machine: MachineId,
     located: &SelectedBoundarySettlement,
 ) -> Result<ObjectBoundarySettlement, Error> {
-    let SelectedBoundarySettlementPayload::LinuxWriteByteI32 {
+    let SelectedBoundarySettlementPayload::HostedWriteByteI32 {
         operation,
         boundary,
         source: value,
@@ -36,7 +36,7 @@ pub(super) fn settlement(
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or(Error::Mismatch("selected byte output instruction"))?;
     let slot = LocalStorageSlotId::Boundary { operation };
-    if instruction.kind != (SelectedInstructionKind::LinuxWriteByteI32 { slot })
+    if instruction.kind != (SelectedInstructionKind::HostedWriteByteI32 { slot })
         || instruction.operands.len() != 1
         || instruction.provenance.operations != [operation]
         || instruction.provenance.values != [value]
@@ -76,9 +76,9 @@ pub(super) fn settlement(
         psi_operation: operation,
         boundary,
         execution: BoundaryExecutionRecord::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::LinuxWriteByteI32,
+            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
         ),
-        realization: target_operations::BoundaryRealization::LinuxWriteByteI32(Default::default()),
+        realization: target_operations::BoundaryRealization::HostedWriteByteI32(Default::default()),
         scalar_arguments: Vec::new(),
         runtime_scalar_arguments: vec![ForeignCallScalarArgumentRecord {
             parameter_index: 0,
@@ -135,7 +135,7 @@ pub(super) fn validate(
     proposed: &ObjectBoundarySettlement,
 ) -> Result<(), Error> {
     let invalid = || Error::Mismatch("selected byte output publication custody");
-    let SelectedBoundarySettlementPayload::LinuxWriteByteI32 {
+    let SelectedBoundarySettlementPayload::HostedWriteByteI32 {
         operation,
         boundary,
         source: value,
@@ -152,7 +152,7 @@ pub(super) fn validate(
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or_else(invalid)?;
     let slot = LocalStorageSlotId::Boundary { operation };
-    if row.kind != (SelectedInstructionKind::LinuxWriteByteI32 { slot })
+    if row.kind != (SelectedInstructionKind::HostedWriteByteI32 { slot })
         || row.operands.len() != 1
         || row.provenance.operations != [operation]
         || row.provenance.values != [value]

@@ -57,7 +57,7 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
 };
-pub use register_model::X86_64_LINUX_WRITE_BYTE_I32;
+pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_register_call_keys;
 pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
@@ -74,7 +74,7 @@ pub use register_model::{
 pub use register_model::{
     x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,
 };
-pub use selected_form_encoding::linux_write_byte::decode_x86_64_selected_linux_write_byte_i32;
+pub use selected_form_encoding::hosted_write_byte::decode_x86_64_selected_hosted_write_byte_i32;
 pub use selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedScalarCallTemplate,
     X86_64_SCALAR_CALL_OPCODE_OFFSET, X86_64_SCALAR_CALL_PATCH_OFFSET,
@@ -93,7 +93,7 @@ pub use selected_form_encoding::{
     validate_x86_64_selected_u64_less_than_branch_form,
 };
 pub use selected_form_encoding::{
-    encode_x86_64_selected_linux_write_byte_form, validate_x86_64_selected_linux_write_byte_form,
+    encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form,
 };
 pub use semantic_unit_wrapper_encoding::{
     ValidatedX86_64ResolvedSemanticUnitWrapper, ValidatedX86_64SemanticUnitWrapperTemplate,
@@ -138,7 +138,7 @@ pub fn encode_linux_exit_group_i32(value: i32) -> Vec<u8> {
 /// Import-free Linux `write(1, &byte, 1)` realization. The caller places the
 /// low byte of the exact `i32` source in `r11b`; this closed encoder owns the
 /// private stack slot and traps if the kernel does not consume that byte.
-pub fn encode_linux_write_byte_i32_from_r11() -> Vec<u8> {
+pub fn encode_hosted_write_byte_i32_from_r11() -> Vec<u8> {
     let mut bytes = Vec::with_capacity(44);
     bytes.extend_from_slice(&[0x48, 0x83, 0xec, 0x10]);
     bytes.extend_from_slice(&[0x44, 0x88, 0x1c, 0x24]);
@@ -280,7 +280,7 @@ mod tests {
             .unwrap();
         assert_eq!(retry_target, i64::try_from(loop_start).unwrap());
 
-        let byte_write = encode_linux_write_byte_i32_from_r11();
+        let byte_write = encode_hosted_write_byte_i32_from_r11();
         assert_eq!(&byte_write[..4], &[0x48, 0x83, 0xec, 0x10]);
         assert_eq!(&byte_write[33..37], &[0x48, 0x83, 0xc4, 0x10]);
         assert_eq!(&byte_write[39..], &[0x0f, 0x0b]);

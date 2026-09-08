@@ -19,7 +19,7 @@ pub(super) fn project(
                 return Err(Error::SourceCustodyMismatch);
             };
             // Input admission has independently joined the exact target builtin.
-            LegalizedScalarInstructionKind::LinuxWriteByteI32 {
+            LegalizedScalarInstructionKind::HostedWriteByteI32 {
                 boundary: *boundary,
                 source: *source,
             }

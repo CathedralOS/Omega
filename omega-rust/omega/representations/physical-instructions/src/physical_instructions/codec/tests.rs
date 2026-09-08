@@ -348,7 +348,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
             alignment: 1,
         });
     source.functions[0].blocks[0].instructions[0].address =
-        Some(PhysicalAddressOperation::LinuxWriteByteI32 { slot });
+        Some(PhysicalAddressOperation::HostedWriteByteI32 { slot });
     source.identity = post_allocation_machine_identity(&source);
     assert_eq!(
         PostAllocationMachinePlan::decode(&source.encode()),
@@ -368,7 +368,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
             2 => changed.functions[0].local_storage_slots[0].alignment = 2,
             _ => {
                 changed.functions[0].blocks[0].instructions[0].address =
-                    Some(PhysicalAddressOperation::LinuxWriteByteI32 {
+                    Some(PhysicalAddressOperation::HostedWriteByteI32 {
                         slot: selected_instructions::LocalStorageSlotId::Boundary {
                             operation: OperationId::new(149).unwrap(),
                         },

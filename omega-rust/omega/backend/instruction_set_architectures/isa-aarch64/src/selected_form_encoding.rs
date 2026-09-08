@@ -11,10 +11,11 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::aarch64_physical_register_model;
 
+pub(crate) mod hosted_write_byte;
 mod jump;
-pub(crate) mod linux_write_byte;
-pub use linux_write_byte::{
-    encode_aarch64_selected_linux_write_byte_form, validate_aarch64_selected_linux_write_byte_form,
+pub use hosted_write_byte::{
+    encode_aarch64_selected_hosted_write_byte_form,
+    validate_aarch64_selected_hosted_write_byte_form,
 };
 mod memory;
 pub use memory::*;
@@ -576,7 +577,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
+        | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
@@ -714,7 +715,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
+        | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => {
@@ -1043,7 +1044,7 @@ fn validate_decoded(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
+        | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => false,
@@ -1176,7 +1177,7 @@ fn footprint(
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
+        | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),

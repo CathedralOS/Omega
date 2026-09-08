@@ -28,7 +28,7 @@ pub(super) fn execution(
             format: float_format(reader)?,
         },
         4 => Execution::LinuxExitGroupI32,
-        5 => Execution::LinuxWriteByteI32,
+        5 => Execution::HostedWriteByteI32,
         6 => Execution::LinuxReadByte,
         _ => return Err(Error::InvalidTag),
     })

@@ -16,8 +16,8 @@ use semantic_vocabulary::{
 };
 use target_operations::{
     BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
-    CompilerBuiltinExecution, DirectPortReadU8Realization, LinuxExitGroupI32Realization,
-    LinuxReadByteRealization, LinuxWriteByteI32Realization, LinuxWriteLineRealization,
+    CompilerBuiltinExecution, DirectPortReadU8Realization, HostedWriteByteI32Realization,
+    LinuxExitGroupI32Realization, LinuxReadByteRealization, LinuxWriteLineRealization,
     MetadataOnlyPortRealization,
 };
 use terminal_psi::{
@@ -96,7 +96,7 @@ pub(super) fn encode_boundary_settlements(
                 push_u16(bytes, 0);
                 bytes.push(0);
             }
-            BoundaryRealization::LinuxWriteByteI32(_) => {
+            BoundaryRealization::HostedWriteByteI32(_) => {
                 bytes.push(5);
                 push_u64(bytes, 0);
                 push_u64(bytes, 0);
@@ -293,7 +293,7 @@ pub(super) fn decode_boundary_settlements(
                 BoundaryRealization::ClaimCompletionOnly(ClaimCompletionOnlyRealization)
             }
             5 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
-                BoundaryRealization::LinuxWriteByteI32(LinuxWriteByteI32Realization)
+                BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization)
             }
             6 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
                 BoundaryRealization::LinuxReadByte(LinuxReadByteRealization)
@@ -777,7 +777,7 @@ fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRe
         BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte) => {
             bytes.push(3);
         }
-        BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32) => {
+        BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32) => {
             bytes.push(2);
         }
     }
@@ -794,7 +794,7 @@ fn decode_boundary_execution(
             CompilerBuiltinExecution::LinuxExitGroupI32,
         )),
         2 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
-            CompilerBuiltinExecution::LinuxWriteByteI32,
+            CompilerBuiltinExecution::HostedWriteByteI32,
         )),
         3 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
             CompilerBuiltinExecution::LinuxReadByte,

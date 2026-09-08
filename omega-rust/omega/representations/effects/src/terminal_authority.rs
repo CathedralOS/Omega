@@ -15,8 +15,9 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// selected for one canonical Linux target.
     LinuxExitGroupI32,
     /// Exact toolchain-owned `Console::write_byte(i32) -> Unit` execution
-    /// selected for one canonical Linux target.
-    LinuxWriteByteI32,
+    /// selected for one canonical supported host target. The complete provider
+    /// plan and target catalog retain its OS-specific realization identity.
+    HostedWriteByteI32,
     /// Exact toolchain-owned `Console::read_byte() -> ByteRead` execution
     /// selected for one canonical Linux target.
     LinuxReadByte,
@@ -42,7 +43,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
     let mut bytes = [0_u8; 8];
     match identity {
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => bytes[0] = 0,
-        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => bytes[0] = 5,
+        CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
         CompilerIntrinsicExecutionIdentity::LinuxReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             bytes[0] = 1;
@@ -1021,7 +1022,7 @@ mod tests {
     fn compiler_intrinsic_atoms_have_unique_canonical_encodings() {
         let mut identities = vec![
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
-            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32,
+            CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
             CompilerIntrinsicExecutionIdentity::LinuxReadByte,
         ];
         identities.extend(

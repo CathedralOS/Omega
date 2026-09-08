@@ -420,7 +420,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
         let row = matching.next().ok_or_else(invalid)?;
         let expected_byte_count = if matches!(
             located.settlement,
-            selected_instructions::SelectedBoundarySettlementPayload::LinuxWriteByteI32 { .. }
+            selected_instructions::SelectedBoundarySettlementPayload::HostedWriteByteI32 { .. }
         ) {
             let block = function
                 .blocks

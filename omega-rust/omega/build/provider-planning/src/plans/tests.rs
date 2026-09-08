@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "tests/hosted_byte_supply.rs"]
+mod hosted_byte_supply;
+
 #[path = "tests/spelled_operator_custody.rs"]
 mod spelled_operator_custody;
 

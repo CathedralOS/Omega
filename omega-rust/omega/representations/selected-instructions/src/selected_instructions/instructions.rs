@@ -18,8 +18,8 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
-    /// Closed Linux write(1, &low_byte(input), 1), continuing only on a positive result.
-    LinuxWriteByteI32 {
+    /// Closed hosted write(1, &low_byte(input), 1), continuing only after success.
+    HostedWriteByteI32 {
         slot: super::LocalStorageSlotId,
     },
     /// Store the low exact-width bits through the original referent pointer.

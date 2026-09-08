@@ -186,7 +186,7 @@ fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
         size_bytes: 1,
         alignment_bytes: 1,
     };
-    instruction.address = Some(Address::LinuxWriteByteI32 { slot });
+    instruction.address = Some(Address::HostedWriteByteI32 { slot });
     let resolved = resolve(&function, Some(&frame), &instruction).unwrap();
     validate_address(&function, Some(&frame), &instruction, resolved).unwrap();
     for mutation in 0..6 {
@@ -197,7 +197,7 @@ fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
         match mutation {
             0 => candidate.displacement = 1,
             1 => {
-                changed_instruction.address = Some(Address::LinuxWriteByteI32 {
+                changed_instruction.address = Some(Address::HostedWriteByteI32 {
                     slot: LocalStorageSlotId::Structural {
                         operation: slot.operation().expect("source-backed local slot"),
                         place: PlaceId::new(5).unwrap(),

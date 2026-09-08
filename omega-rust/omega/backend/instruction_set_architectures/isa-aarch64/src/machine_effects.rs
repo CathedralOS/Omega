@@ -56,9 +56,9 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
-                if semantic == MachineSemanticKind::LinuxWriteByteI32 {
-                    return crate::selected_form_encoding::linux_write_byte::declaration(
-                        constraint,
+                if semantic == MachineSemanticKind::HostedWriteByteI32 {
+                    return crate::selected_form_encoding::hosted_write_byte::declaration(
+                        target, constraint,
                     );
                 }
                 if matches!(
@@ -111,8 +111,13 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
-        linux_write_byte_i32: (target.object_format == ObjectFormat::Elf)
-            .then_some(crate::AARCH64_LINUX_WRITE_BYTE_I32),
+        hosted_write_byte_i32: if target == NativeTarget::linux_arm64() {
+            Some(crate::AARCH64_HOSTED_WRITE_BYTE_I32)
+        } else if target == NativeTarget::macos_arm64() {
+            Some(crate::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32)
+        } else {
+            None
+        },
         load64: Some(crate::AARCH64_LOAD64),
         load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
         store: Some(crate::AARCH64_STORE),
@@ -243,7 +248,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::Store64 => (vec![0], vec![]),
         MachineSemanticKind::Store => (vec![0, 1], vec![]),
         MachineSemanticKind::FrameAddress => (vec![], vec![0]),
-        MachineSemanticKind::LinuxWriteByteI32 | MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::HostedWriteByteI32 | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {
@@ -349,7 +354,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
-        MachineSemanticKind::LinuxWriteByteI32 | MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::HostedWriteByteI32 | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {

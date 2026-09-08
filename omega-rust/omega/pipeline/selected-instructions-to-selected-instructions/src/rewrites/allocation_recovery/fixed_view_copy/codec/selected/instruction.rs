@@ -83,7 +83,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
-        SelectedInstructionKind::LinuxWriteByteI32 { .. } => 23,
+        SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
         SelectedInstructionKind::Store64 { .. } => 17,
@@ -145,7 +145,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::LinuxWriteByteI32 { slot } => slot.encode_identity(bytes),
+        SelectedInstructionKind::HostedWriteByteI32 { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::ExactAddI64 {
             obligation,
@@ -247,7 +247,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         4 => SelectedInstructionKind::CopyI64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
-        23 => SelectedInstructionKind::LinuxWriteByteI32 {
+        23 => SelectedInstructionKind::HostedWriteByteI32 {
             slot: super::structural::decode_local_slot(cursor)?,
         },
         22 => SelectedInstructionKind::ByteViewAddress,
@@ -363,7 +363,7 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
             },
             byte_offset: 0,
         },
-        SelectedInstructionKind::LinuxWriteByteI32 {
+        SelectedInstructionKind::HostedWriteByteI32 {
             slot: selected_instructions::LocalStorageSlotId::Boundary {
                 operation: slot.operation,
             },

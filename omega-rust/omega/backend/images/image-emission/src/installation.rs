@@ -6,7 +6,7 @@ use crate::{
     byte_sequence_custody::linux_write_line_custody_is_exact,
     can_emit_executable_image,
     completion_receipts::{CompletionCustodyError, validate_completion_custody},
-    runtime_scalar_custody::linux_write_byte_custody_is_exact,
+    runtime_scalar_custody::hosted_write_byte_custody_is_exact,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValuePlacement,
@@ -4152,7 +4152,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && function.scalar_stack.is_none()
                     && exact_nominal_tail
             }
-            BoundaryRealization::LinuxWriteByteI32(_) => {
+            BoundaryRealization::HostedWriteByteI32(_) => {
                 if installed
                     .settlement
                     .runtime_scalar_arguments
@@ -4180,7 +4180,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         .filter(|candidate| candidate.machine == installed.machine)
                         .map(|candidate| candidate.settlement.clone())
                         .collect::<Vec<_>>();
-                    linux_write_byte_custody_is_exact(
+                    hosted_write_byte_custody_is_exact(
                         record.target,
                         &installed.settlement,
                         &machine_settlements,

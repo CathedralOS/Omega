@@ -1,4 +1,4 @@
-//! Fail-closed catalog admission for the closed Linux byte-output leaf.
+//! Fail-closed catalog admission for the closed hosted byte-output leaf.
 use super::*;
 use crate::{MachineAlternative, MachineAlternativeKey, MachineLatencyKnowledge};
 use register_model::{
@@ -27,22 +27,22 @@ fn linux_write_catalog_rejects_stripped_memory_trap_and_operand_effects() {
         clobbers: Vec::new(),
     };
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], Vec::new());
-    encoded.memory = MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+    encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {
         stack_pointer: RegisterViewId(7),
     };
-    encoded.control = MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1;
-    encoded.trap = MachineEncodedTrapBehavior::LinuxWriteFailureV1;
+    encoded.control = MachineEncodedControlEffect::HostedWriteReturnOrTrapV1;
+    encoded.trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
     let source = MachineEffectDeclaration {
-        semantic: MachineSemanticKind::LinuxWriteByteI32,
+        semantic: MachineSemanticKind::HostedWriteByteI32,
         constraint: constraint.key,
-        memory: crate::MachineMemoryEffect::LinuxWriteByteV1,
-        trap: crate::MachineTrapBehavior::LinuxWriteFailureV1,
+        memory: crate::MachineMemoryEffect::HostedWriteByteV1,
+        trap: crate::MachineTrapBehavior::HostedWriteFailureV1,
         barrier: MachineBarrier::ExternalEffect,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
             key: MachineAlternativeKey {
-                family: MachineSemanticKind::LinuxWriteByteI32.into(),
+                family: MachineSemanticKind::HostedWriteByteI32.into(),
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,

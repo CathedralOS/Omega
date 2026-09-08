@@ -214,20 +214,21 @@ fn codec_keeps_linux_output_pointer_store_and_address_offset_distinct() {
         let alternative = &mut row.alternatives[0];
         match position {
             0 => {
-                row.kind = SelectedInstructionKind::LinuxWriteByteI32 {
+                row.kind = SelectedInstructionKind::HostedWriteByteI32 {
                     slot: crate::LocalStorageSlotId::Boundary {
                         operation: OperationId::new(313).unwrap(),
                     },
                 };
-                row.memory = MachineMemoryEffect::LinuxWriteByteV1;
-                row.trap = MachineTrapBehavior::LinuxWriteFailureV1;
+                row.memory = MachineMemoryEffect::HostedWriteByteV1;
+                row.trap = MachineTrapBehavior::HostedWriteFailureV1;
                 row.barrier = MachineBarrier::ExternalEffect;
-                alternative.key.family = MachineAlternativeFamily::LinuxWriteByteI32;
-                alternative.encoded.memory = MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+                alternative.key.family = MachineAlternativeFamily::HostedWriteByteI32;
+                alternative.encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {
                     stack_pointer: register_model::RegisterViewId(7),
                 };
-                alternative.encoded.trap = MachineEncodedTrapBehavior::LinuxWriteFailureV1;
-                alternative.encoded.control = MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1;
+                alternative.encoded.trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
+                alternative.encoded.control =
+                    MachineEncodedControlEffect::HostedWriteReturnOrTrapV1;
             }
             1 => {
                 row.kind = SelectedInstructionKind::Store {
@@ -253,7 +254,7 @@ fn codec_keeps_linux_output_pointer_store_and_address_offset_distinct() {
     );
     let mut substituted = source;
     substituted.functions[0].blocks[0].instructions[1].memory =
-        MachineMemoryEffect::LinuxWriteByteV1;
+        MachineMemoryEffect::HostedWriteByteV1;
     assert!(PreAllocationMachineEffectPlan::decode(&substituted.encode()).is_err());
 }
 
@@ -264,18 +265,18 @@ fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
     let slot = crate::LocalStorageSlotId::Boundary {
         operation: OperationId::new(313).unwrap(),
     };
-    row.kind = SelectedInstructionKind::LinuxWriteByteI32 { slot };
-    row.memory = MachineMemoryEffect::LinuxWriteByteV1;
-    row.trap = MachineTrapBehavior::LinuxWriteFailureV1;
+    row.kind = SelectedInstructionKind::HostedWriteByteI32 { slot };
+    row.memory = MachineMemoryEffect::HostedWriteByteV1;
+    row.trap = MachineTrapBehavior::HostedWriteFailureV1;
     row.barrier = MachineBarrier::ExternalEffect;
     row.alternatives.truncate(1);
     let alternative = &mut row.alternatives[0];
-    alternative.key.family = MachineAlternativeFamily::LinuxWriteByteI32;
-    alternative.encoded.memory = MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+    alternative.key.family = MachineAlternativeFamily::HostedWriteByteI32;
+    alternative.encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {
         stack_pointer: register_model::RegisterViewId(7),
     };
-    alternative.encoded.trap = MachineEncodedTrapBehavior::LinuxWriteFailureV1;
-    alternative.encoded.control = MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1;
+    alternative.encoded.trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
+    alternative.encoded.control = MachineEncodedControlEffect::HostedWriteReturnOrTrapV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
@@ -286,7 +287,7 @@ fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
         let row = &mut changed.functions[0].blocks[0].instructions[0];
         match mutation {
             0 => {
-                row.kind = SelectedInstructionKind::LinuxWriteByteI32 {
+                row.kind = SelectedInstructionKind::HostedWriteByteI32 {
                     slot: crate::LocalStorageSlotId::Boundary {
                         operation: OperationId::new(317).unwrap(),
                     },

@@ -357,7 +357,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
         }
     }
     for settlement in boundary_settlements {
-        if crate::runtime_scalar_custody::linux_write_byte_custody_is_exact(
+        if crate::runtime_scalar_custody::hosted_write_byte_custody_is_exact(
             target,
             settlement,
             boundary_settlements,

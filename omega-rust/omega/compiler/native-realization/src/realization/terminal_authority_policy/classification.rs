@@ -16,7 +16,7 @@ pub(super) fn classify_compiler_intrinsic(
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
             disposition([TerminalAuthorityClass::ProcessTermination])
         }
-        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
+        CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             disposition([TerminalAuthorityClass::ProcessOutput])
         }
         CompilerIntrinsicExecutionIdentity::LinuxReadByte => {

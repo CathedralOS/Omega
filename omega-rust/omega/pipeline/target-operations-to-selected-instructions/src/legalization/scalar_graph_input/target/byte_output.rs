@@ -1,4 +1,4 @@
-//! Join a returning byte-output occurrence to the admitted Linux builtin and SSA input.
+//! Join a returning byte-output occurrence to the admitted hosted builtin and SSA input.
 use super::*;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetBoundaryResult,
@@ -19,8 +19,8 @@ pub(super) fn validate(
             boundary,
             result: TargetBoundaryResult::Unit,
             execution:
-                BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32),
-            realization: BoundaryRealization::LinuxWriteByteI32(_),
+                BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
+            realization: BoundaryRealization::HostedWriteByteI32(_),
             scalar_arguments,
             runtime_scalar_arguments,
             arguments: structural,
@@ -59,11 +59,7 @@ pub(super) fn validate(
     )
     .map_err(|_| invalid.clone())?;
     if declarations.next().is_some()
-        || native.object_format != ::target::ObjectFormat::Elf
-        || !matches!(
-            native.architecture,
-            ::target::Architecture::X86_64 | ::target::Architecture::Aarch64
-        )
+        || !target_operations::HostedWriteByteI32Realization::supports_target(native)
         || psi_operation != expected_operation
         || boundary != expected_boundary
         || declaration.attachment.is_some()

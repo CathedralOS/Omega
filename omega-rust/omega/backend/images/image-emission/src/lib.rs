@@ -97,7 +97,7 @@ use dynamic_conformance::{validate_dynamic_calls, validate_stored_dynamic_calls}
 use forwarded_dynamic_descriptor::validate_forwarded_dynamic_descriptors;
 use forwarded_dynamic_parameter::validate_forwarded_dynamic_parameter_calls;
 use installed_provider_unit_scalar_call::validate_installed_provider_unit_scalar_calls;
-use runtime_scalar_custody::linux_write_byte_custody_is_exact;
+use runtime_scalar_custody::hosted_write_byte_custody_is_exact;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -963,7 +963,7 @@ fn build_object_artifact_with_x86_feature_profile(
             })
             .transpose()?;
         if function.boundary_settlements.iter().any(|settlement| {
-            linux_write_byte_custody_is_exact(
+            hosted_write_byte_custody_is_exact(
                 plan.target,
                 settlement,
                 &function.boundary_settlements,
@@ -1997,8 +1997,8 @@ fn build_object_artifact_with_x86_feature_profile(
                         && function.scalar_stack.is_none()
                         && exact_nominal_tail
                 }
-                BoundaryRealization::LinuxWriteByteI32(_) => {
-                    linux_write_byte_custody_is_exact(
+                BoundaryRealization::HostedWriteByteI32(_) => {
+                    hosted_write_byte_custody_is_exact(
                         plan.target,
                         settlement,
                         &function.boundary_settlements,

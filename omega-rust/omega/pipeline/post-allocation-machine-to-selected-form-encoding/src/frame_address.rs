@@ -188,7 +188,7 @@ pub(super) fn resolve(
                 .ok_or(Error::ArtifactMismatch)?;
             u32::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
         }
-        Address::LinuxWriteByteI32 { slot } => {
+        Address::HostedWriteByteI32 { slot } => {
             if !matches!(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
@@ -303,7 +303,7 @@ pub(super) fn validate_address(
             }
             Ok(())
         }
-        Address::LinuxWriteByteI32 { slot } => {
+        Address::HostedWriteByteI32 { slot } => {
             if !matches!(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }

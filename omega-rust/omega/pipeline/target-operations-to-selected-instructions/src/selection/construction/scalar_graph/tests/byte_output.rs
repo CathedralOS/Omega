@@ -8,6 +8,7 @@ fn byte_output_replay_binds_scalar_scratch_effect_and_boundary() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
     ] {
         let mut source = fixture(target, 0);
         source.attachment = None;
@@ -22,7 +23,7 @@ fn byte_output_replay_binds_scalar_scratch_effect_and_boundary() {
         row.ownership = vec![optimization_unit::OwnershipEvent::ClaimCompletion(
             Vec::new(),
         )];
-        row.kind = LegalizedScalarInstructionKind::LinuxWriteByteI32 {
+        row.kind = LegalizedScalarInstructionKind::HostedWriteByteI32 {
             boundary: BoundaryMachineId::new(1).unwrap(),
             source: ValueId::new(1).unwrap(),
         };
@@ -96,7 +97,7 @@ fn byte_output_replay_binds_scalar_scratch_effect_and_boundary() {
             match mutation {
                 0 => {
                     changed.blocks[0].instructions[1].kind =
-                        SelectedInstructionKind::LinuxWriteByteI32 {
+                        SelectedInstructionKind::HostedWriteByteI32 {
                             slot: LocalStorageSlotId::Boundary {
                                 operation: OperationId::new(99).unwrap(),
                             },
@@ -112,7 +113,7 @@ fn byte_output_replay_binds_scalar_scratch_effect_and_boundary() {
                 5 => changed.boundary_settlements[0].instruction_index = 0,
                 6 => {
                     changed.boundary_settlements[0].settlement =
-                        SelectedBoundarySettlementPayload::LinuxWriteByteI32 {
+                        SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                             operation: OperationId::new(2).unwrap(),
                             boundary: BoundaryMachineId::new(99).unwrap(),
                             source: ValueId::new(1).unwrap(),

@@ -51,8 +51,8 @@ fn fixture(
     let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
         &source, native, &[AdmittedBoundarySettlement {
             boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32),
-            realization: target_operations::LinuxWriteByteI32Realization.into(),
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
+            realization: target_operations::HostedWriteByteI32Realization.into(),
         }],
     ).unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -113,7 +113,7 @@ fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
                 .iter()
                 .filter(|row| matches!(
                     row.kind,
-                    selected_instructions::SelectedInstructionKind::LinuxWriteByteI32 { .. }
+                    selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { .. }
                 ))
                 .count(),
             1

@@ -1,6 +1,44 @@
 //! Machine parameters do not depend on the body matching a special entry shape.
 use super::*;
 
+#[test]
+fn hosted_byte_output_rejects_noncanonical_or_unsupported_targets() {
+    let plan = fixture();
+    let binding = crate::AdmittedBoundarySettlement {
+        boundary: plan.boundary_machines[0].id,
+        execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
+            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+        ),
+        realization: target_operations::HostedWriteByteI32Realization.into(),
+    };
+    for target in [
+        NativeTarget::windows_x64(),
+        NativeTarget {
+            architecture: target::Architecture::X86_64,
+            ..NativeTarget::macos_arm64()
+        },
+        NativeTarget {
+            pointer_size: 4,
+            ..NativeTarget::macos_arm64()
+        },
+        NativeTarget {
+            pointer_alignment: 4,
+            ..NativeTarget::linux_arm64()
+        },
+    ] {
+        assert!(!target_operations::HostedWriteByteI32Realization::supports_target(target));
+        assert!(
+            crate::lower_to_target_operations_with_provider_executions(
+                &plan,
+                target,
+                std::slice::from_ref(&binding),
+            )
+            .is_err(),
+            "unsupported target {target:?}"
+        );
+    }
+}
+
 pub(super) fn fixture() -> AbstractOperationPlan {
     let machine = MachineId::new(901).unwrap();
     let boundary = BoundaryMachineId::new(901).unwrap();
@@ -64,11 +102,15 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
     let binding = crate::AdmittedBoundarySettlement {
         boundary: plan.boundary_machines[0].id,
         execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::LinuxWriteByteI32,
+            target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
         ),
-        realization: target_operations::LinuxWriteByteI32Realization.into(),
+        realization: target_operations::HostedWriteByteI32Realization.into(),
     };
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let lower = |plan: &AbstractOperationPlan| {
             crate::lower_to_target_operations_with_provider_executions(
                 plan,

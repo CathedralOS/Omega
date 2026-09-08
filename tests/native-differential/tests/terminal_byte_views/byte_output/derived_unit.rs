@@ -138,9 +138,9 @@ fn stage_derived_unit_output(
         &[AdmittedBoundarySettlement {
             boundary: module.boundary_machines[0].id,
             execution: AdmittedBoundaryExecution::CompilerBuiltin(
-                CompilerBuiltinExecution::LinuxWriteByteI32,
+                CompilerBuiltinExecution::HostedWriteByteI32,
             ),
-            realization: LinuxWriteByteI32Realization.into(),
+            realization: HostedWriteByteI32Realization.into(),
         }],
     );
     assert_eq!(text.text_section().functions.len(), 3);
@@ -235,9 +235,12 @@ fn derived_view_unit_output_rejects_unavailable_or_owned_suffix_sources() {
 
 #[test]
 fn derived_view_unit_output_executes_raw_suffix_head_then_continuation() {
-    #[cfg(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+    #[cfg(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
     ))]
     {
         let (image, entry_offset) = publication::published_image(NativeTarget::host());
@@ -293,9 +296,12 @@ fn derived_view_unit_output_executes_raw_suffix_head_then_continuation() {
         "#,
         );
     }
-    #[cfg(not(all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
+    #[cfg(not(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
     )))]
-    eprintln!("SKIP: derived-view byte output requires a Linux host; no macOS provider substitute");
+    eprintln!("SKIP: derived-view byte output requires a supported Linux or macOS host");
 }

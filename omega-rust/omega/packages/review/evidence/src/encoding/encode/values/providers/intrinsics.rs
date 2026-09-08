@@ -9,8 +9,8 @@ pub(crate) fn encode_compiler_intrinsic_execution(
         PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32 => {
             encoder.tag("linux_exit_group_i32", 4);
         }
-        PackageReviewCompilerIntrinsicExecution::LinuxWriteByteI32 => {
-            encoder.tag("linux_write_byte_i32", 5);
+        PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32 => {
+            encoder.tag("hosted_write_byte_i32", 5);
         }
         PackageReviewCompilerIntrinsicExecution::LinuxReadByte => {
             encoder.tag("linux_read_byte", 6);

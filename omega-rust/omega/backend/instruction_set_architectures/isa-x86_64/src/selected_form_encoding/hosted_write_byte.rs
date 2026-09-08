@@ -1,4 +1,4 @@
-//! Concrete Linux write-one-byte leaf: caller frame storage, no hidden stack adjustment.
+//! Hosted write-one-byte leaf: caller frame storage, no hidden stack adjustment.
 use super::*;
 use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
@@ -26,27 +26,27 @@ pub(crate) fn effects() -> MachineEncodedEffects {
         implicit_unit_uses: uses,
         implicit_unit_defs: Vec::new(),
         implicit_unit_clobbers: clobbers,
-        memory: MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+        memory: MachineEncodedMemoryEffect::HostedWriteByteV1 {
             stack_pointer: view("rsp").id,
         },
         stack: MachineEncodedStackEffect::UnchangedV1,
-        trap: MachineEncodedTrapBehavior::LinuxWriteFailureV1,
-        control: MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1,
+        trap: MachineEncodedTrapBehavior::HostedWriteFailureV1,
+        control: MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
     }
 }
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
     MachineEffectDeclaration {
-        semantic: MachineSemanticKind::LinuxWriteByteI32,
+        semantic: MachineSemanticKind::HostedWriteByteI32,
         constraint,
-        memory: MachineMemoryEffect::LinuxWriteByteV1,
-        trap: MachineTrapBehavior::LinuxWriteFailureV1,
+        memory: MachineMemoryEffect::HostedWriteByteV1,
+        trap: MachineTrapBehavior::HostedWriteFailureV1,
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
             key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::LinuxWriteByteI32,
+                family: MachineAlternativeFamily::HostedWriteByteI32,
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
@@ -67,13 +67,13 @@ fn request(
     if physical.model() != &crate::x86_64_physical_register_model()
         || !matches!(
             kind,
-            SelectedInstructionKind::LinuxWriteByteI32 {
+            SelectedInstructionKind::HostedWriteByteI32 {
                 slot: LocalStorageSlotId::Boundary { .. }
             }
         )
         || alternative
             != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::LinuxWriteByteI32,
+                family: MachineAlternativeFamily::HostedWriteByteI32,
                 variant: 0,
             })
         || displacement > i32::MAX as u32
@@ -87,7 +87,7 @@ fn request(
     Ok(*register)
 }
 
-pub fn encode_x86_64_selected_linux_write_byte_form(
+pub fn encode_x86_64_selected_hosted_write_byte_form(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -107,7 +107,7 @@ pub fn encode_x86_64_selected_linux_write_byte_form(
     bytes.extend_from_slice(&[
         0xba, 1, 0, 0, 0, 0xb8, 1, 0, 0, 0, 0x0f, 0x05, 0x48, 0x85, 0xc0, 0x7f, 0x02, 0x0f, 0x0b,
     ]);
-    validate_x86_64_selected_linux_write_byte_form(
+    validate_x86_64_selected_hosted_write_byte_form(
         physical,
         kind,
         alternative,
@@ -117,7 +117,7 @@ pub fn encode_x86_64_selected_linux_write_byte_form(
     )
 }
 
-pub fn validate_x86_64_selected_linux_write_byte_form(
+pub fn validate_x86_64_selected_hosted_write_byte_form(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -167,7 +167,7 @@ fn decode(bytes: &[u8]) -> Option<(u8, u32)> {
 }
 
 /// Independently decode the complete returning write leaf for object custody replay.
-pub fn decode_x86_64_selected_linux_write_byte_i32(
+pub fn decode_x86_64_selected_hosted_write_byte_i32(
     bytes: &[u8],
 ) -> Option<(calling_conventions::MachineRegister, u32)> {
     let (register, displacement) = decode(bytes)?;
@@ -185,24 +185,24 @@ mod tests {
     use semantic_vocabulary::{OperationId, PlaceId};
 
     #[test]
-    fn linux_write_byte_replays_source_frame_offset_syscall_failure_branch_and_every_bit() {
+    fn hosted_write_byte_replays_source_frame_offset_syscall_failure_branch_and_every_bit() {
         let physical = register_model::validate_physical_register_model(
             crate::x86_64_physical_register_model(),
         )
         .unwrap();
-        let kind = SelectedInstructionKind::LinuxWriteByteI32 {
+        let kind = SelectedInstructionKind::HostedWriteByteI32 {
             slot: LocalStorageSlotId::Boundary {
                 operation: OperationId::new(7).unwrap(),
             },
         };
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::LinuxWriteByteI32,
+            family: MachineAlternativeFamily::HostedWriteByteI32,
             variant: 0,
         };
         for name in ["rax", "rbp", "rsi", "rdx", "r11", "r15"] {
             let operands = [physical.model().view_named(name).unwrap().id];
             for displacement in [0, 31, 2147483647] {
-                let encoded = encode_x86_64_selected_linux_write_byte_form(
+                let encoded = encode_x86_64_selected_hosted_write_byte_form(
                     &physical,
                     kind,
                     alternative,
@@ -220,7 +220,7 @@ mod tests {
                     let mut changed = encoded.bytes().to_vec();
                     changed[bit / 8] ^= 1 << (bit % 8);
                     assert!(
-                        validate_x86_64_selected_linux_write_byte_form(
+                        validate_x86_64_selected_hosted_write_byte_form(
                             &physical,
                             kind,
                             alternative,
@@ -233,7 +233,7 @@ mod tests {
                     );
                 }
                 assert!(
-                    validate_x86_64_selected_linux_write_byte_form(
+                    validate_x86_64_selected_hosted_write_byte_form(
                         &physical,
                         kind,
                         alternative,
@@ -244,7 +244,7 @@ mod tests {
                     .is_err()
                 );
                 assert!(
-                    validate_x86_64_selected_linux_write_byte_form(
+                    validate_x86_64_selected_hosted_write_byte_form(
                         &physical,
                         kind,
                         alternative,
@@ -257,7 +257,7 @@ mod tests {
                 let mut trailing = encoded.bytes().to_vec();
                 trailing.push(0);
                 assert!(
-                    validate_x86_64_selected_linux_write_byte_form(
+                    validate_x86_64_selected_hosted_write_byte_form(
                         &physical,
                         kind,
                         alternative,
@@ -267,14 +267,14 @@ mod tests {
                     )
                     .is_err()
                 );
-                let wrong_slot = SelectedInstructionKind::LinuxWriteByteI32 {
+                let wrong_slot = SelectedInstructionKind::HostedWriteByteI32 {
                     slot: LocalStorageSlotId::Structural {
                         operation: OperationId::new(7).unwrap(),
                         place: PlaceId::new(1).unwrap(),
                     },
                 };
                 assert!(
-                    validate_x86_64_selected_linux_write_byte_form(
+                    validate_x86_64_selected_hosted_write_byte_form(
                         &physical,
                         wrong_slot,
                         alternative,
@@ -285,7 +285,7 @@ mod tests {
                     .is_err()
                 );
                 assert!(
-                    encode_x86_64_selected_linux_write_byte_form(
+                    encode_x86_64_selected_hosted_write_byte_form(
                         &physical,
                         kind,
                         alternative,
@@ -295,7 +295,7 @@ mod tests {
                     .is_err()
                 );
                 assert!(
-                    encode_x86_64_selected_linux_write_byte_form(
+                    encode_x86_64_selected_hosted_write_byte_form(
                         &physical,
                         kind,
                         alternative,

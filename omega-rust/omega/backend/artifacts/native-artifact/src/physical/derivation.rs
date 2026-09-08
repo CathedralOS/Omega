@@ -199,9 +199,9 @@ pub(crate) fn derive_physical_evidence(
                     ),
                     (
                         BoundaryExecutionRecord::CompilerBuiltin(
-                            CompilerBuiltinExecution::LinuxWriteByteI32
+                            CompilerBuiltinExecution::HostedWriteByteI32
                         ),
-                        BoundaryRealization::LinuxWriteByteI32(_),
+                        BoundaryRealization::HostedWriteByteI32(_),
                     )
                 ) =>
             {
@@ -711,8 +711,8 @@ fn derive_write_byte_child(
     }
     let role = BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar {
         catalog: NativeCompilerBuiltinCatalogIdentity::LinuxElfV1,
-        execution: CompilerBuiltinExecution::LinuxWriteByteI32,
-        realization: BoundaryRealization::LinuxWriteByteI32(Default::default()),
+        execution: CompilerBuiltinExecution::HostedWriteByteI32,
+        realization: BoundaryRealization::HostedWriteByteI32(Default::default()),
         scalar_argument: scalar_argument.clone(),
     };
     let parent_identity = builtin_runtime_scalar_boundary_trait_settlement_identity(
