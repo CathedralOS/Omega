@@ -1,14 +1,16 @@
 # Cathedral alignment
 
-> **Needs porting.** This document has not been consolidated or vetted for the
-> current documentation structure. See the [migration index](README.md).
+Temporary cross-repository planning map for Omega's first operating-system
+customer. Keep it while coordinating Cathedral bring-up; delete it when the
+dependency map is captured by the owning tasks and Cathedral design documents.
+This is not a language specification or a claim of implemented support.
 
 Cathedral (`../Cathedral`) is Omega's first operating-system customer. This page
 records the cross-repository ownership and dependency map. It is not an
-implementation-status log: [`../TASKS.md`](../../TASKS.md) owns Omega's current
+implementation-status log: [TASKS.md](../../TASKS.md) owns Omega's current
 queue, while Cathedral's `wiki/design/gap_register.md` owns Cathedral work.
 
-## Ownership
+## Ownership boundary
 
 Psi owns parsing and all target-neutral meaning through canonical terminal Psi.
 Omega consumes verified terminal Psi and owns provider installation,
@@ -38,7 +40,7 @@ exact epoch-attributed aggregate snapshots checked against the authoritative
 live-era roster; the snapshots preserve symbolic capacities and content
 algebras rather than pretending every demand has one scalar unit.
 
-This is Omega P1. Cathedral must not treat matching byte counts, inert handles,
+Cathedral must not treat matching byte counts, inert handles,
 or provider assertions as authority. A provider may attest custody, but interval
 and residual arithmetic remain compiler-derived.
 
@@ -49,13 +51,13 @@ materialization use the same `Extent` plus selected layout/access-plan
 foundation. Their profiles differ in readable/writable/atomic operations,
 transfer widths, alignment, observation polarity, and provider correspondence.
 
-This is Omega P2. Cathedral consumes `Placed<P, T>` and source-visible plan
+Cathedral consumes `Placed<P, T>` and source-visible plan
 operations; it does not ask the compiler for UART-, page-table-, or DMA-shaped
 semantic types. Hostile shared memory requires copy-and-validate or checked
 revocation/remapping; a writable peer cannot be wished into an exclusive
 borrow.
 
-### 3. Terminal Psi, proof, and fuel
+### 3. Terminal Psi, proof, and resource bounds
 
 The reference interpreter, proof-carrying-code checker, and Omega lowering all
 consume the same decoded and verified terminal-Psi artifact. Psi owns source
@@ -63,9 +65,9 @@ through this IR; Omega never reconstructs Psi from an Omega tree. Artifact
 obligations are independently reconstructed, while proof bundles only discharge
 them.
 
-This is Omega P3. Cathedral's executable trust and hard-root accounting depend
+Cathedral's executable trust and hard-root accounting depend
 on the proof-certificate bridge, verifier closure, crash contract, and fixed
-fuel/stack evidence. Diagnostic JSON and producer-owned checked trees are not
+logical-work/stack evidence. Diagnostic JSON and producer-owned checked trees are not
 installation evidence.
 
 ### 4. Calling, final footprints, and callbacks
@@ -76,7 +78,7 @@ remain authoritative through lowering. Final validation enumerates every
 executable byte and proves the exact machine-state footprint; callbacks retain
 registration and code/component leases rather than exposing raw addresses.
 
-This is Omega P4. Cathedral supplies installation policy, tables, controller
+Cathedral supplies installation policy, tables, controller
 configuration, and lifecycle. Omega supplies the general bridge, validation,
 and native encoding.
 
@@ -90,7 +92,7 @@ an acceptance canary, not a compiler-owned `Arena` primitive.
 
 The first timer path installs Cathedral-owned entries and stacks, acknowledges
 the controller, records time, publishes a coalesced wake, and returns. General
-fan-out runs as an ordinary task. This is Omega P5 plus Cathedral implementation.
+fan-out runs as an ordinary task.
 
 ## Cross-cutting rules
 
@@ -133,3 +135,10 @@ acceptance tests.
 
 When either repository changes the boundary, update this ownership/dependency
 map and the owning task or design page. Do not append milestone history here.
+
+Current public contracts live in [Terminal Psi](../spec/terminal-psi/product.md),
+[content custody](../spec/resources/content_custody.md),
+[placed access](../spec/resources/placed_access.md), and
+[component publication](../spec/build/component_publication.md).
+Unmigrated material is still subject to the [documentation cleanup](documentation_cleanup.md);
+this customer map does not replace those contracts.

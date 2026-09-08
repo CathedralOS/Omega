@@ -12,6 +12,8 @@ the existing task boards, not in a second tracking system.
 
 - [Documentation cleanup](documentation_cleanup.md).
 - [Terminal realization gaps](terminal_realization.md).
+- [Cathedral alignment](cathedral_alignment.md): temporary cross-repository
+  ownership and dependency map for OS bring-up.
 
 Old documents still waiting for review belong in [pre_migration/](../pre_migration/README.md)
 during migration. After review, keep useful temporary residue here; delete obsolete

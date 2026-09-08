@@ -105,4 +105,4 @@ compilation (modular = cacheable = separately-compilable). See
 ## Cross-references
 `verified_gated_ml_optimizer.md` (sibling compiler-speed direction);
 `separate_compilation.md` (the modularity that makes caching work);
-`cathedral_alignment.md`.
+[Cathedral alignment](../../drafts/cathedral_alignment.md).

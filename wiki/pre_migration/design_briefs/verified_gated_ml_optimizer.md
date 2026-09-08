@@ -90,6 +90,7 @@ architectural seams to design in from the start:
 
 ## Cross-references
 
-cathedral_alignment.md (TCB / trusting-trust, constant-time, IFC labels);
+[Cathedral alignment](../../drafts/cathedral_alignment.md)
+(TCB / trusting-trust, constant-time, IFC labels);
 design_briefs/separate_compilation.md; Cathedral kernel_architecture.md (the
 performance claim this raises the ceiling of) and omega_substrate.md.
