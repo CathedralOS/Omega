@@ -7,6 +7,27 @@ running installation. The deployment requirements below apply to the installed
 component claim, not to ordinary artifact serialization. Platform container layouts
 are separate, and specified deployment routes are not necessarily implemented.
 
+## Selection and component closure
+
+Provider selection is Fused by default; omission and explicit `CompositionMode::Fused`
+agree. Root Build may request `Independent`, but provider source, target defaults,
+and unique automatic selection cannot. Conflicting modes reject, and an operator
+family cannot split modes across overload coordinates. Independent is semantic,
+not packaging: it requires a closed component graph, symbolic imports/exports,
+entry/leave and resource demands, and installation/replacement obligations.
+Until those exist, reject rather than silently fall back to Fused.
+
+Slot identity is the exact closed requirement application. Independently selectable
+families use ordinary closed static arguments with nominal or declared-domain
+identity, not strings, ordinals, vtable indices, addresses, or artifact generations.
+A package may contribute several independent roots.
+
+Derive exports from selected satisfied requirements and imports from requirement
+calls leaving the closure. Concrete-identity edges remain inside, pull in their
+targets when legal, or reject. Duplicable immutable dependencies may be shared or
+copied. Mutable state and linear custody have one owner: fuse them above dependent
+closures or mediate them through a selected service.
+
 ## Products and authority
 
 | Product | Contains | Does not establish |

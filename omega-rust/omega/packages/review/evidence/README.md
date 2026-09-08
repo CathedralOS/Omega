@@ -34,7 +34,8 @@ The representation projection records package-owned opaque data as `Unbound`
 and separately records each public producer candidate as exact
 opaque/conformance/carrier availability. Availability accepts no consumer
 choice and may coexist with `Unbound`; it says only what the producer exposes.
-D26 consumer demand is owned by the selecting consumer and exists only for an
+[Opaque consumer demand](../../../../../wiki/spec/build/opaque_representations.md)
+is owned by the selecting consumer and exists only for an
 actual runtime by-value crossing. It retains the exact boundary requirement
 application, complete checked shape graph, every opaque carrier occurrence and
 its semantic path, replay-validated physical placement, target and calling
@@ -65,6 +66,16 @@ package-qualified and blocking, but intentionally carries no provider,
 realization, coverage, Terminal, native, admission, or audit claim. Foreign
 specialization and final closed substitution remain downstream composition
 work.
+
+The producer rechecks the public callable owner, exact operator declaration,
+nonempty telescope, and direct type-binder ordinal/symbol correspondence.
+Private callables do not export rows; nested symbolic types, const/lifetime/
+machine binders, fixed-token uses, and statement uses are outside this bounded
+producer. [Boundary application controls](tests/boundary_application_policy.rs)
+pin the receipt-free projection. Checked supplied substitutions must not be
+reported as the complete reachable demand set; the
+[application contract](../../../../../wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children)
+keeps that obligation distinct from coverage and admission.
 
 ## Encoding and ledger
 
