@@ -70,6 +70,17 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                    destination,
+                    value,
+                    byte_size,
+                } => {
+                    bytes.push(13);
+                    super::structural_types::encode_structural_parameter(bytes, destination);
+                    bytes.extend_from_slice(&value.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, value.scalar_type);
+                    bytes.push(*byte_size);
+                }
                 LegalizedScalarInstructionKind::LinuxWriteByteI32 { boundary, source } => {
                     bytes.push(11);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());

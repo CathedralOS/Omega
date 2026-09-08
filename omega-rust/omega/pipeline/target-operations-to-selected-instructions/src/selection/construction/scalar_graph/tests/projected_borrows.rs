@@ -6,6 +6,124 @@ use terminal_psi::{
 };
 
 #[test]
+fn borrowed_unit_calls_preserve_fixed_integer_and_boolean_parameter_types() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        for scalar_type in
+            [ScalarType::Boolean]
+                .into_iter()
+                .chain([8, 16, 32, 64].into_iter().flat_map(|bits| {
+                    [IntegerSign::Signed, IntegerSign::Unsigned]
+                        .into_iter()
+                        .map(move |sign| ScalarType::Integer(IntegerType::new(sign, bits).unwrap()))
+                }))
+        {
+            let mut source = projected_call(target);
+            let scalar_shape =
+                crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
+            let root_shape = source.call_plan.parameters[0].shape;
+            source.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![scalar_shape, root_shape],
+                    result: None,
+                },
+            )
+            .unwrap();
+            let value = ValueId::new(100).unwrap();
+            source.parameters = vec![LegalizedScalarParameter {
+                value,
+                scalar_type,
+                definition_site: ValueDefinitionSite::FunctionParameter(0),
+                placement: source.call_plan.parameters[0].clone(),
+            }];
+            source.structural.as_mut().unwrap().parameters[0]
+                .target
+                .placement = source.call_plan.parameters[1].clone();
+            let LegalizedScalarInstructionKind::Call(call) =
+                &mut source.blocks[0].instructions[0].kind
+            else {
+                panic!("call");
+            };
+            let mut argument = call.arguments[0].clone();
+            let leaf_shape = argument.placement().shape;
+            call.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![scalar_shape, leaf_shape],
+                    result: None,
+                },
+            )
+            .unwrap();
+            let LegalizedScalarArgument::Structural {
+                target: target_argument,
+                ..
+            } = &mut argument
+            else {
+                panic!("reference");
+            };
+            target_argument.source = source.call_plan.parameters[1].clone().into();
+            target_argument.destination = call.call_plan.parameters[1].clone();
+            call.arguments = vec![
+                LegalizedScalarArgument::Scalar {
+                    source: value,
+                    placement: call.call_plan.parameters[0].clone(),
+                },
+                argument,
+            ];
+            let ValueLocation::Register { register, .. } =
+                source.parameters[0].placement.locations[0]
+            else {
+                panic!("scalar register parameter");
+            };
+            let constraints = SelectedSelectionConstraints {
+                keys: environment.selected_keys(),
+                projected_structural_call: None,
+                fixed_inputs: vec![SelectedFixedInputConstraint {
+                    machine: source.machine,
+                    source_value: value,
+                    parameter_index: 0,
+                    register,
+                    fixed_view: environment.fixed_register_view(register).unwrap(),
+                }],
+            };
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                &selected,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            assert_eq!(
+                selected.calls[0].call.arguments[0].placement().shape,
+                scalar_shape
+            );
+            assert_eq!(selected.virtual_registers.iter().find(|register|
+                matches!(register.origin, VirtualRegisterOrigin::EntryParameter { source_value, .. }
+                    if source_value == value)).unwrap().scalar_type, scalar_type);
+        }
+    }
+}
+
+#[test]
 fn outgoing_projected_pointer_stack_slot_replays_exact_bits_and_call_registers() {
     for target in [
         target::NativeTarget::linux_x64(),

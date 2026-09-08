@@ -34,6 +34,29 @@ pub(super) fn validate(
             },
         ) if boundary == expected && arguments.as_slice() == [*source] => {}
         (
+            LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                destination,
+                value,
+                byte_size,
+            },
+            AbstractOperation::WriteOnlyPrimitiveStore {
+                destination: expected,
+                value: expected_value,
+                ..
+            },
+        ) => {
+            if destination != expected
+                || value != expected_value
+                || crate::structural_reference_input::primitive_store(
+                    expected,
+                    expected_value.scalar_type,
+                    &unit.structural_types,
+                ) != Some(*byte_size)
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                 destination,
                 path,

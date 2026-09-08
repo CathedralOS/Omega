@@ -36,6 +36,15 @@ pub(super) fn validate_installed_unit_dynamic_descriptor_joins(
             )
         });
         let joined_shape_hint = calls.len() == 2 && attributions.len() == 5;
+        // Common-pipeline borrowed functions retain stores through selected
+        // replay, not legacy store rows. Reconstruct their exact ordinary ABI
+        // before excluding them from this descriptor-specific grammar.
+        if calls.is_empty()
+            && super::borrowed_structural::has_borrowed(function)
+            && super::borrowed_structural::function_is_exact(record, function)
+        {
+            continue;
+        }
         // Boolean is an ordinary scalar type, not a dynamic-family tag. Let
         // the disjoint installed store/call validators own their exact rows.
         let primitive_store_shape = function.unit_write_only_primitive_stores.len() == 1

@@ -32,7 +32,8 @@ impl LegalizedScalarFunction {
                 .iter()
                 .any(|instruction| match &instruction.kind {
                     LegalizedScalarInstructionKind::LinuxWriteByteI32 { source, .. } => *source == value,
-                    LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. } => stored.value == value,
+                    LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. }
+                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
@@ -92,6 +93,12 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// Non-observing replacement of the primitive root, without a fabricated field.
+    WriteOnlyPrimitiveStore {
+        destination: terminal_psi::StructuralParameterDeclaration,
+        value: abstract_operations::AbstractResult,
+        byte_size: u8,
+    },
     /// Exact admitted Linux byte-output boundary, with its original i32 SSA input.
     /// The receiving target catalog owns syscall realization and failure behavior.
     LinuxWriteByteI32 {

@@ -8,6 +8,7 @@ pub(in crate::legalization) fn instruction(
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::CallUnit { psi_operation, .. }
+    | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
         Some((*psi_operation, None))
@@ -199,6 +200,9 @@ pub(super) fn validate(
             continue;
         }
         if let AbstractOperation::StructuralScalarFieldStore {
+            destination, value, ..
+        }
+        | AbstractOperation::WriteOnlyPrimitiveStore {
             destination, value, ..
         } = &node.operation
         {

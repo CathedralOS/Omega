@@ -157,7 +157,7 @@ fn validate_borrowed_argument(
             .iter()
             .zip(&source.call_plan.parameters)
             .any(|(parameter, placement)| {
-                borrowed_scalar_shape(parameter.scalar_type) != Some(placement.shape)
+                scalar_shape(parameter.scalar_type) != Some(placement.shape)
                     || parameter.placement != *placement
             })
     {
@@ -173,7 +173,7 @@ fn validate_borrowed_argument(
             else {
                 return None;
             };
-            let shape = borrowed_scalar_shape(scalar_value_type(source, *value)?)?;
+            let shape = scalar_shape(scalar_value_type(source, *value)?)?;
             (placement.shape == shape).then_some(shape)
         })
         .collect::<Option<Vec<_>>>()?;
@@ -314,14 +314,6 @@ pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
         }
         _ => None,
     }
-}
-
-fn borrowed_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
-    if matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() != IntegerSign::Unsigned)
-    {
-        return None;
-    }
-    scalar_shape(scalar_type)
 }
 
 fn scalar_value_shape(source: &LegalizedScalarFunction, value: ValueId) -> Option<ValueShape> {

@@ -3,6 +3,7 @@ use target_operations::{
     ScalarAbiValue, TargetStructuralParameter, TargetUnitBody,
     TargetUnitScalarArgumentSource as Source,
 };
+mod primitive_store;
 pub(super) fn validate(
     function: &TargetFunction,
     body: &TargetUnitBody,
@@ -74,6 +75,12 @@ pub(super) fn validate_operation(
         unit,
     };
     match (target, abstracted) {
+        (
+            TargetUnitOperation::WriteOnlyPrimitiveStore { .. },
+            AbstractOperation::WriteOnlyPrimitiveStore { .. },
+        ) => {
+            primitive_store::validate(target, abstracted, parameters, sources, unit)?;
+        }
         (
             TargetUnitOperation::ScalarDefinition { result_home, .. },
             AbstractOperation::ByteSequenceLength { .. }

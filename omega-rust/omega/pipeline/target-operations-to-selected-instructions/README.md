@@ -47,6 +47,13 @@ selection emits one pointer store with a write footprint and the source fuel
 charge, without loading the destination. Independent replay checks the pointer,
 value, write extent and charge before accepting the selected program.
 
+Whole primitive stores use the same exact-width pointer instruction while
+retaining `WriteOnlyPrimitiveStore` as their semantic origin. Their destination
+must be an unrestricted, unqualified, claim-free mutable or write-only parameter
+whose referent is exactly the SSA source's primitive scalar type. Boolean and
+fixed 8/16/32/64-bit integers are supported; no synthetic record, field, readable
+borrow, or IEEE-to-integer conversion is introduced.
+
 Literal and called subslice descriptors use activation-local homes, separately
 from ABI argument-copy slots. A subslice retains the original backing plus
 exact integer offset and length; only a view used as a call argument acquires

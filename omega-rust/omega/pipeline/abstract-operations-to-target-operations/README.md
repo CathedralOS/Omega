@@ -210,7 +210,7 @@ writeback. Admission of a new native shape needs caller observation after return
 unchanged surrounding bytes, and suspension checks where applicable, in addition
 to layout and byte replay.
 
-Straight-line Unit field stores and projected exclusive Unit calls enter the
+Straight-line Unit primitive/field stores and projected exclusive Unit calls enter the
 ordinary graph with original borrowed pointers. Integer stores use exact 1-, 2-,
 4- or 8-byte footprints; Boolean stores use one byte. Selection independently
 reconstructs each field/index projection and its byte offset from declarations.
@@ -230,5 +230,10 @@ physical replay establishes pointer projection and transport without a referent
 copy. Installation shape checks alone do not establish semantic path identity.
 Run it with `cargo nextest run -p omega-native-differential-test --test
 terminal_psi_indexed_receivers --no-fail-fast --no-tests fail`. Cross-publication
-does not replace Linux native caller observations. Broader scalar call arguments,
-primitive-store operations and general control/cleanup remain native dependencies.
+does not replace Linux native caller observations. Its `primitive_stores::` group
+also checks whole primitive replacement through forwarded calls, signed and
+unsigned runtime values, both Boolean values, literal stores with unused inputs,
+and stack-passed primitive roots across three calls. Primitive declarations stay
+primitive; the ordinary store retains exact source type and width without a
+synthetic record or field. IEEE scalar call arguments/stores and general
+control/cleanup remain native dependencies.

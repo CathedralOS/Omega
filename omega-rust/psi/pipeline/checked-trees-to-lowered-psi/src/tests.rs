@@ -1938,6 +1938,48 @@ fn direct_write_only_boolean_store_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn primitive_literal_store_retains_unused_scalar_parameters_and_signed_literal() {
+    for literal in ["17", "-17"] {
+        let checked = checked_source(&format!(
+            "data Sink {{}} machine Sink::fill(destination: &write i8, unused: i8) {{ destination = {literal}; }}"
+        ));
+        let lowered =
+            lower_machine(&checked, "Sink::fill").expect("literal store with unused scalar input");
+        let module = &lowered.semantic_module;
+        let [machine] = module.machines.as_slice() else {
+            panic!("one source machine");
+        };
+        assert_eq!(
+            machine.parameters.len(),
+            1,
+            "unused scalar ABI input is retained"
+        );
+        let [constant, store] = machine.blocks[0].operations.as_slice() else {
+            panic!("constant then store");
+        };
+        if literal == "-17" {
+            assert!(matches!(
+                constant.kind,
+                OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Signed(-17),
+                }
+            ));
+        }
+        assert!(
+            matches!(store.kind, OperationKind::WriteOnlyPrimitiveStore { destination, value }
+            if destination == machine.structural_parameters[0].place
+                && value == constant.result.expect_scalar().id)
+        );
+        let encoded =
+            terminal_codec::encode_module(module).expect("encode primitive literal store");
+        let decoded =
+            terminal_codec::decode_module(&encoded).expect("decode primitive literal store");
+        assert_eq!(&decoded, module);
+        terminal_verifier::validate_module(&decoded).expect("verify exact primitive literal store");
+    }
+}
+
+#[test]
 fn direct_write_only_ieee_float_store_crosses_source_codec_and_verification() {
     let checked = checked_source(
         r#"

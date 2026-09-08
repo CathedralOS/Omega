@@ -10,6 +10,9 @@ mod native_function;
 #[path = "terminal_psi_indexed_receivers/stack_pointers.rs"]
 mod stack_pointers;
 
+#[path = "terminal_psi_indexed_receivers/primitive_stores.rs"]
+mod primitive_stores;
+
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")
 }

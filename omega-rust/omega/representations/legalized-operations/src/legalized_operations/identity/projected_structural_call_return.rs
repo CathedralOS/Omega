@@ -4,12 +4,11 @@ use super::calling::{encode_call_plan, encode_placement, encode_shape};
 use super::shared::*;
 use super::structural::{encode_effect, encode_ownership_roster};
 use super::structural_types::{
-    encode_multiplicity, encode_structural_parameter, encode_structural_path,
-    encode_structural_type, encode_target_structural_argument, encode_target_structural_parameter,
+    encode_multiplicity, encode_projected_qualifications, encode_structural_parameter,
+    encode_structural_path, encode_structural_type, encode_target_structural_argument,
+    encode_target_structural_parameter,
 };
-use terminal_psi::{
-    StructuralOperationResult, StructuralPathQualification, StructuralResultDeclaration,
-};
+use terminal_psi::{StructuralOperationResult, StructuralResultDeclaration};
 
 pub(super) fn encode_projected_structural_call_return(
     bytes: &mut Vec<u8>,
@@ -159,13 +158,11 @@ fn encode_target_parameters(
     encode_len(bytes, parameters.len());
     for parameter in parameters {
         encode_target_structural_parameter(bytes, parameter);
-        encode_projected_qualifications(bytes, &parameter.projected_qualifications);
     }
 }
 
 fn encode_semantic_parameter(bytes: &mut Vec<u8>, parameter: &StructuralParameterDeclaration) {
     encode_structural_parameter(bytes, parameter);
-    encode_projected_qualifications(bytes, &parameter.projected_qualifications);
 }
 
 pub(super) fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
@@ -193,14 +190,6 @@ fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclaration) {
         result.qualifications.iter().map(|domain| domain.get()),
     );
     encode_projected_qualifications(bytes, &result.projected_qualifications);
-}
-
-fn encode_projected_qualifications(bytes: &mut Vec<u8>, rows: &[StructuralPathQualification]) {
-    encode_len(bytes, rows.len());
-    for row in rows {
-        encode_structural_path(bytes, &row.path);
-        bytes.extend_from_slice(&row.domain.get().to_le_bytes());
-    }
 }
 
 fn encode_nodes(bytes: &mut Vec<u8>, nodes: &[LegalizedStructuralNodeCustody]) {

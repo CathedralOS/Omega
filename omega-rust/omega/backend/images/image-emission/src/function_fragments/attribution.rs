@@ -18,6 +18,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
         .filter_map(|(index, operation)| {
             let matches = match operation {
                 AbstractOperation::IntegerConstant { psi_operation, .. }
+                | AbstractOperation::BooleanConstant { psi_operation, .. }
                 | AbstractOperation::IntegerEqual { psi_operation, .. }
                 | AbstractOperation::IntegerLessThan { psi_operation, .. }
                 | AbstractOperation::IntegerLessOrEqual { psi_operation, .. }
