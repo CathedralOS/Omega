@@ -88,6 +88,11 @@ fn append_discrete_fact(propositions: &mut Vec<Proposition>, proposition: &Propo
     if let Some(discrete) = discrete::strict_bound(proposition) {
         push_unique(propositions, discrete);
     }
+    if let Some(bounds) = discrete::strict_carrier_bounds(proposition) {
+        for bound in bounds {
+            push_unique(propositions, bound);
+        }
+    }
 }
 
 fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {

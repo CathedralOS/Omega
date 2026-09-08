@@ -180,6 +180,32 @@ impl ValueEnv {
             .retain(|value| !overlaps(value));
     }
 
+    /// Apply the store frame after its target and RHS effects have completed.
+    pub(crate) fn invalidate_assignment_paths(
+        &mut self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: Option<&State>,
+        target: ExpressionHandle,
+        written: &[String],
+    ) {
+        let preserved = state
+            .and_then(|state| {
+                ordered_values::byte_store_collection(program, machine, state, target)
+            })
+            .map(|collection| {
+                self.ordered_values
+                    .iter()
+                    .filter(|relation| relation.survives_byte_store(written, &collection))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            });
+        self.invalidate_written_paths(written);
+        if let Some(preserved) = preserved {
+            self.ordered_values = preserved;
+        }
+    }
+
     pub(super) fn get(&self, path: &str) -> Option<Interval> {
         self.intervals.get(path).copied()
     }

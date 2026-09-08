@@ -229,6 +229,82 @@ fn strict_literal_bounds_are_discrete_on_every_fixed_carrier() {
 }
 
 #[test]
+fn strict_value_order_excludes_exact_fixed_carrier_endpoints_on_selected_branch() {
+    use super::super::discrete::strict_carrier_bounds;
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        for bits in [1, 8, 64, 128] {
+            let integer_type = IntegerType::new(sign, bits).unwrap();
+            let minimum_next = match integer_type.minimum_value() {
+                IntegerValue::Signed(minimum) => IntegerValue::Signed(minimum + 1),
+                IntegerValue::Unsigned(minimum) => IntegerValue::Unsigned(minimum + 1),
+            };
+            let maximum_previous = match integer_type.maximum_value() {
+                IntegerValue::Signed(maximum) => IntegerValue::Signed(maximum - 1),
+                IntegerValue::Unsigned(maximum) => IntegerValue::Unsigned(maximum - 1),
+            };
+            for (left, right) in [(2, 3), (3, 2)] {
+                let left = value(left, ScalarType::Integer(integer_type));
+                let right = value(right, ScalarType::Integer(integer_type));
+                let expected = Some([
+                    Proposition::LessOrEqual(
+                        left.clone(),
+                        ScalarTerm::integer(integer_type, maximum_previous).unwrap(),
+                    ),
+                    Proposition::LessOrEqual(
+                        ScalarTerm::integer(integer_type, minimum_next).unwrap(),
+                        right.clone(),
+                    ),
+                ]);
+                let strict = ScalarTerm::IntegerLessThan {
+                    scalar_type: integer_type,
+                    left: Box::new(left.clone()),
+                    right: Box::new(right.clone()),
+                };
+                assert_eq!(
+                    strict_carrier_bounds(&selected(strict.clone(), true)),
+                    expected
+                );
+                assert!(strict_carrier_bounds(&selected(strict, false)).is_none());
+                let opposite = ScalarTerm::IntegerLessOrEqual {
+                    scalar_type: integer_type,
+                    left: Box::new(right),
+                    right: Box::new(left),
+                };
+                assert_eq!(strict_carrier_bounds(&selected(opposite, false)), expected);
+            }
+        }
+    }
+}
+
+#[test]
+fn strict_carrier_endpoints_reject_mixed_address_and_nonscalar_value_shapes() {
+    use super::super::discrete::strict_carrier_bounds;
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let left = value(2, ScalarType::Integer(unsigned));
+    for right in [
+        value(
+            3,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap()),
+        ),
+        value(
+            3,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+        ),
+        value(3, ScalarType::Boolean),
+        integer(unsigned, 3),
+        ScalarTerm::exact_integer_add(unsigned, left.clone(), integer(unsigned, 1)).unwrap(),
+    ] {
+        assert!(strict_carrier_bounds(&Proposition::LessThan(left.clone(), right)).is_none());
+    }
+    let address = ScalarType::Integer(IntegerType::address(64).unwrap());
+    assert!(
+        strict_carrier_bounds(&Proposition::LessThan(value(2, address), value(3, address)))
+            .is_none()
+    );
+    assert!(strict_carrier_bounds(&Proposition::LessOrEqual(left.clone(), left)).is_none());
+}
+
+#[test]
 fn condition_alias_cycles_fail_closed_without_a_depth_limit() {
     let mut axioms = Vec::new();
     for index in 1..300 {

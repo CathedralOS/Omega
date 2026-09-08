@@ -487,7 +487,17 @@ impl ArrivalWalk<'_, '_> {
                             .into_complete_paths()
                     });
                     let complete = written.is_some();
-                    Self::cross_writes(environment, written);
+                    if let Some(written) = written {
+                        environment.invalidate_assignment_paths(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            assignment.target,
+                            &written,
+                        );
+                    } else {
+                        environment.clear();
+                    }
                     // Preserve an exact direct unsigned literal only after
                     // target/value effects and the complete store frame have
                     // retired old facts. Other stores remain invalidation-only.

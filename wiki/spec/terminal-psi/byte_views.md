@@ -103,8 +103,13 @@ restore the caller's binding rather than consuming that name.
 For a mutable block parameter with exactly one incoming Jump/Conditional edge,
 a fresh length observation may be equated to the predecessor's exact observation
 of that supplied view. Both sides require unchanged extent along every path.
-Multiple arrivals establish no such equation, and this does not admit mutable
-write cycles or invent a general parameter-extent axiom.
+Multiple arrivals establish no such equation or general parameter-extent axiom.
+An unranked Unit loop can instead measure its current mutable view afresh at
+the loop header, guard each write, and transfer the exact view and index to a
+single-arrival store block. Feedback resets incoming path facts; every iteration
+must reestablish its own bounds and exact arithmetic proof. This supplies no
+termination or fixed-work certificate, and does not admit mutable reads,
+subslices, or scalar-result cycles.
 Snapshot scalar values and descriptors before replacing any
 destination or applying cleanup. Fuel exhaustion commits no bindings. Evaluate
 only the selected conditional arm. Incoming descriptors bind the destination's

@@ -52,14 +52,24 @@ impl Operand {
     }
 
     pub(super) fn survives(&self, written: &[String]) -> bool {
+        self.survives_preserving_length(written, None)
+    }
+
+    fn survives_preserving_length(&self, written: &[String], preserved: Option<&Operand>) -> bool {
         match self {
             Self::Place { path, .. } => {
                 !written.iter().any(|write| place_paths_overlap(path, write))
             }
             Self::Integer(..) => true,
-            Self::Call { arguments, .. } => arguments.iter().all(|value| value.survives(written)),
-            Self::CollectionLength(collection) => collection.survives(written),
-            Self::Binary { operands, .. } => operands.iter().all(|value| value.survives(written)),
+            Self::Call { arguments, .. } => arguments
+                .iter()
+                .all(|value| value.survives_preserving_length(written, preserved)),
+            Self::CollectionLength(collection) => {
+                preserved == Some(collection.as_ref()) || collection.survives(written)
+            }
+            Self::Binary { operands, .. } => operands
+                .iter()
+                .all(|value| value.survives_preserving_length(written, preserved)),
         }
     }
 
@@ -163,6 +173,13 @@ impl Operand {
 }
 
 impl Relation {
+    pub(super) fn survives_byte_store(&self, written: &[String], collection: &Operand) -> bool {
+        self.left
+            .survives_preserving_length(written, Some(collection))
+            && self
+                .right
+                .survives_preserving_length(written, Some(collection))
+    }
     pub(super) fn survives(&self, written: &[String]) -> bool {
         self.left.survives(written) && self.right.survives(written)
     }
@@ -183,6 +200,56 @@ impl Relation {
             })
             .collect()
     }
+}
+
+/// Only a builtin element store through an exact mutable byte parameter leaves
+/// this view's extent unchanged. Callers cross all operand effects first.
+pub(super) fn byte_store_collection(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target: ExpressionHandle,
+) -> Option<Operand> {
+    if !crate::place_has_builtin_coordinates(program, machine, Some(state), target) {
+        return None;
+    }
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+        return None;
+    };
+    let ExpressionNode::Name(name) = program.expression_table.expression(indexed.collection) else {
+        return None;
+    };
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == name.symbol)?;
+    let TypeReferenceNode::Reference {
+        referee,
+        access: language_core::ReferenceAccess::Mutable,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    let TypeReferenceNode::Slice { element_type } =
+        program.type_reference_table.type_reference(*referee)
+    else {
+        return None;
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(*element_type),
+        TypeReferenceNode::Named { .. }
+    ) || program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
+        || matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        )
+    {
+        return None;
+    }
+    operand(program, machine, state, indexed.collection)
 }
 
 pub(super) fn operand(

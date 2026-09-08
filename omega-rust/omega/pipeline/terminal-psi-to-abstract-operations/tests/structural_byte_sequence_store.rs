@@ -28,6 +28,26 @@ fn verified_mutable_byte_view_write_rejects_unrealized_state_bindings() {
     for (entry, source) in [
         ("put", source.to_owned()),
         (
+            "fill",
+            r#"
+            machine fill(out: &mut [u8], byte: u8) {
+                transition { _ -> scan(out, 0, byte) }
+                state scan(out: &mut [u8], position: u64, byte: u8) {
+                    transition position < out.len {
+                        true -> store(out, position, byte)
+                        false -> done()
+                    }
+                }
+                state store(out: &mut [u8], position: u64, byte: u8) {
+                    out[position] = byte;
+                    transition { _ -> scan(out, position + 1, byte) }
+                }
+                state done() {}
+            }
+            "#
+            .to_owned(),
+        ),
+        (
             "run",
             format!("{source}\n machine run(out: &mut [u8;3]) {{ put(out,65); put(out,0); }}"),
         ),
