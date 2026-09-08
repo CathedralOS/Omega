@@ -1,6 +1,6 @@
 ; A name cursor is (pair focus (pair depth (pair source-start ancestors))).
 ; Focus uses the ordinary name trie. Each counted ancestor is an existing
-; parent node, without its outer presence wrapper, followed by older ancestors.
+; complete parent trie, including its tag, followed by older ancestors.
 ; The source prefix identifies the edges from the root to this focus exactly.
 (def identity_cursor
   ((depth Int) (source Int) (focus Int) (ancestors Int)) Int
@@ -27,7 +27,7 @@
   (if (eq (+ (identity_cursor_source cursor) (identity_cursor_depth cursor)) end)
     (let focus Int (identity_cursor_focus cursor)
       (if (first focus)
-        (first (first (second focus)))
+        (first (name_trie_terminal focus))
         0))
     0))
 

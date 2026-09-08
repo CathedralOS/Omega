@@ -32,7 +32,8 @@ replaces an existing terminal after resolution without changing child edges.
 
 A cursor contains its focus depth, a source coordinate identifying that prefix,
 the ordinary sparse trie at the focus, and a counted immutable ancestor spine.
-The ancestor nodes retain terminal options and sibling order. A seek rebuilds
+The ancestors retain complete tagged tries, including terminal options and
+sibling order. A seek rebuilds
 only departed prefixes; a commit leaves common ancestors deferred. Earlier
 cursors and finished roots remain immutable and independently usable.
 
@@ -57,9 +58,17 @@ compares prefix reuse with rebuilding from the root on the exact Epsilon source.
 It supports retaining the current implementation without expansion, not claiming
 that the customer requires it to fit or that boundary conformance is complete.
 
-Fresh suffix construction also reuses one known-empty carrier for absent
-terminals and empty child lists throughout the path. An absent focus or child
-already supplies that carrier; an internal prefix's absent terminal can supply
-it as well. A present terminal instead needs a separate empty value. These
-fields have the same immutable `(0, 0)` representation, so sharing does not
-change either presence tests or child lookup.
+Trie tag `0` is absence. Tag `1` carries a terminal option and sparse child
+rows. A nonterminal with one edge instead uses `(pair (byte + 2) child)`: one
+pair per byte, with no separate absent terminal or singleton child list. Source
+identifier bytes cannot collide with the absence or branch tags. Lookup and
+ancestor reconstruction read this form directly. Adding a prefix terminal or
+sibling expands just that node into the ordinary tag-1 form, preserving its
+existing edge and sibling position. Terminal nodes keep tag 1 even when they
+have no children. No node deletion or recompression pass is needed.
+
+For a fresh length-`L` name subsequently visited and rebuilt during declaration
+resolution, the unary path, ancestor spine, and rebuilt unary path cost one
+pair per byte each, rather than the former five, one, and five. Branch and
+terminal overhead is separate. This is a path-specific allocation argument,
+not a bound on the complete compiler or all admitted source shapes.

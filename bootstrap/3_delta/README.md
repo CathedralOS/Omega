@@ -246,10 +246,12 @@ ordinary roots. Parameter cataloging uses the same cursor helpers for local
 names, then finishes the trie retained by its counted environment. Names remain
 in authored order; there is no sorting pass,
 lookahead past a refusal, mutation, or alternate downstream representation.
-Empty child lists and absent trie options reuse their identical immutable
-absence carrier rather than allocating a replacement on each miss.
-Fresh suffixes likewise share a known-empty carrier across their absent
-terminals and empty child lists, rather than allocating repeated empty pairs.
+Child-list misses reuse their immutable absence carrier. Fresh unary,
+nonterminal suffix nodes store their byte tag and child in one pair, without
+separate terminal or child-list wrappers. A new sibling or prefix terminal
+expands only the affected node; exact lookup and immutable rebuilding preserve
+both forms. The [name storage owner](implementation/checking/names/README.md)
+states the representation and path-specific allocation argument.
 
 Declaration resolution retains the census constructor and function indexes
 instead of rebuilding both from empty tries. It validates each raw row against
@@ -407,7 +409,7 @@ Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution
 ## Measurements
 
 ```text
-3,448-line / 158,071-byte canonical entry plus shared Gamma implementation
+3,459-line / 158,290-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

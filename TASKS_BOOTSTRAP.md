@@ -170,10 +170,10 @@ prerequisite to every lower-rung milestone.
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
   Resume evidence on macOS arm64, canonical Delta closure SHA-256
-  `96a1d0457683d39b09e80122be5265070154728596b18a19a5847dc7f4dae534`
+  `84ab380f0d725061d415efa048db3bd2b7c6fe8a525a70207783cb81ce23dda5`
   and the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
-  `sh tests/epsilon/checking/run.sh` reconstructs the 708,456-byte
+  `sh tests/epsilon/checking/run.sh` reconstructs the 709,645-byte
   receipt and checks 70 exact judgments with the selected evaluator.
   Follow the [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
   Alpha local-slot/label/fixup resources have zero use here, and match coverage
@@ -190,14 +190,14 @@ prerequisite to every lower-rung milestone.
   The [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
   separately bounds intermediate and complete byte counts below `2^62`;
   synthetic overflowing metadata is not an admitted-source refusal case.
-  Next acceptance: witness and classify any remaining compiler-execution
-  resource gap using full admitted source, not injected counters. The
-  [balanced-arithmetic probe](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
-  at `8148975c62` compiled 64 shallow trees and returned canonical syntax-storage
-  refusal for 512. Its allocation inventory does not justify continued scaling
-  as a heap witness. Next action: select a separately justified source path or
-  establish a whole-producer allocation bound; do not add a ledger or increase
-  provision merely to preserve the original probe premise.
+  Next acceptance: account for remaining compiler-execution allocation against
+  the selected profile, using a whole-producer bound or a separately justified
+  full admitted source that exposes a gap. The
+  [arithmetic allocation inventory](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
+  and [name-storage argument and regression](tests/delta/resource-boundary/README.md#long-identifier-storage)
+  bound particular paths, not the whole producer. Neither justifies further
+  arbitrary source scaling, an allocation ledger, or increased provision by
+  itself. Preserve these existing controls rather than rediscovering them.
   If it exhausts the evaluator, trace the allocation owner and governing
   observation contract before changing implementation or provision; do not
   assume a Gamma-owned failure is a DCOUT frame. Distinguish cumulative
