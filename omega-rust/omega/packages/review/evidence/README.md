@@ -136,6 +136,11 @@ binding meaning, not evaluation receipts. Table bindings retain exact attached
 data identities; installation rows retain both the published ceiling and the
 checked realization reach.
 
+Operator and top-level requirement signature capture borrows the checked
+compilation when there are no static parameters to instantiate. Nonempty
+static parameter lists retain clone-local instantiation. Both paths preserve
+source association, lifetime validation, and complete signature projection.
+
 The `OMEGA-SELECTED-PROVIDER-POLICY` version-2 component places grants inside
 their complete normalized plan and links atomic family coordinates by canonical
 plan index. Recovery checks complete family coverage and typed structural

@@ -7,6 +7,7 @@ use crate::record::{
     PackagePolicyServiceSignature, PackageReviewNominalIdentity,
     PackageReviewTraitRequirementParameter,
 };
+use std::borrow::Cow;
 
 pub(super) fn project_declaration(
     compilation: &CheckedCompilation,
@@ -165,24 +166,28 @@ pub(super) fn project(
     {
         return Err(rejected("service requirement repeats a lifetime binder"));
     }
-    let mut projected = compilation.clone();
+    let mut projected = Cow::Borrowed(compilation);
     let source_parameters = parameters;
     let mut parameters = parameters.to_vec();
     let mut scopes = Vec::new();
-    let lifetime_substitutions = lifetimes
-        .iter()
-        .cloned()
-        .map(|name| (name.clone(), name))
-        .collect::<Vec<_>>();
-    crate::capture::calling::application::signature::instantiate_static_parameters(
-        &mut projected,
-        &mut parameters,
-        &[],
-        &lifetime_substitutions,
-        lifetimes,
-        &mut scopes,
-        0,
-    )?;
+    // At depth zero, an empty static telescope performs no instantiation.
+    // Preserve the checked input until a parameter needs clone-local storage.
+    if !parameters.is_empty() {
+        let lifetime_substitutions = lifetimes
+            .iter()
+            .cloned()
+            .map(|name| (name.clone(), name))
+            .collect::<Vec<_>>();
+        crate::capture::calling::application::signature::instantiate_static_parameters(
+            projected.to_mut(),
+            &mut parameters,
+            &[],
+            &lifetime_substitutions,
+            lifetimes,
+            &mut scopes,
+            0,
+        )?;
+    }
     let (binders, static_parameters) = project_type_parameters(
         &projected,
         compilation,
