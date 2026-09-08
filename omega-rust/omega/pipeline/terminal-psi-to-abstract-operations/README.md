@@ -115,7 +115,16 @@ dominance, not serialized block IDs. Retained frontier snapshots independently
 rejoin cleanup and rebinding. Claims, qualifications, projected transfers, and
 linear arrivals remain outside this bounded admission. Unobserved plain owned
 payloads use the ordinary native graph without copies; this is not admission of
-runtime field observations or structural call transport.
+runtime field observations or structural call transport of those owned values.
+
+Initialized primitive locals retain their exact operation-result place and typed
+initializer. Local stores remain distinct from incoming-parameter stores; fresh
+reads retain their source place and new scalar result. Current-IR checking
+reconstructs primitive type, access, claim-free unrestricted storage, dominating
+establishment, and nonescape. Optimization cannot treat a read as its initializer
+or an earlier observation across mutation. The ordinary native graph realizes
+fixed 64-bit integer locals and their borrowed calls; other primitive read widths
+remain explicitly unsupported downstream.
 
 Unranked modules take the same ordinary verification and abstract route without
 a progress claim. Scalar cycles proceed through the shared

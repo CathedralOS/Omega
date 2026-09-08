@@ -21,7 +21,8 @@ pub(crate) fn validate_structural_place_availability(
         }
         for (node_index, node) in block.nodes.iter().enumerate() {
             let place = match &node.operation {
-                O::ByteSequenceSubslice { result, .. }
+                O::EstablishPrimitiveLocal { result, .. }
+                | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
@@ -93,6 +94,7 @@ fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             .chain(&when_false.structural_bindings)
             .map(|binding| binding.argument.place)
             .collect(),
+        O::PrimitiveLocalStore { destination, .. } => vec![*destination],
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => vec![destination.place],
         O::CallUnit {
@@ -156,7 +158,8 @@ fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             dynamic_dispatch.initial.source.place,
             dynamic_dispatch.rebound.source.place,
         ],
-        O::ByteSequenceSubslice { source, .. }
+        O::PrimitiveScalarRead { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceLength { source, .. }

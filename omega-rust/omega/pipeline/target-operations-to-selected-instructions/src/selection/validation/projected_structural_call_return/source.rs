@@ -82,6 +82,9 @@ pub(super) fn replay(
                 target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                     ..
                 }
+                | target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                    ..
+                }
                 | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
                     return Err(SelectedInstructionError::UnsupportedProjectedStructuralShape);
                 }

@@ -281,7 +281,8 @@ observations. Bounded projected single-store forms include one literal record-ar
 index. Ordinary Unit primitive locals use initialized referents and current
 storage reads through the [shared call producer](scalar_calls.md#unit-and-boundary-integration);
 immutable snapshots survive borrowed mutations. Native establishment/read
-realization remains unsupported. Delayed results, computed IEEE sources,
+realization currently supports fixed 64-bit integer locals through the ordinary
+graph. Other primitive read widths, delayed results, computed IEEE sources,
 short-circuit store values, and richer indexed/aggregate forms need further
 producer support.
 

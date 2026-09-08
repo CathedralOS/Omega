@@ -127,6 +127,11 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    InvalidPrimitiveLocal {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     InvalidWriteOnlyPrimitiveStore {
         machine: MachineId,
         block: BlockId,

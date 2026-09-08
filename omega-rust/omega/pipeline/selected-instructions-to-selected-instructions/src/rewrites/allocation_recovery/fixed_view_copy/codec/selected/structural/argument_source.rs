@@ -21,6 +21,10 @@ pub(super) fn encode_argument_source(bytes: &mut Vec<u8>, source: &TargetStructu
             bytes.extend_from_slice(&block.get().to_le_bytes());
             bytes.extend_from_slice(&place.get().to_le_bytes());
         }
+        TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+        }
     }
 }
 
@@ -38,6 +42,9 @@ pub(super) fn decode_argument_source(
             block: decode_id(cursor, BlockId::new)?,
             place: decode_id(cursor, PlaceId::new)?,
         }),
+        3 => Ok(TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            psi_operation: decode_id(cursor, OperationId::new)?,
+        }),
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     }
 }
@@ -50,6 +57,9 @@ mod tests {
     #[test]
     fn argument_source_round_trip_preserves_origin_and_establishment() {
         for source in [
+            TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                psi_operation: OperationId::new(313).unwrap(),
+            },
             TargetStructuralArgumentSource::BlockParameter {
                 block: BlockId::new(211).unwrap(),
                 place: PlaceId::new(213).unwrap(),
@@ -79,6 +89,8 @@ mod tests {
 
     #[test]
     fn argument_source_rejects_unknown_kind_and_absent_establishment() {
+        assert!(decode_argument_source(&mut Cursor::new(&[4])).is_err());
+        assert!(decode_argument_source(&mut Cursor::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[2])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[1, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
         let mut first = Vec::new();
@@ -92,5 +104,16 @@ mod tests {
             );
         }
         assert_ne!(first, second);
+        let mut local = Vec::new();
+        encode_argument_source(
+            &mut local,
+            &TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                psi_operation: OperationId::new(313).unwrap(),
+            },
+        );
+        assert_ne!(
+            first, local,
+            "identical producer ID cannot equate a view and primitive local"
+        );
     }
 }

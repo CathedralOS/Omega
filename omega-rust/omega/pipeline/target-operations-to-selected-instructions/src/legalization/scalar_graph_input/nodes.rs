@@ -6,6 +6,8 @@ pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
 ) -> Option<(OperationId, Option<ValueId>)> {
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
+    | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
+    | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::CallUnit { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
@@ -48,6 +50,11 @@ pub(in crate::legalization) fn instruction(
 }
 fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)> {
     match &node.operation {
+        AbstractOperation::PrimitiveScalarRead {
+            psi_operation,
+            result,
+            ..
+        } => Some((*psi_operation, result.value)),
         AbstractOperation::IeeeFloatConstant {
             psi_operation,
             result,
@@ -67,7 +74,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             crash_continuations,
             ..
         } if result.scalar_type == ScalarType::Integer(u64_type())
-            && structural_arguments.len() == 1
+            && structural_arguments.len() <= 1
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
@@ -208,6 +215,16 @@ pub(super) fn validate(
         {
             return Err(invalid);
         }
+        if matches!(
+            node.operation,
+            AbstractOperation::EstablishPrimitiveLocal { .. }
+                | AbstractOperation::PrimitiveLocalStore { .. }
+        ) {
+            if result.is_some() || !node.definitions.is_empty() {
+                return Err(invalid);
+            }
+            continue;
+        }
         if let AbstractOperation::ByteSequenceSubslice {
             source,
             start,
@@ -318,7 +335,8 @@ pub(super) fn validate(
                 ScalarType::IeeeFloat(value.format())
             }
             AbstractOperation::BooleanConstant { .. } => ScalarType::Boolean,
-            AbstractOperation::CallStructuralScalar { result, .. } => result.scalar_type,
+            AbstractOperation::CallStructuralScalar { result, .. }
+            | AbstractOperation::PrimitiveScalarRead { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {
                 source,
                 index,

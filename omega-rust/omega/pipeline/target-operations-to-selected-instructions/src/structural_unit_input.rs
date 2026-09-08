@@ -18,35 +18,16 @@ pub(crate) fn accepts_write_borrow(
     parameters: &[Parameter<'_>],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    let [parameter] = parameters else {
-        return false;
-    };
-    let Some(scalar_count) = call_plan.parameters.len().checked_sub(1) else {
-        return false;
-    };
-    let semantic = parameter.semantic;
-    // Scalar results compose with a primitive write through the same reference
-    // ABI. Record-field and other scalar structural bodies retain their fences.
-    let result_shape = call_plan.result.as_ref().map(|placement| placement.shape);
-    if result_shape.is_some_and(|shape| {
-        shape != calling_conventions::ValueShape::integer(8, 8)
-            || !structural_types.iter().any(|declaration| {
-                declaration.id == semantic.structural_type
-                    && matches!(declaration.shape,
-                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                        if integer.carrier() == IntegerCarrier::Fixed
-                            && [8, 16, 32, 64].contains(&integer.bits()))
-            })
-    }) {
+    if parameters.is_empty() {
         return false;
     }
-    let Some(referent) =
-        crate::structural_reference_input::shape(semantic.structural_type, structural_types)
-    else {
+    let Some(scalar_count) = call_plan.parameters.len().checked_sub(parameters.len()) else {
         return false;
     };
-    let shape =
-        calling_conventions::ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+    let result_shape = call_plan.result.as_ref().map(|placement| placement.shape);
+    if result_shape.is_some_and(|shape| shape != calling_conventions::ValueShape::integer(8, 8)) {
+        return false;
+    }
     let mut shapes = call_plan.parameters[..scalar_count]
         .iter()
         .map(|placement| placement.shape)
@@ -62,7 +43,58 @@ pub(crate) fn accepts_write_borrow(
     }) {
         return false;
     }
-    shapes.push(shape);
+    for (position, parameter) in parameters.iter().enumerate() {
+        let semantic = parameter.semantic;
+        let Some(declaration) = structural_types
+            .iter()
+            .find(|declaration| declaration.id == semantic.structural_type)
+        else {
+            return false;
+        };
+        let primitive = matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_));
+        // Multiple primitive references have independent incoming pointers.
+        // The existing single-record store route retains its result restriction.
+        if (parameters.len() > 1 && !primitive)
+            || result_shape.is_some()
+                && !matches!(declaration.shape,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                    if integer.carrier() == IntegerCarrier::Fixed
+                        && [8, 16, 32, 64].contains(&integer.bits()))
+        {
+            return false;
+        }
+        let Some(referent) =
+            crate::structural_reference_input::shape(semantic.structural_type, structural_types)
+        else {
+            return false;
+        };
+        let shape = calling_conventions::ValueShape::borrowed_reference(
+            referent.byte_size,
+            referent.alignment,
+        );
+        if semantic.position as usize != position
+            || parameters[..position]
+                .iter()
+                .any(|previous| previous.semantic.place == semantic.place)
+            || !(matches!(
+                semantic.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) || semantic.access == StructuralAccess::SharedBorrow && primitive)
+            || semantic.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !semantic.qualifications.is_empty()
+            || !semantic.projected_qualifications.is_empty()
+            || parameter.target.place != semantic.place
+            || parameter.target.structural_type != semantic.structural_type
+            || parameter.target.access != semantic.access
+            || parameter.target.multiplicity != semantic.multiplicity
+            || !parameter.target.projected_qualifications.is_empty()
+            || parameter.target.shape != shape
+            || parameter.target.placement != call_plan.parameters[scalar_count + position]
+        {
+            return false;
+        }
+        shapes.push(shape);
+    }
     calling_conventions::evaluate_call_plan(
         call_plan.policy,
         &calling_conventions::CallSignature {
@@ -71,21 +103,6 @@ pub(crate) fn accepts_write_borrow(
         },
     )
     .is_ok_and(|expected| expected == *call_plan)
-        && semantic.position == 0
-        && matches!(
-            semantic.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        && semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && semantic.qualifications.is_empty()
-        && semantic.projected_qualifications.is_empty()
-        && parameter.target.place == semantic.place
-        && parameter.target.structural_type == semantic.structural_type
-        && parameter.target.access == semantic.access
-        && parameter.target.multiplicity == semantic.multiplicity
-        && parameter.target.projected_qualifications.is_empty()
-        && parameter.target.shape == shape
-        && parameter.target.placement == call_plan.parameters[scalar_count]
 }
 
 /// An immutable byte descriptor is borrowed through one native pointer.

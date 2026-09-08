@@ -8,6 +8,7 @@ mod control;
 mod derived_calls;
 mod ieee_borrows;
 mod parameters;
+mod primitive_locals;
 mod process_exit;
 mod projected_borrows;
 mod scalar_stores;

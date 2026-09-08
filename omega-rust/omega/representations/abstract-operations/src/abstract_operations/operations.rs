@@ -20,6 +20,24 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// Establish initialized activation-local primitive storage, not a scalar alias.
+    EstablishPrimitiveLocal {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        value: AbstractResult,
+    },
+    /// Replace an established primitive local through its retained place identity.
+    PrimitiveLocalStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        value: AbstractResult,
+    },
+    /// Make a fresh observation of an established local or readable primitive borrow.
+    PrimitiveScalarRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+    },
     /// Establish an immutable view with the exact source, endpoints and two-leg bounds proof.
     ByteSequenceSubslice {
         psi_operation: OperationId,

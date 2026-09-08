@@ -36,6 +36,11 @@ pub(crate) fn has_free_unit_entry(
 }
 
 pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnostics::Diagnostic> {
+    if artifact.requires_primitive_storage_replay && artifact.fragment_replay.is_none() {
+        return Err(diagnostics::Diagnostic::error(
+            "primitive storage operations require retained physical replay evidence",
+        ));
+    }
     if artifact.fragment_replay.is_none()
         && artifact.functions().iter().any(|function| {
             function.unit_parameters.len() != function.unit_parameter_homes.len()

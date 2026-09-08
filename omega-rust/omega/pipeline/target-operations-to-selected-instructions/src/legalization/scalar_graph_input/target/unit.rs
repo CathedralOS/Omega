@@ -76,6 +76,67 @@ pub(super) fn validate_operation(
     };
     match (target, abstracted) {
         (
+            TargetUnitOperation::EstablishPrimitiveLocal {
+                psi_operation,
+                result,
+                value,
+                shape,
+            },
+            AbstractOperation::EstablishPrimitiveLocal {
+                psi_operation: expected_operation,
+                result: expected,
+                value: expected_value,
+            },
+        ) if psi_operation == expected_operation
+            && result == expected
+            && value == expected_value
+            && super::super::scalar_shape(value.scalar_type) == Some(*shape)
+            && sources.iter().any(|(identity, source)| {
+                *identity == value.value && source.scalar_type() == value.scalar_type
+            }) => {}
+        (
+            TargetUnitOperation::PrimitiveLocalStore {
+                psi_operation,
+                destination,
+                value,
+            },
+            AbstractOperation::PrimitiveLocalStore {
+                psi_operation: expected_operation,
+                destination: expected,
+                value: expected_value,
+            },
+        ) if psi_operation == expected_operation
+            && destination == expected
+            && value == expected_value
+            && sources.iter().any(|(identity, source)| {
+                *identity == value.value && source.scalar_type() == value.scalar_type
+            }) => {}
+        (
+            TargetUnitOperation::PrimitiveScalarRead {
+                psi_operation,
+                result,
+                source,
+            },
+            AbstractOperation::PrimitiveScalarRead {
+                psi_operation: expected_operation,
+                result: expected,
+                source: expected_source,
+            },
+        ) if psi_operation == expected_operation
+            && result == expected
+            && source == expected_source =>
+        {
+            sources.push((
+                result.value,
+                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: super::super::scalar_shape(result.scalar_type).ok_or(invalid.clone())?,
+                }),
+            ));
+        }
+        (
             TargetUnitOperation::EstablishByteSequenceLiteral {
                 psi_operation,
                 place,
@@ -321,6 +382,23 @@ pub(super) fn validate_operation(
                     })
             {
                 return Err(invalid);
+            }
+            if let TargetUnitOperation::StructuralScalarCall {
+                psi_operation,
+                result,
+                ..
+            } = target
+            {
+                sources.push((
+                    result.value,
+                    Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                        defining_operation: *psi_operation,
+                        source_value: result.value,
+                        scalar_type: result.scalar_type,
+                        shape: super::super::scalar_shape(result.scalar_type)
+                            .ok_or(invalid.clone())?,
+                    }),
+                ));
             }
             for (argument, semantic) in arguments.iter().zip(structural_arguments) {
                 super::super::structural_call::validate_argument(

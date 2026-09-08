@@ -16,6 +16,9 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
     use AbstractOperation as O;
     match operation {
         O::ByteSequenceSubslice { .. }
+        | O::EstablishPrimitiveLocal { .. }
+        | O::PrimitiveLocalStore { .. }
+        | O::PrimitiveScalarRead { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }

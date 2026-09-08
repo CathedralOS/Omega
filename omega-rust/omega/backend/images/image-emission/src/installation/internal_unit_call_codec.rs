@@ -43,6 +43,10 @@ fn encode_structural_source(
     source: &InternalUnitStructuralArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
+        InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal { psi_operation } => {
+            bytes.push(3);
+            push_u64(bytes, psi_operation.get());
+        }
         InternalUnitStructuralArgumentSourceRecord::Placement(placement) => {
             bytes.push(0);
             encode_direct_placement(bytes, placement)?;
@@ -64,6 +68,12 @@ fn decode_structural_source(
     reader: &mut Reader<'_>,
 ) -> Result<InternalUnitStructuralArgumentSourceRecord, InstallationError> {
     match reader.u8()? {
+        3 => Ok(
+            InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                psi_operation: OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            },
+        ),
         0 => Ok(InternalUnitStructuralArgumentSourceRecord::Placement(
             decode_direct_placement(reader)?,
         )),
@@ -771,6 +781,9 @@ mod tests {
         assert_eq!(bytes, [1, 8, 7, 6, 5, 4, 3, 2, 1]);
         for source in [
             established,
+            InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                psi_operation: OperationId::new(0x0102_0304_0506_0708).unwrap(),
+            },
             InternalUnitStructuralArgumentSourceRecord::BlockParameter {
                 block: BlockId::new(211).unwrap(),
                 place: PlaceId::new(213).unwrap(),
@@ -799,8 +812,12 @@ mod tests {
             Err(InstallationError::ZeroInternalUnitCallIdentity),
         );
         assert_eq!(
-            decode_structural_source(&mut Reader::new(&[3])),
-            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(3)),
+            decode_structural_source(&mut Reader::new(&[4])),
+            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(4)),
+        );
+        assert_eq!(
+            decode_structural_source(&mut Reader::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0])),
+            Err(InstallationError::ZeroInternalUnitCallIdentity),
         );
         for zero_offset in [1, 9] {
             let mut bytes = Vec::new();

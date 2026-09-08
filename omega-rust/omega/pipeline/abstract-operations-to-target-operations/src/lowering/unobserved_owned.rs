@@ -60,6 +60,34 @@ pub(super) fn accepts(
         | AbstractOperation::ExactIntegerAdd { .. }
         | AbstractOperation::ExactIntegerSubtract { .. }
         | AbstractOperation::Call { .. } => true,
+        AbstractOperation::EstablishPrimitiveLocal { result, .. } => !declarations
+            .iter()
+            .any(|parameter| parameter.place == result.place),
+        AbstractOperation::PrimitiveLocalStore { destination, .. }
+        | AbstractOperation::PrimitiveScalarRead {
+            source: destination,
+            ..
+        } => {
+            local(function, *destination)
+                && !declarations
+                    .iter()
+                    .any(|parameter| parameter.place == *destination)
+        }
+        AbstractOperation::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } => structural_arguments.iter().all(|argument| {
+            argument.access != StructuralAccess::Owned
+                && argument.path.is_empty()
+                && local(function, argument.place)
+                && !declarations
+                    .iter()
+                    .any(|parameter| parameter.place == argument.place)
+        }),
         AbstractOperation::Return {
             cleanup_actions, ..
         }
@@ -84,9 +112,16 @@ pub(super) fn accepts(
             edge.trivial_affine_discards.is_empty()
                 && bindings(&declarations, &edge.structural_bindings)
         }),
-        // Calls carrying structural actuals and all structural observations or
-        // establishments need their own physical realization, even if unused.
+        // Owned parameters remain unobserved even when unrelated local storage
+        // is borrowed. All other structural operations need their own realization.
         _ => false,
+    })
+}
+
+fn local(function: &AbstractFunction, place: PlaceId) -> bool {
+    function.operations.iter().any(|operation| {
+        matches!(operation,
+        AbstractOperation::EstablishPrimitiveLocal { result, .. } if result.place == place)
     })
 }
 

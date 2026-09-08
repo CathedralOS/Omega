@@ -47,6 +47,8 @@ pub(super) fn folded_zero<'a>(
                     *source == definition.value
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore { value, .. }
+                | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value, .. }
+                | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value, .. } => {
                     value.value == definition.value
                 }
@@ -61,6 +63,7 @@ pub(super) fn folded_zero<'a>(
                     *index == definition.value || *length == definition.value
                 }
                 LegalizedScalarInstructionKind::Constant(_)
+                | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,

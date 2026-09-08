@@ -13,18 +13,21 @@ pub(super) fn argument(
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let [source] = caller.structural_parameters.as_slice() else {
-        return Err(invalid);
-    };
+    let source = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == semantic.place)
+        .ok_or(invalid.clone())?;
     let target_caller = native
         .functions
         .iter()
         .find(|function| function.machine == caller.machine)
         .ok_or(invalid.clone())?;
-    let [parameter] = super::super::structural_parameters(target_caller).ok_or(invalid.clone())?
-    else {
-        return Err(invalid);
-    };
+    let parameter = super::super::structural_parameters(target_caller)
+        .ok_or(invalid.clone())?
+        .iter()
+        .find(|parameter| parameter.place == semantic.place)
+        .ok_or(invalid.clone())?;
     let types = &plan.structural_types;
     let root_shape = crate::structural_reference_input::shape(source.structural_type, types)
         .ok_or(invalid.clone())?;
@@ -40,10 +43,15 @@ pub(super) fn argument(
             (source.access, semantic.access),
             (
                 StructuralAccess::MutableBorrow,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
             ) | (
                 StructuralAccess::WriteOnlyBorrow,
                 StructuralAccess::WriteOnlyBorrow
+            ) | (
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow
             )
         )
         || source.multiplicity != StructuralMultiplicity::Unrestricted

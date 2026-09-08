@@ -1,15 +1,15 @@
-//! Valid primitive storage must reject until native referent realization exists.
+//! Canonical primitive storage retains its real local and observation identities.
 
 use proof_admission::AdmissionProfile;
 use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact_sections,
-    lower_artifact_sections_for_native_realization, lower_artifact_sections_for_optimization,
+    lower_artifact_sections, lower_artifact_sections_for_native_realization,
+    lower_artifact_sections_for_optimization,
 };
 
 #[test]
-fn borrowed_primitive_local_rejects_at_every_native_entrance() {
+fn borrowed_primitive_local_survives_every_abstract_entrance() {
     let source = r#"
         machine reset(value: &mut u64) -> u64 { value = 0; 7 }
         machine enter(value: &mut u64) {
@@ -47,19 +47,30 @@ fn borrowed_primitive_local_rejects_at_every_native_entrance() {
     let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("canonical proof");
     let profile = AdmissionProfile::default();
     terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
-        .expect("valid before native rejection");
+        .expect("valid primitive storage");
     for result in [
-        lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).map(|_| ()),
+        lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile),
         lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
-            .map(|_| ()),
+            .map(|input| input.plan().clone()),
         lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
-            .map(|_| ()),
+            .map(|input| input.plan().clone()),
     ] {
-        assert!(
-            matches!(result, Err(ArtifactLoweringError::Lowering(
-            LoweringError::UnsupportedPrimitiveLocalEstablishment(operation)
-        )) if operation == establishment),
-            "native rejection: {result:?}"
-        );
+        let plan = result.expect("primitive storage survives abstract admission");
+        let operations = plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .collect::<Vec<_>>();
+        assert!(operations.iter().any(|operation| matches!(operation,
+            abstract_operations::AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
+            if *psi_operation == establishment)));
+        assert!(operations.iter().any(|operation| matches!(
+            operation,
+            abstract_operations::AbstractOperation::PrimitiveScalarRead { .. }
+        )));
+        assert!(operations.iter().any(|operation| matches!(
+            operation,
+            abstract_operations::AbstractOperation::CallStructuralScalar { .. }
+        )));
     }
 }

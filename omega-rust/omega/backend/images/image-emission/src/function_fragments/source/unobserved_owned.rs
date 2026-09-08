@@ -8,7 +8,8 @@ mod tests;
 
 /// The common source replay owns plain-type eligibility, complete frontier
 /// conservation, and demand. This predicate bounds the image projection to
-/// scalar graphs with no executable structural uses or storage.
+/// scalar graphs without executable uses of their owned parameters. Independently
+/// established primitive locals may have storage and borrowed calls.
 pub(in crate::function_fragments) fn arrivals(
     function: &AbstractFunction,
     target: &TargetFunction,
@@ -23,20 +24,24 @@ pub(in crate::function_fragments) fn arrivals(
         || !matches!(target.operation, TargetOperation::ControlGraph(_))
         || selected.structural.is_none()
         || selected.ranked.is_some()
-        || !selected.memory_accesses.is_empty()
+        || selected.memory_accesses.iter().any(|access| !primitive_local(function, access.place))
         || selected.local_storage_slots.iter().any(|slot| {
             !matches!(
                 slot.id,
                 selected_instructions::LocalStorageSlotId::Spill { .. }
             )
+                && !matches!(slot.id, selected_instructions::LocalStorageSlotId::Structural { operation, place }
+                    if function.operations.iter().any(|row| matches!(row,
+                        AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
+                            if *psi_operation == operation && result.place == place)))
         })
         || !selected.boundary_settlements.is_empty()
         || selected.calls.iter().any(|call| {
             call.call.arguments.iter().any(|argument| {
-                matches!(
-                    argument,
-                    legalized_operations::LegalizedScalarArgument::Structural { .. }
-                )
+                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target }
+                    if !primitive_local(function, semantic.place)
+                        || !matches!(target.source, target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { .. })
+                        || semantic.access == StructuralAccess::Owned)
             })
         })
     {
@@ -92,6 +97,26 @@ pub(in crate::function_fragments) fn arrivals(
         return false;
     }
     function.operations.iter().all(|operation| match operation {
+        AbstractOperation::EstablishPrimitiveLocal { .. }
+        | AbstractOperation::PrimitiveLocalStore { .. }
+        | AbstractOperation::PrimitiveScalarRead { .. } => {
+            super::super::structural::primitive_operation_retained(function, selected, operation)
+                && match operation {
+                    AbstractOperation::PrimitiveScalarRead { source, .. } => {
+                        primitive_local(function, *source)
+                    }
+                    _ => true,
+                }
+        }
+        AbstractOperation::CallStructuralScalar { psi_operation, .. }
+        | AbstractOperation::CallUnit { psi_operation, .. } => {
+            selected
+                .calls
+                .iter()
+                .filter(|call| call.operation == *psi_operation)
+                .count()
+                == 1
+        }
         AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::IntegerEqual { .. }
@@ -119,6 +144,28 @@ pub(in crate::function_fragments) fn arrivals(
         }
         _ => false,
     })
+}
+
+fn primitive_local(function: &AbstractFunction, place: semantic_vocabulary::PlaceId) -> bool {
+    !function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .block_entries
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .any(|parameter| parameter.place == place)
+        && function
+            .operations
+            .iter()
+            .filter(|operation| {
+                matches!(operation,
+            AbstractOperation::EstablishPrimitiveLocal { result, .. } if result.place == place)
+            })
+            .count()
+            == 1
 }
 
 /// Match the exact scalar return edge, value, and ordered no-code actions.

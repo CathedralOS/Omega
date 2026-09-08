@@ -3,7 +3,10 @@ mod byte_input;
 mod byte_output;
 pub(super) use byte_input::cleanup_actions_match as read_result_cleanup_actions_match;
 mod established_views;
+mod primitive_locals;
+pub(super) use primitive_locals::operation_retained as primitive_operation_retained;
 mod process_exit;
+mod scalar_result;
 mod validation;
 use super::{Error, attribution, host, source};
 use crate::{ObjectBoundarySettlement, ObjectFunction};
@@ -69,6 +72,15 @@ fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType
         return Err(Error::Mismatch("Unit call scalar source types disagree"));
     }
     Ok(scalar_type)
+}
+
+pub(super) fn published_call(contract: &selected_instructions::SelectedCallContract) -> bool {
+    contract.call.result_placement.is_none()
+        || contract
+            .call
+            .arguments
+            .iter()
+            .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
 }
 fn pointer(placement: &ValuePlacement) -> Result<calling_conventions::MachineRegister, Error> {
     match placement.locations.as_slice() {
@@ -282,7 +294,7 @@ pub(super) fn populate(
     for contract in selected
         .calls
         .iter()
-        .filter(|contract| contract.call.result_placement.is_none())
+        .filter(|contract| published_call(contract))
     {
         let call = &contract.call;
         let span = rows
@@ -324,6 +336,14 @@ pub(super) fn populate(
                 return Err(Error::Unsupported("Unit call scalar publication"));
             };
             let (argument_source, location) = match &target.source {
+                target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                    psi_operation,
+                } => (
+                    InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                        psi_operation: *psi_operation,
+                    },
+                    primitive_locals::location(source, selected, target, *psi_operation)?,
+                ),
                 target_operations::TargetStructuralArgumentSource::Placement(placement) => (
                     InternalUnitStructuralArgumentSourceRecord::Placement(placement.clone()),
                     source_location(selected, target.place)?,
@@ -392,12 +412,13 @@ pub(super) fn populate(
                 completion_receipts: completion_receipts.clone(),
             },
         };
+        let semantic_result = scalar_result::result(source, selected, contract)?;
         function.internal_unit_calls.push(InternalUnitCallRecord {
             source: call_source,
             owner: CallSiteOwner::Operation(contract.operation),
             target: call.callee,
-            result: None,
-            semantic_result: None,
+            result: semantic_result.map(|result| result.scalar_type),
+            semantic_result,
             structural_result: None,
             scalar_arguments,
             arguments,

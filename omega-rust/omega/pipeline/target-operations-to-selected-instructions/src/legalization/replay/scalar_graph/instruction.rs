@@ -26,6 +26,34 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
+                result,
+                value,
+                shape,
+            },
+            AbstractOperation::EstablishPrimitiveLocal {
+                result: expected,
+                value: expected_value,
+                ..
+            },
+        ) if result == expected
+            && value == expected_value
+            && scalar_graph_input::scalar_shape(value.scalar_type) == Some(*shape) => {}
+        (
+            LegalizedScalarInstructionKind::PrimitiveLocalStore { destination, value },
+            AbstractOperation::PrimitiveLocalStore {
+                destination: expected,
+                value: expected_value,
+                ..
+            },
+        ) if destination == expected && value == expected_value => {}
+        (
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { source },
+            AbstractOperation::PrimitiveScalarRead {
+                source: expected, ..
+            },
+        ) if source == expected => {}
+        (
             LegalizedScalarInstructionKind::HostedReadByte {
                 boundary,
                 result,
@@ -193,10 +221,7 @@ pub(super) fn validate(
                 ..
             },
         ) => {
-            if structural_arguments.len() > 1
-                || structural_arguments.is_empty()
-                    && !matches!(node.operation, AbstractOperation::CallUnit { .. })
-            {
+            if structural_arguments.len() > 1 {
                 return Err(invalid);
             }
             let expected = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;

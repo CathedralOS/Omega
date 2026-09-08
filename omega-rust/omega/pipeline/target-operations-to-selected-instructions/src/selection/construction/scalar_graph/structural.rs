@@ -12,6 +12,8 @@ mod block_views;
 mod byte_views;
 mod literals;
 mod local_storage;
+mod primitive_locals;
+pub(super) use primitive_locals::read;
 mod scalar_store;
 mod subslice;
 
@@ -76,7 +78,8 @@ pub(super) fn entry(
         return Ok(());
     };
     if signature.parameters.is_empty() {
-        return if crate::selection::literal_storage_input::accepts(source)
+        return if crate::selection::primitive_local_input::accepts(source)
+            || crate::selection::literal_storage_input::accepts(source)
             || crate::selection::read_result_input::accepts(source)
         {
             Ok(())
@@ -124,7 +127,8 @@ pub(super) fn entry(
         let used = crate::selection::established_view_input::transferred(source, place) || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
-            LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
+            | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place == place)),
@@ -270,6 +274,14 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
+            | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
+    ) {
+        primitive_locals::write(source, row, builder)?;
+        return Ok(true);
+    }
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }

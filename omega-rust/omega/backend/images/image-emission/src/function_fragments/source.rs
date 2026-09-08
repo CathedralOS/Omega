@@ -11,6 +11,17 @@ pub(super) use unobserved_owned::{arrivals as unobserved_owned_arrivals, scalar_
 #[cfg(test)]
 mod tests;
 
+pub(super) fn requires_primitive_storage_replay(operations: &[AbstractOperation]) -> bool {
+    operations.iter().any(|operation| {
+        matches!(
+            operation,
+            AbstractOperation::EstablishPrimitiveLocal { .. }
+                | AbstractOperation::PrimitiveLocalStore { .. }
+                | AbstractOperation::PrimitiveScalarRead { .. }
+        )
+    })
+}
+
 pub(super) fn fragments(
     source: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> &FunctionFragmentEmissionPlan {
@@ -132,7 +143,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         if abstracted.attachment != fragment.attachment
             || targeted.provenance != fragment.provenance
             || (!abstracted.structural_parameters.is_empty() && structural.is_none())
-            || (structural.is_some() && !unit && targeted.mixed_structural_scalar_abi.is_none())
+            || (structural.is_some_and(|contract| !contract.parameters.is_empty())
+                && !unit
+                && targeted.mixed_structural_scalar_abi.is_none())
             || (structural.is_none()
                 && (!abstracted.entry_claims.is_empty()
                     || (!unit && !abstracted.published_service_ceiling.is_empty())))
@@ -191,6 +204,22 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
+                AbstractOperation::EstablishPrimitiveLocal { .. }
+                | AbstractOperation::PrimitiveLocalStore { .. }
+                | AbstractOperation::PrimitiveScalarRead { .. } => {
+                    super::structural::primitive_operation_retained(abstracted, selected, operation)
+                }
+                AbstractOperation::CallStructuralScalar { psi_operation, callee, result, .. } => {
+                    let (_, target) = function(source, *callee)?;
+                    selected.calls.iter().filter(|row| row.operation == *psi_operation
+                        && row.call.callee == *callee
+                        && row.call.result_placement.as_ref().is_some_and(|placement| {
+                            target.mixed_structural_scalar_abi.as_ref().is_some_and(|abi|
+                                abi.result.scalar_type == result.scalar_type
+                                    && abi.result.placement == *placement
+                                    && abi.call_plan == row.call.call_plan)
+                        })).count() == 1
+                }
                 AbstractOperation::IntegerConstant { .. }
                 | AbstractOperation::BooleanConstant { .. } => true,
                 AbstractOperation::IeeeFloatConstant { .. } => {

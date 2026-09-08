@@ -103,7 +103,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 91;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 92;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2877,6 +2877,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             matches!(
                 argument.source,
                 machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { .. }
+                    | machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal { .. }
                     | machine_code::InternalUnitStructuralArgumentSourceRecord::BlockParameter { .. }
             )
         }) {

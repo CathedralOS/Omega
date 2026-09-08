@@ -3,6 +3,7 @@
 use super::*;
 
 mod availability;
+mod primitive_locals;
 
 pub(crate) use availability::validate_structural_place_availability;
 
@@ -59,6 +60,13 @@ pub(crate) fn validate_structural_root_operations(
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            primitive_locals::validate(
+                function,
+                block.id,
+                node_index,
+                &node.operation,
+                structural_types,
+            )?;
             match &node.operation {
                 O::ByteSequenceSubslice { source, .. }
                 | O::ByteSequenceLength { source, .. }

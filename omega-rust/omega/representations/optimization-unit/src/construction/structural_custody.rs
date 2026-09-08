@@ -30,6 +30,9 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*source);
             places.insert(result.place);
         }
+        O::PrimitiveLocalStore { destination, .. } => {
+            places.insert(*destination);
+        }
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {
             places.insert(destination.place);
@@ -38,7 +41,8 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         | O::EstablishTrivialAffineLocal { place, .. } => {
             places.insert(place.id);
         }
-        O::EstablishPayloadlessCase { result, .. }
+        O::EstablishPrimitiveLocal { result, .. }
+        | O::EstablishPayloadlessCase { result, .. }
         | O::EstablishAffineScalarRecord { result, .. }
         | O::CallStructural { result, .. }
         | O::BoundaryCall {
@@ -47,7 +51,8 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.insert(result.place);
         }
-        O::ByteSequenceRead { source, .. }
+        O::PrimitiveScalarRead { source, .. }
+        | O::ByteSequenceRead { source, .. }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }
@@ -114,7 +119,12 @@ pub(super) fn collect_operation_structural_places(
     structural_places: &mut Vec<StructuralPlaceDeclaration>,
 ) {
     match operation {
-        AbstractOperation::ByteSequenceSubslice {
+        AbstractOperation::EstablishPrimitiveLocal {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ByteSequenceSubslice {
             psi_operation,
             result,
             ..

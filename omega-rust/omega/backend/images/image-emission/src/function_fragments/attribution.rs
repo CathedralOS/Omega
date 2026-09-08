@@ -34,6 +34,10 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
                 | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
+                | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
+                | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
+                | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
+                | AbstractOperation::CallStructuralScalar { psi_operation, .. }
                 | AbstractOperation::Call { psi_operation, .. }
                 | AbstractOperation::CallUnit { psi_operation, .. }
                 | AbstractOperation::BoundaryCall { psi_operation, .. } => {

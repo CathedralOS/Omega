@@ -89,6 +89,8 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         Instruction::HostedWriteByteI32 { source, .. }
         | Instruction::HostedExitProcessI32 { source, .. } => *source == value,
         Instruction::StructuralScalarFieldStore { value: stored, .. }
+        | Instruction::EstablishPrimitiveLocal { value: stored, .. }
+        | Instruction::PrimitiveLocalStore { value: stored, .. }
         | Instruction::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
         Instruction::ByteSequenceSubslice {
             start, end, length, ..
@@ -106,6 +108,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         }
         Instruction::Constant(_)
         | Instruction::HostedReadByte { .. }
+        | Instruction::PrimitiveScalarRead { .. }
         | Instruction::EstablishByteSequenceLiteral { .. }
         | Instruction::ByteSequenceLength { .. }
         | Instruction::BoundarySettlement(_) => false,

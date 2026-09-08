@@ -93,14 +93,16 @@ no termination certificate or fixed-work bound. The
 exercise selected calls, scalar returns, and simultaneous backedge swaps through
 object/image/installation replay on four hosted targets and execution on supported
 hosts. Whole plain-owned, unqualified, claim-free Affine or Unrestricted inputs
-can also cross exact block arrivals when the entire body has no runtime
-structural observer. Their full value ABI, declarations, ordered bindings, and
+can also cross exact block arrivals when no runtime operation observes those
+owned places. Their full value ABI, declarations, ordered bindings, and
 no-code affine return discards remain in the graph. Scalar-only calls remain
 ordinary executable operations. Current ownership validates the exact live
 frontier and disposal order; target availability supplies no ownership authority.
 The input-only selected reader independently checks this bounded route and its
-ABI. Observed owned values, projected or structural call actuals, executable
-cleanup, and primitive locals require separate native realization.
+ABI. Observed owned values, projected or structural call actuals of those owned
+values, and executable cleanup require separate native realization.
+Independently established primitive locals can be read, written, and borrowed
+while those owned inputs remain unobserved.
 The [owned control-cycle regressions](../../../../tests/native-differential/tests/owned_control_cycles.rs)
 exercise ranking-only field erasure, selected scalar calls, and simultaneous
 owned swaps through four-target publication and matching-host execution.
@@ -112,6 +114,16 @@ callee in a Unit function or convert its referent to an owned copy.
 The [source-produced store-return tests](../../../../tests/native-differential/tests/primitive_store_return.rs)
 exercise the original caller word and independent scalar result through the
 ordinary physical and publication route.
+
+Primitive-local establishment, replacement and fresh reads use ordered graph
+operations with exact producer/place and scalar-value identities. Establishment
+requires activation-local backing; it is not an incoming ABI parameter or scalar
+snapshot. Borrowed calls retain an `EstablishedPrimitiveLocal` argument origin
+and their real scalar result. The selected consumer derives the local address
+and replays initialization, exact-width writes, and subsequent loads. The
+[primitive-local regressions](../../../../tests/native-differential/tests/primitive_locals.rs)
+cover the unchanged ranked `walk`, direct replacement and loop reinitialization
+through native publication. Native reads currently require fixed 64-bit integers.
 
 Closed-sum inspection of an admitted boundary result uses this same graph,
 without a fixed block count, arm order, or exit-only body template. Each case

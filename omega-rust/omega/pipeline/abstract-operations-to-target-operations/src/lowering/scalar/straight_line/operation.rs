@@ -17,6 +17,13 @@ pub(super) fn lower_operation(
     returned: &mut Option<TargetOperation>,
 ) -> Result<(), LoweringError> {
     match operation {
+        AbstractOperation::EstablishPrimitiveLocal { .. }
+        | AbstractOperation::PrimitiveLocalStore { .. }
+        | AbstractOperation::PrimitiveScalarRead { .. } => {
+            return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                function.machine,
+            ));
+        }
         AbstractOperation::DynamicDescriptorParameter { .. } => {}
         AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
         | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. } => {

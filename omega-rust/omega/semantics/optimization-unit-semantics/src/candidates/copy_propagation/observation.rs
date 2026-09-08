@@ -100,9 +100,10 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
     };
 
     match &mut normalized {
-        O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
-            replace(&mut value.value)
-        }
+        O::EstablishPrimitiveLocal { value, .. }
+        | O::PrimitiveLocalStore { value, .. }
+        | O::WriteOnlyPrimitiveStore { value, .. }
+        | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
         O::Call { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }
         | O::CallUnit { arguments, .. }
@@ -208,6 +209,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
+        | O::PrimitiveScalarRead { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }

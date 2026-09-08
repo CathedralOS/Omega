@@ -46,6 +46,24 @@ pub(super) fn available(
 // the caller; collecting their descriptions does not authorize a producer or use.
 fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
     match operation {
+        TargetUnitOperation::PrimitiveScalarRead {
+            psi_operation,
+            result,
+            ..
+        }
+        | TargetUnitOperation::StructuralScalarCall {
+            psi_operation,
+            result,
+            ..
+        } => Some((
+            result.value,
+            Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                defining_operation: *psi_operation,
+                source_value: result.value,
+                scalar_type: result.scalar_type,
+                shape: super::super::super::scalar_shape(result.scalar_type)?,
+            }),
+        )),
         TargetUnitOperation::BooleanConstant {
             psi_operation,
             result,

@@ -21,6 +21,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 Instruction::HostedWriteByteI32 { source, .. }
                 | Instruction::HostedExitProcessI32 { source, .. } => pending.push(*source),
                 Instruction::StructuralScalarFieldStore { value, .. }
+                | Instruction::EstablishPrimitiveLocal { value, .. }
+                | Instruction::PrimitiveLocalStore { value, .. }
                 | Instruction::WriteOnlyPrimitiveStore { value, .. } => pending.push(value.value),
                 Instruction::ByteSequenceSubslice {
                     start, end, length, ..
@@ -40,6 +42,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::Compare { left, right, .. } => pending.extend([*left, *right]),
                 Instruction::Constant(_)
                 | Instruction::HostedReadByte { .. }
+                | Instruction::PrimitiveScalarRead { .. }
                 | Instruction::EstablishByteSequenceLiteral { .. }
                 | Instruction::ByteSequenceLength { .. }
                 | Instruction::BoundarySettlement(_) => {}

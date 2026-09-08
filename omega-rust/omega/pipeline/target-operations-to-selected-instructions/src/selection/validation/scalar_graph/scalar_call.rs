@@ -119,6 +119,15 @@ pub(super) fn validate(
         if argument.placement().shape != shape {
             return Err(invalid());
         }
+        if super::scalar_stack::argument(
+            replay,
+            operation,
+            argument_index,
+            argument.scalar_source().ok_or_else(invalid)?,
+            argument.placement(),
+        )? {
+            continue;
+        }
         operands.push(replay.check_copy(
             input,
             argument.scalar_source().ok_or_else(invalid)?,

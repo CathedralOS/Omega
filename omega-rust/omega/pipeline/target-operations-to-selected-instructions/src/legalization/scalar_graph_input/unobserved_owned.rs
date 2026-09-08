@@ -73,7 +73,35 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                 | AbstractOperation::IntegerLessOrEqual { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. }
-                | AbstractOperation::Call { .. } => true,
+                | AbstractOperation::Call { .. }
+                | AbstractOperation::EstablishPrimitiveLocal { .. } => true,
+                AbstractOperation::PrimitiveLocalStore { destination, .. }
+                | AbstractOperation::PrimitiveScalarRead {
+                    source: destination,
+                    ..
+                } => super::primitive_locals::producer(function, *destination).is_some(),
+                AbstractOperation::CallUnit {
+                    structural_arguments,
+                    ..
+                }
+                | AbstractOperation::CallStructuralScalar {
+                    structural_arguments,
+                    ..
+                } => structural_arguments.iter().all(|argument| {
+                    argument.access != StructuralAccess::Owned
+                        && argument.path.is_empty()
+                        && super::primitive_locals::producer(function, argument.place).is_some()
+                        && !function
+                            .structural_parameters
+                            .iter()
+                            .chain(
+                                function
+                                    .blocks
+                                    .iter()
+                                    .flat_map(|block| &block.structural_parameters),
+                            )
+                            .any(|parameter| parameter.place == argument.place)
+                }),
                 AbstractOperation::Return {
                     cleanup_actions, ..
                 }
@@ -236,7 +264,19 @@ pub(super) fn validate(
     }) {
         return Err(invalid);
     }
-    if function.structural_places.len() != declarations.len()
+    if function.structural_places.len()
+        != declarations.len()
+            + function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .filter(|node| {
+                    matches!(
+                        node.operation,
+                        AbstractOperation::EstablishPrimitiveLocal { .. }
+                    )
+                })
+                .count()
         || function.declared_places
             != function
                 .structural_places
@@ -247,6 +287,13 @@ pub(super) fn validate(
         return Err(invalid);
     }
     for place in &function.structural_places {
+        if let Some((operation, result, _)) = super::primitive_locals::producer(function, place.id)
+        {
+            if !super::primitive_locals::valid_result(function, operation, result) {
+                return Err(invalid);
+            }
+            continue;
+        }
         let invocation = function.structural_parameters.iter().any(|parameter| {
             parameter.place == place.id
                 && place.kind
