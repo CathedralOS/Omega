@@ -199,21 +199,24 @@ pub(super) fn analyze(
     // A complete anonymous subtree chooses its exact value before an integer
     // operand/destination requests a rendering. Never truncate a child quotient
     // before a later multiplication can cancel its denominator.
-    if target_primitive.is_some_and(|primitive| integer_bit_width(primitive).is_some())
-        && let Some(evaluated) =
-            crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
-                crate::literals::has_anonymous_operator_meaning(program, expression)
-            })
+    if let Some(evaluated) =
+        crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
+            crate::literals::has_anonymous_operator_meaning(program, expression)
+        })
     {
         let Some(value) = evaluated.value.to_integer_exact() else {
-            diagnostics.push(
-                Diagnostic::error(format!(
-                    "anonymous operand `{}` is not an integer in {owner}; type an operand \
+            if target_primitive.is_some_and(|primitive| integer_bit_width(primitive).is_some()) {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "anonymous operand `{}` is not an integer in {owner}; type an operand \
                  before division if integer division was intended",
-                    evaluated.value,
-                ))
-                .with_source_span(program.expression_table.source_span(expression)),
-            );
+                        evaluated.value,
+                    ))
+                    .with_source_span(program.expression_table.source_span(expression)),
+                );
+            }
+            // Without an integer destination this is an exact rational value,
+            // not a truncated integer interval that may manufacture zero.
             return NEUTRAL;
         };
         let interval = value

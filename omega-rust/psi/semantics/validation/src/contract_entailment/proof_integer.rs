@@ -83,21 +83,26 @@ pub(crate) fn proof_integer_expression(program: &TypedTrees, expression: Express
             let left = proof_integer_expression(program, binary.left);
             let right = proof_integer_expression(program, binary.right);
             (left && right)
-                || (left
-                    && matches!(
-                        program.expression_table.expression(binary.right),
-                        ExpressionNode::Integer(_)
-                    ))
-                || (right
-                    && matches!(
-                        program.expression_table.expression(binary.left),
-                        ExpressionNode::Integer(_)
-                    ))
+                || (left && anonymous_integer_value(program, binary.right).is_some())
+                || (right && anonymous_integer_value(program, binary.left).is_some())
         }
         _ => crate::proof_embeddings::expression_type_reference(program, expression).is_some_and(
             |reference| proof_builtin_type(program, reference, symbols::BuiltinType::Int),
         ),
     }
+}
+
+/// Land the complete anonymous peer to unbounded Int. Fractional intermediate
+/// values remain exact; a fractional final value cannot become an integer.
+pub(super) fn anonymous_integer_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<BigInt> {
+    crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
+        crate::literals::has_anonymous_operator_meaning(program, expression)
+    })?
+    .value
+    .to_integer_exact()
 }
 
 pub(crate) fn proof_nat_cast(

@@ -1086,6 +1086,12 @@ impl<'program> Engine<'program> {
         {
             return None;
         }
+        if (self.strict_symbol_bindings.is_none() || self.proof_integer_formation)
+            && let Some(value) =
+                super::proof_integer::anonymous_integer_value(self.program, expression)
+        {
+            return Some(Polynomial::constant(value));
+        }
         let node = self.program.expression_table.expression(expression).clone();
         match node {
             ExpressionNode::Member(_) => self
