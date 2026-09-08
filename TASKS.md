@@ -851,7 +851,7 @@ Owners include
   declarations must retain their own meaning during const normalization.
   Complete builtin proof `Int` division and remainder beyond exact constant
   operands, preserving their semantics in retained symbolic proof terms and
-  independent checking. Closed-expression source entailment in
+  independent checking. Source entailment of closed expressions and quotient bounds in
   `validation/src/contract_entailment/arithmetic_judgment.rs` does not close
   that replay boundary. Acceptance: positive/negative dividend and divisor
   combinations satisfy the paired integer law, zero divisors fail admission,

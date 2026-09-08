@@ -14,6 +14,11 @@ ensures
 data Main {}
 machine Main::main(&mut self) {}
 
+machine quotient_bounds(value: i32)
+requires value >= 0, value <= 9
+ensures embed(value) / 2 >= 0, embed(value) / 2 <= 4
+{}
+
 machine anonymous_operands()
 ensures
     embed(7i32) / (1 + 1) == 3,

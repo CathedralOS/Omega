@@ -418,3 +418,63 @@ fn proof_integer_operands_do_not_truncate_fractions_or_erase_zero_divisors() {
         }
     }
 }
+
+#[test]
+fn proof_integer_quotient_bounds_follow_truncation_and_divisor_sign() {
+    for (requirement, divisor, minimum, maximum) in [
+        ("value >= 0, value <= 9", 2, 0, 4),
+        ("value >= -9, value <= -1", 2, -4, 0),
+        ("value >= -9, value <= 9", -2, -4, 4),
+        ("value >= 1, value <= 9", -2, -4, 0),
+    ] {
+        let source = format!(
+            "machine quotient(value: i32)\nrequires {requirement}\nensures embed(value) / {divisor} >= {minimum}, embed(value) / {divisor} <= {maximum}\n{{}}"
+        );
+        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+        let false_twin = source.replace(&format!("<= {maximum}"), &format!("<= {}", maximum - 1));
+        check(&false_twin).expect_err("a quotient bound cannot exclude a reachable endpoint");
+    }
+}
+
+#[test]
+fn proof_integer_quotient_bounds_preserve_missing_endpoints() {
+    for (requirement, divisor, conclusion, false_conclusion) in [
+        ("value >= 1", 2, ">= 0", ">= 1"),
+        ("value >= 1", -2, "<= 0", "<= -1"),
+        ("value <= -1", 2, "<= 0", "<= -1"),
+        ("value <= -1", -2, ">= 0", ">= 1"),
+    ] {
+        for (conclusion, accepted) in [(conclusion, true), (false_conclusion, false)] {
+            let source = format!(
+                "machine quotient(value: i32)\nrequires {requirement}\nensures embed(value) / {divisor} {conclusion}\n{{}}"
+            );
+            assert_eq!(check(&source).is_ok(), accepted, "{source}");
+        }
+    }
+}
+
+#[test]
+fn proof_integer_quotient_bounds_remain_unbounded_in_width() {
+    let wide = "((embed(18446744073709551615u64) + 1) * (embed(18446744073709551615u64) + 1))";
+    let source = format!(
+        "machine quotient(value: i32)\nrequires value >= 0, value <= 9\nensures (embed(value) + {wide}) / 2 >= {wide} / 2, (embed(value) + {wide}) / 2 <= {wide} / 2 + 4\n{{}}"
+    );
+    check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+    check(&source.replace("+ 4", "+ 3")).expect_err("wide quotient upper bound is reachable");
+}
+
+#[test]
+fn proof_integer_quotient_bounds_keep_operands_distinct() {
+    for conclusion in [
+        "embed(left) / 2 == embed(left) / 3",
+        "embed(left) / 2 == embed(right) / 2",
+        "embed(left) / (1 - 1) == 0",
+        "embed(left) / embed(right) == 0",
+    ] {
+        let source = format!(
+            "machine quotient(left: i32, right: i32)\nrequires left >= 0, left <= 9, right >= 1, right <= 3\nensures {conclusion}\n{{}}"
+        );
+        check(&source)
+            .expect_err("distinct quotients or undefined division cannot prove this claim");
+    }
+}
