@@ -586,7 +586,7 @@ fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row(
 
     assert_eq!(
         rejection_message(&checked),
-        "scalar source custody has no authored statement"
+        "Unit body omits or duplicates an authored call"
     );
 }
 

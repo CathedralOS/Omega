@@ -168,6 +168,8 @@ fn lower_typed_trees_with_policy(
     // their real plans before deciding which ordinary scalar callees exist.
     facts.flow.terminal_boundary_scalar_returns =
         crate::flow::build_checked_boundary_scalar_return_plans(&program, &facts);
+    facts.flow.terminal_structural_scalar_returns =
+        crate::flow::build_checked_primitive_store_scalar_return_plans(&program, &facts);
     let terminal_unit_effects =
         crate::flow::build_checked_unit_effect_plans(&program, &facts, &[], &[]);
     let mut cleanup_diagnostics = Vec::new();

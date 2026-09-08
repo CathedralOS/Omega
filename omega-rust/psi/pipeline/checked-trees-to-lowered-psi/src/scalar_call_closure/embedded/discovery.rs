@@ -74,6 +74,7 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                 })
                 .collect::<Vec<_>>(),
             crate::scalar_call_closure::callee::CheckedScalarCallee::Boundary(_) => Vec::new(),
+            crate::scalar_call_closure::callee::CheckedScalarCallee::Structural(_) => Vec::new(),
         };
         let computed = source_checked_computation_targets(checked, machine)?;
         for target in &computed {

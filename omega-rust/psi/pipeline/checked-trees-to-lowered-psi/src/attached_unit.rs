@@ -21,6 +21,7 @@ mod provider_attachments;
 mod providers;
 mod scalar_boundaries;
 mod scalar_locals;
+mod scalar_structural_calls;
 mod selected_operator;
 pub(super) mod shared_closure;
 mod structural_calls;
@@ -509,7 +510,7 @@ fn assemble_unit_closure(
         }
         validate_unit_operation_sequence(machine)?;
         crate::structural_scalar_store_source::validate(checked, machine)?;
-        crate::call_source_custody::validate_store_sequence_calls(checked, machine)?;
+        crate::call_source_custody::validate_store_and_initializer_calls(checked, machine)?;
         for (operation_index, operation) in machine.operations.iter().enumerate() {
             provider_attachments::validate_call_source(
                 checked,
@@ -579,9 +580,9 @@ fn assemble_unit_closure(
                     retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
                     let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
                     match &target {
-                        CheckedScalarCallee::Boundary(target) => {
-                            scalar_boundaries::validate_call_source(
-                                checked, machine, operation, target,
+                        CheckedScalarCallee::Boundary(_) | CheckedScalarCallee::Structural(_) => {
+                            scalar_structural_calls::validate_call_source(
+                                checked, machine, operation, &target,
                             )?
                         }
                         CheckedScalarCallee::Graph(_)
@@ -619,7 +620,7 @@ fn assemble_unit_closure(
                         .map(|(_, state)| state.service_reach)
                         .collect::<Vec<_>>();
                     let reach_matches = match &target {
-                        CheckedScalarCallee::Graph(_) => {
+                        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
                             target_reaches.as_slice() == [*service_reach]
                         }
                         CheckedScalarCallee::Boundary(plan) => {
@@ -641,19 +642,21 @@ fn assemble_unit_closure(
                             "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach",
                         );
                     }
-                    if matches!(target, CheckedScalarCallee::Graph(_))
-                        && (!checked
+                    if matches!(
+                        target,
+                        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_)
+                    ) && (!checked
+                        .facts
+                        .service_reaches
+                        .rows
+                        .services(service_reach.direct)
+                        .is_empty()
+                        || !checked
                             .facts
                             .service_reaches
                             .rows
-                            .services(service_reach.direct)
-                            .is_empty()
-                            || !checked
-                                .facts
-                                .service_reaches
-                                .rows
-                                .services(service_reach.transitive)
-                                .is_empty())
+                            .services(service_reach.transitive)
+                            .is_empty())
                     {
                         return unsupported(
                             "ordinary Unit scalar call with services requires scalar service lowering",
@@ -2038,11 +2041,11 @@ fn assemble_unit_closure(
                     } = operation
                         && (!structural_arguments.is_empty() || !claim_transfers.is_empty())
                     {
-                        let CheckedScalarCallee::Boundary(target) = &target else {
+                        if target.structural_parameters().is_empty() {
                             return unsupported(
                                 "structural scalar call has no structural checked body",
                             );
-                        };
+                        }
                         validate_transfer_shape(
                             structural_arguments,
                             claim_transfers,
@@ -2050,11 +2053,11 @@ fn assemble_unit_closure(
                             &local_places,
                             &affine_scalar_record_places,
                             &structural_result_places,
-                            &target.structural_parameters,
+                            target.structural_parameters(),
                             &type_ids,
                             &structural_types,
                             &target
-                                .entry_claims
+                                .entry_claims()
                                 .iter()
                                 .map(|claim| claim.parameter_index)
                                 .collect::<Vec<_>>(),
@@ -3287,6 +3290,17 @@ fn assemble_unit_closure(
             .ok_or(LoweringError::Unsupported(
                 "selected scalar closure identity range overflows",
             ))?;
+        if let PreparedScalarCallee::Structural { plan, .. } = &machine {
+            let mut lowered = crate::structural_scalar_return::lower_structural_scalar_return_machine_in_namespace(
+                checked, plan, terminal_machine, identity_base, Some(&structural_types),
+            )?;
+            machines.append(&mut lowered.semantic_module.machines);
+            scalar_evidence.append(&mut lowered.proof_bundle.evidence);
+            source_call_occurrences.append(&mut lowered.source_call_occurrences);
+            selected_ieee_float_fma_occurrences
+                .append(&mut lowered.selected_ieee_float_fma_occurrences);
+            continue;
+        }
         let PreparedScalarCallee::Graph(machine) = machine else {
             let PreparedScalarCallee::Boundary { plan, .. } = machine else {
                 unreachable!("scalar callee has exactly one checked body owner")

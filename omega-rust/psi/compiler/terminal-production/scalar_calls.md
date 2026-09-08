@@ -79,8 +79,22 @@ The source-to-artifact execution regression is
 `cargo nextest run -p checked-trees-to-lowered-psi --test primitive_store_return_source --no-fail-fast`.
 This establishes the body of an operand callee such as
 `machine reset(value: &mut u64) -> u64 { value = 0; 0 }`.
-Calling it from a mixed scalar/structural computation still needs exact borrowed
-operand staging, storage propagation, and shared call-closure integration.
+Ordinary Unit callers retain these bodies in their existing shared scalar-callee
+catalog and invoke them with `CallStructuralScalar`. Independent primitive-store
+bodies are discovered before Unit closure; nominal-cleanup-dependent return bodies
+remain in the later discovery phase. Exact authored structural actuals and dense
+scalar positions survive the call, including a result binding after scalar inputs.
+The selected callee's type closure is validated in the shared allocated namespace;
+unrelated retained bodies do not add types or machines to that artifact.
+[`borrowed_scalar_call_source.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_scalar_call_source.rs)
+checks observable callee/caller writes, returned values, suspension without replay,
+and rejection of substituted borrowed actuals or callee custody. Both store owners
+rejoin their exact authored assignment and RHS namespace; a direct call initializer
+must retain its invocation even when its result is unused.
+Mixed scalar/structural computation nodes still need borrowed operand staging and
+the same call-closure integration. An authored mutable primitive local also needs
+real referent establishment/read support; current scalar SSA bindings alone cannot
+provide a borrowed place whose mutation affects later reads.
 
 ## One complete call closure
 
@@ -146,7 +160,7 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 ```
 
 The existing argument hoist splits the edge into a rank-preserving hop and a
-decrement without its co-located guard. Integrate the primitive-store callee
+decrement without its co-located guard. Integrate the ordinary primitive-store call route
 with checked structural operand computations and their shared Terminal closure,
 then retire the hoist for the supported route independently of ranking annotations.
 Keep the original guard, mutable local, and exact `limits` forwarding. Adding

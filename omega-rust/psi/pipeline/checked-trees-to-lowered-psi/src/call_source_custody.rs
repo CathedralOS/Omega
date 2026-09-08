@@ -7,66 +7,99 @@ pub(crate) mod initializers;
 pub(crate) mod occurrences;
 pub(crate) mod projected_receivers;
 
-/// Preserve the ordinary call roster around direct authored stores. The
-/// selected-result/local-binding families retain their own call custody.
-pub(super) fn validate_store_sequence_calls(
+/// Preserve calls around authored stores and direct call initializers, even
+/// when a result is unused. Each retained owner checks its exact operands.
+pub(super) fn validate_store_and_initializer_calls(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     use checked_trees::statement::StatementNode;
     let (_, state) = crate::scalar_source_custody::authored_state(checked, plan.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
-    if !statements
+    let has_stores = statements
         .iter()
-        .any(|statement| matches!(statement, StatementNode::Assignment(_)))
-    {
-        return Ok(());
-    }
+        .any(|statement| matches!(statement, StatementNode::Assignment(_)));
     for (statement_index, statement) in statements.iter().enumerate() {
-        if matches!(
-            statement,
-            StatementNode::Assignment(_) | StatementNode::LocalData(_)
-        ) {
-            continue;
-        }
-        let statement_index = u32::try_from(statement_index).map_err(|_| {
-            LoweringError::Unsupported("store sequence call statement ordinal exceeds u32")
-        })?;
+        let initializer = match statement {
+            StatementNode::LocalData(local)
+                if checked
+                    .expression_table
+                    .expression_is_valid(local.initial_value)
+                    && matches!(
+                        checked.expression_table.expression(local.initial_value),
+                        checked_trees::expression::ExpressionNode::Call(_)
+                    ) =>
+            {
+                Some(local.initial_value)
+            }
+            StatementNode::Assignment(_) | StatementNode::LocalData(_) => continue,
+            _ if !has_stores => continue,
+            _ => None,
+        };
+        let statement_index = u32::try_from(statement_index)
+            .map_err(|_| LoweringError::Unsupported("call statement ordinal exceeds u32"))?;
         let coordinate = checked_trees::CheckedUnitCallCoordinate {
             statement_index,
             call_ordinal: 0,
         };
-        // The existing call owner resolves the exact authored occurrence;
-        // this roster check does not interpret its dispatch or arguments.
-        authored::locate_source(checked, plan.state, coordinate)?;
-        let count = plan
-            .operations
-            .iter()
-            .filter(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    coordinate: actual, ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryCall {
-                    coordinate: actual, ..
-                }
-                | CheckedUnitEffectOperationPlan::ScalarCall {
-                    coordinate: actual, ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    coordinate: actual, ..
-                }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate: actual, ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate: actual,
-                    ..
-                } => *actual == coordinate,
-                _ => false,
-            })
-            .count();
-        if count != 1 {
-            return unsupported("store sequence omits or duplicates an authored call");
+        let mut owners = plan.operations.iter().filter(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallUnit {
+                coordinate: actual, ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryCall {
+                coordinate: actual, ..
+            }
+            | CheckedUnitEffectOperationPlan::ScalarCall {
+                coordinate: actual, ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                coordinate: actual, ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate: actual, ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate: actual, ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                coordinate: actual,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                coordinate: actual,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                coordinate: actual,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
+                coordinate: actual,
+                ..
+            } => *actual == coordinate,
+            _ => false,
+        });
+        let Some(owner) = owners.next() else {
+            return unsupported("Unit body omits or duplicates an authored call");
+        };
+        if owners.next().is_some() {
+            return unsupported("Unit body omits or duplicates an authored call");
+        }
+        // Selected dispatch may rewrite the source call after checked planning.
+        // Its existing exact application owner validates that realization;
+        // ordinary calls instead rejoin their captured flow occurrence.
+        if let Some(expression) = initializer {
+            if !matches!(
+                owner,
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
+                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
+            ) {
+                occurrences::validate(checked, plan.machine, plan.state, coordinate, expression)?;
+            }
+        } else {
+            authored::locate_source(checked, plan.state, coordinate)?;
         }
     }
     Ok(())

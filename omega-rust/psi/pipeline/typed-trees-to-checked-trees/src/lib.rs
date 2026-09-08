@@ -149,6 +149,7 @@ pub fn rebuild_checked_unit_effect_plans_with_selected_execution(
 ) {
     program.facts.flow.terminal_boundary_scalar_returns =
         flow::build_checked_boundary_scalar_return_plans(&program.typed, &program.facts);
+    flow::refresh_checked_primitive_store_scalar_return_plans(&program.typed, &mut program.facts);
     program.facts.flow.terminal_unit_effects = flow::build_checked_unit_effect_plans(
         &program.typed,
         &program.facts,
@@ -168,6 +169,7 @@ pub fn rebuild_checked_terminal_plans_with_selected_execution(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     program.facts.flow.terminal_boundary_scalar_returns =
         flow::build_checked_boundary_scalar_return_plans(&program.typed, &program.facts);
+    flow::refresh_checked_primitive_store_scalar_return_plans(&program.typed, &mut program.facts);
     let terminal_unit_effects = flow::build_checked_unit_effect_plans(
         &program.typed,
         &program.facts,

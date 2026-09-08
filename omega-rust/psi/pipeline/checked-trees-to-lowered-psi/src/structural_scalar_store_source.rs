@@ -77,6 +77,8 @@ pub(super) fn validate(
             if stores
                 .iter()
                 .any(|scalar| scalar.statement_index == statement_index)
+                || plan.operations.iter().any(|operation| matches!(operation,
+                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index))
             {
                 return unsupported("assignment has both byte and scalar store custody");
             }
@@ -89,11 +91,18 @@ pub(super) fn validate(
             )?;
             continue;
         }
-        if plan.operations.iter().any(|operation| {
-            matches!(operation,
-            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. }
-                if *ordinal == statement_index)
-        }) {
+        let primitive_stores = plan.operations.iter().filter(|operation| {
+            matches!(operation, CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index)
+        }).count();
+        if primitive_stores != 0 {
+            if primitive_stores != 1
+                || !byte_stores.is_empty()
+                || stores
+                    .iter()
+                    .any(|store| store.statement_index == statement_index)
+            {
+                return unsupported("primitive assignment has duplicate store custody");
+            }
             continue;
         }
         if construction_assignment_owner(checked, plan, statements, statement_index, assignment)
@@ -118,6 +127,28 @@ pub(super) fn validate(
             assignment,
             store,
         )?;
+    }
+    for operation in &plan.operations {
+        if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index,
+            destination_parameter_index,
+            value,
+        } = operation
+        {
+            let destination = plan
+                .structural_parameters
+                .get(*destination_parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "primitive store destination is absent",
+                ))?;
+            crate::primitive_store::validate_assignment(
+                checked,
+                plan.state,
+                *statement_index,
+                destination,
+                value,
+            )?;
+        }
     }
     for store in &stores {
         if !matches!(

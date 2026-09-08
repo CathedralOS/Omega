@@ -19,6 +19,7 @@ mod receiver_stores;
 mod returns;
 mod returns_primitive_effects;
 mod scalar_boundary_targets;
+mod scalar_primitive_targets;
 mod scalar_sequences;
 mod shared_convergence;
 mod shared_result_borrows;
