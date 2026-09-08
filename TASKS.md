@@ -182,7 +182,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe at checkpoint `e76aa4e9ba`
+  The downstream native `cli_mvp` probe at checkpoint `95d162cd33`
   passes Terminal and native abstract admission but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -261,20 +261,24 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   mutable byte views still needs forwarding. Implement the checked line adapter
   over the settled native byte leaves; each target's `console_impl.omg` currently
   declares bodyless `read_line` instead.
-  Native byte input first needs its structural result connected through
-  `target-operations-to-selected-instructions`: its legalization currently admits
-  only Unit boundary results, and the existing read-byte encoders and replay
-  records have no selected-instruction producer. The Linux probe
+  Native byte input next needs sum-tag branching and payload transfer in
+  `target-operations-to-selected-instructions`, then actual byte/EOF execution.
+  Retain the connected read-result path as the regression floor:
   `cargo nextest run -p compiler --test canary_suite
   runtime_console_byte_read_return_catalog_replays_both_linux_targets
-  --no-fail-fast --no-tests fail` on macOS ARM64 reaches
-  `Selection(Legalization(UnsupportedSourceShape { function: 0 }))` after the
-  affine-result cleanup fix based on `955b524935`. Retain the exact
-  `TargetStructuralHomeRequirement` through genuine structural local storage,
-  then emit and replay `BoundaryStructuralResultRecord`; the byte-inspection
-  canary additionally needs sum-tag branching and payload transfer. macOS still
-  needs an admitted target-specific read-byte realization. Close those paths
-  with actual byte/EOF execution, not catalog or encoder tests alone.
+  --no-fail-fast --no-tests fail` passes cross-emission and native artifact replay
+  on macOS ARM64 at `95d162cd33`; it does not execute Linux code.
+  The next source probe, the same command with
+  `runtime_console_byte_inspection_replays_validated_cross_target_artifacts`,
+  currently stops earlier at `InvalidUnitMachinePlan`: its attached Unit closure
+  lacks a checked transitive machine plan. Inspect Psi's
+  `checked-trees-to-lowered-psi/src/attached_unit/{call_closure,bodies}.rs`
+  before extending native case selection. The byte-literal output canaries hit
+  this same unchanged upstream gap. Preserve exact operation/result identity,
+  frame home, layout, fuel, effects and cleanup through the existing selected
+  instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
+  results or replace the structural home with boundary scratch.
+  macOS still needs an admitted target-specific read-byte realization.
   Close this slice with the existing carrier round-trip and sequential-read
   native canaries, preserving capacity, overwrite, access, and alias checks.
 
