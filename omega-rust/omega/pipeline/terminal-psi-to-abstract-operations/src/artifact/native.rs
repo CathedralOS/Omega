@@ -6,9 +6,9 @@ use crate::lowering::lower_decoded_verified_module;
 
 use super::{ArtifactLoweringError, ranked_native};
 
-/// The two disjoint authority carriers accepted by the unoptimized native
-/// realization entrance. Dispatch is decided from the decoded Terminal module;
-/// callers cannot reinterpret ordinary authority as ranked authority.
+/// Ordinary verified graphs (including natural-ranked cycles) and the legacy
+/// countdown's specialized native custody. Dispatch is decided from the decoded
+/// Terminal module; callers cannot reinterpret one carrier as the other.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeArtifactOperationPlan {
     Ordinary(AbstractOperationPlan),
@@ -25,8 +25,9 @@ impl NativeArtifactOperationPlan {
 }
 
 /// Decode one canonical artifact and select its only valid unoptimized native
-/// authority path. Ranked input never falls back to ordinary admission, and an
-/// ordinary module is never probed against the ranked exception.
+/// authority path. Legacy countdown input never falls back to ordinary
+/// admission. Natural-ranked input uses ordinary grouped proof verification,
+/// without being probed against the countdown's fixed-work exception.
 pub fn lower_artifact_sections_for_native_realization(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
@@ -39,11 +40,12 @@ pub fn lower_artifact_sections_for_native_realization(
     if !module.placed_view_inputs.is_empty() {
         return Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering);
     }
-    if module
-        .machines
-        .iter()
-        .any(|machine| machine.ranked_scc.is_some())
-    {
+    if module.machines.iter().any(|machine| {
+        machine
+            .ranked_scc
+            .as_ref()
+            .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
+    }) {
         ranked_native::lower_decoded_native_ranked_countdown(&module, &proof, profile)
             .map(NativeArtifactOperationPlan::RankedU32Countdown)
     } else {
