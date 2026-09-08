@@ -11,7 +11,7 @@ design is ahead of its implementation; native support is still being completed.
 [Examples](samples/) ·
 [Contributing](#development)
 
-## What it looks like
+## Example
 
 A language example: removing health from a player without unsigned underflow.
 
@@ -44,9 +44,12 @@ For longer control flow, a machine contains named states and explicit
 transitions. State transfers carry their inputs and do not grow the call stack.
 See [states and transitions](wiki/language_guide/chapter_4_states_transitions.md).
 
-## Proving mathematics
+## Mathematical proof example
 
-The same contract syntax can state a theorem: **(a + b)(a − b) = a² − b²**.
+Omega also supports authoring mathematical proofs. A proved machine's contract
+can be used in another proof, or to justify an operation in systems code.
+
+For example, contract syntax can state a theorem: **(a + b)(a − b) = a² − b²**.
 
 ```omega
 machine difference_of_squares(a: Int, b: Int)
@@ -62,22 +65,24 @@ The empty body asks the checker to establish the identity; it does not assume
 it. Algebraic normalization is enough here. Harder proofs use helper machines,
 explicit hypotheses, and induction.
 
-A proved machine's contract can be used in another proof, or to justify an
-operation in systems code. See
-[compile-time proofs](wiki/language_guide/chapter_10_compile_time_proofs.md).
+See [compile-time proofs](wiki/language_guide/chapter_10_compile_time_proofs.md).
 
 ## Failures Omega addresses
 
-| Failure | What Omega does about it |
-| --- | --- |
-| Use-after-free, double-free, dangling references | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
-| Out-of-bounds reads and writes | Array and slice access requires proof that the index or range is valid. |
-| Stack overflow | Tail recursion becomes iteration. Worst-case stack demand, including compiler spills, must fit provisioned storage before execution. |
-| Accidental integer overflow and division by zero | Exact arithmetic requires proof that the operation is valid. Wrapping, saturation, and runtime trapping are explicit choices. |
-| Data races | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
-| Deadlocks and indefinite waits | Protocol proofs can rule out wait cycles and missing wakeups for a checked composition. Ownership alone does not promise progress. |
-| Unintended infinite loops | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
-| Hidden filesystem or process authority | Boundary effects propagate through calls; a build cannot silently grant authority its receiving policy disallows. |
+**Prevented** means excluded by required checking and admission. **Conditional**
+means the guarantee requires a selected policy or additional proof. These describe
+the language guarantees, not today's implementation coverage.
+
+| Failure | Guarantee | What Omega does about it |
+| --- | --- | --- |
+| Use-after-free, double-free, dangling references | Prevented | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
+| Out-of-bounds reads and writes | Prevented | Array and slice access requires proof that the index or range is valid. |
+| Stack overflow | Prevented | Tail recursion becomes iteration. Worst-case stack demand, including compiler spills, must fit provisioned storage before execution. |
+| Integer overflow and division by zero | Conditional | Exact arithmetic proves validity. Explicit wrapping, saturation, or trapping policies choose other behavior rather than promising failure-free arithmetic. |
+| Data races | Prevented | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
+| Deadlocks and indefinite waits | Conditional | Protocol proofs rule out wait cycles and missing wakeups for the checked composition and its stated external assumptions. Ownership alone does not promise progress. |
+| Unintended infinite loops | Conditional | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
+| Hidden filesystem or process authority | Prevented | Boundary effects propagate through calls; a build cannot silently grant authority its receiving policy disallows. |
 
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
@@ -105,19 +110,17 @@ limitations.
 ## Compiler Pipeline
 
 Omega source compiles to **Psi**, a portable intermediate binary that can be
-lowered to native code or run through an interpreter. Like WebAssembly, it
-separates a program from a particular CPU; it is a different format, not
-WASM-compatible or browser-specific.
+lowered to **native code** or **run by an interpreter** for scripting.
 
 ```mermaid
 flowchart LR
-    source["Omega source"] --> psi["Psi"]
+    source["Omega source"] --> psi["Psi intermediate representation"]
     psi --> native["Native code"]
     psi --> interpret["Interpreter"]
 ```
 
-Source checking and native compilation can happen in separate invocations.
-Both consumers verify the Psi product.
+Psi carries proof evidence so a receiving compiler or interpreter can check its
+contracts and declared capabilities independently of the producer.
 [Follow the pipeline →](omega-rust/pipeline.md)
 
 The separate [bootstrap chain](bootstrap/README.md) works toward constructing
