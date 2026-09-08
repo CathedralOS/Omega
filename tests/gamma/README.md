@@ -1,9 +1,6 @@
 # Gamma tests
 
 This directory owns executable gates for selected typed scalar/effect Gamma.
-The unselected concatenative route is retired; its
-[coverage and findings](../../wiki/pre_migration/design_briefs/legacy_bootstrap_retirement.md)
-remain documented without an alternate implementation.
 
 | Retained child | Role | Deletion condition |
 | --- | --- | --- |

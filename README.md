@@ -161,9 +161,9 @@ lives in
 Beta's self-reconstructing compiler and admitted Alpha tape live under
 `bootstrap/1_beta/`; the older imperative Gamma rung remains retired.
 The whole-chain audit is defined in
-[`bootstrap_minimization.md`](wiki/pre_migration/design_briefs/bootstrap_minimization.md), and
-the candidate shorter chains and common audit experiment are defined in
-[`bootstrap_chain_alternatives.md`](wiki/pre_migration/design_briefs/bootstrap_chain_alternatives.md).
+[whole-chain minimization](bootstrap/MINIMIZATION.md). Unapproved comparison
+options are separated in the
+[shorter-chain proposal](wiki/proposals/bootstrap_chain_alternatives.md).
 The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/pre_migration/architecture/bootstrap_chain/compiler_source_profile.md).
@@ -226,7 +226,7 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 
 ## Useful Commands
 
-Run tests (see [local testing](wiki/pre_migration/testing.md) for installation and affected-test selection):
+Run tests (see [local testing](tools/testing.md) for installation and affected-test selection):
 
 ```bash
 mbx nextest run --workspace --lib --no-fail-fast

@@ -15,8 +15,8 @@ How Omega reaches its hosted compiler—the selected
 `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega` trust lattice is a build-graph property
 described by [The Bootstrap Chain](bootstrap_chain/bootstrap_chain.md)
 and its [target repository structure](bootstrap_chain/repository_structure.md).
-It is not a separate source ownership domain. The completed alternatives audit
-is retained in [Bootstrap chain alternatives](../design_briefs/bootstrap_chain_alternatives.md).
+It is not a separate source ownership domain. Unapproved comparison options
+are separate in [Bootstrap chain alternatives](../../proposals/bootstrap_chain_alternatives.md).
 
 ## Design Bias
 

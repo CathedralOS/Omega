@@ -10,7 +10,7 @@ describe earlier subjects. They are not contradictory current identity pins.
 The rejected elaborator, analyzer, proposal sources, and comparison kernels
 have been retired: 13 files, 968 lines, and 43,350 bytes. No selected compiler,
 evaluator, seed, or language semantics changed. This follows the
-[whole-chain retention test](bootstrap_minimization.md#retention-test), not a
+[whole-chain retention test](../../../bootstrap/MINIMIZATION.md#retention-test), not a
 claim that the Epsilon or Delta edge is complete.
 
 ## Coverage after retirement

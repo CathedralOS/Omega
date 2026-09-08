@@ -114,8 +114,7 @@ behind a generic stack-machine expansion.
 
 ## Finding
 
-The former concatenative Gamma is not earned as a permanent bootstrap rung and
-is [retired](../../../wiki/pre_migration/design_briefs/legacy_bootstrap_retirement.md).
+The former concatenative Gamma is not retained as a permanent bootstrap rung.
 Direct Beta already executes the high-level Gamma-authored augmentation workflow
 with 1,632 authored Beta lines rather than 2,337 across the former route.
 Proper-tail execution, whole-program static

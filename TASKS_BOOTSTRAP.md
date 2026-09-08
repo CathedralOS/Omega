@@ -4,7 +4,7 @@ Build the smallest **human-auditable proof chain to self-hosted Omega**.
 Runnable compilers and checked edge evidence are both required; neither replaces
 the other. Minimize the total human audit burden of semantics, admitted seeds,
 implementations, checker rules, certificates, profiles, and permanent tooling.
-The governing contracts are [bootstrap minimization](wiki/pre_migration/design_briefs/bootstrap_minimization.md)
+The governing contracts are [bootstrap minimization](bootstrap/MINIMIZATION.md)
 and the [derivation checker](wiki/pre_migration/architecture/bootstrap_chain/proof_kernel.md).
 
 The currently selected construction route is:
@@ -70,7 +70,7 @@ prerequisite to every lower-rung milestone.
 ## Next decision - measured complexity follow-through
 
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
-  [measured cost review](wiki/pre_migration/design_briefs/bootstrap_cost_review.md) before
+  [measured cost review](wiki/drafts/bootstrap_cost_review.md) before
   expanding infrastructure. Owners remain Delta normalization,
   Gamma evaluator/checker/Beta definitions, and selected-chain resource profiles.
   Current Epsilon demand does not justify more depth machinery; retain deep-source

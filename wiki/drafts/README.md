@@ -12,6 +12,10 @@ the existing task boards, not in a second tracking system.
 
 - [Documentation cleanup](documentation_cleanup.md).
 - [Terminal realization gaps](terminal_realization.md).
+- [Bootstrap cost investigation](bootstrap_cost_review.md): bounded Delta/P1
+  feasibility evidence, not authority for another chain.
+- [Test-cycle measurements](test_cycle_measurements.md): dated Windows evidence
+  for future scheduling and selection comparisons.
 - [Cathedral alignment](cathedral_alignment.md): temporary cross-repository
   ownership and dependency map for OS bring-up.
 

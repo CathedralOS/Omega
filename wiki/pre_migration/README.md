@@ -26,10 +26,11 @@ Preserve intended contracts; raise genuine unsettled conflicts in
 
 ## Bootstrap records
 
-The [bootstrap decision record](architecture/bootstrap_chain/decisions.md) and
-[chain alternatives](design_briefs/bootstrap_chain_alternatives.md) are part of
-this queue. Extract current contracts, retain only useful proposal rationale,
-and delete superseded history. The owner has authorized their consolidation;
-neither file is a permanent archive or a special-location exception.
+The [bootstrap decision record](architecture/bootstrap_chain/decisions.md) is
+part of this queue. Extract current contracts, retain only useful proposal
+rationale, and delete superseded history. The owner has authorized its
+consolidation; it is not a permanent archive or a special-location exception.
+Unapproved comparison options now live in
+[proposals](../proposals/bootstrap_chain_alternatives.md).
 
 This directory is a migration queue, not a permanent archive. Delete it when empty.

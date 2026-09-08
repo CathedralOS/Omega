@@ -14,6 +14,8 @@ beside code; completed work belongs in Git, not current reference material.
 
 ## Current specification subjects
 
+- Source semantics: [state contracts and live facts](spec/language/state_contracts.md)
+  and [numeric values and bounds](spec/language/numeric_values.md).
 - Mathematical proofs: [contracts, bundles, normalization, and trust](spec/proofs/contracts.md).
 - Terminal Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
@@ -32,11 +34,13 @@ beside code; completed work belongs in Git, not current reference material.
   [integer certificates](spec/terminal-psi/integer_certificates.md).
 - Resources: [logical work](spec/resources/logical_work.md) and
   [storage](spec/resources/storage.md),
+  [external-entry stacks](spec/resources/entry_stacks.md),
   [content custody](spec/resources/content_custody.md), and
   [placed access](spec/resources/placed_access.md).
 - Build: [declarations and package identity](spec/build/declarations.md),
   [configuration and targets](spec/build/configuration.md),
   [target slots and entry roots](spec/build/entry_roots.md),
+  [installed external roots](spec/build/external_roots.md),
   [boundary calling plans](spec/build/calling_plans.md),
   [boundary signature shapes](spec/build/boundary_shapes.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
@@ -57,6 +61,9 @@ beside code; completed work belongs in Git, not current reference material.
   [workflow guide](language_guide/packages.md).
 
 Only the migrated subjects above have specification owners so far.
+Bootstrap retention rules live beside the chain in
+[MINIMIZATION.md](../bootstrap/MINIMIZATION.md); alternative chains remain an
+[open proposal](proposals/bootstrap_chain_alternatives.md).
 The [migration index](pre_migration/README.md) identifies the remaining source
 material. Moving a file there is not a review or an approval of its contents.
 

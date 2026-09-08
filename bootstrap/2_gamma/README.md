@@ -17,10 +17,6 @@ The first executable customer is the test-owned 85-line `const` augmenter under
 source, produces an exact richer-language receipt, and evaluates the expanded
 program to byte 42.
 
-The former concatenative Gamma evaluator/compiler is retired. Its
-[comparison findings and coverage mapping](../../wiki/pre_migration/design_briefs/legacy_bootstrap_retirement.md)
-remain documented; it supplies no selected-chain authority.
-
 The selected evaluator is complete for the current Gamma contract. Proper-tail
 execution, whole-program static validation, provenance-tagged immutable pairs,
 profile-owned arithmetic traps, bounded output, and exact resource outcomes are

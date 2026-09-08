@@ -36,7 +36,7 @@ and its useful dependencies. State the customer, missing dependencies, and bound
 acceptance condition.
 
 Read the owning design and [completion contract](../../../wiki/pre_migration/releases/rust_compiler_completion_contract.md).
-For bootstrap work, also read [whole-chain minimization](../../../wiki/pre_migration/design_briefs/bootstrap_minimization.md).
+For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md).
 Apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints) using recent
 milestones across invocations and delegated work. Required customer behavior and
 human-auditable proof closure justify work; a board item or passing helper alone
@@ -88,8 +88,8 @@ Attribute unexpected failures using a focused baseline comparison or dependency
 and source-reader evidence. Confirmed unrelated failures remain outside the repair
 scope; retain their command, revision, and attribution. New or unexplained affected
 failures block landing. A new worktree does not require a full baseline. Use
-[testing](../../../wiki/pre_migration/testing.md) for coverage and
-[test-cycle measurements](../../../wiki/pre_migration/testing_performance.md) for build diagnosis.
+[testing](../../../tools/testing.md) for coverage and
+[test-cycle measurements](../../../wiki/drafts/test_cycle_measurements.md) for build diagnosis.
 Avoid concurrent host builds and duplicate checks.
 
 ## Delegate a bounded assignment

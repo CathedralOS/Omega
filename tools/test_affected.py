@@ -7,7 +7,7 @@ a known crate's src/ select dependents; audited documentation selects its source
 checks. Other inputs run all library tests. Architecture tests always run because
 they read source trees
 without Cargo dependency edges. This is change-impact selection, not a proof
-that the compiler or an untested base is correct. See wiki/pre_migration/testing.md.
+that the compiler or an untested base is correct. See tools/testing.md.
 """
 
 import argparse

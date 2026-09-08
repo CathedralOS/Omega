@@ -2558,8 +2558,10 @@ exact Alpha seed program, interpret an early source language, connect two
 nonadjacent baseline rungs, move the checker, or delete Beta, Gamma, Delta, or
 Epsilon when the complete audit becomes smaller.
 
-The candidate families, common workloads, and measurements are defined in
-[Bootstrap chain alternatives](../../design_briefs/bootstrap_chain_alternatives.md).
+Common workloads and measurement rules are defined in
+[whole-chain minimization](../../../../bootstrap/MINIMIZATION.md).
+Unapproved alternatives remain in the
+[chain comparison proposal](../../../proposals/bootstrap_chain_alternatives.md).
 The comparison counts the native root, admitted tapes, semantics, compilers,
 interpreters, checkers, proof edges, resource contracts, sidecars, and permanent
 validation together. Current implementation, corpus use, prior investment, and
@@ -2943,9 +2945,8 @@ larger slice requires recursive syntax values, variable-length collections,
 nested scopes, or rich deterministic diagnostics. Those costs are absent here
 and could reverse the result. Its last Gamma implementation and customer gate
 are archived at revision `f8355fbad1af7672812b6eab66f8309c3c34ffee`, under
-`tests/delta/state-machine-experiment/`. The
-[retirement review](../../design_briefs/legacy_bootstrap_retirement.md) preserves
-the assertion dispositions; this speculative compiler is no longer maintained.
+`tests/delta/state-machine-experiment/`. This speculative compiler is no longer
+maintained; its retirement history remains in Git.
 
 ## D72 — Address target comments use compact spacing
 
@@ -3368,8 +3369,7 @@ compiler reconstructs without the former direct Gamma-to-Alpha compiler.
 
 The former 533-line direct compiler moved to
 `tests/gamma/gamma-to-beta-experiment/direct_compiler.gamma` as a differential
-comparator (archived at `f8355fbad1af7672812b6eab66f8309c3c34ffee`; see the
-[retirement review](../../design_briefs/legacy_bootstrap_retirement.md)).
+comparator (archived at `f8355fbad1af7672812b6eab66f8309c3c34ffee`).
 At this checkpoint, the promoted compiler compiled that comparator through Beta into a
 disposable tape; promoted and direct routes then agree on Delta0, the complete
 retained Gamma corpus, and D84's 1,048,547-byte near-limit witness. The direct

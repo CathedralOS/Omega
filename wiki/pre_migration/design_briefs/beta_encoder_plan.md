@@ -8,7 +8,7 @@ demonstrated resource fit.** This replaces the sequence of isolated encoder
 experiments as the proposed next integration unit. The customer is P1's entire
 [selected Gamma evaluator source and tape](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md),
 not another literal instruction proof. Governing contracts are
-[minimization](bootstrap_minimization.md), the
+[minimization](../../../bootstrap/MINIMIZATION.md), the
 [encoding proposition](../architecture/bootstrap_chain/derivation_calculus.md#first-complete-subject),
 and the complete [Beta language](../../../bootstrap/1_beta/LANGUAGE.md).
 
@@ -109,7 +109,7 @@ selected profile; this design does not change existing compiler diagnostics.
 ## One cost ledger, with missing quantities visible
 
 Existing observations are anchored at `c727cd624a` on macOS arm64 and described
-in the [cost review](bootstrap_cost_review.md#whole-route-comparison-real-state-and-coherent-provisions).
+in the [cost investigation](../../drafts/bootstrap_cost_review.md#p1-complete-route-feasibility).
 They identify 46,484 raw bytes, 3,686 completed tokens, 582 distinct tokens,
 and 8,355 tape bytes. They are not a trace of the encoder proposed here.
 

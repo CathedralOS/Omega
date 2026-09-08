@@ -1,5 +1,8 @@
 # Bootstrap source owners
 
+[Whole-chain minimization](MINIMIZATION.md) governs retention and engineering
+comparisons; language and resource contracts remain with their rung owners.
+
 This tree contains the trust-minimizing compiler chain and no final product
 implementation:
 

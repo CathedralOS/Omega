@@ -3,7 +3,7 @@
 > **Needs porting.** This document has not been consolidated or vetted for the
 > current documentation structure. See the [migration index](../../../README.md).
 
-[Pipeline](../pipeline.md) | Previous: [Syntax Trees To Symbol Resolved Trees](syntax_trees_to_symbol_resolved_trees.md) | Next: [Typed Trees To Checked Trees](typed_trees_to_checked_trees.md)
+[Pipeline](../pipeline.md) | Previous: [Syntax Trees To Symbol Resolved Trees](syntax_trees_to_symbol_resolved_trees.md) | Next: [Typed Trees To Checked Trees](../../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md)
 
 This stage attaches type and signature meaning to resolved program structure.
 

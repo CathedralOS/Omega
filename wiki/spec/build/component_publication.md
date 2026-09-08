@@ -133,3 +133,22 @@ not reduce a failed linear transaction to diagnostics while dropping its custody
 Container assembly, metadata, signing, and other platform publication requirements
 need their own exact artifact scope. An executable receipt alone does not certify
 an application package.
+
+## Report and entry-bridge consistency
+
+The output category is explicit, not inferred from a path or a `wrote_output`
+Boolean. Native executable output requires its publication custody;
+object-container output has no executable receipt; check-only has neither output
+nor receipt. A failed native-custody check cannot turn the result into a valid
+object fallback. Written-output handoff paths match the receipt before reporting.
+
+A retained program-storage binding and bridge agree exactly. Check-only bridges
+remain pending, native bridges retain final wrapper evidence, and object-only
+output carries no bridge. Final wrapper evidence rejoins the same executable
+inventory, compiler-text derivation, function evidence, and boundary contract
+as publication; independently valid evidence from another image is insufficient.
+
+Execution consumers use the report's verified executable path, not a conventional
+filename reconstructed under the build directory. Check-only, object-only, or
+internally inconsistent reports provide no executable path. For a bundle, the
+checked inner executable and package root retain one verified relationship.
