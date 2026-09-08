@@ -139,15 +139,18 @@ pub(super) fn build_write_only_primitive_store(
             .is_some_and(|parameter| parameter.primitive_type == primitive_type)
             && *destination_type == primitive_type
     });
+    // The admitted result is binding zero, after the dense scalar inputs;
+    // its source binding ordinal is not its scalar-expression position.
     let direct_result_is_exact = matches!(
         (result_local, value),
         (
             Some(result),
             CheckedScalarExpression::Local {
-                position: 0,
+                position,
                 primitive_type,
             },
-        ) if *primitive_type == result.primitive_type
+        ) if *position == scalar_parameters.len()
+            && *primitive_type == result.primitive_type
             && *destination_type == result.primitive_type
             && matches!(
                 result.primitive_type,
@@ -160,7 +163,6 @@ pub(super) fn build_write_only_primitive_store(
                     | PrimitiveType::U32
                     | PrimitiveType::U64
             )
-            && scalar_parameters.is_empty()
     );
     if !(direct_literal || direct_parameter_is_exact || direct_result_is_exact)
         || crate::values::scalar_expression_type(value) != Some(*destination_type)

@@ -10,6 +10,7 @@ mod effects;
 mod expressions;
 mod nominal;
 mod selected_operator;
+mod shared_types;
 use expressions::*;
 use nominal::lower_nominal_structural_scalar_return_machine;
 pub(super) use selected_operator::lower_selected_operator_structural_scalar_return_machine;
@@ -318,6 +319,18 @@ pub(super) fn lower_structural_scalar_return_machine(
     lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0, None)
 }
 
+/// Ordinary structural scalar callees currently use the closed primitive-store
+/// body: no calls, claims, cleanup, requirements, or crash routes are omitted.
+pub(crate) fn validate_scalar_callee(
+    checked: &CheckedTrees,
+    plan: &CheckedStructuralScalarReturnMachinePlan,
+) -> Result<(), LoweringError> {
+    if !effects::validate(checked, plan)? {
+        return unsupported("structural scalar callee needs complete call and contract custody");
+    }
+    Ok(())
+}
+
 pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
@@ -334,23 +347,13 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     }) {
         return unsupported("namespaced structural scalar callees require direct root cleanup");
     }
-    let (lowered_structural_types, lowered_type_ids) = lower_structural_type_plans(
-        &checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .structural_types,
-    )?;
+    let type_plans = &checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .structural_types;
     let (structural_types, type_ids) = if let Some(shared) = shared_structural_types {
-        for declaration in &lowered_structural_types {
-            if !shared.iter().any(|candidate| {
-                candidate.identity == declaration.identity && candidate.shape == declaration.shape
-            }) {
-                return unsupported(
-                    "shared Unit structural catalog is missing a scalar realization type",
-                );
-            }
-        }
+        shared_types::validate(type_plans, shared, plan)?;
         (
             shared.to_vec(),
             shared
@@ -359,7 +362,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
                 .collect::<Vec<_>>(),
         )
     } else {
-        (lowered_structural_types, lowered_type_ids)
+        lower_structural_type_plans(type_plans)?
     };
     if plan.structural_parameters.is_empty() {
         return unsupported("structural scalar return has no structural parameters");

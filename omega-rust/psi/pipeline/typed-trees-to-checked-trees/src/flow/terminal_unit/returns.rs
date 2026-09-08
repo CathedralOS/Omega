@@ -2,7 +2,11 @@
 
 use super::*;
 
-mod primitive_effects;
+pub(super) mod primitive_effects;
+pub(crate) use primitive_effects::{
+    build_checked_primitive_store_scalar_return_plans,
+    refresh_checked_primitive_store_scalar_return_plans,
+};
 mod selected_operator;
 use selected_operator::build_selected_operator_structural_scalar_return_machine;
 
@@ -1534,7 +1538,7 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
             build_structural_scalar_return_machine(
                 program,
                 facts,
-                unit_effects,
+                Some(unit_effects),
                 &mut shapes,
                 machine,
                 diagnostics,
@@ -2080,7 +2084,7 @@ pub(super) fn build_boundary_scalar_return_machine(
 pub(super) fn build_structural_scalar_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
-    unit_effects: &CheckedUnitEffectPlans,
+    unit_effects: Option<&CheckedUnitEffectPlans>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     diagnostics: &mut Vec<Diagnostic>,
@@ -2462,6 +2466,7 @@ pub(super) fn build_structural_scalar_return_machine(
                 let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
                     return None;
                 };
+                let unit_effects = unit_effects?;
                 let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
                 let cleanup_requirements = nominal_cleanup_boolean_requirements(
                     program,

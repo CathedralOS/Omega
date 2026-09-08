@@ -1137,7 +1137,9 @@ pub(super) fn build_call_operation(
         && (!structural_arguments.is_empty() || !transfers.is_empty())
         && !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(result))
             if is_registered_boundary_scalar_target(
-                facts, target_machine.symbol, target_state.symbol, result))
+                facts, target_machine.symbol, target_state.symbol, result)
+                || scalar_targets::registered_primitive_store_target(
+                    program, facts, target_machine.symbol, target_state.symbol, result).is_some())
     {
         None
     } else {

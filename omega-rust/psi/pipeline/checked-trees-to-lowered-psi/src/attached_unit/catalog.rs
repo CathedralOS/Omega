@@ -267,6 +267,11 @@ pub(crate) fn lower_unit_structural_type_roots(
                 .flow
                 .terminal_boundary_scalar_returns
                 .structural_types,
+            &checked
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .structural_types,
         ] {
             let mut matches = roster.iter().filter(|plan| plan.identity == identity);
             let Some(plan) = matches.next() else {

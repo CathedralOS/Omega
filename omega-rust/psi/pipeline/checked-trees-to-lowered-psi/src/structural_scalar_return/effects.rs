@@ -1,7 +1,7 @@
 //! Rejoin write-then-return effects with their complete authored statement roster.
 
 use super::*;
-use checked_trees::{expression::ExpressionNode, statement::StatementNode};
+use checked_trees::statement::StatementNode;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -20,7 +20,7 @@ pub(super) fn validate(
         return Ok(false);
     }
     let [
-        StatementNode::Assignment(assignment),
+        StatementNode::Assignment(_),
         StatementNode::Expression(returned),
     ] = statements
     else {
@@ -208,28 +208,8 @@ pub(super) fn validate(
             );
         }
     }
-    let ExpressionNode::Name(target) = checked.expression_table.expression(assignment.target)
-    else {
-        return unsupported("primitive store return destination is not a direct parameter");
-    };
-    if target.symbol != parameter.symbol || target.head_symbol != parameter.symbol {
-        return unsupported(
-            "primitive store return destination differs from its authored parameter",
-        );
-    }
+    crate::primitive_store::validate_assignment(checked, plan.state, 0, destination, value)?;
     let expressions = &checked.facts.values.scalar_expressions;
-    let (binding, expression) = expressions
-        .bound_expression_at(plan.state, 0, CheckedScalarExpressionRole::AssignmentValue)
-        .ok_or(LoweringError::Unsupported(
-            "primitive store return lost its unique RHS binding",
-        ))?;
-    if binding.expression != assignment.value
-        || binding.destination != parameter.symbol
-        || expression != value
-    {
-        return unsupported("primitive store return RHS differs from its authored assignment");
-    }
-    crate::scalar_source_custody::validate_namespace(checked, binding)?;
     let (binding, _) = expressions
         .bound_expression_at(plan.state, 1, CheckedScalarExpressionRole::Return)
         .ok_or(LoweringError::Unsupported(

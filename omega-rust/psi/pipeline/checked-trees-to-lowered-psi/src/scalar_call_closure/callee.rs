@@ -5,6 +5,7 @@ use super::*;
 pub(crate) enum CheckedScalarCallee<'checked> {
     Graph(&'checked checked_trees::CheckedScalarMachineGraph),
     Boundary(&'checked CheckedBoundaryScalarReturnMachinePlan),
+    Structural(&'checked CheckedStructuralScalarReturnMachinePlan),
 }
 
 impl<'checked> CheckedScalarCallee<'checked> {
@@ -13,10 +14,8 @@ impl<'checked> CheckedScalarCallee<'checked> {
         source: symbols::SymbolHandle,
     ) -> Result<Self, LoweringError> {
         let callee = Self::find_for_unit_call(checked, source)?;
-        if let Self::Boundary(boundary) = &callee
-            && (!boundary.structural_parameters.is_empty() || !boundary.entry_claims.is_empty())
-        {
-            return unsupported("scalar boundary callee requires structural call custody");
+        if !callee.structural_parameters().is_empty() || !callee.entry_claims().is_empty() {
+            return unsupported("scalar callee requires structural call custody");
         }
         Ok(callee)
     }
@@ -41,20 +40,52 @@ impl<'checked> CheckedScalarCallee<'checked> {
             .machines
             .iter()
             .filter(|plan| plan.machine == source);
-        let selected = (graphs.next(), boundaries.next());
-        if graphs.next().is_some() || boundaries.next().is_some() {
+        let mut structural = checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines
+            .iter()
+            .filter(|plan| plan.machine == source);
+        let selected = (graphs.next(), boundaries.next(), structural.next());
+        if graphs.next().is_some() || boundaries.next().is_some() || structural.next().is_some() {
             return unsupported("scalar callee has duplicate checked body ownership");
         }
         match selected {
-            (Some(graph), None) => Ok(Self::Graph(graph)),
-            (None, Some(boundary)) => {
+            (Some(graph), None, None) => Ok(Self::Graph(graph)),
+            (None, Some(boundary), None) => {
                 crate::boundary_scalar_return::validate_boundary_scalar_return(checked, boundary)?;
                 Ok(Self::Boundary(boundary))
             }
-            (Some(_), Some(_)) => unsupported("scalar callee has ambiguous checked body ownership"),
-            (None, None) => {
-                unsupported("scalar callee has no checked graph or boundary-return body")
+            (None, None, Some(plan)) => {
+                crate::structural_scalar_return::validate_scalar_callee(checked, plan)?;
+                Ok(Self::Structural(plan))
             }
+            (None, None, None) => unsupported("scalar callee has no checked executable body"),
+            _ => unsupported("scalar callee has ambiguous checked body ownership"),
+        }
+    }
+
+    pub(crate) fn structural_parameters(&self) -> &[CheckedUnitStructuralParameterPlan] {
+        match self {
+            Self::Graph(_) => &[],
+            Self::Boundary(plan) => &plan.structural_parameters,
+            Self::Structural(plan) => &plan.structural_parameters,
+        }
+    }
+
+    pub(crate) fn source_machine(&self) -> symbols::SymbolHandle {
+        match self {
+            Self::Graph(plan) => plan.machine,
+            Self::Boundary(plan) => plan.machine,
+            Self::Structural(plan) => plan.machine,
+        }
+    }
+
+    pub(crate) fn entry_claims(&self) -> &[checked_trees::CheckedUnitEntryClaimPlan] {
+        match self {
+            Self::Boundary(plan) => &plan.entry_claims,
+            Self::Graph(_) | Self::Structural(_) => &[],
         }
     }
 
@@ -70,6 +101,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
                     ))
             }
             Self::Boundary(boundary) => Ok(boundary.state),
+            Self::Structural(plan) => Ok(plan.state),
         }
     }
 
@@ -87,6 +119,11 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .iter()
                 .map(|parameter| parameter.primitive_type)
                 .collect()),
+            Self::Structural(plan) => Ok(plan
+                .scalar_parameters
+                .iter()
+                .map(|parameter| parameter.primitive_type)
+                .collect()),
         }
     }
 
@@ -100,6 +137,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 ))
                 .and_then(|state| terminal_scalar_type(state.result_type)),
             Self::Boundary(boundary) => terminal_scalar_type(boundary.result_type),
+            Self::Structural(plan) => terminal_scalar_type(plan.result_type),
         }
     }
 
@@ -135,6 +173,13 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 ),
                 plan,
             }),
+            Self::Structural(plan) => {
+                crate::structural_scalar_return::validate_scalar_callee(checked, plan)?;
+                Ok(PreparedScalarCallee::Structural {
+                    plan,
+                    result_type: terminal_scalar_type(plan.result_type)?,
+                })
+            }
         }
     }
 }
@@ -146,6 +191,10 @@ pub(crate) enum PreparedScalarCallee<'checked> {
         result_type: ScalarType,
         requirement_count: usize,
     },
+    Structural {
+        plan: &'checked CheckedStructuralScalarReturnMachinePlan,
+        result_type: ScalarType,
+    },
 }
 
 impl PreparedScalarCallee<'_> {
@@ -153,6 +202,7 @@ impl PreparedScalarCallee<'_> {
         match self {
             Self::Graph(graph) => graph.source_machine,
             Self::Boundary { plan, .. } => plan.machine,
+            Self::Structural { plan, .. } => plan.machine,
         }
     }
 
@@ -160,6 +210,7 @@ impl PreparedScalarCallee<'_> {
         match self {
             Self::Graph(graph) => graph.result_type,
             Self::Boundary { result_type, .. } => *result_type,
+            Self::Structural { result_type, .. } => *result_type,
         }
     }
 
@@ -169,6 +220,7 @@ impl PreparedScalarCallee<'_> {
             Self::Boundary {
                 requirement_count, ..
             } => *requirement_count,
+            Self::Structural { .. } => 0,
         }
     }
 }

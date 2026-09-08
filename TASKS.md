@@ -896,9 +896,10 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  integrate the existing primitive-store return body with borrowed operands and
-  the shared Terminal call closure. Preserve its authored guard and structural
-  payload; the generated hop currently rejects the range.
+  extend the ordinary borrowed primitive-store call route to checked computation
+  operands and its shared Terminal closure. Establish real mutable primitive
+  local referents and propagate writes to later reads. Preserve the authored
+  guard and structural payload; the generated hop currently rejects the range.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
   calls and boundary calls, plus the remaining

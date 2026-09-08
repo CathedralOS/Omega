@@ -2,6 +2,64 @@
 
 use super::*;
 
+pub(super) fn validate_assignment(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    destination: &CheckedUnitStructuralParameterPlan,
+    value: &CheckedScalarExpression,
+) -> Result<(), LoweringError> {
+    use checked_trees::{expression::ExpressionNode, statement::StatementNode};
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
+    let Some(StatementNode::Assignment(assignment)) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index as usize)
+    else {
+        return unsupported("primitive store has no authored assignment");
+    };
+    let parameter = checked
+        .state_parameters(state)
+        .get(destination.position as usize)
+        .ok_or(LoweringError::Unsupported(
+            "primitive store lost its authored destination",
+        ))?;
+    let ExpressionNode::Name(target) = checked.expression_table.expression(assignment.target)
+    else {
+        return unsupported("primitive store destination is not a direct parameter");
+    };
+    if !parameter.symbol.is_valid()
+        || target.symbol != parameter.symbol
+        || target.head_symbol != parameter.symbol
+        || checked
+            .expression_table
+            .name_path_members(target.members)
+            .len()
+            != 1
+    {
+        return unsupported("primitive store destination differs from its authored parameter");
+    }
+    let (binding, expression) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(
+            state_symbol,
+            statement_index,
+            CheckedScalarExpressionRole::AssignmentValue,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "primitive store lost its unique RHS binding",
+        ))?;
+    if binding.expression != assignment.value
+        || binding.destination != parameter.symbol
+        || expression != value
+    {
+        return unsupported("primitive store RHS differs from its authored assignment");
+    }
+    crate::scalar_source_custody::validate_namespace(checked, binding)
+}
+
 pub(super) fn emit(
     destination_parameter_index: u32,
     value: &CheckedScalarExpression,

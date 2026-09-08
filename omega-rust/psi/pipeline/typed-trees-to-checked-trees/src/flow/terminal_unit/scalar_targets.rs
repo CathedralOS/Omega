@@ -2,6 +2,47 @@
 
 use super::*;
 
+pub(super) fn registered_primitive_store_target<'facts>(
+    program: &TypedTrees,
+    facts: &'facts CheckFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    result: PrimitiveType,
+) -> Option<&'facts CheckedStructuralScalarReturnMachinePlan> {
+    let mut targets = facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == machine_symbol);
+    let plan = targets.next()?;
+    if targets.next().is_some()
+        || plan.state != state_symbol
+        || plan.result_type != result
+        || plan.effects.is_empty()
+        || facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine_symbol)
+            .is_some()
+        || facts
+            .flow
+            .terminal_boundary_scalar_returns
+            .machines
+            .iter()
+            .any(|target| target.machine == machine_symbol)
+    {
+        return None;
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let mut shapes = ShapeCollector::new(program);
+    let expected = returns::primitive_effects::build_machine(program, facts, &mut shapes, machine)?;
+    (expected == *plan).then_some(plan)
+}
+
 pub(super) fn is_available(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -31,18 +72,6 @@ pub(super) fn is_available(
     {
         return structural_arguments.is_empty() && claim_transfers.is_empty();
     }
-    let mut targets = facts
-        .flow
-        .terminal_boundary_scalar_returns
-        .machines
-        .iter()
-        .filter(|plan| plan.machine == *target_machine);
-    let Some(plan) = targets.next() else {
-        return false;
-    };
-    if targets.next().is_some() || plan.state != *target_state {
-        return false;
-    };
     let Some(machine) = program
         .machines()
         .iter()
@@ -56,36 +85,77 @@ pub(super) fn is_available(
     let Some(contract) = facts.contract_plans.for_machine(*target_machine) else {
         return false;
     };
-    let mut shapes = ShapeCollector::new(program);
-    let binders = machine_binders(program, machine);
-    let signature = if plan.scalar_parameters.is_empty() {
-        structural_signature(program, &mut shapes, machine, state, &binders, false)
-            .map(|(attachment, structural)| (attachment, structural, Vec::new()))
+    let (structural, scalar, claims, result_type) = if facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .iter()
+        .any(|plan| plan.machine == *target_machine)
+    {
+        let Some(plan) = registered_primitive_store_target(
+            program,
+            facts,
+            *target_machine,
+            *target_state,
+            result.primitive_type,
+        ) else {
+            return false;
+        };
+        (
+            &plan.structural_parameters,
+            &plan.scalar_parameters,
+            &[][..],
+            plan.result_type,
+        )
     } else {
-        structural_scalar_signature(program, &mut shapes, machine, state, &binders, false)
+        let mut targets = facts
+            .flow
+            .terminal_boundary_scalar_returns
+            .machines
+            .iter()
+            .filter(|plan| plan.machine == *target_machine);
+        let Some(plan) = targets.next() else {
+            return false;
+        };
+        if targets.next().is_some() || plan.state != *target_state {
+            return false;
+        }
+        let mut shapes = ShapeCollector::new(program);
+        let binders = machine_binders(program, machine);
+        let signature = if plan.scalar_parameters.is_empty() {
+            structural_signature(program, &mut shapes, machine, state, &binders, false)
+                .map(|(attachment, structural)| (attachment, structural, Vec::new()))
+        } else {
+            structural_scalar_signature(program, &mut shapes, machine, state, &binders, false)
+        };
+        let Some((attachment, structural, scalar)) = signature else {
+            return false;
+        };
+        if attachment != plan.attachment_type_identity
+            || structural != plan.structural_parameters
+            || scalar != plan.scalar_parameters
+        {
+            return false;
+        }
+        (
+            &plan.structural_parameters,
+            &plan.scalar_parameters,
+            plan.entry_claims.as_slice(),
+            plan.result_type,
+        )
     };
-    let Some((attachment, structural, scalar)) = signature else {
-        return false;
-    };
-    if attachment != plan.attachment_type_identity
-        || structural != plan.structural_parameters
-        || scalar != plan.scalar_parameters
-        || structural_arguments.len() != structural.len()
+    if structural_arguments.len() != structural.len()
         || structural_arguments
             .iter()
-            .zip(&structural)
+            .zip(structural)
             .any(|(argument, parameter)| {
                 argument.type_identity != parameter.type_identity
                     || argument.access != parameter.access
             })
-        || claim_transfers.len() != plan.entry_claims.len()
-        || claim_transfers
-            .iter()
-            .zip(&plan.entry_claims)
-            .any(|(transfer, claim)| {
-                transfer.argument_index != claim.parameter_index
-                    || claim.carry != CarryPolicy::STRICT
-            })
+        || claim_transfers.len() != claims.len()
+        || claim_transfers.iter().zip(claims).any(|(transfer, claim)| {
+            transfer.argument_index != claim.parameter_index || claim.carry != CarryPolicy::STRICT
+        })
     {
         return false;
     }
@@ -94,11 +164,11 @@ pub(super) fn is_available(
         facts,
         machine.symbol,
         state.symbol,
-        &structural,
+        structural,
         program.state_parameters(state),
     )
-    .as_ref()
-        != Some(&plan.entry_claims)
+    .as_deref()
+        != Some(claims)
     {
         return false;
     }
@@ -138,12 +208,11 @@ pub(super) fn is_available(
     // no receiver or claim may disappear while selecting the real callee body.
     machine.supply_mode == MachineSupplyMode::CheckedBody
         && state.symbol == *target_state
-        && program.state_parameters(state).len()
-            == plan.scalar_parameters.len() + plan.structural_parameters.len()
-        && scalar_arguments.len() == plan.scalar_parameters.len()
+        && program.state_parameters(state).len() == scalar.len() + structural.len()
+        && scalar_arguments.len() == scalar.len()
         && scalar_arguments
             .iter()
-            .zip(&plan.scalar_parameters)
+            .zip(scalar)
             .all(|(argument, parameter)| {
                 let primitive_type = match argument {
                     checked_trees::CheckedCallScalarArgument::Pure(expression) => {
@@ -159,8 +228,8 @@ pub(super) fn is_available(
                 };
                 primitive_type == Some(parameter.primitive_type)
             })
-        && plan.result_type == result.primitive_type
-        && program.primitive_type_reference(state.return_type) == Some(plan.result_type)
+        && result_type == result.primitive_type
+        && program.primitive_type_reference(state.return_type) == Some(result_type)
         && contract.report_fingerprint == *target_contract_report_fingerprint
         && contract.commitment == *target_contract_commitment
 }
