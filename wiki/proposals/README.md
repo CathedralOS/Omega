@@ -14,5 +14,8 @@ Acceptance updates the specification; this directory does not define current rul
   workload-guided ranking and search, with independent semantic validation.
 - [Matching-logic interchange](matching_logic.md): an open comparison of a
   second proof/semantics route, including its translation and trust costs.
+- [Author-invoked assertions and build diagnostics](assertions_and_build_diagnostics.md):
+  unapproved library, provider, and diagnostic-build alternatives; admissions
+  require no runtime checking independently of this design.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).
