@@ -114,7 +114,7 @@ boundary surfaces.
 A package's dependencies — the external packages it may reach — are declared in
 its **`build.omg`**, a capability-checked build-entry machine that augments a
 `Build` (see
-[`../design_briefs/build_and_package_model.md`](../pre_migration/design_briefs/build_and_package_model.md)).
+[package source selection](../spec/packages/sources.md)).
 Each dependency row requests a source and update selector. After fetching it,
 Omega reads the dependency's own `builder.package("name")` declaration and
 derives the default local alias
@@ -284,7 +284,7 @@ volatile-capable build before running it. The artifact separately reports:
 
 A hash-pinned dependency artifact can satisfy the first even when its own build
 used a volatile observation, in which case the graph fails the second. See the
-[build/package brief](../pre_migration/design_briefs/build_and_package_model.md) and the
+[package-boundary contract](../spec/packages/boundaries.md) and the
 [semantic-evaluation brief](../pre_migration/design_briefs/build_time_evaluation.md).
 
 ## Path separator: `::` for names, `.` for values
@@ -631,7 +631,7 @@ Names resolve in this order:
   package the current package did not declare in its `build.omg` is a resolution
   error, not an ambient reach. (This gate is the build-time analog of the
   capability model; see
-  [`../design_briefs/build_and_package_model.md`](../pre_migration/design_briefs/build_and_package_model.md).)
+  [package-boundary contract](../spec/packages/boundaries.md).)
 
 Ambiguity is an error. The compiler should not guess between two imported
 declarations with the same visible name.

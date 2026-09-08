@@ -85,6 +85,21 @@ cross-representation joins are documented
 
 ## Distinct evidence roles
 
+For each public callable and the build machine, keep the published reach ceiling
+separate from checked-body transitive reach and its preselection concrete base.
+That base excludes unresolved installation-selected upper bounds; it is not
+final-provider evidence. Bodyless supply has an explicit no-checked-body case,
+not a realized copy of its ceiling. Checked supply requires a body; accepted,
+requirement, and external supply forbid one; boundary supply may have an adapter.
+Underdeclaration rejects. Dangerous overdeclaration is visible audit-recommended
+slack with exact callable/service ownership, not an invented body observation.
+
+A bodyless guarantee is an explicit accepted claim; a claim-free boundary symbol
+is not. Retain the complete published envelope as a distinct trust finding.
+Authority establishment, provider guarantees, executable mechanisms, assumptions,
+and ABI compatibility are independent axes. Classifications come from admitted
+compiler-owned metadata on exact nominals, never package-controlled names.
+
 Each package-owned bodyless external realization, including an unused private
 leaf, has a separate executable-supply trust row. Its self-contained key binds
 the exact callable/signature and tagged requirement application; its value
@@ -113,6 +128,14 @@ Build-generated source belongs to the checked candidate and remains in custody
 through its use. Compiler transcripts, replay records, and certificate caches
 are not ordinary lock acceptance. Existing ledger wrappers do not mandate an
 additional lock-certification or package-promotion workflow.
+
+Open contract-entailment obligations cannot be accepted by policy. An exact
+locally rechecked discharge may close one; accepted axioms remain disclosed
+assumptions. Reports separate mechanical checking from admissions and from
+producer/signature/audit metadata. A signature records custody, not review quality;
+a kernel establishes only its exact checked logical claim. Observing pathname
+bytes at `current_exe()` does not identify the loaded compiler image and enters
+neither package review, lock, conflict, cache, nor admission identity.
 
 ## Target-dependent public identity
 

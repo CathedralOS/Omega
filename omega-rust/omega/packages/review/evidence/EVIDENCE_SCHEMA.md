@@ -124,6 +124,17 @@ a supported selected application, executable call, or native realization.
 
 | Form | Current identity and checks |
 | --- | --- |
+| Pure call / member path | One exact public-interface selection joined to checked owner environment. Retain receiver ordinal and qualified case/field chain, or optional receiver, exact entry target, and arguments. No global name fallback; helper bodies remain source-content identity. |
+| Contract static argument | Exact selected callee telescope/category: concrete type, canonical const, caller binder ordinal, or exact machine entry. Recursive generic data applications retain checked base/telescope and caller lifetime ordinals; forwarded type/const binders rejoin caller categories. True nested machine applications and general mathematical arguments remain unsupported. |
+| Byte literal | Typed decoded octets without an invented text encoding; escape-equivalent spelling is stable. |
+| Array literal | Ordered recursive elements; an unsupported child rejects the complete row. |
+| Record/case constructor | Exact qualified data, case, fields and recursive values, sorted by semantic field identity rather than source order. |
+| Index/range | Exact public-interface operator occurrence, builtin/declared meaning, collection, index/endpoints, and inclusive-end bit. |
+| Cast | Structural operand, target, arithmetic policy, qualified domain/arguments, and value/recast form; no private domain exposure through a public contract. |
+| `zero_value<T>()` | Exact qualified/alpha-normalized observed type, not layout bytes or a checker verdict. Quotients remain outside the representation-observer contract. |
+| Collection length | Exact `len` selection on fixed array/slice after preferring an actual nominal field. Package fields keep their owner. |
+| Unary `!` / `~` | Authored operator occurrence finalized to checked builtin meaning before projection. |
+| Byte predicates / builtin functions | Exact closed predicate or fixed root builtin slot/kind. Same-spelled package/nested/generated declarations stay nominal; malformed receivers, static arguments, or symbol joins reject. |
 | Named operator call | Exact operator resolution and authored occurrence; static namespace is not a value receiver. Target or reference-argument drift rejects. |
 | Explicit mutable/write-only reference | Access mode plus recursively projected target and exact declared parameter type. Implicit shared lending uses receiving type and target, not a fabricated explicit node. |
 | Atomic load | Recursive loaded value and closed ordering `NoOrdering`, `Receive`, or `GlobalOrder`; requires load form with no result carrier. Stores, RMW, swap, compare-exchange, invalid ordering, and carrier drift reject. |
@@ -140,6 +151,23 @@ call grammar. Executable evidence projections and nested executable machine
 applications are not admitted by adding a review row. Contract/bundle migration
 must preserve exact occurrence, substitution, law/member, and witness joins;
 replacement encodings remain `PROOF-CONTRACT-MIGRATION` work.
+
+Outcome-specific guarantees retain exact result-data/case identity and canonical
+fact joined to their checked guarded owner. Ordering is not meaning, but moving
+a fact to another case is. They cannot collapse to unconditional postconditions.
+Each non-crash public-operator fact rejoins one exact operator owner row. Operator
+crash tables must match fresh derivation, including crash-free entries; cause/guard
+sorting and deduplication preserve identity, not changed guards.
+
+Public consts retain declared carrier and supported canonical value even when
+unused. Public operators retain exact overload coordinate, boundary status, fixed
+spelling, signature, and declaration contracts independently of uses. Whole public
+conformances retain declaration-owned visibility, normalized telescopes, subject,
+trait application, and inherited checked requirements. Member bodies/states and
+inline/reference/default choices do not enter public conformance identity; their
+signatures and substituted laws still validate. A requirement-local satisfier and
+its optional grouping alias do not become a whole-conformance declaration.
+Explicit/inferred selections keep visibility and direct-dependency admission.
 
 Public conformance target lifetimes use declaration-order ordinals into the
 public conformance telescope, with arity/in-scope checks and substitution through

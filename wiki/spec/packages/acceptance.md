@@ -91,3 +91,36 @@ Native preparation compares fresh findings against the same accepted project
 baseline. Unchanged accepted policy needs no second native approval file; unmatched
 findings use ordinary package review. This does not waive compiler proof checks,
 build-execution grants, or independently supplied receiving permission policy.
+
+Acceptance binds permission and assumption meaning, not diagnostic wording or
+incidental presentation. Unknown semantic-schema compatibility requires full
+reconstruction and fresh admission, not guessed equivalence. Resolution-only
+updates preserve accepted permissions/assumptions without adding grants; this is
+semantic preservation, not byte-identical decision serialization, since source
+and comparison commitments may change. An absent baseline stays absent until
+explicit acceptance.
+
+## Review transaction
+
+Compare both complete source graphs and targets, including removed packages,
+directional root-role changes, and replacements at exact requester/alias edges.
+Each required change needs one decision; advisory-only rows have none. Preserve
+exact displayed old/new policy, resolutions, dependency paths, and the complete
+comparison identity. A decision for another comparison cannot authorize this one.
+
+The editable document permits only `pending` to `accept`/`reject` changes. On
+resume, regenerate findings and verify exact display, framing, and complete
+decision coverage. There is no blanket approval, audit receipt, or package-prose
+channel. Rejection prevents acceptance of that candidate; complete accepting
+choices still require fresh source/project checks before publication.
+
+Stage proposed build bytes in an immutable candidate while retaining the original
+live root, lineage, relative-dependency base, and source/file identities. Check
+all selected targets and publish only the reviewed declaration/lock pair. The
+transaction is recoverable rather than two simultaneously visible renames:
+recover pending intent before reading accepted state, stop on unrelated edits,
+and never delete pending publication state as disposable cache. Exact command
+and interruption behavior belongs to the
+[command](../../../omega-rust/omega/packages/manager/src/operations/package_commands/README.md)
+and [publication](../../../omega-rust/omega/packages/manager/src/operations/publication/README.md)
+owners.

@@ -4,6 +4,15 @@
 [Boundary realization](../terminal-psi/boundary_calls.md) defines demanded
 applications and selected provider evidence.
 
+Package-aware `Placed<P, S>` discovery resolves exact policy/schema identities
+and checks both declarations' visibility and direct-dependency authority before
+synthesis. Because the compiler shell is erased before ordinary type-selection
+capture, both inputs must be public even for local use. The inert opaque field
+carrier follows shell visibility; operation visibility follows exact
+`AccessExposure`, and binding-private access stays inside the policy package.
+Statement operations retain their exact generated target. Equal spellings cannot
+launder private declarations through a source-free shell.
+
 ## Occurrences and views
 
 Terminal Psi does not serialize a concrete address as authority or re-resolve

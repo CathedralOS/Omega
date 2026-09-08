@@ -57,7 +57,7 @@ local-project package review route. Keep its result separate from the outer comm
 The outer CLI checks current package requirements against the project's accepted
 `omega.lock` policy. Missing acceptance or changed requirements stop before
 native production with ordinary `omega update` guidance and compiler-rendered
-findings. The [single package-acceptance rule](../../../../wiki/pre_migration/design_briefs/build_and_package_model.md#single-package-acceptance)
+findings. The [single package-acceptance rule](../../../../wiki/spec/packages/acceptance.md#authority-boundaries)
 means an unchanged accepted policy needs no second native approval file.
 Recent macOS outer probes have not reached package admission within their measured
 runtime window; the preliminary-validation performance task remains open.

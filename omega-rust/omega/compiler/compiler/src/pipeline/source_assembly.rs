@@ -371,7 +371,7 @@ fn validate_package_source_frontier(
     }
 }
 
-/// The TOOLCHAIN-PROVIDED build vocabulary (build_and_package_model.md): a
+/// Toolchain-provided build vocabulary (wiki/spec/build/declarations.md): a
 /// build.omg has exactly one free `machine build(builder: &mut Build) { ... }`
 /// entry. The `Build` / `Subsystem` types are CORE-DEFINED, never authored per
 /// file. When a build.omg root declares that build-machine shape and no `Build` data of
@@ -381,7 +381,7 @@ fn validate_package_source_frontier(
 /// surface through `builder.package(name)`; there is no second declaration
 /// type or compiler-only constant shape.
 const BUILD_PRELUDE: &str = r#"
-// Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
+// Toolchain-provided build vocabulary.
 pub data Subsystem {
     case Console;
     case Gui;

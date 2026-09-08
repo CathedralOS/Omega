@@ -1,4 +1,4 @@
-//! THE BUILD CONFIG (build_and_package_model.md + its 2026-07-04 addendum):
+//! Build configuration (wiki/spec/build/configuration.md):
 //! image facts come from `build.omg`'s augmenting machine, never from an
 //! invented config grammar. When the program (build.omg is ordinary source,
 //! auto-included next to main.omg) defines the conventionally-named free

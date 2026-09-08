@@ -48,6 +48,7 @@ beside code; completed work belongs in Git, not current reference material.
 - Packages: [source selection](spec/packages/sources.md),
   [project locks](spec/packages/locks.md),
   [declaration and carried-type boundaries](spec/packages/boundaries.md),
+  [core and ordinary libraries](spec/packages/toolchain.md),
   [compiler-derived review](spec/packages/review.md),
   [acceptance](spec/packages/acceptance.md), and the
   [workflow guide](language_guide/packages.md).
