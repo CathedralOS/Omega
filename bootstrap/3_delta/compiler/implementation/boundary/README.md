@@ -369,6 +369,36 @@ A statically admitted program can still exhaust them or diverge. Correct
 classification at those boundaries remains required, but a compiler cannot
 promise that every terminating program fits every finite runtime provision.
 
+### Arithmetic allocation probe
+
+At `8148975c62` on macOS arm64, a full-source probe used `n` nullary `Int`
+functions named `tree0` through `tree(n-1)`. Each body starts with literal `1`
+and repeats `tree = (+ tree tree)` eight times. Its `main : Bytes -> Bytes`
+returns its input when `(tree0)` equals 256, otherwise empty bytes. This tests
+ordinary checked arithmetic without deep normalization: the production lowering
+diagnostic reports height 21 for each tree.
+
+For 64 trees, the 99,395-byte source (SHA-256
+`3273c285a1e566744be97d57b0a18cce8df0b2e48039659f80c2cad467000e2c`)
+compiled through canonical DCREQ profile 1 in 179.839 seconds. Its 3,372,065-byte
+receipt (`257ae0f993cefc348dcf8a5d239123763e99783b4334b3b52b60b9e3fd94bb94`)
+executed with status zero and exact `00 41 80 ff` output. For 512 trees, the
+795,103-byte source (`0b9b7e2ebb16bfdf2958d3791e9e140aa72facfab2a2852b344f360a2509847d`)
+returned only canonical DCOUT Incomplete in 159.220 seconds: syntax resource 7,
+source coordinate 735,359, limit 114,294,752, requested 114,294,880. Both runs
+used selected Gamma, with empty stderr; no evaluator limit was changed.
+
+This family does not witness a missing heap outcome. Parser and grammar
+allocation is exactly `40 * (5,658*n + 140)` bytes, so 504 trees fit the syntax
+ledger and 505 cannot complete grammar. Lowering allocates 50,504 pairs per
+tree; syntax, tree lowering, and arithmetic typing together use 30,876,188 pairs
+at 504 trees, below Gamma's 40,265,318-pair provision. That subtotal excludes
+catalogs, phase carriers, the fixed main and publication; it is not a complete
+heap upper bound. Larger printed receipts can also encounter the existing
+payload refusal. Do not keep doubling this family as if a heap failure were
+established or required. Remaining allocation work needs a separately justified
+source path or a whole-producer bound, not an invented general DCOUT heap code.
+
 ### Producer invariants rather than arbitrary corruption coverage
 
 Declaration metadata's owner and body-start checks in
