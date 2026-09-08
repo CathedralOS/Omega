@@ -78,7 +78,7 @@ pub(super) fn validate_unit_cleanup_actions(
             || remaining.owned_places.remove(&root) != Some(StructuralMultiplicity::Affine)
             || roots != expected_trivial_affine_discards(function, &remaining)
             || !remaining.partial_custody_paths.is_empty()
-            || has_live_owned_operation_result(function, &remaining)
+            || has_live_owned_operation_result(function, &remaining, &roots)
         {
             return Err(mismatch());
         }
@@ -137,7 +137,7 @@ pub(super) fn validate_unit_cleanup_actions(
         .ok_or_else(mismatch)?;
     if !frontier.partial_custody_paths.is_empty()
         || roots != expected_trivial_affine_discards(function, frontier)
-        || has_live_owned_operation_result(function, frontier)
+        || has_live_owned_operation_result(function, frontier, &roots)
     {
         return Err(mismatch());
     }
