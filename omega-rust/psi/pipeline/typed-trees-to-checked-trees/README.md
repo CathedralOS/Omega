@@ -90,6 +90,14 @@ the same formation checks: suffixes preserve their carriers, and anonymous
 subtrees use exact rational evaluation before integer landing.
 Descent also requires complete write frames preserving the ranked field through
 the preceding statements and edge operands; a reset cannot count as progress.
+Every recursive occurrence must rebuild the exact nominal field by subtracting
+a provably positive step. Literal and immutable bounded scalar steps, including
+builtin computed expressions, use the shared interval analysis. The exact guard
+must establish that the field covers that step; comparison polarity follows the
+selected edge, including reversed comparisons and Boolean wrappers. Step inputs
+may change on arrival when they remain positive, unlike invocation-fixed range
+endpoints. The [batch-size countdown](../../../../tests/omega/pass/termination/measure_field_rank_step/README.md)
+exercises this source-checking tier; it supplies no native custom-view certificate.
 Relational field bounds or endpoint equality, named-state transport, broader
 projections and constrained measure parameters still need application/projection
 evidence.

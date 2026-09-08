@@ -512,7 +512,10 @@ fn component_has_proven_decrease(
     // supported orders. Genuine multi-state cycles are proven edge-by-edge with
     // the Nat-descending prover, which is the order whose decrease is defined
     // pointwise across differing source/target states.
-    let single_state_self_loop = component.len() == 1 && edges.len() == 1;
+    // Struct views enumerate every occurrence themselves. Other custom orders
+    // still have single-occurrence recognizers and must retain that restriction.
+    let single_state_self_loop = component.len() == 1
+        && (edges.len() == 1 || matches!(order, RankingOrder::CustomStructView { .. }));
 
     if single_state_self_loop {
         return edges.iter().all(|edge| {
@@ -608,9 +611,23 @@ fn state_has_proven_supported_self_loop(
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
             slice::state_has_proven_self_loop(program, machine, state, decreases)
         }
-        (RankingOrder::CustomStructView { field, .. }, DecreaseMeasure::Single(decreases)) => {
-            struct_view::state_has_proven_self_loop(program, machine, state, decreases, field)
-        }
+        (
+            RankingOrder::CustomStructView {
+                field,
+                field_symbol,
+                owner,
+                ..
+            },
+            DecreaseMeasure::Single(decreases),
+        ) => struct_view::state_has_proven_self_loop(
+            program,
+            machine,
+            state,
+            decreases,
+            field,
+            *field_symbol,
+            *owner,
+        ),
         (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) => {
             lexicographic::state_has_proven_self_loop(program, state, decreases, fields)
         }

@@ -1,6 +1,9 @@
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+mod comparison;
+pub(super) use comparison::comparison;
+
 pub(super) struct GuardedSelfLoop<'program> {
     pub(super) guard: ExpressionHandle,
     pub(super) arguments: &'program [ExpressionHandle],
@@ -238,30 +241,6 @@ pub(super) fn non_self_parameter_index(
         .iter()
         .filter(|candidate| !candidate.is_self)
         .position(|candidate| candidate.symbol == parameter.symbol)
-}
-
-pub(super) fn normalize_boolean_guard(
-    program: &typed_trees::TypedTrees,
-    guard: ExpressionHandle,
-) -> ExpressionHandle {
-    // An unguarded edge carries no positive expression fact.
-    if !guard.is_valid() {
-        return guard;
-    }
-    match program.expression_table.expression(guard) {
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                typed_trees::expression::BinaryOperator::Equal
-            ) && matches!(
-                program.expression_table.expression(binary.right),
-                ExpressionNode::Boolean(true)
-            ) =>
-        {
-            binary.left
-        }
-        _ => guard,
-    }
 }
 
 pub(super) fn expression_is_parameter(

@@ -1,127 +1,196 @@
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
+use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
+use validation::CallFrameResolver;
 
 use super::patterns;
 use super::write_preservation::prefix_preserves_path;
 
-/// Proves a self-loop terminates under a struct-view measure that projects a
-/// single field, e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`
-/// used as `terminates by card -> Card::PowerOrder`.
-///
-/// The decreasing value is the whole struct value; each recursive call argument is
-/// a struct literal whose projected field must strictly decrease relative to the
-/// projected field of the decreasing value, guarded by `<decrease>.field > 0`.
+/// Every self-edge rebuilds the exact ranked field with a positive subtraction.
+/// Range formation and construction remain obligations of ordinary checking.
 pub(super) fn state_has_proven_self_loop(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     decreases: ExpressionHandle,
     field: &Identifier,
+    field_symbol: SymbolHandle,
+    owner: SymbolHandle,
 ) -> bool {
-    let Some((parameter, argument_index)) =
-        patterns::parameter_and_argument_index_matched_by_expression(program, state, decreases)
+    let ExpressionNode::Name(subject) = program.expression_table.expression(decreases) else {
+        return false;
+    };
+    let Some((argument_index, parameter)) = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+        .find(|(_, parameter)| exact_parameter(program, decreases, parameter.symbol))
     else {
         return false;
     };
-
-    let Some(frames) = validation::CallFrameResolver::new(program) else {
+    let Some(frames) = CallFrameResolver::new(program) else {
         return false;
     };
     let rank_path = format!("{}.{}", parameter.name.as_str(), field.as_str());
     let statements = program.statement_table.statements(state.statement_nodes);
-    statements
-        .iter()
-        .enumerate()
-        .filter_map(|(ordinal, statement)| {
-            patterns::guarded_self_loop(program, state, statement)
-                .map(|self_loop| (ordinal, self_loop))
-        })
-        .any(|(ordinal, self_loop)| {
-            let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
+    let edges = patterns::edges_to_state(program, state, state.symbol);
+    !edges.is_empty()
+        && edges.iter().all(|edge| {
+            let Some(argument) = edge.arguments.get(argument_index).copied() else {
                 return false;
             };
-            prefix_preserves_path(&frames, machine, &statements[..=ordinal], &rank_path)
-                && validation::has_builtin_bound_expression_meaning(
+            let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(argument)
+            else {
+                return false;
+            };
+            if literal.type_symbol != owner
+                || literal.case_symbol.is_some()
+                || literal.case_name.is_some()
+            {
+                return false;
+            }
+            let mut fields = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .filter(|candidate| {
+                    candidate.field_symbol == field_symbol && candidate.name == *field
+                });
+            let Some(value) = fields.next() else {
+                return false;
+            };
+            if fields.next().is_some() {
+                return false;
+            }
+            let ExpressionNode::Binary(subtraction) =
+                program.expression_table.expression(value.value)
+            else {
+                return false;
+            };
+            if subtraction.operator != BinaryOperator::Subtract
+                || !exact_member(
+                    program,
+                    subtraction.left,
+                    subject.symbol,
+                    field_symbol,
+                    field,
+                )
+                || !validation::has_builtin_bound_expression_meaning(
                     program,
                     machine,
                     Some(state),
-                    self_loop.guard,
+                    value.value,
                 )
-                && guard_is_positive_member(program, self_loop.guard, parameter, field)
-                && argument_rebuilds_with_field_minus_one(
-                    program, machine, state, argument, parameter, field,
-                )
-        })
-}
-
-fn guard_is_positive_member(
-    program: &typed_trees::TypedTrees,
-    guard: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
-    field: &Identifier,
-) -> bool {
-    let normalized = patterns::normalize_boolean_guard(program, guard);
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
-        return false;
-    };
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(binary.right) else {
-        return false;
-    };
-    let Some(floor) = literal.value_i64() else {
-        return false;
-    };
-    let positive = match binary.operator {
-        BinaryOperator::Greater => floor >= 0,
-        BinaryOperator::GreaterOrEqual => floor > 0,
-        _ => false,
-    };
-    positive
-        && patterns::expression_is_parameter_member(program, binary.left, parameter, field.as_str())
-}
-
-fn argument_rebuilds_with_field_minus_one(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    argument: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
-    field: &Identifier,
-) -> bool {
-    let ExpressionNode::StructLiteral(struct_literal) =
-        program.expression_table.expression(argument)
-    else {
-        return false;
-    };
-
-    program
-        .expression_table
-        .struct_fields(struct_literal.fields)
-        .iter()
-        .any(|literal_field| {
-            literal_field.name.as_str() == field.as_str()
-                && validation::has_builtin_bound_expression_meaning(
+            {
+                return false;
+            }
+            let prefix = &statements[..=edge.statement_ordinal];
+            let Some((minimum_step, maximum_step)) =
+                preserved_bounds(program, machine, state, subtraction.right, &frames, prefix)
+            else {
+                return false;
+            };
+            if minimum_step <= 0 || !prefix_preserves_path(&frames, machine, prefix, &rank_path) {
+                return false;
+            }
+            edge.guards.iter().any(|guard| {
+                if !validation::has_builtin_bound_expression_meaning(
                     program,
                     machine,
                     Some(state),
-                    literal_field.value,
+                    guard.expression,
+                ) {
+                    return false;
+                }
+                let Some((left, operator, right)) = patterns::comparison(program, *guard) else {
+                    return false;
+                };
+                let (bound, strict) = match operator {
+                    BinaryOperator::Greater | BinaryOperator::GreaterOrEqual
+                        if exact_member(program, left, subject.symbol, field_symbol, field) =>
+                    {
+                        (right, operator == BinaryOperator::Greater)
+                    }
+                    BinaryOperator::Less | BinaryOperator::LessOrEqual
+                        if exact_member(program, right, subject.symbol, field_symbol, field) =>
+                    {
+                        (left, operator == BinaryOperator::Less)
+                    }
+                    _ => return false,
+                };
+                // Equal trees name the same immutable inputs, not matching text.
+                // Otherwise a guard's minimum must cover the step's maximum.
+                if program
+                    .expression_table
+                    .expressions_structurally_equal(bound, subtraction.right)
+                {
+                    return true;
+                }
+                preserved_bounds(program, machine, state, bound, &frames, prefix).is_some_and(
+                    |(minimum_bound, _)| {
+                        i128::from(minimum_bound) + i128::from(strict) >= i128::from(maximum_step)
+                    },
                 )
-                && field_value_is_member_minus_one(program, literal_field.value, parameter, field)
+            })
         })
 }
 
-fn field_value_is_member_minus_one(
-    program: &typed_trees::TypedTrees,
-    value: ExpressionHandle,
-    parameter: &typed_trees::signature::StateParameter,
-    field: &Identifier,
+fn exact_parameter(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(value) else {
-        return false;
-    };
-    matches!(binary.operator, BinaryOperator::Subtract)
-        && patterns::expression_is_parameter_member(program, binary.left, parameter, field.as_str())
-        && matches!(
-            program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
-        )
+    matches!(program.expression_table.expression(expression), ExpressionNode::Name(path)
+        if symbol.is_valid() && path.symbol == symbol && path.head_symbol == symbol
+            && program.expression_table.name_path_members(path.members).len() == 1)
+}
+
+fn exact_member(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    subject: SymbolHandle,
+    field: SymbolHandle,
+    name: &Identifier,
+) -> bool {
+    matches!(program.expression_table.expression(expression), ExpressionNode::Member(member)
+        if field.is_valid() && member.member_symbol == field && member.member == *name && member.case_variant.is_none()
+            && exact_parameter(program, member.receiver, subject))
+}
+
+/// Declared bounds remain valid only while every input path survives the prefix.
+/// Step inputs may change on arrival; they are not invocation-fixed endpoints.
+fn preserved_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    frames: &CallFrameResolver<'_>,
+    prefix: &[StatementNode],
+) -> Option<(i64, i64)> {
+    let bounds =
+        validation::immutable_integer_expression_bounds(program, machine, state, expression)?;
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Integer(_) => {}
+            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+            ExpressionNode::Name(_) => {
+                let parameter = program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| exact_parameter(program, expression, parameter.symbol))?;
+                if !prefix_preserves_path(frames, machine, prefix, parameter.name.as_str()) {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    Some(bounds)
 }
