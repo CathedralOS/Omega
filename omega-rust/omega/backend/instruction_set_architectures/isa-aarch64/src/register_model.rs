@@ -209,6 +209,14 @@ pub const AARCH64_LOAD8_INDEXED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 11,
 };
+pub const AARCH64_STORE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 15,
+};
+pub const AARCH64_ADDRESS_OFFSET: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 16,
+};
 pub const AARCH64_STORE64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 12,
@@ -221,7 +229,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 59] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 61] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -386,6 +394,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 59] = [
     AARCH64_STORE64,
     AARCH64_FRAME_ADDRESS,
     AARCH64_LINUX_WRITE_BYTE_I32,
+    AARCH64_STORE,
+    AARCH64_ADDRESS_OFFSET,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1029,6 +1039,22 @@ pub fn aarch64_register_constraint_catalog(
         implicit_defs: Vec::new(),
         clobbers: Vec::new(),
     });
+    for (key, result_access) in [
+        (AARCH64_STORE, RegisterOperandAccess::Use),
+        (AARCH64_ADDRESS_OFFSET, RegisterOperandAccess::Def),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, result_access, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        });
+    }
     for (key, access) in [
         (AARCH64_STORE64, RegisterOperandAccess::Use),
         (AARCH64_FRAME_ADDRESS, RegisterOperandAccess::Def),

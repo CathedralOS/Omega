@@ -58,6 +58,20 @@ pub(super) fn validate(
                 ValueLocation::Register {
                     register,
                     value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+                && matches!(
+                    call.arguments.get(index),
+                    Some(LegalizedScalarArgument::Structural { .. })
+                ) =>
+            {
+                register
+            }
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
                     byte_size,
                 },
             ] if *byte_size == placement.shape.byte_size && matches!(*byte_size, 1 | 8) => register,
@@ -65,10 +79,12 @@ pub(super) fn validate(
                 ValueLocation::Indirect {
                     pointer: IndirectPointerLocation::Register(register),
                     copy_stack_byte_offset: None,
-                    byte_size: 16,
-                    alignment: 8,
+                    byte_size,
+                    alignment,
                 },
-            ] if placement.shape == ValueShape::borrowed_reference(16, 8)
+            ] if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+                && *byte_size == placement.shape.byte_size
+                && *alignment == placement.shape.alignment
                 && matches!(
                     call.arguments.get(index),
                     Some(LegalizedScalarArgument::Structural { .. })
@@ -155,7 +171,15 @@ fn validate_borrowed_argument(
             target: &parameter.target,
         })
         .collect::<Vec<_>>();
-    let shape = ValueShape::borrowed_reference(16, 8);
+    let exclusive = matches!(
+        semantic.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    );
+    let shape = if exclusive {
+        exclusive_projection_shape(source, semantic, target)?
+    } else {
+        ValueShape::borrowed_reference(16, 8)
+    };
     let expected = evaluate_call_plan(
         source.call_plan.policy,
         &CallSignature {
@@ -170,12 +194,17 @@ fn validate_borrowed_argument(
         },
     )
     .ok()?;
-    if source.attachment.is_some()
+    if (source.attachment.is_some() && !exclusive)
         || source.ranked.is_some()
         || !signature.entry_claims.is_empty()
         || !signature.published_service_ceiling.is_empty()
         || (!parameters.is_empty()
             && !crate::structural_unit_input::accepts_borrowed_view(
+                &source.call_plan,
+                &parameters,
+                &signature.structural_types,
+            )
+            && !crate::structural_unit_input::accepts_write_borrow(
                 &source.call_plan,
                 &parameters,
                 &signature.structural_types,
@@ -185,14 +214,14 @@ fn validate_borrowed_argument(
         || !call.requirement_obligations.is_empty()
         || !call.crash_continuations.is_empty()
         || call.call_plan != expected
-        || semantic.access != StructuralAccess::SharedBorrow
-        || !semantic.path.is_empty()
+        || (!exclusive
+            && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
-        || !target.path.is_empty()
-        || target.root_structural_type != target.structural_type
+        || target.path != semantic.path
+        || (!exclusive && target.root_structural_type != target.structural_type)
         || target.shape != shape
-        || target.source_byte_offset != 0
+        || (!exclusive && target.source_byte_offset != 0)
         || target.fixed_array_length.is_some()
         || target.element_stride.is_some()
         || Some(&target.destination) != expected.parameters.last()
@@ -205,17 +234,59 @@ fn validate_borrowed_argument(
                 .parameters
                 .iter()
                 .find(|parameter| parameter.semantic.place == semantic.place)?;
-            if target.structural_type != parameter.semantic.structural_type
+            if target.root_structural_type != parameter.semantic.structural_type
                 || *placement != parameter.target.placement
             {
                 return None;
             }
         }
         target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. } => {
+            if exclusive {
+                return None;
+            }
             crate::selection::established_view_input::accepts(source, operation, target)?;
         }
     }
     Some(())
+}
+
+/// Reconstruct the pointer displacement from source layout, never from a
+/// coincidentally matching destination ABI or supplied byte offset alone.
+fn exclusive_projection_shape(
+    source: &LegalizedScalarFunction,
+    semantic: &terminal_psi::StructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
+) -> Option<ValueShape> {
+    let signature = source.structural.as_ref()?;
+    let parameter = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == semantic.place)?;
+    if !matches!(
+        (parameter.semantic.access, semantic.access),
+        (
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ) | (
+            StructuralAccess::WriteOnlyBorrow,
+            StructuralAccess::WriteOnlyBorrow
+        )
+    ) {
+        return None;
+    }
+    let (referent, offset) = crate::structural_reference_input::project(
+        parameter.semantic.structural_type,
+        &semantic.path,
+        &signature.structural_types,
+    )?;
+    let shape = crate::structural_reference_input::shape(referent, &signature.structural_types)?;
+    (target.root_structural_type == parameter.semantic.structural_type
+        && target.structural_type == referent
+        && target.source_byte_offset == offset)
+        .then_some(ValueShape::borrowed_reference(
+            shape.byte_size,
+            shape.alignment,
+        ))
 }
 
 fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {

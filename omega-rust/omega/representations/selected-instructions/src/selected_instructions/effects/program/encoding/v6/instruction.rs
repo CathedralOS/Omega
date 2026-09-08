@@ -17,6 +17,7 @@ pub(super) fn decode_instruction(
         1 => MachineMemoryEffect::ReadPointerV1,
         3 => MachineMemoryEffect::LinuxWriteByteV1,
         2 => MachineMemoryEffect::WriteFrameStorageV1,
+        4 => MachineMemoryEffect::WritePointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
@@ -77,6 +78,20 @@ fn decode_kind(
     allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
+        24 => {
+            let byte_offset = cursor.u32()?;
+            let byte_size = cursor.byte()?;
+            if !matches!(byte_size, 1 | 2 | 4 | 8) {
+                return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+            }
+            SelectedInstructionKind::Store {
+                byte_offset,
+                byte_size,
+            }
+        }
+        25 => SelectedInstructionKind::AddressOffset {
+            byte_offset: cursor.u32()?,
+        },
         0 => SelectedInstructionKind::CompareI64Zero,
         1 => SelectedInstructionKind::MaterializeI64 {
             value: decode_integer(cursor)?,
@@ -248,6 +263,8 @@ fn decode_alternative_for_version(
         22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
         16 => MachineAlternativeFamily::Load64,
+        24 => MachineAlternativeFamily::Store,
+        25 => MachineAlternativeFamily::AddressOffset,
         17 => MachineAlternativeFamily::Store64,
         18 => MachineAlternativeFamily::FrameAddress,
         19 => MachineAlternativeFamily::CallUnit,
@@ -341,6 +358,9 @@ fn decode_encoded_effects(
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
         },
         0 => MachineEncodedMemoryEffect::NoneV1,
+        7 => MachineEncodedMemoryEffect::WritePointerV1 {
+            pointer_operand: cursor.u16()?,
+        },
         5 => MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
             pointer_operand: cursor.u16()?,
             index_operand: cursor.u16()?,

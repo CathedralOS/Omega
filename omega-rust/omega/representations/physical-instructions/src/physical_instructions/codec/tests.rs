@@ -162,7 +162,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..11_u32 {
+    for version in 0..12_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -274,6 +274,15 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             abi_stack_byte_offset: 48,
         });
     for address in [
+        PhysicalAddressOperation::Store {
+            base_operand: 0,
+            byte_offset: 2,
+            byte_size: 2,
+        },
+        PhysicalAddressOperation::AddressOffset {
+            base_operand: 0,
+            byte_offset: 2,
+        },
         PhysicalAddressOperation::Load8Indexed {
             base_operand: 0,
             index_operand: 1,
@@ -362,6 +371,62 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
         assert_eq!(
             PostAllocationMachinePlan::decode(&changed.encode()),
             Err(PostAllocationMachineDecodeError::InvalidIdentity)
+        );
+    }
+}
+
+#[test]
+fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
+    for byte_size in [1, 2, 4, 8] {
+        let mut source = plan();
+        source.functions[0].blocks[0].instructions[0].address =
+            Some(PhysicalAddressOperation::Store {
+                base_operand: 0,
+                byte_offset: 16,
+                byte_size,
+            });
+        source.identity = post_allocation_machine_identity(&source);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        for changed_address in [
+            PhysicalAddressOperation::Store {
+                base_operand: 1,
+                byte_offset: 16,
+                byte_size,
+            },
+            PhysicalAddressOperation::Store {
+                base_operand: 0,
+                byte_offset: 24,
+                byte_size,
+            },
+            PhysicalAddressOperation::Store {
+                base_operand: 0,
+                byte_offset: 16,
+                byte_size: if byte_size == 8 { 4 } else { 8 },
+            },
+        ] {
+            let mut changed = source.clone();
+            changed.functions[0].blocks[0].instructions[0].address = Some(changed_address);
+            assert_eq!(
+                PostAllocationMachinePlan::decode(&changed.encode()),
+                Err(PostAllocationMachineDecodeError::InvalidIdentity)
+            );
+        }
+    }
+    for byte_size in [0, 3, 5, 16, 255] {
+        let mut invalid = plan();
+        invalid.functions[0].blocks[0].instructions[0].address =
+            Some(PhysicalAddressOperation::Store {
+                base_operand: 0,
+                byte_offset: 0,
+                byte_size,
+            });
+        invalid.identity = post_allocation_machine_identity(&invalid);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&invalid.encode()),
+            Err(PostAllocationMachineDecodeError::InvalidField)
         );
     }
 }

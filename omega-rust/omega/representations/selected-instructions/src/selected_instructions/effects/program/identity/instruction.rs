@@ -27,6 +27,7 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::ReadPointerV1 => 1,
         MachineMemoryEffect::LinuxWriteByteV1 => 3,
         MachineMemoryEffect::WriteFrameStorageV1 => 2,
+        MachineMemoryEffect::WritePointerV1 => 4,
     });
     encode_effect_tail(bytes, instruction);
 }
@@ -84,6 +85,8 @@ fn encode_barrier(bytes: &mut Vec<u8>, barrier: MachineBarrier) {
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     bytes.push(match kind {
+        SelectedInstructionKind::Store { .. } => 24,
+        SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::CopyI64 => 2,
@@ -110,6 +113,16 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallUnit { .. } => 19,
     });
     match kind {
+        SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(byte_size);
+        }
+        SelectedInstructionKind::AddressOffset { byte_offset } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         SelectedInstructionKind::Load64 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }

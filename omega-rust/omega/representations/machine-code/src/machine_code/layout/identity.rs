@@ -31,7 +31,7 @@ impl ResolvedSelectedFormLayoutIdentity {
     }
 }
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v13";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v14";
 
 pub fn resolved_machine_layout_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -179,6 +179,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::ConditionalBranchI64LessThan => 12,
         Family::CallI64 => 13,
         Family::Jump => 14,
+        Family::Store => 24,
+        Family::AddressOffset => 25,
         Family::Load64 => 16,
         Family::LinuxWriteByteI32 => 23,
         Family::ByteViewAddress => 22,
@@ -210,6 +212,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
         MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
             hasher.update([6]);
             hasher.update(stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
+            hasher.update([7]);
+            hasher.update(pointer_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
         MachineEncodedMemoryEffect::ReadPointerV1 {

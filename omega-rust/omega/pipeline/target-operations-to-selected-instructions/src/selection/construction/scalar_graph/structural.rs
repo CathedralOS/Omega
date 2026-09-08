@@ -11,6 +11,7 @@ use semantic_vocabulary::{IntegerType, PlaceId};
 mod byte_views;
 mod literals;
 mod local_storage;
+mod scalar_store;
 mod shared_unit_call;
 mod subslice;
 
@@ -105,12 +106,17 @@ pub(super) fn entry(
         &source.call_plan,
         &parameters,
         &signature.structural_types,
+    ) && !crate::structural_unit_input::accepts_write_borrow(
+        &source.call_plan,
+        &parameters,
+        &signature.structural_types,
     ) {
         return Err(SelectedInstructionError::UnsupportedSourceShape { function });
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
         let used = source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
@@ -133,7 +139,15 @@ pub(super) fn entry(
                     value_byte_offset: 0,
                     byte_size: 8,
                 },
-            ] if parameter.semantic.access == StructuralAccess::SharedBorrow => register,
+            ] if matches!(
+                parameter.semantic.access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            ) =>
+            {
+                register
+            }
             _ => return Err(invalid()),
         };
         let fixed = environment
@@ -170,6 +184,7 @@ pub(super) fn call_pointer(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
+    byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
     if !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
@@ -186,10 +201,22 @@ pub(super) fn call_pointer(
         .find(|(source, _)| *source == place)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(invalid)?;
-    let output = transport_register(builder, place, 0)?;
+    let output = transport_register(builder, place, byte_offset)?;
     builder.emit(
-        SelectedInstructionKind::CopyI64,
-        builder.constraints.keys.copy_i64,
+        if byte_offset == 0 {
+            SelectedInstructionKind::CopyI64
+        } else {
+            SelectedInstructionKind::AddressOffset { byte_offset }
+        },
+        if byte_offset == 0 {
+            builder.constraints.keys.copy_i64
+        } else {
+            builder
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(invalid)?
+        },
         &[input, output],
         SelectedInstructionProvenance::default(),
     )?;
@@ -205,6 +232,13 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+    ) {
+        scalar_store::emit(source, row, builder)?;
+        return Ok(true);
+    }
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
@@ -252,7 +286,7 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
         return Err(invalid());
     };
-    if call.arguments.iter().any(|argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::SharedBorrow)) {
+    if call.arguments.iter().any(|argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access != StructuralAccess::Owned)) {
         shared_unit_call::emit(function, source, row, environment, builder)?;
         return Ok(true);
     }

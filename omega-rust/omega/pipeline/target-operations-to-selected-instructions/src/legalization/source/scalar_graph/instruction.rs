@@ -24,6 +24,30 @@ pub(super) fn project(
                 source: *source,
             }
         }
+        AbstractOperation::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            value,
+            ..
+        } => {
+            let (byte_offset, byte_size) = crate::structural_reference_input::store(
+                destination.structural_type,
+                path,
+                *field,
+                value.scalar_type,
+                &unit.structural_types,
+            )
+            .ok_or(Error::SourceCustodyMismatch)?;
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                destination: destination.clone(),
+                path: path.clone(),
+                field: *field,
+                value: *value,
+                byte_offset,
+                byte_size,
+            }
+        }
         AbstractOperation::EstablishByteSequenceLiteral {
             place,
             structural_type,

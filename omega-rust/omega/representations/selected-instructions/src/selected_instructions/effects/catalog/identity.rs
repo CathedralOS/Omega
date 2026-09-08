@@ -12,10 +12,13 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v17\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v18\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
+        catalog.selected_keys.linux_write_byte_i32,
+        catalog.selected_keys.store,
+        catalog.selected_keys.address_offset,
         catalog.selected_keys.load64,
         catalog.selected_keys.load8_indexed,
         catalog.selected_keys.store64,
@@ -41,6 +44,7 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
             crate::MachineMemoryEffect::LinuxWriteByteV1 => 3,
             crate::MachineMemoryEffect::WriteFrameStorageV1 => 2,
+            crate::MachineMemoryEffect::WritePointerV1 => 4,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::NeverV1 => 0,
@@ -158,6 +162,10 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
+        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand,
             byte_count,
@@ -295,6 +303,8 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ZeroExtendU32 => 20,
         MachineSemanticKind::Load64 => 16,
         MachineSemanticKind::LinuxWriteByteI32 => 23,
+        MachineSemanticKind::Store => 24,
+        MachineSemanticKind::AddressOffset => 25,
         MachineSemanticKind::ByteViewAddress => 22,
         MachineSemanticKind::Load8Indexed => 21,
         MachineSemanticKind::Store64 => 17,
@@ -324,6 +334,8 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::LinuxWriteByteI32 => 23,
+        MachineAlternativeFamily::Store => 24,
+        MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
@@ -378,6 +390,8 @@ mod tests {
             linux_write_byte_i32: Some(instruction(24)),
             load64: Some(instruction(20)),
             load8_indexed: Some(instruction(23)),
+            store: Some(instruction(25)),
+            address_offset: Some(instruction(26)),
             store64: Some(instruction(21)),
             frame_address: Some(instruction(22)),
             call_unit: vec![RegisterConstraintKey {

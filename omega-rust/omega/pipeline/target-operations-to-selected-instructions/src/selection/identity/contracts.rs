@@ -88,6 +88,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
+            SelectedMemoryAccessRole::WritePlace => bytes.push(6),
             SelectedMemoryAccessRole::WriteOutgoing { slot: value } => {
                 bytes.push(1);
                 slot(bytes, value);

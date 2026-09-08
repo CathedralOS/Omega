@@ -202,6 +202,62 @@ fn plan() -> PreAllocationMachineEffectPlan {
 }
 
 #[test]
+fn codec_keeps_linux_output_pointer_store_and_address_offset_distinct() {
+    let mut source = plan();
+    let original = source.functions[0].blocks[0].instructions[0].clone();
+    let rows = &mut source.functions[0].blocks[0].instructions;
+    rows.clear();
+    for position in 0..3 {
+        let mut row = original.clone();
+        row.instruction = crate::SelectedInstructionId(position);
+        row.alternatives.truncate(1);
+        let alternative = &mut row.alternatives[0];
+        match position {
+            0 => {
+                row.kind = SelectedInstructionKind::LinuxWriteByteI32 {
+                    slot: crate::LocalStorageSlotId::Boundary {
+                        operation: OperationId::new(313).unwrap(),
+                    },
+                };
+                row.memory = MachineMemoryEffect::LinuxWriteByteV1;
+                row.trap = MachineTrapBehavior::LinuxWriteFailureV1;
+                row.barrier = MachineBarrier::ExternalEffect;
+                alternative.key.family = MachineAlternativeFamily::LinuxWriteByteI32;
+                alternative.encoded.memory = MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+                    stack_pointer: register_model::RegisterViewId(7),
+                };
+                alternative.encoded.trap = MachineEncodedTrapBehavior::LinuxWriteFailureV1;
+                alternative.encoded.control = MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1;
+            }
+            1 => {
+                row.kind = SelectedInstructionKind::Store {
+                    byte_offset: 2,
+                    byte_size: 2,
+                };
+                row.memory = MachineMemoryEffect::WritePointerV1;
+                alternative.key.family = MachineAlternativeFamily::Store;
+                alternative.encoded.memory =
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 };
+            }
+            _ => {
+                row.kind = SelectedInstructionKind::AddressOffset { byte_offset: 2 };
+                alternative.key.family = MachineAlternativeFamily::AddressOffset;
+            }
+        }
+        rows.push(row);
+    }
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    let mut substituted = source;
+    substituted.functions[0].blocks[0].instructions[1].memory =
+        MachineMemoryEffect::LinuxWriteByteV1;
+    assert!(PreAllocationMachineEffectPlan::decode(&substituted.encode()).is_err());
+}
+
+#[test]
 fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
     let mut source = plan();
     let row = &mut source.functions[0].blocks[0].instructions[0];
@@ -299,7 +355,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &16_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &17_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -337,7 +393,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..15 {
+    for version in 0_u32..17 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -347,6 +403,51 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
             ))
         );
     }
+}
+
+#[test]
+fn pointer_store_effect_codec_binds_width_offset_and_write_effect() {
+    for byte_size in [1, 2, 4, 8] {
+        let mut source = plan();
+        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        instruction.kind = SelectedInstructionKind::Store {
+            byte_offset: 16,
+            byte_size,
+        };
+        instruction.memory = MachineMemoryEffect::WritePointerV1;
+        instruction.alternatives[0].key.family = MachineAlternativeFamily::Store;
+        instruction.alternatives[0].encoded.memory =
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 };
+        source.identity = pre_allocation_machine_effect_identity(&source);
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        let mut changed = source.clone();
+        changed.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::Store {
+            byte_offset: 24,
+            byte_size,
+        };
+        assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+        changed.functions[0].blocks[0].instructions[0].kind = SelectedInstructionKind::Store {
+            byte_offset: 16,
+            byte_size: 3,
+        };
+        changed.identity = pre_allocation_machine_effect_identity(&changed);
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&changed.encode()),
+            Err(PreAllocationMachineEffectDecodeError::InvalidField)
+        );
+    }
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::AddressOffset { byte_offset: 2 };
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::AddressOffset;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()),
+        Ok(source)
+    );
 }
 
 #[test]
@@ -361,7 +462,7 @@ fn codec_u32_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..15 {
+    for version in 0_u32..17 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

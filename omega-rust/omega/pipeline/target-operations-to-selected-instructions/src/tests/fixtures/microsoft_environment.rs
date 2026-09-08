@@ -32,6 +32,8 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
             load8_indexed: None,
             store64: Some(isa_x86_64::X86_64_STORE64),
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
+            store: Some(isa_x86_64::X86_64_STORE),
+            address_offset: Some(isa_x86_64::X86_64_ADDRESS_OFFSET),
             call_i64: Vec::new(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,

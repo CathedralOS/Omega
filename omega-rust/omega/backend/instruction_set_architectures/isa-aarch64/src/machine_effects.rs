@@ -115,6 +115,8 @@ fn selected_keys(
             .then_some(crate::AARCH64_LINUX_WRITE_BYTE_I32),
         load64: Some(crate::AARCH64_LOAD64),
         load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
+        store: Some(crate::AARCH64_STORE),
+        address_offset: Some(crate::AARCH64_ADDRESS_OFFSET),
         store64: Some(crate::AARCH64_STORE64),
         frame_address: Some(crate::AARCH64_FRAME_ADDRESS),
         call_unit: if target.object_format == ObjectFormat::Elf {
@@ -158,6 +160,8 @@ fn declaration(
             MachineMemoryEffect::ReadPointerV1
         } else if semantic == MachineSemanticKind::Store64 {
             MachineMemoryEffect::WriteFrameStorageV1
+        } else if semantic == MachineSemanticKind::Store {
+            MachineMemoryEffect::WritePointerV1
         } else {
             MachineMemoryEffect::NoneV1
         },
@@ -166,6 +170,7 @@ fn declaration(
             MachineSemanticKind::Load64
                 | MachineSemanticKind::Load8Indexed
                 | MachineSemanticKind::Store64
+                | MachineSemanticKind::Store
         ) {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
@@ -221,6 +226,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
         MachineSemanticKind::CopyI64
         | MachineSemanticKind::Load64
+        | MachineSemanticKind::AddressOffset
         | MachineSemanticKind::ZeroExtendU8
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ByteViewAddress
@@ -235,6 +241,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::Store64 => (vec![0], vec![]),
+        MachineSemanticKind::Store => (vec![0, 1], vec![]),
         MachineSemanticKind::FrameAddress => (vec![], vec![0]),
         MachineSemanticKind::LinuxWriteByteI32 | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
@@ -278,7 +285,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 target: view("x30"),
             },
         ),
-        MachineSemanticKind::Load64 | MachineSemanticKind::Load8Indexed => (
+        MachineSemanticKind::Load64
+        | MachineSemanticKind::Load8Indexed
+        | MachineSemanticKind::Store => (
             vec![],
             vec![],
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -323,6 +332,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 stack_pointer: view("sp"),
                 byte_count: 8,
             }
+        } else if semantic == MachineSemanticKind::Store {
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
         } else {
             MachineEncodedMemoryEffect::NoneV1
         },

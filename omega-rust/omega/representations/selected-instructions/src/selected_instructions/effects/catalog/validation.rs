@@ -301,6 +301,14 @@ fn validate_encoded_effects(
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.memory == crate::MachineMemoryEffect::WriteFrameStorageV1 => {}
+        (
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == crate::MachineSemanticKind::Store
+            && declaration.memory == crate::MachineMemoryEffect::WritePointerV1
+            && encoded.external_operand_reads == [0, 1]
+            && encoded.external_operand_writes.is_empty() => {}
         (MachineEncodedMemoryEffect::NoneV1, MachineEncodedStackEffect::UnchangedV1, _)
             if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
         _ => return Err(()),

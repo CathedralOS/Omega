@@ -161,6 +161,24 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
         );
         for (selected_key, allocation_key, key, operands) in [
             (
+                environment.selected_keys().store,
+                environment.allocation_constraint_keys().store,
+                match target.architecture {
+                    Architecture::X86_64 => isa_x86_64::X86_64_STORE,
+                    Architecture::Aarch64 => isa_aarch64::AARCH64_STORE,
+                },
+                2,
+            ),
+            (
+                environment.selected_keys().address_offset,
+                environment.allocation_constraint_keys().address_offset,
+                match target.architecture {
+                    Architecture::X86_64 => isa_x86_64::X86_64_ADDRESS_OFFSET,
+                    Architecture::Aarch64 => isa_aarch64::AARCH64_ADDRESS_OFFSET,
+                },
+                2,
+            ),
+            (
                 environment.selected_keys().store64,
                 environment.allocation_constraint_keys().store64,
                 match target.architecture {

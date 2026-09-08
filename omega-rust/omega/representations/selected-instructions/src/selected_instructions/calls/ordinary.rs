@@ -92,6 +92,7 @@ pub enum SelectedMemoryAccessRole {
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ReadPlace,
+    WritePlace,
     WriteLocal {
         slot: LocalStorageSlotId,
     },

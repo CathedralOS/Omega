@@ -7,7 +7,8 @@ pub(in crate::legalization) fn instruction(
 ) -> Option<(OperationId, Option<ValueId>)> {
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
-    | AbstractOperation::CallUnit { psi_operation, .. } = &node.operation
+    | AbstractOperation::CallUnit { psi_operation, .. }
+    | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
         Some((*psi_operation, None))
     } else if let AbstractOperation::BoundaryCall {
@@ -131,13 +132,21 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
     }
 }
 fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -> bool {
-    matches!((scalar,value),
-        (ScalarType::Integer(integer),semantic_vocabulary::IntegerValue::Unsigned(value))
-            if (integer == u64_type() && value <= u128::from(u64::MAX)) || (integer == u8_type() && value <= u128::from(u8::MAX)) || (integer == u32_type() && value <= u128::from(u32::MAX)))
-        || matches!((scalar,value),
-            (ScalarType::Integer(integer),semantic_vocabulary::IntegerValue::Signed(value))
-                if (integer == i64_type() && i64::try_from(value).is_ok())
-                    || (integer == i32_type() && i32::try_from(value).is_ok()))
+    if let ScalarType::Integer(integer) = scalar
+        && matches!(integer.bits(), 8 | 16 | 32 | 64)
+    {
+        return match value {
+            semantic_vocabulary::IntegerValue::Unsigned(value) => {
+                integer.sign() == IntegerSign::Unsigned && value < (1_u128 << integer.bits())
+            }
+            semantic_vocabulary::IntegerValue::Signed(value) => {
+                integer.sign() == IntegerSign::Signed
+                    && value >= -(1_i128 << (integer.bits() - 1))
+                    && value < (1_i128 << (integer.bits() - 1))
+            }
+        };
+    }
+    false
 }
 pub(super) fn validate(
     block: &OptimizationBlock,
@@ -184,6 +193,25 @@ pub(super) fn validate(
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        if let AbstractOperation::StructuralScalarFieldStore {
+            destination, value, ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !optimized.structural_parameters.contains(destination)
+                || !matches!(
+                    destination.access,
+                    terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                )
+                || value_type(optimized, value.value) != Some(value.scalar_type)
+                || scalar_shape(value.scalar_type).is_none()
             {
                 return Err(invalid);
             }

@@ -65,8 +65,9 @@ pub(super) fn build(
         if *byte_size
             != match parameter.scalar_type {
                 ScalarType::Boolean => 1,
-                ScalarType::Integer(integer) if integer.bits() == 64 => 8,
-                ScalarType::Integer(integer) if integer.bits() == 32 => 4,
+                ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
+                    integer.bits() / 8
+                }
                 _ => return Err(invalid()),
             }
         {
@@ -361,6 +362,7 @@ pub(super) fn build(
                     output
                 }
                 LegalizedScalarInstructionKind::LinuxWriteByteI32 { .. }
+                | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {

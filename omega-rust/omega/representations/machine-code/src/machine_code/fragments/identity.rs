@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v9";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v10";
 
 pub fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -266,6 +266,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Store => 24,
+        MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::LinuxWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
@@ -329,6 +331,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
         MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
             hasher.update([6]);
             hasher.update(stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
+            hasher.update([7]);
+            hasher.update(pointer_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
         MachineEncodedMemoryEffect::ReadPointerV1 {

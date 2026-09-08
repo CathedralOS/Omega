@@ -91,6 +91,8 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::LinuxWriteByteI32
                 | MachineAlternativeFamily::Load8Indexed
                 | MachineAlternativeFamily::Load64
+                | MachineAlternativeFamily::Store
+                | MachineAlternativeFamily::AddressOffset
                 | MachineAlternativeFamily::Store64
                 | MachineAlternativeFamily::FrameAddress
                 | MachineAlternativeFamily::CompareI64

@@ -2,6 +2,9 @@
 use super::*;
 mod frame;
 mod indexed;
+mod pointer;
+#[cfg(test)]
+mod pointer_tests;
 
 pub fn encode_aarch64_selected_memory_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -10,6 +13,12 @@ pub fn encode_aarch64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store { .. } | SelectedInstructionKind::AddressOffset { .. }
+    ) {
+        return pointer::encode(physical, kind, alternative, operands, displacement);
+    }
     if matches!(
         kind,
         SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
@@ -40,6 +49,12 @@ pub fn validate_aarch64_selected_memory_form(
     displacement: u32,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store { .. } | SelectedInstructionKind::AddressOffset { .. }
+    ) {
+        return pointer::validate(physical, kind, alternative, operands, displacement, bytes);
+    }
     if matches!(
         kind,
         SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }

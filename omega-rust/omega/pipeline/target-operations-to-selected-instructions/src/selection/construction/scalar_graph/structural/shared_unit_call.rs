@@ -35,8 +35,13 @@ pub(super) fn emit(
     let mut operands = Vec::new();
     for argument in &call.arguments {
         match argument {
-            LegalizedScalarArgument::Structural { semantic, .. } => {
-                operands.push(call_pointer(builder, operation, semantic.place)?)
+            LegalizedScalarArgument::Structural { semantic, target } => {
+                operands.push(call_pointer(
+                    builder,
+                    operation,
+                    semantic.place,
+                    target.source_byte_offset,
+                )?)
             }
             LegalizedScalarArgument::Scalar {
                 source: value,

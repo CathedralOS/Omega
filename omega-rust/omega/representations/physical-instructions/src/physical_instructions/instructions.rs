@@ -32,6 +32,15 @@ pub enum PhysicalAddressOperation {
     LinuxWriteByteI32 {
         slot: selected_instructions::LocalStorageSlotId,
     },
+    Store {
+        base_operand: u16,
+        byte_offset: u32,
+        byte_size: u8,
+    },
+    AddressOffset {
+        base_operand: u16,
+        byte_offset: u32,
+    },
     Load8Indexed {
         base_operand: u16,
         index_operand: u16,

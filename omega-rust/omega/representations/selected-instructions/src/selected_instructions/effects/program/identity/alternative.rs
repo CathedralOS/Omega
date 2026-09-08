@@ -27,6 +27,8 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::LinuxWriteByteI32 => 23,
+        MachineAlternativeFamily::Store => 24,
+        MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
@@ -152,6 +154,10 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
+        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,
             byte_count,

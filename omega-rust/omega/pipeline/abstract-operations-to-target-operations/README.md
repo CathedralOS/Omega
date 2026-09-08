@@ -166,3 +166,17 @@ Field-store/dynamic-call fixtures alone do not establish general borrow
 writeback. Admission of a new native shape needs caller observation after return,
 unchanged surrounding bytes, and suspension checks where applicable, in addition
 to layout and byte replay.
+
+Straight-line Unit field stores and projected exclusive Unit calls enter the
+ordinary graph with original borrowed pointers. Integer stores use exact 1-, 2-,
+4- or 8-byte footprints; Boolean stores use one byte. Selection independently
+reconstructs each field/index projection and its byte offset from declarations.
+`AddressOffset` adjusts the pointer without reading its referent or asserting
+source arithmetic, and `Store` writes that referent rather than a frame slot.
+Address work adds no logical charge; the authored store and call retain their
+operation and fuel custody. The
+[source-produced receiver tests](../../../../tests/native-differential/tests/terminal_psi_indexed_receivers.rs)
+observe caller bytes, padding, interleaved projections and repeated calls on
+supported hosts, and cross-emit the indexed alias for four hosted targets.
+Stack-passed borrowed pointers, broader scalar call arguments, primitive-store
+operations and general control/cleanup remain separate native dependencies.

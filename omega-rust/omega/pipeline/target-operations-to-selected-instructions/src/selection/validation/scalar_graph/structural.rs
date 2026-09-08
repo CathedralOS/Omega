@@ -11,6 +11,7 @@ use semantic_vocabulary::{IntegerType, PlaceId};
 mod byte_views;
 mod literals;
 mod local_storage;
+mod scalar_store;
 mod shared_unit_call;
 mod subslice;
 
@@ -114,12 +115,17 @@ pub(super) fn entry(
         &source.call_plan,
         &parameters,
         &signature.structural_types,
+    ) && !crate::structural_unit_input::accepts_write_borrow(
+        &source.call_plan,
+        &parameters,
+        &signature.structural_types,
     ) {
         return Err(replay.invalid());
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
         if !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
@@ -138,7 +144,15 @@ pub(super) fn entry(
                     value_byte_offset: 0,
                     byte_size: 8,
                 },
-            ] if parameter.semantic.access == StructuralAccess::SharedBorrow => register,
+            ] if matches!(
+                parameter.semantic.access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            ) =>
+            {
+                register
+            }
             _ => return Err(replay.invalid()),
         };
         let fixed = environment
@@ -169,6 +183,7 @@ pub(super) fn call_pointer(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
+    byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?;
     if !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
@@ -185,10 +200,22 @@ pub(super) fn call_pointer(
         .find(|(source, _)| *source == place)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(|| replay.invalid())?;
-    let output = result(replay, place, 0)?;
+    let output = result(replay, place, byte_offset)?;
     replay.check_instruction(
-        SelectedInstructionKind::CopyI64,
-        replay.constraints.keys.copy_i64,
+        if byte_offset == 0 {
+            SelectedInstructionKind::CopyI64
+        } else {
+            SelectedInstructionKind::AddressOffset { byte_offset }
+        },
+        if byte_offset == 0 {
+            replay.constraints.keys.copy_i64
+        } else {
+            replay
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| replay.invalid())?
+        },
         &[input, output],
         &SelectedInstructionProvenance::default(),
     )?;
@@ -201,6 +228,13 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     replay: &mut Replay<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+    ) {
+        scalar_store::validate(source, node, replay)?;
+        return Ok(true);
+    }
     if matches!(
         node.kind,
         LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
@@ -246,7 +280,7 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &node.kind else {
         return Err(replay.invalid());
     };
-    if call.arguments.iter().any(|argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::SharedBorrow)) {
+    if call.arguments.iter().any(|argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access != StructuralAccess::Owned)) {
         shared_unit_call::validate(source, node, environment, replay)?;
         return Ok(true);
     }

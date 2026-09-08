@@ -25,6 +25,14 @@ pub const X86_64_LOAD8_INDEXED: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 703,
 };
+pub const X86_64_STORE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 705,
+};
+pub const X86_64_ADDRESS_OFFSET: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 706,
+};
 pub const X86_64_STORE64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 701,
@@ -245,7 +253,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 47] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 49] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -359,6 +367,8 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 47] = [
     X86_64_FRAME_ADDRESS,
     X86_64_LOAD8_INDEXED,
     X86_64_LINUX_WRITE_BYTE_I32,
+    X86_64_STORE,
+    X86_64_ADDRESS_OFFSET,
 ];
 
 struct ModelBuilder {
@@ -986,6 +996,22 @@ pub fn x86_64_register_constraint_catalog(
     }
 
     for (key, operands, uses) in [
+        (
+            X86_64_STORE,
+            vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+            ],
+            Vec::new(),
+        ),
+        (
+            X86_64_ADDRESS_OFFSET,
+            vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
+            ],
+            Vec::new(),
+        ),
         (
             X86_64_LOAD8_INDEXED,
             vec![

@@ -77,9 +77,8 @@ pub(super) fn u8_type() -> IntegerType {
 pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::Integer(integer) if integer == i32_type() => Some(ValueShape::integer(4, 4)),
-        ScalarType::Integer(integer) if integer == u64_type() || integer == i64_type() => {
-            Some(ValueShape::integer(8, 8))
+        ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
+            Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
         }
         _ => None,
     }
@@ -335,7 +334,7 @@ pub(super) fn callee_plan(
     ) else {
         return Err(LegalizationError::SourceCustodyMismatch);
     };
-    if target.attachment.is_some()
+    if (target.attachment.is_some() && !matches!(abstracted.result, AbstractFunctionResult::Unit))
         || !matches!(abstracted.result, AbstractFunctionResult::Unit)
             && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
         || abstracted.parameters.iter().any(|parameter| {
@@ -351,15 +350,18 @@ pub(super) fn callee_plan(
     };
     if !call_plan.parameters.iter().all(|placement| {
         scalar_register(placement)
-            || placement.shape == ValueShape::borrowed_reference(16, 8)
+            || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+                && matches!(placement.locations.as_slice(),
+                    [ValueLocation::Register { value_byte_offset: 0, byte_size: 8, .. }])
+            || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
                 && matches!(
                     placement.locations.as_slice(),
                     [ValueLocation::Indirect {
                         pointer: calling_conventions::IndirectPointerLocation::Register(_),
                         copy_stack_byte_offset: None,
-                        byte_size: 16,
-                        alignment: 8,
-                    }]
+                        byte_size,
+                        alignment,
+                    }] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment
                 )
     }) {
         return Err(LegalizationError::SourceCustodyMismatch);

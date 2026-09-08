@@ -1,6 +1,8 @@
 //! AMD64 ordinary load/store/address primitives with independent byte replay.
 use super::*;
 mod indexed;
+#[cfg(test)]
+mod pointer_tests;
 
 pub fn encode_x86_64_selected_memory_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -15,7 +17,13 @@ pub fn encode_x86_64_selected_memory_form(
     let (opcode, register, base, _) = request(physical, kind, alternative, operands)?;
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
-    let mut bytes = vec![rex(register, 0, base), opcode, modrm(2, register, base)];
+    let width = store_width(kind)?;
+    let mut bytes = Vec::new();
+    if width == 2 {
+        bytes.push(0x66);
+    }
+    let prefix = rex(register, 0, base) & if width == 8 { 0xff } else { 0xf7 };
+    bytes.extend_from_slice(&[prefix, opcode, modrm(2, register, base)]);
     if base & 7 == 4 {
         bytes.push(0x24);
     }
@@ -42,15 +50,27 @@ pub fn validate_x86_64_selected_memory_form(
         return indexed::validate(physical, alternative, operands, displacement, bytes);
     }
     let (opcode, register, base, footprint) = request(physical, kind, alternative, operands)?;
-    let prefix = *bytes
+    let width = store_width(kind)?;
+    if matches!(kind, SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if byte_offset != displacement)
+    {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    let instruction = if width == 2 {
+        bytes
+            .strip_prefix(&[0x66])
+            .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?
+    } else {
+        bytes
+    };
+    let prefix = *instruction
         .first()
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
-    let mode = *bytes
+    let mode = *instruction
         .get(2)
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
     let has_sib = mode & 7 == 4;
     let displacement_start = if has_sib { 4 } else { 3 };
-    let actual = bytes
+    let actual = instruction
         .get(displacement_start..)
         .filter(|tail| tail.len() == 4)
         .and_then(|tail| <[u8; 4]>::try_from(tail).ok())
@@ -58,12 +78,12 @@ pub fn validate_x86_64_selected_memory_form(
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
     let decoded_register = ((mode >> 3) & 7) | ((prefix & 4) << 1);
     let decoded_base = (mode & 7) | ((prefix & 1) << 3);
-    if prefix & 0xfa != 0x48
-        || bytes[1] != opcode
+    if prefix & 0xfa != (if width == 8 { 0x48 } else { 0x40 })
+        || instruction[1] != opcode
         || mode >> 6 != 2
         || decoded_register != register
         || decoded_base != base
-        || (has_sib && bytes.get(3) != Some(&0x24))
+        || (has_sib && instruction.get(3) != Some(&0x24))
         || actual < 0
         || actual as u32 != displacement
     {
@@ -73,6 +93,19 @@ pub fn validate_x86_64_selected_memory_form(
         bytes: bytes.to_vec(),
         footprint,
     })
+}
+
+fn store_width(kind: SelectedInstructionKind) -> Result<u8, X86_64SelectedFormEncodingError> {
+    match kind {
+        SelectedInstructionKind::Store {
+            byte_size: width @ (1 | 2 | 4 | 8),
+            ..
+        } => Ok(width),
+        SelectedInstructionKind::Store { .. } => {
+            Err(X86_64SelectedFormEncodingError::EncodedFormMismatch)
+        }
+        _ => Ok(8),
+    }
 }
 
 fn request(
@@ -85,6 +118,18 @@ fn request(
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     let (family, count, opcode, key) = match kind {
+        SelectedInstructionKind::Store { .. } => (
+            MachineAlternativeFamily::Store,
+            2,
+            if store_width(kind)? == 1 { 0x88 } else { 0x89 },
+            crate::X86_64_STORE,
+        ),
+        SelectedInstructionKind::AddressOffset { .. } => (
+            MachineAlternativeFamily::AddressOffset,
+            2,
+            0x8d,
+            crate::X86_64_ADDRESS_OFFSET,
+        ),
         SelectedInstructionKind::Load64 { .. } => (
             MachineAlternativeFamily::Load64,
             2,
@@ -129,6 +174,18 @@ fn request(
         .expect("canonical rsp")
         .id;
     let (reads, writes, memory, trap) = match kind {
+        SelectedInstructionKind::Store { .. } => (
+            vec![0, 1],
+            vec![],
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ),
+        SelectedInstructionKind::AddressOffset { .. } => (
+            vec![0],
+            vec![1],
+            MachineEncodedMemoryEffect::NoneV1,
+            MachineEncodedTrapBehavior::NeverV1,
+        ),
         SelectedInstructionKind::Load64 { .. } => (
             vec![0],
             vec![1],

@@ -31,7 +31,9 @@ pub(crate) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     match selected.kind {
-        kind @ (SelectedInstructionKind::Load64 { .. }
+        kind @ (SelectedInstructionKind::Store { .. }
+        | SelectedInstructionKind::AddressOffset { .. }
+        | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }

@@ -39,6 +39,50 @@ pub(super) fn validate(
                 super::byte_output::validate(target, abstracted, native.target, plan, &sources)?;
             }
             (
+                TargetUnitOperation::StructuralScalarFieldStore {
+                    psi_operation,
+                    destination,
+                    path,
+                    field,
+                    destination_placement,
+                    field_byte_offset,
+                    source,
+                },
+                AbstractOperation::StructuralScalarFieldStore {
+                    psi_operation: expected_operation,
+                    destination: expected_destination,
+                    path: expected_path,
+                    field: expected_field,
+                    value,
+                },
+            ) => {
+                let parameter = body
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.place == destination.place)
+                    .ok_or(invalid.clone())?;
+                let (offset, _) = crate::structural_reference_input::store(
+                    expected_destination.structural_type,
+                    expected_path,
+                    *expected_field,
+                    value.scalar_type,
+                    &unit.structural_types,
+                )
+                .ok_or(invalid.clone())?;
+                if psi_operation != expected_operation
+                    || destination != expected_destination
+                    || path != expected_path
+                    || field != expected_field
+                    || destination_placement != &parameter.placement
+                    || *field_byte_offset != offset
+                    || !sources
+                        .iter()
+                        .any(|(identity, expected)| *identity == value.value && expected == source)
+                {
+                    return Err(invalid);
+                }
+            }
+            (
                 TargetUnitOperation::BooleanConstant {
                     psi_operation,
                     result,

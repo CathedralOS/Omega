@@ -39,6 +39,14 @@ position without inventing executable work. Frame-free bodies must not acquire
 storage merely because their parameters are structural; actual outgoing and
 preservation storage must be replayed against the realized frame.
 
+Straight-line Unit field stores through mutable or write-only parameters retain
+the original incoming pointer. Boolean and 8-, 16-, 32-, and 64-bit integer
+stores carry the exact destination declaration, carrier path, scalar field and
+typed SSA source. Input-only layout replay reconstructs the offset and width;
+selection emits one pointer store with a write footprint and the source fuel
+charge, without loading the destination. Independent replay checks the pointer,
+value, write extent and charge before accepting the selected program.
+
 Literal and called subslice descriptors use activation-local homes, separately
 from ABI argument-copy slots. A subslice retains the original backing plus
 exact integer offset and length; only a view used as a call argument acquires

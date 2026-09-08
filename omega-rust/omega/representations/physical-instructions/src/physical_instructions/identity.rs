@@ -27,7 +27,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v11\0",
+        b"omega.terminal-postallocation-machine.v12\0",
     )
 }
 
@@ -124,6 +124,24 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
         }
     }
     match instruction.address {
+        Some(crate::PhysicalAddressOperation::Store {
+            base_operand,
+            byte_offset,
+            byte_size,
+        }) => {
+            bytes.push(6);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(byte_size);
+        }
+        Some(crate::PhysicalAddressOperation::AddressOffset {
+            base_operand,
+            byte_offset,
+        }) => {
+            bytes.push(7);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         Some(crate::PhysicalAddressOperation::Load8Indexed {
             base_operand,
             index_operand,
@@ -200,6 +218,8 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::LinuxWriteByteI32 => 23,
+        MachineAlternativeFamily::Store => 24,
+        MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
@@ -317,6 +337,10 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
         MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
             bytes.push(6);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
