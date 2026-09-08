@@ -61,24 +61,15 @@ manifest materializes 13,632 lines / 466,179 bytes with SHA-256
 The six authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 
-The `compiler/` members (`D`) now exist but are intentionally incomplete, and
-both descriptive compiler tapes remain absent. D18 fixes their logical sealed
-Omega request as a resolved package subject plus a bound invocation, complete
-deterministic build-visible snapshots, and the `OCOUT` compiler boundary. D25
-fixes their outer `OCREQ` v1 byte framing, committed subject binding,
-structural graph and closed-tree canonical requirements, validation order, and
-shared 40-byte/source-coordinate-extended 48-byte `OCOUT` shape. D59 fixes the
-single flat inner profile, exact commitment preimage, framing-before-capacity
-order, shared diagnostic selection, and bounded numeric publication. Assigning
-and implementing its checked field/tag, failure-code, phase, and scalar-resource
-tables remains open; `D` currently validates only the settled outer envelope.
-No raw-single-file stdin convention may stand in for it. Each
-compiler derives and retains the admitted typed build checkpoint internally,
-evaluates the selected root build once, adds its generated source as a later
-one-way-visible stratum, and
-continues ordinary compilation. Dependencies contribute durable generated-
-source bundles rather than recursively executing their builds or retaining live
-partial compiler checkpoints.
+The `compiler/` members (`D`) exist but are incomplete; both descriptive compiler
+tapes remain absent. The [standalone request contract](../../wiki/spec/build/compiler_request.md)
+owns OCREQ/OCOUT, including complete snapshots, subject binding, validation order,
+and shared diagnostic selection. D's request decoder currently validates only
+the outer envelope. The inner field/tag, outcome/phase, and scalar-resource
+tables remain unfinished under OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
+A raw-single-file stdin convention cannot replace the sealed request.
+[Build execution](../../wiki/spec/build/execution.md) owns the admitted checkpoint,
+one-way generated-source continuation, and dependency-bundle no-rerun contract.
 
 Its retained Alpha encoder targets `AlphaBootstrapV4` directly: at most
 16,777,212 raw tape bytes, targets below that exact extent, and at most 1,864,134
