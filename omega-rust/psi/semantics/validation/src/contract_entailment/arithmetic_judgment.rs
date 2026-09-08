@@ -1086,9 +1086,10 @@ impl<'program> Engine<'program> {
         {
             return None;
         }
-        if (self.strict_symbol_bindings.is_none() || self.proof_integer_formation)
-            && let Some(value) =
-                super::proof_integer::anonymous_integer_value(self.program, expression)
+        // Closed anonymous arithmetic has the same rational denotation in a
+        // strict binder namespace. Fold the complete integral subtree; never
+        // truncate a fractional child or erase an already-landed carrier.
+        if let Some(value) = super::proof_integer::anonymous_integer_value(self.program, expression)
         {
             return Some(Polynomial::constant(value));
         }

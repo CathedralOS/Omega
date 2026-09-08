@@ -82,7 +82,9 @@ fn collect(
         return None;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
+        // Literal spellings have no state dependency. Formation and selected
+        // meaning separately decide whether a decimal can land as an integer.
+        ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {}
         ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
             if !symbols.contains(&name.symbol) {
                 symbols.push(name.symbol);

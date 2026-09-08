@@ -123,9 +123,12 @@ The [relational countdown](../../../../tests/omega/pass/termination/measure_fiel
 exercises that boundary. Computed scalar endpoints still need independent
 immutable-expression formation; the relational fallback cannot excuse overflow
 or reinterpret anonymous rational arithmetic. The [field-held limit](../../../../tests/omega/pass/termination/measure_field_pinned_limit/README.md)
-also checks endpoint preservation across record reconstruction. Computed field
-endpoints, named-state transport, broader projections and constrained measure
-parameters still need formation/application evidence.
+also checks endpoint preservation across record reconstruction. The
+[computed field limit](../../../../tests/omega/pass/termination/measure_field_computed_limit/README.md)
+uses the field's declared bounds to form an exclusive endpoint before relational
+normalization and pinning. Flow-dependent formation, non-polynomial field endpoint
+substitution, named-state transport, broader projections and constrained measure
+parameters still need their own evidence.
 
 Entry backedges re-establish machine `requires`; internal named-state transfers
 owe their target state's requirements. Neither imports machine `ensures`.

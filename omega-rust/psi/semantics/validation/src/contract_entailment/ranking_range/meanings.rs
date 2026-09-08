@@ -15,6 +15,11 @@ pub(super) fn builtin(
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return None;
     }
+    if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {
+        // This uses the existing anonymous-operator classifier and folds only
+        // a wholly anonymous integral subtree, not typed integer division.
+        return Some(None);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => Some(None),
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {

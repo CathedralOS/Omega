@@ -316,7 +316,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   constrained measure parameters, and named-state arrivals need exact
   view-application evidence. Flow-dependent computed
   endpoint formation needs its own arithmetic proof, not an unchecked
-  polynomial; computed field endpoints also need exact formation evidence.
+  polynomial. Non-polynomial field endpoints need exact pinning/substitution
+  evidence beyond the relational arithmetic tier.
   Scalar views beyond `u64` identity forwarding, and slice lengths
   over projected storage need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.

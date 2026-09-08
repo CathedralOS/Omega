@@ -3485,9 +3485,11 @@ fn direct_lift_arithmetic_implication_rejects_proof_views_float_and_domain_drift
                 .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
             let q = binary_expression(program, public, BinaryOperator::Greater, zero);
             let representative = named_argument(program, "representative", representative_symbol);
-            let value = program
-                .expression_table
-                .insert(ExpressionNode::Float(FloatLiteral::from_f64(0.0)));
+            // A decimal spelling without a landing is an anonymous rational,
+            // not an IEEE value. This negative must retain a real float carrier.
+            let value = program.expression_table.insert(ExpressionNode::Float(
+                FloatLiteral::parse("0.0f64").unwrap(),
+            ));
             let p = binary_expression(program, representative, BinaryOperator::Greater, value);
             (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
         });

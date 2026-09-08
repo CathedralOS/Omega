@@ -1,0 +1,1 @@
+return value may overflow `u64`
