@@ -805,7 +805,8 @@ Owners include
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
-  noninteger machine indices, aggregate/type-scoped constants, templates, trait defaults,
+  computed Boolean and aggregate machine indices, aggregate/type-scoped constants,
+  templates, trait defaults,
   operator homes, qualified constructors, and remaining declaration forms.
   Later syntax extensions also need retained base constant initializers; they
   currently retain only declaration identity. The explicit temporary fences live in
@@ -831,18 +832,21 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: `f412cab907`, macOS arm64 with Cargo and
+  Resume evidence: `3dce740da0`, macOS arm64 with Cargo and
   `RUST_MIN_STACK=33554432`. Run
-  `cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_indices/main.omg`:
-  three files check with root/module machine parameters, results and locals
-  selecting `Buffer<2>`, `Buffer<3>` and `Buffer<4>`. Original lexical selection in
+  `cargo run -p omega -- --check tests/omega/pass/modules/boolean_machine_indices/main.omg`:
+  two files check with root/module machine parameters, results and locals
+  selecting distinct `Flag<true>` and `Flag<false>` identities. The same command
+  on `tests/omega/fail/modules/runtime_boolean_index/main.omg` rejects the runtime
+  parameter with `machine index operand must select a constant in its original lexical scope`.
+  Original lexical selection in
   `build-time-evaluation/src/const_generic_expressions.rs` precedes the typed
-  integer probe. Next acceptance: noninteger machine indices must also preserve
-  their lexical owner before normalization. Source review finds that a named
-  `Flag<SIZE>` with a `bool` destination still skips the integer probe and reaches
-  header selection; a runtime `SIZE: bool` must not become a same-spelled constant.
-  That noninteger reproducer is not yet run. Conformance and static-requirement
-  argument positions also need their complete owners, not a standalone root probe.
+  scalar probe. Next acceptance: aggregate indices must preserve their lexical
+  owner before materialization; the remaining legacy aggregate path is outside
+  this probe, and a runtime-shadowed aggregate reproducer is not yet run.
+  Computed Boolean expressions need admitted operator evaluation rather than
+  literal substitution. Conformance and static-requirement argument positions
+  also need their complete owners, not a standalone root probe.
   Open-template computation, constrained destinations, authored operator execution
   and module-owned domain families also need their complete selection/evaluation
   contexts. Preserve per-node integer carriers, canonical result/selection
