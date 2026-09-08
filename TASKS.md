@@ -111,34 +111,30 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Work from the unchanged `print_squares` [outer command](samples/cli/basics/print_squares/README.md).
   Resume its native compiler-library probe with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  At `4cf202857d` on macOS arm64, this exits 100 before
+  At `ae6f46edcd` on macOS arm64, this exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
-  The verifier admits scalar computations, immutable byte views, persistent
-  claim-free mutable receivers, and Unit-effect unranked
-  `Conditional`/`Jump` cycles in
-  `terminal-verifier/src/validation/control_flow.rs`; their focused
-  `ranked_scc` checks pass, but the source producer does not reach Terminal
-  validation yet.
-  Shared state-body construction in
+  Complete Main's checked transitive Unit closure without replacing its authored
+  graph. Source inspection identifies remaining scalar-call RHS assignment in
+  `digit_write`, projected `self.out` call arguments, and the raw fixed `pause`
+  array passed to `read_line`; the probe still reports only the missing Main plan,
+  not an individually diagnosed ordering of these gaps. The source owners are
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/state_graph.rs` and
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-  retains ordered whole-field and runtime-indexed byte replacement. Complete
-  Main's checked transitive Unit closure without replacing its authored graph.
-  The portable indexed store retains exact runtime operands and current field
-  length; ordinary and nested-field source artifacts interpret caller-visible
-  writes. Retain the source live-prefix judgments in
+  with ordered field-store admission in `terminal_unit/structural_scalar_store.rs`.
+  Retain the source live-prefix judgments in
   `typed-trees-to-checked-trees/src/checks/ranges/assignment_lengths.rs`;
   capacity must not substitute for live length in the portable plan.
-  The bounded replacement owner is
-  `checked-trees-to-lowered-psi/src/structural_byte_sequence_store.rs`,
-  and the indexed producer is
+  Native realization must consume the portable whole replacement, field-length
+  observation, and indexed replacement; it still rejects all three before
+  projection. Their producer owners are
+  `checked-trees-to-lowered-psi/src/structural_byte_sequence_store.rs` and
   `checked-trees-to-lowered-psi/src/structural_byte_sequence_index_store.rs`.
-  Realize whole replacement, field-length observation, and indexed replacement
-  in the native consumer, which still rejects all three before projection.
   Reuse literal/length observations and checked source predicate
   obligations; predicate-only `Utf8` erasure does not itself require adding a
-  projected qualification roster. The CLI outer command
-  separately exits 1 awaiting ordinary package review; do not manufacture acceptance.
+  projected qualification roster. At the same revision, the CLI outer command
+  using Cargo separately exits 1 awaiting ordinary package review, with no phase
+  reports or executable produced; do not manufacture acceptance.
   Producer widening alone cannot close this: general owned cyclic validation
   and native execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
