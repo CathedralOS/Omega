@@ -5,7 +5,7 @@
 
 Omega today is a WHOLE-PROGRAM compiler: one entrypoint, one fused lowering,
 one direct executable image. That is the right shape for the current phase.
-But the language's first large consumer (`wiki/pre_migration/cathedral_alignment.md`) needs
+But the language's [first large consumer](../../drafts/cathedral_alignment.md) needs
 provider realizations that can be compiled, signed, shipped, loaded, and
 hot-swapped independently
 ([Versioned Data](../../language_guide/chapter_22_versioned_data.md)).
