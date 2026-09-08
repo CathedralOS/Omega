@@ -1,6 +1,9 @@
 use super::*;
 
 #[cfg(test)]
+mod tests;
+
+#[cfg(test)]
 pub(crate) fn build_flow_facts(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
@@ -45,6 +48,10 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     } else {
         validation::CallFrameResolver::new(program)
     };
+    // These summaries use only program and borrow facts, neither of which
+    // changes with the incoming value inputs. Keep first-demand construction
+    // lazy, and never carry this table into another flow-build invocation.
+    let state_mutation_summary_cache = StateMutationSummaryCache::default();
     let mut inputs = Vec::new();
     // Each state becomes reachable once; each formal can acquire a constant
     // then lose it to unknown once. Include one pass to observe convergence.
@@ -70,6 +77,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             semantic,
             scalar_expressions,
             call_frames.as_ref(),
+            &state_mutation_summary_cache,
         );
         ctx.state_value_inputs = inputs;
         for machine in program.machines() {
@@ -100,6 +108,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         semantic,
         scalar_expressions,
         call_frames.as_ref(),
+        &state_mutation_summary_cache,
     );
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
