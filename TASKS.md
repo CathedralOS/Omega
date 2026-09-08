@@ -159,7 +159,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe with production checkpoint `7bc79eff65`
+  The downstream native `cli_mvp` probe with production checkpoint `ec2915eb4e`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -193,9 +193,10 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Join the ordinary Unit graph's activation-local descriptors in
   `target-operations-to-selected-instructions/src/selection/` to block transfers
   and publication, retaining original backing, exact bounds and single fuel
-  settlement. `image-emission/src/function_fragments/source.rs` still rejects
-  mixed scalar/view Unit ABI, while `function_fragments/structural.rs` and its
-  independent validator require an incoming placement and owned-copy span.
+  settlement. Mixed scalar/borrowed Unit ABI admission is available, but
+  `image-emission/src/function_fragments/structural.rs` and its independent
+  validator still require structural call arguments to have an incoming
+  placement/root rather than an established activation-local descriptor.
   Extend exact selected call/producer/descriptor-home custody for shared derived
   views, not an invented incoming placement or copy of backing bytes. Reuse
   `terminal_byte_views/subslice_calls.rs` for descriptor custody; Unit
