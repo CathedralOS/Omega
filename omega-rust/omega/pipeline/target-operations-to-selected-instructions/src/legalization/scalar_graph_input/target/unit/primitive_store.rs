@@ -66,7 +66,7 @@ pub(super) fn validate(
 }
 
 /// A literal store requires its exact definition earlier in the same block.
-/// Float call arguments are not added to the independent scalar-call vocabulary.
+/// This primitive-specific check also retains the store's same-block ordering.
 fn preceding_ieee_literal(
     source: &PrimitiveSource,
     store: semantic_vocabulary::OperationId,
@@ -92,7 +92,7 @@ fn preceding_ieee_literal(
 }
 
 // Primitive-store literals and call arguments have separate source vocabularies.
-// Compare their common cases without widening either public representation.
+// IEEE primitive literals retain the preceding-definition check above.
 fn source_is_exact(source: &PrimitiveSource, expected: &Source) -> bool {
     match (source, expected) {
         (

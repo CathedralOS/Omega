@@ -251,5 +251,8 @@ synthetic record or field. The `ieee_stores::` group checks runtime IEEE primiti
 and projected-field replacement, mixed integer/f32/f64 register and stack
 arguments across repeated Unit calls, and primitive literals with unused inputs.
 Caller comparisons retain NaN payloads, signed zero, subnormals, and surrounding
-bytes. IEEE field literals, literal call actuals, computed floating sources, and
-general control/cleanup remain native dependencies.
+bytes. The `ieee_literals::` group checks projected field literals and literal
+Unit-call actuals, including mixed binary32/binary64 register and stack arguments.
+Each literal source retains its preceding definition, SSA value, format, and raw
+bits; receiving replay checks these independently before native materialization.
+Computed floating sources and general control/cleanup remain native dependencies.

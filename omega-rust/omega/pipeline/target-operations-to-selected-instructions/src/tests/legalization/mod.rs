@@ -2,6 +2,7 @@
 
 mod byte_output;
 mod claim_completion;
+mod ieee_literal_sources;
 mod installed_provider;
 mod plain_unit;
 mod primitive_stores;

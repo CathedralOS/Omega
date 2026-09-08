@@ -88,7 +88,17 @@ pub(super) fn validate_operation(
             },
         ) if psi_operation == expected_operation
             && result == expected_result
-            && value == expected_value => {}
+            && value == expected_value =>
+        {
+            sources.push((
+                *result,
+                Source::IeeeFloatImmediate {
+                    defining_operation: *psi_operation,
+                    source_value: *result,
+                    value: *value,
+                },
+            ));
+        }
         (
             TargetUnitOperation::WriteOnlyPrimitiveStore { .. },
             AbstractOperation::WriteOnlyPrimitiveStore { .. },

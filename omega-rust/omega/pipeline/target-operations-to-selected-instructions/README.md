@@ -92,6 +92,13 @@ format, placement, width, and call order again. Runtime preservation spills keep
 the payload's IEEE type and use integer-typed slot addresses; they do not admit
 floating-register residents into GPR spill instructions.
 
+IEEE field-store and Unit-call literals retain their exact defining operation,
+SSA value, format and raw bits in the ordinary scalar-source vocabulary.
+Independent receiving replay establishes availability only after matching the
+preceding constant operation. The existing raw-bit materialization and floating
+ABI transfers then realize the value; source literals introduce neither numeric
+conversion nor a separate call or store instruction family.
+
 Literal and transported subslice descriptors use activation-local homes, separately
 from ABI argument-copy slots. A subslice retains the original backing plus
 exact integer offset and length; a subslice used as a call or block argument acquires

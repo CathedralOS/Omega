@@ -621,9 +621,9 @@ Owners include
   implementation owners are `image-emission/src/function_fragments/structural.rs`
   and `installation/borrowed_structural.rs`; keep copied referents distinct from
   pointer identity while extending their bounded Unit admission. Extend native
-  IEEE stores to field literals, literal call actuals, and computed floating
-  sources without erasing format or selected-operation evidence. The same source-backed
-  probe's `primitive_stores::` group checks whole primitive replacement,
+  IEEE stores to computed floating sources without erasing format or
+  selected-operation evidence. The same source-backed probe's `primitive_stores::`
+  group checks whole primitive replacement,
   signed runtime inputs, both Boolean values, literal stores with unused inputs,
   and stack-passed primitive roots across three calls through publication.
   Preserve exact write widths, untouched bytes, and independent receiving
