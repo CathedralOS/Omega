@@ -172,7 +172,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe at checkpoint `f2ef495c85`
+  The downstream native `cli_mvp` probe at checkpoint `e76aa4e9ba`
   passes Terminal and native abstract admission but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -184,16 +184,6 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Checking-only sample probes remain unaccepted, and stale-target bindings reject.
   macOS input still needs its provider definition and native realization; do not
   substitute Linux or interpreter output.
-  Natural slice-decrease graphs use ordinary verified native admission, retaining
-  their grouped proofs and exact transfers. Downstream source inspection also
-  identifies countdown-only cycle replay in
-  `abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/`,
-  all-predecessor scheduling in `abstract-operations-to-target-operations/src/lowering/unit/graph.rs`,
-  and the ordinary-cycle fence in
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs`.
-  Reuse verified natural-component custody and dominance-owned availability
-  through those stages; do not fabricate countdown or fixed-fuel evidence,
-  import a predecessor's stale length, or weaken native replay.
   Terminal production retains authored boundary calls; native provider selection
   owns adapter realization, independently of interpreter dispatch. Complete the
   [borrowed-byte writer closure](omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
@@ -204,29 +194,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
   length and guarded head/tail observations at selected edges, and
   slice-decrease evidence.
-  Continue natural-ranked native writer realization from
-  the byte-observation leaves in `tests/native-differential/tests/terminal_byte_views.rs`.
-  They measure and read one shared parameter with runtime `u64` indices guarded
-  by the exact view's length, observe checked subslices, and preserve the original
-  descriptor and `u64`/Boolean inputs across repeated scalar-result and genuine
-  Unit helper calls and block arrivals. The `byte_view_block` filter in
-  `cargo nextest run -p omega-native-differential-test --test terminal_byte_views byte_view_block
-  --no-fail-fast --no-tests fail` pins four-target physical transfers with macOS
-  runtime observations and Linux Unit object/image/installation custody.
-  Linux byte-output execution remains unverified on macOS. Mixed scalar-result
-  image publication is still rejected by `image-emission/src/function_fragments/source.rs`;
-  those scalar fixtures are physical/runtime oracles, not a prerequisite for
-  the writer's Unit publication route. Void-call return
-  and descriptor/stack preservation do not establish
-  byte output or Boolean-dependent behavior. Retain the exact slice-decrease
-  and source-place evidence when joining these dependencies.
-  Join natural ranking to the ordinary graph's activation-local descriptor
-  transfers in `target-operations-to-selected-instructions/src/selection/`,
-  preserving exact source/block places, fresh length observations and one edge
-  settlement. Reuse
-  `terminal_byte_views/subslice_calls.rs` for descriptor custody; Unit
-  acceptance needs observable effects and caller continuation, not merely a
-  resultless call or synthetic incoming descriptor.
+  Reuse the native writer regression floor in
+  `tests/native-differential/tests/terminal_byte_views/natural_writer.rs`:
+  source-produced grouped slice proofs, exact current-body replay, ordinary
+  cyclic Unit control and descriptor arrivals, byte output and caller continuation.
+  `cargo nextest run -p omega-native-differential-test --test terminal_byte_views
+  natural_writer --no-fail-fast --no-tests fail` checks Linux x64/ARM64 and macOS
+  object/image/installation publication plus published-text execution on the host.
+  Keep the verified artifact through legalization; raw cyclic IR, changed proof
+  groups, bodies, literals, effects and transfers must reject. Do not fabricate
+  countdown certificates or fixed-work bounds. This test-owned output settlement
+  is not package/provider acceptance for the actual sample.
+  Linux runtime remains unverified on macOS. Mixed scalar-result image publication
+  remains unsupported and is not a prerequisite for this Unit writer route.
   Use `terminal_byte_views/byte_output.rs` for the shared hosted `i32` byte leaf's
   selected/frame/object/image custody on Linux x64/ARM64 and macOS ARM64.
   `byte_output/hosted_runtime.rs` executes published text for all 256 byte values,

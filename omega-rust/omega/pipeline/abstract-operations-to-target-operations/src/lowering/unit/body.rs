@@ -302,11 +302,6 @@ pub(super) fn lower_unit_body(
                 &mut provenance,
             )?,
             AbstractOperation::Call { .. } => {
-                if nonreturning_boundary {
-                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ));
-                }
                 lower_scalar_call(
                     operation,
                     function,

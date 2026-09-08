@@ -329,8 +329,13 @@ fn validate_borrowed_argument(
         },
     )
     .ok()?;
-    if source.ranked.is_some()
+    // Unit entry attachments and service ceilings are retained declaration
+    // metadata; they do not add ABI arguments. The scalar-result attachment
+    // family remains outside this transport contract.
+    if (source.attachment.is_some() && !exclusive && source.call_plan.result.is_some())
+        || source.ranked.is_some()
         || !signature.entry_claims.is_empty()
+        || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
         || (!parameters.is_empty()
             && !crate::structural_unit_input::accepts_borrowed_view(
                 &source.call_plan,

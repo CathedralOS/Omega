@@ -3081,8 +3081,8 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     .expect("read target legalization coordination entrance");
     assert!(
         selection_source
-            .contains("replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?"),
-        "public legalized-plan validation must call the independent replay"
+            .contains("replay_terminal_legalized_plan(target, abstract_plan, unit, &plan, source.verified_input)?"),
+        "public legalized-plan validation must pass retained proof custody to independent replay"
     );
 
     let selected_representation =
