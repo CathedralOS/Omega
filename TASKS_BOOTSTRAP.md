@@ -159,9 +159,13 @@ prerequisite to every lower-rung milestone.
   separately bounds intermediate and complete byte counts below `2^62`;
   synthetic overflowing metadata is not an admitted-source refusal case.
   Next acceptance: witness and classify any remaining compiler-execution
-  resource gap using full admitted source, not injected counters. Next probe
-  (unrun): a balanced checked-arithmetic forest whose lowered bodies already
-  fit height 255, isolating cumulative plan allocation from helper extraction.
+  resource gap using full admitted source, not injected counters. The
+  [balanced-arithmetic probe](bootstrap/3_delta/compiler/implementation/boundary/README.md#arithmetic-allocation-probe)
+  at `8148975c62` compiled 64 shallow trees and returned canonical syntax-storage
+  refusal for 512. Its allocation inventory does not justify continued scaling
+  as a heap witness. Next action: select a separately justified source path or
+  establish a whole-producer allocation bound; do not add a ledger or increase
+  provision merely to preserve the original probe premise.
   If it exhausts the evaluator, trace the allocation owner and governing
   observation contract before changing implementation or provision; do not
   assume a Gamma-owned failure is a DCOUT frame. Distinguish cumulative
