@@ -2,6 +2,9 @@ use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 
+mod measure_body;
+use measure_body::{MeasureBodyShape, measure_body_shape};
+
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum RankingOrder {
@@ -198,16 +201,22 @@ impl RankingOrder {
                     None
                 }
             }
-            MeasureBodyShape::FieldProjection(field) => {
-                // The decreasing value must have the measure's parameter type.
-                let parameter_type = measure.parameter.as_ref().map(|parameter| {
-                    program
-                        .type_reference_table
-                        .display_name(parameter.type_reference)
+            MeasureBodyShape::FieldProjection { field, owner } => {
+                // Applying the projection requires the exact nominal carrier,
+                // not another declaration with the same displayed type name.
+                let ExpressionNode::Name(path) = program.expression_table.expression(decreases)
+                else {
+                    return None;
+                };
+                let subject = program.state_parameters(state).iter().find(|parameter| {
+                    !parameter.is_self
+                        && parameter.symbol.is_valid()
+                        && parameter.symbol == path.symbol
+                        && path.head_symbol == path.symbol
                 })?;
-                if !expression_type_name(program, state, decreases)
-                    .as_deref()
-                    .is_some_and(|name| natural_measure_names_match(name, parameter_type.as_str()))
+                if !matches!(program.type_reference_table.type_reference(
+                    unwrap_constraint_shells(program, subject.type_reference)),
+                    typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == owner)
                 {
                     return None;
                 }
@@ -417,47 +426,6 @@ fn state_parameter_of_expression<'program>(
             && (parameter.symbol == path.symbol
                 || last.is_some_and(|name| parameter.name.as_str() == name))
     })
-}
-
-enum MeasureBodyShape {
-    /// `{ param }` — the body forwards the parameter directly.
-    ParameterForward,
-    /// `{ param.field }` — the body projects a single field.
-    FieldProjection(typed_trees::name::Identifier),
-}
-
-fn measure_body_shape(
-    program: &typed_trees::TypedTrees,
-    measure: &MeasureDefinition,
-) -> Option<MeasureBodyShape> {
-    let body = program.expression_table.expression_handles(measure.body);
-    if body.len() != 1 {
-        return None;
-    }
-    match program.expression_table.expression(body[0]) {
-        ExpressionNode::Name(path) => {
-            let parameter = measure.parameter.as_ref()?;
-            let binder = program.symbols.get(parameter.symbol);
-            // A name-shaped body is not evidence of an identity function.
-            // Its reference must belong to this exact measure's telescope.
-            (parameter.symbol.is_valid()
-                && program.symbols.get(measure.symbol).kind == symbols::SymbolKind::Measure
-                && binder.kind == symbols::SymbolKind::Parameter
-                && binder.parent == measure.symbol
-                && path.symbol == parameter.symbol
-                && path.head_symbol == parameter.symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1)
-                .then_some(MeasureBodyShape::ParameterForward)
-        }
-        ExpressionNode::Member(member) => {
-            Some(MeasureBodyShape::FieldProjection(member.member.clone()))
-        }
-        _ => None,
-    }
 }
 
 fn lexicographic_component_fields(

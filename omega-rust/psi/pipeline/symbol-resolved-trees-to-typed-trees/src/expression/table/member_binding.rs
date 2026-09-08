@@ -10,6 +10,9 @@ use resolved::data::{DataField, DataMember};
 use resolved::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 use resolved::types::TypeReference;
 
+#[cfg(test)]
+mod tests;
+
 impl ExpressionTableLowerer<'_, '_, '_> {
     pub(super) fn declared_member_symbol(&self, member: &TableMemberExpression) -> SymbolHandle {
         // A nonzero selection already has an owner. Preserve it, including a
@@ -132,6 +135,16 @@ fn declared_symbol_type(
     }
     let declaration = program.symbols.get(symbol);
     match declaration.kind {
+        SymbolKind::Parameter
+            if program.symbols.get(declaration.parent).kind == SymbolKind::Measure =>
+        {
+            let measure = program
+                .measures
+                .iter()
+                .find(|measure| measure.symbol == declaration.parent)?;
+            let parameter = measure.parameter.as_ref()?;
+            (parameter.symbol == symbol).then_some(&parameter.type_reference)
+        }
         SymbolKind::Parameter | SymbolKind::Local => {
             let state = program
                 .tables
