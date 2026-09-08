@@ -5,6 +5,14 @@ projected dependency edges. [Acceptance](acceptance.md) is separate from source
 resolution. A resolver supplies immutable source custody, not approval of the
 package or certification of anything compiled from it.
 
+Dependency projection is hermetic even when later build staging is not. It
+extracts one flat unconditional request set from each fetched package without
+executing imported code or depending on build-host observations, generated files,
+or dependency build output. Close the graph before downloaded build code receives
+authority. Each dependency's requests remain unknown until its source is resolved.
+The immutable graph is the same for every target; target identity scopes review
+and realization, not dependency selection.
+
 ## Requester-local graph
 
 A dependency declares its own canonical package name. Default aliases convert
@@ -50,3 +58,31 @@ Locks and review consume canonical lineage, exact selected commit/tree/content,
 member projection, and immutable snapshot custody, not a fetching-process
 receipt. Host credentials never become package authority. Stronger host
 sandboxing is deployment policy, not source evidence.
+
+## Reconciliation and updates
+
+The current resolver performs no semantic-version solving. Requests for one key
+that select the same immutable instance deduplicate despite different authored
+selectors. Different resolutions reject with all conflicting dependency paths;
+there is no guessed compatibility relation. Multiple simultaneous instances per
+key are unsupported: they would require instance identity throughout types,
+conformances, providers, and evidence, not just another alias.
+
+Selective updates preserve pins for unchanged Git locator/revision requests.
+Changing an alias or member selection does not refresh the repository. New or
+changed requests resolve normally and reconcile with the complete graph.
+Selecting a package for update refreshes its repository lineage, not unrelated
+transitive repositories. Reachable workspace members and relative Path edges
+move together at one revision; this does not add unused members.
+
+Missing preserved content either fails offline or is acquired at the exact
+recorded commit, never replaced by a newer selector result. Whole-invocation
+offline policy overrides that fetch permission and rejects every new/refreshed
+Git request, including transitive discoveries. Local roots remain editable;
+local-only graphs need no lock. Resume uses exact proposal pins. Missing old
+source restricts source diagnostics, not comparison with the accepted baseline.
+
+Offline policy changes acquisition, not compilation, scoped build outputs,
+project decisions, or publication recovery; it is not runtime containment.
+The [resolution owner](../../../omega-rust/omega/packages/manager/src/resolution/README.md)
+maps these rules to pin and acquisition APIs.

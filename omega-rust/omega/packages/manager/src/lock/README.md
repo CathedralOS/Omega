@@ -1,5 +1,8 @@
 # Accepted project lock
 
+The [lock specification](../../../../../../wiki/spec/packages/locks.md) owns
+user-visible meaning; this note owns the current codec and recovery API.
+
 `PackageLock` is inert retained project state. It joins immutable source pins,
 complete compiler-normalized policy, and historical project decisions without
 retaining an old checkout, compiler session, proof certificate, evaluator

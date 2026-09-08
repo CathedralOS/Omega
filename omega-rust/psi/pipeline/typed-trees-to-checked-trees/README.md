@@ -3,6 +3,8 @@
 This stage checks typed programs and retains checked facts. Start at
 [lib.rs](src/lib.rs). Public borrow requirements are in
 [loan resources and compatibility](../../../../wiki/spec/terminal-psi/loans.md).
+Authored declaration custody and carried-type dependency production are described
+in [authored selections](authored_selections.md).
 
 ## Borrow evidence production
 
