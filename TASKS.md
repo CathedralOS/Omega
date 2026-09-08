@@ -182,7 +182,7 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   missing package-root policy. This is a completed slow-route observation,
   not a timeout or evidence of native execution.
 
-  The downstream native `cli_mvp` probe with production checkpoint `cbad71e423`
+  The downstream native `cli_mvp` probe with production checkpoint `ea559d7683`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -210,7 +210,8 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   descriptor and scalar inputs across repeated ordinary helper calls. Complete
   literal descriptor materialization, derived-view calls/block transfers, general
   Unit calls, and mixed helpers with the writer's Boolean input; `u64` scalar-result
-  whole-view forwarding alone does not execute the writer. Retain the exact slice-decrease and source-place evidence when
+  whole-view forwarding alone does not execute the writer. Retain the exact
+  slice-decrease and source-place evidence when
   joining these dependencies.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
