@@ -294,7 +294,8 @@ outside this producer.
 
 [root handoff](../checked-trees-to-lowered-psi/src/reborrow_root_handoff.rs)
 separately admits a finite nonempty exclusive chain rooted in a direct mutable
-loan and ending at state exit. Reverse and rejoin its exact retired-parent path;
-reject branches and shared edges. This is direct-root custody, not a cleanup,
+or write-only loan and ending at state exit. Reverse and rejoin its exact
+retired-parent path; reject branches and shared edges. This is direct-root
+custody, not a cleanup,
 transfer, or linear-discharge operation. Broader Terminal evidence must be
 implemented explicitly rather than inferred from a successful checked replay.

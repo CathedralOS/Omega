@@ -1065,6 +1065,45 @@ pub fn lower_machine(
                 | SelectedMachineRoute::StructuralUnitControl => vec![selection.machine],
             }
         };
+    // Reborrow custody belongs to every included source body, not only the
+    // requested entry. Use the lowering route's exact source mapping; ordinal
+    // correspondence is not evidence of a callee's identity.
+    let entry_source = [(selection.machine, lowered.semantic_module.entry)];
+    let handoff_sources = exact_sources.as_deref().unwrap_or(&entry_source);
+    for source in &source_machines {
+        if checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .iter()
+            .any(|(_, resource)| resource.machine_symbol == *source)
+            && handoff_sources
+                .iter()
+                .filter(|(owner, _)| owner == source)
+                .count()
+                != 1
+        {
+            return unsupported("reborrow call closure has no exact source owner mapping");
+        }
+    }
+    for (source, terminal) in handoff_sources {
+        if lowered
+            .semantic_module
+            .machines
+            .iter()
+            .filter(|machine| machine.id == *terminal)
+            .count()
+            != 1
+        {
+            return unsupported("reborrow source owner has no unique Terminal machine");
+        }
+        reborrow_root_handoff::retain_selected_reborrow_root_handoffs(
+            checked,
+            *source,
+            *terminal,
+            &mut lowered.semantic_module.reborrow_root_handoffs,
+        )?;
+    }
     let direct_float_source_machines = if let Some(sources) = exact_sources {
         sources
     } else if route == SelectedMachineRoute::ScalarGraph {
@@ -1092,12 +1131,6 @@ pub fn lower_machine(
         selection.machine,
         lowered.semantic_module.entry,
         &mut lowered.semantic_module,
-    )?;
-    reborrow_root_handoff::retain_selected_reborrow_root_handoffs(
-        checked,
-        selection.machine,
-        lowered.semantic_module.entry,
-        &mut lowered.semantic_module.reborrow_root_handoffs,
     )?;
     reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
         checked,

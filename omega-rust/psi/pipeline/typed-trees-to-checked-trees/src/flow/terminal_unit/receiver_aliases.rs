@@ -6,6 +6,7 @@ use checked_trees::{
 };
 use typed_trees::expression::ExpressionHandle;
 
+mod nested;
 #[cfg(test)]
 mod tests;
 
@@ -15,7 +16,7 @@ pub(super) struct ReceiverAlias {
 }
 
 /// This is source correspondence for direct calls, not restored-use authority.
-/// Every erased local is a whole-parameter write-only loan with no escaping use.
+/// Every erased local is a whole-referent write-only loan with no escaping use.
 pub(super) fn prefix(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -41,6 +42,7 @@ pub(super) fn prefix(
     }
     let mut aliases = Vec::new();
     let mut loans = Vec::new();
+    let mut parents = Vec::new();
     for (statement_index, statement) in statements[..count].iter().enumerate() {
         let StatementNode::LocalData(local) = statement else {
             return None;
@@ -84,6 +86,37 @@ pub(super) fn prefix(
                 .is_some_and(|symbol| *symbol != name.symbol)
         {
             return None;
+        }
+        if let Some(parent_position) = aliases.iter().position(|alias| alias.owner == name.symbol) {
+            let StatementNode::LocalData(parent_local) = &statements[parent_position] else {
+                return None;
+            };
+            if parents.contains(&Some(parent_position))
+                || base_type_identity(program, parent_local.type_reference, &[])?
+                    != base_type_identity(program, local.type_reference, &[])?
+            {
+                return None;
+            }
+            let parent: &(arena::Handle<checked_trees::BorrowLoanFact>, usize) =
+                loans.get(parent_position)?;
+            let loan = nested::formation(
+                facts,
+                flow,
+                borrow_state,
+                statement_index,
+                local.symbol,
+                name.symbol,
+                aliases[parent_position].root,
+                parent.0,
+                statements.len(),
+            )?;
+            aliases.push(ReceiverAlias {
+                owner: local.symbol,
+                root: aliases[parent_position].root,
+            });
+            loans.push(loan);
+            parents.push(Some(parent_position));
+            continue;
         }
         let mut roots = parameters.iter().filter(|parameter| {
             parameter.symbol == name.symbol || (parameter.is_self && name.symbol == machine.symbol)
@@ -230,8 +263,14 @@ pub(super) fn prefix(
             root: captured_root,
         });
         loans.push((loan_handle, loan.last_use_statement_index));
+        parents.push(None);
     }
     let mut last_uses = vec![None; aliases.len()];
+    for (child_position, parent) in parents.iter().enumerate() {
+        if let Some(parent_position) = parent {
+            last_uses[*parent_position] = Some(child_position);
+        }
+    }
     for (statement_index, statement) in statements.iter().enumerate().skip(count) {
         if !matches!(
             statement,
@@ -257,6 +296,11 @@ pub(super) fn prefix(
                 .iter()
                 .position(|alias| receiver.root == facts::PlaceRoot::Symbol(alias.owner))
         {
+            // Using a suspended ancestor would need separate restored-use
+            // evidence; this prefix only erases leaves and retired parents.
+            if parents.contains(&Some(position)) {
+                return None;
+            }
             let target = match &site {
                 crate::CallSite::Statement(call) => call.target_symbol,
                 crate::CallSite::Expression { call, .. } => call.target_symbol,
@@ -311,6 +355,7 @@ pub(super) fn prefix(
     {
         return None;
     }
+    nested::closures(facts, flow, &loans, &parents)?;
     Some(aliases)
 }
 

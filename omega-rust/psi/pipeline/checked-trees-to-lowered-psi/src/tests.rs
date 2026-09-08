@@ -544,6 +544,61 @@ fn terminal_module_with_reborrow(
 }
 
 #[test]
+fn terminal_write_only_root_handoff_preserves_exclusive_access() {
+    let checked = checked_source(
+        r#"
+        data Cell { value: i32; }
+        machine exercise(value: &write Cell) {
+            let parent: &write Cell = &write value;
+            let child: &write Cell = &write parent;
+            child.value = 1;
+        }
+    "#,
+    );
+    let rows = lower_reborrow_rows(&checked).expect("write-only root retains its handoff");
+    let [row] = rows.as_slice() else {
+        panic!("one complete root handoff");
+    };
+    assert_eq!(
+        row.direct_root_access,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(row.lineage.len(), 1);
+    assert_eq!(
+        row.lineage[0].child_access,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow
+    );
+    // This helper exercises handoff metadata shape, not source/native admission.
+    let module = terminal_module_with_reborrow(&checked);
+    terminal_verifier::validate_module(&module).expect("write-only handoff verifies");
+    let bytes = terminal_codec::encode_module(&module).expect("write-only handoff encodes");
+    assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), module);
+    for forbidden in [
+        terminal_psi::StructuralAccess::SharedBorrow,
+        terminal_psi::StructuralAccess::MutableBorrow,
+        terminal_psi::StructuralAccess::Owned,
+    ] {
+        let mut changed = module.clone();
+        changed.reborrow_root_handoffs[0].lineage[0].child_access = forbidden;
+        assert!(
+            terminal_verifier::validate_module(&changed).is_err(),
+            "child access {forbidden:?}"
+        );
+    }
+    for forbidden in [
+        terminal_psi::StructuralAccess::SharedBorrow,
+        terminal_psi::StructuralAccess::Owned,
+    ] {
+        let mut changed = module.clone();
+        changed.reborrow_root_handoffs[0].direct_root_access = forbidden;
+        assert!(
+            terminal_verifier::validate_module(&changed).is_err(),
+            "root access {forbidden:?}"
+        );
+    }
+}
+
+#[test]
 fn terminal_reborrow_root_handoff_lowers_mutable_and_write_only_children() {
     for child_access in ["&mut", "&write"] {
         let checked = reborrow_source(child_access);

@@ -13,6 +13,9 @@ mod stack_pointers;
 #[path = "terminal_psi_indexed_receivers/primitive_stores.rs"]
 mod primitive_stores;
 
+#[path = "terminal_psi_indexed_receivers/nested_aliases.rs"]
+mod nested_aliases;
+
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")
 }

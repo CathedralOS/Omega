@@ -284,3 +284,219 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
         );
     }
 }
+
+#[test]
+fn nested_aliases_retain_immediate_parent_chains() {
+    for access in ["mut", "write"] {
+        for (prefix, depth) in [
+            (
+                "let held: &write [Record; 2] = &write destination; let child: &write [Record; 2] = &write held;",
+                1,
+            ),
+            (
+                "let held: &write [Record; 2] = &write destination; let middle: &write [Record; 2] = &write held; let child: &write [Record; 2] = &write middle;",
+                2,
+            ),
+        ] {
+            let text = source(
+                &format!("forward(destination: &{access} [Record; 2], value: u16)"),
+                prefix,
+                "child[0].replace(value); child[1].replace(value);",
+            );
+            let checked = checked_from_source(&text);
+            let artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+                .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+            let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+            assert_eq!(module.reborrow_root_handoffs.len(), 1);
+            assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), depth);
+        }
+    }
+}
+
+#[test]
+fn nested_alias_replay_rejects_changed_immediate_parent_and_lifecycle() {
+    let original = checked_from_source(&source(
+        "forward(destination: &write [Record; 2], value: u16)",
+        "let held: &write [Record; 2] = &write destination; let middle: &write [Record; 2] = &write held; let child: &write [Record; 2] = &write middle;",
+        "child[1].replace(value);",
+    ));
+    let artifact = terminal_production::produce_terminal_artifact(&original, "forward").unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(module.reborrow_root_handoffs.len(), 1);
+    assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 2);
+    let (child_handle, child) = original
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .find(|(_, resource)| original.symbols.name(resource.owner_symbol) == "child")
+        .unwrap();
+    let (direct_handle, direct) = original
+        .facts
+        .borrow
+        .direct_loan_resources
+        .iter()
+        .find(|(_, resource)| original.symbols.name(resource.owner_symbol) == "held")
+        .unwrap();
+    let certificate_handle = original
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .find(|(_, row)| row.child_resource == child_handle)
+        .unwrap()
+        .0;
+    for mutation in 0..12 {
+        let mut checked = original.clone();
+        let resource = checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .get_mut(child_handle);
+        match mutation {
+            0 => resource.parent_loan = direct.loan,
+            1 => {
+                resource.parent_resource = checked_trees::CheckedParentBorrowResource::DirectRoot {
+                    resource: direct_handle,
+                }
+            }
+            2 => {
+                checked
+                    .facts
+                    .borrow
+                    .loans
+                    .get_mut(child.loan)
+                    .source_owner_symbol = direct.owner_symbol
+            }
+            3 => resource.access = checked_trees::BorrowAccessKind::Mutable,
+            4 => resource.captured_place.root_symbol = symbols::SymbolHandle::invalid(),
+            5 => {
+                resource.parent_suspension.source =
+                    checked_trees::FlowInvalidationSource::Statement { statement_index: 0 }
+            }
+            6 => resource.parent_suspension.child_activation = arena::Handle::invalid(),
+            7 => resource.parent_suspension.parent_entry_constraint = arena::Handle::invalid(),
+            8 => {
+                checked
+                    .facts
+                    .flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .get_mut(child.parent_end_status.child_weakening)
+                    .source =
+                    checked_trees::FlowInvalidationSource::Statement { statement_index: 2 }
+            }
+            9 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .get_mut(certificate_handle)
+                    .child_resource = arena::Handle::invalid()
+            }
+            10 => {
+                let duplicate = checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .get(certificate_handle)
+                    .clone();
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .insert(duplicate);
+            }
+            _ => {
+                checked.facts.borrow.loans.get_mut(child.loan).lineage =
+                    checked_trees::BorrowLoanLineage::Reborrow {
+                        parent_loan: direct.loan,
+                    }
+            }
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&checked, "forward").is_err(),
+            "nested mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn nested_alias_callee_retains_and_replays_its_handoff() {
+    let mut text = source(
+        "forward(destination: &write [Record; 2], value: u16)",
+        "let held: &write [Record; 2] = &write destination; let middle: &write [Record; 2] = &write held; let child: &write [Record; 2] = &write middle;",
+        "child[1].replace(value);",
+    );
+    text.push_str("machine wrapper(destination: &write [Record; 2], value: u16) { forward(&write destination, value); }");
+    let original = checked_from_source(&text);
+    let artifact = terminal_production::produce_terminal_artifact(&original, "wrapper").unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(module.reborrow_root_handoffs.len(), 1);
+    assert_ne!(module.reborrow_root_handoffs[0].machine, module.entry);
+    assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 2);
+    let (child_handle, _) = original
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .find(|(_, resource)| original.symbols.name(resource.owner_symbol) == "child")
+        .unwrap();
+    let certificate = original
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .find(|(_, row)| row.child_resource == child_handle)
+        .unwrap()
+        .0;
+    let event = original
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .find(|(_, row)| row.child_resource == child_handle)
+        .unwrap()
+        .0;
+    for mutation in 0..4 {
+        let mut checked = original.clone();
+        match mutation {
+            0 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .get_mut(certificate)
+                    .child_resource = arena::Handle::invalid()
+            }
+            1 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_disposition_events
+                    .get_mut(event)
+                    .child_resource = arena::Handle::invalid()
+            }
+            2 => checked
+                .facts
+                .borrow
+                .reborrow_disposition_events
+                .get_mut(event)
+                .retired_parent_path
+                .reverse(),
+            _ => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_disposition_events
+                    .get_mut(event)
+                    .retired_parent_path
+                    .pop();
+            }
+        }
+        assert!(
+            terminal_production::produce_terminal_artifact(&checked, "wrapper").is_err(),
+            "callee custody mutation {mutation}"
+        );
+    }
+}

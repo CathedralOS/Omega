@@ -604,10 +604,10 @@ Owners include
   signed runtime inputs, both Boolean values, literal stores with unused inputs,
   and stack-passed primitive roots across three calls through publication.
   Preserve exact write widths, untouched bytes, and independent receiving
-  replay; frame-slot
-  stores or copied referents are not writeback.
-  Extend Terminal receiver production beyond nonescaping direct-root local
-  alias erasure to nested/escaping carriers and dynamic indexes; checked
+  replay; frame-slot stores or copied referents are not writeback.
+  Extend Terminal receiver production beyond nonescaping whole-referent alias
+  chains ending at state exit to projected initializers, escaping carriers,
+  early nested closure, restored-parent uses, and dynamic indexes; checked
   admission alone does not supply their portable address and lifetime evidence.
   Extend non-observing receiver admission to
   reference-bearing projections only where locating the receiver does not read
