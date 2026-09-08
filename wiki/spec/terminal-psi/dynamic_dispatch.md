@@ -21,9 +21,10 @@ machines supply missing rows.
 
 A named-conformance coercion retains source data/place, target trait, exact
 conformance, and normalized rows. A bare place coercion cannot search visible
-conformances. A bare dynamic parameter retains eligible complete closed maps;
-a concrete argument must have exactly one applicable conformance, or name the
-intended conformance in its dynamic type. A bodyless declaration without a
+conformances. A concrete argument coerces through an explicitly named complete
+conformance; an already-packaged dynamic argument retains its selection.
+A bare dynamic parameter accepts fitting eligible maps without selecting one
+by visibility. A bodyless declaration without a
 normalized map is not a dynamic candidate.
 
 The requirement owns one erased caller shape. Every realization supplies a
@@ -32,6 +33,44 @@ the rest. Descriptor forwarding, rebinding, joins, and storage preserve the
 actual instance and table. At a join, each predecessor supplies its own descriptor
 to the shared parameter; retain all predecessor paths and selection identities,
 never a representative conformance or synthetic joined table.
+
+## Source eligibility and operational envelopes
+
+The runtime dynamic surface is borrowed. Owned runtime erasure additionally
+requires storage ownership, size/alignment information, and checked cleanup;
+borrowed dispatch alone establishes none of those. An owned proof-only dynamic
+term may erase when its entire normalized value has neither a runtime instance
+nor runtime table slots. An empty table alone cannot erase a runtime instance
+with unknown size or cleanup obligations.
+
+A requirement belongs to the dynamic surface only when its receiver is `&self`
+or `&mut self`, `Self` occurs nowhere else (including nested runtime contracts),
+and it has no requirement-local generic parameters. After binding trait arguments,
+parameter/result representations must be concrete, returned borrow lifetimes
+must be expressible from inputs, and the public contract must name no
+satisfier-private identity. Boundary-machine requirements are ineligible.
+An ineligible requirement is excluded individually, not by rejecting unrelated
+requirements on the trait. No `Self: Sized` escape hatch is needed.
+
+The normalized operational contract must fit its per-requirement dynamic
+envelope: service reach, direct synchronous invocation, mutation summary,
+capability demands, suspension, blocking, failure, termination, quantitative
+resource ceilings, and guarded crash routes. Carry is a property of the dynamic
+value, not one requirement. One selected conformance supplies the whole surface;
+tables cannot combine rows from unrelated conformances.
+
+The envelope is compile-time information and adds no runtime words. Coercion
+retains the selected conformance's exact envelope. At joins, possible demands
+combine by union or maximum and guarantees by conjunction or intersection.
+Carry permissions intersect; termination survives only if every alternative
+guarantees it. `suspend` and `block` acknowledgements use the retained envelope,
+not the wider base declaration.
+
+An unannotated dynamic parameter is implicitly polymorphic over fitting
+envelopes. Only requirements reachable through its call graph contribute to the
+inferred contract, including forwarding into transitive calls. Storing the value
+instead requires the storage type's bound. This changes static contract checking,
+not runtime representation, and does not require code monomorphization.
 
 ## Complete application identity
 

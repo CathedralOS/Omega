@@ -112,6 +112,13 @@ not custody or uniqueness. Non-resident view/validate reject represented
 non-copy fields; those require initialization, existing resident custody, or
 an admitted transfer.
 
+The static validator's complete structural machine contract includes input and
+result, guarded guarantees, effects, crashes, and applicable termination.
+Specialization invokes that exact machine directly; it is not a retained foreign
+callback. Its identity and derivation enter occurrence provenance. Dynamic
+validation rejection preserves the validator's declared error sum as ordinary
+typed data, never an opaque number, string, or generic `InvalidContent` code.
+
 `Extent::Resident<P, T>` owns one complete live `T` over the exact placement
 range, including padding and transfer footprint, and every non-runtime Type
 field. Its invariant type indices are semantic identity; addresses, revisions,
@@ -244,6 +251,8 @@ Placed primitives require stable addressable lifetimes, finite compiler-owned
 non-suspending operations, and no recoverable failure under the admitted
 contract. Demand-paged/truncatable mappings, disks, streams, RPC, and device-only
 storage use fallible services, not this view contract. Durability remains a
+protocol. A live view retains a lease or claim preventing asynchronous revocation
+until retirement; a revocable mapping requires a distinct fallible provider
 protocol. View-to-view recast is not an establishment route: request another
 placement explicitly through the underlying qualified authority.
 

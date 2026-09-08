@@ -167,11 +167,14 @@ or change interface identity. Stable syntactic/control-flow normalization is
 not heuristic entailment. Exact authored member/keyword spans explain review;
 inferred rows and parent closure receive no invented source locations.
 
-The only abstract service-row form is `reaches <= Bound` on an installation-bound
-requirement. Its exact requirement path owns the row. The selected provider's
+An installation-bound requirement uses `reaches <= Bound` for its abstract
+service row. Its exact requirement path owns the row. The selected provider's
 row must fit the finite bound and replace it throughout the owning installation
 closure before admission. Ordinary callable package/component interfaces must
 bind the provider or publish a fixed conservative row. No ordinary exported
 row variables, Boolean row formulas, or lower-bound constraints are implied.
+The independent bounded `reaches _;` inside a
+[transparent refinement](conformances.md#transparent-refinements) constrains its
+base requirement; it does not create another installation-row declaration form.
 [Installed roots](../build/external_roots.md#installation-bound-reach) owns
 manifest and lineage requirements; equal rows never establish protocol identity.

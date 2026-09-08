@@ -116,8 +116,8 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: consolidate the guide's duplicated conformance teaching, provider-coverage
-ledger narration, and stored-integer lowering details against their specification
-owners. Then audit remaining historical references, drafts, navigation, and source
-readers. Complete byte-level Terminal tables remain explicit PSIIR work, not an
-implied achievement of prose migration.
+Next: consolidate the guide's arithmetic, domains, proof, ownership, and
+concurrency chapters against their specification owners. Then audit remaining
+historical references, drafts, navigation, and source readers. Complete byte-level
+Terminal tables remain explicit PSIIR work, not an implied achievement of prose
+migration.

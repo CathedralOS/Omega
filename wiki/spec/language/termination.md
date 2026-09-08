@@ -37,6 +37,12 @@ and its proof cache, not caller/requirement identity or contract-driven dependen
 compilation. Explicit complexity/resource promises belong to their own public
 contracts, not hidden ranking data.
 
+Declared measures are package-private; `pub measure` rejects, and other packages
+cannot name them directly. An exported machine may use its package's private
+measure because callers depend on the promise, not the witness. Cross-package
+operational recursion remains unsupported pending a compositional termination
+interface that closes from published evidence without inspecting private measures.
+
 ## Ranking
 
 `terminates by subject -> View` selects a well-founded ranking theory. The view
