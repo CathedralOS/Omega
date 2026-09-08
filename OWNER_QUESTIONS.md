@@ -78,3 +78,52 @@ each loses the source-semantic distinction the observer must verify.
 
 Until answered, the specification marks the source form and identity ownership
 undetermined, and terminal-external rows remain unsupported rather than guessed.
+
+## Q2 — Alpha bounds-failure outcome
+
+### Context
+
+The independently audited Alpha executor is the native trust floor for every
+compiler and checker above it. Its
+[hardening objective](bootstrap/0_alpha/README.md#unimplemented-hardening-objective)
+requires deterministic failure instead of possible native-state corruption, but
+[current semantics](bootstrap/0_alpha/SEMANTICS.md#8-currently-undefined-the-honest-edges)
+assign no meaning to out-of-range memory or return-stack accesses. This is not
+a demonstrated failure of the running D customer: the selected
+[Gamma containment argument](bootstrap/2_gamma/EVALUATOR_PROFILE.md#containment-argument)
+and [Beta audit](bootstrap/1_beta/AUDIT.md#memory-and-ceilings) require in-bound
+execution independently of native hardening.
+
+### Decision
+
+Should invalid Alpha memory ranges and an oversized embedded tape length use
+the existing abnormal, non-resumable **Trap**, or must Alpha expose a distinct
+fault/resource outcome? The task cannot choose a new observable result merely
+by adding native bounds checks.
+
+### Proposed direction, not yet adopted
+
+Reuse Trap, preserving the stdout prefix and adding no diagnostic bytes or new
+opcode. Check the full accessed range before fetch/operand reads, data reads or
+writes, and call/return stack accesses, using nonwrapping range arithmetic.
+Reject a stamped length exceeding the physical hole or semantic memory before
+copying. Higher-rung resource refusals remain separately owned; an Alpha trap
+must not be relabeled as a successful Gamma or compiler resource judgment.
+
+Preserve all currently defined in-bound flat-memory behavior. Execution is not
+restricted to the original tape extent or instruction boundaries; mutable code
+and unaligned data remain legal. The stack is ordinary memory: this proposal
+does not add a separate stack partition, require a preceding call for `ret`, or
+trap merely because the stack pointer rises above its initial value. An untaken
+branch does not access its target. These are constraints on implementation, not
+new questions about the instruction set.
+
+### Alternative and scope
+
+A distinct fault/resource result would require its exact observations and
+classification rules, plus corresponding seed, profile, and proof changes.
+Prefer the existing trap unless a concrete consumer needs that distinction.
+Native check placement and capacities remain engineering choices; host I/O
+failure policy is outside this bounds-only proposal. Until answered, the
+hardening task is owner-blocked and current semantics/seeds remain unchanged;
+independently contained bootstrap execution and proof work can continue.
