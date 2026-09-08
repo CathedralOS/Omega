@@ -1,7 +1,7 @@
 //! Machine parameters do not depend on the body matching a special entry shape.
 use super::*;
 
-fn fixture() -> AbstractOperationPlan {
+pub(super) fn fixture() -> AbstractOperationPlan {
     let machine = MachineId::new(901).unwrap();
     let boundary = BoundaryMachineId::new(901).unwrap();
     let block = BlockId::new(901).unwrap();

@@ -42,6 +42,12 @@ pub struct TargetUnitBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    /// One ordered scalar definition; residence is assigned downstream, not
+    /// prescribed as a stack slot by target lowering.
+    ScalarDefinition {
+        result_home: TargetUnitScalarHomeRequirement,
+        expression: crate::TargetScalarExpression,
+    },
     EstablishByteSequenceLiteral {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,

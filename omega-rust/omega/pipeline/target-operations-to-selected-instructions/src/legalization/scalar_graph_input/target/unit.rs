@@ -33,6 +33,13 @@ pub(super) fn validate(
     for (target, abstracted) in body.operations.iter().zip(&abstracted.operations) {
         match (target, abstracted) {
             (
+                TargetUnitOperation::ScalarDefinition { result_home, .. },
+                AbstractOperation::IntegerWiden { .. },
+            ) => {
+                super::scalar_definitions::validate(target, abstracted, body, &sources)?;
+                sources.push((result_home.source_value, Source::Home(*result_home)));
+            }
+            (
                 TargetUnitOperation::BoundarySettlement { .. },
                 AbstractOperation::BoundaryCall { .. },
             ) => {

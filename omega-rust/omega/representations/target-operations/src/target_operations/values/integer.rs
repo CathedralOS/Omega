@@ -9,6 +9,8 @@ use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetIntegerExpression {
+    /// Read one exact earlier scalar definition without repeating its producer.
+    ScalarHome(crate::TargetUnitScalarHomeRequirement),
     StructuralCall {
         psi_operation: OperationId,
         source_value: ValueId,

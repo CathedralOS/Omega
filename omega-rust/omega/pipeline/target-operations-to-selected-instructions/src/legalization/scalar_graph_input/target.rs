@@ -8,6 +8,7 @@ use target_operations::{
 mod byte_output;
 mod byte_view;
 mod expressions;
+mod scalar_definitions;
 mod structural_call;
 mod unit;
 pub(super) fn validate_target(

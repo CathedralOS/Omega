@@ -115,11 +115,13 @@ pub(in crate::selection) fn validate(
     for index in 0..replay.definitions.len() {
         let (value, input, site, scalar_type) = replay.definitions[index];
         let output = if scalar_type == ScalarType::Boolean
-            || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32)
+            || matches!(scalar_type, ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 32))
         {
             let output = replay.result_register(value, site, scalar_type)?;
             replay.check_instruction(
-                if scalar_type == ScalarType::Boolean {
+                if scalar_type == ScalarType::Boolean
+                    || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 8)
+                {
                     SelectedInstructionKind::ZeroExtendU8
                 } else {
                     SelectedInstructionKind::ZeroExtendU32
@@ -278,7 +280,9 @@ pub(in crate::selection) fn validate(
                         || source_type.sign() != IntegerSign::Unsigned
                         || source_type.bits() != 8
                         || !matches!(scalar_type, ScalarType::Integer(integer)
-                            if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+                            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                && matches!(integer.bits(), 16 | 32 | 64)
+                                && source_type.can_widen_to(integer))
                     {
                         return Err(invalid());
                     }

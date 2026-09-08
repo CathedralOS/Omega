@@ -28,6 +28,15 @@ and destination types, ABI locations and proof obligations. Wrapping shifts keep
 independently typed counts and modulo-width meaning; exact shifts retain their
 count-range and, for left shift, result-representability obligations. Native
 integer widening must validate its exact sign/width relation, not just copy bits.
+
+Ordered Unit bodies retain pure scalar definitions as `ScalarDefinition` with
+an exact `TargetScalarExpression` and value-residence requirement. Integer
+widening uses the same total sign/width relation as scalar functions. Earlier
+computed values are referenced by `ScalarHome`, never by duplicating their
+producer or manufacturing an ABI parameter. The requirement identifies the
+operation, value, type and shape; register allocation owns physical residence,
+and target lowering does not mandate a stack slot. Native realization may
+support a narrower set of widening shapes than this target-level vocabulary.
 FMA target records retain occurrence, selected plan and admission without choosing
 XMM homes. An available target record does not imply that the common downstream
 selection/emission path supports it.
