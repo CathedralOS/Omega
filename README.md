@@ -73,18 +73,21 @@ See [compile-time proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
 means the guarantee requires a selected policy or additional proof. These describe
 the language guarantees, not today's implementation coverage.
 
+✅ = Completely prevented
+⭐ = Severely mitigated (opt-in or conditionally solved)
+
 | Failure | Guarantee | What Omega does about it |
 | --- | --- | --- |
-| Use-after-free, double-free, dangling references | Prevented | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
-| Out-of-bounds reads and writes | Prevented | Array and slice access requires proof that the index or range is valid. |
-| Stack overflow | Prevented | Tail recursion becomes iteration. Worst-case stack demand, including compiler spills, must fit provisioned storage before execution. |
-| Integer overflow and division by zero | Conditional | Exact arithmetic proves validity. Explicit wrapping, saturation, or trapping policies choose other behavior rather than promising failure-free arithmetic. |
-| Data races | Prevented | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
-| Deadlocks and indefinite waits | Conditional | Protocol proofs rule out wait cycles and missing wakeups for the checked composition and its stated external assumptions. Ownership alone does not promise progress. |
-| Unintended infinite loops | Conditional | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
-| Hidden filesystem or process authority | Prevented | Boundary effects propagate through calls; a build cannot silently grant authority its receiving policy disallows. |
-| Dependency supply-chain attacks | Conditional | Package review exposes dependency changes, trust assumptions, and requested authority. New authority needs acceptance; malicious use of already-approved permissions is not automatically detected. |
-| Compiler supply-chain attacks | Conditional | Independent verification rejects compiler output that violates the checked contracts, even if the producer is compromised. This relies on a trusted checker and binding the artifact to the intended program. |
+| Use-after-free, double-free, dangling references | ✅ | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
+| Out-of-bounds reads and writes | ✅ | Array and slice access requires proof that the index or range is valid. |
+| Stack overflow | ✅ | Tail recursion becomes iteration. Worst-case stack demand, including compiler spills, must fit provisioned storage before execution. |
+| Integer overflow and division by zero | ⭐ | Prevented entirely by opting in. Exact arithmetic proves validity. Explicit wrapping, saturation, or trapping policies choose other behavior rather than promising failure-free arithmetic. |
+| Data races | ✅ | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
+| Deadlocks and indefinite waits | ⭐ | Protocol proofs rule out wait cycles and missing wakeups for the checked composition and its stated external assumptions. Ownership alone does not promise progress. |
+| Unintended infinite loops | ⭐ | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
+| Hidden filesystem or process authority | ✅ | Boundary effects propagate through calls; a build cannot silently grant authority its receiving policy disallows. |
+| Dependency supply-chain attacks | ⭐ | Package review exposes dependency changes, trust assumptions, and requested authority. New authority needs acceptance; malicious use of already-approved permissions is not automatically detected. |
+| Compiler supply-chain attacks | ⭐ | Independent verification rejects compiler output that violates the checked contracts, even if the producer is compromised. This relies on a trusted checker and binding the artifact to the intended program. |
 
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
