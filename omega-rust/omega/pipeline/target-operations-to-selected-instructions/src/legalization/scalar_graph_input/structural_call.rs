@@ -50,10 +50,59 @@ pub(in crate::legalization) fn argument(
     let [destination_parameter] = called.structural_parameters.as_slice() else {
         return Err(invalid);
     };
+    if let Some((producer, result, value)) =
+        super::primitive_locals::producer(caller, semantic.place)
+    {
+        if !super::primitive_locals::valid_result(caller, producer, result)
+            || !semantic.path.is_empty()
+            || semantic.access == StructuralAccess::Owned
+            || destination_parameter.access != semantic.access
+            || destination_parameter.structural_type != result.structural_type
+            || destination_parameter.multiplicity
+                != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !destination_parameter.qualifications.is_empty()
+            || !destination_parameter.projected_qualifications.is_empty()
+            || super::primitive_locals::scalar(&plan.structural_types, result.structural_type)
+                != Some(value.scalar_type)
+        {
+            return Err(invalid);
+        }
+        let referent = super::scalar_shape(value.scalar_type).ok_or(invalid.clone())?;
+        let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+        let destination = call
+            .parameters
+            .get(called.parameters.len())
+            .ok_or(invalid.clone())?
+            .clone();
+        if destination.shape != shape {
+            return Err(invalid);
+        }
+        return Ok(TargetStructuralArgument {
+            place: semantic.place,
+            access: semantic.access,
+            path: Vec::new(),
+            root_structural_type: result.structural_type,
+            structural_type: result.structural_type,
+            shape,
+            source_byte_offset: 0,
+            fixed_array_length: None,
+            element_stride: None,
+            source: TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                psi_operation: producer,
+            },
+            destination,
+        });
+    }
     if matches!(
         semantic.access,
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) {
+    ) || semantic.access == StructuralAccess::SharedBorrow
+        && super::primitive_locals::scalar(
+            &plan.structural_types,
+            destination_parameter.structural_type,
+        )
+        .is_some()
+    {
         return exclusive::argument(
             semantic,
             caller,

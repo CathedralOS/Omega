@@ -42,7 +42,8 @@ pub(crate) fn reconstruct_declared_places(
                 | O::EstablishTrivialAffineLocal { place, .. } => {
                     known_places.insert(place.id);
                 }
-                O::ByteSequenceSubslice { result, .. }
+                O::EstablishPrimitiveLocal { result, .. }
+                | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
@@ -110,6 +111,7 @@ pub(crate) fn validate_operation_places(
         O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. } => {}
+        O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {
             require(destination.place, known)?;
@@ -165,7 +167,8 @@ pub(crate) fn validate_operation_places(
                 }
             }
         }
-        O::ByteSequenceSubslice { source, .. }
+        O::PrimitiveScalarRead { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }

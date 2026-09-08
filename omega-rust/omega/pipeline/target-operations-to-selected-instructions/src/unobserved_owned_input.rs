@@ -88,10 +88,38 @@ pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {
                 | Instruction::IntegerWiden { .. }
                 | Instruction::ExactBinary { .. }
                 | Instruction::Compare { .. } => true,
-                Instruction::Call(call) => call
-                    .arguments
-                    .iter()
-                    .all(|argument| matches!(argument, LegalizedScalarArgument::Scalar { .. })),
+                Instruction::EstablishPrimitiveLocal { result, .. } => {
+                    crate::selection::primitive_local_input::local(function, result.place).is_some()
+                }
+                Instruction::PrimitiveLocalStore { destination, .. }
+                | Instruction::PrimitiveScalarRead {
+                    source: destination,
+                } => {
+                    crate::selection::primitive_local_input::local(function, *destination).is_some()
+                }
+                Instruction::Call(call) => call.arguments.iter().all(|argument| match argument {
+                    LegalizedScalarArgument::Scalar { .. } => true,
+                    LegalizedScalarArgument::Structural { semantic, .. } => {
+                        semantic.access != StructuralAccess::Owned
+                            && semantic.path.is_empty()
+                            && crate::selection::primitive_local_input::local(
+                                function,
+                                semantic.place,
+                            )
+                            .is_some()
+                            && !contract
+                                .parameters
+                                .iter()
+                                .map(|parameter| &parameter.semantic)
+                                .chain(
+                                    function
+                                        .blocks
+                                        .iter()
+                                        .flat_map(|block| &block.structural_parameters),
+                                )
+                                .any(|parameter| parameter.place == semantic.place)
+                    }
+                }),
                 _ => false,
             })
 }

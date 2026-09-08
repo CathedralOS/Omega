@@ -288,6 +288,10 @@ fn structural_operation_result_contract(
         .flat_map(|block| &block.nodes)
         .find_map(|node| {
             let (result, access) = match &node.operation {
+                // Activation-local storage supplies loans, never owned escape.
+                O::EstablishPrimitiveLocal { result, .. } => {
+                    (result, terminal_psi::StructuralAccess::MutableBorrow)
+                }
                 O::ByteSequenceSubslice { result, .. } => {
                     (result, terminal_psi::StructuralAccess::SharedBorrow)
                 }

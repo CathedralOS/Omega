@@ -51,7 +51,7 @@ pub(in crate::function_fragments) fn validate_function(
             != selected
                 .calls
                 .iter()
-                .filter(|row| row.call.result_placement.is_none())
+                .filter(|row| published_call(row))
                 .count()
     {
         return Err(invalid());
@@ -85,12 +85,11 @@ pub(in crate::function_fragments) fn validate_function(
         source::frame(source, function.machine)?.map_or(0, |frame| frame.frame_size_bytes),
     )
     .map_err(|_| Error::Overflow)?;
-    for (actual, contract) in function.internal_unit_calls.iter().zip(
-        selected
-            .calls
-            .iter()
-            .filter(|row| row.call.result_placement.is_none()),
-    ) {
+    for (actual, contract) in function
+        .internal_unit_calls
+        .iter()
+        .zip(selected.calls.iter().filter(|row| published_call(row)))
+    {
         let expected = &contract.call;
         let span = rows
             .iter()
@@ -104,8 +103,8 @@ pub(in crate::function_fragments) fn validate_function(
             .ok_or_else(invalid)?;
         if actual.owner != CallSiteOwner::Operation(contract.operation)
             || actual.target != expected.callee
-            || actual.result.is_some()
-            || actual.semantic_result.is_some()
+            || actual.semantic_result != scalar_result::result(source, selected, contract)?
+            || actual.result != actual.semantic_result.map(|result| result.scalar_type)
             || actual.structural_result.is_some()
             || actual.scalar_arguments.len()
                 != expected
@@ -198,6 +197,20 @@ pub(in crate::function_fragments) fn validate_function(
                 return Err(invalid());
             }
             match (&target.source, &actual.source) {
+                (
+                    target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                        psi_operation,
+                    },
+                    InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                        psi_operation: actual_operation,
+                    },
+                ) if psi_operation == actual_operation => {
+                    if actual.source_location
+                        != primitive_locals::location(source, selected, target, *psi_operation)?
+                    {
+                        return Err(invalid());
+                    }
+                }
                 (
                     target_operations::TargetStructuralArgumentSource::Placement(placement),
                     InternalUnitStructuralArgumentSourceRecord::Placement(actual_placement),

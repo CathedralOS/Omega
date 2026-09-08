@@ -10,6 +10,23 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::EstablishPrimitiveLocal { result, value, .. } => {
+            LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
+                result: result.clone(),
+                value: *value,
+                shape: scalar_graph_input::scalar_shape(value.scalar_type)
+                    .ok_or(Error::SourceCustodyMismatch)?,
+            }
+        }
+        AbstractOperation::PrimitiveLocalStore {
+            destination, value, ..
+        } => LegalizedScalarInstructionKind::PrimitiveLocalStore {
+            destination: *destination,
+            value: *value,
+        },
+        AbstractOperation::PrimitiveScalarRead { source, .. } => {
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { source: *source }
+        }
         AbstractOperation::BoundaryCall {
             boundary,
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -144,8 +161,6 @@ pub(super) fn project(
         } => {
             let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
             if structural_arguments.len() > 1
-                || structural_arguments.is_empty()
-                    && !matches!(node.operation, AbstractOperation::CallUnit { .. })
                 || call_plan.parameters.len() != scalar_arguments.len() + structural_arguments.len()
             {
                 return Err(Error::SourceCustodyMismatch);

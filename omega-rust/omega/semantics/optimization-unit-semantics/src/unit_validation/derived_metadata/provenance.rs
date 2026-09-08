@@ -30,7 +30,10 @@ pub(crate) fn expected_provenance(
                 )
                 .collect()
         }
-        O::WriteOnlyPrimitiveStore { psi_operation, .. }
+        O::EstablishPrimitiveLocal { psi_operation, .. }
+        | O::PrimitiveLocalStore { psi_operation, .. }
+        | O::PrimitiveScalarRead { psi_operation, .. }
+        | O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::StoreDynamicDescriptor { psi_operation, .. }
         | O::EstablishPayloadlessCase { psi_operation, .. }

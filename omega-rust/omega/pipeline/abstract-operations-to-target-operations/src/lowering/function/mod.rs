@@ -53,6 +53,19 @@ pub(super) fn lower_function(
     if let Some(result) = function.result.structural() {
         return lower_structural_function(function, result, target, functions, structural_types);
     }
+    if super::control_flow::requires_graph(function, structural_types)? {
+        return super::control_flow::lower(
+            function,
+            target,
+            functions,
+            structural_types,
+            boundary_machines,
+            settlements,
+            installed_calls,
+            scalar_abis,
+            native_callbacks,
+        );
+    }
     let Some(function_result) = function.result.scalar() else {
         return lower_unit_function(
             function,
@@ -68,25 +81,6 @@ pub(super) fn lower_function(
         );
     };
 
-    if super::control_flow::has_cycle(function)?
-        || super::unobserved_owned::has_block_arrivals(function, structural_types)
-        || function
-            .operations
-            .iter()
-            .any(|operation| matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. }))
-    {
-        return super::control_flow::lower(
-            function,
-            target,
-            functions,
-            structural_types,
-            boundary_machines,
-            settlements,
-            installed_calls,
-            scalar_abis,
-            native_callbacks,
-        );
-    }
     super::scalar::lower_scalar_function(
         function,
         function_result,

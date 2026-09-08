@@ -34,11 +34,14 @@ impl LegalizedScalarFunction {
                     LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
                     LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. }
+                    | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value: stored, .. }
+                    | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
+                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
@@ -96,6 +99,18 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    EstablishPrimitiveLocal {
+        result: terminal_psi::StructuralOperationResult,
+        value: abstract_operations::AbstractResult,
+        shape: calling_conventions::ValueShape,
+    },
+    PrimitiveLocalStore {
+        destination: semantic_vocabulary::PlaceId,
+        value: abstract_operations::AbstractResult,
+    },
+    PrimitiveScalarRead {
+        source: semantic_vocabulary::PlaceId,
+    },
     /// Exact admitted byte-input boundary and its owned structural result home.
     HostedReadByte {
         boundary: semantic_vocabulary::BoundaryMachineId,

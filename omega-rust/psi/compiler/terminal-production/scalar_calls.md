@@ -122,8 +122,8 @@ while an earlier immutable snapshot retains its original value. Local assignment
 use the same primitive-store operation as reference parameters. Source replay
 retains declaration, initializer, destination, borrow occurrence, and read identity.
 The interpreter uses fresh activation-local identities and preserves them across
-fuel suspension. Primitive-local establishment and reads still require native
-realization; unsupported native lowering rejects explicitly.
+fuel suspension. The ordinary native graph realizes fixed 64-bit integer locals,
+fresh reads and borrowed calls; other primitive read widths remain unsupported.
 Checked computation calls retain whole primitive borrows alongside dense scalar
 operands and use the same shared callee closure. Nested calls in ordinary Unit
 operands preserve earlier scalar snapshots, later reads of mutated locals, and
@@ -188,8 +188,8 @@ signatures remain outside this producer route.
 [`owned_scalar_cycles.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/owned_scalar_cycles.rs)
 checks the guarded customer below, canonical reload, independent verification,
 selected calls, exact owned arrivals, ranking mutations, and fuel-paused execution.
-Owned integer-field native lowering and primitive-local native storage remain
-unfinished; successful Terminal interpretation does not establish either.
+Owned integer-field native lowering remains unfinished. The primitive-local
+native regressions below are separate from these Terminal interpretation checks.
 
 Empty standalone scalar contracts must also agree with the authored normal-clause
 and parameter-range roster; a missing checked row cannot erase either. Crash
@@ -281,9 +281,16 @@ and value ABI through native publication without payload copies or homes. The
 [`owned_control_cycles`](../../../../tests/native-differential/tests/owned_control_cycles.rs)
 companions exercise those arrivals with the same ranking-only field reads, a
 selected scalar call, and two-owner backedge swaps. They do not replace this
-customer's acceptance: activation-local primitive storage and its selected
-structural-scalar call integration remain required. The unchanged source now
-rejects at `UnsupportedPrimitiveLocalEstablishment(OperationId(6))`.
+customer's acceptance. The unchanged source is retained in the
+[`primitive_locals` native regressions](../../../../tests/native-differential/tests/primitive_locals.rs):
+its initialized local, selected structural-scalar call and owned arrivals pass
+the ordinary target/selected path and object, image, installation and native
+artifact replay on all four hosted targets. Matching-host execution is verified
+on macOS AArch64; Linux runtime and Windows runtime remain separate checks.
+
+```sh
+cargo nextest run -p omega-native-differential-test --test primitive_locals --no-fail-fast
+```
 
 The exact `reset` callee is exercised independently through native publication
 and execution by

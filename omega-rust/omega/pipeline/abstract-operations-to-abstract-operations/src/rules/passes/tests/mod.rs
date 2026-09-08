@@ -79,5 +79,6 @@ mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_scalar_elimination;
 mod global_value_numbering;
+mod primitive_locals;
 mod proof_check_elision;
 mod sparse_conditional_constant_propagation;

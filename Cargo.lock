@@ -722,6 +722,7 @@ dependencies = [
  "machine-emission",
  "object-file",
  "proof-admission",
+ "register-model",
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",

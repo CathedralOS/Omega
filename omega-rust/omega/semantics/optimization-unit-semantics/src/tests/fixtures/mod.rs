@@ -5,11 +5,13 @@ use super::*;
 mod candidates;
 mod dominance;
 mod ownership;
+mod primitive_locals;
 mod scalar_units;
 mod structural_catalog;
 
 pub(crate) use candidates::*;
 pub(crate) use dominance::*;
 pub(crate) use ownership::*;
+pub(crate) use primitive_locals::*;
 pub(crate) use scalar_units::*;
 pub(crate) use structural_catalog::*;

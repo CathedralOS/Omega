@@ -60,10 +60,14 @@ pub(crate) fn operation_scalar_types_match(
             psi_operation,
             stored,
         } => stored.has_complete_custody(function.machine, *psi_operation),
-        O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
+        O::EstablishPrimitiveLocal { value, .. }
+        | O::PrimitiveLocalStore { value, .. }
+        | O::WriteOnlyPrimitiveStore { value, .. }
+        | O::StructuralScalarFieldStore { value, .. } => {
             scalar(value.value) == Some(value.scalar_type)
         }
-        O::EstablishPayloadlessCase { .. }
+        O::PrimitiveScalarRead { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }

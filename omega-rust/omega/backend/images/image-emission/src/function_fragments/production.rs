@@ -27,9 +27,12 @@ pub fn build_function_fragment_object_artifact(
     });
     let mut functions = Vec::new();
     let mut semantic_code_attribution = Vec::new();
+    let mut requires_primitive_storage_replay = false;
     for placed in &text.functions {
         let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
         let (abstracted, targeted) = source::function(source, placed.machine)?;
+        requires_primitive_storage_replay |=
+            source::requires_primitive_storage_replay(&abstracted.operations);
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
         let symbol = object.layout.symbols.insert(SymbolPlan {
@@ -174,6 +177,7 @@ pub fn build_function_fragment_object_artifact(
         }
     }
     let artifact = ObjectArtifact {
+        requires_primitive_storage_replay,
         fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
         psi: text.psi,
         target: text.target,

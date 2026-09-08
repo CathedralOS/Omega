@@ -71,6 +71,12 @@ pub(super) fn encode_target_structural_argument(
     encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
     match &argument.source {
+        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            psi_operation,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+        }
         target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
             bytes.push(2);
             bytes.extend_from_slice(&block.get().to_le_bytes());

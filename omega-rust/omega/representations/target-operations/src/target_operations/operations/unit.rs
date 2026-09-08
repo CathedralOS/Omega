@@ -16,7 +16,7 @@ use abstract_operations::{
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
-    MachineId, OperationId, ServiceId, StructuralFieldId, ValueId,
+    MachineId, OperationId, PlaceId, ServiceId, StructuralFieldId, ValueId,
 };
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, ProviderCandidateConformance,
@@ -41,6 +41,22 @@ pub struct TargetUnitBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    EstablishPrimitiveLocal {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        value: AbstractResult,
+        shape: ValueShape,
+    },
+    PrimitiveLocalStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        value: AbstractResult,
+    },
+    PrimitiveScalarRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+    },
     /// One ordered scalar definition; residence is assigned downstream, not
     /// prescribed as a stack slot by target lowering.
     ScalarDefinition {
@@ -149,10 +165,9 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// One projected structural call whose fixed-width scalar result is
-    /// intentionally discarded by this bounded attached-Unit lane. The
-    /// complete result and call plan remain explicit even though no durable
-    /// result home is allocated.
+    /// One structural call with its exact scalar result and complete ABI plan.
+    /// Ordinary graphs retain the result for subsequent uses; Unit bodies may
+    /// discard it without changing the callee's result contract.
     StructuralScalarCall {
         psi_operation: OperationId,
         result: AbstractResult,

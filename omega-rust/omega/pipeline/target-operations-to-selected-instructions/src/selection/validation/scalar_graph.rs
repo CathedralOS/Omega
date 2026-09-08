@@ -129,6 +129,9 @@ pub(in crate::selection) fn validate(
             let result = operation.result.ok_or_else(invalid)?;
             let scalar_type = result.scalar_type;
             let output = match &operation.kind {
+                LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
+                    structural::read(source, &mut replay, operation)?
+                }
                 LegalizedScalarInstructionKind::ByteSequenceRead { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
                     structural::byte_observation(&mut replay, operation)?
@@ -333,6 +336,8 @@ pub(in crate::selection) fn validate(
                 | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::HostedReadByte { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+                | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
+                | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }

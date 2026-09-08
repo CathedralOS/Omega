@@ -30,6 +30,7 @@ pub(crate) fn expected_definitions(
         | O::CallDynamicScalar { result, .. }
         | O::CallStoredDynamicScalar { result, .. }
         | O::CallDynamicParameterScalar { result, .. }
+        | O::PrimitiveScalarRead { result, .. }
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
@@ -188,7 +189,10 @@ pub(crate) fn expected_uses(
         | O::CallStructuralScalar { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),
-        O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
+        O::EstablishPrimitiveLocal { value, .. }
+        | O::PrimitiveLocalStore { value, .. }
+        | O::WriteOnlyPrimitiveStore { value, .. }
+        | O::StructuralScalarFieldStore { value, .. } => {
             vec![value.value]
         }
         O::BooleanNot { operand, .. }

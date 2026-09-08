@@ -1,7 +1,29 @@
 //! Select graph lowering from actual topology, never from a ranking annotation.
 use super::*;
 
-pub(in crate::lowering) fn has_cycle(function: &AbstractFunction) -> Result<bool, LoweringError> {
+pub(in crate::lowering) fn requires_graph(
+    function: &AbstractFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<bool, LoweringError> {
+    if function.operations.iter().any(|operation| {
+        matches!(
+            operation,
+            AbstractOperation::EstablishPrimitiveLocal { .. }
+                | AbstractOperation::PrimitiveLocalStore { .. }
+                | AbstractOperation::PrimitiveScalarRead { .. }
+        )
+    }) {
+        return Ok(true);
+    }
+    Ok(function.result.scalar().is_some()
+        && (has_cycle(function)?
+            || crate::lowering::unobserved_owned::has_block_arrivals(function, types)
+            || function.operations.iter().any(|operation| {
+                matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+            })))
+}
+
+fn has_cycle(function: &AbstractFunction) -> Result<bool, LoweringError> {
     let invalid = || LoweringError::ConditionalControlFlowRequiresBlockLowering(function.machine);
     let mut outgoing = BTreeMap::new();
     let mut incoming = BTreeMap::new();

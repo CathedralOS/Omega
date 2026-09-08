@@ -29,7 +29,10 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
                 )
                 .collect();
         }
-        O::WriteOnlyPrimitiveStore { psi_operation, .. }
+        O::EstablishPrimitiveLocal { psi_operation, .. }
+        | O::PrimitiveLocalStore { psi_operation, .. }
+        | O::PrimitiveScalarRead { psi_operation, .. }
+        | O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::StoreDynamicDescriptor { psi_operation, .. }
         | O::EstablishPayloadlessCase { psi_operation, .. }

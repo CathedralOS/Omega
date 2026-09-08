@@ -746,6 +746,14 @@ Owners include
   borrowed copies. Do not claim copy equivalence merely because a
   following callee sees the staged write.
 
+  Extend primitive-local native reads beyond fixed 64-bit integers. Owning paths:
+  ordinary target graph lowering and selected load construction/replay.
+  Acceptance: Boolean, narrow integer and IEEE locals preserve exact-width
+  caller-visible stores and fresh reads across borrowed calls without overreads,
+  signedness changes or floating-bit normalization. Reuse the
+  [primitive-local regressions](tests/native-differential/tests/primitive_locals.rs);
+  keep exact source, frame and installation replay.
+
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md), without allowing
   proofs to create or amplify authority. Extend symbolic
@@ -1121,17 +1129,6 @@ Owners include
   computation lowering. Acceptance: selected arguments
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
-  Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  realize native primitive-local storage and
-  selected structural-scalar calls from those locals without substituting
-  snapshots. Reuse the scalar-returning primitive-store callee route covered by
-  `primitive_store_return` and the unobserved owned-arrival route in
-  `owned_control_cycles`. The unchanged source's native entrance now rejects
-  `UnsupportedPrimitiveLocalEstablishment(OperationId(6))` (macOS; owned-arrival
-  implementation based on `5a4e452d2b`, empty optimization selections); its ranking-only field reads are erased,
-  not a runtime load dependency. Preserve the authored guard,
-  structural payload, selected call order, and Natural descent through native
-  lowering. The source-to-Terminal acceptance lives in `owned_scalar_cycles`.
   Carry invocation range bounds onto current loop values only through checked
   invariant establishment and preservation. The unchanged
   [range-only addition](tests/native-differential/tests/scalar_control_cycles/selected_call_exact_add.omg)

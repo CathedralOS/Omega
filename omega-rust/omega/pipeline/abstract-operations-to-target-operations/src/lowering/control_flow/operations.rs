@@ -29,6 +29,47 @@ pub(super) fn lower_operation(
         ));
     }
     match operation {
+        AbstractOperation::EstablishPrimitiveLocal { .. }
+        | AbstractOperation::PrimitiveLocalStore { .. }
+        | AbstractOperation::PrimitiveScalarRead { .. } => super::primitive_storage::lower(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::CallStructuralScalar { .. } => super::primitive_calls::lower(
+            operation,
+            function,
+            target,
+            functions,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } if structural_arguments
+            .iter()
+            .any(|argument| live.structural_homes.contains_key(&argument.place)) =>
+        {
+            super::primitive_calls::lower(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                prepared,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
             crate::lowering::unit::write_only_primitive_store::lower_write_only_primitive_store(
                 operation,

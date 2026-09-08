@@ -332,7 +332,25 @@ fn validate_borrowed_argument(
         semantic.access,
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     );
-    let shape = if exclusive {
+    let local = crate::selection::primitive_local_input::local(source, semantic.place);
+    let shape = if let Some((_, result, _, referent)) = local {
+        if target.structural_type != result.structural_type
+            || target.root_structural_type != result.structural_type
+            || !semantic.path.is_empty()
+            || target.source_byte_offset != 0
+        {
+            return None;
+        }
+        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    } else if exclusive
+        || signature.structural_types.iter().any(|declaration| {
+            declaration.id == target.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                )
+        })
+    {
         exclusive_projection_shape(source, semantic, target)?
     } else {
         ValueShape::borrowed_reference(16, 8)
@@ -359,6 +377,7 @@ fn validate_borrowed_argument(
         || !signature.entry_claims.is_empty()
         || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
         || (!parameters.is_empty()
+            && !crate::unobserved_owned_input::accepts(source)
             && !crate::structural_unit_input::accepts_borrowed_view(
                 &source.call_plan,
                 &parameters,
@@ -389,6 +408,14 @@ fn validate_borrowed_argument(
         return None;
     }
     match &target.source {
+        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            psi_operation,
+        } => {
+            let (producer, _, _, _) = local?;
+            if *psi_operation != producer || producer == operation {
+                return None;
+            }
+        }
         target_operations::TargetStructuralArgumentSource::Placement(placement) => {
             let parameter = signature
                 .parameters
@@ -427,10 +454,15 @@ fn exclusive_projection_shape(
         (parameter.semantic.access, semantic.access),
         (
             StructuralAccess::MutableBorrow,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         ) | (
             StructuralAccess::WriteOnlyBorrow,
             StructuralAccess::WriteOnlyBorrow
+        ) | (
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::SharedBorrow
         )
     ) {
         return None;

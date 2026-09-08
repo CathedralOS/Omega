@@ -74,6 +74,27 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
+                    result,
+                    value,
+                    shape,
+                } => {
+                    bytes.push(16);
+                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    bytes.extend_from_slice(&value.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, value.scalar_type);
+                    super::calling::encode_shape(bytes, *shape);
+                }
+                LegalizedScalarInstructionKind::PrimitiveLocalStore { destination, value } => {
+                    bytes.push(17);
+                    bytes.extend_from_slice(&destination.get().to_le_bytes());
+                    bytes.extend_from_slice(&value.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, value.scalar_type);
+                }
+                LegalizedScalarInstructionKind::PrimitiveScalarRead { source } => {
+                    bytes.push(18);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::HostedReadByte {
                     boundary,
                     result,

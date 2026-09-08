@@ -25,6 +25,7 @@ pub(super) mod structural_case;
 mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_execution;
 mod literals;
+mod primitive_locals;
 mod ranked;
 pub(super) mod structural_call;
 fn structural_parameters(
@@ -48,7 +49,9 @@ pub(super) fn structural_contract(
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
     if let Some(parameters) = structural_parameters(target).or_else(|| {
         (!optimized.structural_places.is_empty()
-            && (literals::roster(optimized) || read_byte::roster(optimized)))
+            && (literals::roster(optimized)
+                || read_byte::roster(optimized)
+                || primitive_locals::roster(optimized)))
         .then_some(&[][..])
     }) {
         return Some(legalized_operations::LegalizedStructuralContract {
@@ -127,6 +130,7 @@ pub(super) fn match_input(
     unit: &PsiOptimizationUnit,
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
+    primitive_locals::validate(optimized, &unit.structural_types)?;
     let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
     let call_plan = if ranked {
         ranked::validate(target, abstracted, optimized, native, plan, unit)?
@@ -286,10 +290,7 @@ pub(super) fn match_input(
         } = &node.operation
         {
             let call = callee_plan(*callee, native, plan, unit)?;
-            if structural_arguments.len() > 1
-                || structural_arguments.is_empty()
-                    && !matches!(node.operation, AbstractOperation::CallUnit { .. })
-            {
+            if structural_arguments.len() > 1 {
                 return Err(invalid);
             }
             let called = unit

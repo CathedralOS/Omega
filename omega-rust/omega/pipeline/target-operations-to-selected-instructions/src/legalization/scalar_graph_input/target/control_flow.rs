@@ -63,8 +63,7 @@ pub(super) fn validate(
             if graph.call_plan != expected
                 || graph.scalar_parameters != abi.parameters
                 || !graph.parameters.is_empty()
-                || !optimized.structural_places.is_empty()
-                || !optimized.declared_places.is_empty()
+                || !super::super::primitive_locals::roster(optimized)
                 || graph
                     .blocks
                     .iter()

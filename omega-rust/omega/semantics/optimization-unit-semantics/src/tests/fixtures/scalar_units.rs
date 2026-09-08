@@ -58,7 +58,7 @@ pub(crate) fn unit() -> PsiOptimizationUnit {
     .expect("valid unit")
 }
 
-fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
+pub(super) fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
     let machine = id(51, MachineId::new);
     let block = id(52, BlockId::new);
     let value = id(53, ValueId::new);

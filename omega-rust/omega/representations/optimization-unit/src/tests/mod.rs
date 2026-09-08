@@ -3,5 +3,6 @@
 mod attachments;
 mod canonical_identity;
 mod fixtures;
+mod primitive_locals;
 mod structural_scalar_fields;
 mod structure_and_ranges;

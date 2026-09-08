@@ -411,7 +411,10 @@ fn operation_observations(
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. }
         | O::SaturatingIntegerMultiply { .. } => (Vec::new(), No, No),
-        O::WriteOnlyPrimitiveStore { .. }
+        O::EstablishPrimitiveLocal { .. }
+        | O::PrimitiveLocalStore { .. }
+        | O::PrimitiveScalarRead { .. }
+        | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishPayloadlessCase { .. }

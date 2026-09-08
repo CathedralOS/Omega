@@ -50,6 +50,10 @@ pub struct InternalUnitCallArgumentRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InternalUnitStructuralArgumentSourceRecord {
     Placement(ValuePlacement),
+    /// Initialized primitive storage owned by this exact operation and the enclosing place.
+    EstablishedPrimitiveLocal {
+        psi_operation: OperationId,
+    },
     /// The enclosing place and this producer identify the selected local slot;
     /// `source_location` records its resolved frame residence. Retained replay
     /// establishes contents, bounds, and transport to the call operand.
@@ -68,7 +72,9 @@ impl InternalUnitStructuralArgumentSourceRecord {
     pub fn placement(&self) -> Option<&ValuePlacement> {
         match self {
             Self::Placement(placement) => Some(placement),
-            Self::EstablishedByteView { .. } | Self::BlockParameter { .. } => None,
+            Self::EstablishedPrimitiveLocal { .. }
+            | Self::EstablishedByteView { .. }
+            | Self::BlockParameter { .. } => None,
         }
     }
 }

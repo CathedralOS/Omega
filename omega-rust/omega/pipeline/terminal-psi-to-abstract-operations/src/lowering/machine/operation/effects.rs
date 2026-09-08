@@ -24,6 +24,19 @@ pub(super) fn lower(
             value,
         },
         OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
+            if let Some(local) = super::primitive_storage::local(machine, destination) {
+                let scalar_type =
+                    super::primitive_storage::scalar_type(structural_types, local.structural_type)
+                        .ok_or(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id))?;
+                if value_types.get(&value) != Some(&scalar_type) {
+                    return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+                }
+                return Ok(AbstractOperation::PrimitiveLocalStore {
+                    psi_operation: operation.id,
+                    destination,
+                    value: AbstractResult { value, scalar_type },
+                });
+            }
             let Some(destination) = machine
                 .structural_parameters
                 .iter()

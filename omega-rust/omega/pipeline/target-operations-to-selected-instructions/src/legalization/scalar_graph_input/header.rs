@@ -14,7 +14,8 @@ pub(super) fn function_abi(
         || optimized.result != abstracted.result
         || !abstracted.structural_parameters.is_empty()
         || !optimized.structural_parameters.is_empty()
-        || !(super::literals::roster(optimized)
+        || !(super::primitive_locals::roster(optimized)
+            || super::literals::roster(optimized)
             || (abstracted.result == AbstractFunctionResult::Unit
                 && super::read_byte::roster(optimized))
             || (abstracted.result == AbstractFunctionResult::Unit

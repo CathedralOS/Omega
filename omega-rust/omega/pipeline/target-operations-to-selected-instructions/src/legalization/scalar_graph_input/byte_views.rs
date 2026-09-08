@@ -154,11 +154,31 @@ pub(super) fn validate(
         })
         .collect::<Vec<_>>();
     if optimized.structural_places.len()
-        != abstracted.structural_parameters.len() + block_parameters.len() + subslices.len()
+        != abstracted.structural_parameters.len()
+            + block_parameters.len()
+            + subslices.len()
+            + optimized
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .filter(|node| {
+                    matches!(
+                        node.operation,
+                        AbstractOperation::EstablishPrimitiveLocal { .. }
+                    )
+                })
+                .count()
     {
         return Err(invalid);
     }
     for place in &optimized.structural_places {
+        if let Some((operation, result, _)) = super::primitive_locals::producer(optimized, place.id)
+        {
+            if !super::primitive_locals::valid_result(optimized, operation, result) {
+                return Err(invalid);
+            }
+            continue;
+        }
         if abstracted.structural_parameters.iter().any(|parameter| {
             place.id == parameter.place
                 && place.kind

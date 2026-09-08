@@ -49,8 +49,9 @@ Whole plain-owned arrivals with no runtime structural observer retain
 `SelectedStructuralTransport::Unused`. Their complete semantic bindings and
 owned value ABI survive; selection emits no payload pointer, descriptor slot,
 memory access, or edge copy. The bounded input gate independently rejects
-structural observations, structural call actuals, projections, escapes, and
-executable cleanup. Exact no-code return discards remain in the retained source
+observations, call actuals, projections, and escapes of those owned places, and
+executable cleanup. Independently established primitive locals may be observed
+and borrowed by calls while the owned inputs remain unused. Exact no-code return discards remain in the retained source
 ownership, whose current frontier is checked before selection. Scalar-only
 calls and simultaneous scalar transfers continue through the ordinary graph.
 Edge preparation and independent replay count only active transports, including
@@ -133,6 +134,18 @@ must be an unrestricted, unqualified, claim-free mutable or write-only parameter
 whose referent is exactly the SSA source's primitive scalar type. Boolean and
 fixed 8/16/32/64-bit integers and IEEE binary32/binary64 are supported; no synthetic
 record, field, readable borrow, or IEEE-to-integer conversion is introduced.
+
+Primitive locals use operation-and-place identified activation slots. Each executed
+establishment forms its frame address and performs one exact-width initializing
+store. Loop reentry reuses the activation slot and executes initialization again;
+the store is not hoisted to invocation entry. Later stores and borrowed Unit/scalar calls
+use that original pointer; a scalar call retains its actual result independently.
+Fresh primitive reads use pointer loads and distinct SSA definitions. The current
+load instruction admits fixed 64-bit integer observations; narrower, Boolean,
+and floating observations reject instead of reading an oversized footprint.
+Construction and replay retain AddressLocal, WritePlace and ReadPlace records,
+exact scalar demand, fuel, and the incoming parameter roster. Local storage does
+not add an ABI parameter or a synthetic aggregate.
 
 The ordinary control graph also composes fixed-integer primitive writes with a
 64-bit integer result. Independent input replay joins the complete mixed ABI,

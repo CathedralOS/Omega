@@ -12,9 +12,10 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         }
     };
     match operation {
-        O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
-            replace(&mut value.value)
-        }
+        O::EstablishPrimitiveLocal { value, .. }
+        | O::PrimitiveLocalStore { value, .. }
+        | O::WriteOnlyPrimitiveStore { value, .. }
+        | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
         O::Call { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }
         | O::CallUnit { arguments, .. }
@@ -100,6 +101,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
+        | O::PrimitiveScalarRead { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }

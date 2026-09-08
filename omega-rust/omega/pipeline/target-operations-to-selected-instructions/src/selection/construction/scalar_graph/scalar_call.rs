@@ -124,6 +124,15 @@ pub(super) fn emit(
         if argument.placement().shape != shape {
             return Err(invalid());
         }
+        if super::scalar_stack::argument(
+            builder,
+            operation,
+            argument_index,
+            argument.scalar_source().ok_or_else(invalid)?,
+            argument.placement(),
+        )? {
+            continue;
+        }
         operands.push(builder.copy(
             input,
             argument.scalar_source().ok_or_else(invalid)?,

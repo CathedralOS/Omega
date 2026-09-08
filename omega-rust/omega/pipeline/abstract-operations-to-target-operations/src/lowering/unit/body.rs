@@ -579,7 +579,10 @@ pub(super) fn lower_unit_body(
             | AbstractOperation::Conditional { .. }
             | AbstractOperation::StructuralCase { .. }
             | AbstractOperation::Return { .. }
-            | AbstractOperation::ReturnStructural { .. } => {
+            | AbstractOperation::ReturnStructural { .. }
+            | AbstractOperation::EstablishPrimitiveLocal { .. }
+            | AbstractOperation::PrimitiveLocalStore { .. }
+            | AbstractOperation::PrimitiveScalarRead { .. } => {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(
                     function.machine,
                 ));

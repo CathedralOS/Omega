@@ -4,6 +4,8 @@ use super::unit::scalar_call::KnownUnitInteger;
 mod dominance;
 mod observations;
 mod operations;
+mod primitive_calls;
+mod primitive_storage;
 mod structural_case;
 mod terminator;
 mod transfers;
@@ -11,7 +13,7 @@ use operations::lower_operation;
 use terminator::lower_terminator;
 mod topology;
 use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
-pub(super) use topology::has_cycle;
+pub(super) use topology::requires_graph;
 
 #[derive(Clone)]
 struct LiveDefinitions {
@@ -50,12 +52,7 @@ pub(super) fn lower(
     ) || (!unobserved_owned
         && !function.structural_parameters.iter().all(|parameter| {
             super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
-                || (super::function_signature::is_primitive_write_parameter(
-                    parameter,
-                    structural_types,
-                ) && function.operations.iter().any(|operation| {
-                    matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
-                }))
+                || (primitive_storage::is_primitive_reference(parameter, structural_types))
         }))
         || !function.entry_claims.is_empty()
     {
@@ -82,7 +79,9 @@ pub(super) fn lower(
             | AbstractOperation::ExactIntegerSubtract { result, .. }
             | AbstractOperation::Call { result, .. } => Some(*result),
             AbstractOperation::ByteSequenceLength { result, .. }
-            | AbstractOperation::ByteSequenceRead { result, .. } => Some(result.value),
+            | AbstractOperation::ByteSequenceRead { result, .. }
+            | AbstractOperation::PrimitiveScalarRead { result, .. }
+            | AbstractOperation::CallStructuralScalar { result, .. } => Some(result.value),
             _ => None,
         };
         if let Some(result) = result
@@ -116,7 +115,8 @@ pub(super) fn lower(
     }
     for operation in &function.operations {
         let established = match operation {
-            AbstractOperation::ByteSequenceSubslice { result, .. }
+            AbstractOperation::EstablishPrimitiveLocal { result, .. }
+            | AbstractOperation::ByteSequenceSubslice { result, .. }
             | AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..

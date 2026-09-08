@@ -41,6 +41,9 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::SaturatingIntegerRemainder { .. } => Some(DeadScalarFamily::ProofCertified),
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
+        | O::EstablishPrimitiveLocal { .. }
+        | O::PrimitiveLocalStore { .. }
+        | O::PrimitiveScalarRead { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }

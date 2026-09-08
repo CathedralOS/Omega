@@ -1,0 +1,14 @@
+machine reset(value: &mut u64) -> u64 {
+    value = 0;
+    0
+}
+
+machine reinitialize(remaining: u64 [0..=5], marker: u64) -> u64 {
+    let mut scratch: u64 = 91;
+    let before: u64 = scratch;
+    let ignored: u64 = reset(&mut scratch);
+    transition remaining > 0 {
+        true -> reinitialize(remaining - 1, before)
+        false -> marker
+    }
+}

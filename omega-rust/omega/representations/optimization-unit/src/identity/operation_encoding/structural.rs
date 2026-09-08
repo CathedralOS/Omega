@@ -5,6 +5,36 @@ use super::*;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::EstablishPrimitiveLocal {
+            psi_operation,
+            result,
+            value,
+        } => {
+            bytes.u8(65);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_abstract_result(bytes, *value);
+        }
+        O::PrimitiveLocalStore {
+            psi_operation,
+            destination,
+            value,
+        } => {
+            bytes.u8(66);
+            bytes.id(*psi_operation);
+            bytes.id(*destination);
+            encode_abstract_result(bytes, *value);
+        }
+        O::PrimitiveScalarRead {
+            psi_operation,
+            result,
+            source,
+        } => {
+            bytes.u8(67);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+        }
         O::ByteSequenceSubslice {
             psi_operation,
             result,
