@@ -160,6 +160,7 @@ checks canonical reload, independent verification, local identity, ordered
 mutations, snapshots, and one-unit fuel suspension without replay.
 Owned structural signatures and ranked cyclic publication remain required for
 the guarded customer below; primitive-local native realization is still separate.
+
 Empty standalone scalar contracts must also agree with the authored normal-clause
 and parameter-range roster; a missing checked row cannot erase either. Crash
 routes retain their separate publication. The source-to-artifact regressions in
@@ -230,9 +231,9 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 ```
 
 The existing argument hoist splits the edge into a rank-preserving hop and a
-decrement without its co-located guard. Extend scalar-result roots to owned structural
-signatures, then publish their cyclic
-control with exact structural forwarding and natural-descent evidence. Reuse the
+decrement without its co-located guard. Extend scalar-result roots to owned
+structural signatures, then publish their cyclic control with exact structural
+forwarding and natural-descent evidence. Reuse the
 computed borrowed calls already supported in ordinary Unit operands, then retire
 the hoist for the supported route independently of ranking annotations.
 Keep the original guard, mutable local, and exact `limits` forwarding. Adding
