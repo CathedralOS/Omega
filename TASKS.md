@@ -159,7 +159,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe with production checkpoint `ec2915eb4e`
+  The downstream native `cli_mvp` probe with production checkpoint `b7f02b21ea`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
