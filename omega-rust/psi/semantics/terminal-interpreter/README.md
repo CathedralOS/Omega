@@ -55,8 +55,8 @@ measuring or indexing an unprovided field fails rather than assuming empty
 or zero-initialized storage. This execution support does not establish native
 byte-field realization.
 
-At an external boundary, an initialized bounded byte field can supply an
-unqualified mutable borrowed-byte parameter. The boundary-specific resolver
+The current migration path lets an initialized bounded byte field supply an
+unqualified mutable boundary parameter. The boundary-specific resolver
 retains the original referent, complete record/array path, and capacity; it does
 not make bounded storage interchangeable with views at ordinary calls.
 `TerminalEffectHandler::handle_effect_with_byte_buffers` receives the pre-call
@@ -77,6 +77,15 @@ retain the binding's exact referent, record/array path, and capacity. An equal
 opaque identity without that binding supplies no mutable loan. Immutable-view
 operations still require immutable bindings. Native byte-field forwarding and
 `read_line` realization remain separate dependencies.
+
+The settled [bounded-input contract](../../../../wiki/spec/resources/bounded_input.md)
+does not use this owner-replacement behavior: it writes within a supplied slice
+and returns a count plus line/EOF/full outcome, with ZII Invalid reserved for no
+result. Migrate line-input callers, checked providers, and interpreter/native
+consumers together. Existing replacement/forwarding tests pin their current
+binding behavior, not new line-input acceptance. Ordinary whole-field stores
+remain independently supported. Encoding qualification needs checked library
+validation of the written prefix; buffer writeback itself grants none.
 
 ## Boundary responses
 

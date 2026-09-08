@@ -61,7 +61,8 @@ beside code; completed work belongs in Git, not current reference material.
   [placed access](spec/resources/placed_access.md),
   [device custody and ordering](spec/resources/device_access.md),
   [carry demands](spec/resources/carry.md),
-  [allocation strategies](spec/resources/allocation.md), and
+  [allocation strategies](spec/resources/allocation.md),
+  [bounded byte input](spec/resources/bounded_input.md), and
   [bounded growth](spec/resources/bounded_growth.md).
 - Build: [declarations and package identity](spec/build/declarations.md),
   [configuration and targets](spec/build/configuration.md),

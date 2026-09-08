@@ -7,6 +7,13 @@ default size. The author must strengthen the input/cycle invariant, select a
 larger proved bound, or use explicit [allocation](allocation.md) with its own
 authority, reach, resource, and failure contract.
 
+[Bounded input](bounded_input.md) need not prove that an entire external stream
+or line fits. It writes within an existing supplied range and returns a full
+outcome when that range is exhausted. Reporting a partial prefix is not silent
+truncation; subsequent logical reads retain the remaining input. The reader
+changes neither the owner's live length nor its allocation. A caller that
+assembles prefixes still owes the ordinary growth and owner-update obligations.
+
 ## Derivation
 
 | Shape | Required bound |
