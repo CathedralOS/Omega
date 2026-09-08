@@ -50,6 +50,7 @@ pub(crate) fn is_terminator(operation: &abstract_operations::AbstractOperation) 
         operation,
         O::Jump { .. }
             | O::Conditional { .. }
+            | O::StructuralCase { .. }
             | O::Return { .. }
             | O::ReturnUnit { .. }
             | O::ReturnStructural { .. }

@@ -70,6 +70,10 @@ pub enum OptimizationUnitValidationError {
     },
     NonCanonicalStructuralCaseOrder(StructuralTypeId),
     EmptyStructuralSum(StructuralTypeId),
+    InvalidStructuralCaseDispatch {
+        machine: MachineId,
+        source: PlaceId,
+    },
     InvalidErasedStructuralField {
         structural_type: StructuralTypeId,
         field: semantic_vocabulary::StructuralFieldId,

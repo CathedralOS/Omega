@@ -195,7 +195,30 @@ pub(crate) fn valid_edge_affine_transition(
         .iter()
         .map(|owned| owned.place)
         .collect::<BTreeSet<_>>();
-    let mut eligible = function
+    let mut results = function
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::OperationResult { producer, .. }
+                if entry.owned_places.iter().any(|owned| {
+                    owned.place == place.id
+                        && owned.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                }) && !entry
+                    .claims
+                    .iter()
+                    .any(|claim| claim.input == Some(place.id))
+                    && !function
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == place.id) =>
+            {
+                Some((producer, place.id))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    results.sort_by_key(|(producer, _)| std::cmp::Reverse(*producer));
+    let mut locals = function
         .structural_places
         .iter()
         .filter_map(|place| match place.kind {
@@ -206,10 +229,11 @@ pub(crate) fn valid_edge_affine_transition(
             _ => None,
         })
         .collect::<Vec<_>>();
-    eligible.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
-    let mut eligible = eligible
+    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
+    let mut eligible = results
         .into_iter()
         .map(|(_, place)| place)
+        .chain(locals.into_iter().map(|(_, place)| place))
         .collect::<Vec<_>>();
     eligible.extend(
         function

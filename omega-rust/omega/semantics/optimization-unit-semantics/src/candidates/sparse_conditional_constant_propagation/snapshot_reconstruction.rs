@@ -117,7 +117,8 @@ pub(crate) fn validator_scalar_constant_facts(
             };
             let operation_successors = validator_scalar_operation_successors(&node.operation);
             let successors = match &node.operation {
-                abstract_operations::AbstractOperation::Jump { .. } => {
+                abstract_operations::AbstractOperation::Jump { .. }
+                | abstract_operations::AbstractOperation::StructuralCase { .. } => {
                     operation_successors.iter().collect::<Vec<_>>()
                 }
                 abstract_operations::AbstractOperation::Conditional {
@@ -146,6 +147,20 @@ pub(crate) fn validator_scalar_constant_facts(
             for successor in successors {
                 changed |= feasible_edges.insert(successor.psi_edge);
                 changed |= reachable.insert(successor.target);
+                if let abstract_operations::AbstractOperation::StructuralCase { cases, .. } =
+                    &node.operation
+                {
+                    for payload in cases
+                        .iter()
+                        .filter(|case| case.psi_edge == successor.psi_edge)
+                        .flat_map(|case| &case.payloads)
+                    {
+                        let target = values
+                            .entry(payload.parameter)
+                            .or_insert(ValidatorSccpValue::Unknown);
+                        changed |= merge(target, ValidatorSccpValue::Overdefined);
+                    }
+                }
                 for binding in &successor.bindings {
                     let incoming = values
                         .get(&binding.argument)
@@ -237,6 +252,22 @@ pub(crate) fn validator_scalar_operation_successors(
                 provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(successor.psi_edge),
+                    units: 1,
+                }],
+            })
+            .collect(),
+        O::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|case| OptimizationEdge {
+                psi_edge: case.psi_edge,
+                target: case.target,
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                trivial_affine_discards: case.trivial_affine_discards.clone(),
+                residual_affine_discards: Vec::new(),
+                provenance: vec![PsiProvenance::Edge(case.psi_edge)],
+                fuel: vec![optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(case.psi_edge),
                     units: 1,
                 }],
             })
@@ -349,6 +380,97 @@ pub(crate) fn validator_integer_value_type(
         ScalarType::Integer(integer) => Some(integer),
         ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
     })
+}
+
+#[cfg(test)]
+mod structural_case_tests {
+    use super::*;
+    use abstract_operations::{AbstractOperation as O, AbstractSuccessor, ValueBinding};
+    use optimization_unit::{ValueDefinition, ValueDefinitionSite};
+    use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId};
+
+    #[test]
+    fn independent_sccp_case_payload_overdefines_an_ordinary_constant_arrival() {
+        // Exercise lattice reconstruction directly, not structural source admission.
+        let mut input = crate::tests::unit();
+        let function = &mut input.functions[0];
+        let original = function.blocks[0].clone();
+        let literal = original.nodes[0].definitions[0];
+        let condition = ValueId::new(90).unwrap();
+        let parameter = ValueId::new(91).unwrap();
+        let case_block = BlockId::new(92).unwrap();
+        let join_block = BlockId::new(93).unwrap();
+        let case_edge = EdgeId::new(94).unwrap();
+        function.parameters.push(ValueDefinition {
+            value: condition,
+            scalar_type: ScalarType::Boolean,
+            site: ValueDefinitionSite::FunctionParameter(0),
+        });
+        let successor = |edge, target, bindings| AbstractSuccessor {
+            psi_edge: EdgeId::new(edge).unwrap(),
+            target,
+            bindings,
+            structural_bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        };
+        let mut branch = original.nodes[1].clone();
+        branch.operation = O::Conditional {
+            condition,
+            when_true: successor(
+                95,
+                join_block,
+                vec![ValueBinding {
+                    parameter,
+                    argument: literal.value,
+                    scalar_type: literal.scalar_type,
+                }],
+            ),
+            when_false: successor(96, case_block, Vec::new()),
+        };
+        branch.provenance.clear();
+        function.blocks[0].nodes[1] = branch;
+        let mut dispatch = original.clone();
+        dispatch.id = case_block;
+        dispatch.nodes = vec![original.nodes[1].clone()];
+        dispatch.nodes[0].provenance.clear();
+        dispatch.nodes[0].operation = O::StructuralCase {
+            source: PlaceId::new(97).unwrap(),
+            cases: vec![abstract_operations::AbstractStructuralCaseSuccessor {
+                psi_edge: case_edge,
+                target: join_block,
+                case: StructuralCaseId::new(98).unwrap(),
+                payloads: vec![abstract_operations::AbstractStructuralCasePayloadBinding {
+                    parameter,
+                    field: StructuralFieldId::new(99).unwrap(),
+                    scalar_type: literal.scalar_type,
+                }],
+                trivial_affine_discards: Vec::new(),
+            }],
+        };
+        let mut join = original;
+        join.id = join_block;
+        join.nodes.remove(0);
+        join.parameters = vec![ValueDefinition {
+            value: parameter,
+            scalar_type: literal.scalar_type,
+            site: ValueDefinitionSite::BlockParameter {
+                block: join_block,
+                position: 0,
+            },
+        }];
+        function.blocks.extend([dispatch, join]);
+        let facts = validator_scalar_constant_facts(input.identity, function);
+        assert!(facts.iter().any(|(value, _, _)| *value == literal.value));
+        assert!(
+            facts.iter().all(|(value, _, _)| *value != parameter),
+            "unknown case payload must overdefine the constant ordinary arrival"
+        );
+        let case_edges =
+            validator_scalar_operation_successors(&function.blocks[1].nodes[0].operation);
+        assert_eq!(case_edges.len(), 1);
+        assert_eq!(case_edges[0].psi_edge, case_edge);
+        assert!(case_edges[0].bindings.is_empty());
+    }
 }
 
 #[cfg(test)]

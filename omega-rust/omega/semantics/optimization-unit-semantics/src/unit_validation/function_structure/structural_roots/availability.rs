@@ -157,6 +157,7 @@ fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             dynamic_dispatch.rebound.source.place,
         ],
         O::ByteSequenceSubslice { source, .. }
+        | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }

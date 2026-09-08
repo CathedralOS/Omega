@@ -28,6 +28,7 @@ mod candidates;
 mod operation_contracts;
 mod services;
 mod sparse_conditional_constant_propagation;
+mod structural_cases;
 mod structural_catalog;
 mod structural_transfers;
 mod unit_structure;
