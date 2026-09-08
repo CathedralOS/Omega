@@ -6,7 +6,7 @@
 //! (owned by the caller, as with `evaluate_const_machine`), and the trait
 //! signature carries the stability contract. First heavyweight client: the
 //! Layout machinery -- the compiler builds a `Schema` value, calls a policy's
-//! `plan()`, and reads back a `Plan` (programmable_layouts.md).
+//! `plan()`, and reads back a `Plan` (wiki/spec/layouts/plans.md).
 
 use std::collections::BTreeMap;
 

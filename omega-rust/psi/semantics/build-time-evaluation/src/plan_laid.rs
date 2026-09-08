@@ -1,5 +1,5 @@
 //! PLAN-LAID VALUE TYPES -- L4 of the LAYOUTS ladder
-//! (design_briefs/programmable_layouts.md §5): a field `gdt: CLayout<Gdt>;`
+//! (wiki/spec/layouts/plans.md): a field `gdt: CLayout<Gdt>;`
 //! applies a layout POLICY (ordinary data with a build-time-admissible `plan` machine)
 //! to a SCHEMA (a plain record of primitives) in type position. The value
 //! behaves exactly like the schema type -- same fields, ZII, projections --

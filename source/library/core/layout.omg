@@ -1,4 +1,4 @@
-// LAYOUT POLICIES (chapter 19/20; design_briefs/programmable_layouts.md):
+// LAYOUT POLICIES (wiki/spec/layouts/plans.md):
 // layout is a library, not a language axiom. A policy is ordinary data
 // satisfying `Layout`; its `plan(schema)` machine runs at BUILD TIME (no
 // keyword -- the position makes the evaluation build-time, the effect system
@@ -73,7 +73,7 @@ pub data Schema {
 }
 
 // One field's PLACEMENT -- the closed vocabulary the compiler knows how to
-// read and lower (programmable_layouts §3). Policies CHOOSE placements from
+// read and lower (wiki/spec/layouts/plans.md). Policies CHOOSE placements from
 // this sum; a new placement KIND is a compiler release, never user-invented.
 // The validator walks `At`, `Bits`, and `IntegerAt`. `stored_width` is a bit
 // width; `offset` remains byte-denominated. `At` or a complete repeated `Bits`

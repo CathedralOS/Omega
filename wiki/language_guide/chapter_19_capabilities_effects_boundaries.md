@@ -1567,11 +1567,12 @@ cannot replace it with an equal byte count, and its semantic wrapper commitment
 does not replace the separate physical UEFI-entry commitment. The shell,
 nested continuation/provider, and reserve terms remain separately fenced.
 
-The reusable extent, placed-view, checked-assembly, materialization, and root
-ledger model is specified in
-[`os_memory_and_hardware_foundation.md`](../pre_migration/design_briefs/os_memory_and_hardware_foundation.md).
-Exact carrier APIs and validators remain open there; no separate interrupt or
-MMIO grammar is implied.
+The reusable model is specified by [extents](../spec/resources/extents.md),
+[placed access](../spec/resources/placed_access.md),
+[device protocols](../spec/resources/device_access.md), and
+[hardware materialization](../spec/build/hardware_materialization.md).
+These contracts do not imply complete implementation or a separate interrupt
+or MMIO grammar.
 
 ### Admitted executable installation
 

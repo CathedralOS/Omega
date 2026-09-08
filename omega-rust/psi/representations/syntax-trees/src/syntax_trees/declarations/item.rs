@@ -27,8 +27,7 @@ pub enum Item {
     WireData(WireDataDefinition),
 }
 
-/// A named compile-time PURE VALUE (design brief static_root_and_constants.md,
-/// SETTLED 2026-07-04; built as const-v0, TASKS_TIME.md D15). Type-scoped:
+/// A named compile-time pure value (wiki/spec/language/constants.md). Type-scoped:
 /// `const EfiStatus::SUCCESS: EfiStatus = EfiStatus { code: 0 };` — declared
 /// like a machine (`Type::NAME`), never a `data` member, so never in `sizeof`.
 /// v0 initializers are LITERAL-ONLY (scalars, negated scalars, struct/array

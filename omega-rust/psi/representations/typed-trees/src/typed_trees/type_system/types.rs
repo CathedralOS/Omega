@@ -926,8 +926,8 @@ pub enum PrimitiveType {
     U16,
     U32,
     U64,
-    /// A pointer-width ADDRESS, distinct from `usize`/counts (address and count
-    /// are separate axes; index_count_and_address_model brief). Naive
+    /// A pointer-width address, distinct from counts (see
+    /// wiki/spec/language/counts_and_addresses.md). Naive
     /// pointer-width for now -- rides the 8-byte unsigned path.
     Addr,
 }

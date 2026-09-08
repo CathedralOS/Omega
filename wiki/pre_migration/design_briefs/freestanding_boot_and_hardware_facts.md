@@ -5,7 +5,9 @@
 
 Current direction as of 2026-08-21. Freestanding selection and the security
 model are settled. The reusable memory/hardware primitives are specified in
-[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md);
+[extent authority](../../spec/resources/extents.md),
+[hardware materialization](../../spec/build/hardware_materialization.md), and
+[interrupt obligations](../../spec/build/interrupt_obligations.md);
 their source APIs and backend support remain incomplete.
 
 ## Freestanding is a target/provider property
@@ -700,6 +702,6 @@ Cathedral is the acceptance customer for this brief; it owns the UEFI, memory,
 IDT, timer, and device lifecycles. Omega owns only the general checked assembly,
 evaluated calling/state plans, materialization, entry lowering, final-footprint
 validation, and installed-root machinery. `TASKS.md` owns their current order;
-[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
-owns the general engineering contract. Boot work must not invent local grammar
+[hardware materialization](../../spec/build/hardware_materialization.md)
+owns the general contract. Boot work must not invent local grammar
 to bypass either document or `OWNER_QUESTIONS.md`.

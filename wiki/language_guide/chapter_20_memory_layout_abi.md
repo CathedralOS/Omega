@@ -1363,9 +1363,10 @@ two's-complement bit-pattern sets, merging adjacent or overlapping intervals;
 therefore `i8 [-128..=127]` and unconstrained `u8` may alias mutably, while
 equal-cardinality sets at different bit positions still reject.
 
-See [`Programmable Layouts`](../pre_migration/design_briefs/programmable_layouts.md) and the
-[`OS Memory And Hardware Foundation`](../pre_migration/design_briefs/os_memory_and_hardware_foundation.md)
-for the settled public model and remaining engineering work.
+See [layout plans](../spec/layouts/plans.md), [recasts](../spec/layouts/recasts.md), and the
+[placed-access contract](../spec/resources/placed_access.md)
+for the public model. Implementation notes beside the owning code describe
+supported subsets separately.
 
 ## Endianness
 
@@ -1378,7 +1379,7 @@ Serialized layout is not native layout.
 
 Native layout optimizes in-memory access; a serialized layout (a *layout
 policy* chosen at the carrier — [Wire Protocols](chapter_21_wire_protocols.md),
-`design_briefs/programmable_layouts.md`) optimizes compatibility and decoding.
+[codec contract](../spec/layouts/codecs.md)) optimizes compatibility and decoding.
 A value has exactly one in-memory form; a schema may serialize through many
 policies. The two coincide only by explicit contract: a fully static policy in
 type position makes the plan *be* the in-memory layout, and crossing a

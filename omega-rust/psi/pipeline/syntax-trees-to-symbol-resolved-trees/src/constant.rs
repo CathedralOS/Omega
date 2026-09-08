@@ -1,4 +1,4 @@
-//! const-v0 (TASKS_TIME.md D15; design brief static_root_and_constants.md).
+//! Constant substitution; value contract: wiki/spec/language/constants.md.
 //!
 //! Const VALUE semantics exist only until symbol resolution:
 //! `const Type::NAME: T = <literal>;` declares a named pure value, and every
@@ -6,7 +6,7 @@
 //! right here in expression lowering. Symbol-resolved trees, typed trees,
 //! validation, proofs, backends, and the interpreter never grow a const-value
 //! concept -- each use IS the literal, which is exactly the copied-at-each-use
-//! semantics the brief specifies (and why interior mutability can never hide in
+//! semantics the contract specifies (and why interior mutability can never hide in
 //! one). The symbol table retains only declaration provenance so authored-
 //! selection and package-authority checks cannot be erased by substitution.
 //!

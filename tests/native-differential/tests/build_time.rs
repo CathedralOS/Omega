@@ -3,7 +3,7 @@
 //! compiler-built STRUCTURED arguments and reads back a structured value.
 //! This pilot runs a plan-shaped machine -- a policy taking a schema-like
 //! struct and returning a plan-like struct -- the exact call shape the Layout
-//! machinery makes (programmable_layouts.md).
+//! machinery makes (wiki/spec/layouts/plans.md).
 
 use checked_interpreter::{
     BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,

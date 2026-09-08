@@ -30,7 +30,8 @@ nominal/static identities. A facade may compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
-Binding identities are normalized evaluated values; the requirement owns its
+[Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
+the requirement owns its
 [calling-policy application](calling_plans.md#identity-and-selection).
 A bodyless leaf uses `via`
 only for payload its declaration and target cannot derive. Compiler intrinsics
@@ -43,6 +44,36 @@ Overrides outrank target defaults and retain authored selection identity/order.
 Missing, private, ambiguous, foreign, and duplicate candidates reject. A selected
 operation's identity remains independent of its reach row; equal service sets
 cannot correlate providers. Selection never permits mutation of derived plans.
+
+## Derivation and retained evidence
+
+Candidate derivation follows explicit satisfaction edges and computes the complete
+nominal provider conformance closure: coverage, overload signatures, effect
+summaries, dependencies, calling/layout applications, and normalized identity.
+Composite adapters are ordinary checked machines, not plan-shaped call sequences.
+Build-time code may choose declared candidates or compute a leaf binding; it
+cannot append plan rows. Structural coincidence never supplies a satisfaction.
+
+Derivation, structural validation, semantic admission under boundary-grant
+authority, and slot selection under the slot owner's capability are distinct
+steps. Constructing a binding or choosing a candidate performs none of the other
+steps. A selected plan must cover its complete schema and apply to the target.
+
+Retain the selected plans as one immutable canonical fact set, with each exact
+plan identity and a deterministic identity for the complete set. Missing,
+duplicate, ambiguous, and identity-colliding selections reject. Later consumers
+use that carrier rather than rediscovering declarations. Checked-adapter dispatch
+rewrites only the exact selected overload row and retains its nominal machine
+and entry-state identity; readable method names are drift checks, not selectors.
+An external-binding projection retains calling/binding identity and order but
+grants no admission, selection, ABI, or execution authority of its own.
+
+Service schemas retain linear routed-parameter claims structurally: exact
+parameter/result subject, carrier-aware semantic domain, authority-flow verb
+such as `accepts`, carry policy, predicate discharge, and grant provenance.
+Those rows participate in plan identity and reports, and travel to root selection.
+Only the matching concrete entry receipt establishes a claim for an invocation;
+type displays and schema promises are not that receipt.
 
 ## Operator families and indexed requirements
 
@@ -92,6 +123,35 @@ A path or unresolved loader name is not executable identity. Ordinary package
 policy rejects opaque code without pinned content, signer, or profile-owned
 platform identity. Admission of a known binary still expands trusted code;
 identity prevents substitution and enables revocation, not behavioral proof.
+
+Each known entry retains exact provider, plan and executable/artifact identity,
+implementation evidence and admission provenance, static/runtime origin,
+execution scope, and independently evidenced containment guarantees. Trust is
+classified per fact; a composite guarantee reports its weakest input and the
+exact provider premise. An admitted hardware fact is not itself an opaque
+executable in the caller's address space.
+
+Containment names the actual guarantee, not its mechanism: memory isolation
+outside explicitly shared authority, forcible termination, fault containment,
+and bounded resource use are independent. A process supplies no resource bound
+without explicit quotas. Platform baselines are policy allowlists, not different
+language semantics. Static foreign selection contributes its abstract service
+reach; an explicit runtime loader additionally reaches `DynamicLibraryLoading`.
+
+The runtime executable ledger is append-only within one exact execution domain.
+Omega-mediated admission supplies pinned executable, provider-plan,
+implementation-evidence, and receipt identities; receipt replay rejects. Union
+marks runtime origin and is idempotent. Without separate executable-closure
+evidence it adds a known entry and attributed incompleteness. With that evidence
+it may preserve a complete static scope, but cannot erase unrelated causes.
+An enforceable dynamic-loading envelope requires containment controlling
+executable admission; an uncontained binary may bypass Omega's ledger.
+
+An isolated provider contributes a parent endpoint and its own separately
+evaluated child manifest. Bind that exact child manifest and admission receipt
+to one parent endpoint under a nonzero isolated scope; scope drift, duplicate
+child scopes, and mixed-scope child entries reject. Endpoint containment remains
+on the parent; child entries and completeness remain under the child scope.
 
 Crash causes, routes, and abandonment-frontier lower bounds support deployment
 checks, not safe continuation. Restart requires verified closed custody or
