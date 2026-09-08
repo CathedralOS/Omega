@@ -343,7 +343,7 @@ pub(super) fn operation(
                 .ok_or_else(invalid)?,
         ));
     }
-    let key = builder.constraints.keys.call_unit.ok_or_else(invalid)?;
+    let key = builder.constraints.keys.call_unit.get(call.arguments.len()).copied().ok_or_else(invalid)?;
     let constraint = row_constraint(builder, key)?;
     if environment.constraint(key) != Some(constraint)
         || constraint.operands.len() != pointers.len()

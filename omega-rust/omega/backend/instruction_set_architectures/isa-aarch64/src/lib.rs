@@ -28,6 +28,7 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     Aarch64PreservationStorageCatalogError, aarch64_preservation_storage_catalog,
 };
+pub use register_model::{aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys};
 pub use register_model::aarch64_aapcs64_register_call_keys;
 pub use register_model::aarch64_darwin_register_call_keys;
 pub use register_model::{

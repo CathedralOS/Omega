@@ -10,10 +10,10 @@ impl SelectedConstraintKeys {
             self.load8_indexed,
             self.store64,
             self.frame_address,
-            self.call_unit,
         ]
         .into_iter()
         .flatten()
+        .chain(self.call_unit.iter().copied())
         .chain(self.call_i64.iter().copied())
         .chain([
             self.materialize_i64,
@@ -41,7 +41,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::Load64 => return self.load64,
             MachineSemanticKind::Store64 => return self.store64,
             MachineSemanticKind::FrameAddress => return self.frame_address,
-            MachineSemanticKind::CallUnit => return self.call_unit,
+            MachineSemanticKind::CallUnit => return None,
             MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,
             MachineSemanticKind::CopyI64
@@ -67,8 +67,8 @@ impl SelectedConstraintKeys {
         MachineSemanticKind::ALL
             .into_iter()
             .flat_map(|semantic| {
-                if semantic == MachineSemanticKind::CallI64 {
-                    self.call_i64
+                if matches!(semantic, MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit) {
+                    (if semantic == MachineSemanticKind::CallUnit { &self.call_unit } else { &self.call_i64 })
                         .iter()
                         .copied()
                         .map(|key| (semantic, key))

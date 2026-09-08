@@ -150,9 +150,6 @@ pub fn validate_x86_64_selected_scalar_call_template(
         _ => return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
-    if unit && target != NativeTarget::windows_x64() {
-        return Err(X86_64ScalarCallTemplateError::UnsupportedTarget);
-    }
     let expected_alternative = MachineAlternativeKey {
         family: if unit {
             MachineAlternativeFamily::CallUnit
@@ -180,9 +177,6 @@ pub fn validate_x86_64_selected_scalar_call_template(
     if unit {
         expected_operand_views.pop();
     }
-    if unit && arity != 2 {
-        return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
-    }
     if operand_views != expected_operand_views {
         return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
     }
@@ -192,7 +186,7 @@ pub fn validate_x86_64_selected_scalar_call_template(
         let row = catalog
             .constraints
             .iter()
-            .find(|row| row.key == crate::X86_64_MICROSOFT_CALL_UNIT)
+            .find(|row| row.key == if target == NativeTarget::linux_x64() { crate::x86_64_system_v_register_unit_call_keys()[arity] } else { crate::x86_64_microsoft_register_unit_call_keys()[arity] })
             .expect("canonical Unit call");
         expected.external_operand_writes.clear();
         expected.implicit_unit_uses = row.implicit_uses.clone();
@@ -302,6 +296,8 @@ fn expected_effects(
 
 #[cfg(test)]
 mod target_abis;
+#[cfg(test)]
+mod unit_calls;
 
 #[cfg(test)]
 mod tests {

@@ -90,6 +90,15 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             (target.architecture, target.object_format),
             (Architecture::X86_64, ObjectFormat::Coff)
         );
+        let unit_keys = &environment.selected_keys().call_unit;
+        assert_eq!(unit_keys, &environment.allocation_constraint_keys().call_unit);
+        assert_eq!(unit_keys.len(), environment.selected_keys().call_i64.len());
+        if microsoft { assert_eq!(unit_keys[2], X86_64_MICROSOFT_CALL_UNIT); }
+        for (arity, key) in unit_keys.iter().enumerate() {
+            let row = environment.constraint(*key).unwrap();
+            assert_eq!(row.operands.len(), arity);
+            assert!(row.operands.iter().all(|operand| operand.access == register_model::RegisterOperandAccess::Use));
+        }
         let load = match target.architecture {
             Architecture::X86_64 => X86_64_LOAD64,
             Architecture::Aarch64 => isa_aarch64::AARCH64_LOAD64,
@@ -125,12 +134,6 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
                 environment.allocation_constraint_keys().frame_address,
                 X86_64_FRAME_ADDRESS,
                 1,
-            ),
-            (
-                environment.selected_keys().call_unit,
-                environment.allocation_constraint_keys().call_unit,
-                X86_64_MICROSOFT_CALL_UNIT,
-                2,
             ),
         ] {
             let expected = microsoft.then_some(key);

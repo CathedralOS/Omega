@@ -119,6 +119,22 @@ pub fn x86_64_microsoft_register_call_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
+/// Register-only Unit call keys, indexed by argument count.
+pub fn x86_64_system_v_register_unit_call_keys() -> Vec<RegisterConstraintKey> {
+    (0..=6).map(|arity| RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 740 + arity,
+    }).collect()
+}
+
+/// Register-only Unit call keys, indexed by argument count.
+pub fn x86_64_microsoft_register_unit_call_keys() -> Vec<RegisterConstraintKey> {
+    (0..=4).map(|arity| RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: if arity == 2 { 700 } else { 720 + arity },
+    }).collect()
+}
+
 /// Arity-ordered keys for the complete register-only U64 call ABI.
 pub fn x86_64_system_v_register_call_keys() -> Vec<RegisterConstraintKey> {
     [4, 5, 3, 6, 7, 8, 9]
@@ -220,7 +236,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 35] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 46] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -269,6 +285,17 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 35] = [
         variant: 14,
     },
     X86_64_MICROSOFT_CALL_UNIT,
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 720 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 721 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 723 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 724 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 740 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 741 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 742 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 743 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 744 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 745 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 746 },
     X86_64_SYSTEM_V_RETURN,
     X86_64_MICROSOFT_RETURN,
     X86_64_SYSTEM_V_RETURN_UNIT,
@@ -953,23 +980,18 @@ pub fn x86_64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
-    let mut unit_call = abi_call;
-    unit_call.key = X86_64_MICROSOFT_CALL_UNIT;
-    unit_call.implicit_uses = sorted_units(
-        view("rsp")
-            .units
-            .iter()
-            .copied()
-            .chain(view("rip").units.iter().copied()),
-    );
-    unit_call.operands = vec![
-        fixed(0, RegisterOperandAccess::Use, "rcx"),
-        fixed(1, RegisterOperandAccess::Use, "rdx"),
-    ];
-    // A Unit call has no explicit RAX result definition. It still destroys
-    // every caller-saved register, including the scalar result register.
-    unit_call.clobbers = sorted_units(unit_call.clobbers.into_iter().chain(rax_units));
-    constraints.push(unit_call);
+    for (scalar_key, unit_key) in x86_64_system_v_register_call_keys().into_iter()
+        .zip(x86_64_system_v_register_unit_call_keys())
+        .chain(x86_64_microsoft_register_call_keys().into_iter().zip(x86_64_microsoft_register_unit_call_keys()))
+    {
+        let mut call = constraints.iter().find(|row| row.key == scalar_key)
+            .expect("canonical scalar call row").clone();
+        call.key = unit_key;
+        call.operands.pop();
+        // Unit has no result operand; the ABI result register remains clobbered.
+        call.clobbers = sorted_units(call.clobbers.into_iter().chain(view("rax").units.iter().copied()));
+        constraints.push(call);
+    }
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =

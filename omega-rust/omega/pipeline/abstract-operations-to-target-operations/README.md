@@ -48,6 +48,14 @@ Standalone selection and replay also rejoin the caller's complete scalar roster
 and placements to its ABI before forwarding the descriptor pointer. An extra or
 missing scalar declaration cannot be inferred from an otherwise plausible ABI.
 
+Straight-line Unit bodies retain repeated whole shared-view Unit calls with
+Boolean/integer parameters or literals through the existing `UnitBody` operations
+and structural signature classifier. A Unit helper may invoke a scalar byte-view
+helper and discard that scalar result before `ReturnUnit`; the enclosing Unit
+signature has no result placement or fabricated scalar result. Whole references
+retain their original pointer placements. Conditional Unit bodies, descriptor
+rebinding, and the console writer's ranked loop remain separate dependencies.
+
 Checked subslices retain their exact source, structural result, endpoints, and
 two-leg bounds obligation. Acyclic scalar-result graphs can measure, read, and
 derive nested views without copying the original descriptor or backing bytes.

@@ -12,7 +12,7 @@ use super::fixtures::{
     byte_view_conditional_read_call_module, byte_view_read_call_module, byte_view_read_proof,
 };
 
-fn stage_read_calls(
+pub(super) fn stage_call_text(
     target: NativeTarget,
     module: &TerminalModule,
 ) -> StagedOptimizedFixedFrameTextSection {
@@ -41,6 +41,11 @@ fn stage_read_calls(
     let framed = machine_emission::stage_function_fragment_frame_application(fragments).unwrap();
     let placed = machine_emission::stage_optimized_fixed_frame_text_section(framed).unwrap();
     machine_emission::validate_optimized_fixed_frame_text_section(&placed).unwrap();
+    placed
+}
+
+fn stage_read_calls(target: NativeTarget, module: &TerminalModule) -> StagedOptimizedFixedFrameTextSection {
+    let placed = stage_call_text(target, module);
     let text = placed.text_section();
     assert_eq!(
         text.functions.len(),

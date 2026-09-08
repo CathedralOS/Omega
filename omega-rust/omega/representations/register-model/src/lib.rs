@@ -196,7 +196,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
-    pub call_unit: Option<RegisterConstraintKey>,
+    pub call_unit: Vec<RegisterConstraintKey>,
     /// Target-applicable bounded structural Unit call. `None` means this
     /// environment does not claim that ABI/ISA form; it is not a dummy row.
     /// Target-owned register-call keys indexed by argument count, including zero.
@@ -1613,10 +1613,10 @@ mod tests {
             load8_indexed: None,
             store64: Some(instruction_key(31)),
             frame_address: Some(instruction_key(32)),
-            call_unit: Some(RegisterConstraintKey {
+            call_unit: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
-            }),
+            }],
             call_i64: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 3,
@@ -1684,7 +1684,7 @@ mod tests {
 
         for changed_keys in [
             TargetRegisterEnvironmentConstraintKeys {
-                call_unit: None,
+                call_unit: Vec::new(),
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {

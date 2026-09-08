@@ -10,7 +10,7 @@ pub struct SelectedConstraintKeys {
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
-    pub call_unit: Option<RegisterConstraintKey>,
+    pub call_unit: Vec<RegisterConstraintKey>,
     /// Target-applicable structural Unit call. Absence is an explicit refusal
     /// to select the bounded structural-call roster on this target.
     /// Register-passed U64 call rows indexed by argument count, including zero.

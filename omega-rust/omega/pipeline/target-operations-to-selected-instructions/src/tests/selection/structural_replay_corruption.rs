@@ -103,7 +103,7 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     );
 
     let mut missing_key = constraints.clone();
-    missing_key.keys.call_unit = None;
+    missing_key.keys.call_unit.clear();
     assert!(select_instructions(&legalized, &missing_key, &physical, &catalog).is_err());
 
     let linux_target = abstract_operations_to_target_operations::lower_to_target_operations(

@@ -281,7 +281,35 @@ pub(super) fn lower_structural_scalar_call(
             .len()
             == structural_arguments.len();
     let attached_projection = function.attachment.is_some();
-    if !free_whole_affine && !attached_projection {
+    let free_whole_view = function.attachment.is_none()
+        && callee_function.attachment.is_none()
+        && function.entry_claims.is_empty()
+        && callee_function.entry_claims.is_empty()
+        && function.published_service_ceiling.is_empty()
+        && claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && structural_arguments.iter().zip(&callee_function.structural_parameters).all(
+            |(argument, destination)| {
+                argument.path.is_empty()
+                    && argument.access == StructuralAccess::SharedBorrow
+                    && function.structural_parameters.iter().any(|source| {
+                        source.place == argument.place
+                            && source.structural_type == destination.structural_type
+                            && [source, destination].iter().all(|parameter| {
+                                parameter.access == StructuralAccess::SharedBorrow
+                                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                    && !parameter.is_self
+                                    && parameter.qualifications.is_empty()
+                                    && parameter.projected_qualifications.is_empty()
+                            })
+                            && structural_types.get(&source.structural_type).is_some_and(|declaration|
+                                matches!(declaration.shape, StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView)))
+                    })
+            },
+        );
+    if !free_whole_affine && !free_whole_view && !attached_projection {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
@@ -355,7 +383,7 @@ pub(super) fn lower_structural_scalar_call(
             )?;
             let (projected_type, projected_shape, source_byte_offset) =
                 match argument.path.as_slice() {
-                    [] if free_whole_affine => (source.structural_type, source.shape, 0),
+                    [] if free_whole_affine || free_whole_view => (source.structural_type, source.shape, 0),
                     path @ [StructuralPathSegment::Field(_), ..]
                         if attached_projection
                             && path.iter().all(|segment| {
