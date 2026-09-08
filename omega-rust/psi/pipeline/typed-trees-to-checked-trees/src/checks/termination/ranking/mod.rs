@@ -1,3 +1,4 @@
+mod entry_requirements;
 mod lexicographic;
 mod nat;
 mod patterns;
@@ -5,6 +6,8 @@ mod ranges;
 mod slice;
 mod struct_view;
 mod write_preservation;
+
+pub(crate) use entry_requirements::proves_ranked_entry_requirement;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::ranking::{

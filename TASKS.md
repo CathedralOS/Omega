@@ -309,11 +309,12 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   bounded-distance, or custom views need
   exact arrival mappings and preserved premises for ranked subjects and pinned
   endpoints. Mutable premises need live write-frame evidence.
-  Custom struct-view ranges involving additional field coordinates, borrowed
-  or nested projections, constrained measure parameters, and named-state
-  arrivals need exact view-application evidence. Flow-dependent computed
+  Custom struct-view ranges involving borrowed or nested projections,
+  constrained measure parameters, and named-state arrivals need exact
+  view-application evidence. Flow-dependent computed
   endpoint formation needs its own arithmetic proof, not an unchecked
-  polynomial. Scalar views beyond `u64` identity forwarding, and slice lengths
+  polynomial; computed field endpoints also need exact formation evidence.
+  Scalar views beyond `u64` identity forwarding, and slice lengths
   over projected storage need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 
@@ -872,7 +873,7 @@ Owners include
   computed-argument routes against caller formal ceilings; do not reread caller
   storage or retain callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
-  caller-specific snapshots beyond immutable scalar formal comparisons, including
+  caller-specific snapshots beyond direct scalar and owned-field comparisons, including
   contract-level borrowed collection lengths with exact entry observations and
   caller substitution, not body-local SSA values or unrelated length parameters; carry
   those facts into nested exact-cast obligations without rereading arguments.

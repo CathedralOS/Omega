@@ -6,6 +6,7 @@ use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;
 mod fields;
+pub(in crate::flow) mod qualifications;
 pub(super) use arguments::capture_argument;
 
 #[cfg(test)]
@@ -18,6 +19,7 @@ pub(super) struct StateValues {
     state: SymbolHandle,
     values: Vec<(SymbolHandle, ScalarValue)>,
     fields: Vec<fields::FieldValue>,
+    qualifications: Vec<qualifications::QualifiedInput>,
 }
 
 fn reachable(
@@ -45,6 +47,7 @@ fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
         .find(|row| row.state == incoming.state)
     {
         changed |= fields::meet(&mut previous.fields, &incoming.fields);
+        changed |= qualifications::meet(&mut previous.qualifications, &incoming.qualifications);
         for (parameter, value) in &mut previous.values {
             let next = incoming
                 .values
@@ -60,6 +63,7 @@ fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
     } else {
         changed = true;
         ctx.new_state_field_input_height += fields::height(&incoming.fields);
+        ctx.new_state_field_input_height += incoming.qualifications.len();
         ctx.state_value_inputs.push(incoming);
     }
     if changed && ctx.built_state_value_inputs.contains(&state) {
@@ -78,6 +82,7 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
                 .map(|state| StateValues {
                     state: state.symbol,
                     fields: Vec::new(),
+                    qualifications: Vec::new(),
                     values: program
                         .state_parameters(state)
                         .iter()
@@ -136,6 +141,7 @@ pub(super) fn record_transition(
     target: typed_trees::statement::TransitionTargetHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
     argument_values: &[ScalarValue],
+    argument_qualifications: Vec<qualifications::QualifiedInput>,
 ) {
     if transition.exit != TransitionExit::Ordinary
         || !reachable(ctx, program, machine, state.symbol)
@@ -201,12 +207,18 @@ pub(super) fn record_transition(
         destination,
         contexts,
     );
+    let qualifications = if arguments.is_some() {
+        argument_qualifications
+    } else {
+        qualifications::capture_self(program, semantic, ctx, state, contexts)
+    };
     join(
         ctx,
         StateValues {
             state: destination.symbol,
             values,
             fields,
+            qualifications,
         },
     );
 }
@@ -257,6 +269,7 @@ pub(super) fn record_invocation(
         StateValues {
             state: destination.symbol,
             fields: Vec::new(),
+            qualifications: Vec::new(),
             values: program
                 .state_parameters(destination)
                 .iter()
@@ -286,6 +299,7 @@ pub(super) fn append_entry_context(
         state_symbol: state.symbol,
     };
     fields::append(program, semantic, &input.fields, machine, state, point);
+    qualifications::append(semantic, &input.qualifications, point);
     for (parameter, value) in &input.values {
         if *value == ScalarValue::Unknown {
             continue;

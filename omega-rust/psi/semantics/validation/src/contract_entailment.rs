@@ -81,6 +81,7 @@ pub(crate) use ranking_range::{
 
 pub use ranking_range::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
+    arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
     prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
 };
 mod law_conformance;

@@ -16,6 +16,12 @@ pub(super) fn endpoints_formed(
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<()> {
     for endpoint in [range.start, range.end] {
+        if projected_type(program, state, endpoint).is_some_and(|reference| {
+            exact_integer_parameter(program, reference) == Some(PrimitiveType::U64)
+        }) {
+            // An exact immutable field read performs no endpoint arithmetic.
+            continue;
+        }
         if parameter(program, state, endpoint).is_some_and(|parameter| {
             exact_integer_parameter(program, parameter.type_reference).is_some()
         }) {
@@ -26,14 +32,14 @@ pub(super) fn endpoints_formed(
     Some(())
 }
 
-pub(super) struct FieldRank<'program> {
+pub(super) struct FieldCoordinate<'program> {
     pub parameter: &'program StateParameter,
     pub field: &'program DataField,
     pub owner: SymbolHandle,
     pub identity: String,
 }
 
-impl<'program> FieldRank<'program> {
+impl<'program> FieldCoordinate<'program> {
     pub(super) fn resolve(
         program: &'program TypedTrees,
         state: &State,
@@ -82,56 +88,6 @@ impl<'program> FieldRank<'program> {
             ]);
         }
         comparisons
-    }
-
-    pub(super) fn install(
-        &self,
-        program: &TypedTrees,
-        state: &State,
-        engine: &mut Engine<'_>,
-        expressions: &[ExpressionHandle],
-    ) -> Option<()> {
-        let mut pending = expressions
-            .iter()
-            .map(|expression| (*expression, 0))
-            .collect::<Vec<_>>();
-        while let Some((expression, depth)) = pending.pop() {
-            if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
-                return None;
-            }
-            let mut visit = |child| pending.push((child, depth + 1));
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Member(member) => {
-                    if member.member_symbol == self.field.symbol
-                        && member.member == self.field.name
-                        && member.case_variant.is_none()
-                        && parameter(program, state, member.receiver)
-                            .is_some_and(|parameter| parameter.symbol == self.parameter.symbol)
-                        && !engine.bind_strict_projection(expression, self.value())
-                    {
-                        return None;
-                    }
-                    visit(member.receiver);
-                }
-                ExpressionNode::Binary(binary) => {
-                    visit(binary.left);
-                    visit(binary.right);
-                }
-                ExpressionNode::Unary(unary) => visit(unary.operand),
-                ExpressionNode::Atomic(atomic) => visit(atomic.value),
-                ExpressionNode::StructLiteral(literal) => {
-                    for field in program.expression_table.struct_fields(literal.fields) {
-                        visit(field.value);
-                    }
-                }
-                ExpressionNode::Range(range) => {
-                    visit(range.start);
-                    visit(range.end);
-                }
-                _ => {}
-            }
-        }
-        Some(())
     }
 
     pub(super) fn actual(

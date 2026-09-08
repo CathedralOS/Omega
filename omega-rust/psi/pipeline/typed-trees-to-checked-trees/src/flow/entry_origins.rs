@@ -417,7 +417,8 @@ pub(super) fn rebase_contexts(
                     .unwrap_or_default();
                 // Entry assumptions do not establish arrival invariants after
                 // arbitrary predecessor writes. Only explicit state requires
-                // are assumed here until graph fact transfer is available.
+                // are assumed here; state_values transports independently
+                // captured live qualifications through actual arrivals.
                 let declared_field = matches!(fact.origin, FactOrigin::MachineFieldDomain { .. });
                 complete &= target.is_valid() && (!assumptions || declared_field);
                 if !assumptions && let Some(contract) = contract {

@@ -88,7 +88,8 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             }
         }
         // Each newly reached field contributes one literal and its finite
-        // predicate set. Subsequent joins only remove these cells.
+        // predicate set; parameter qualifications contribute finite membership
+        // cells. Subsequent joins only remove these cells.
         pass_limit = pass_limit.saturating_add(ctx.new_state_field_input_height);
         // Inputs arriving before a state's entry was built are already in its
         // contexts. Only a change after that point requires rebuilding flow.

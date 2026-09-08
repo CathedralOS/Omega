@@ -54,6 +54,15 @@ values share semantic contexts and invalidation with domain facts. Exit checking
 uses live assignment evidence, not initializer replay; scalar returns require
 exact result/arm binding and checked operator meaning.
 
+Named-state inputs also retain live domain memberships on directly forwarded
+parameters and their exact owned-field projections. Argument evaluation captures
+owned values; reference-backed claims additionally need surviving contexts and
+stable bindings after later operands. Every reachable predecessor participates
+in the membership intersection, and missing evidence remains missing. This uses
+the same finite state-input analysis, not reference lineage as a substitute for
+qualification. It does not infer arbitrary projected argument mappings or
+transport qualifications through nested reference loads.
+
 Indexed-access checking owns one lazy mutation-summary table for its immutable
 program and borrow facts. Incoming-state propagation and branch snapshots borrow
 that same table while rebuilding their local bounds. A new check owns a fresh
@@ -101,8 +110,10 @@ exercises this source-checking tier; it supplies no native custom-view certifica
 
 For single-state owned direct-field measures, relational membership shares the
 ordinary scalar range proof. Entry requirements may relate the selected field
-to scalar endpoints, including nonzero floors and exclusive ceilings. Every
-self-edge substitutes the exact reconstructed field and scalar actuals, proves
+to scalar or direct field endpoints, including nonzero floors and exclusive
+ceilings. Additional owned `u64` fields remain independent coordinates by exact
+parameter and declared field identity. Every self-edge substitutes the exact
+reconstructed fields and scalar actuals simultaneously, proves
 endpoint equality and membership, and establishes strict descent. Entry facts
 may recur only if every edge re-establishes them; a backedge guard cannot prove
 initial membership. Prefix stores need complete disjoint frames, and calls in
@@ -111,9 +122,17 @@ locals introduce no ranking facts and do not invalidate preserved inputs.
 The [relational countdown](../../../../tests/omega/pass/termination/measure_field_relational_range/README.md)
 exercises that boundary. Computed scalar endpoints still need independent
 immutable-expression formation; the relational fallback cannot excuse overflow
-or reinterpret anonymous rational arithmetic. Relations requiring additional
-field coordinates, named-state transport, broader projections and constrained
-measure parameters still need application/projection evidence.
+or reinterpret anonymous rational arithmetic. The [field-held limit](../../../../tests/omega/pass/termination/measure_field_pinned_limit/README.md)
+also checks endpoint preservation across record reconstruction. Computed field
+endpoints, named-state transport, broader projections and constrained measure
+parameters still need formation/application evidence.
+
+Entry backedges re-establish machine `requires`; internal named-state transfers
+owe their target state's requirements. Neither imports machine `ensures`.
+Ordinary call checking shares exact arithmetic coordinates with the range
+engine, but does not assume a ranking witness. A named-state entry backedge
+may additionally use the complete graph judgment that re-establishes readable
+entry requirements at every arrival; range membership alone is insufficient.
 
 Computed state arrivals may use multiple copies of the same authored scalar
 rank. Mapping discovery identifies that entry role; the arithmetic edge judgment
