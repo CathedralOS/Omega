@@ -1574,7 +1574,7 @@ fn checked_caller_structural_scalar_field_store_plan(
         carrier_path: selected_carrier_path.to_vec(),
         field_identity: terminal_field_identity(program, direct_field.symbol)?,
         primitive_type,
-        value: value.clone(),
+        value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
     })
 }
 
@@ -2026,7 +2026,7 @@ fn checked_realization_structural_scalar_field_store_plan(
             carrier_path,
             field_identity: terminal_field_identity(program, field.symbol)?,
             primitive_type,
-            value: value.clone(),
+            value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
         },
         expected_mutation_path,
     ))

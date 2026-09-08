@@ -268,13 +268,119 @@ impl Evaluation {
             0,
         )?;
         let states = expansion.finish();
+        self.complete_expansion(
+            &states,
+            entry_index,
+            &argument_types,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+        )
+        .map(Some)
+    }
+
+    /// Finish the selected RHS without changing the destination or source slots.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn field_assignment_value(
+        &mut self,
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let bindings = self
+            .scalar_bindings
+            .clone()
+            .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(values.len()))
+            .with_primitive_storage(&self.primitive_storage)
+            .with_structural_parameters(&self.structural_parameters)
+            .with_resolved_structural_fields(&self.structural_fields);
+        let source_types = values
+            .iter()
+            .map(|value| value.scalar_type)
+            .collect::<Vec<_>>();
+        let scalar_type = terminal_scalar_type(store.primitive_type)?;
+        crate::structural_scalar_store_source::computation_root(checked, machine, state, store)?;
+        if store.value.as_pure().is_some() {
+            let expression = bindings.expression_at(
+                checked,
+                state,
+                store.statement_index,
+                CheckedScalarExpressionRole::AssignmentValue,
+            )?;
+            if expression.scalar_type() != scalar_type
+                || direct_expression_contains_short_circuit(&expression)
+            {
+                return unsupported("field store requires a matching branch-free pure value");
+            }
+            validate_direct_parameter_types(&expression, &source_types)?;
+            return Ok(ValueDeclaration {
+                id: emit_direct_expression(&expression, values, next_value, operations),
+                scalar_type,
+            });
+        }
+        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1);
+        let entry = expansion.retained_value(
+            state,
+            store.statement_index,
+            CheckedScalarExpressionRole::AssignmentValue,
+            symbols::SymbolHandle::invalid(),
+            &bindings,
+            &source_types,
+            scalar_type,
+            0,
+        )?;
+        let states = expansion.finish();
+        let result = self.complete_expansion(
+            &states,
+            entry,
+            &[scalar_type],
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+        )?;
+        match result.as_slice() {
+            [value] => Ok(*value),
+            _ => unsupported("field assignment has no single completed RHS"),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn complete_expansion(
+        &mut self,
+        states: &[LoweredScalarBranchState],
+        entry_index: usize,
+        result_types: &[ScalarType],
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<Vec<ValueDeclaration>, LoweringError> {
+        let source_types = values
+            .iter()
+            .map(|value| value.scalar_type)
+            .collect::<Vec<_>>();
         let mut completion_types = source_types.clone();
-        completion_types.extend(argument_types);
+        completion_types.extend_from_slice(result_types);
         let completion_parameters = declarations(&completion_types, next_value)?;
         let completion = block_id(allocate_dense(next_block)?);
         let mut targets = vec![completion];
         let mut parameters = vec![completion_parameters.clone()];
-        for state in &states {
+        for state in states {
             targets.push(block_id(allocate_dense(next_block)?));
             parameters.push(declarations(&state.parameter_types, next_value)?);
         }
@@ -314,7 +420,7 @@ impl Evaluation {
         self.current = completion;
         self.parameters = completion_parameters;
         self.operation_start = operations.len();
-        Ok(Some(result))
+        Ok(result)
     }
 }
 

@@ -191,6 +191,25 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     continue;
                 }
                 if let StatementNode::Assignment(assignment) = statement {
+                    if matches!(
+                        program.expression_table.expression(assignment.target),
+                        ExpressionNode::Member(_)
+                    ) && let Some(primitive_type) = validation::declared_place_type_raw(
+                        program,
+                        machine,
+                        Some(state),
+                        assignment.target,
+                    )
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    {
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            CheckedScalarExpressionRole::AssignmentValue,
+                            assignment.value,
+                            primitive_type,
+                        );
+                    }
                     if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()
@@ -519,7 +538,9 @@ impl Builder<'_, '_> {
                     let primitive_type = self
                         .program
                         .primitive_type_reference(parameter.type_reference)?;
-                    computed_arguments.push(self.expression(*argument, primitive_type)?);
+                    let root = self.expression(*argument, primitive_type)?;
+                    self.plans.nodes.get_mut(root).authored_root = *argument;
+                    computed_arguments.push(root);
                 }
                 let arguments = self.plans.operands.insert_many(computed_arguments);
                 Some(self.insert(

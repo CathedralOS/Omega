@@ -931,7 +931,7 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
         typed_trees::types::PrimitiveType::I32
     );
     assert!(matches!(
-        &integer_store.value,
+        integer_store.value.as_pure().unwrap(),
         checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_i64() == Some(17)
     ));
@@ -977,7 +977,7 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
         typed_trees::types::PrimitiveType::Bool
     );
     assert!(matches!(
-        &boolean_store.value,
+        boolean_store.value.as_pure().unwrap(),
         checked_trees::CheckedScalarExpression::Boolean(expression)
             if matches!(
                 expression.as_ref(),
@@ -1004,7 +1004,7 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
         typed_trees::types::PrimitiveType::I32
     );
     assert!(matches!(
-        &integer_store.value,
+        integer_store.value.as_pure().unwrap(),
         checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_i64() == Some(23)
     ));
@@ -1021,7 +1021,7 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
         typed_trees::types::PrimitiveType::U16
     );
     assert!(matches!(
-        &short_store.value,
+        short_store.value.as_pure().unwrap(),
         checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_i64() == Some(257)
     ));

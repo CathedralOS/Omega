@@ -999,8 +999,59 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
             })
         }
-        CheckedScalarExpression::IntegerWrappingCast { .. } => {
-            unsupported("checked wrapping conversion requires runtime policy realization")
+        CheckedScalarExpression::IntegerWrappingCast {
+            primitive_type,
+            operand,
+            ..
+        } => {
+            let operand = lower_checked_scalar_expression_with_parameters(
+                operand,
+                structural_parameters,
+                structural_fields,
+                primitive_storage,
+            )?;
+            let target = terminal_scalar_type(*primitive_type)?;
+            let (ScalarType::Integer(source_type), ScalarType::Integer(target_type)) =
+                (operand.scalar_type(), target)
+            else {
+                return unsupported("wrapping conversion requires fixed integer carriers");
+            };
+            if source_type.sign() != IntegerSign::Unsigned
+                || target_type.sign() != IntegerSign::Unsigned
+            {
+                return unsupported(
+                    "signed wrapping conversion requires runtime policy realization",
+                );
+            }
+            if source_type == target_type {
+                return Ok(operand);
+            }
+            if source_type.can_widen_to(target_type) {
+                return Ok(LoweredDirectExpression::IntegerWiden {
+                    scalar_type: target,
+                    operand: Box::new(operand),
+                });
+            }
+            if target_type.bits() >= source_type.bits() {
+                return unsupported("wrapping conversion requires an unsigned narrowing carrier");
+            }
+            let modulus = 1_u128.checked_shl(u32::from(target_type.bits())).ok_or(
+                LoweringError::Unsupported("wrapping conversion modulus exceeds u128"),
+            )?;
+            // Unsigned remainder has exactly the destination's modular image.
+            // Existing remainder and cast obligations independently prove the bound.
+            Ok(LoweredDirectExpression::IntegerExactCast {
+                scalar_type: target,
+                operand: Box::new(LoweredDirectExpression::IntegerBinary {
+                    kind: LoweredIntegerBinaryKind::ExactRemainder,
+                    scalar_type: ScalarType::Integer(source_type),
+                    left: Box::new(operand),
+                    right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                        value: IntegerValue::Unsigned(modulus),
+                        scalar_type: ScalarType::Integer(source_type),
+                    }),
+                }),
+            })
         }
         CheckedScalarExpression::IntegerTrappingCast { .. } => {
             unsupported("checked trapping conversion requires runtime policy realization")

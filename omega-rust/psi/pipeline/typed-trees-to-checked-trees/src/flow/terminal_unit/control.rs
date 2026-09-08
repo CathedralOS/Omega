@@ -1887,7 +1887,20 @@ pub(super) fn build_checked_machine_with(
     let mut body_qualifications = facts
         .qualifications
         .for_machine(machine.symbol)
-        .map(|fact| fact.body_committed.clone())
+        .map(|fact| {
+            fact.body_committed
+                .iter()
+                .copied()
+                .filter(|domain| {
+                    !matches!(
+                        *domain,
+                        language_semantics::SemanticDomainTable::WRAPPING
+                            | language_semantics::SemanticDomainTable::SATURATING
+                            | language_semantics::SemanticDomainTable::TRAPPING
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
     body_qualifications.sort_by_key(|domain| domain.0);
     body_qualifications.dedup();

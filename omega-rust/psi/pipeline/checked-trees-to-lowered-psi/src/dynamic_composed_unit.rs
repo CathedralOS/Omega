@@ -864,7 +864,9 @@ fn validate_exact_dynamic_plan(
             || store.destination_parameter_position != plan.source_parameter_position
             || store.carrier_path != plan.source_path
             || !crate::structural_scalar_store::checked_store_literal_matches(
-                &store.value,
+                store.value.as_pure().ok_or(LoweringError::Unsupported(
+                    "direct dynamic store computation is unsupported",
+                ))?,
                 store.primitive_type,
             ))
     {
@@ -2483,7 +2485,9 @@ fn lower_caller_store_operations(
     let [field] = matching.as_slice() else {
         return unsupported("direct dynamic store field is absent or ambiguous");
     };
-    let constant = match &store.value {
+    let constant = match store.value.as_pure().ok_or(LoweringError::Unsupported(
+        "direct dynamic store computation is unsupported",
+    ))? {
         CheckedScalarExpression::IntegerLiteral { literal }
             if store.primitive_type.accepts_integer_literal()
                 && store.primitive_type != PrimitiveType::Addr =>
@@ -2693,7 +2697,9 @@ fn lower_realization_store_operation(
         crate::structural_scalar_store::StoreAccessPolicy::MutableOnly,
     )?;
     let scalar_type = lowered.scalar_type;
-    let constant = match &store.value {
+    let constant = match store.value.as_pure().ok_or(LoweringError::Unsupported(
+        "dynamic realization store computation is unsupported",
+    ))? {
         CheckedScalarExpression::IntegerLiteral { literal }
             if store.primitive_type.accepts_integer_literal()
                 && store.primitive_type != PrimitiveType::Addr =>

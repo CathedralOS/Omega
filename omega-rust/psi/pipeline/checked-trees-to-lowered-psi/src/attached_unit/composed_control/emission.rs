@@ -385,8 +385,8 @@ pub(super) fn emit_call_operations(
         }
         if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation {
             state_graph::body::emit_store(
-                checked, state, store, catalogs, parameters, evaluation, values, next_value,
-                operations,
+                checked, machine, state, store, catalogs, parameters, evaluation, values,
+                next_value, next_block, next_edge, operations,
             )?;
             continue;
         }

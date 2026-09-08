@@ -36,6 +36,17 @@ fn selected_roots(
     let mut pending = Vec::new();
     for state in states {
         for operation in &state.operations {
+            if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation {
+                if let Some(root) = crate::structural_scalar_store_source::computation_root(
+                    checked,
+                    machine,
+                    state.state,
+                    store,
+                )? {
+                    pending.push(root);
+                }
+                continue;
+            }
             let arguments = match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     scalar_arguments, ..
@@ -47,8 +58,9 @@ fn selected_roots(
                     scalar_arguments, ..
                 } => scalar_arguments,
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_) => {
+                    continue;
+                }
                 _ => return unsupported("composed scalar selection contains a non-call operation"),
             };
             crate::call_source_custody::validate_operation(

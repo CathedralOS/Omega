@@ -811,8 +811,8 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
     assert!(direct_store.carrier_path.is_empty());
     assert_eq!(direct_store.primitive_type, PrimitiveType::U8);
     assert!(matches!(
-        direct_store.value,
-        CheckedScalarExpression::IntegerLiteral { ref literal }
+        direct_store.value.as_pure().unwrap(),
+        CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_u64() == Some(7)
     ));
 
@@ -831,8 +831,8 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
     ));
     assert_eq!(nested_store.primitive_type, PrimitiveType::U8);
     assert!(matches!(
-        nested_store.value,
-        CheckedScalarExpression::IntegerLiteral { ref literal }
+        nested_store.value.as_pure().unwrap(),
+        CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_u64() == Some(9)
     ));
 
@@ -848,8 +848,8 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
                 CheckedUnitStructuralPathSegment::FixedIndex(2),
             ] if !identity.is_empty()
         ) && store.primitive_type == PrimitiveType::U16
-            && matches!(store.value,
-                CheckedScalarExpression::IntegerLiteral { ref literal }
+            && matches!(store.value.as_pure().unwrap(),
+                CheckedScalarExpression::IntegerLiteral { literal }
                     if literal.value_u64() == Some(13))
     ));
 
@@ -867,8 +867,8 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
             CheckedUnitEffectOperationPlan::ReturnUnit { .. },
         ] if store.carrier_path.is_empty()
             && store.primitive_type == PrimitiveType::U16
-            && matches!(store.value,
-                CheckedScalarExpression::IntegerLiteral { ref literal }
+            && matches!(store.value.as_pure().unwrap(),
+                CheckedScalarExpression::IntegerLiteral { literal }
                     if literal.value_u64() == Some(11))
     ));
 }
@@ -916,7 +916,7 @@ fn retains_one_scalar_result_before_a_projected_write_only_store() {
             && store.carrier_path.is_empty()
             && store.primitive_type == PrimitiveType::I32
             && matches!(
-                store.value,
+                store.value.as_pure().unwrap(),
                 CheckedScalarExpression::Local {
                     position: 0,
                     primitive_type: PrimitiveType::I32,

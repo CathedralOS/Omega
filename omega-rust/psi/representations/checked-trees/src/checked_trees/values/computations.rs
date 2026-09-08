@@ -50,8 +50,8 @@ impl Default for CheckedScalarComputationRoot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarComputation {
-    /// Exact authored outer expression when this node is a destination root.
-    /// Intermediate nodes use the zero handle; source spans are not identity.
+    /// Exact authored expression for a destination or call-argument root.
+    /// Other intermediate nodes use the zero handle; source spans are not identity.
     pub authored_root: typed_trees::expression::ExpressionHandle,
     pub primitive_type: PrimitiveType,
     pub kind: CheckedScalarComputationKind,

@@ -7,6 +7,56 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceNode;
 
+#[test]
+fn boolean_field_value_rejoins_the_exact_declared_root_and_path() {
+    let program = fixture();
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    let expression = requirement(&program);
+    assert!(
+        matches!(super::lower_structural_parameter_field(&program, parameters, expression),
+        Some((checked_trees::CheckedScalarExpression::Boolean(value), _))
+            if matches!(value.as_ref(), checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                parameter_position: 0, path,
+            } if path == &[CheckedStructuralPredicatePathSegment::Field("allowed".into())]))
+    );
+    let foreign_parameters =
+        program.state_parameters(&program.machine_states(&program.machines()[1])[0]);
+    assert!(
+        super::lower_structural_parameter_field(&program, foreign_parameters, expression).is_none()
+    );
+    let DataMember::Field(foreign) = &program.data_members(&program.data_definitions()[1])[0]
+    else {
+        panic!("foreign field");
+    };
+    let mut unresolved = program.clone();
+    let ExpressionNode::Member(member) = unresolved.expression_table.expression_mut(expression)
+    else {
+        panic!("field source");
+    };
+    member.member_symbol = SymbolHandle::invalid();
+    assert!(
+        super::lower_structural_parameter_field(&unresolved, parameters, expression).is_some(),
+        "absent typed selection uses exact canonical receiver resolution"
+    );
+    for symbol in [
+        foreign.symbol,
+        SymbolHandle::from_parts(
+            foreign.symbol.arena_index(),
+            foreign.symbol.generation() + 1,
+        ),
+    ] {
+        let mut changed = program.clone();
+        let ExpressionNode::Member(member) = changed.expression_table.expression_mut(expression)
+        else {
+            panic!("field source");
+        };
+        member.member_symbol = symbol;
+        assert!(
+            super::lower_structural_parameter_field(&changed, parameters, expression).is_none()
+        );
+    }
+}
+
 fn fixture() -> TypedTrees {
     let source = "data Input { allowed: bool; }
         data Other { allowed: bool; }
