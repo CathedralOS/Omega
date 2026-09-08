@@ -531,8 +531,9 @@ pub(super) fn validate_unit_operation_static(
                 });
             }
             // Construction-local loans remain separate. Whole affine call
-            // results may supply shared reads; the common source validator
-            // checks their exact producer and the frontier checks live custody.
+            // results and immutable byte views may supply shared reads. The
+            // common source validator checks their shape; frontier and view
+            // dominance validation retain their exact producer custody.
             if let Some((argument_index, argument)) =
                 structural_arguments
                     .iter()
@@ -544,7 +545,19 @@ pub(super) fn validate_unit_operation_static(
                                 .iter()
                                 .any(|parameter| parameter.place == argument.place)
                             && !(argument.access == StructuralAccess::SharedBorrow
-                                && is_structural_call_result(machine, argument.place))
+                                && (is_structural_call_result(machine, argument.place)
+                                    || (argument.path.is_empty()
+                                        && super::byte_sequence_length::validate_source(
+                                            module,
+                                            machine,
+                                            operation,
+                                            argument.place,
+                                            || ModuleError::InvalidByteSequenceLengthSource {
+                                                operation: operation.id,
+                                                source: argument.place,
+                                            },
+                                        )
+                                        .is_ok())))
                     })
             {
                 return Err(ModuleError::StructuralArgumentAccessMismatch {
@@ -1133,8 +1146,7 @@ pub(super) enum StructuralArgumentSourcePolicy {
     /// but not construction-local establishments.
     ParametersOrBoundaryActuals,
     /// Unit and scalar-result calls retain construction locals and whole
-    /// ordinary and boundary affine results. Unit calls also admit whole
-    /// immutable byte literals.
+    /// ordinary and boundary affine results, plus whole immutable byte views.
     ParametersOrAffineLocalsAndCallResults,
     /// Whole record establishments and claim-free affine call results.
     /// Frontier validation separately requires their producer to have run.
@@ -1163,13 +1175,17 @@ pub(super) fn validate_structural_arguments(
     allow_projected: bool,
     source_policy: StructuralArgumentSourcePolicy,
 ) -> Result<(), ModuleError> {
-    let unit_call = caller
+    let call_kind = caller
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .any(|candidate| {
-            candidate.id == operation && matches!(candidate.kind, OperationKind::CallUnit { .. })
-        });
+        .find(|candidate| candidate.id == operation)
+        .map(|candidate| &candidate.kind);
+    let unit_call = matches!(call_kind, Some(OperationKind::CallUnit { .. }));
+    let ordinary_call = matches!(
+        call_kind,
+        Some(OperationKind::CallUnit { .. } | OperationKind::CallStructuralScalar { .. })
+    );
     let result_projection = allow_projected && unit_call;
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {
@@ -1208,7 +1224,7 @@ pub(super) fn validate_structural_arguments(
                             if argument.path.is_empty()
                                 && argument.access == StructuralAccess::SharedBorrow
                                 && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                                    || (unit_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
+                                    || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
                         {
                             super::block_views::parameter(caller, argument.place).map(|parameter| (
                                 parameter.structural_type, parameter.multiplicity, parameter.access,
@@ -1219,7 +1235,7 @@ pub(super) fn validate_structural_arguments(
                             if argument.path.is_empty()
                                 && argument.access == StructuralAccess::SharedBorrow
                                 && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                                    || (unit_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults))
+                                    || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults))
                                 && super::byte_sequence_subslice::borrowed_result(caller, argument.place).is_some() =>
                         {
                             let result = super::byte_sequence_subslice::borrowed_result(caller, argument.place)
@@ -1232,7 +1248,7 @@ pub(super) fn validate_structural_arguments(
                         } if argument.path.is_empty()
                             && argument.access == StructuralAccess::SharedBorrow
                             && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                                || (unit_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
+                                || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
                         {
                             Some((
                                 structural_type,

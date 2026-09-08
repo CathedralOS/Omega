@@ -57,6 +57,10 @@ mod byte_sequence_length;
 
 #[path = "unit/byte_sequence_read.rs"]
 mod byte_sequence_read;
+#[path = "unit/byte_sequence_scalar_calls.rs"]
+mod byte_sequence_scalar_calls;
+#[path = "unit/byte_sequence_scalar_view_transfers.rs"]
+mod byte_sequence_scalar_view_transfers;
 #[path = "unit/byte_sequence_subslice.rs"]
 mod byte_sequence_subslice;
 

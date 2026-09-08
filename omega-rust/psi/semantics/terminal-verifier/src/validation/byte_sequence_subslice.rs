@@ -128,6 +128,10 @@ pub(super) fn validate_uses(
             structural_arguments,
             ..
         }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
         | OperationKind::BoundaryCall {
             structural_arguments,
             ..

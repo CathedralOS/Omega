@@ -28,6 +28,8 @@ use terminal_verifier::{
     reconstruct_terminal_obligations, validate_module, verify_module,
 };
 
+#[path = "calls/byte_views.rs"]
+mod byte_views;
 #[path = "calls/provider_results.rs"]
 mod provider_results;
 

@@ -165,7 +165,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
     module
 }
 
-fn certificate(module: &TerminalModule) -> ProofBundle {
+pub(super) fn certificate(module: &TerminalModule) -> ProofBundle {
     let sites = terminal_verifier::reconstruct_terminal_obligations(module).unwrap();
     let [site] = sites.obligations() else {
         panic!("one canonical read obligation")
