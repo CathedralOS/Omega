@@ -395,7 +395,7 @@ pub(super) fn validate_unit_operation_static(
                             .any(|candidate| candidate.id == operation.id)
                 });
             if projected
-                && (machine.result != TerminalMachineResult::Unit
+                && ((machine.result != TerminalMachineResult::Unit && !exact_exclusive_projection)
                     || (!machine.parameters.is_empty()
                         && !exact_exclusive_projection
                         && !scalar_result_continuation)

@@ -113,13 +113,14 @@ pub(in crate::attached_unit) fn emit(
                 .ok_or(LoweringError::Unsupported(
                     "shared callable requirements are absent",
                 ))?;
-            if !target.structural_parameters.is_empty() || !requirements.is_empty() {
+            if !requirements.is_empty() {
                 return unsupported(
                     "composed Unit call needs structural arguments or caller-specific requirements",
                 );
             }
             Ok(catalogs::LoweredComposedInternalTarget {
                 source: target.machine,
+                structural_parameters: target.structural_parameters.to_vec(),
                 id: lookup_machine_id(shared.machine_ids, target.machine)?,
                 scalar_parameters: parameters
                     .iter()

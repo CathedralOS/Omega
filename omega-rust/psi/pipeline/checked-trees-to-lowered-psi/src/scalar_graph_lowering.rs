@@ -784,7 +784,7 @@ pub(super) fn lower_checked_scalar_expression_at(
 pub(super) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    lower_checked_scalar_expression_with_parameters(expression, &[])
+    lower_checked_scalar_expression_with_parameters(expression, &[], &[])
 }
 
 fn immutable_byte_parameter(
@@ -810,6 +810,7 @@ fn immutable_byte_parameter(
 pub(super) fn lower_checked_scalar_expression_with_parameters(
     expression: &CheckedScalarExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
+    structural_fields: &[crate::scalar_bindings::StructuralScalarFieldBinding],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { parameter_position } => {
@@ -835,9 +836,27 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             position: *position,
             scalar_type: terminal_scalar_type(*primitive_type)?,
         }),
-        CheckedScalarExpression::StructuralParameterField { .. } => unsupported(
-            "structural parameter fields are retained only inside structural crash predicates",
-        ),
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            primitive_type,
+        } => {
+            let scalar_type = terminal_scalar_type(*primitive_type)?;
+            if !matches!(scalar_type, ScalarType::Integer(_)) {
+                return unsupported("runtime scalar field observation requires an integer field");
+            }
+            let (source, field) = crate::scalar_bindings::structural_fields::resolve(
+                structural_fields,
+                *parameter_position,
+                path,
+                scalar_type,
+            )?;
+            Ok(LoweredDirectExpression::StructuralField {
+                source,
+                field,
+                scalar_type,
+            })
+        }
         CheckedScalarExpression::IntegerLiteral { literal } => {
             let scalar_type = integer_landing_scalar_type(literal)?;
             Ok(LoweredDirectExpression::IntegerLiteral {
@@ -908,10 +927,12 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             left: Box::new(lower_checked_scalar_expression_with_parameters(
                 left,
                 structural_parameters,
+                structural_fields,
             )?),
             right: Box::new(lower_checked_scalar_expression_with_parameters(
                 right,
                 structural_parameters,
+                structural_fields,
             )?),
         }),
         CheckedScalarExpression::IntegerBitwiseNot {
@@ -922,6 +943,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             operand: Box::new(lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
+                structural_fields,
             )?),
         }),
         CheckedScalarExpression::IntegerWiden {
@@ -932,6 +954,7 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             operand: Box::new(lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
+                structural_fields,
             )?),
         }),
         CheckedScalarExpression::StructuralParameterIndexedRead {
@@ -944,8 +967,11 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 return unsupported("indexed reads require a whole byte-view parameter");
             }
             let source = immutable_byte_parameter(*parameter_position, structural_parameters)?;
-            let index =
-                lower_checked_scalar_expression_with_parameters(index, structural_parameters)?;
+            let index = lower_checked_scalar_expression_with_parameters(
+                index,
+                structural_parameters,
+                structural_fields,
+            )?;
             if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
                 return unsupported("byte-view indexed reads require an exact u64 index");
             }
@@ -970,12 +996,14 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
             operand: Box::new(lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
+                structural_fields,
             )?),
         }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
             expression: Box::new(lower_checked_boolean_expression_with_parameters(
                 expression,
                 structural_parameters,
+                structural_fields,
             )?),
         }),
     }
@@ -985,12 +1013,13 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
 pub(super) fn lower_checked_boolean_expression(
     expression: &CheckedBooleanExpression,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    lower_checked_boolean_expression_with_parameters(expression, &[])
+    lower_checked_boolean_expression_with_parameters(expression, &[], &[])
 }
 
 fn lower_checked_boolean_expression_with_parameters(
     expression: &CheckedBooleanExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
+    structural_fields: &[crate::scalar_bindings::StructuralScalarFieldBinding],
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => {
@@ -1011,6 +1040,15 @@ fn lower_checked_boolean_expression_with_parameters(
             parameter_position,
             path,
         } => {
+            if !structural_fields.is_empty() {
+                let (source, field) = crate::scalar_bindings::structural_fields::resolve(
+                    structural_fields,
+                    *parameter_position,
+                    path,
+                    ScalarType::Boolean,
+                )?;
+                return Ok(LoweredBooleanReturnExpression::StructuralField { source, field });
+            }
             let path = path
                 .iter()
                 .map(|segment| match segment {
@@ -1031,16 +1069,19 @@ fn lower_checked_boolean_expression_with_parameters(
             operand: Box::new(lower_checked_boolean_expression_with_parameters(
                 operand,
                 structural_parameters,
+                structural_fields,
             )?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
             left: Box::new(lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
+                structural_fields,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
+                structural_fields,
             )?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
@@ -1057,10 +1098,12 @@ fn lower_checked_boolean_expression_with_parameters(
                 left: Box::new(lower_checked_scalar_expression_with_parameters(
                     left,
                     structural_parameters,
+                    structural_fields,
                 )?),
                 right: Box::new(lower_checked_scalar_expression_with_parameters(
                     right,
                     structural_parameters,
+                    structural_fields,
                 )?),
             }
         }
@@ -1074,20 +1117,24 @@ fn lower_checked_boolean_expression_with_parameters(
             left: Box::new(lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
+                structural_fields,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
+                structural_fields,
             )?),
         },
         CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
             left: Box::new(lower_checked_boolean_expression_with_parameters(
                 left,
                 structural_parameters,
+                structural_fields,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
                 structural_parameters,
+                structural_fields,
             )?),
         },
     })
@@ -1147,6 +1194,7 @@ pub(super) fn validate_direct_parameter_types(
             }
         }
         LoweredDirectExpression::IntegerLiteral { .. }
+        | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => Ok(()),
         LoweredDirectExpression::ByteSequenceRead { index, .. } => {
@@ -1288,6 +1336,7 @@ fn evaluate_direct_expression(
             Some(KnownDirectScalar::Integer(*value))
         }
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => None,
         LoweredDirectExpression::IntegerBinary {

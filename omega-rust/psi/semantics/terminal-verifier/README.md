@@ -80,9 +80,27 @@ byte-length observations. Its preserving-edge subgraph must be acyclic.
 
 [Cyclic eligibility](src/validation/control_flow/unranked_cycles.rs) admits
 scalar work, unrestricted shared byte views, and bounded Unit-effect operations.
-It does not admit general owned/mutable cyclic custody, structural results,
+Persistent unrestricted mutable record receivers additionally admit independently
+typed integer/Boolean field observations, ordered scalar-field stores, and whole
+mutable `CallUnit` arguments with empty claims, requirements, and crash continuations.
+The receiver remains a machine parameter; it is not a structural block parameter
+or an owned transfer. Mutable-field entry requirements remain outside this slice:
+the unversioned field vocabulary does not establish a loop-entry snapshot.
+It does not admit general owned cyclic custody, structural results,
 projected claims, or arbitrary operation families. Eligibility is not dominance,
 frontier, or proof authority; all subsequent checks still run.
+
+Mutable-field entry requirements enter the validity-scoped observation set,
+not the permanent assumption list. Unchanged paths retain them; stores, mutating
+calls, and loop cuts cannot reuse them as current-field facts. This is conservative
+invalidation, not an entry-snapshot or general loop-invariant representation.
+
+Stores forget semantic axioms observing their destination root. Ordinary Unit
+and structural-scalar calls capture requirement premises first, forget observations
+of their mutable arguments, then import verified guarantees. Mutable boundary
+arguments also invalidate observations. This conservatively forgets the entire written
+root until checked write frames can preserve individual paths. Captured SSA values
+remain values, but an earlier field equality cannot describe a later observation.
 
 [Proof scheduling](src/control_graph.rs) cuts DFS ancestor edges in its working
 graph. Cut targets start without incoming semantic axioms; every normal return

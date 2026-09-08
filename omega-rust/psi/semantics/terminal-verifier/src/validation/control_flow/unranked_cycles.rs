@@ -1,4 +1,4 @@
-//! Eligibility for cyclic scalar computation and immutable byte descriptors.
+//! Eligibility for cyclic scalar work, immutable views, and persistent receivers.
 
 use super::super::{block_views, byte_sequence_subslice};
 use super::*;
@@ -15,20 +15,32 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
         || !machine.content_entry_claims.is_empty()
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
+        || machine.contract.requires.iter().any(|requirement| {
+            super::super::proposition_observes_places(
+                requirement,
+                &machine
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.access == StructuralAccess::MutableBorrow)
+                    .map(|parameter| parameter.place)
+                    .collect::<Vec<_>>(),
+            )
+        })
         || machine.structural_parameters.iter().any(|parameter| {
-            parameter.access != StructuralAccess::SharedBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || !module.structural_types.iter().any(|declaration| {
-                    declaration.id == parameter.structural_type
-                        && matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView
-                            )
-                        )
-                })
+                || !(persistent_receiver(module, parameter)
+                    || (parameter.access == StructuralAccess::SharedBorrow
+                        && module.structural_types.iter().any(|declaration| {
+                            declaration.id == parameter.structural_type
+                                && matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                                    )
+                                )
+                        })))
         })
         || machine.structural_places.iter().any(|place| {
             !matches!(
@@ -85,7 +97,14 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     ..
                 } => {
                     operation.result == OperationResult::Unit
-                        && structural_arguments.is_empty()
+                        && structural_arguments.iter().all(|argument| {
+                            argument.path.is_empty()
+                                && argument.access == StructuralAccess::MutableBorrow
+                                && machine.structural_parameters.iter().any(|parameter| {
+                                    parameter.place == argument.place
+                                        && persistent_receiver(module, parameter)
+                                })
+                        })
                         && claim_transfers.is_empty()
                         && requirement_obligations.is_empty()
                         && crash_continuations.is_empty()
@@ -97,10 +116,32 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     })
                 }
                 OperationKind::ByteSequenceLength { .. }
-                | OperationKind::ByteSequenceRead { .. } => operation.result.scalar().is_some(),
+                | OperationKind::ByteSequenceRead { .. }
+                | OperationKind::IntegerStructuralField { .. }
+                | OperationKind::BooleanStructuralField { .. } => {
+                    operation.result.scalar().is_some()
+                }
+                OperationKind::StructuralScalarFieldStore { .. } => {
+                    operation.result == OperationResult::Unit
+                }
                 kind => operation.result.scalar().is_some() && pure_scalar(kind),
             })
     })
+}
+
+fn persistent_receiver(
+    module: &TerminalModule,
+    parameter: &StructuralParameterDeclaration,
+) -> bool {
+    parameter.is_self
+        && parameter.access == StructuralAccess::MutableBorrow
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == parameter.structural_type
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        })
 }
 
 /// Keep the admitted operation family explicit: scalar result shape alone

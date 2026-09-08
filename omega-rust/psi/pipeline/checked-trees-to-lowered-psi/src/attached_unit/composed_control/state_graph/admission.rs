@@ -19,11 +19,12 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
     };
     machine.lifetime_parameters.is_empty()
         && checked.machine_type_parameters(machine).is_empty()
-        && checked.machine_states(machine).iter().all(|state| {
-            checked
-                .state_parameters(state)
-                .iter()
-                .all(|parameter| !parameter.is_self)
+        // Legacy compile-known receiver observations can erase their runtime
+        // receiver. Their existing emitter must still validate that erasure.
+        && checked.machine_states(machine).iter().all(|source| {
+            !checked.state_parameters(source).iter().any(|parameter| parameter.is_self)
+                || plan.states.iter().find(|state| state.state == source.symbol)
+                    .is_some_and(|state| state.structural_parameters.iter().any(|parameter| parameter.is_self))
         })
         && plan.body_qualifications.is_empty()
         && plan.provider_attachment_requirements.is_empty()
@@ -31,7 +32,11 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
             state.entry_claims.is_empty()
                 && state.structural_parameters.iter().all(|parameter| {
                     parameter.multiplicity == Multiplicity::Unrestricted
-                        && parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                        && matches!(
+                            parameter.access,
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                                | checked_trees::CheckedStructuralAccess::MutableBorrow
+                        )
                         && parameter.qualifications.is_empty()
                 })
                 && !matches!(
@@ -130,6 +135,10 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             else {
                 return unsupported("Unit graph structural parameter is not a borrowed view");
             };
+            if parameter.is_self {
+                super::parameters::validate_receiver(checked, plan, source, parameter, *access)?;
+                continue;
+            }
             let TypeReferenceNode::Slice { element_type } =
                 checked.type_reference_table.type_reference(*referee)
             else {
@@ -168,73 +177,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
         }
         let statements = checked.statement_table.statements(source.statement_nodes);
         scalars::validate(checked, state)?;
-        let prefix_count = statements
-            .iter()
-            .take_while(|statement| {
-                matches!(
-                    statement,
-                    StatementNode::LocalData(_) | StatementNode::Assignment(_)
-                )
-            })
-            .count();
-        if prefix_count != state.bindings.len() {
-            return unsupported("Unit graph scalar prefix dropped or added a binding");
-        }
-        let call_count = statements
-            .iter()
-            .enumerate()
-            .skip(prefix_count)
-            .take_while(|(ordinal, statement)| match statement {
-                StatementNode::Call(_) => true,
-                StatementNode::Expression(expression) if *ordinal + 1 == statements.len() => {
-                    checked.expression_table.expression_is_valid(*expression)
-                        && matches!(
-                            checked.expression_table.expression(*expression),
-                            checked_trees::expression::ExpressionNode::Call(_)
-                        )
-                }
-                _ => false,
-            })
-            .count();
-        let terminator_ordinal = prefix_count + call_count;
-        if state.operations.len() != call_count {
-            return unsupported("Unit graph dropped or added a body effect");
-        }
-        for (ordinal, operation) in state.operations.iter().enumerate() {
-            let coordinate = match operation {
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    coordinate,
-                    structural_arguments,
-                    completion_receipts,
-                    ..
-                } if completion_receipts.is_empty()
-                    && structural_arguments.iter().all(|argument| {
-                        argument.source_parameter_index().is_some()
-                            && argument.path.is_empty()
-                            && argument.access
-                                == checked_trees::CheckedStructuralAccess::SharedBorrow
-                    }) =>
-                {
-                    coordinate
-                }
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    coordinate,
-                    structural_arguments,
-                    claim_transfers,
-                    ..
-                } if structural_arguments.is_empty() && claim_transfers.is_empty() => coordinate,
-                _ => {
-                    return unsupported(
-                        "Unit graph operation requires additional value or ownership lowering",
-                    );
-                }
-            };
-            if coordinate.statement_index as usize != prefix_count + ordinal
-                || coordinate.call_ordinal != 0
-            {
-                return unsupported("Unit graph reordered a source effect");
-            }
-        }
+        let terminator_ordinal = super::body::validate(checked, plan.machine, source, state)?;
         let tail = &statements[terminator_ordinal..];
         match (&state.terminator, tail) {
             (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, []) => {}

@@ -25,7 +25,17 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     else {
         unreachable!("internal leaf shape was validated")
     };
-    if !structural_arguments.is_empty() || !claim_transfers.is_empty() {
+    if !claim_transfers.is_empty()
+        || structural_arguments.iter().any(|argument| {
+            argument.source_parameter_index().is_none()
+                || !argument.path.is_empty()
+                || !matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::MutableBorrow
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                )
+        })
+    {
         return unsupported("composed internal Unit call requires structural transfer lowering");
     }
     super::super::admission::retain_exact_flow_call(
@@ -43,10 +53,26 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     if entry.state != *target_state
         || entry.contract_report_fingerprint != *target_contract_report_fingerprint
         || !checked_unit_target_reach_matches(*service_reach, entry.contract_service_reach)
-        || !entry.structural_parameters.is_empty()
+        || entry.structural_parameters.len() != structural_arguments.len()
         || !entry.entry_claims.is_empty()
     {
         return unsupported("composed internal Unit call disagrees with its checked target");
+    }
+    for (argument, target) in structural_arguments.iter().zip(entry.structural_parameters) {
+        let source = argument
+            .source_parameter_index()
+            .and_then(|position| state.structural_parameters.get(position as usize))
+            .ok_or(LoweringError::Unsupported(
+                "composed Unit structural source is absent",
+            ))?;
+        if source.type_identity != target.type_identity
+            || argument.access != target.access
+            || source.access != target.access
+            || source.multiplicity != target.multiplicity
+            || !target.qualifications.is_empty()
+        {
+            return unsupported("composed Unit structural call authority drifted");
+        }
     }
     let identity = checked_terminal_machine_name(checked, entry.machine)?.to_owned();
     for (candidate, _) in targets.iter() {

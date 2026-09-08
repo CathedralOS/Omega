@@ -2,10 +2,10 @@
 
 use super::*;
 
-pub(super) struct StatementSequence {
-    pub(super) operations: Vec<CheckedUnitEffectOperationPlan>,
-    pub(super) local_count: usize,
-    pub(super) structural_local_symbols: Vec<SymbolHandle>,
+pub(in crate::flow::terminal_unit) struct StatementSequence {
+    pub(in crate::flow::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
+    pub(in crate::flow::terminal_unit) local_count: usize,
+    pub(in crate::flow::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
 }
 
 pub(super) fn has_structural_result(
@@ -69,7 +69,7 @@ pub(super) fn has_statement_shape(
         })
 }
 
-pub(super) fn build(
+pub(in crate::flow::terminal_unit) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
@@ -101,6 +101,7 @@ pub(super) fn build(
             state,
             structural_parameters,
             scalar_parameters,
+            construction_statement_count,
         )?
         .into_iter();
     for (index, statement) in program
@@ -109,6 +110,7 @@ pub(super) fn build(
         .iter()
         .enumerate()
         .skip(construction_statement_count)
+        .take_while(|(_, statement)| !matches!(statement, StatementNode::Transition(_)))
     {
         let statement_index = u32::try_from(index).ok()?;
         let mut structural_result = None;

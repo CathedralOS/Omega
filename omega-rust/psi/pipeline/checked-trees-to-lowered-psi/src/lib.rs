@@ -224,6 +224,11 @@ use lowered_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredDirectExpression {
+    StructuralField {
+        source: PlaceId,
+        field: StructuralFieldId,
+        scalar_type: ScalarType,
+    },
     ByteSequenceLength {
         source: PlaceId,
         scalar_type: ScalarType,
@@ -275,6 +280,7 @@ impl LoweredDirectExpression {
     const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Parameter { scalar_type, .. }
+            | Self::StructuralField { scalar_type, .. }
             | Self::ByteSequenceLength { scalar_type, .. }
             | Self::ByteSequenceRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }

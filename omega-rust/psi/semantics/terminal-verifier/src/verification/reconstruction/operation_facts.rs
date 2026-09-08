@@ -54,6 +54,13 @@ pub(super) fn append_operation(
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+    | OperationKind::StructuralScalarFieldStore { destination, .. } = &operation.kind
+    {
+        axioms.retain(|proposition| {
+            !crate::validation::proposition_observes_places(proposition, &[*destination])
+        });
+    }
     if let Some(semantics) = goal_free_scalar_leaf_semantics(operation, value_types)
         .map_err(ModuleError::OperationSemanticSchema)?
     {

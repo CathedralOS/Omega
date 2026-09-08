@@ -1383,6 +1383,11 @@ fn assemble_unit_closure(
             .map(|(source, parameter)| (source.position, parameter.clone()))
             .collect();
         let mut staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
+        evaluation.structural_fields =
+            crate::scalar_bindings::StructuralScalarFieldBinding::collect(
+                &evaluation.structural_parameters,
+                &structural_types,
+            );
         let mut staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
         let mut subslice_places = Vec::new();
         let mut retained_scalar_prefix = None;
@@ -3073,19 +3078,23 @@ fn assemble_unit_closure(
                         .map(|value| value.scalar_type)
                         .collect::<Vec<_>>();
                     let lowered =
-                        crate::structural_scalar_store::lower_structural_scalar_store_destination(
+                        crate::structural_scalar_store::lower_structural_scalar_store_place(
                             store,
                             store.statement_index,
                             destination,
                             &structural_types,
-                            &plan.scalar_parameters,
-                            &source_types,
                             crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
                         )?;
-                    let value = lower_checked_scalar_expression(&store.value)?;
-                    if value.scalar_type() != lowered.scalar_type {
+                    let value =
+                        crate::scalar_bindings::ScalarBindings::new(scalar_result_values.len())
+                            .with_structural_parameters(&evaluation.structural_parameters)
+                            .with_resolved_structural_fields(&evaluation.structural_fields)
+                            .expression(&store.value)?;
+                    if value.scalar_type() != lowered.scalar_type
+                        || direct_expression_contains_short_circuit(&value)
+                    {
                         return unsupported(
-                            "structural scalar store value type disagrees with its field",
+                            "structural scalar store requires a matching branch-free value",
                         );
                     }
                     validate_direct_parameter_types(&value, &source_types)?;

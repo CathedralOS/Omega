@@ -3,8 +3,10 @@
 use super::*;
 use crate::scalar_source_custody as source_custody;
 
+pub(super) mod structural_fields;
 #[cfg(test)]
 mod tests;
+pub(super) use structural_fields::StructuralScalarFieldBinding;
 
 #[derive(Clone)]
 pub(super) struct ScalarBindings {
@@ -12,6 +14,7 @@ pub(super) struct ScalarBindings {
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
+    structural_fields: Vec<StructuralScalarFieldBinding>,
 }
 
 impl ScalarBindings {
@@ -20,6 +23,7 @@ impl ScalarBindings {
             immutable: (offset..offset + count).map(Some).collect(),
             storage: Vec::new(),
             structural_parameters: Vec::new(),
+            structural_fields: Vec::new(),
         }
     }
 
@@ -28,6 +32,7 @@ impl ScalarBindings {
             immutable: (0..parameters).map(Some).collect(),
             storage: Vec::new(),
             structural_parameters: Vec::new(),
+            structural_fields: Vec::new(),
         }
     }
 
@@ -36,6 +41,7 @@ impl ScalarBindings {
         parameters: &[(u32, StructuralParameterDeclaration)],
     ) -> Self {
         self.structural_parameters = parameters.to_vec();
+        self.structural_fields.clear();
         self
     }
 
@@ -221,6 +227,7 @@ impl ScalarBindings {
         crate::scalar_graph_lowering::lower_checked_scalar_expression_with_parameters(
             &expression,
             &self.structural_parameters,
+            &self.structural_fields,
         )
     }
 }

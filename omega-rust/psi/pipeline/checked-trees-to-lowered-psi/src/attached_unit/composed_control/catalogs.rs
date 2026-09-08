@@ -51,6 +51,7 @@ fn lower_composed_services(
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
             _ => return unsupported("composed Unit control contains a non-call operation"),
         };
         collect_service_summary(&facts.rows, service_reach, &mut selected)?;
@@ -80,6 +81,7 @@ pub(crate) struct LoweredComposedInternalTarget {
     pub(super) source: symbols::SymbolHandle,
     pub(super) id: MachineId,
     pub(super) scalar_parameters: Vec<ScalarType>,
+    pub(super) structural_parameters: Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
     pub(super) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }
 

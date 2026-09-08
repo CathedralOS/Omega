@@ -7,7 +7,7 @@ use checked_trees::{
 };
 
 mod call_occurrences;
-mod statement_sequence;
+pub(super) mod statement_sequence;
 pub(super) mod structural_operands;
 pub(super) use call_occurrences::{outer_calls, tail_call};
 

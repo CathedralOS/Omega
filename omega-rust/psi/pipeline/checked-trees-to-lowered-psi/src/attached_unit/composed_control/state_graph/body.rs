@@ -1,0 +1,141 @@
+//! Rejoin the complete authored body before emitting its ordered effects.
+
+use super::*;
+use checked_trees::statement::StatementNode;
+
+pub(super) fn validate(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Result<usize, LoweringError> {
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    let end = statements
+        .iter()
+        .position(|statement| matches!(statement, StatementNode::Transition(_)))
+        .unwrap_or(statements.len());
+    let prefix = state.bindings.len();
+    if prefix > end || state.operations.len() != end - prefix {
+        return unsupported("Unit graph dropped or added a body effect");
+    }
+    for (ordinal, operation) in state.operations.iter().enumerate() {
+        let ordinal = prefix + ordinal;
+        match (operation, &statements[ordinal]) {
+            (
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
+                StatementNode::Assignment(assignment),
+            ) => {
+                if store.statement_index as usize != ordinal {
+                    return unsupported("Unit graph reordered a field store");
+                }
+                crate::structural_scalar_store_source::validate_assignment(
+                    checked,
+                    machine,
+                    state.state,
+                    store.statement_index,
+                    assignment,
+                    store,
+                )?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::BoundaryCall {
+                    coordinate,
+                    completion_receipts,
+                    ..
+                },
+                StatementNode::Call(_) | StatementNode::Expression(_),
+            ) if completion_receipts.is_empty()
+                && coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0 =>
+            {
+                crate::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                )?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    coordinate,
+                    claim_transfers,
+                    ..
+                },
+                StatementNode::Call(_) | StatementNode::Expression(_),
+            ) if claim_transfers.is_empty()
+                && coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0 =>
+            {
+                crate::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                )?;
+            }
+            _ => return unsupported("Unit graph reordered a source effect"),
+        }
+    }
+    Ok(end)
+}
+
+pub(in crate::attached_unit::composed_control) fn emit_store(
+    checked: &CheckedTrees,
+    state: &CheckedComposedUnitControlStatePlan,
+    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    catalogs: &catalogs::ComposedCatalogs,
+    parameters: &[StructuralParameterDeclaration],
+    evaluation: &crate::attached_unit::argument_evaluation::Evaluation,
+    values: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
+    let destination = parameters
+        .iter()
+        .find(|parameter| parameter.position == store.destination_parameter_position)
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph store destination is absent",
+        ))?;
+    let types = values
+        .iter()
+        .map(|value| value.scalar_type)
+        .collect::<Vec<_>>();
+    let lowered = crate::structural_scalar_store::lower_structural_scalar_store_place(
+        store,
+        store.statement_index,
+        destination,
+        &catalogs.structural_types,
+        crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
+    )?;
+    let bindings = evaluation
+        .scalar_bindings
+        .as_ref()
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph store has no scalar namespace",
+        ))?;
+    let expression = bindings.expression_at(
+        checked,
+        state.state,
+        store.statement_index,
+        CheckedScalarExpressionRole::AssignmentValue,
+    )?;
+    if expression.scalar_type() != lowered.scalar_type
+        || direct_expression_contains_short_circuit(&expression)
+    {
+        return unsupported("Unit graph store requires a matching branch-free value");
+    }
+    validate_direct_parameter_types(&expression, &types)?;
+    let value = emit_direct_expression(&expression, values, next_value, operations);
+    let id = operations.allocate();
+    operations.push(Operation {
+        id,
+        result: OperationResult::Unit,
+        kind: OperationKind::StructuralScalarFieldStore {
+            destination: destination.place,
+            path: lowered.path,
+            field: lowered.field,
+            value,
+        },
+    });
+    Ok(())
+}

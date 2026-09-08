@@ -43,6 +43,9 @@ use terminal_verifier::{
 #[path = "unit/indexed_structural_store.rs"]
 mod indexed_structural_store;
 
+#[path = "unit/cyclic_receiver.rs"]
+mod cyclic_receiver;
+
 #[path = "unit/affine_identity_calls.rs"]
 mod affine_identity_calls;
 

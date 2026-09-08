@@ -51,7 +51,14 @@ pub(super) fn validate(
                 "structural scalar store roster omits or duplicates an authored assignment",
             );
         };
-        validate_assignment(checked, plan, statement_index, assignment, store)?;
+        validate_assignment(
+            checked,
+            plan.machine,
+            plan.state,
+            statement_index,
+            assignment,
+            store,
+        )?;
     }
     for store in &stores {
         if !matches!(
@@ -168,18 +175,22 @@ fn construction_assignment_owner(
     Some(())
 }
 
-fn validate_assignment(
+pub(crate) fn validate_assignment(
     checked: &CheckedTrees,
-    plan: &CheckedUnitEffectMachinePlan,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
     statement_index: u32,
     assignment: &checked_trees::statement::TableAssignment,
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
 ) -> Result<(), LoweringError> {
-    let (_, state) = crate::scalar_source_custody::authored_state(checked, plan.state)?;
+    let (owner, state) = crate::scalar_source_custody::authored_state(checked, state_symbol)?;
+    if owner.symbol != machine {
+        return unsupported("structural scalar store has a different authored machine");
+    }
     let source = crate::call_source_custody::projected_receivers::store_destination(
         checked,
-        plan.machine,
-        plan.state,
+        machine,
+        state_symbol,
         assignment.target,
     )?;
     let parameter = checked
@@ -201,7 +212,7 @@ fn validate_assignment(
         .expressions
         .iter()
         .filter(|expression| {
-            expression.state == plan.state
+            expression.state == state_symbol
                 && expression.statement_ordinal == statement_index
                 && expression.role == role
         })
@@ -216,7 +227,7 @@ fn validate_assignment(
         .source_bindings
         .iter()
         .filter(|(_, binding)| {
-            binding.state == plan.state
+            binding.state == state_symbol
                 && binding.statement_ordinal == statement_index
                 && binding.role == role
         })

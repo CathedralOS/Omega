@@ -39,21 +39,35 @@ pub(in crate::attached_unit::composed_control) fn emit(
     for (position, state) in plan.states.iter().enumerate() {
         state_ids.push(block_id(allocate_dense(&mut catalogs.next_block)?));
         if position != 0 || entry_reentered {
-            let block_parameters = lower_unit_parameters(
+            let mut block_parameters = lower_unit_parameters(
                 &state.structural_parameters,
                 &catalogs.type_ids,
                 &catalogs.domain_ids,
                 &mut catalogs.next_place,
             )?;
-            structural_places.extend(block_parameters.iter().map(|parameter| {
-                StructuralPlaceDeclaration {
-                    id: parameter.place,
-                    kind: StructuralPlaceKind::BlockParameter {
-                        block: state_ids[position],
-                        position: parameter.position,
-                    },
+            for parameter in &mut block_parameters {
+                if parameter.is_self {
+                    *parameter = parameters
+                        .iter()
+                        .find(|entry| entry.is_self)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph receiver invocation is missing",
+                        ))?
+                        .clone();
                 }
-            }));
+            }
+            structural_places.extend(
+                block_parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .map(|parameter| StructuralPlaceDeclaration {
+                        id: parameter.place,
+                        kind: StructuralPlaceKind::BlockParameter {
+                            block: state_ids[position],
+                            position: parameter.position,
+                        },
+                    }),
+            );
             state_views.push(block_parameters);
             state_values.push(
                 state
@@ -88,10 +102,11 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     .collect(),
                 structural_arguments: parameters
                     .iter()
+                    .filter(|parameter| !parameter.is_self)
                     .map(|parameter| StructuralArgument {
                         place: parameter.place,
                         path: Vec::new(),
-                        access: StructuralAccess::SharedBorrow,
+                        access: parameter.access,
                     })
                     .collect(),
                 trivial_affine_discards: Vec::new(),
@@ -116,6 +131,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         let mut operations = OperationBuffer::new(catalogs.next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
             scalar_bindings: None,
+            structural_fields: Vec::new(),
             structural_parameters: state
                 .structural_parameters
                 .iter()
@@ -147,11 +163,17 @@ pub(in crate::attached_unit::composed_control) fn emit(
             checked,
             state,
             &evaluation.structural_parameters,
+            &catalogs.structural_types,
             &mut values,
             &mut next_value,
             &mut operations,
         )?;
         evaluation.scalar_bindings = Some(bindings.clone());
+        evaluation.structural_fields =
+            crate::scalar_bindings::StructuralScalarFieldBinding::collect(
+                &evaluation.structural_parameters,
+                &catalogs.structural_types,
+            );
         super::super::emission::emit_call_operations(
             checked,
             plan.machine,
@@ -232,6 +254,24 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         .zip(&edge.transfers)
                         .find(|(parameter, _)| parameter.position as usize == argument_position)
                     {
+                        if target_parameter.is_self {
+                            let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } = transfer.source else {
+                                return unsupported("Unit graph receiver cannot be rebound");
+                            };
+                            if state_parameters
+                                .get(index as usize)
+                                .map(|parameter| parameter.place)
+                                != parameters
+                                    .iter()
+                                    .find(|parameter| parameter.is_self)
+                                    .map(|parameter| parameter.place)
+                            {
+                                return unsupported(
+                                    "Unit graph receiver lost original invocation place",
+                                );
+                            }
+                            continue;
+                        }
                         let place = match transfer.source {
                             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                                 state_parameters.get(index as usize).ok_or(
@@ -423,7 +463,10 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph state root disappeared during evaluation",
                 ))?;
-            root.structural_parameters = std::mem::take(&mut state_views[position]);
+            root.structural_parameters = std::mem::take(&mut state_views[position])
+                .into_iter()
+                .filter(|parameter| !parameter.is_self)
+                .collect();
         }
         if let Some(rank) = current_rank {
             block_ranks.extend(evaluation.blocks.iter().map(|block| (block.id, rank)));

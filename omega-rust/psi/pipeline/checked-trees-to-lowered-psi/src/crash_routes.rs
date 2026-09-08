@@ -2176,6 +2176,9 @@ fn lowered_direct_scalar_term(
     values: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     Ok(match expression {
+        LoweredDirectExpression::StructuralField { .. } => {
+            return unsupported("runtime field read requires an occurrence-bound crash predicate");
+        }
         LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. } => {
             return unsupported("byte observation has no retained crash predicate term");

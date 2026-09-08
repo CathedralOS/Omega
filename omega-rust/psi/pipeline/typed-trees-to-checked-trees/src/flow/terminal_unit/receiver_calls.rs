@@ -174,6 +174,106 @@ fn borrowed_self(
         })
 }
 
+/// Rejoin receiver operands after ordinary and graph entry signatures exist.
+pub(super) fn reconcile_composed(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    candidates: &[CheckedUnitEffectMachinePlan],
+    composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
+) {
+    let retained = candidates
+        .iter()
+        .filter_map(|plan| {
+            let (index, receiver) = borrowed_self(plan)?;
+            Some((
+                plan.machine,
+                plan.state,
+                index,
+                receiver.clone(),
+                plan.structural_parameters.len(),
+            ))
+        })
+        .chain(composed.iter().filter_map(|plan| {
+            let entry = plan.states.first()?;
+            let (index, receiver) =
+                entry
+                    .structural_parameters
+                    .iter()
+                    .enumerate()
+                    .find(|(_, parameter)| {
+                        parameter.is_self && parameter.access != CheckedStructuralAccess::Owned
+                    })?;
+            Some((
+                plan.machine,
+                entry.state,
+                index,
+                receiver.clone(),
+                entry.structural_parameters.len(),
+            ))
+        }))
+        .collect::<Vec<_>>();
+    composed.retain_mut(|plan| {
+        for state in &mut plan.states {
+            for operation in &mut state.operations {
+                let CheckedUnitEffectOperationPlan::CallUnit {
+                    coordinate,
+                    target_machine,
+                    target_state,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } = operation
+                else {
+                    continue;
+                };
+                let Some((_, _, receiver_index, target, count)) =
+                    retained.iter().find(|(machine, state, ..)| {
+                        machine == target_machine && state == target_state
+                    })
+                else {
+                    continue;
+                };
+                let Some(place) = receiver_place(
+                    program,
+                    facts,
+                    plan.machine,
+                    state.state,
+                    *coordinate,
+                    *target_state,
+                ) else {
+                    return false;
+                };
+                let Some(argument) = receiver_argument(
+                    program,
+                    plan.machine,
+                    state.state,
+                    *coordinate,
+                    &state.structural_parameters,
+                    &place,
+                    target,
+                ) else {
+                    return false;
+                };
+                if structural_arguments.len().checked_add(1) != Some(*count)
+                    || *receiver_index > structural_arguments.len()
+                {
+                    return false;
+                }
+                structural_arguments.insert(*receiver_index, argument);
+                for transfer in claim_transfers {
+                    if transfer.argument_index as usize >= *receiver_index {
+                        let Some(position) = transfer.argument_index.checked_add(1) else {
+                            return false;
+                        };
+                        transfer.argument_index = position;
+                    }
+                }
+            }
+        }
+        true
+    });
+}
+
 fn receiver_place(
     program: &TypedTrees,
     facts: &CheckFacts,
