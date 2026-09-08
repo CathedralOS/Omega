@@ -803,6 +803,11 @@ emerges, apply the scope pause before expanding into permanent helper families.
 
 ## Legacy route: retirement must follow its consumers
 
+The rejected Epsilon-facing abstraction experiments are separately documented in
+the [Delta abstraction review](delta_abstraction_review.md), including their
+archival revision and assertion-to-selected-coverage mapping. Their extra
+elaborator and size-pinning gate are retired; their cost findings remain.
+
 `bootstrap/2_gamma/bootstrap/concatenative/` retains three language-source/
 receipt files totaling 4,968 lines/129,149 bytes, one 26,674-byte tape, and five docs.
 These are outside the selected execution route; their size is maintenance and

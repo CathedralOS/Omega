@@ -1,15 +1,43 @@
-# Delta abstraction-boundary experiment
+# Delta abstraction review
 
-This experiment asks whether the 11,984-line Delta-authored Epsilon evaluator is
+Historical engineering evidence, not a maintained execution gate or an accepted
+language extension. The complete experiment is recoverable at
+`8148975c627c161189eeff912c67765ab0db6f76:tests/epsilon/delta-boundary-experiment/`.
+The measurements below describe that checkout's 610,428-byte Epsilon closure;
+D95/D103 in the [decision record](../architecture/bootstrap_chain/decisions.md)
+describe earlier subjects. They are not contradictory current identity pins.
+
+The rejected elaborator, analyzer, proposal sources, and comparison kernels
+have been retired: 13 files, 968 lines, and 43,350 bytes. No selected compiler,
+evaluator, seed, or language semantics changed. This follows the
+[whole-chain retention test](bootstrap_minimization.md#retention-test), not a
+claim that the Epsilon or Delta edge is complete.
+
+## Coverage after retirement
+
+| Former assertion | Retained coverage or disposition |
+| --- | --- |
+| Recursive ADT construction, payload projection, nested matches, list traversal | Selected [Delta staged gate](../../../tests/delta/staged-compiler/README.md), including `payload_match`, `recursive_match`, `list_match`, `nested_match`, and proper-tail controls. |
+| Generic spellings do not enter ordinary Delta | Canonical [frontend gate](../../../tests/delta/frontend-boundary/README.md) rejects `Option<T>` with exact DCOUT syntax code 4 at source byte 6. |
+| Candidate kernels return 33 | Retire copied toy algorithms. Production [checking](../../../tests/epsilon/checking/README.md) and [candidate-invariant controls](../../../tests/epsilon/checking-invariants/README.md) remain; the experiment did not call them. Its final-candidate toy used addition of disjoint reasons, not production reason-set union. |
+| Source-family counts, byte identities, exact elaborator output, 52-form alpha-equivalence, and break-even arithmetic | Historical experiment evidence below and in Git, not selected-language regression obligations. |
+
+Only the old gate consumed these experiment sources. Its caller in the Epsilon
+source guide is removed with it. No private `.delta-plus` syntax, host parser,
+or alternate elaboration pass remains in the selected validation route.
+
+## Measured comparison
+
+This experiment asked whether the 11,984-line Delta-authored Epsilon evaluator was
 large because Delta is missing reusable mechanisms, or because Epsilon owns a
 large amount of irreducible language and diagnostic policy.
 
-The analyzer parses complete top-level Delta forms from the current compiler and
-measures five candidate families. Reported ceilings are deliberately generous:
+The analyzer parsed complete top-level Delta forms from that compiler and
+measured five candidate families. Reported ceilings are deliberately generous:
 they assume every identified declaration and helper disappears and charge zero
 lines for the corresponding Delta language/compiler implementation.
 
-| Candidate | Exact current family | Free-feature ceiling | Result |
+| Candidate | Measured family | Free-feature ceiling | Result |
 | --- | --- | ---: | --- |
 | Generic option/result | 8 optional declarations plus 25 parse outcomes | 99 lines | Reject for now |
 | Generic immutable list | 27 ordinary lists, 22 template reverses, 3 template counts | 254 exact lines | Reject standalone elaboration |
@@ -23,7 +51,7 @@ explosion.
 
 ## Generic sums
 
-Current option payloads have both `0/1` and `0/3` constructor arities. Parse
+The measured option payloads had both `0/1` and `0/3` constructor arities. Parse
 outcomes have `1/2` and `2/2` shapes. A single `Option<T>` or `Result<T,E>` is
 insufficient without generic product/record payloads. Constructor matches and
 phase-specific rejection logic remain at every use site.
@@ -31,8 +59,8 @@ phase-specific rejection logic remain at every use site.
 The declaration-only ceiling is 99 lines. Supporting this requires parametric
 types, generic type checking, instantiation or uniform representation, and
 recursive generic references in the Gamma-authored Delta compiler. The
-hypothetical syntax is retained in `generic_option.delta-plus` and must reject
-under current monomorphic Delta. This does not earn that language expansion.
+hypothetical syntax in the archived `generic_option.delta-plus` rejected under
+monomorphic Delta. This did not earn that language expansion.
 
 ## Generic lists
 
@@ -50,7 +78,7 @@ functions are exact templates. The retained replaceable family is therefore
 52 forms, 254 lines, and 11,809 bytes; it is not a count of every reversal in
 the evaluator.
 
-`list_elaborator.gamma` implements a complete two-pass source transformation
+The archived `list_elaborator.gamma` implemented a two-pass source transformation
 for this derived form:
 
 ```text
@@ -102,8 +130,8 @@ from this evidence.
 
 ## Source spans
 
-Two executable kernels compare repeated `(start, end)` fields with a nominal
-`SourceSpan` wrapper under current Delta:
+Two executable kernels compared repeated `(start, end)` fields with a nominal
+`SourceSpan` wrapper under the selected Delta:
 
 ```text
                          Lines  Source bytes  Gamma receipt bytes

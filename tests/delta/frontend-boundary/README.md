@@ -16,6 +16,8 @@ The exact 40-byte DCOUT controls cover the frontend phases:
 - Lexical rejection distinguishes malformed tokens (code 4) from complete
   decimal integer tokens outside signed 64-bit range (code 5), at the token's
   first byte. A suffix after an overflowing digit prefix is still malformed.
+  Generic-style `Option<T>` is likewise malformed at its name-token start;
+  no separate elaborator admits an alternate Delta syntax.
   The first lexical defect wins before global collection, declaration types,
   and entry schema checking; even a later forbidden source byte precedes it.
 - Balanced-tree parsing precedes grammar-role checking. Unmatched closing

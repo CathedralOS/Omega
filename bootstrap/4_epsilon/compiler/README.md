@@ -98,7 +98,6 @@ From the repository root:
 ```sh
 sh tests/bootstrap/source-closure.sh
 sh tools/bootstrap/check-chain-hygiene.sh
-sh tests/epsilon/delta-boundary-experiment/run.sh
 sh tests/epsilon/checking/run.sh
 sh tests/epsilon/checking-invariants/run.sh
 sh tests/epsilon/runtime-references/run.sh
@@ -110,7 +109,11 @@ sh tests/delta/staged-compiler/run.sh
 ```
 
 [Implementation notes](implementation_notes.md) describe the supported checking
-and execution slices and their conformance controls. The staging executor carries
+and execution slices and their conformance controls. The historical
+[Delta abstraction review](../../../wiki/pre_migration/design_briefs/delta_abstraction_review.md)
+preserves the rejected experiments' cost findings and selected coverage;
+their elaborator and comparison kernels are no longer validation dependencies.
+The staging executor carries
 record, fixed-array, and sum value copies, nested receiver places, and separate
 invocation-local homes. Views retain literal, live-place, or existing snapshot
 backing; strings, range slices, `.as_slice`, indexing, lengths, and all four

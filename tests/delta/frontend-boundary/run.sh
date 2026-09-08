@@ -99,6 +99,8 @@ for name, source, code, coordinate in (
     ("double minus is malformed", b"(def main () Int --1)\n", 4, 17),
     ("decimal point is malformed", b"(def main () Int 1.0)\n", 4, 17),
     ("punctuation is malformed", b"(def main () Int @)\n", 4, 17),
+    ("generic type spelling is not a Delta identifier",
+     b"(data Option<T> (None) (Some T))\n" + identity_source, 4, 6),
     ("positive adjacent integer overflow",
      b"(def main () Int 9223372036854775808)\n", 5, 17),
     ("negative adjacent integer overflow",
