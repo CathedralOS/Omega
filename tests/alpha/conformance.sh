@@ -9,6 +9,8 @@
 # Encoding: opcodes 1 byte; reg operands 1 byte; imm/addr 8 bytes LE. addr is an
 # absolute tape offset (mem[0] = tape[0]). Trap (unknown opcode / div /0 or
 # INT_MIN/-1) raises SIGILL -> shell exit 132 (128+4).
+# Ratified bounds traps remain pending native hardening and are not exercised by
+# this pre-hardening seed suite.
 TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$TEST_DIR
 while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
@@ -86,7 +88,7 @@ tc call_ret        42  "" "" 13 0b00000000000000 00 00 01 00 2a00000000000000 14
 tc unknown_trap   132  "" "" ff
 
 # AlphaBootstrapV4 extends the V3 memory end without moving the stack origin.
-# All accesses below are in [0, 0x70000000); no out-of-range result is assumed.
+# All accesses below are in [0, 0x70000000); no pending bounds trap is exercised.
 tc upper_origin_zero 0 "" "" 01 00 0000004000000000 08 01 00 00 01
 tc upper_middle_zero 0 "" "" 01 00 0000005000000000 08 01 00 00 01
 tc upper_final_zero  0 "" "" 01 00 ffffff6f00000000 08 01 00 00 01

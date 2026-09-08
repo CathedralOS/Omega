@@ -9,7 +9,7 @@ stack offset `0x10000000`, all opcode transitions, and the 16 MiB stamped hole
 (16,777,212 raw tape bytes). Upper memory does not extend the downward-growing
 stack. The conformance gate checks zeroed upper bytes, byte and final-word
 stores, and the unchanged first-call return-address location without invoking
-undefined out-of-range accesses.
+bounds traps.
 
 The macOS source rebuild uses the selected Xcode or `xcrun` CommandLineTools
 clang and SDK with `-arch arm64 -isysroot SDK -Wl,-no_uuid`; the Alpha/Beta
@@ -39,20 +39,22 @@ plus the admitted Beta compiler tape.
 It contains no compiler framework or higher-language primitive. Host stamping
 packages a raw tape; it does not compile a language.
 
-## Unimplemented hardening objective
+## Ratified bounds-hardening contract
 
-Bounds, resource, and boundary failures should become explicit deterministic
-fault/exhaustion outcomes rather than corruption. This is a hardening objective,
-not current opcode semantics: [SEMANTICS section 8](SEMANTICS.md#8-currently-undefined-the-honest-edges)
-still leaves out-of-range memory and stack behavior undefined, and existing
-programs must remain in bounds. A revision must keep the native realization
-small enough to audit, record narrow loading/I/O behavior, and update both
-realizations and their conformance evidence together. Do not infer Windows
-runtime validation from source/listing reconstruction.
+[SEMANTICS section 8](SEMANTICS.md#8-bounds-and-fixed-capacity) assigns failed
+runtime range checks and oversized stamped input to the existing abnormal,
+non-resumable Trap. Runtime failure preserves prior stdout; loader failure occurs
+before execution and has empty stdout. Neither adds diagnostic bytes, a new
+opcode, or a higher-rung resource result.
 
-The [open bounds-failure decision](../../OWNER_QUESTIONS.md#q2--alpha-bounds-failure-outcome)
-separates the proposed reuse of Trap from a distinct fault/resource outcome.
-Neither proposal changes the selected semantics until the owner rules.
+The native hardening remains unimplemented. It must check complete fetch,
+operand, data, and call/return stack ranges with nonwrapping arithmetic, and
+reject a stamped length above 16,777,212 before copying. The implementation must
+preserve all admitted in-bound behavior, keep both native realizations small
+enough to audit, and update their source/listings, identities, and conformance
+evidence together. Do not infer Windows runtime validation from source/listing
+reconstruction. The independent reference VM must acquire the same transition
+checks with the new differential cases.
 
 ## Owned files
 

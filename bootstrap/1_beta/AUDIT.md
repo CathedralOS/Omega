@@ -93,8 +93,7 @@ publishes that prefix.
 
 The compiler executes no `div` or `mod`, has no computed control target, and
 writes semantic memory only in the checked source span and eight-byte scratch.
-It therefore cannot reach Alpha's arithmetic traps or undefined out-of-range
-memory behavior under this profile.
+It therefore cannot reach Alpha's arithmetic or bounds traps under this profile.
 
 ## Source-to-tape correspondence
 

@@ -123,17 +123,14 @@ prerequisite to every lower-rung milestone.
 
 - **ALPHA-BOUNDS-HARDENING.** Owners: `bootstrap/0_alpha/` semantics, native
   implementations and audited listings, with `tests/alpha/conformance.sh`.
-  **OWNER-BLOCKED:** [Alpha bounds-failure outcome](OWNER_QUESTIONS.md#q2--alpha-bounds-failure-outcome)
-  must settle reuse of Trap versus a distinct fault/resource observation.
-  The [hardening target](bootstrap/0_alpha/README.md) requires deterministic
-  bounds/resource failure; [current semantics](bootstrap/0_alpha/SEMANTICS.md)
-  still leave out-of-range memory and return-stack behavior undefined. Specify
-  the exact fault/exhaustion contract through
-  [owner escalation](bootstrap/MINIMIZATION.md#owner-escalation) before changing
-  opcode meaning, then implement it without changing admitted in-bound runs.
-  Acceptance: matched semantics/listings/native implementations, exact-boundary
-  and adjacent failure controls for memory, loading, and return-stack capacity,
-  deterministic failure, and refreshed affected seed identities and evidence.
+  The [ratified contract](bootstrap/0_alpha/SEMANTICS.md#8-bounds-and-fixed-capacity)
+  reuses Trap for failed runtime range checks and oversized stamped input,
+  preserving prior stdout without adding diagnostics or a higher-rung resource
+  result. Implement it without changing admitted in-bound runs.
+  Acceptance: matched semantics/reference/listings/native implementations,
+  exact-boundary and adjacent failure controls for memory, loading, and
+  return-stack capacity, deterministic Trap with runtime stdout-prefix
+  preservation, and refreshed affected seed identities and evidence.
   Validate supported Windows and macOS routes; report unavailable host execution
   explicitly rather than treating source review as a runtime pass.
 
