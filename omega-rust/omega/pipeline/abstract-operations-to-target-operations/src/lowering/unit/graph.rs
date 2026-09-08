@@ -25,6 +25,8 @@ pub(super) fn lower(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
+    settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
 ) -> Result<TargetFunction, LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
     if function.result != AbstractFunctionResult::Unit
@@ -201,6 +203,8 @@ pub(super) fn lower(
                 target,
                 functions,
                 structural_types,
+                boundary_machines,
+                settlements,
                 &prepared,
                 &mut live,
                 &mut operations,
@@ -267,12 +271,44 @@ fn lower_operation(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
+    settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     prepared: &super::setup::PreparedUnitFunction,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
     match operation {
+        AbstractOperation::BoundaryCall { boundary, .. }
+            if settlements.get(boundary).is_some_and(|binding| {
+                matches!(
+                    binding.realization,
+                    target_operations::BoundarySettlementRealization::Builtin(
+                        BoundaryRealization::HostedWriteByteI32(_)
+                    )
+                )
+            }) =>
+        {
+            super::boundary_call::lower_boundary_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                boundary_machines,
+                settlements,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &super::setup::parameters_by_place(&prepared.parameters),
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                &BTreeMap::new(),
+                &mut live.integers,
+                operations,
+                provenance,
+                &mut false,
+            )
+        }
         AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::ByteSequenceRead { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }

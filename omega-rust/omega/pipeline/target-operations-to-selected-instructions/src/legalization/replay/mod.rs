@@ -19,6 +19,7 @@ pub(crate) fn replay_terminal_legalized_plan(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     proposed: &LegalizedOperationPlan,
+    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<
     (
         usize,
@@ -26,7 +27,7 @@ pub(crate) fn replay_terminal_legalized_plan(
     ),
     LegalizationError,
 > {
-    validate_replay_custody(target, abstract_plan, unit, proposed)?;
+    validate_replay_custody(target, abstract_plan, unit, proposed, verified_input)?;
     let projected = projected_structural_call_return::replay(
         target,
         abstract_plan,

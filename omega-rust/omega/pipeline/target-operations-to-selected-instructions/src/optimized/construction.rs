@@ -19,7 +19,7 @@ pub(super) fn construct_optimized_instruction_selection(
     let legalized = legalize_target_operations(
         optimized_target.target_operations(),
         optimized_target.optimized().plan(),
-        optimized_target.optimized().unit(),
+        optimized_target.optimized(),
     )
     .map_err(OptimizedSelectionPipelineError::Legalization)?;
     let selection_constraints = selection_constraints(&legalized, register_environment);

@@ -31,7 +31,7 @@ become fictional source values. Compiler condition tests, copies and address
 work do not invent Psi operations or logical charges. Returns retain their exact
 Unit/scalar role, result constraint where applicable, and edge fuel.
 
-Acyclic Unit graphs use this same transport for `u8`, `u32`, `u64`, `i64` and
+Unit graphs use this same transport for `u8`, `u32`, `u64`, `i64` and
 materialized Boolean block arguments. Exact block/value/type references are
 available only in their defining block and dominated successors; each arrival
 retains its own ordered bindings, even when both conditional arms have the same
@@ -45,7 +45,16 @@ checks the expansion and contracts it back to the source graph, with the authore
 edge and its fuel retained once; the final implementation jump carries lineage,
 not a second semantic transition. No source block or operation is fabricated.
 Computed Boolean comparisons remain branch predicates until value materialization
-is implemented; natural-ranked native control remains separate.
+is implemented.
+
+Natural-ranked Unit writers use this ordinary graph, including cyclic descriptor
+arrivals, hosted byte output and caller continuation. Legalization borrows the
+verified artifact from the validated abstract stage and replays its exact current
+components. The optimizer freezes the complete natural-ranked function, including
+rank-producing prefixes and exits, against the verified source; it produces no
+countdown certificate or fixed-work bound. Raw cyclic units cannot replace that
+custody. Block layout uses reverse postorder when backedges prevent topological
+scheduling; layout itself grants no termination authority.
 
 Whole, unqualified, unrestricted shared byte views use the same edge bridges.
 Each block parameter owns a 16-byte activation-local descriptor slot. Its address

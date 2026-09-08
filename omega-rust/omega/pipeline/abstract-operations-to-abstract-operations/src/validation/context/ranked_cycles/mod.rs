@@ -7,6 +7,7 @@ mod countdown_ranking;
 mod freeze;
 mod graph;
 mod model;
+mod natural;
 mod replay;
 mod topology;
 

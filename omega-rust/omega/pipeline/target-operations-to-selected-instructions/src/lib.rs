@@ -12,7 +12,7 @@ mod structural_reference_input;
 mod structural_unit_input;
 
 pub use legalization::{
-    LegalizationError, LegalizationValidationReceipt,
+    LegalizationError, LegalizationSource, LegalizationValidationReceipt,
     ProjectedStructuralCallReturnLegalizationError,
     ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
     legalization_validator_identity, legalization_validator_identity_v17_legacy,

@@ -28,8 +28,9 @@ pub(crate) fn derive_source_function_rosters(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
-    validate_source_custody(target, abstract_plan, unit)?;
+    validate_source_custody(target, abstract_plan, unit, verified_input)?;
     let projected = projected_structural_call_return::derive(target, abstract_plan, unit)?;
 
     let mut rosters = SourceFunctionRosters {

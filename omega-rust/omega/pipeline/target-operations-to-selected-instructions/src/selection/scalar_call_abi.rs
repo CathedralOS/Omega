@@ -329,10 +329,8 @@ fn validate_borrowed_argument(
         },
     )
     .ok()?;
-    if (source.attachment.is_some() && !exclusive)
-        || source.ranked.is_some()
+    if source.ranked.is_some()
         || !signature.entry_claims.is_empty()
-        || !signature.published_service_ceiling.is_empty()
         || (!parameters.is_empty()
             && !crate::structural_unit_input::accepts_borrowed_view(
                 &source.call_plan,

@@ -188,6 +188,21 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     matches!(&targeted.operation, target_operations::TargetOperation::UnitBody(body)
                         if ieee_literal_retained(operation, &body.operations))
                 }
+                AbstractOperation::EstablishByteSequenceLiteral {
+                    psi_operation, place, structural_type, bytes,
+                } => {
+                    // The mandatory object/source replay above checks storage and
+                    // byte initialization. Account for the exact retained literal,
+                    // not just a place declaration or a matching payload length.
+                    matches!(&targeted.operation, target_operations::TargetOperation::UnitBody(body)
+                        if body.operations.iter().filter(|operation| matches!(operation,
+                            target_operations::TargetUnitOperation::EstablishByteSequenceLiteral {
+                                psi_operation: actual_operation, place: actual_place,
+                                structural_type: actual_type, bytes: actual_bytes,
+                            } if actual_operation == psi_operation && actual_place == place
+                                && actual_type == structural_type && actual_bytes == bytes
+                        )).count() == 1)
+                }
                 AbstractOperation::ByteSequenceLength { .. }
                 | AbstractOperation::ByteSequenceRead { .. }
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
