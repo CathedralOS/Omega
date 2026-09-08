@@ -234,9 +234,10 @@ Omega/
 |   |-- 2_gamma/                                           # Typed scalar/effect language and Beta-written evaluator.
 |   |-- 3_delta/                                           # Typed pure functional compiler language.
 |   |-- 4_epsilon/                                         # Fixed-storage compiler-host language and evaluator.
-|   `-- 5_omega/                                           # Epsilon-written first Omega compiler D.
-|       |-- compiler/                                      # D source members.
-|       `-- omega_compiler.epsilon.sources                  # Canonical D source-member manifest.
+|   |-- 5_omega/                                           # Epsilon-written first Omega compiler D.
+|   |   |-- *.epsilon                                     # D source members, directly under the rung.
+|   |   `-- omega_compiler.epsilon.sources                  # Canonical D source-member manifest.
+|   `-- proofs/                                            # Gamma checker and Beta encoding theory; not a language rung.
 |-- source/
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.

@@ -311,7 +311,7 @@ expected type or producing an authored type/arity rejection. Negative row
 coordinates still assert. This adds no diagnostic code or coordinate convention.
 The ordinary phase outcome propagates the owned failure to the existing
 publisher before lowering or output. The
-[internal-boundary controls](../../../../../tests/delta/internal-boundary/README.md)
+[internal-boundary controls](../../../../tests/delta/internal-boundary/README.md)
 exercise actual dispatch and publication using synthetic retained frames;
 those frames are not claimed to arise from admitted Delta source.
 

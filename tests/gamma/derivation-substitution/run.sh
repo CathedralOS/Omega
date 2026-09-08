@@ -20,7 +20,7 @@ esac
 SUBSTITUTION_TMP=$(mktemp -d)
 trap 'rm -rf -- "$SUBSTITUTION_TMP"' EXIT HUP INT TERM
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_GAMMA/derivation_checker/implementation/implementation.gamma.sources" \
+    "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$SUBSTITUTION_TMP/implementation.gamma"
 materialize_gamma_evaluator "$SUBSTITUTION_TMP/evaluator" >/dev/null
 python3 -B "$GATE_DIR/gate.py" "$SUBSTITUTION_TMP"

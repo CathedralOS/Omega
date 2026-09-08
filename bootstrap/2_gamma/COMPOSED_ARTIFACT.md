@@ -17,7 +17,7 @@ source-length DECIMAL
 ```
 
 The evaluator identity must name the selected
-`evaluator/gamma_evaluator_bytecode.tape`. The source identity covers the exact
+`gamma_evaluator_bytecode.tape`. The source identity covers the exact
 Gamma source bytes, including comments and whitespace. The manifest does not
 contain source, select semantics, or authorize a different evaluator.
 

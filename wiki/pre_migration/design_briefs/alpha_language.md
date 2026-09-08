@@ -27,7 +27,7 @@ Alpha supplies raw deterministic computation:
 
 It does not parse source text, check proofs, define higher-language meaning, manage
 ownership, allocate objects, or optimize code. The textual assembler is the
-Beta rung and lives at `bootstrap/1_beta/compiler/`; its implementation is itself a
+Beta rung and lives at `bootstrap/1_beta/`; its implementation is itself a
 raw Alpha tape.
 
 ## Auditability constraints

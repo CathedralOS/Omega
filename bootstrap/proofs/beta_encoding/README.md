@@ -11,7 +11,7 @@ The [implementation design](../../../wiki/pre_migration/architecture/bootstrap_c
 fixes the acceptance target: the entire selected Gamma evaluator's raw Beta
 source and persisted Alpha tape under the complete error-valued encoder.
 Keep artifact-specific definitions and eventual root reconstruction/proof
-production here, separate from the [generic checker](../derivation_checker/README.md).
+production here, separate from the [generic checker](../checker/README.md).
 Formation and generic proof success do not make a partial or producer-selected
 Beta theory authoritative.
 

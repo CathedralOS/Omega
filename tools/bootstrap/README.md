@@ -24,6 +24,10 @@ Owner roots come from tracked and nonignored untracked files in a Git checkout,
 or from physical files in a source archive. Empty directories left by a move do
 not create owners. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory
 behavior in disposable archive and checkout fixtures.
+Alpha, Beta, and Gamma may not contain subdirectories. Delta, Epsilon, and D
+may retain concept-owned folders but not a redundant root `compiler/` directory.
+The separate `bootstrap/proofs/` owner contains the checker and encoding theory;
+it is not another language rung.
 
 `source_closure.py MANIFEST OUTPUT` checks and concatenates explicitly ordered
 source members. `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
@@ -35,6 +39,8 @@ Inventory traversal checks membership only; it never selects or orders inputs.
 
 `paths.sh` exports canonical selected-owner paths. Future compiler artifact
 paths may be named while absent; the topology gate does not pretend they exist.
+Proof gates use `OMEGA_PATH_DERIVATION_CHECKER_SOURCES` and
+`OMEGA_PATH_BETA_ENCODING_SOURCES` from that same registry.
 Shell and Python remain replaceable invocation plumbing and may not parse an
 accepted language, lower code, manufacture proof premises, or decide
 admission.

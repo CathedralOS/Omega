@@ -182,7 +182,7 @@ durable Gamma plan nodes belong under `representation/`.
 
 ## Validation and remaining boundaries
 
-The [emission gate](../../../../../tests/delta/emission/README.md) exercises
+The [emission gate](../../../../tests/delta/emission/README.md) exercises
 count/publication agreement, prefix eligibility and fallback, continuation
 ordering, and capture reconstruction on private Gamma-plan controls. These
 controls do not claim source admission or executable program semantics.
@@ -192,10 +192,10 @@ exercises nested expressions and wide payloads. Exact Epsilon checking and
 execution receipts remain separate full-customer reconstruction gates. A
 changed receipt requires explanation, not a relaxed expectation.
 
-The [lowering-plan gate](../../../../../tests/delta/lowering-plan/README.md)
+The [lowering-plan gate](../../../../tests/delta/lowering-plan/README.md)
 checks authored expectations against the pre-normalization plan's expanded
 body heights. The separate normalizer handles the
-[selected Gamma profile](../../../../2_gamma/EVALUATOR_PROFILE.md#exact-capacities)
+[selected Gamma profile](../../../2_gamma/EVALUATOR_PROFILE.md#exact-capacities)
 limit of 255 nested expression lists per generated function body. Serialization
 does not make extraction or capture decisions and does not alter those budgets.
 

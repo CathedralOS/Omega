@@ -54,7 +54,7 @@ materialized `evaluator`, use
 not reconstruct or replace the evaluator. Both entrypoints propagate failures.
 
 The [producer entry](main.gamma) calls ordinary Gamma
-[`beta_encoding_theory`](../../../bootstrap/2_gamma/beta_encoding/theory/theory.gamma)
+[`beta_encoding_theory`](../../../bootstrap/proofs/beta_encoding/theory/theory.gamma)
 only for empty input. Its marked application result publishes bytes without a
 scalar terminator. Three nonempty inputs require status 1 and empty stdout and
 stderr. The exact producer composition is pinned in [source.tsv](source.tsv).

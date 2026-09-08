@@ -28,7 +28,7 @@ Epsilon-written source can run while compiling `C`, producing a better `omega`.
 
 ## Source ownership
 
-- `bootstrap/4_epsilon/compiler/` owns the Delta-written evaluator that executes Epsilon.
+- `bootstrap/4_epsilon/` owns the Delta-written evaluator that executes Epsilon.
 - the Epsilon-written first Omega compiler source closure `D` belongs under
   `bootstrap/5_omega/`;
 - `source/{psi,omega}/` owns the Omega-written self-hosting closure `C` and the

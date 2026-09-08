@@ -13,10 +13,15 @@ implementation:
 3_delta/    typed pure functional language and compiler
 4_epsilon/  fixed-storage compiler-host language and evaluator
 5_omega/    Epsilon-written first Omega compiler D
+proofs/     source-owned proof checker and artifact-specific theories
 ```
 
 Numeric prefixes sort the retained rungs in Greek-letter order. They are folder
 names, not language versions; source suffixes and language names are unchanged.
+[`proofs/`](proofs/README.md) supports the chain's proof obligations; it is not
+another language rung. Alpha, Beta, and Gamma keep their small implementations
+beside their contracts. Later rungs retain concept-owned source folders without
+an enclosing `compiler/` directory.
 Tool and test directories retain their language names. Audited seed source and
 disassembly retain historical path annotations so relocation preserves their bytes.
 
@@ -36,5 +41,3 @@ development comparator and grants no bootstrap authority.
 Cross-rung scripts resolve these owners through
 [`../tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh). Host tools may
 invoke, stamp, compare, and report; they do not implement a language stage.
-Retained downgraded implementations remain nested under their owning rung and
-are not selected chain edges.

@@ -13,13 +13,13 @@ packages, heap, proof language, dependent types, or implicit host services.
 The normative contract is
 [`bootstrap/4_epsilon/LANGUAGE.md`](../../../../../bootstrap/4_epsilon/LANGUAGE.md). The
 Delta-written evaluator closure selected by
-`bootstrap/4_epsilon/compiler/epsilon_compiler.delta.sources` is incomplete and
+`bootstrap/4_epsilon/epsilon_compiler.delta.sources` is incomplete and
 has no final composed artifact. Its small `epsilon_compiler.delta` entrance
 leads into concept-owned checking and execution areas; see the
-[source guide](../../../../../bootstrap/4_epsilon/compiler/README.md).
+[source guide](../../../../../bootstrap/4_epsilon/README.md).
 Epsilon's sole language-chain customer
 is the first full Omega compiler closure `D` selected by
-`bootstrap/5_omega/compiler.epsilon.sources`.
+`bootstrap/5_omega/omega_compiler.epsilon.sources`.
 
 Epsilon does not compile itself or own an Alpha backend. Its feature ledger
 admits a facility only for D or a measured reduction in the complete chain.

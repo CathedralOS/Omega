@@ -31,7 +31,7 @@ on that subject. Both receipts matched the selected evaluator's exact
 711,597-byte output. The difference is 275,352 pairs at 40 bytes each;
 this is cumulative allocation, not live memory or host RSS. Both fit the
 selected provision. Single-run timings do not establish a throughput gain.
-Retain the [existing cursor](../../bootstrap/3_delta/compiler/implementation/checking/names/README.md)
+Retain the [existing cursor](../../bootstrap/3_delta/implementation/checking/names/README.md)
 without expansion while assessing simplification; neither customer fit nor
 this isolated comparison closes full parameter, constructor, or match limits.
 Both investigations ran on macOS arm64; no Windows result is claimed.
@@ -73,8 +73,8 @@ production authority. Do not recreate local scratch paths as required tooling.
 ## Coherent provisions
 
 Compare the integrated recipe against the
-[checker checking/allocation ledger](../../bootstrap/2_gamma/derivation_checker/CHECKING.md),
-[comparison argument](../../bootstrap/2_gamma/derivation_checker/COMPARISON.md#amortized-allocation-argument),
+[checker checking/allocation ledger](../../bootstrap/proofs/checker/CHECKING.md),
+[comparison argument](../../bootstrap/proofs/checker/COMPARISON.md#amortized-allocation-argument),
 and Gamma's enclosing frame and arena, not a work-limit constant alone.
 The current request/work provisions are 8 MiB and 655,360 work; larger private
 provisions are candidates, not demonstrated fits or changes to language laws.

@@ -45,6 +45,7 @@ PY
 expect_result() {
   expected=$1
   description=$2
+  diagnostic=${3:-owners differ}
   if sh "$FIXTURE_ROOT/tools/bootstrap/check-chain-hygiene.sh" \
       > "$FIXTURE_PARENT/result" 2>&1; then
     actual=accepted
@@ -57,7 +58,7 @@ expect_result() {
     exit 1
   fi
   if [ "$expected" = rejected ]; then
-    grep -q 'owners differ' "$FIXTURE_PARENT/result"
+    grep -q "$diagnostic" "$FIXTURE_PARENT/result"
   fi
 }
 
@@ -69,6 +70,19 @@ do
   touch "$FIXTURE_ROOT/$tree/retired/unexpected.source"
   expect_result rejected "archive with alternate $tree owner"
   rm "$FIXTURE_ROOT/$tree/retired/unexpected.source"
+done
+
+for rung in 0_alpha 1_beta 2_gamma
+do
+  mkdir "$FIXTURE_ROOT/bootstrap/$rung/nested"
+  expect_result rejected "nested directory in $rung" 'flat rung contains subdirectories'
+  rmdir "$FIXTURE_ROOT/bootstrap/$rung/nested"
+done
+for rung in 3_delta 4_epsilon 5_omega
+do
+  mkdir "$FIXTURE_ROOT/bootstrap/$rung/compiler"
+  expect_result rejected "redundant compiler directory in $rung" 'redundant compiler directory remains'
+  rmdir "$FIXTURE_ROOT/bootstrap/$rung/compiler"
 done
 
 git -C "$FIXTURE_ROOT" init -q
@@ -89,4 +103,4 @@ done
 git -C "$FIXTURE_ROOT" add -f source/retired/.DS_Store
 expect_result rejected 'tracked file matching an ignore pattern'
 
-echo 'bootstrap owner inventory: 10 archive and checkout cases pass'
+echo 'bootstrap owner inventory: 16 archive, checkout, and flat-layout cases pass'
