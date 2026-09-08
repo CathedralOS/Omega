@@ -11,6 +11,25 @@ pub(super) fn try_lower_direct_scalar(
     structural_parameters: &[TargetStructuralParameter],
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<bool, LoweringError> {
+    if let AbstractOperation::CallStructuralScalar {
+        psi_operation,
+        result,
+        ..
+    } = operation
+    {
+        let value = super::super::structural_call::lower_ordinary(
+            operation,
+            machine,
+            target,
+            functions,
+            structural_types,
+            structural_parameters,
+            values,
+        )?;
+        insert_value(values, result.value, value)?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
     if let AbstractOperation::Call {
         psi_operation,
         result,

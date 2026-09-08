@@ -7,6 +7,7 @@ use target_operations::{
 };
 mod byte_view;
 mod expressions;
+mod structural_call;
 mod unit;
 pub(super) fn validate_target(
     target: &TargetFunction,

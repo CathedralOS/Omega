@@ -167,6 +167,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             start, end, length, ..
         } => vec![*start, *end, *length],
         O::Call { arguments, .. }
+        | O::CallStructuralScalar { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
@@ -219,5 +220,30 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .collect(),
         O::Return { value, .. } => vec![*value],
         _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mixed_structural_scalar_call_uses_keep_order_and_repetition() {
+        let first = ValueId::new(1).unwrap();
+        let second = ValueId::new(2).unwrap();
+        let operation = AbstractOperation::CallStructuralScalar {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: abstract_operations::AbstractResult {
+                value: ValueId::new(3).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            },
+            callee: MachineId::new(1).unwrap(),
+            arguments: vec![first, second, first],
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        assert_eq!(operation_uses(&operation), vec![first, second, first]);
     }
 }

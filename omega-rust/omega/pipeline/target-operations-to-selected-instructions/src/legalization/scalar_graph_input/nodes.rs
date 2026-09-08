@@ -16,14 +16,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
         AbstractOperation::CallStructuralScalar {
             psi_operation,
             result,
-            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
             ..
         } if result.scalar_type == ScalarType::Integer(u64_type())
-            && arguments.is_empty()
             && structural_arguments.len() == 1
             && claim_transfers.is_empty()
             && requirement_obligations.is_empty()

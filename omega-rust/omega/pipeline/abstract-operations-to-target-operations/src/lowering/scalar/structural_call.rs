@@ -1,4 +1,6 @@
 //! Bounded whole-root structural-call/scalar-return target selection.
+mod ordinary;
+pub(super) use ordinary::lower as lower_ordinary;
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -39,36 +39,40 @@ pub(super) fn project(
         }
         AbstractOperation::CallStructuralScalar {
             callee,
+            arguments: scalar_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
             ..
         } => {
-            let caller = native
-                .functions
-                .iter()
-                .find(|function| function.machine == optimized.machine)
-                .ok_or(Error::SourceCustodyMismatch)?;
-            let target_operations::TargetOperation::ReturnStructuralScalarCall {
-                arguments, ..
-            } = &caller.operation
-            else {
+            let [semantic] = structural_arguments.as_slice() else {
                 return Err(Error::SourceCustodyMismatch);
             };
-            let ([semantic], [target]) = (structural_arguments.as_slice(), arguments.as_slice())
-            else {
-                return Err(Error::SourceCustodyMismatch);
-            };
-            let call_plan = scalar_graph_input::structural_call::validate_argument(
-                semantic, target, optimized, *callee, native, plan, unit,
+            let target = scalar_graph_input::structural_call::argument(
+                semantic, optimized, *callee, native, plan, unit,
             )?;
+            let call_plan = scalar_graph_input::structural_call::validate_argument(
+                semantic, &target, optimized, *callee, native, plan, unit,
+            )?;
+            if call_plan.parameters.len() != scalar_arguments.len() + 1 {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            let arguments = scalar_arguments
+                .iter()
+                .zip(&call_plan.parameters)
+                .map(|(source, placement)| LegalizedScalarArgument::Scalar {
+                    source: *source,
+                    placement: placement.clone(),
+                })
+                .chain(std::iter::once(LegalizedScalarArgument::Structural {
+                    semantic: semantic.clone(),
+                    target,
+                }))
+                .collect();
             LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
                 callee: *callee,
-                arguments: vec![LegalizedScalarArgument::Structural {
-                    semantic: semantic.clone(),
-                    target: target.clone(),
-                }],
+                arguments,
                 result_placement: call_plan.result.clone(),
                 source: LegalizedCallUnitSource::AuthoredCallUnit,
                 claim_transfers: claim_transfers.clone(),

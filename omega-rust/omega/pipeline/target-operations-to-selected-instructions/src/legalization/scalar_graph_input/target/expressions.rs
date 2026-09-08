@@ -9,6 +9,7 @@ impl Checker<'_> {
     ) -> bool {
         let resolved = resolve(value, aliases);
         match expression {
+            Expression::StructuralCall { .. } => self.structural_call(expression, resolved, aliases),
             Expression::ByteSequenceRead { psi_operation, source_value, source, view, index, length, obligation } => {
                 *source_value == resolved
                     && self.byte_view(view, *source, aliases)
