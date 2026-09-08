@@ -233,6 +233,10 @@ still distinguish runtime instances. Replacing two syntax payloads with four
 coordinates and a type adds three Gamma payload pairs per new projection;
 existing projections and immutable child lists remain shared. There is no new
 index, primitive, or resource provision.
+The [complete-D comparison](../../tests/bootstrap/omega-parser/README.md#field-identity-comparison)
+supports retaining this representation: both runs pass, with 43.25% less
+wall time and 0.40% more cumulative pair allocation in the measured pair.
+Those results are customer-specific and include concurrent-run caveats.
 The [field controls](../../tests/epsilon/runtime-invariants/README.md) isolate
 all four coordinates and reject invalid projection owners and sum cases.
 Record snapshots and nested-place updates retain their ordinary execution tests;
