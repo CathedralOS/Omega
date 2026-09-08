@@ -10,7 +10,7 @@ identical bytes. Its generated Gamma must parse and execute with the selected
 evaluator, preserving `41 00 80 FF`, except the repeated-reference control,
 which returns that payload twice, and the selected authored-trap control,
 which must halt 249 with empty stdout. Every invocation has a 300-second
-test watchdog, including the 2,048-field compilation measured at 134.6 seconds.
+test watchdog, including the 2,048-field compilation measured at 16.0 seconds.
 This host allowance is not a language or evaluator limit.
 
 Coverage includes exact expression-list height 255 and adjacent 256, unused
@@ -39,6 +39,13 @@ Its unused wide function must still compile and validate before the identity
 entry returns binary input. On macOS arm64 the previous compiler exceeded a
 300-second watchdog; preparation/lowering alone completed in 6.7 seconds.
 Shared projection lowering completed the unchanged source in 134.6 seconds.
+At `f1334144ec`, a new isolated baseline compilation took 130.764 seconds and
+produced the same pinned receipt. Consulting existing free-capture mappings
+before the local-bound spine reduced that command to 15.960 seconds on the same
+macOS arm64 host; executing the unchanged receipt returned `41 00 80 ff` in
+0.055 seconds. These are single-run observations, not a statistical benchmark.
+The [capture invariant](../../../bootstrap/3_delta/compiler/implementation/normalization/README.md#captured-bindings)
+explains why repeated references need no second bound-spine scan after mapping.
 This witnesses compiler completion, not an observed heap exhaustion or a
 claim that runtime traversal of every wide field is now linear.
 

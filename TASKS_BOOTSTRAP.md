@@ -137,7 +137,7 @@ prerequisite to every lower-rung milestone.
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
   Resume evidence on macOS arm64, canonical Delta closure SHA-256
-  `43e47663179a42eaf1b89821185c0ea9a7a66bdb3279778db971ca5a3e906220`
+  `96a1d0457683d39b09e80122be5265070154728596b18a19a5847dc7f4dae534`
   and the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
   `sh tests/epsilon/checking/run.sh` reconstructs the unchanged 707,983-byte
@@ -150,8 +150,9 @@ prerequisite to every lower-rung milestone.
   gives source-level height and static-environment arguments, including helper
   captures; `sh tests/delta/normalization/run.sh` exercises successful compilation
   and execution at source depth 1,024 and payload width 2,048. The latter source
-  now compiles in 134.6 seconds after shared projection lowering; the baseline
-  exceeded 300 seconds, not an observed heap exhaustion. These are not checked
+  compiles in 16.0 seconds with mapped-capture reuse, preserving its exact receipt;
+  the original inline-projection baseline exceeded 300 seconds, not an observed
+  heap exhaustion. These are not checked
   edge certificates.
   The [emission occurrence argument](bootstrap/3_delta/compiler/implementation/emission/README.md#reachable-byte-count-bound)
   separately bounds intermediate and complete byte counts below `2^62`;
