@@ -112,7 +112,7 @@
       "name": "continuation-keeps-customer-and-measures-progress",
       "prompt": "Advance again. The previous run preserved immutable scalar helper results, but our selected customer program still fails. Its board item has the revision, exact probe command, diagnostic, owning path, and next acceptance. An unrelated helper looks easier. Four prior run reports contain timings; one was blocked. This runtime does not expose token usage.",
       "status": "Not run against this revision",
-      "expected_output": "Resume and verify the same customer evidence, deliver one bounded improvement, preserve the next executable step, and compare the five measured attempts without inventing usage or claiming end-to-end success from helper tests.",
+      "expected_output": "Resume and verify the same customer evidence, deliver one bounded improvement, preserve the next executable step, and assess the workflow using prior attempts as supporting context without inventing usage or claiming end-to-end success from helper tests.",
       "files": [],
       "assertions": [
         "Checks incoming changes and active work before resuming the existing customer; does not select the easier unrelated helper",
@@ -121,7 +121,7 @@
         "Uses one agent unless independent work justifies delegation overhead, preserving AGENTS.md model routing",
         "Reports elapsed and validation wall time from recorded evidence, actual agents, and before/after customer acceptance",
         "Reports token usage as unavailable rather than zero or account-wide usage",
-        "Includes the blocked attempt in the five-attempt review and avoids unmatched savings claims",
+        "Includes blocked attempts when comparing prior runs and avoids unmatched savings claims",
         "Preserves scope pauses, scoped validation, and exact-candidate landing requirements"
       ]
     },
@@ -201,6 +201,22 @@
       "assertions": [
         "Does not invoke the advance workflow",
         "Does not edit code or publish a checkpoint merely to answer the question"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "shared-evidence-reduces-duplicate-work",
+      "prompt": "Advance the same customer with an implementer and reviewer. The current revision has a witnessed failure, phase artifact, owning source path, and passing unaffected checks. The last trial took longer in the landing queue, but avoided repeated scouting. Improve that workflow.",
+      "status": "Not run against this revision",
+      "expected_output": "Share the existing evidence, assign distinct implementation and review responsibilities, and retain required validation. Judge reduced duplication and clearer handoffs directly without claiming a timing speedup.",
+      "files": [],
+      "assertions": [
+        "Does not restart broad scouting without an evidence gap or changed input",
+        "Reviewer challenges a concrete correctness risk and inspects evidence rather than trusting the implementer claim",
+        "Reuses valid checks but reruns checks whose relevant inputs changed",
+        "Treats less duplication and a clearer path as useful without demanding a savings percentage or five-run threshold",
+        "Keeps timing secondary and adds no telemetry or scoring work",
+        "Continues locally if dispatch is unavailable instead of repeatedly trying alternative routes"
       ]
     }
   ]
