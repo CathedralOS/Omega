@@ -42,7 +42,7 @@ XMM homes. An available target record does not imply that the common downstream
 selection/emission path supports it.
 
 Ordinary acyclic Unit control uses target-owned blocks and explicit
-`Jump`, `Conditional`, and `Return` terminators in `TargetUnitGraph`.
+`Jump`, `Conditional`, `StructuralCase`, and `Return` terminators in `TargetUnitGraph`.
 Nonterminal definitions and calls reuse the ordered Unit operation vocabulary;
 branch targets are block identities, not nonreturning-arm layout ordinals.
 Lowering intersects predecessor definitions at joins and retains authored block
@@ -75,6 +75,20 @@ Abstract lowering preserves entry parameter metadata that exactly repeats the
 function parameters, but this is not native admission: optimization-unit
 validation still requires empty entry block parameters.
 Legacy cleanup/provider templates are not reinterpreted as ordinary graph edges.
+
+Closed-sum inspection of an admitted boundary result uses this same graph,
+without a fixed block count, arm order, or exit-only body template. Each case
+retains its declared tag, target block, exact relevant integer field offsets,
+destination block parameters, and authored affine discards. Payload parameters
+are edge-produced values, not scalar results attributed to the read operation.
+Returning arms, ordinary joins, repeated field projections, and later dispatch
+before cleanup retain their source topology. The structural-home lookup proves
+definition availability, not ownership liveness; validated abstract frontiers
+remain authoritative. Independent target-input replay checks producer/home,
+layout, case, payload and cleanup correspondence. Legalized/selected case
+transport is still unsupported and grants no native execution claim. Hosted
+exit arms retain every nominal Unit return; the canonical process-exit migration
+remains separate.
 
 Dynamic-descriptor lowering preserves establishment, rebinding, aggregate store,
 and parameter forwarding as distinct semantic sources. Retain the exact selected

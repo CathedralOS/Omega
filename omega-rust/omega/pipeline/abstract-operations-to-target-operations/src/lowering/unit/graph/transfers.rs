@@ -164,7 +164,7 @@ pub(super) fn validate_successors(
                 &when_false.structural_bindings,
             )
         }
-        AbstractOperation::ReturnUnit { .. } => Ok(()),
+        AbstractOperation::ReturnUnit { .. } | AbstractOperation::StructuralCase { .. } => Ok(()),
         _ => Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         )),
