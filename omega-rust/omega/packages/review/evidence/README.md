@@ -20,7 +20,9 @@ baselines, and decisions; the project trusts whoever lands it. The existing
 ledger and manager promotion machinery described here is not a requirement
 for certified lock acceptance and is to be simplified where it duplicates
 compiler checks. Compiler proof/reach and native artifact checks retain their
-independent roles.
+independent roles. The [review specification](../../../../../wiki/spec/packages/review.md)
+owns those distinctions; [capture joins](capture.md) maps their compiler inputs
+and explanatory source roles.
 
 ## Record
 
