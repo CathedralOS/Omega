@@ -60,6 +60,9 @@ in AGENTS.md before instrumenting compiler code. Distinguish the observed bounda
 from downstream gaps inferred from source. A checked-tree milestone can be useful
 while native production remains blocked, but report that boundary accurately.
 
+Carry the reproduction and source findings forward across handoffs. Revisit them
+when inputs change or a concrete evidence gap needs checking.
+
 Keep the outer command in the sample's README or owning design document and the
 current first failure in its existing board item. After a milestone, rerun the
 command when its inputs changed. A passing inner test with an unchanged customer
@@ -99,6 +102,10 @@ routing and assignment requirements. Keep that policy in AGENTS.md. Give the wor
 its exact worktree/revision and canonical skill path, objective, design anchors,
 edit ownership, dependencies, acceptance, and escalation conditions. Refine the
 owning board only when it lacks context needed for the assignment.
+
+Give each worker a distinct question or edit responsibility using the existing
+evidence. Independent review should challenge assumptions and check correctness,
+not repeat broad scouting.
 
 Use the actual agent tool and returned ID before reporting a worker as launched.
 If unavailable, continue locally where possible and report the limitation.
@@ -149,26 +156,20 @@ starting checkout, and anything dirty, locked, unpublished, or still in use;
 report any retained temporary worktree and the reason. Verify the removed path
 is absent from `git worktree list` and the branch is gone before reporting cleanup.
 
-## Measure the cycle
+## Judge the cycle
 
-Record the start time before orientation and include one compact measurement
-line in the final report: customer, starting and resulting revisions, acceptance
-before/after, elapsed seconds, validation wall time, and agents actually used.
-Use tool timestamps and command durations; identify overlapping checks rather
-than summing them as wall time. Include run-attributable tokens or cost only when
-the runtime exposes them, including delegated usage or explicitly labeling its
-absence. Unavailable measurements are unknown, not zero; account-wide usage is
-not this run's cost. Keep these records in the conversation's run reports, not
-the execution boards or a new telemetry service.
+Judge the workflow by less duplicated work and a clearer path to verified
+acceptance. Repeat steps for a reason; preserve required checks and independent
+scrutiny. Report concrete improvements or friction without inventing a score.
 
-After five measured advances in the continuing conversation, compare customer
-progress, elapsed/validation time, and available usage before proposing another
-workflow change. Include blocked and paused attempts so the comparison does not
-count only successes. Use existing reports; if earlier records are unavailable,
-state the smaller sample. Do not claim a savings percentage without comparable
-baseline measurements. A scheduled invocation uses this same skill and its
-task-local pauses; scheduling alone does not override a pause or expand the
-user's allowed scope. Independent task selection within that scope remains required.
+Use existing receipts for customer acceptance, revisions, elapsed/validation time,
+and agents used. Timing is supporting context, not a prerequisite for improvement;
+unlike tasks do not establish a speedup. Unknown usage stays unknown. Keep run
+records in the conversation, not execution boards or new telemetry.
+
+A scheduled invocation uses this same skill and its task-local pauses; scheduling
+alone does not override a pause or expand the user's allowed scope. Independent
+task selection within that scope remains required.
 
 ## When the slice cannot close
 
@@ -196,7 +197,7 @@ or customer. A task-local pause is not a veto on independent work.
 
 Report customer behavior, added or removed complexity, commit/publication state,
 checks actually run, remaining dependencies, and unrelated failures. Include the
-cycle measurements above. Stop after this bounded improvement; do not turn it into
+cycle assessment above. Stop after this bounded improvement; do not turn it into
 an open-ended repair or full-health campaign.
 
 For skill maintenance, use the [evaluation guide](evals/README.md).
