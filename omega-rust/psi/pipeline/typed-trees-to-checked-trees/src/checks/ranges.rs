@@ -1,4 +1,6 @@
 mod arrays;
+#[cfg(test)]
+mod cache_tests;
 mod dependent_params;
 mod diagnostics;
 mod expressions;
@@ -39,8 +41,14 @@ pub(crate) fn check_indexed_accesses(
     let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
 
     for machine in program.machines() {
-        let state_argument_facts =
-            collect_state_argument_facts(program, &field_lengths, machine, call_frames, borrows);
+        let state_argument_facts = collect_state_argument_facts(
+            program,
+            &field_lengths,
+            machine,
+            call_frames,
+            borrows,
+            &mutation_summaries,
+        );
         let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
         let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
         for state in program.machine_states(machine) {
