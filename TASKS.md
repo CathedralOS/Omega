@@ -182,7 +182,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   missing package-root policy. This is a completed slow-route observation,
   not a timeout or evidence of native execution.
 
-  The downstream native `cli_mvp` probe with production checkpoint `8c65bfd368`
+  The downstream native `cli_mvp` probe with production checkpoint `1b47c379b8`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -208,19 +208,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   They measure and read one shared parameter with runtime `u64` indices guarded
   by the exact view's length, observe checked subslices, and preserve the original
   descriptor and `u64`/Boolean inputs across repeated scalar-result and genuine
-  Unit helper calls. Complete literal descriptor materialization, derived-view
-  calls/block transfers, and Unit control before joining natural-ranked writer
-  execution. Void-call return and descriptor/stack preservation do not establish
+  Unit helper calls. Complete derived-view calls/block transfers and Unit
+  control before joining natural-ranked writer execution. Void-call return
+  and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
   and source-place evidence when joining these dependencies.
-  Literal-backed scalar helper calls at `3735e6dfa4` (macOS ARM64) first need
-  exact local-view source admission
-  in `optimization-unit-semantics/src/unit_validation/operation_contracts/`:
-  `cargo nextest run -p omega-native-differential-test --test terminal_byte_views
-  literal_calls --no-fail-fast` pins the current post-verification
-  `StructuralCallContractMismatch` at caller 100, block 101, node 1. Replace that
-  rejection oracle with native byte-result observations when storage and call
-  realization close; do not substitute a synthetic incoming view parameter.
+  Extend the activation-local descriptor homes in
+  `target-operations-to-selected-instructions/src/selection/` to derived-view
+  calls, preserving the original backing and exact subslice producer/bounds.
+  Reuse the native observations in `terminal_byte_views/literal_calls.rs`;
+  acceptance must pass an internally derived descriptor, not a synthetic
+  incoming parameter or a copied referent.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.
