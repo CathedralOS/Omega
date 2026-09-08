@@ -962,9 +962,21 @@ convention. The fractional-intermediate warning remains unchanged.
 > **Implementation status:** this settles the meaning, not the completeness of
 > builtin `Int` division/remainder support. Known-builtin literal-only `%` is
 > checked before value/proof admission and closed-const normalization; const
-> argument parsing preserves the operation for that check. Authored const
-> operator selection, `Int` evaluation and proof support, and the remaining
-> numeric landing boundaries remain execution-board work.
+> argument parsing preserves the operation for that check. Closed builtin `Int`
+> quotient and remainder expressions use exact unbounded arithmetic during
+> source contract entailment. Authored const operator selection, symbolic `Int`
+> division/remainder terms and independent replay, and the remaining numeric
+> landing boundaries remain execution-board work.
+
+The closed-expression source check is:
+
+```sh
+cargo run -p omega -- --check tests/omega/pass/proofs/proof_integer_quotient_remainder/main.omg
+```
+
+It covers both operand signs and values beyond 128 bits, alongside anonymous
+rational division. This source check does not establish native execution or
+independent replay of symbolic division and remainder proofs.
 
 ### Landed target-semantic dependencies
 

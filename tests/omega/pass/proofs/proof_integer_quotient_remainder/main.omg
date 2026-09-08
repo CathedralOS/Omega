@@ -1,0 +1,23 @@
+machine signs()
+ensures
+    embed(-7i32) / 2 == -3,
+    embed(7i32) / -2 == -3,
+    embed(-7i32) / -2 == 3,
+    embed(7i32) / 2 == 3,
+    embed(-7i32) % 2 == -1,
+    embed(7i32) % -2 == 1,
+    embed(-7i32) % -2 == -1,
+    embed(7i32) % 2 == 1,
+    (embed(18446744073709551615u64) + 1) / 2 == 9223372036854775808,
+    (embed(18446744073709551615u64) + 2) % 2 == 1
+{}
+data Main {}
+machine Main::main(&mut self) {}
+
+// The dividend exceeds 128 bits; no host-width landing is involved.
+machine unbounded()
+ensures
+    ((embed(18446744073709551615u64) + 1) * (embed(18446744073709551615u64) + 1) * 2 + 1) / 2 == (embed(18446744073709551615u64) + 1) * (embed(18446744073709551615u64) + 1),
+    ((embed(18446744073709551615u64) + 1) * (embed(18446744073709551615u64) + 1) * 2 + 1) % 2 == 1,
+    7 / 2 == 3.5
+{}
