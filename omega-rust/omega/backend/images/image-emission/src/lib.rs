@@ -3935,6 +3935,7 @@ fn validate_foreign_scalar_source(
     };
     let exact_sources = match argument.source {
         machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. }
         | machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
             return Err(invalid());
         }
@@ -3999,6 +4000,7 @@ fn expected_foreign_scalar_argument_bytes(
     let mut bytes = Vec::new();
     match argument.source {
         machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. }
         | machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
             return None;
         }

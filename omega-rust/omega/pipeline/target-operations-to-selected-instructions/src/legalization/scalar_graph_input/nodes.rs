@@ -236,7 +236,7 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || structural_arguments.len() != 1
+                || structural_arguments.len() > 1
                 || !claim_transfers.is_empty()
                 || !requirement_obligations.is_empty()
                 || !crash_continuations.is_empty()

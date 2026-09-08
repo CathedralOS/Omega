@@ -130,6 +130,16 @@ pub(super) fn encode_argument_source(
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
+        InternalUnitScalarArgumentSourceRecord::SelectedCall {
+            source_value,
+            scalar_type,
+            instruction,
+        } => {
+            bytes.extend_from_slice(&[5, 0, 0, 0]);
+            push_u64(bytes, source_value.get());
+            encode_scalar_type(bytes, scalar_type)?;
+            push_u32(bytes, instruction.0);
+        }
         InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => {
             return Err(InstallationError::UnsupportedInstalledScalarSource);
         }
@@ -201,6 +211,12 @@ pub(super) fn decode_argument_source(
         return Err(InstallationError::NonzeroReservedField);
     }
     match tag {
+        5 => Ok(InternalUnitScalarArgumentSourceRecord::SelectedCall {
+            source_value: ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
+            scalar_type: decode_scalar_type(reader)?,
+            instruction: selected_instructions::SelectedInstructionId(reader.u32()?),
+        }),
         1 => Ok(InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation: OperationId::new(reader.u64()?)
                 .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
@@ -287,6 +303,41 @@ mod tests {
     use machine_code::UnitScalarParameterLocationRecord;
     use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
     use target_operations::MachineRegister;
+
+    #[test]
+    fn selected_call_source_round_trips_exact_identity_type_and_instruction() {
+        for scalar_type in [
+            ScalarType::Boolean,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap()),
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        ] {
+            let source = InternalUnitScalarArgumentSourceRecord::SelectedCall {
+                source_value: ValueId::new(17).unwrap(),
+                scalar_type,
+                instruction: selected_instructions::SelectedInstructionId(9),
+            };
+            let mut bytes = Vec::new();
+            encode_argument_source(&mut bytes, source).unwrap();
+            assert_eq!(bytes[0], 5);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_argument_source(&mut reader).unwrap(), source);
+            assert_eq!(reader.remaining(), 0);
+            let mut malformed = bytes.clone();
+            malformed[1] = 1;
+            assert!(decode_argument_source(&mut Reader::new(&malformed)).is_err());
+            let mut malformed = bytes.clone();
+            malformed[4..12].fill(0);
+            assert!(decode_argument_source(&mut Reader::new(&malformed)).is_err());
+            for position in [4, bytes.len() - 1] {
+                let mut different = bytes.clone();
+                different[position] ^= 1;
+                assert_ne!(
+                    decode_argument_source(&mut Reader::new(&different)).unwrap(),
+                    source
+                );
+            }
+        }
+    }
 
     #[test]
     fn ordinary_installation_codec_round_trips_parameter_sources() {

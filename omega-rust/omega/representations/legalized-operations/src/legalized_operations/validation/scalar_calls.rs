@@ -45,16 +45,17 @@ impl LegalizedScalarCall {
     }
 }
 fn direct_scalar_register(placement: &ValuePlacement) -> bool {
-    direct_u64_register(placement)
-        || placement.shape == ValueShape::integer(1, 1)
-            && matches!(
-                placement.locations.as_slice(),
-                [ValueLocation::Register {
-                    value_byte_offset: 0,
-                    byte_size: 1,
-                    ..
-                }]
-            )
+    let width = placement.shape.byte_size;
+    matches!(width, 1 | 2 | 4 | 8)
+        && placement.shape == ValueShape::integer(width, width)
+        && matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            }] if *byte_size == width
+        )
 }
 fn direct_u64_register(placement: &ValuePlacement) -> bool {
     placement.shape == ValueShape::integer(8, 8)

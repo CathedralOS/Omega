@@ -9,6 +9,8 @@ use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, Operation, OperationResult,
     TerminalMachineResult, Terminator, ValueDeclaration,
 };
+#[path = "byte_output/unit_calls.rs"]
+mod unit_calls;
 #[path = "byte_output/widening.rs"]
 mod widening;
 

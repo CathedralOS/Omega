@@ -1,7 +1,7 @@
 //! The byte writer receives an explicit value-preserving u8-to-i32 conversion.
 use super::*;
 
-fn widened_byte_output_module() -> TerminalModule {
+pub(super) fn widened_byte_output_module() -> TerminalModule {
     let mut module = byte_output_module();
     let machine = &mut module.machines[0];
     let destination_type = machine.parameters[0].scalar_type;

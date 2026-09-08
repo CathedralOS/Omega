@@ -310,7 +310,8 @@ pub(super) fn validate_installed_unit_scalar_calls(
                         return false;
                     };
                     let source_is_exact = match argument.source {
-                        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => false,
+                        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+                        | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => false,
                         machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
                             ..
                         } => false,
@@ -392,7 +393,10 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
             let (source_is_exact, width, bits) = match store.source {
                 machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
                     ..
-                } => return Err(invalid()),
+                }
+                | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => {
+                    return Err(invalid());
+                }
                 machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
                     parameter_index,
                     source_value,

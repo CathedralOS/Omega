@@ -104,30 +104,34 @@ pub(super) fn project(
             crash_continuations,
             ..
         } => {
-            let [semantic] = structural_arguments.as_slice() else {
-                return Err(Error::SourceCustodyMismatch);
-            };
-            let target = scalar_graph_input::structural_call::argument(
-                semantic, operation, optimized, *callee, native, plan, unit,
-            )?;
-            let call_plan = scalar_graph_input::structural_call::validate_argument(
-                semantic, &target, operation, optimized, *callee, native, plan, unit,
-            )?;
-            if call_plan.parameters.len() != scalar_arguments.len() + 1 {
+            let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
+            if structural_arguments.len() > 1
+                || structural_arguments.is_empty()
+                    && !matches!(node.operation, AbstractOperation::CallUnit { .. })
+                || call_plan.parameters.len() != scalar_arguments.len() + structural_arguments.len()
+            {
                 return Err(Error::SourceCustodyMismatch);
             }
-            let arguments = scalar_arguments
+            let mut arguments = scalar_arguments
                 .iter()
                 .zip(&call_plan.parameters)
                 .map(|(source, placement)| LegalizedScalarArgument::Scalar {
                     source: *source,
                     placement: placement.clone(),
                 })
-                .chain(std::iter::once(LegalizedScalarArgument::Structural {
+                .collect::<Vec<_>>();
+            for semantic in structural_arguments {
+                let target = scalar_graph_input::structural_call::argument(
+                    semantic, operation, optimized, *callee, native, plan, unit,
+                )?;
+                scalar_graph_input::structural_call::validate_argument(
+                    semantic, &target, operation, optimized, *callee, native, plan, unit,
+                )?;
+                arguments.push(LegalizedScalarArgument::Structural {
                     semantic: semantic.clone(),
                     target,
-                }))
-                .collect();
+                });
+            }
             LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
                 callee: *callee,
                 arguments,

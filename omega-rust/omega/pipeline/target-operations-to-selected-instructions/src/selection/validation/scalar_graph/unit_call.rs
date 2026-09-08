@@ -1,43 +1,47 @@
-//! Genuine resultless calls share scalar argument copies and original reference transport.
+//! Independently replay resultless argument transport and the exact Unit call row.
 use super::*;
+use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use selected_instructions::SelectedCallContract;
 
-pub(super) fn emit(
-    function: usize,
+pub(super) fn validate(
     source: &LegalizedScalarFunction,
     operation: &LegalizedScalarInstruction,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    builder: &mut Builder<'_>,
+    replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
-        return Err(invalid());
+        return Err(replay.invalid());
     };
     if operation.result.is_some() || call.result_placement.is_some() {
-        return Err(invalid());
+        return Err(replay.invalid());
     }
     call.validate_source(&operation.ownership)
-        .map_err(|_| invalid())?;
-    let key = builder
+        .map_err(|_| replay.invalid())?;
+    let key = replay
         .constraints
         .keys
         .call_unit
         .get(call.arguments.len())
         .copied()
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| replay.invalid())?;
+    let constraint = environment
+        .constraint(key)
+        .ok_or_else(|| replay.invalid())?;
     crate::selection::scalar_call_abi::validate(
-        function,
+        replay.function,
         source,
         call,
         operation.operation,
         key,
-        row_constraint(builder, key)?,
+        constraint,
         environment,
     )?;
     let mut operands = Vec::new();
     for argument in &call.arguments {
         match argument {
             LegalizedScalarArgument::Structural { semantic, target } => {
-                operands.push(call_pointer(
-                    builder,
+                operands.push(structural::call_pointer(
+                    replay,
                     operation,
                     semantic.place,
                     target.source_byte_offset,
@@ -47,37 +51,36 @@ pub(super) fn emit(
                 source: value,
                 placement,
             } => {
-                let (_, input, site, scalar_type) = builder.resolve(*value).ok_or_else(invalid)?;
-                if !matches!(
-                    (scalar_type, placement.shape.byte_size),
-                    (ScalarType::Boolean, 1) | (ScalarType::Integer(_), 8)
-                ) {
-                    return Err(invalid());
+                let (_, input, site, scalar_type) =
+                    replay.resolve(*value).ok_or_else(|| replay.invalid())?;
+                if crate::selection::scalar_call_abi::scalar_shape(scalar_type)
+                    != Some(placement.shape)
+                {
+                    return Err(replay.invalid());
                 }
-                operands.push(builder.copy(input, *value, site, scalar_type)?);
+                operands.push(replay.check_copy(input, *value, site, scalar_type)?);
             }
         }
     }
-    builder.transport.calls.push(SelectedCallContract {
+    replay.transport.calls.push(SelectedCallContract {
         instruction: SelectedInstructionId(
-            builder
-                .instructions
-                .len()
+            replay
+                .instruction_cursor
                 .try_into()
-                .map_err(|_| invalid())?,
+                .map_err(|_| replay.invalid())?,
         ),
         operation: operation.operation,
         call: call.clone(),
         effect: operation.effect,
         ownership: operation.ownership.clone(),
     });
-    builder.emit(
+    replay.check_instruction(
         SelectedInstructionKind::CallUnit {
             callee: call.callee,
         },
         key,
         &operands,
-        SelectedInstructionProvenance {
+        &SelectedInstructionProvenance {
             operations: vec![operation.operation],
             values: call
                 .arguments

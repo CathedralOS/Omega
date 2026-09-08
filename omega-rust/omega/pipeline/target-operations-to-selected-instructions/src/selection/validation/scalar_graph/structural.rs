@@ -12,7 +12,6 @@ mod byte_views;
 mod literals;
 mod local_storage;
 mod scalar_store;
-mod shared_unit_call;
 mod subslice;
 
 pub(super) use byte_views::byte_observation;
@@ -280,8 +279,8 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &node.kind else {
         return Err(replay.invalid());
     };
-    if call.arguments.iter().any(|argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access != StructuralAccess::Owned)) {
-        shared_unit_call::validate(source, node, environment, replay)?;
+    if call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::Owned)) {
+        super::unit_call::validate(source, node, environment, replay)?;
         return Ok(true);
     }
     let signature = source.structural.as_ref().ok_or_else(|| replay.invalid())?;

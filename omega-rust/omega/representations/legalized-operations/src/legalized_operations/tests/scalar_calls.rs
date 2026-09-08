@@ -56,6 +56,69 @@ fn register_call_shape_admits_actual_arity_and_rejects_roster_corruption() {
 }
 
 #[test]
+fn fixed_scalar_argument_widths_require_exact_register_geometry() {
+    for policy in [CallingPolicy::SystemVAMD64, CallingPolicy::MicrosoftX64] {
+        for width in [1, 2, 4, 8] {
+            let mut plan = scalar_call_unit_plan();
+            let call = call(&mut plan);
+            let source = call.arguments[0].scalar_source().unwrap();
+            call.call_plan = evaluate_call_plan(
+                policy,
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(width, width)],
+                    result: None,
+                },
+            )
+            .unwrap();
+            call.result_placement = None;
+            call.arguments = vec![LegalizedScalarArgument::Scalar {
+                source,
+                placement: call.call_plan.parameters[0].clone(),
+            }];
+            assert_eq!(call.validate_shape(), Ok(()));
+            for mutation in 0..5 {
+                let mut changed = call.clone();
+                let placement = &mut changed.call_plan.parameters[0];
+                match mutation {
+                    0 => placement.shape.alignment = if width == 1 { 2 } else { 1 },
+                    1 => placement.shape.byte_size = 3,
+                    2 => {
+                        let calling_conventions::ValueLocation::Register { byte_size, .. } =
+                            &mut placement.locations[0]
+                        else {
+                            panic!("register");
+                        };
+                        *byte_size = if width == 1 { 2 } else { 1 };
+                    }
+                    3 => {
+                        let calling_conventions::ValueLocation::Register {
+                            value_byte_offset, ..
+                        } = &mut placement.locations[0]
+                        else {
+                            panic!("register");
+                        };
+                        *value_byte_offset = 1;
+                    }
+                    _ => placement.locations.push(placement.locations[0]),
+                }
+                *scalar_argument_mut(&mut changed.arguments[0]).1 = placement.clone();
+                assert!(
+                    changed.validate_shape().is_err(),
+                    "width {width}, mutation {mutation}"
+                );
+            }
+            call.call_plan.result = Some(call.call_plan.parameters[0].clone());
+            call.result_placement = call.call_plan.result.clone();
+            assert_eq!(
+                call.validate_shape().is_ok(),
+                width == 8,
+                "argument width must not widen scalar-result admission"
+            );
+        }
+    }
+}
+
+#[test]
 fn boolean_argument_shape_preserves_width_and_unit_result_absence() {
     for policy in [CallingPolicy::SystemVAMD64, CallingPolicy::MicrosoftX64] {
         let mut plan = scalar_call_unit_plan();

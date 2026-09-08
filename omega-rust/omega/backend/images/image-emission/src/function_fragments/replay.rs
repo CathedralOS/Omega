@@ -24,6 +24,23 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
         && artifact
             .functions()
             .iter()
+            .flat_map(|function| &function.internal_unit_calls)
+            .flat_map(|call| &call.scalar_arguments)
+            .any(|argument| {
+                matches!(
+                    argument.source,
+                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. }
+                )
+            })
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "selected Unit call requires common-pipeline replay evidence",
+        ));
+    }
+    if artifact.fragment_replay.is_none()
+        && artifact
+            .functions()
+            .iter()
             .any(|function| function.ranked_u32_countdown.is_some())
     {
         return Err(diagnostics::Diagnostic::error(
