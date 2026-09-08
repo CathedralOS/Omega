@@ -56,8 +56,8 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current six-member
-manifest materializes 13,632 lines / 466,179 bytes with SHA-256
-`e0d1d44bc815d08ebf59f8333c80440c3b44f2e61b40a12ca5ccd8eb3751c8e3`.
+manifest materializes 13,632 lines / 466,183 bytes with SHA-256
+`52e9e9866727a83790e2ce78e0c7cf99a36fbd787a1312c94d217e0b05dc3ac0`.
 The six authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 
@@ -75,6 +75,13 @@ Its retained Alpha encoder targets `AlphaBootstrapV4` directly: at most
 16,777,212 raw tape bytes, targets below that exact extent, and at most 1,864,134
 nine-byte-dominated fixups. These are outer compiler-resource bounds, not Omega
 language limits, and move only with the common seed/checker profile.
+The four direct address-writing paths admit offsets `0..16777211`, matching
+that payload provision; finalization additionally requires every target to lie
+on an instruction start inside the actual payload. The
+[whole-member D customer](../../tests/epsilon/interpreted-omega-experiment/README.md)
+checks exact forward fixups, sealing, undefined-label failure, and exact/adjacent
+address admission through the selected Epsilon evaluator. It does not establish
+full-size tape realization or a completed D compiler.
 
 Epsilon cannot safely express a reusable validate-once source cursor: machines
 and fields are public, while immutable views cannot be stored in data. `D`'s
