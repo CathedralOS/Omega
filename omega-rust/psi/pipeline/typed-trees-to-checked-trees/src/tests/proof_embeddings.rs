@@ -316,3 +316,77 @@ fn proof_embedding_shift_counts_cannot_be_boolean_or_float_values() {
         }
     }
 }
+
+#[test]
+fn closed_proof_integer_quotients_and_remainders_preserve_all_signs() {
+    for (dividend, divisor, quotient, remainder) in [
+        (7, 2, 3, 1),
+        (-7, 2, -3, -1),
+        (7, -2, -3, 1),
+        (-7, -2, 3, -1),
+    ] {
+        for (operator, expected) in [("/", quotient), ("%", remainder)] {
+            let expression = format!("embed({dividend}i32) {operator} {divisor}");
+            let source = format!("machine predicate() ensures {expression} == {expected} {{}}");
+            check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+            let false_twin = format!(
+                "machine predicate() ensures {expression} == {} {{}}",
+                expected + 1
+            );
+            check(&false_twin).expect_err("a neighboring integer is not the quotient or remainder");
+        }
+    }
+}
+
+#[test]
+fn closed_proof_integer_arithmetic_exceeds_host_integer_widths() {
+    let power_of_two = "(embed(18446744073709551615u64) + 1)";
+    let huge = format!("({power_of_two} * {power_of_two} * 2)");
+    for conclusion in [
+        format!("({huge} + 1) / {huge} == 1"),
+        format!("({huge} + 1) % {huge} == 1"),
+        format!("(-{huge} - 1) / {huge} == -1"),
+        format!("(-{huge} - 1) % {huge} == -1"),
+    ] {
+        let source = format!("machine predicate() ensures {conclusion} {{}}");
+        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+        check(&source.replace("==", "!=")).expect_err("large exact arithmetic false twin");
+    }
+}
+
+#[test]
+fn undefined_proof_integer_arithmetic_cannot_be_hidden_by_normalization() {
+    for operator in ["/", "%"] {
+        for (parameters, requirement, divisor) in [
+            ("", "", "0"),
+            ("value: i32", "requires value == 0", "embed(value)"),
+        ] {
+            let undefined = format!("(embed(7i32) {operator} {divisor})");
+            for conclusion in [
+                format!("{undefined} == 0"),
+                format!("{undefined} == {undefined}"),
+                format!("0 * {undefined} == 0"),
+                format!("{undefined} - {undefined} == 0"),
+            ] {
+                let source = format!(
+                    "machine predicate({parameters})\n{requirement}\nensures {conclusion} {{}}"
+                );
+                check(&source).unwrap_err();
+            }
+        }
+    }
+}
+
+#[test]
+fn proof_integer_folding_preserves_anonymous_and_fixed_width_controls() {
+    check("machine rational() ensures 7 / 2 == 3.5 {}")
+        .expect("anonymous division remains exact rational arithmetic");
+    check("machine rational() ensures 7 / 2 == 3 {}")
+        .expect_err("anonymous division does not truncate");
+    check("machine anonymous() ensures 7 % 2 == 1 {}")
+        .expect_err("proof context does not supply an integer operand");
+    check("machine exact() ensures embed(255u8 + 1) == 256 {}")
+        .expect_err("embedding cannot erase fixed-width Exact overflow");
+    check("machine trapping(value: i32 in Trapping) requires value == 7\nensures embed(value / 2) == 3 {}")
+        .expect_err("embedding cannot erase trapping arithmetic formation");
+}

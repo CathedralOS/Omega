@@ -1153,9 +1153,50 @@ impl<'program> Engine<'program> {
                     let right = self.normalize(binary.right)?;
                     left.checked_mul(&right)
                 }
-                BinaryOperator::Modulo => {
-                    let operand = self.normalize(binary.left)?;
-                    let modulus = self.normalize(binary.right)?.constant_value()?;
+                BinaryOperator::Divide | BinaryOperator::Modulo => {
+                    let dividend = self.normalize(binary.left)?;
+                    let divisor = self.normalize(binary.right)?;
+                    if proof_integer_expression(self.program, expression)
+                        && self
+                            .program
+                            .expression_table
+                            .authored_selection_occurrences(expression)
+                            .all(|occurrence| {
+                                use language_semantics::declaration_selection::{
+                                    AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+                                    AuthoredDeclarationSelectionLateBinding as LateBinding,
+                                    AuthoredDeclarationSelectionTarget as Target,
+                                };
+                                self.program
+                                    .authored_declaration_selections()
+                                    .get(occurrence)
+                                    .is_some_and(|selection| {
+                                        matches!(
+                                            selection.target(),
+                                            Target::Intrinsic(Intrinsic::BuiltinOperator)
+                                                | Target::LateBound(LateBinding::CheckedOperator)
+                                        )
+                                    })
+                            })
+                        && let (Some(dividend), Some(divisor)) = (
+                            self.substituted(&dividend).constant_value(),
+                            self.substituted(&divisor).constant_value(),
+                        )
+                    {
+                        let (quotient, remainder) = dividend.div_rem(&divisor)?;
+                        return Some(Polynomial::constant(
+                            if binary.operator == BinaryOperator::Divide {
+                                quotient
+                            } else {
+                                remainder
+                            },
+                        ));
+                    }
+                    if binary.operator == BinaryOperator::Divide {
+                        return None;
+                    }
+                    let operand = dividend;
+                    let modulus = divisor.constant_value()?;
                     if modulus.is_zero() {
                         return None;
                     }

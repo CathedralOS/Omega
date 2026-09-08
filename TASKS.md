@@ -847,9 +847,11 @@ Owners include
   Close authored const-operator selection before folding: an unrelated
   declaration must not suppress builtin `%` formation checks, and selected
   declarations must retain their own meaning during const normalization.
-  Builtin proof `Int` must evaluate truncating division and dividend-sign
-  remainder without machine-width bounds; preserve those semantics in retained
-  proof terms and independent checking. Acceptance: positive/negative dividend and divisor
+  Complete builtin proof `Int` division and remainder beyond exact constant
+  operands, preserving their semantics in retained symbolic proof terms and
+  independent checking. Closed-expression source entailment in
+  `validation/src/contract_entailment/arithmetic_judgment.rs` does not close
+  that replay boundary. Acceptance: positive/negative dividend and divisor
   combinations satisfy the paired integer law, zero divisors fail admission,
   `a: Int` selects integer operations with anonymous integral operands, and
   existing fixed-width policies and exact anonymous `/` remain unchanged.

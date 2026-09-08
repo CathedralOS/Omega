@@ -1,6 +1,29 @@
 use super::*;
 
 #[test]
+fn closed_proof_integer_quotient_and_remainder_are_exact() {
+    for (operator, expected) in [("/", -3), ("%", -1)] {
+        let source =
+            format!("machine predicate() ensures embed(-7i32) {operator} 2 == {expected} {{}}");
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| {
+            matches!(node, ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Divide | BinaryOperator::Modulo)).then_some(handle)
+        }).unwrap();
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        assert_eq!(
+            engine.normalize(expression),
+            Some(Polynomial::constant(BigInt::from_i64(expected)))
+        );
+    }
+}
+
+#[test]
 fn disequality_strengthens_only_an_independently_proven_integer_direction() {
     let program = TypedTrees::default();
     let remaining = Polynomial::atom("remaining".to_owned());
