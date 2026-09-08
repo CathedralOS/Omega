@@ -981,10 +981,9 @@ Owners include
   forwarding and natural-descent evidence. Reuse the computed borrowed-call
   closure and primitive-local storage shared by scalar roots and ordinary Unit
   operands. Realize owned integer-field reads, native storage, and borrowed-call
-  observations without
-  substituting snapshots. Preserve the authored
+  observations without substituting snapshots. Preserve the authored
   guard and structural payload; the linked command still rejects the rank range
-  on macOS at `d00c9661fb` because of the generated hop. Next acceptance is
+  on macOS at `19f690ad11` because of the generated hop. Next acceptance is
   ranked cyclic publication with exact owned state transfers; do not suppress
   the hoist by ranking annotation.
   Align compile-known numeric conditions between flow call capture and scalar
