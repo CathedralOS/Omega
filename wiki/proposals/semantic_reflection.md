@@ -1,330 +1,391 @@
-# RFC: Semantic reflection and typed member expansion
+# RFC: Semantic reflection through data and ordinary machines
 
-Status: open design proposal. None of the `reflect` API, `expand` syntax,
-member selectors, or runtime descriptor projection below is approved or
-implemented by this RFC. Examples are candidate source, not executable tests.
-Existing generic/type-equality decisions remain settled; this proposes the
-separate reflection facility rather than silently extending them.
+Status: open design proposal. No reflection API, schema carrier, inspection-plan
+consumer, or runtime metadata format below is approved or implemented by this
+RFC. Examples are candidate source and algorithm sketches, not executed tests.
+Existing generics, type equality, layout, and access rules remain unchanged.
 
 ## Customer and recommendation
 
-An application wants a read-only property inspector over records and active sum
-payloads without manually repeating their fields. A serializer is a second
-customer for the same field traversal, but has independent encoding and schema
-evolution obligations. Neither customer requires runtime type construction,
-arbitrary invocation by name, or inspection of the compiler's private IR.
+Application and library authors want read-only property inspection of records
+and active sum payloads without repeating every member by hand. Serializers can
+reuse declaration discovery, with their own encoding and evolution contracts.
+Neither customer requires a macro language, runtime type construction, arbitrary
+method invocation, or access to the compiler's private AST/IR.
 
-Start with typed member expansion over an explicitly named type. Reuse exact
-declaration identity and ordinary access checking. Let eligible ordinary machines
-compute metadata and layout/access plans at compile time, and materialize only
-explicitly requested metadata at runtime. Keep data geometry, access authority,
-and reflective discovery separate.
+Prefer ordinary data and code: query a typed semantic description, construct a
+plan using an ordinary machine, and validate that plan at an explicitly selected
+consumer. Static positions request compile-time evaluation. There is no proposed
+`expand` keyword, special member-loop syntax, `const machine` species, or
+`is_build_time()` branch. Computation inside the planner uses ordinary states,
+transitions, helpers, and data operations.
 
-The simpler baseline is handwritten inspectors and the existing fixed core
-trait synthesis. Retaining that baseline is viable if a general expansion
-mechanism adds more complexity than it removes. A runtime-only descriptor loop
-is another option, but needs erased typed operations even when callers want
-only static serialization. This proposal favors one checked expansion mechanism
-over independent compiler generators for every serializer, inspector, and codec.
+Core ownership does not imply `boundary` or a new service reach. Ordinary library
+machines implement policy and data manipulation; only irreducible compiler
+queries and plan consumption need compiler-known semantics. This is not an
+opaque trust admission. A same-spelled user machine cannot acquire compiler
+access, and a core declaration does not grant access to private objects.
+
+Handwritten inspectors and existing core synthesis remain the simpler baseline.
+The proposed plan consumer earns its cost only if a concrete inspector and
+serializer can reuse it without proliferating a compiler opcode for each library
+format. Moving a feature behind a function call does not make its semantics free.
 
 ## Existing boundaries
 
-| Owner | Already defines | This proposal must not infer |
+| Owner | Reuse | Not implied |
 | --- | --- | --- |
-| [Generics](../spec/language/generics.md) | Type equality, structural binding, static versus runtime indices. | Arbitrary field enumeration or type-as-runtime-value operations. |
-| [Semantic evaluation](../spec/language/evaluation.md) | Eligible ordinary machines compute pure values and plans; no separate comptime language. | Ambient compiler, host, or source access. |
-| [Layout](../spec/layouts/plans.md) | A compiler-provided schema feeds an authored `plan(schema) -> Plan`. | Backing, readable content, or permission to access fields. |
-| [Placed](../spec/resources/placed_access.md) | Validated layout/access demand plus admitted storage, provenance, loans, and operation-specific accessors. | A raw reference merely because a field has an offset. |
-| [Recasts](../spec/layouts/recasts.md) | Representation-compatible ordinary views under proof and loan rules. | Bypassing a Placed access policy. |
-| [Dynamic dispatch](../spec/terminal-psi/dynamic_dispatch.md) | Exact selected conformance, instance, callable rows, and ownership. | A universal `invoke(name, arguments)` or arbitrary boxed values. |
+| [Generics](../spec/language/generics.md) | Static application identity, type equality, and exact value bindings. | Converting runtime metadata to a type argument. |
+| [Semantic evaluation](../spec/language/evaluation.md) | Eligible ordinary machines compute pure data and plans. | Reading a future runtime object's contents during compilation. |
+| [Layout](../spec/layouts/plans.md) | Compiler-supplied Schema, authored planning, validated geometry. | Backing, readable content, or field-access authority. |
+| [Placed](../spec/resources/placed_access.md) | Layout/access demand, admitted supply, loans, and exact accessor operations. | Raw references to fields merely because an offset is known. |
+| [Recasts](../spec/layouts/recasts.md) | Checked ordinary representation-compatible views. | Bypassing Placed access restrictions. |
+| [Dynamic dispatch](../spec/terminal-psi/dynamic_dispatch.md) | Explicit conformance, instance, operations, and custody. | Universal invocation by name or mandatory RTTI. |
 
-The current [core layout schema](../../source/library/core/layout.omg) exposes
-field keys, sizes, alignments, kinds, identities, cases, and tombstones. Its
-private fixed capacities are implementation limits, not the proposed reflection
-model. It does not expose arbitrary predicates or field types as runtime objects.
+The current [core layout schema](../../source/library/core/layout.omg) supplies
+field keys, size/alignment, kind, authored identities, cases, and tombstones.
+Its fixed capacities are private implementation limits. It neither exposes
+general predicate syntax nor establishes general typed field visitation.
+The [Self-only generator direction](../spec/language/evaluation.md#trait-bodies-and-generators)
+is also narrower than the explicit-T queries proposed here. That scope extension
+requires approval; the RFC does not reinterpret existing trait defaults.
 
-The existing [generator direction](../spec/language/evaluation.md#trait-bodies-and-generators)
-restricts reflection to conforming Self and leaves unroll syntax unsettled.
-Allowing generic inspectors of an explicit T is a proposed extension to that
-scope, not a claim that current ordinary trait defaults already have this access.
+## Candidate APIs and data
 
-## Candidate source surface
+`reflect` below denotes a candidate core module, not a new namespace rule.
+Use exact compiler-known declaration identities for primitive queries. All names,
+signatures, and data shapes below remain proposals.
 
-Use a core module named `reflect` for compiler-supplied semantic queries. Exact
-compiler identities select these operations; a same-named user module gains no
-reflection privilege. Each query still obeys source dependency and visibility.
-
-| Candidate form | Role |
+| Call | Result or purpose |
 | --- | --- |
-| `reflect::fields<T>()` | Static sequence of direct common/record fields in authored declaration order. Includes erased fields as descriptions. |
-| `reflect::cases<T>()` | Static sequence of sum cases in authored order, not wire-ID order. |
-| `expand Field in sequence { body }` | Check a typed body instance for each static member selection. No runtime loop over type objects. |
-| `Field::Type` | The selected field's exact type expression, retaining qualifications and index bindings. |
-| `Field::name()` / `Field::identity()` | Descriptive name bytes / optional authored schema number, never lookup authority. |
-| `Field::borrow(value)` | Checked shared projection of an addressable ordinary field from the exact owner. |
-| `Field::key(schema)` | Rejoin this field to the matching supplied layout/access schema and return its compiler-issued key. |
-| `Case::is_active(value)` / `Case::fields()` | Runtime discriminator observation with selected-case evidence / static payload field sequence. |
-| `reflect::reject(message)` | Reject an admitted expansion alternative during compilation, not a runtime trap or an assertion that can waive obligations. |
+| `reflect::schema<T>()` | Immutable declaration schema for the exact static application T. |
+| `reflect::type_key<T>()` | Opaque canonical type key for equality and correspondence in planning. |
+| `schema.fields()` / `schema.cases()` | Homogeneous borrowed sequences of field/case description records. |
+| `numeric_plan(schema)` | Ordinary authored machine returning an inspection plan or explicit rejection data. |
+| `inspect<T, Plan>(&value, &mut output)` | Consumer of a static plan; validate and elaborate its selected typed operations. |
+| `reflect::metadata<T>()` | Explicitly materialized owned descriptive data, if requested. |
 
-`Field` and `Case` are scoped static declaration selections, neither runtime
-variables nor freely constructible integer handles. `Field::Type` is a type
-position, not a first-class Type object. These are new compiler mechanisms.
-The list returned by fields/cases is not an ordinary runtime collection whose
-elements happen to be different types. Its membership is fixed before expansion.
-General first-class member parameters and arbitrary sequence transformations
-are not required for the first slice.
+Schema fields contain exact member keys, type keys, optional authored schema
+numbers, names, relevance, and case ownership. They are data records of one type,
+so an ordinary machine can traverse them. A type key supports equality under
+the same canonical rules as `T == U`; it is not a source type expression,
+an address, a layout equivalence claim, or a cast permission. A Boolean comparison
+of keys alone does not make a metadata variable into a typed field projection.
 
-This separates homogeneous metadata processing from heterogeneous code
-elaboration. A machine may calculate sizes or copy names from ordinary schema
-data. It cannot turn a runtime field-description record into a new type argument.
-The expansion binds the field's type before checking each body instance; that is
-the capability an ordinary loop over metadata cannot replace.
+Use handle-backed schema graphs rather than recursively copying descriptions.
+Queries describe only the exact selected subject, not a package-wide ambient
+inventory. Recursive types produce graph edges, not infinite traversal.
+Declared ranges retain static endpoints or symbolic subject dependencies; there
+is no solver for the tightest satisfying bound. Names are descriptive bytes,
+not a second name resolver.
 
-### Read-only record inspector
+## A concrete record inspector
 
-The output adapter and its domain-specific methods are ordinary library code.
-This example assumes it accepts shared u32/f32 values and has no external reach;
-an effectful output interface would expose its ordinary complete envelope.
+Start with a deliberately small data vocabulary for a read-only numeric
+inspector. This is a typed plan, not source code stored as strings:
 
 ```omega
-use omega::core::reflect;
+data InspectionStep {
+    case ShowU32(field: FieldKey);
+    case ShowF32(field: FieldKey);
+}
 
+data InspectionPlanResult {
+    case Invalid;
+    case Ready(plan: InspectionPlan);
+    case Unsupported(field: FieldKey);
+}
+```
+
+`InspectionPlan` retains the exact schema identity and ordered steps. Its builder
+reserves sufficient compile-time storage for the selected finite schema under
+ordinary evaluation sponsorship. Builder capacity, element ownership, and count
+obligations remain checked; this is not an unbounded hidden runtime allocation.
+The omitted carrier definitions are API-design work, not existing library types.
+
+An ordinary machine examines homogeneous field descriptions and builds that plan:
+
+```omega
+machine numeric_plan(schema: DeclarationSchema) -> InspectionPlanResult {
+    transition schema.is_record() {
+        true -> walk(schema.fields(), InspectionPlan::for_schema(&schema))
+        false -> invalid()
+    }
+
+    state walk(fields: &[FieldInfo], plan: InspectionPlan) -> InspectionPlanResult {
+        transition fields.len > 0 {
+            true -> choose(fields[0], fields[1..], plan)
+            false -> ready(plan)
+        }
+    }
+
+    state choose(field: FieldInfo, rest: &[FieldInfo], plan: InspectionPlan)
+        -> InspectionPlanResult {
+        transition field.is_runtime_field() {
+            true -> classify(field, rest, plan)
+            false -> unsupported(field.key)
+        }
+    }
+
+    state classify(field: FieldInfo, rest: &[FieldInfo], plan: InspectionPlan)
+        -> InspectionPlanResult {
+        transition {
+            field.type_key == reflect::type_key<u32>() ->
+                walk(rest, plan.append(InspectionStep::ShowU32(field.key)))
+            field.type_key == reflect::type_key<f32>() ->
+                walk(rest, plan.append(InspectionStep::ShowF32(field.key)))
+            _ -> unsupported(field.key)
+        }
+    }
+
+    state ready(plan: InspectionPlan) -> InspectionPlanResult {
+        InspectionPlanResult::Ready(plan)
+    }
+
+    state unsupported(field: FieldKey) -> InspectionPlanResult {
+        InspectionPlanResult::Unsupported(field)
+    }
+
+    state invalid() -> InspectionPlanResult {
+        InspectionPlanResult::Invalid
+    }
+}
+```
+
+This is a candidate body sketch. The ordinary ranking is the remaining field
+count: each cycle removes one field. Its exact state ranking, schema borrow,
+builder capacity, and result cleanup contracts must be discharged before it is
+eligible for semantic evaluation. `FieldInfo` is copy-eligible metadata, not a
+copied runtime field. Unknown or erased fields reject this inspector rather
+than disappear. A zero-field record yields an empty plan. More sophisticated
+policies may explicitly record omissions, but cannot call them full coverage.
+
+Use existing static positions to request evaluation and select the consumer:
+
+```omega
 data Player {
     health: u32;
     speed: f32;
 }
 
-machine inspect_record<T>(value: &T, output: &mut InspectorOutput) {
-    expand Field in reflect::fields<T>() {
-        if Field::Type == u32 {
-            output.show_u32(Field::name(), Field::borrow(value));
-        } else if Field::Type == f32 {
-            output.show_f32(Field::name(), Field::borrow(value));
-        } else {
-            reflect::reject("field needs an explicitly selected inspector");
-        }
-    }
+const PLAYER_INSPECTION = numeric_plan(reflect::schema<Player>());
+
+machine inspect_player(player: &Player, output: &mut InspectorOutput) {
+    inspect<Player, PLAYER_INSPECTION>(player, output);
 }
 ```
 
-For Player this elaborates to two ordinary calls over its exact fields. It does
-not snapshot or move the whole Player. Each shared subloan has the call's
-lifetime and ends under normal borrow rules. A zero-field record emits no calls;
-this particular inspector rejects sums rather than silently visiting only their
-common fields. Describe-only traversal may include erased fields, but borrowing
-one for a runtime inspector rejects. The author must explicitly handle or waive
-unsupported fields rather than accidentally claim full coverage.
+The proposed consumer requires a Ready result matching Player. Unsupported or
+Invalid is a compile-time consumer diagnostic, not a runtime panic or a special
+`reflect::reject` construct. The producer can inspect or transform rejection data
+using ordinary code. Constant evaluation builds the plan; it does not read the
+runtime player. The actual value is observed only when inspect_player executes.
 
-The type branches are static. Each admitted alternative must check under its
-exact field type. This does not permit invalid operations in an alternative
-that some other consumer could select. There is no source-text substitution,
-token concatenation, capture by variable spelling, or hidden macro language.
-Generated operations retain the expansion and member coordinates for diagnostics.
-
-For a reusable serializer, named codec conformances remain explicit. A generator
-cannot search for a unique visible codec merely because it can see the field.
-The bounded first version can branch on a closed set of primitive types and
-delegate composite types through explicitly supplied machines/conformances.
-
-### Active sum payloads
+For Player, the consumer elaborates the equivalent of:
 
 ```text
-expand Case in reflect::cases<T>() {
-    if Case::is_active(value) {
-        expand Field in Case::fields() {
-            visit_supported_field(Field::Type, Field::borrow(value), output)
-        }
-    }
-}
+output.show_u32("health", &player.health)
+output.show_f32("speed", &player.speed)
 ```
 
-This algorithm sketch reuses the record visitor's typed branches; it introduces
-no first-class Type argument to `visit_supported_field`. The outer expansion
-generates discriminator control flow, not unconditional reads of every payload.
-The selected branch establishes the exact case evidence needed by its field
-projections. Common fields are traversed once with fields<T>, separately from
-payloads. Mutations that can change the active case invalidate that evidence;
-the borrowed read-only receiver prevents conflicting ordinary mutations.
+Assume the output operations are explicitly defined checked library machines.
+Their real effects, preconditions, and resource requirements still propagate.
+The consumer proves each key belongs to the exact schema, checks its actual type
+against the requested operation, and checks projection and call legality. A
+forged ShowU32 step for the speed field rejects regardless of what the producer
+asserted. Field names come from the matched declaration, never from a pointer
+calculation supplied by the plan.
 
-All source cases must be represented or explicitly waived. Wire IDs and retired
-IDs are metadata, not live runtime cases. Mixed records/sums and zero cases keep
-their existing validity and ZII semantics.
+## The compiler contribution is explicit
 
-## How Layout and Placed fit
+Three pieces are new, even though they are exposed as calls and data:
 
-The reflected field selection names the semantic declaration. The Layout schema
-provides target-resolved geometry for that declaration. Both must rejoin the
-same owner, static application, field path, and semantic revision; similar names
-or offsets are not sufficient. Do not create a second reflection-owned layout
-engine or expose a bare offset as permission.
+1. A deterministic semantic schema query for an explicitly selected type.
+2. A plan-value representation that retains exact declaration references through
+   evaluation, static application, and replay without dangling compiler handles.
+3. A validated consumer relating those references to typed projections and calls.
 
-A candidate integration point for a policy specialized to an explicit T is:
+The existing canonical-constant rules do not automatically admit compiler arenas,
+opaque pointers, or arbitrary handles as generic atoms. Exact schema/member
+references need a defined symbolic plan carrier and canonical encoding, or a
+dedicated static-plan application contract. Local handles may serve indexing
+inside compilation; serialized plans need independently resolvable owner,
+application, member, and semantic-revision correspondence. A digest or matching
+integer key alone cannot grant authority. This carrier/application choice remains
+an explicit design dependency, not an assumed existing facility.
+
+The consumer is not merely an eager function taking arbitrary runtime plan data.
+Its plan argument is static, and elaboration validates the complete plan before
+ordinary generated-body checking. Type-changing field access cannot be implemented
+by casting a runtime type key. Primitive projection rules may be compiler-known;
+iteration, formatting policy, and plan construction remain ordinary code.
+
+Start with the small inspector to test this division. A general version should
+bind an explicitly selected visitor/codec conformance or static machines, not
+add a new compiler instruction for each formatter or serialization format.
+General typed visitor instantiation over selected schema members is itself a
+contract to specify; it is not automatically implied by metadata enumeration.
+Do not conceal an arbitrary AST-generating language inside InspectionPlan.
+
+## Layout and Placed integration
+
+Declaration schemas provide semantic membership. Layout provides target-resolved
+geometry for the same exact members. Reuse the existing schema identities and
+key joins rather than create an independent offset calculator. Geometry may be
+queried only after the selected layout is validated. Planning a type cannot query
+its own unfinished layout; dependency cycles reject. Static type structure and
+target geometry remain distinct dependency stages.
+
+An ordinary layout or access planner can traverse field records without special
+syntax. The integration is algorithmically:
 
 ```text
-machine access_plan<T>(schema: Schema) -> AccessPlan {
-    let mut plan = AccessPlan::inaccessible(schema);
-    expand Field in reflect::fields<T>() {
-        let key = Field::key(schema);
-        plan = plan.with(key, selected_access_for(Field, schema));
-    }
-    plan
-}
+schema = compiler-supplied schema for T
+layout = validated selected Layout plan
+access = AccessPlan::inaccessible(schema)
+walk schema's field records using ordinary states
+    map each exact declaration key to its physical field key
+    add explicitly chosen access to access
+return the plan for normal validation
 ```
 
-`selected_access_for` denotes explicit policy logic, not automatic permission
-inference; this is an algorithm sketch, not another approved callable form.
-The caller must supply the compiler's schema for the same T; a forged/mismatched
-schema cannot acquire valid keys. Erased fields have no physical key. The existing
-Access policy still receives its validated layout and checks operation demand;
-the sketch shows only the declaration-key join. Layout planning cannot query
-its own unfinished plan through reflection and create a recursive dependency.
-Declaration inspection is available after the relevant type structure is formed;
-geometry observations wait for layout closure. Dependency cycles reject.
+Existing AccessPlan operations implement plan construction. The exact key join
+must reject wrong schema/application/revision combinations. Erased fields have
+no physical key or access decision. Requesting read permission does not establish
+admitted storage supply or prove actual content is valid.
 
-Ordinary owned RAM stays ordinary T with normal projection. Reflection should
-not require converting it to Placed. Packed/fragmented geometry may prevent a
-direct shared reference even when reading a copied scalar would be valid; the
-initial `borrow` operation rejects a non-addressable field rather than inventing
-a pointer or temporary reference with the wrong lifetime.
+Ordinary RAM stays ordinary T and its checked lvalue borrows. Packed/fragmented
+fields may lack an addressable shared reference; the initial consumer rejects
+those projections unless it has an independently specified copied-read operation.
+It must not invent a temporary reference with the wrong backing or lifetime.
 
-For `Placed<P, T>`, propose a distinct selection operation inside a field
-expansion where Field is already bound:
+Placed inspection is a separate consumer over the same declaration identities:
 
 ```text
-accessor = reflect::accessor<P, T>(view, Field)
-value = accessor.read()
+inspect_placed<P, T, Plan>(view, output)
 ```
 
-The static Field selector must name an accessor exposed by that exact placement.
-Selecting it performs no device read. Calling `read` is the ordinary accessor
-operation, available only when the actual access family and receiver support it.
-The view carries the admitted supply, residency/loan, range, and binding evidence;
-Field metadata supplies none. This new selector reuses existing accessor
-generation rather than creating a reflection-specific read primitive.
+Each step selects the existing accessor for the exact P/T field and invokes only
+its authorized operation. Selecting a field performs no device read. The actual
+view carries supply, provenance, residency, range, and loan evidence; the plan
+supplies none. Inaccessible and BindingPrivate access stays restricted, and
+ordinary recasts cannot bypass it.
 
-A generic read-only inspector must not silently invoke External Take, atomic
-loads, or even repeatable MMIO reads. Those can consume data, observe devices,
-or require ordering and authority. Authors can explicitly select a device-aware
-inspection contract, including its read operations and effects. Inaccessible or
-BindingPrivate fields remain unavailable to unauthorized consumers. Ordinary
-recasts cannot bypass this distinction.
+A general read-only inspector must not silently invoke External Take, atomic
+loads, or repeatable MMIO reads. Device-aware inspection needs an explicitly
+selected access policy and operation contract, including ordering and effects.
+This reuses Placed operations rather than inventing reflection-specific memory
+access. It can follow the ordinary-record prototype rather than block it.
 
-## Runtime metadata without mandatory RTTI
+## Active cases and runtime descriptions
 
-An inert projection may be explicitly retained:
+A sum-aware planner records common fields once and a finite branch plan for each
+case. The consumer observes the runtime discriminator, then projects only the
+selected payload with its exact case evidence. The plan does not execute all
+payload reads. Retired IDs are metadata rather than cases, and wire numbers do
+not replace runtime discriminants. Missing cases or implicit field omissions
+reject a full-coverage inspector. Runtime mutation must not invalidate case
+evidence while payload subloans remain live.
+
+Runtime names and descriptions are a separate explicit projection:
 
 ```omega
-const PLAYER_DESCRIPTION = reflect::record_metadata<Player>();
+const PLAYER_DESCRIPTION = reflect::metadata<Player>();
 ```
 
-Propose that this returns ordinary owned, copy-eligible data: selected member
-names, schema numbers, kind tags, and normalized descriptive facts. Its finite
-storage must satisfy existing constant materialization rules; it cannot return
-a slice pointing into compiler memory. Names are literal data deliberately
-retained by this request, not required per-object metadata. The compiler's
-static member selections and type binders themselves do not become runtime
-values. Static dependencies whose descriptions are not requested need not emit
-runtime metadata, but generated code and retained tables still have measurable
-code/data and build-time costs.
+This returns an owned, copy-eligible data snapshot under ordinary constant
+materialization, not references into compiler memory. A plan used only for
+static elaboration need not materialize a runtime interpreter or metadata table.
+Names used by the generated inspector are nevertheless retained as program data;
+there is no claim of zero code/data cost. Primitive type tags in descriptive data
+do not become authoritative runtime type objects.
 
-A runtime editor can display this data and invoke an explicitly selected typed
-visitor such as `inspect_record<Player>`. A runtime-selected object can instead
-use an ordinary declared Inspectable conformance and borrowed dynamic interface.
-That conformance binds the matching description and visitor; it does not accept
-an arbitrary address plus a claimed type ID. A future per-property table would
-need checked getter/setter adapters and exact instance/member binding. This RFC
-does not assume those tables can be materialized as raw function addresses in
-ordinary constants.
+A runtime-selected object can expose an ordinary Inspectable conformance whose
+visitor and description agree on its type. It does not accept an arbitrary
+address plus a claimed type ID. Per-property getter tables, checked setters,
+downcasting, and invocation by name need their own instance, lifetime, callable,
+and ownership contracts. Runtime metadata cannot be used as the static Plan
+argument or materialized as raw callable addresses without that design.
 
-Runtime TypeId/downcast is a separate optional interface. Exact local type
-identity is not a stable wire ID, an object lifetime guarantee, or evidence of
-representation validity. Cross-component schema compatibility follows its own
-version/admission contract. A descriptive runtime record is not the compiler's
-authoritative type object and cannot override static `T == U`.
+## Visibility, ownership, and evidence
 
-## Visibility, ownership, and verification
+Queries and consumers obey source dependency and visibility rules. A generic
+library does not inherit a caller's private access. The initial exact schema
+query either has authorized complete structural visibility or rejects; it does
+not silently hide fields and pretend to enable complete serialization. Owners
+may explicitly export descriptions or checked wrappers. Rules for a richer
+owner-scoped generator remain a separate access decision, not an implicit friend
+privilege. Private issuer metadata retained by verification grants no reflective
+selection authority.
 
-Inspection must use the requesting scope's normal declaration access. Metadata
-can describe only what that scope may inspect, or an explicitly owner-published
-description. The default exact fields query rejects incomplete access rather
-than silently hiding fields and allowing a purported full serializer to omit
-them. Public structural fields keep their normal visibility. Private issuer
-identities retained for verification do not become selectable reflectively.
+Borrowed inspection does not move the record, duplicate linear fields, or mint
+qualifications. Reading a copy-eligible value is different from borrowing or
+consuming a resource. Any omitted field in a broader policy needs an explicit
+coverage choice; an erased field has no runtime borrow even when describable.
+Mutable reflection is not part of the first route: use owner-authored setters
+that preserve invariants and expose ordinary failure outcomes. Reflected method
+knowledge does not waive requires, effects, progress, or custody.
 
-A library template does not inherit arbitrary private access from its caller.
-An owner may write a wrapper/conformance in its authorized scope that deliberately
-exports a description or checked operation. Defining the authority rule for
-reusable owner-scoped expansion is a decision before expanding beyond the public
-structural first slice; there is no implicit friend privilege.
+Schema queries and planning are admitted by the existing hermetic evaluation
+rules, with compiler-defined primitives where necessary. No extra boundary
+trait or opaque admission is required just because an API lives in core. Runtime
+output, device access, and foreign calls independently retain their real boundary
+contracts. Compiler-known operation identity is not inferred from spelling.
 
-Borrowing a linear field lends it, never duplicates or consumes it. Readability
-is not copyability. General mutable reflection is deferred: arbitrary setters
-can break dependent invariants, destroy required custody, or invalidate siblings'
-loans. Initial editing should call owner-authored setters with explicit outcomes.
-Likewise method discovery does not authorize invocation: requires, argument
-ownership, reach, suspension, blocking, crashes, and progress remain binding.
-
-Expansion is compiler elaboration followed by ordinary checking. It cannot mint
-domains, waive preconditions, assume a false admission, or skip the selected
-operation's laws. Numeric endpoints can be described as static values or symbolic
-dependencies without asking a solver for their tightest range. Recursive type
-graphs must retain handles/edges rather than infinitely expand nested types;
-recursive visitors remain ordinary machines with their own progress contracts.
-
-Member identities are handle-first inside compilation. Stable authored schema
-numbers, display names, compact coordinates, and canonical artifact commitments
-retain their distinct purposes. Query and expansion results depend on exact
-declarations, selected rules, visibility context, and any target-layout inputs.
-Those dependencies invalidate caches and derived artifacts when relevant fields
-change. Immutable descriptors do not substitute for source-to-generated-operation
-correspondence or independent verification of the generated body.
+Generated bodies need ordinary verification and source-to-plan-to-operation
+correspondence. Plans do not bypass the checker. Dependencies retain selected
+types, member identities, conformance/callable selections, access context, and
+target geometry when actually consulted. Relevant declaration changes invalidate
+cached plans and derived artifacts. Schema numbers, display names, local handles,
+type identity, and artifact commitments keep their distinct purposes.
 
 ## Design lab and alternatives
 
-No experiment has run. These cases distinguish the candidate from superficial
-metadata or unsafe offset-based reflection:
+No experiment has run. These cases would discriminate the proposed mechanism:
 
-| Case | Acceptance target |
+| Case | Expected result |
 | --- | --- |
-| Record with u32/f32 fields | Two exact typed visitor calls, no per-object header or copied record. |
-| Added unsupported field | Explicit diagnostic/waiver, not a silently incomplete serializer. |
-| Sum with an owned payload | Only the active payload is borrowed; no duplicate linear custody. |
-| Erased field | Describable under visibility, but no executable field borrow or physical key. |
-| Wrong schema passed to Field::key | Reject before a layout/access plan can claim correspondence. |
-| Packed or fragmented field | No forged addressable reference; selected legal projection or rejection. |
-| Placed MMIO FIFO | Metadata inspection causes no transfer; Take is not silently treated as read. |
-| BindingPrivate accessor | No new consumer authority from field enumeration. |
-| Runtime endpoint in a range | Retain symbolic dependency, never invent a const value. |
-| Runtime metadata omitted | No metadata retention merely from compiling a typed visitor. |
-| Two equal-layout nominal types | Remain different identities; descriptors cannot cross-cast them. |
+| Player's u32/f32 fields | Two exact typed calls from ordinary plan data; no record copy or mandatory object header. |
+| Added unsupported field | Producer returns Unsupported or records explicit omission; no silently incomplete serializer. |
+| Forged member/type pairing | Consumer rejects before generating an unsafe projection. |
+| Runtime plan passed as const Plan | Reject; static elaboration cannot inspect future data. |
+| Schema or member reference outlives evaluator storage | Retain canonical symbolic identity, not a dangling host pointer. |
+| Layout query while that layout is forming | Reject dependency cycle, not observe a partial plan. |
+| Sum with linear payload | Only the active case is inspected with ordinary subloans. |
+| Erased field | Describe when authorized; no physical key or runtime borrow. |
+| Placed MMIO FIFO | Metadata processing performs no transfer; Take is not read. |
+| BindingPrivate accessor | Metadata does not enable unauthorized use. |
+| Runtime range endpoint | Preserve symbolic dependency instead of fabricating a static bound. |
+| Runtime metadata not requested | No generic metadata retention obligation; emitted calls/literals still have costs. |
+| Equal-layout nominal types | Remain different; plan substitution cannot cross-cast them. |
 
-Alternatives to compare before approval:
+Compare these alternatives without adding syntax prematurely:
 
-- Compiler-provided field visitor invocation instead of `expand`: fewer source
-  constructs, but needs a precisely typed polymorphic visitor contract and may
-    obscure the per-field checking scope. Compare candidate source examples on the
-    same inspector and serializer before choosing; no implementation experiment
-    is authorized here.
-- Existing Self-only trait generators: smaller visibility extension, but less
-  convenient for reusable generic inspection and owner-generated adapters.
-- Runtime descriptor loop only: adequate for a property editor, with retained
-  metadata and erased adapters; needlessly indirect for static serialization.
-- Exposing compiler AST/IR: couples libraries to private implementation stages
-  and is not required by these customers. Prefer a closed semantic query surface.
-- Automatic ambient codec discovery or arbitrary `get(name) -> pointer`: neither
-  preserves explicit conformance choice, field validity, nor access authority.
+- Plain hand-authored visitors: least compiler machinery, but duplicate member
+  selection. Keep them as the semantic and performance comparator.
+- Compiler-mediated typed visitor as a core machine: could avoid a separate plan
+  carrier for simple traversal. It still needs explicit per-member generic
+  instantiation and conformance selection; evaluate it against this plan route.
+- Runtime descriptor interpretation: appropriate for a dynamic editor with typed
+  adapters, but retains metadata and indirection unnecessarily for static clients.
+- General AST/code quotation or a special expansion keyword: not proposed.
+  Establish a concrete failure of data and ordinary machine composition before
+  reconsidering a new syntax system.
 
 ## Decisions before implementation
 
-Agree on `expand` versus an explicit compiler-mediated visitor, the initial query
-and member-selector inventory, and the visibility scope for generic expansion.
-Specify static query dependency order and the owned runtime metadata schema.
-Decide whether placed accessor selection belongs in the first implementation
-or follows an ordinary-record inspector; it must preserve its independent access
-rules either way. General field mutation, callable-by-name adapters, runtime
-downcasting, and arbitrary declaration/body generation can remain later designs.
+Specify the first schema-query inventory and exact key/equality contract, the
+static plan carrier and its application/encoding rules, and the consumer's
+projection and callable vocabulary. Choose between direct typed visitation and
+plan consumption based on concrete source examples, not keyword convenience.
+Define ordinary-record visibility and coverage first; Placed access, sum plans,
+runtime descriptions, and owner-published private operations extend it only with
+their exact contracts. General mutation, dynamic invocation, and arbitrary code
+generation can remain later designs.
 
-An initial prototype should cover public record inspection, active sum payloads,
-and one explicit metadata projection; inspect generated operations and compare
-them with handwritten equivalents. No implementation task or change to normative
-reflection restrictions follows merely from adding this RFC.
+The proposed first experiment is a public record inspector with u32/f32 fields
+and adversarial plan validation, compared with handwritten code. It would test
+whether the data/consumer split is reusable before extending to a serializer,
+active sum payloads, and explicit runtime metadata. No implementation experiment,
+execution-board commitment, or change to normative reflection restrictions is
+approved merely by this RFC. No new source keyword is proposed.
