@@ -1,9 +1,8 @@
-use facts::NormalizedWriteFrame;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
-use typed_trees::statement::StatementNode;
 
 use super::patterns;
+use super::write_preservation::prefix_preserves_path;
 
 /// Proves a self-loop terminates under a struct-view measure that projects a
 /// single field, e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`
@@ -41,7 +40,7 @@ pub(super) fn state_has_proven_self_loop(
             let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
                 return false;
             };
-            prefix_preserves_rank(&frames, machine, &statements[..=ordinal], &rank_path)
+            prefix_preserves_path(&frames, machine, &statements[..=ordinal], &rank_path)
                 && validation::has_builtin_bound_expression_meaning(
                     program,
                     machine,
@@ -53,31 +52,6 @@ pub(super) fn state_has_proven_self_loop(
                     program, machine, state, argument, parameter, field,
                 )
         })
-}
-
-fn prefix_preserves_rank<'program>(
-    frames: &validation::CallFrameResolver<'program>,
-    machine: &'program typed_trees::machine::Machine,
-    statements: &'program [StatementNode],
-    rank_path: &str,
-) -> bool {
-    let disjoint = |frame: NormalizedWriteFrame| {
-        frame.into_complete_paths().is_some_and(|paths| {
-            paths
-                .iter()
-                .all(|path| !validation::frame_paths_overlap(path, rank_path))
-        })
-    };
-    statements.iter().all(|statement| {
-        let direct_writes_preserve = match statement {
-            StatementNode::Assignment(_) => {
-                disjoint(frames.assignment_write_frame(machine, statement))
-            }
-            StatementNode::Call(call) => disjoint(frames.may_write_frame(machine, call)),
-            _ => true,
-        };
-        direct_writes_preserve && disjoint(frames.statement_value_write_frame(machine, statement))
-    })
 }
 
 fn guard_is_positive_member(

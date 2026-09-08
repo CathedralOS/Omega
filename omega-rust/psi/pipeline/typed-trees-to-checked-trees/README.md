@@ -75,12 +75,17 @@ parameter receiver, its owned field declaration with builtin `u64` carrier,
 and the same nominal subject type before publishing even a precheck summary.
 Nested projections cannot reuse a direct field's decrement. A single-state
 direct-field measure can use its Exact field type's enforced finite bounds for
-static rank-range membership. Construction, arithmetic and strict descent are
-independent obligations; permissive Wrapping storage supplies no such bounds.
+rank-range membership. Literal endpoints need no transport; declared immutable
+Exact scalar endpoints also require direct identity-preserving forwarding on
+every self-edge and complete prefix/operand write frames. A sufficient type range
+does not permit replacing an invocation's endpoint. Construction, arithmetic and
+strict descent are independent obligations; permissive Wrapping storage supplies
+no such bounds.
 Descent also requires complete write frames preserving the ranked field through
 the preceding statements and edge operands; a reset cannot count as progress.
-Dynamic endpoints, named-state transport, broader projections and constrained
-measure parameters still need application/projection evidence.
+Relational or computed field endpoints, named-state transport, broader
+projections and constrained measure parameters still need application/projection
+evidence.
 
 Computed state arrivals may use multiple copies of the same authored scalar
 rank. Mapping discovery identifies that entry role; the arithmetic edge judgment

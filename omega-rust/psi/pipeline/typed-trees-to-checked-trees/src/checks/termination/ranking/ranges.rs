@@ -5,6 +5,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
+mod endpoints;
 mod relational;
 
 pub(super) struct RangeProof {
@@ -138,12 +139,14 @@ fn endpoint_bounds(
             high: i128::from(value),
         });
     }
-    // The IncreasingTo edge proof already requires this exact bound to be
-    // forwarded unchanged. Other dependent endpoints need a separate pinned
-    // endpoint proof; an immutable parameter can still change across calls.
-    let (bound, _, _) = pinned_bound?;
-    same_parameter(program, expression, bound).then_some(())?;
-    bounds(program, machine, expression)
+    // The IncreasingTo edge proof already pins this exact bound. Other scalar
+    // endpoints need their own occurrence and write-preservation judgment.
+    if let Some((bound, _, _)) = pinned_bound
+        && same_parameter(program, expression, bound)
+    {
+        return bounds(program, machine, expression);
+    }
+    endpoints::pinned_parameter_bounds(program, machine, expression)
 }
 
 fn same_parameter(program: &TypedTrees, left: ExpressionHandle, right: ExpressionHandle) -> bool {
