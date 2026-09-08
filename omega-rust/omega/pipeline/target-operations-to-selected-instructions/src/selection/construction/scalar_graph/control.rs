@@ -18,9 +18,9 @@ pub(super) fn build(
     let constraints = builder.constraints;
     let keys = &constraints.keys;
     match &block.terminator {
-        // Case payloads are edge-produced values. Until selection retains that
-        // transport, they cannot be treated as ordinary scalar arguments.
-        LegalizedScalarTerminator::StructuralCase { .. } => Err(invalid()),
+        LegalizedScalarTerminator::StructuralCase { .. } => {
+            super::structural_case::build(source, block, order, builder)
+        }
         LegalizedScalarTerminator::Return(returned) => {
             let (kind, key, operands, values) = match returned.value {
                 LegalizedScalarReturnValue::Unit => (
@@ -260,6 +260,7 @@ fn successor(
         .position(|index| source.blocks[*index].id == next.target)
         .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
     Ok(SelectedSuccessor {
+        structural_case: None,
         role: selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: next.edge,
         block: SelectedBlockId(
@@ -327,4 +328,26 @@ pub(super) fn block_order(
     source: &LegalizedScalarFunction,
 ) -> Result<Vec<usize>, SelectedInstructionError> {
     crate::selection::block_order::derive(source)
+}
+
+pub(super) fn branch_suffix(block: &LegalizedScalarBlock, index: usize) -> bool {
+    let Some(result) = block.instructions[index].result else {
+        return false;
+    };
+    let mut value = result.value;
+    for row in &block.instructions[index + 1..] {
+        if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
+            || row
+                .result
+                .is_none_or(|result| result.scalar_type != ScalarType::Boolean)
+        {
+            return false;
+        }
+        let Some(result) = row.result else {
+            return false;
+        };
+        value = result.value;
+    }
+    matches!(block.terminator, LegalizedScalarTerminator::Conditional {condition,..}
+        if condition == value)
 }

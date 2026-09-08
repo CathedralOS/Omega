@@ -324,7 +324,8 @@ fn origin_value(origin: VirtualRegisterOrigin) -> Option<ValueId> {
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }
         | VirtualRegisterOrigin::InstructionResult { source_value, .. } => Some(source_value),
-        VirtualRegisterOrigin::StructuralParameter { .. }
+        VirtualRegisterOrigin::StructuralObservation { .. }
+        | VirtualRegisterOrigin::StructuralParameter { .. }
         | VirtualRegisterOrigin::ScalarAbiAddress { .. }
         | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => None,

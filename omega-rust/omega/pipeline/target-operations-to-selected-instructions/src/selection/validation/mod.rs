@@ -6,6 +6,8 @@ mod ordinary_roster;
 mod projected_structural_call_return;
 mod roots;
 pub(super) mod scalar_graph;
+#[cfg(test)]
+mod structural_case_tests;
 
 use super::identity::receipt;
 use super::shared::*;

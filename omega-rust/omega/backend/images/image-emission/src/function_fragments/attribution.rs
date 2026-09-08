@@ -52,6 +52,9 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                     site == SemanticCodeSite::Edge(when_true.psi_edge)
                         || site == SemanticCodeSite::Edge(when_false.psi_edge)
                 }
+                AbstractOperation::StructuralCase { cases, .. } => cases
+                    .iter()
+                    .any(|case| site == SemanticCodeSite::Edge(case.psi_edge)),
                 _ => false,
             };
             matches.then_some(index)

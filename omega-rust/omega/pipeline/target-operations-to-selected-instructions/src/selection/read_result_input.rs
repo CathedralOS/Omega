@@ -6,9 +6,6 @@ pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
     let Some(signature) = &source.structural else {
         return false;
     };
-    let [block] = source.blocks.as_slice() else {
-        return false;
-    };
     if source.ranked.is_some()
         || !signature.parameters.is_empty()
         || !signature.entry_claims.is_empty()
@@ -21,9 +18,10 @@ pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
     {
         return false;
     }
-    let results = block
-        .instructions
+    let results = source
+        .blocks
         .iter()
+        .flat_map(|block| &block.instructions)
         .filter_map(|row| match &row.kind {
             LegalizedScalarInstructionKind::HostedReadByte { result, .. } => Some((row, result)),
             _ => None,

@@ -13,6 +13,7 @@ mod process_exit;
 mod scalar_call;
 mod scalar_stack;
 mod structural;
+mod structural_case;
 mod unit_call;
 mod zero_compare;
 
@@ -248,7 +249,7 @@ pub(super) fn build(
                     left,
                     right,
                 } => {
-                    if !branch_suffix(block, operation_index) {
+                    if !control::branch_suffix(block, operation_index) {
                         return Err(invalid());
                     }
                     if let Some(zero) = zero_compare::folded_zero(source, block, operation_index) {
@@ -313,7 +314,7 @@ pub(super) fn build(
                     continue;
                 }
                 LegalizedScalarInstructionKind::BooleanNot { .. } => {
-                    if !branch_suffix(block, operation_index) {
+                    if !control::branch_suffix(block, operation_index) {
                         return Err(invalid());
                     }
                     continue;
@@ -575,26 +576,4 @@ impl Builder<'_> {
         )?;
         Ok(output)
     }
-}
-
-fn branch_suffix(block: &legalized_operations::LegalizedScalarBlock, index: usize) -> bool {
-    let Some(result) = block.instructions[index].result else {
-        return false;
-    };
-    let mut value = result.value;
-    for row in &block.instructions[index + 1..] {
-        if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
-            || row
-                .result
-                .is_none_or(|result| result.scalar_type != ScalarType::Boolean)
-        {
-            return false;
-        }
-        let Some(result) = row.result else {
-            return false;
-        };
-        value = result.value;
-    }
-    matches!(block.terminator, legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
-        if condition == value)
 }

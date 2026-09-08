@@ -48,9 +48,17 @@ not a second semantic transition. No source block or operation is fabricated.
 Target-input correspondence also checks `StructuralCase` terminators in
 `TargetUnitGraph` against the validated abstract graph: the exact dominating
 result home, declared case order/tag, relevant field offset, destination
-block/value/type, and edge cleanup must agree. This is input replay only. The
-legalized and selected case terminators and their payload-before-cleanup
-transport remain unimplemented; the selection boundary still rejects them.
+block/value/type, and edge cleanup must agree. The admitted two-case Linux byte
+result lowers through ordinary frame-address, tag-load, compare and branch
+instructions. Used i32 payloads load only in the chosen edge's implementation
+block, before destination binding; unused payloads retain semantic metadata
+without a load or bridge. Structural observations have no fabricated source
+value or definition site. The semantic edge alone retains no-code affine cleanup
+and fuel; its implementation continuation retains payload lineage and register
+transport, with empty cleanup and fuel. Independent selection and bridge replay
+restore the exact legalized case, including its destination-owned definition.
+Other case layouts and multi-block return cleanup remain separate admission
+limits; neither a new ISA case opcode nor a second physical route is introduced.
 Computed Boolean comparisons remain branch predicates until value materialization
 is implemented.
 

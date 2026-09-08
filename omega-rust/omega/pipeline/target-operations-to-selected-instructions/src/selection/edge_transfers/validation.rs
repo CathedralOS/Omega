@@ -1,5 +1,6 @@
 //! Check the claimed expansion in place, then recover the original selected CFG.
 use super::*;
+mod structural_case;
 
 pub(in crate::selection) fn project(
     function_index: usize,
@@ -7,6 +8,7 @@ pub(in crate::selection) fn project(
     constraints: &SelectedSelectionConstraints,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let error = || invalid(function_index);
+    structural_case::validate_prepared_states(function_index, prepared)?;
     let source_count = prepared
         .blocks
         .iter()
@@ -29,6 +31,8 @@ pub(in crate::selection) fn project(
                                     instruction.kind,
                                     SelectedInstructionKind::CopyI64
                                         | SelectedInstructionKind::Load64 { .. }
+                                        | SelectedInstructionKind::Load32 { .. }
+                                        | SelectedInstructionKind::FrameAddress { .. }
                                 )
                             })
                             .count(),
@@ -64,6 +68,16 @@ pub(in crate::selection) fn project(
                 return Err(error());
             }
             if (successor.block.0 as usize) < source_count {
+                if let Some(case) = &successor.structural_case
+                    && (!successor.bindings.is_empty()
+                        || !successor.structural_bindings.is_empty()
+                        || case.payloads.iter().any(|payload| {
+                            payload.transport
+                                != selected_instructions::SelectedCasePayloadTransport::Unused
+                        }))
+                {
+                    return Err(error());
+                }
                 if !successor.structural_bindings.is_empty()
                     || successor.bindings.iter().any(|binding| {
                         matches!(binding.transport, SelectedValueTransport::Registers { .. })
@@ -71,6 +85,28 @@ pub(in crate::selection) fn project(
                 {
                     return Err(error());
                 }
+                continue;
+            }
+            if successor.structural_case.is_some() {
+                let (register_delta, instruction_delta, accesses) = structural_case::project(
+                    function_index,
+                    prepared,
+                    successor,
+                    constraints,
+                    source_count,
+                    next_bridge,
+                    next_instruction,
+                    next_register,
+                    register_count,
+                )?;
+                descriptor_accesses.extend(accesses);
+                next_instruction = next_instruction
+                    .checked_add(instruction_delta)
+                    .ok_or_else(error)?;
+                next_register = next_register
+                    .checked_add(register_delta)
+                    .ok_or_else(error)?;
+                next_bridge += 1;
                 continue;
             }
             let bridge = prepared.blocks.get(next_bridge).ok_or_else(error)?;
@@ -99,6 +135,7 @@ pub(in crate::selection) fn project(
                 return Err(error());
             };
             if continuation.role != SelectedSuccessorRole::EdgeTransferContinuation
+                || continuation.structural_case.is_some()
                 || continuation.psi_edge != successor.psi_edge
                 || continuation.source_target != successor.source_target
                 || continuation.block.0 as usize >= source_count

@@ -352,6 +352,7 @@ fn redensify(
         match &mut register.origin {
             VirtualRegisterOrigin::InstructionResult { instruction, .. }
             | VirtualRegisterOrigin::SpillAddress { instruction, .. }
+            | VirtualRegisterOrigin::StructuralObservation { instruction, .. }
             | VirtualRegisterOrigin::ScalarAbiAddress { instruction, .. }
             | VirtualRegisterOrigin::AbiTransport { instruction, .. } => {
                 *instruction =
@@ -400,6 +401,28 @@ fn redensify(
                 } = &mut binding.transport
                 {
                     *argument = lower_register(function_index, *argument, removed_register)?;
+                }
+            }
+            if let Some(case) = &mut successor.structural_case {
+                for payload in &mut case.payloads {
+                    match &mut payload.transport {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => {}
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                            parameter,
+                        } => {
+                            *parameter =
+                                lower_register(function_index, *parameter, removed_register)?;
+                        }
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => {
+                            *argument =
+                                lower_register(function_index, *argument, removed_register)?;
+                            *parameter =
+                                lower_register(function_index, *parameter, removed_register)?;
+                        }
+                    }
                 }
             }
             for binding in &mut successor.bindings {

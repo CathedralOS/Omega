@@ -96,6 +96,40 @@ fn fixture() -> (FunctionFragment, AbstractFunction) {
 }
 
 #[test]
+fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
+    let (_, mut source) = fixture();
+    source.operations[2] = AbstractOperation::StructuralCase {
+        source: semantic_vocabulary::PlaceId::new(1).unwrap(),
+        cases: [10, 11]
+            .into_iter()
+            .map(
+                |identity| abstract_operations::AbstractStructuralCaseSuccessor {
+                    psi_edge: EdgeId::new(identity).unwrap(),
+                    target: BlockId::new(identity).unwrap(),
+                    case: semantic_vocabulary::StructuralCaseId::new(identity).unwrap(),
+                    payloads: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            )
+            .collect(),
+    };
+    for identity in [10, 11] {
+        let edge = EdgeId::new(identity).unwrap();
+        assert_eq!(ordinal(&source, SemanticCodeSite::Edge(edge)).unwrap(), 2);
+        assert!(
+            ordinal(
+                &source,
+                SemanticCodeSite::Operation(OperationId::new(identity).unwrap())
+            )
+            .is_err()
+        );
+    }
+    assert!(ordinal(&source, SemanticCodeSite::Edge(EdgeId::new(99).unwrap())).is_err());
+    source.operations.push(source.operations[2].clone());
+    assert!(ordinal(&source, SemanticCodeSite::Edge(EdgeId::new(10).unwrap())).is_err());
+}
+
+#[test]
 fn process_exit_nominal_edge_is_zero_width_and_never_a_return_span() {
     let (mut fragment, source) = fixture();
     let terminal = fragment.blocks[0].instructions.last_mut().unwrap();

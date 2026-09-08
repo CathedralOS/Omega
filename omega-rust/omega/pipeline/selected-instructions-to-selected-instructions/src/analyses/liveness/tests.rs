@@ -97,6 +97,7 @@ fn integer_less_than_successors_retain_semantic_polarity_order() {
     };
     let successor = |edge, block, source_target| SelectedSuccessor {
         role: selected_instructions::SelectedSuccessorRole::Semantic,
+        structural_case: None,
         structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(edge).unwrap(),
         block: SelectedBlockId(block),

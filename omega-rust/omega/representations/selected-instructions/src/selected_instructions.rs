@@ -21,6 +21,7 @@ pub mod instructions;
 pub mod live_ranges;
 pub mod liveness;
 pub mod provenance;
+pub mod structural_case;
 pub mod values;
 
 pub use calls::ordinary::*;
@@ -58,6 +59,9 @@ pub use instructions::{SelectedInstruction, SelectedInstructionKind};
 pub use live_ranges::*;
 pub use liveness::*;
 pub use provenance::SelectedInstructionProvenance;
+pub use structural_case::{
+    SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
+};
 pub use values::{SelectedOperand, VirtualRegister, VirtualRegisterOrigin};
 
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};

@@ -105,6 +105,9 @@ pub struct SelectedSuccessor {
     pub source_target: BlockId,
     pub bindings: Vec<SelectedValueBinding>,
     pub structural_bindings: Vec<SelectedStructuralBinding>,
+    /// Case custody is retained on both physical legs; only the semantic leg
+    /// selects a case and carries its cleanup/fuel; continuation cleanup is empty.
+    pub structural_case: Option<super::SelectedStructuralCaseEdge>,
     /// Path-specific logical fuel for this exact semantic edge.
     pub fuel: Vec<FuelSettlement>,
 }

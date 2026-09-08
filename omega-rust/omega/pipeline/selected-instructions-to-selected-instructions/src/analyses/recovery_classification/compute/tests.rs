@@ -283,6 +283,7 @@ fn edge_used_literal_is_not_an_instruction_local_recovery_candidate() {
         instruction: jump,
         successor: selected_instructions::SelectedSuccessor {
             role: selected_instructions::SelectedSuccessorRole::Semantic,
+            structural_case: None,
             structural_bindings: Vec::new(),
             psi_edge: semantic_vocabulary::EdgeId::new(90).unwrap(),
             block: selected_instructions::SelectedBlockId(1),

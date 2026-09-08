@@ -85,6 +85,7 @@ mod tests {
 
     fn successor(edge: u64, block: u32, source_target: u64) -> SelectedSuccessor {
         SelectedSuccessor {
+            structural_case: None,
             role: selected_instructions::SelectedSuccessorRole::Semantic,
             structural_bindings: Vec::new(),
             psi_edge: EdgeId::new(edge).expect("edge"),

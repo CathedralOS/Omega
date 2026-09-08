@@ -156,6 +156,7 @@ fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() 
                 terminator: SelectedTerminator::Jump {
                     instruction: jump,
                     successor: SelectedSuccessor {
+                        structural_case: None,
                         role: SelectedSuccessorRole::Semantic,
                         psi_edge: edge,
                         block: SelectedBlockId(0),

@@ -240,6 +240,7 @@ fn replay_classification(
     let (expected_instruction, source_value) = match victim.origin {
         VirtualRegisterOrigin::BlockParameter { .. }
         | VirtualRegisterOrigin::SpillAddress { .. }
+        | VirtualRegisterOrigin::StructuralObservation { .. }
         | VirtualRegisterOrigin::ScalarAbiAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => {
             return replay_no(NoAdmittedRecoveryReason::UnsupportedRangeShape);

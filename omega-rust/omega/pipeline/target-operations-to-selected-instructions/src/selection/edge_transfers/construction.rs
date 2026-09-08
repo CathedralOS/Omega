@@ -1,5 +1,6 @@
 //! Snapshot edge inputs before writing any destination-associated transfer value.
 use super::*;
+mod structural_case;
 
 pub(in crate::selection) fn prepare(
     function_index: usize,
@@ -12,6 +13,22 @@ pub(in crate::selection) fn prepare(
     let mut bridges = Vec::new();
     for source in &mut function.blocks {
         for successor in successors_mut(&mut source.terminator) {
+            if successor.structural_case.is_some() {
+                if let Some(bridge) = structural_case::prepare(
+                    function_index,
+                    successor,
+                    source_count + bridges.len(),
+                    &mut function.virtual_registers,
+                    &mut function.memory_accesses,
+                    &function.local_storage_slots,
+                    &mut next_instruction,
+                    constraints,
+                    catalog,
+                )? {
+                    bridges.push(bridge);
+                }
+                continue;
+            }
             let active = successor
                 .bindings
                 .iter()
