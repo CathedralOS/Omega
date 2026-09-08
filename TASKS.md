@@ -764,7 +764,7 @@ Owners include
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
-  constant indices, aggregate/type-scoped constants, templates, trait defaults,
+  compound/domain constant indices, aggregate/type-scoped constants, templates, trait defaults,
   operator homes, qualified constructors, and remaining declaration forms.
   Later syntax extensions also need retained base constant initializers; they
   currently retain only declaration identity. The explicit temporary fences live in
@@ -780,16 +780,18 @@ Owners include
   lookup to other already-loaded sources of the same exact dependency while
   retaining exact-source validation of each import.
 
-  Resume evidence: `e3212d05be`, macOS arm64 with Cargo and
-  `RUST_MIN_STACK=33554432`. The qualified-constant CLI probes in the source
-  pipeline README check three files and select `combat::damage` returning `7`;
-  independent execution and relocated public-constant review rows retain the
-  distinct module values. The next constant acceptance is `Buffer<SIZE>` with
-  different root/module values: `generic_data/module_constants.rs` currently
-  rejects the pre-symbol fold until normalization can consume exact selected
-  declarations. Compound domain expressions retain their unresolved names.
-  Preserve duplicate-name, lexical-precedence and package-authority controls
-  when replacing that fence and the remaining declaration-family fences.
+  Resume evidence: `cfaab01a51`, macOS arm64 with Cargo and
+  `RUST_MIN_STACK=33554432`. Run
+  `cargo run -p omega -- --check tests/omega/pass/modules/qualified_constant_indices/main.omg`:
+  three files check with distinct root/module `Buffer<1>`, `Buffer<2>` and
+  `Buffer<3>` identities. Named indices retain exact selected declaration
+  custody through canonical public-data artifacts and source relocation.
+  The next acceptance is compound generic/domain indices: the
+  `generic_data/module_constants.rs` fence still rejects `Buffer<SIZE + 0>`;
+  compound domain expressions retain unresolved names. Thread exact constant
+  and authored operator selections through evaluation before removing those
+  fences. Preserve declared carriers, lexical precedence, per-use exposure
+  under nested specialization, and package-authority controls.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
