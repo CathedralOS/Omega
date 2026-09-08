@@ -83,6 +83,7 @@ pub(super) fn validate(
                     machine,
                     state.state,
                     operation,
+                    &state.structural_parameters,
                 )?;
             }
             (
@@ -101,6 +102,7 @@ pub(super) fn validate(
                     machine,
                     state.state,
                     operation,
+                    &state.structural_parameters,
                 )?;
             }
             _ => return unsupported("Unit graph reordered a source effect"),

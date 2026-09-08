@@ -3,6 +3,95 @@ use super::{build_structural_scalar_field_store_sequence, frame};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 #[test]
+fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
+    let source = r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Cell { out: [u8;3] in Utf8; }
+        data Record { cells: [Cell;2]; }
+        machine Record::replace(&mut self) { self.cells[1].out = "old"; }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = crate::lower_typed_trees(typed).unwrap();
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Record::replace")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let mut shapes = ShapeCollector::new(program);
+    let (_, parameters) = structural_signature(program, &mut shapes, machine, state, &[], true)
+        .expect("array record receiver signature");
+    let stores = build_structural_scalar_field_store_sequence(
+        program,
+        &checked.facts,
+        machine,
+        state,
+        &parameters,
+        &[],
+        0,
+    )
+    .expect("array byte field stores");
+    assert_eq!(stores.len(), 1);
+    let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) = &stores[0] else {
+        panic!("bounded byte store")
+    };
+    assert_eq!(
+        store.carrier_path,
+        [
+            checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)
+        ]
+    );
+    assert_eq!(store.field_identity, "out");
+    assert_eq!(store.bytes, b"old");
+}
+
+#[test]
+fn array_byte_fields_do_not_admit_stored_borrows_or_nominal_drop() {
+    for extra in ["view: &[u8];", "reference: &i32;", ""] {
+        let drop = if extra.is_empty() {
+            "machine Cell::drop(&mut self) {}"
+        } else {
+            ""
+        };
+        let source = format!(
+            r#"
+            domain [u8;3]::Utf8 requires valid_utf8(self);
+            data Cell {{ out: [u8;3] in Utf8; {extra} }}
+            data Record {{ cells: [Cell;2]; }}
+            {drop}
+            machine Record::observe(&self) {{}}
+        "#
+        );
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let record = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Record")
+            .unwrap();
+        assert!(
+            ShapeCollector::new(&program)
+                .add_attached_data(record, &[])
+                .is_none(),
+            "array ownership stays unsupported: {extra} {drop}"
+        );
+    }
+}
+
+#[test]
 fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
     let source = r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);

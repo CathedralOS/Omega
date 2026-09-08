@@ -3,6 +3,7 @@
 use super::*;
 
 pub(crate) mod authored;
+mod boundary_buffers;
 pub(crate) mod initializers;
 pub(crate) mod literal_arguments;
 pub(crate) mod occurrences;
@@ -111,6 +112,7 @@ pub(super) fn validate_operation(
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
+    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
     if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
         coordinate, result, ..
@@ -242,6 +244,7 @@ pub(super) fn validate_operation(
         return unsupported("call operands disagree with their authored call site or signature");
     }
     literal_arguments::validate(checked, caller_machine, &call, operation)?;
+    boundary_buffers::validate(checked, caller_state, caller_parameters, &call, operation)?;
     for (ordinal, (argument, (expression, primitive_type))) in
         arguments.iter().zip(&call.scalar_arguments).enumerate()
     {

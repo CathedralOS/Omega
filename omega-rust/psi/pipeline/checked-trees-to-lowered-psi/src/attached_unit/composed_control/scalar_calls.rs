@@ -56,6 +56,7 @@ fn selected_roots(
                 machine,
                 state.state,
                 operation,
+                &state.structural_parameters,
             )?;
             for argument in arguments {
                 let CheckedCallScalarArgument::Computation(handle) = argument else {

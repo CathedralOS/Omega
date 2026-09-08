@@ -1210,6 +1210,20 @@ impl<'program> ShapeCollector<'program> {
                 type_reference,
                 substitutions,
             );
+            // The plain-owned classifier deliberately excludes qualified
+            // fields. Bounded byte fields have their own retained carrier,
+            // already supported in affine records; wrapping that record in an
+            // array must not erase its shape. Keep the existing owned-content
+            // and no-nominal-drop checks rather than treating borrows as data.
+            let owned_affine_array = substitutions.is_empty()
+                && crate::checks::type_multiplicity(self.program, *element_type)
+                    == Multiplicity::Affine
+                && partial_affine_source_contents_are_owned(
+                    self.program,
+                    *element_type,
+                    &mut Vec::new(),
+                )
+                && !type_graph_requires_nominal_drop(self.program, type_reference);
             let unrestricted_primitive_element =
                 self.is_unrestricted_nonatomic_primitive(*element_type);
             let unrestricted_material_record_element =
@@ -1218,6 +1232,7 @@ impl<'program> ShapeCollector<'program> {
                 self.is_literal_array_of_unrestricted_primitive(*element_type);
             if *length == 0
                 || (!plain_owned_array
+                    && !owned_affine_array
                     && (!substitutions.is_empty()
                         || (!matches!(
                             self.program

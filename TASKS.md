@@ -245,10 +245,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   parameter. Omega's `abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
   still rejects byte-field projections; canonical transport and verifier admission
   do not implement the call. Bounded inline storage and borrowed descriptors
-  have different layouts. Use the interpreter's bounded external-boundary
-  writeback as the execution oracle; checked provider-body dispatch of mutable
-  byte views still needs forwarding. Add an admitted `read_line` realization
-  through native emission and installation replay; each target's
+  have different layouts. Use the source-produced `boundary_byte_buffers`
+  regressions in `checked-trees-to-lowered-psi/src/tests/` as the writeback
+  oracle for field/array destinations; checked provider-body dispatch of
+  mutable byte views still needs forwarding. Add an admitted `read_line`
+  realization through native emission and installation replay; each target's
   `console_impl.omg` declares a bodyless intrinsic.
   Close this slice with the existing carrier round-trip and sequential-read
   native canaries, preserving capacity, overwrite, access, and alias checks.
