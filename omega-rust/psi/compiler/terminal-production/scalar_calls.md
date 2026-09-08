@@ -274,5 +274,24 @@ the verified Natural component and `fixed_fuel status=unknown`: the existing
 fixed-work deriver does not close this graph. The
 [inspection command](../../../omega/src/command/inspect_terminal/README.md)
 keeps proof checking mandatory and fixed-work evidence separate; termination
-alone cannot supply a work ceiling. Native owned integer-field reads and
-primitive-local storage are still required before native execution.
+alone cannot supply a work ceiling. Here the `Limits` field reads occur only
+in erased ranking expressions; this customer does not require runtime field
+loads. Native owned block arrivals, activation-local primitive storage, and
+the scalar-returning callee's primitive store remain required.
+
+The [native scalar-cycle companions](../../../../tests/native-differential/tests/scalar_control_cycles.rs)
+retain the loop, selected scalar call, and scalar return without replacing this
+customer's acceptance. They also exercise simultaneous backedge swaps and an
+unranked counterpart through four-target publication and matching-host execution:
+
+```sh
+cargo nextest run -p omega-native-differential-test --test scalar_control_cycles --no-fail-fast
+```
+
+Its separate `count_up` control proves the addition's upper bound with a
+current-iteration guard; it has no ranking annotation.
+The unchanged range-only addition fixture still rejects: the invocation range
+cannot constrain a later header value without checked invariant establishment
+and preservation. Natural descent is not that invariant. This implementation
+dependency remains on `STATE-LOCAL-VALUE-FRONTIER`; the guarded control does not
+close it.

@@ -12,8 +12,8 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    TargetBooleanExpression, TargetOperation, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitTerminator,
+    TargetBooleanExpression, TargetControlTerminator, TargetOperation, TargetUnitOperation,
+    TargetUnitScalarArgumentSource,
 };
 
 fn block(identity: u64) -> BlockId {
@@ -263,7 +263,7 @@ fn typed_unit_transfers_reject_owner_type_and_edge_substitution() {
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     for mutation in 0..8 {
         let mut changed = target.clone();
-        let TargetOperation::UnitGraph(graph) = &mut changed.functions[0].operation else {
+        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
             panic!("graph");
         };
         match mutation {
@@ -286,7 +286,7 @@ fn typed_unit_transfers_reject_owner_type_and_edge_substitution() {
                 }
             }
             2 | 3 => {
-                let TargetUnitTerminator::Conditional {
+                let TargetControlTerminator::Conditional {
                     condition: TargetBooleanExpression::BlockParameter(parameter),
                     ..
                 } = &mut graph.blocks[3].terminator
@@ -302,7 +302,7 @@ fn typed_unit_transfers_reject_owner_type_and_edge_substitution() {
             }
             4 => graph.blocks[3].parameters[0].scalar_type = integer(),
             _ => {
-                let TargetUnitTerminator::Jump { successor } = &mut graph.blocks[1].terminator
+                let TargetControlTerminator::Jump { successor } = &mut graph.blocks[1].terminator
                 else {
                     panic!("jump");
                 };

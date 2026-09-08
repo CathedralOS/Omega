@@ -230,7 +230,8 @@ fn scalar_transfer_unit_output_rejects_target_binding_substitution() {
                 .iter_mut()
                 .find(|function| function.machine == module.entry)
                 .unwrap();
-            let target_operations::TargetOperation::UnitGraph(graph) = &mut caller.operation else {
+            let target_operations::TargetOperation::ControlGraph(graph) = &mut caller.operation
+            else {
                 panic!("ordinary Unit graph")
             };
             let entry = graph
@@ -238,7 +239,7 @@ fn scalar_transfer_unit_output_rejects_target_binding_substitution() {
                 .iter_mut()
                 .find(|block| block.block == graph.entry)
                 .unwrap();
-            let target_operations::TargetUnitTerminator::Conditional {
+            let target_operations::TargetControlTerminator::Conditional {
                 when_true,
                 when_false,
                 ..

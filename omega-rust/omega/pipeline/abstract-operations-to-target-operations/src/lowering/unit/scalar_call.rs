@@ -2,7 +2,7 @@ use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum KnownUnitInteger {
+pub(in crate::lowering) enum KnownUnitInteger {
     Parameter {
         parameter_index: u32,
         scalar_type: IntegerType,
@@ -21,7 +21,7 @@ pub(super) enum KnownUnitInteger {
 }
 
 impl KnownUnitInteger {
-    pub(super) fn scalar_type(self) -> IntegerType {
+    pub(in crate::lowering) fn scalar_type(self) -> IntegerType {
         match self {
             Self::Parameter { scalar_type, .. } => scalar_type,
             Self::Immediate { scalar_type, .. } => scalar_type,
@@ -33,7 +33,7 @@ impl KnownUnitInteger {
         }
     }
 
-    pub(super) const fn into_target_source(
+    pub(in crate::lowering) const fn into_target_source(
         self,
         source_value: ValueId,
     ) -> TargetUnitScalarArgumentSource {
@@ -72,7 +72,7 @@ impl KnownUnitInteger {
     }
 }
 
-pub(super) fn insert_known_unit_integer(
+pub(in crate::lowering) fn insert_known_unit_integer(
     values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     value: ValueId,
     known: KnownUnitInteger,
@@ -84,9 +84,8 @@ pub(super) fn insert_known_unit_integer(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_scalar_call(
+pub(in crate::lowering) fn lower_scalar_call(
     operation: &AbstractOperation,
-    function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
@@ -104,15 +103,8 @@ pub(super) fn lower_scalar_call(
         crash_continuations,
     } = operation
     else {
-        unreachable!("attached-Unit scalar-call lowering receives only scalar calls")
+        unreachable!("ordered scalar-call lowering receives only scalar calls")
     };
-
-    if function.attachment.is_none() {
-        return Err(LoweringError::UnitScalarCallRequiresAttachedMachine {
-            machine: function.machine,
-            operation: *psi_operation,
-        });
-    }
 
     let callee_function = functions
         .get(callee)

@@ -1,8 +1,10 @@
-//! Exact Unit block replay into the existing scalar graph, without executable target rows.
+//! Exact control block replay into the scalar graph, without executable target rows.
 use super::*;
-use target_operations::{TargetUnitGraph, TargetUnitSuccessor, TargetUnitTerminator};
+use target_operations::{TargetControlGraph, TargetControlSuccessor, TargetControlTerminator};
 #[cfg(test)]
 mod return_cleanup_tests;
+#[cfg(test)]
+mod scalar_return_tests;
 mod sources;
 #[cfg(test)]
 mod structural_case_tests;
@@ -12,7 +14,8 @@ mod tests;
 
 pub(super) fn validate(
     function: &TargetFunction,
-    graph: &TargetUnitGraph,
+    graph: &TargetControlGraph,
+    abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
@@ -24,9 +27,29 @@ pub(super) fn validate(
         || graph.structural_types != unit.structural_types
         || graph.entry != optimized.entry
         || graph.blocks.len() != optimized.blocks.len()
-        || optimized.result != AbstractFunctionResult::Unit
     {
         return Err(invalid);
+    }
+    match optimized.result {
+        AbstractFunctionResult::Unit => {}
+        AbstractFunctionResult::Scalar(_) => {
+            let expected =
+                super::super::header::function_abi(native.target, function, abstracted, optimized)?;
+            let abi = function.scalar_abi.as_ref().ok_or(invalid.clone())?;
+            if graph.call_plan != expected
+                || graph.scalar_parameters != abi.parameters
+                || !graph.parameters.is_empty()
+                || !optimized.structural_places.is_empty()
+                || !optimized.declared_places.is_empty()
+                || graph
+                    .blocks
+                    .iter()
+                    .any(|block| !block.structural_parameters.is_empty())
+            {
+                return Err(invalid);
+            }
+        }
+        _ => return Err(invalid),
     }
     for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
         if block.block != source.id
@@ -66,7 +89,46 @@ pub(super) fn validate(
         let source_terminator = &source.nodes.last().ok_or(invalid.clone())?.operation;
         let matches = match (&block.terminator, source_terminator) {
             (
-                TargetUnitTerminator::StructuralCase { source, cases },
+                TargetControlTerminator::ReturnScalar {
+                    psi_edge,
+                    source_value,
+                    expression:
+                        TargetScalarExpression::Integer {
+                            scalar_type,
+                            expression,
+                        },
+                    cleanup_actions,
+                },
+                AbstractOperation::Return {
+                    psi_edge: expected_edge,
+                    result,
+                    value,
+                    scalar_type: expected_type,
+                    cleanup_actions: expected_cleanup,
+                },
+            ) => {
+                matches!(optimized.result, AbstractFunctionResult::Scalar(declaration)
+                    if declaration.value == *result && declaration.scalar_type == *expected_type)
+                    && psi_edge == expected_edge
+                    && source_value == value
+                    && *expected_type == ScalarType::Integer(*scalar_type)
+                    && cleanup_actions == expected_cleanup
+                    && cleanup_actions.is_empty()
+                    && available.iter().any(|(identity, source)| {
+                        identity == value && source.scalar_type() == *expected_type
+                    })
+                    && (Checker {
+                        function,
+                        available: Some(&available),
+                        optimized,
+                        native,
+                        plan,
+                        unit,
+                    })
+                    .expression(expression, *value, &[])
+            }
+            (
+                TargetControlTerminator::StructuralCase { source, cases },
                 AbstractOperation::StructuralCase {
                     source: expected_source,
                     cases: expected_cases,
@@ -81,7 +143,7 @@ pub(super) fn validate(
                 expected_cases,
             ),
             (
-                TargetUnitTerminator::Return {
+                TargetControlTerminator::Return {
                     psi_edge,
                     cleanup_actions,
                 },
@@ -90,12 +152,13 @@ pub(super) fn validate(
                     cleanup_actions: cleanup,
                 },
             ) => {
-                psi_edge == expected
+                optimized.result == AbstractFunctionResult::Unit
+                    && psi_edge == expected
                     && cleanup_actions == cleanup
                     && (cleanup.is_empty() || super::super::read_byte::cleanup(optimized, cleanup))
             }
             (
-                TargetUnitTerminator::Jump { successor },
+                TargetControlTerminator::Jump { successor },
                 AbstractOperation::Jump {
                     psi_edge,
                     target,
@@ -114,7 +177,7 @@ pub(super) fn validate(
                     && residual_affine_discards.is_empty()
             }
             (
-                TargetUnitTerminator::Conditional {
+                TargetControlTerminator::Conditional {
                     condition_source,
                     condition,
                     when_true,
@@ -149,7 +212,7 @@ pub(super) fn validate(
 }
 
 fn successor_matches(
-    target: &TargetUnitSuccessor,
+    target: &TargetControlSuccessor,
     source: &abstract_operations::AbstractSuccessor,
 ) -> bool {
     target.psi_edge == source.psi_edge

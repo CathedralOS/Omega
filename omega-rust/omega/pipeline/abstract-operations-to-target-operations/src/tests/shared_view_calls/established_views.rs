@@ -223,7 +223,7 @@ fn unit_subslice_calls() -> AbstractOperationPlan {
 fn unit_calls_retain_once_only_length_and_subslice_establishment() {
     let plan = unit_subslice_calls();
     let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
-    let TargetOperation::UnitGraph(graph) = &lowered.functions[0].operation else {
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
         panic!("Unit graph");
     };
     let operations = &graph.blocks[0].operations;

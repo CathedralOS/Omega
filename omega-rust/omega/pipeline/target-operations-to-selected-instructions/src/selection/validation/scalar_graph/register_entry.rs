@@ -16,7 +16,7 @@ pub(super) fn validate(
         {
             continue;
         }
-        if !source.references_value(parameter.value) {
+        if !replay.required_values.contains(&parameter.value) {
             continue;
         }
         let [

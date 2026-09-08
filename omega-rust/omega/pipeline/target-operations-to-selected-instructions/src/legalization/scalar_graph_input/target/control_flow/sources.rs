@@ -3,7 +3,7 @@ use super::*;
 use target_operations::TargetUnitScalarArgumentSource as Source;
 
 pub(super) fn available(
-    graph: &TargetUnitGraph,
+    graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
     block: BlockId,
 ) -> Vec<(ValueId, Source)> {

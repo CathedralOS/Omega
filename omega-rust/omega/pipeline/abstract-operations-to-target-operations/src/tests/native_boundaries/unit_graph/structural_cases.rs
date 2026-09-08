@@ -192,7 +192,7 @@ fn lower(
 fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() {
     let plan = fixture();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::UnitGraph(graph) = &lowered.functions[0].operation else {
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
         panic!("ordinary graph")
     };
     assert_eq!(
@@ -203,7 +203,7 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
             .collect::<Vec<_>>(),
         vec![block(10), block(30), block(20), block(40)]
     );
-    let target_operations::TargetUnitTerminator::StructuralCase { source, cases } =
+    let target_operations::TargetControlTerminator::StructuralCase { source, cases } =
         &graph.blocks[0].terminator
     else {
         panic!("structural case")
@@ -224,7 +224,7 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
         TargetUnitOperation::IntegerConstant { psi_operation, result, value: IntegerValue::Signed(33), .. } if psi_operation == operation(1) && result == value(1)
     ));
     assert!(
-        matches!(graph.blocks[3].terminator, target_operations::TargetUnitTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
+        matches!(graph.blocks[3].terminator, target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
     );
 }
 
@@ -241,11 +241,11 @@ fn structural_case_graph_retains_nominal_return_after_exit_and_rejects_later_wor
     *boundary = exit.id;
     plan.boundary_machines.push(exit);
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::UnitGraph(graph) = &lowered.functions[0].operation else {
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
         panic!("graph")
     };
     assert!(
-        matches!(graph.blocks[3].terminator, target_operations::TargetUnitTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
+        matches!(graph.blocks[3].terminator, target_operations::TargetControlTerminator::Return { psi_edge, .. } if psi_edge == edge(6))
     );
     let mut later_constant = plan.functions[0].operations[0].clone();
     let AbstractOperation::IntegerConstant {
@@ -306,11 +306,11 @@ fn structural_case_graph_retains_source_until_later_dispatch_cleanup() {
         });
     }
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::UnitGraph(graph) = &lowered.functions[0].operation else {
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[0].operation else {
         panic!("graph")
     };
     for (position, expected_count) in [(0, 0), (3, 1)] {
-        let target_operations::TargetUnitTerminator::StructuralCase { cases, .. } =
+        let target_operations::TargetControlTerminator::StructuralCase { cases, .. } =
             &graph.blocks[position].terminator
         else {
             panic!("case")

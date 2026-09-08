@@ -111,6 +111,12 @@ otherwise frozen component; provenance and fuel settlements remain unchanged.
 The separate ranked-rewrite join must still authorize and validate application.
 Analysis custody alone is neither execution nor general loop-motion authority.
 
+Ordinary Natural-ranked and unranked cycles instead retain exact verified-source
+components and freeze the complete cyclic function, including prefixes and exits.
+Unranked safety verification supplies no ranking certificate or fixed-work bound.
+Raw cyclic units remain insufficient input; receiving legalization replays the
+same source-bound topology before ordinary native selection.
+
 [Offline policy tools](omega/tooling/optimization-policy-offline/README.md)
 consume recorded decisions without creating a second catalog or compiler
 execution path. Cost estimates and reports describe choices; their identities

@@ -8,7 +8,6 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 pub(super) fn validate(
-    source: &LegalizedScalarFunction,
     block: &LegalizedScalarBlock,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
@@ -131,7 +130,7 @@ pub(super) fn validate(
                 } if source_value == expected.parameter.value && block == destination.id)
             });
             match (
-                source.references_value(expected.parameter.value),
+                replay.required_values.contains(&expected.parameter.value),
                 parameter,
                 actual.transport,
             ) {

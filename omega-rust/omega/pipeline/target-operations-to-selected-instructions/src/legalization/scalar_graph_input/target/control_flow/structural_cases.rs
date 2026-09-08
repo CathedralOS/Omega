@@ -3,15 +3,15 @@
 use super::*;
 use semantic_vocabulary::PlaceId;
 use target_operations::{
-    TargetBoundaryResult, TargetStructuralHomeRequirement, TargetUnitGraphCaseSuccessor,
+    TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralHomeRequirement,
 };
 
 pub(super) fn matches(
-    graph: &TargetUnitGraph,
+    graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
     block: BlockId,
     source: &TargetStructuralHomeRequirement,
-    cases: &[TargetUnitGraphCaseSuccessor],
+    cases: &[TargetControlCaseSuccessor],
     expected_source: PlaceId,
     expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
 ) -> bool {

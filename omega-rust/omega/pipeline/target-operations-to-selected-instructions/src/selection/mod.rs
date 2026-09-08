@@ -13,6 +13,7 @@ mod read_result_input;
 mod scalar_call_abi;
 mod shared;
 mod validation;
+pub(crate) mod value_transport;
 
 pub use identity::selected_instruction_plan_identity;
 pub use model::{

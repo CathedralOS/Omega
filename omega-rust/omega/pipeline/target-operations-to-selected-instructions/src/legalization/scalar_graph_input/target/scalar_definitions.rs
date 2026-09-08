@@ -112,7 +112,7 @@ pub(super) fn validate(
     Ok(())
 }
 
-/// Observations retain their own ordered result homes; operands use prior homes.
+/// Scalar definitions retain ordered result homes; operands use prior homes.
 pub(super) fn observation(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
@@ -127,6 +127,34 @@ pub(super) fn observation(
         return Err(invalid);
     };
     let (operation, value, scalar_type) = match abstracted {
+        AbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => {
+            if checker.available.is_none_or(|sources| {
+                [left, right].iter().any(|operand| {
+                    !sources.iter().any(|(value, source)| {
+                        value == *operand
+                            && source.scalar_type() == ScalarType::Integer(*scalar_type)
+                    })
+                })
+            }) {
+                return Err(invalid);
+            }
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
+        }
         AbstractOperation::ByteSequenceLength {
             psi_operation,
             result,

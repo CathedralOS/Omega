@@ -27,7 +27,7 @@ fn cyclic() -> AbstractOperationPlan {
 fn cyclic_unit_graph_preserves_destination_values_and_backedge_without_rank_authority() {
     let plan = cyclic();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::UnitGraph(graph) = &lowered.functions[1].operation else {
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[1].operation else {
         panic!("graph");
     };
     assert_eq!(
@@ -38,7 +38,8 @@ fn cyclic_unit_graph_preserves_destination_values_and_backedge_without_rank_auth
             .collect::<Vec<_>>(),
         vec![block(1), block(4), block(5), block(6)]
     );
-    let target_operations::TargetUnitTerminator::Jump { successor } = &graph.blocks[2].terminator
+    let target_operations::TargetControlTerminator::Jump { successor } =
+        &graph.blocks[2].terminator
     else {
         panic!("backedge");
     };
@@ -47,7 +48,7 @@ fn cyclic_unit_graph_preserves_destination_values_and_backedge_without_rank_auth
     assert_eq!(successor.bindings[0].argument, value(50));
     assert!(matches!(
         graph.blocks[3].terminator,
-        target_operations::TargetUnitTerminator::Return { .. }
+        target_operations::TargetControlTerminator::Return { .. }
     ));
 }
 
@@ -170,7 +171,7 @@ fn descriptor_cycle() -> AbstractOperationPlan {
 fn cyclic_unit_graph_retains_fresh_descriptor_observation_and_exact_backedge() {
     let plan = descriptor_cycle();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::UnitGraph(graph) = &lowered.functions[1].operation else {
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[1].operation else {
         panic!("graph");
     };
     assert_eq!(
@@ -178,7 +179,8 @@ fn cyclic_unit_graph_retains_fresh_descriptor_observation_and_exact_backedge() {
         semantic_vocabulary::PlaceId::new(61).unwrap()
     );
     assert_eq!(graph.blocks[2].operations.len(), 2);
-    let target_operations::TargetUnitTerminator::Jump { successor } = &graph.blocks[2].terminator
+    let target_operations::TargetControlTerminator::Jump { successor } =
+        &graph.blocks[2].terminator
     else {
         panic!("backedge");
     };

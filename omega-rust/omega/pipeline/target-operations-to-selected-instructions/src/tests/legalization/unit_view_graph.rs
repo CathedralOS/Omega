@@ -12,8 +12,8 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    TargetBooleanExpression, TargetIntegerExpression, TargetOperation, TargetScalarExpression,
-    TargetUnitOperation, TargetUnitTerminator,
+    TargetBooleanExpression, TargetControlTerminator, TargetIntegerExpression, TargetOperation,
+    TargetScalarExpression, TargetUnitOperation,
 };
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -163,7 +163,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
         assert!(selected.plan().functions[0].local_storage_slots.is_empty());
         for mutation in 0..11 {
             let mut changed = target.clone();
-            let TargetOperation::UnitGraph(graph) = &mut changed.functions[0].operation else {
+            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
                 panic!("Unit graph");
             };
             match mutation {
@@ -213,7 +213,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
                     home.defining_operation = OperationId::new(999).unwrap();
                 }
                 5 => {
-                    let TargetUnitTerminator::Conditional {
+                    let TargetControlTerminator::Conditional {
                         condition: TargetBooleanExpression::ScalarHome(home),
                         ..
                     } = &mut graph.blocks[0].terminator
@@ -239,7 +239,7 @@ fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets
                     }
                 }
                 _ => {
-                    let TargetUnitTerminator::Conditional {
+                    let TargetControlTerminator::Conditional {
                         condition: TargetBooleanExpression::ScalarHome(home),
                         ..
                     } = &mut graph.blocks[0].terminator

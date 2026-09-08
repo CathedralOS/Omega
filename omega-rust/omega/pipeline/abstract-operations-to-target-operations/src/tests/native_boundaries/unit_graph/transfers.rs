@@ -99,10 +99,10 @@ pub(super) fn transferred() -> AbstractOperationPlan {
 fn scalar_block_transfers_preserve_both_parallel_edges_and_destination_values() {
     let plan = transferred();
     let lowered = lower(&plan).unwrap();
-    let TargetOperation::UnitGraph(graph) = &lowered.functions[1].operation else {
+    let TargetOperation::ControlGraph(graph) = &lowered.functions[1].operation else {
         panic!("graph");
     };
-    let target_operations::TargetUnitTerminator::Conditional {
+    let target_operations::TargetControlTerminator::Conditional {
         when_true,
         when_false,
         ..
@@ -112,7 +112,7 @@ fn scalar_block_transfers_preserve_both_parallel_edges_and_destination_values() 
     };
     assert_eq!(when_true.bindings.len(), 3);
     assert_eq!(when_false.bindings, when_true.bindings);
-    let target_operations::TargetUnitTerminator::Conditional { condition, .. } =
+    let target_operations::TargetControlTerminator::Conditional { condition, .. } =
         &graph.blocks[1].terminator
     else {
         panic!("conditional");

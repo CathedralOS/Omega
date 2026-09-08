@@ -295,7 +295,7 @@ fn successor(
             .bindings
             .iter()
             .map(|semantic| {
-                let transport = if source.references_value(semantic.parameter) {
+                let transport = if builder.required_values.contains(&semantic.parameter) {
                     let (_, argument, _, argument_type) = builder
                         .resolve(semantic.argument)
                         .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;

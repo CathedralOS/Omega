@@ -1,0 +1,174 @@
+//! Ordered graph operations and their durable scalar result homes.
+use super::LiveDefinitions;
+use super::observations;
+use crate::lowering::shared::*;
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_operation(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
+    settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
+    installed_calls: &BTreeMap<
+        (MachineId, OperationId, BoundaryMachineId),
+        InstalledProviderCallEvidence,
+    >,
+    scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
+    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
+    live: &mut LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    if live.nonreturning {
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
+    }
+    match operation {
+        AbstractOperation::BoundaryCall { boundary, .. }
+            if settlements.get(boundary).is_some_and(|binding| {
+                matches!(
+                    binding.realization,
+                    target_operations::BoundarySettlementRealization::Builtin(
+                        BoundaryRealization::HostedWriteByteI32(_)
+                            | BoundaryRealization::HostedExitProcessI32(_)
+                            | BoundaryRealization::HostedReadByte(_)
+                    )
+                )
+            }) =>
+        {
+            crate::lowering::unit::boundary_call::lower_boundary_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                boundary_machines,
+                settlements,
+                installed_calls,
+                native_callbacks,
+                &crate::lowering::function_signature::parameters_by_place(&prepared.parameters),
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                &BTreeMap::new(),
+                &mut live.integers,
+                operations,
+                provenance,
+                &mut live.nonreturning,
+            )?;
+            if let Some(TargetUnitOperation::BoundarySettlement {
+                result: target_operations::TargetBoundaryResult::Structural(home),
+                ..
+            }) = operations.last()
+                && live
+                    .structural_homes
+                    .insert(home.result.place, home.clone())
+                    .is_some()
+            {
+                return Err(LoweringError::UnsupportedControlFlow(function.machine));
+            }
+            Ok(())
+        }
+        AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::ByteSequenceRead { .. }
+        | AbstractOperation::ByteSequenceSubslice { .. }
+        | AbstractOperation::IntegerEqual { .. }
+        | AbstractOperation::IntegerLessThan { .. }
+        | AbstractOperation::IntegerLessOrEqual { .. }
+        | AbstractOperation::ExactIntegerAdd { .. }
+        | AbstractOperation::ExactIntegerSubtract { .. } => observations::lower(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::Call { .. } => crate::lowering::unit::scalar_call::lower_scalar_call(
+            operation,
+            target,
+            functions,
+            scalar_abis,
+            &mut live.integers,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::IntegerConstant {
+            psi_operation,
+            result,
+            scalar_type: ScalarType::Integer(scalar_type),
+            value,
+        } => crate::lowering::unit::scalar_definitions::lower_integer_constant(
+            function.machine,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *value,
+            false,
+            &mut BTreeMap::new(),
+            &mut live.integers,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::BooleanConstant {
+            psi_operation,
+            result,
+            value,
+        } => crate::lowering::unit::scalar_definitions::lower_boolean_constant(
+            function.machine,
+            *psi_operation,
+            *result,
+            *value,
+            false,
+            &mut live.booleans,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::IntegerWiden { .. } => {
+            crate::lowering::unit::scalar_definitions::lower_integer_widen(
+                operation,
+                function.machine,
+                &prepared.scalar_parameters,
+                false,
+                &mut live.integers,
+                operations,
+                provenance,
+            )
+        }
+        AbstractOperation::CallUnit {
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } if claim_transfers.is_empty()
+            && requirement_obligations.is_empty()
+            && crash_continuations.is_empty() =>
+        {
+            crate::lowering::unit::structural_call::lower_structural_unit_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &crate::lowering::function_signature::parameters_by_place(&prepared.parameters),
+                &BTreeMap::new(),
+                &live.views,
+                &live.integers,
+                &BTreeMap::new(),
+                &live.booleans,
+                &BTreeMap::new(),
+                &live.boolean_parameters,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                operations,
+                provenance,
+            )
+        }
+        _ => Err(LoweringError::UnsupportedControlFlow(function.machine)),
+    }
+}

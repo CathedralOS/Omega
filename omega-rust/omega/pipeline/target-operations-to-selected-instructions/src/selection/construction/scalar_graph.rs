@@ -42,6 +42,7 @@ pub(super) fn build(
     };
     let class = operand.class;
     let mut builder = Builder {
+        required_values: crate::selection::value_transport::required_values(source),
         class,
         constraints,
         catalog,
@@ -58,7 +59,7 @@ pub(super) fn build(
         {
             continue;
         }
-        if !source.references_value(parameter.value) {
+        if !builder.required_values.contains(&parameter.value) {
             continue;
         }
         let [
@@ -176,7 +177,7 @@ pub(super) fn build(
         let block = &source.blocks[source_index];
         let block_id = SelectedBlockId(u32::try_from(block_index).map_err(|_| invalid())?);
         for (parameter_index, parameter) in block.parameters.iter().enumerate() {
-            if !source.references_value(parameter.value) {
+            if !builder.required_values.contains(&parameter.value) {
                 continue;
             }
             let id =
@@ -482,6 +483,7 @@ pub(super) fn build(
 }
 
 struct Builder<'a> {
+    required_values: std::collections::BTreeSet<ValueId>,
     transport: structural::Transport,
     class: RegisterClassId,
     constraints: &'a SelectedSelectionConstraints,

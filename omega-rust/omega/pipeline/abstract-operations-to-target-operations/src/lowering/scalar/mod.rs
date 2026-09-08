@@ -22,10 +22,12 @@ use super::structural_layout::{
 use conditional_control::{
     lower_boolean_block, lower_boolean_conditional, lower_integer_conditional,
 };
+pub(in crate::lowering) use conditional_scalar::{
+    IntegerBinaryKind, lower_conditional_integer_binary,
+};
 use conditional_scalar::{
-    IntegerBinaryKind, WrappingShiftKind, lower_conditional_integer_binary,
-    lower_conditional_scalar_operation, lower_exact_shift_left, lower_exact_shift_right,
-    lower_wrapping_shift,
+    WrappingShiftKind, lower_conditional_scalar_operation, lower_exact_shift_left,
+    lower_exact_shift_right, lower_wrapping_shift,
 };
 use expressions::*;
 pub(in crate::lowering) use expressions::{
