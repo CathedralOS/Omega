@@ -37,6 +37,8 @@ pub(super) enum RankingOrder {
     CustomStructView {
         field: typed_trees::name::Identifier,
         field_type: typed_trees::types::TypeReferenceHandle,
+        field_symbol: symbols::SymbolHandle,
+        owner: symbols::SymbolHandle,
     },
     /// A declared lexicographic `measure`; the stored field names are the ordered
     /// projection components compared left-to-right.
@@ -208,6 +210,7 @@ impl RankingOrder {
                 field,
                 owner,
                 field_type,
+                field_symbol,
             } => {
                 // Applying the projection requires the exact nominal carrier,
                 // not another declaration with the same displayed type name.
@@ -227,7 +230,12 @@ impl RankingOrder {
                 {
                     return None;
                 }
-                Some(Self::CustomStructView { field, field_type })
+                Some(Self::CustomStructView {
+                    field,
+                    field_type,
+                    field_symbol,
+                    owner,
+                })
             }
         }
     }
