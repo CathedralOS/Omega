@@ -584,6 +584,13 @@ Owners include
   rejects structural field stores in `admission.rs` and projected structural
   calls in `source/structural/call.rs` and `replay/structural/call.rs`; native
   coverage needs those engineering dependencies, not the retired emitter.
+  The source-backed probe is `cargo nextest run -p omega-native-differential-test
+  --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail`.
+  On macOS ARM64 its indexed-alias program reaches
+  `AttachedUnitStructuralScalarNotYetSelectable` for Linux x86-64, Linux AArch64,
+  and macOS AArch64 plans. Replace that exact rejection oracle with native
+  caller-owned byte observations after implementing ordinary base-pointer stores
+  and projected borrowed-pointer calls; frame-slot stores are not writeback.
   Extend Terminal receiver production beyond nonescaping direct-root local
   alias erasure to nested/escaping carriers and dynamic indexes; checked
   admission alone does not supply their portable address and lifetime evidence.

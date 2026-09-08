@@ -8,3 +8,4 @@ mod scalar_signature;
 mod structural_arguments;
 mod structural_paths;
 mod structural_results;
+mod write_only_subloans;

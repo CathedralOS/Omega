@@ -56,6 +56,10 @@ pub(crate) fn structural_arguments_match(
             StructuralProjectionPolicy::Unit => {
                 argument.path.is_empty()
                     || is_nonempty_field_path(&argument.path)
+                    // Write-only subloans may interleave fields and literal
+                    // indexes. Exact resolution and materiality below govern
+                    // their shape, not a fixed path-depth roster.
+                    || argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
                     || matches!(
                         argument.path.as_slice(),
                         [terminal_psi::StructuralPathSegment::FixedIndex(_)]
@@ -86,10 +90,33 @@ pub(crate) fn structural_arguments_match(
         {
             return false;
         }
-        let unrestricted_write_only_field = is_nonempty_field_path(&argument.path)
+        let indexed_write_only_path_is_material = || {
+            !argument.path.iter().any(|segment| {
+                matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
+            }) || (is_material_write_only_type(types, source.structural_type)
+                && types.get(&actual_type).is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                            | terminal_psi::StructuralTypeShape::Record { .. }
+                    )
+                }))
+        };
+        let unrestricted_write_only_subloan = !argument.path.is_empty()
             && argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
             && parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            && source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            && matches!(
+                source.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && indexed_write_only_path_is_material();
+        let unrestricted_mutable_field = is_nonempty_field_path(&argument.path)
+            && argument.access == terminal_psi::StructuralAccess::MutableBorrow
+            && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+            && source.access == terminal_psi::StructuralAccess::MutableBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
         let unrestricted_shared_field = is_nonempty_field_path(&argument.path)
@@ -97,9 +124,23 @@ pub(crate) fn structural_arguments_match(
             && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
+        // Terminal admits indexed write-only arguments only as unrestricted
+        // material subloans. Linear fallback cannot supply that authority.
+        if projection == StructuralProjectionPolicy::Unit
+            && argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            && argument.path.iter().any(|segment| {
+                matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
+            })
+            && !unrestricted_write_only_subloan
+        {
+            return false;
+        }
         let actual_multiplicity = if argument.path.is_empty() {
             source.multiplicity
-        } else if unrestricted_write_only_field || unrestricted_shared_field {
+        } else if unrestricted_write_only_subloan
+            || unrestricted_mutable_field
+            || unrestricted_shared_field
+        {
             terminal_psi::StructuralMultiplicity::Unrestricted
         } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
@@ -124,7 +165,9 @@ pub(crate) fn structural_arguments_match(
                 })
             || (projection == StructuralProjectionPolicy::Unit
                 && !argument.path.is_empty()
-                && !source.qualifications.is_empty())
+                && (!source.qualifications.is_empty()
+                    || ((unrestricted_write_only_subloan || unrestricted_mutable_field)
+                        && !parameter.qualifications.is_empty())))
         {
             return false;
         }
@@ -140,6 +183,47 @@ pub(crate) fn structural_arguments_match(
             {
                 return false;
             }
+        }
+    }
+    true
+}
+
+/// Indexed non-observing projection cannot traverse stored references or
+/// descriptors. The validated catalog is acyclic; shared children are inspected
+/// once without imposing a private depth limit.
+fn is_material_write_only_type(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    let mut pending = vec![root];
+    let mut visited = BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if !visited.insert(current) {
+            continue;
+        }
+        let Some(declaration) = types.get(&current) else {
+            return false;
+        };
+        match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_) => {}
+            StructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if field.relevance.is_erased() {
+                        return false;
+                    }
+                    match field.field_type {
+                        StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Structural(child) => pending.push(child),
+                        StructuralFieldType::ByteSequence(_)
+                        | StructuralFieldType::Erased { .. } => return false,
+                    }
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. } => return false,
         }
     }
     true
