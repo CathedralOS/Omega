@@ -44,7 +44,7 @@ produced the same pinned receipt. Consulting existing free-capture mappings
 before the local-bound spine reduced that command to 15.960 seconds on the same
 macOS arm64 host; executing the unchanged receipt returned `41 00 80 ff` in
 0.055 seconds. These are single-run observations, not a statistical benchmark.
-The [capture invariant](../../../bootstrap/3_delta/compiler/implementation/normalization/README.md#captured-bindings)
+The [capture invariant](../../../bootstrap/3_delta/implementation/normalization/README.md#captured-bindings)
 explains why repeated references need no second bound-spine scan after mapping.
 This witnesses compiler completion, not an observed heap exhaustion or a
 claim that runtime traversal of every wide field is now linear.

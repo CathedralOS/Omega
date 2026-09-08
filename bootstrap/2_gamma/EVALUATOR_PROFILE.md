@@ -191,7 +191,7 @@ out-of-range memory behavior or exposes an Alpha arithmetic trap as a Gamma
 outcome. Gamma has no time or fuel bound; a nonterminating program diverges.
 
 The selected implementation is
-[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,632-line,
+[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,632-line,
 46,489-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
 current SHA-256 identities are:
 

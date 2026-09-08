@@ -349,7 +349,7 @@ at internal row 0 with zero limit/requested. This row identifies the singleton
 complete-program emission record, not the corrupt child or an authored source
 location. Positive signed count overflow in private metadata and late replay
 disagreement remain raw evaluator failures, not canonical DCOUT outcomes. The
-[selected producer's occurrence bound](compiler/implementation/emission/README.md#reachable-byte-count-bound)
+[selected producer's occurrence bound](implementation/emission/README.md#reachable-byte-count-bound)
 keeps admitted-source intermediate and complete emission counts below `2^62`;
 the private overflow case is not reachable through that producer. This is a
 source-level implementation argument, not a checked Delta refinement proof.

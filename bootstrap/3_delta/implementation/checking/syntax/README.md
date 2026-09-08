@@ -171,7 +171,7 @@ The retained program is consumed, not discarded after validation:
 
 The [emitter](../../emission/README.md) remains after the complete static
 preflight, as required by
-[D114](../../../../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
+[D114](../../../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
 Other compiler-owned resource/internal failure propagation and successful
 generated-program admission throughout the Delta depth profile remain separate
 work. The selected Gamma evaluator caps generated bodies at 255 nested lists;

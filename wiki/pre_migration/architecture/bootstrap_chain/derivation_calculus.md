@@ -7,16 +7,16 @@
 
 This specifies the ordinary-Gamma ground-equality checker design.
 It is not an accepted checker artifact, certificate, or new admission
-of the Gamma evaluator. The [inner format](../../../../bootstrap/2_gamma/derivation_checker/FORMAT.md)
-assigns concrete wire fields; [executable theory formation](../../../../bootstrap/2_gamma/derivation_checker/FORMATION.md)
+of the Gamma evaluator. The [inner format](../../../../bootstrap/proofs/checker/FORMAT.md)
+assigns concrete wire fields; [executable theory formation](../../../../bootstrap/proofs/checker/FORMATION.md)
 checks conservative definitions under a bounded component profile.
-[Ground checking](../../../../bootstrap/2_gamma/derivation_checker/GROUND.md) validates
+[Ground checking](../../../../bootstrap/proofs/checker/GROUND.md) validates
 closed applications and owner-root sorts with separate witness custody.
-[Structural comparison](../../../../bootstrap/2_gamma/derivation_checker/COMPARISON.md)
+[Structural comparison](../../../../bootstrap/proofs/checker/COMPARISON.md)
 uses completed-pair memoization and an explicit pending stack.
-[Checked template substitution](../../../../bootstrap/2_gamma/derivation_checker/SUBSTITUTION.md)
+[Checked template substitution](../../../../bootstrap/proofs/checker/SUBSTITUTION.md)
 checks stated unfolding with separate binding-scoped memoization and shared work.
-[Explicit proof checking](../../../../bootstrap/2_gamma/derivation_checker/CHECKING.md)
+[Explicit proof checking](../../../../bootstrap/proofs/checker/CHECKING.md)
 checks every row and the owner root, with a generic soundness argument and
 combined resource ledger. The full Beta theory, certificate measurements, and
 artifact acceptance remain open.
@@ -141,7 +141,7 @@ this first finite-instance implementation.
 
 ## Complete Beta theory
 
-The [source-owned Beta theory](../../../../bootstrap/2_gamma/beta_encoding/README.md)
+The [source-owned Beta theory](../../../../bootstrap/proofs/beta_encoding/README.md)
 provides finite Byte/Nibble constructors, total lexical classifiers and nibble
 conversion, fixed-width Word constructors, little-endian byte lists, and checked
 counter increment with an explicit overflow result, and unsigned word comparison.
@@ -177,7 +177,7 @@ scaffolding is not introduced.
 
 ## Ownership and execution order
 
-The intended generic source layout is `bootstrap/2_gamma/derivation_checker/`:
+The intended generic source layout is `bootstrap/proofs/checker/`:
 
 ```text
 checker.gamma       coordinate formation, derivation checking, and root checking

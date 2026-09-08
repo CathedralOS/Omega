@@ -185,10 +185,10 @@ profile bound, or manufacture compiler-owned resource evidence.
 
 Exact body heights, capture behavior, evaluation and trap order, existing
 receipts, and actual Epsilon reconstruction remain validation obligations.
-The [normalization gate](../../../../../tests/delta/normalization/README.md)
+The [normalization gate](../../../../tests/delta/normalization/README.md)
 compares production-plan observations with authored expectations, then compiles
 and executes the generated Gamma. The separate
-[lowering-plan gate](../../../../../tests/delta/lowering-plan/README.md)
+[lowering-plan gate](../../../../tests/delta/lowering-plan/README.md)
 retains its pre-normalization measurements.
 Compiler-owned resource/internal DCOUT publication and the complete Delta edge
 remain open even when every generated body satisfies the nesting bound.

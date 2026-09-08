@@ -139,7 +139,7 @@ compiler-owned storage bounds or general canonical internal-failure coverage.
 
 The [lowering phase](../../lowering/README.md) consumes the completed typing
 judgment and builds every expanded Gamma body before publication under
-[D114](../../../../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
+[D114](../../../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d114--delta-emission-consumes-the-completed-static-preflight).
 Its own explicit continuations remove recursive compiler-expression descent.
 The separate normalizer consumes expanded heights to satisfy the evaluator's
 255-list body bound before serialization. Helper-count, runtime-context, and

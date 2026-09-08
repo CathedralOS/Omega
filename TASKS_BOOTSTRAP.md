@@ -75,7 +75,7 @@ prerequisite to every lower-rung milestone.
   Gamma evaluator/checker/Beta definitions, and selected-chain resource profiles.
   Current Epsilon demand does not justify more depth machinery; retain deep-source
   conformance until a simpler implementation or owner-approved scope replaces it.
-  For P1 in `bootstrap/2_gamma/beta_encoding/`, use the consolidated
+  For P1 in `bootstrap/proofs/beta_encoding/`, use the consolidated
   [complete encoder candidate](wiki/pre_migration/design_briefs/beta_encoder_plan.md), not
   another isolated helper probe. It removes completed-token/output histories
   from incoming state and accounts explicitly for fragment composition, exact
@@ -107,8 +107,8 @@ prerequisite to every lower-rung milestone.
 ## P1 - Gamma checker and first complete encoding proof
 
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific proof using
-  the ordinary-Gamma [checker](bootstrap/2_gamma/derivation_checker/CHECKING.md)
-  and [Beta definitions](bootstrap/2_gamma/beta_encoding/README.md), following the
+  the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md)
+  and [Beta definitions](bootstrap/proofs/beta_encoding/README.md), following the
   [ground equality design](wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md).
   Remaining work: complete error-valued Beta encoding definitions, independently
   reconstruct the owner-fixed proposition, and produce the untrusted explicit
@@ -120,7 +120,7 @@ prerequisite to every lower-rung milestone.
   in this certificate. No proof search, producer-selected root, trusted assembler
   primitive, or general-purpose extension.
   Acceptance: the full certificate checks under the exact
-  [result/resource profile](bootstrap/2_gamma/derivation_checker/FORMAT.md), with
+  [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with
   measured bytes, storage, depth, and time and a reviewable account of the
   definitions and trusted assumptions. Malformed, cyclic, missing-premise,
   wrong-subject, wrong-rule, and exhausted requests cannot accept.
@@ -129,7 +129,7 @@ prerequisite to every lower-rung milestone.
 ## P2 - Gamma to Delta
 
 - **DELTA-COMPILER.** Finish the Gamma closure rooted at
-  `bootstrap/3_delta/compiler/delta_compiler.gamma` against the
+  `bootstrap/3_delta/delta_compiler.gamma` against the
   [Delta contract](bootstrap/3_delta/LANGUAGE.md), especially remaining canonical
   DCOUT resource and internal failures. Preserve full ordinary source semantics,
   checked arithmetic, exhaustive matching, proper-tail lowering, and canonical
@@ -142,11 +142,11 @@ prerequisite to every lower-rung milestone.
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
   `sh tests/epsilon/checking/run.sh` reconstructs the 708,456-byte
   receipt and checks 70 exact judgments with the selected evaluator.
-  Follow the [selected producer's resource ownership](bootstrap/3_delta/compiler/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
+  Follow the [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
   Alpha local-slot/label/fixup resources have zero use here, and match coverage
   is bounded by admitted constructors. Do not implement fictitious tables or
   chase arbitrary corrupt private pairs. The
-  [normalization audit](bootstrap/3_delta/compiler/implementation/normalization/README.md)
+  [normalization audit](bootstrap/3_delta/implementation/normalization/README.md)
   gives source-level height and static-environment arguments, including helper
   captures; `sh tests/delta/normalization/run.sh` exercises successful compilation
   and execution at source depth 1,024 and payload width 2,048. The latter source
@@ -154,12 +154,12 @@ prerequisite to every lower-rung milestone.
   the original inline-projection baseline exceeded 300 seconds, not an observed
   heap exhaustion. These are not checked
   edge certificates.
-  The [emission occurrence argument](bootstrap/3_delta/compiler/implementation/emission/README.md#reachable-byte-count-bound)
+  The [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
   separately bounds intermediate and complete byte counts below `2^62`;
   synthetic overflowing metadata is not an admitted-source refusal case.
   Next acceptance: witness and classify any remaining compiler-execution
   resource gap using full admitted source, not injected counters. The
-  [balanced-arithmetic probe](bootstrap/3_delta/compiler/implementation/boundary/README.md#arithmetic-allocation-probe)
+  [balanced-arithmetic probe](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
   at `8148975c62` compiled 64 shallow trees and returned canonical syntax-storage
   refusal for 512. Its allocation inventory does not justify continued scaling
   as a heap witness. Next action: select a separately justified source path or
@@ -180,7 +180,7 @@ prerequisite to every lower-rung milestone.
 ## P3 - Delta to Epsilon
 
 - **EPSILON-EVALUATOR.** Complete the closure selected by
-  `bootstrap/4_epsilon/compiler/epsilon_compiler.delta.sources` against the
+  `bootstrap/4_epsilon/epsilon_compiler.delta.sources` against the
   [Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md): remaining checking,
   fixed-storage realization, deterministic outcomes, execution, and evaluator
   entry. Justify retained features by the Epsilon-written D source.

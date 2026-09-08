@@ -105,7 +105,7 @@ trap carries the closed trap kind and exact output prefix; rejection carries
 the closed reason and exact source offset. Internal failure and malformed
 private input have separate tags; the retired staging tag 4 stays unassigned.
 This avoids collapsing exits modulo 256 or discarding checking evidence. The
-[execution gate](../../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
+[execution gate](../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
 documents the exact byte layout. Outer Gamma failures are not converted into
 these diagnostic results.
 
@@ -152,7 +152,7 @@ binder array retains that independent backing across state transfer through the
 ordinary root-liveness rule; unused binder roots are reclaimed normally.
 
 Constructor arguments immediately establish their corresponding payload fields
-under the [constructor payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order).
+under the [constructor payload establishment rule](LANGUAGE.md#epsilon-constructor-payload-establishment-order).
 A byte payload outside `0..255` traps as `ByteRange`, preserving effects from
 preceding arguments and from evaluating the failing argument itself. Later
 arguments do not run: their storage mutations, Console output, traps, and exits
@@ -258,7 +258,7 @@ type formation also reverses only the list spine and preserves exactly
 `min(parameters, min(body, suffix))`. Conflict precedence makes reassociation
 invalid even when ordinary distinct-coordinate errors would select the same
 minimum. State width therefore consumes no pending return frame per state.
-The [checking-invariant controls](../../../tests/epsilon/checking-invariants/README.md)
+The [checking-invariant controls](../../tests/epsilon/checking-invariants/README.md)
 pin this association with synthetic overlapping coordinates. They test the
 private candidate algebra, not acceptance of an Epsilon source with those spans.
 Data-shape selection and catalog unknown-owner selection likewise reverse only
@@ -654,7 +654,7 @@ backend was less economical than authoring the specified direct components.
 ## Required completion
 
 - complete the evaluator closure selected by `epsilon_compiler.delta.sources` against D17 and
-  [`../LANGUAGE.md`](../LANGUAGE.md);
+  [`../LANGUAGE.md`](LANGUAGE.md);
 - complete every Epsilon expression, statement, state, trap, and Console
   execution rule without turning a private `Unsupported` result into an
   observation;
@@ -670,7 +670,7 @@ execution of Epsilon. Alpha target emission belongs to Omega D and C, not this
 owner.
 
 The active migration order lives in
-[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
+[`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 
 ## Deletion condition
 

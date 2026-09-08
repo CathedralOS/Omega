@@ -155,7 +155,7 @@ the cost review; a scalar limit edit would not establish containment.
 
 When this approach has a defensible continuation, use **one complete Beta definition
 package and integrated recipe** as the next implementation unit, not another
-permanent helper experiment. Within `bootstrap/2_gamma/beta_encoding/`, keep the
+permanent helper experiment. Within `bootstrap/proofs/beta_encoding/`, keep the
 existing theory entrance; the encoder entrance should sequence admission, scan,
 and finalization. Subordinate ownership is source admission, token recognition,
 instruction/emission transitions, and output composition. Existing arithmetic

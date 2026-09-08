@@ -39,7 +39,7 @@ closure or entry requires a fresh audit.
 ## Checked finite requests
 
 The generic checker diagnostic is 63,504 bytes under
-the [existing checking profile](../derivation_checker/CHECKING.md).
+the [existing checking profile](../checker/CHECKING.md).
 The emitted theory has `S=8, C=284, A=12, F=57, W=23284`; its formation work
 estimate is 111,996. Every supplied clause and proof row is checked, including
 ones not used by the final root.

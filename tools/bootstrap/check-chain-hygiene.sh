@@ -45,6 +45,7 @@ for required in \
   "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_OMEGA_D" \
   "$OMEGA_PATH_OMEGA_COMPILER" \
+  "$OMEGA_PATH_PROOFS" \
   "$OMEGA_REPO_ROOT/source/library" \
   "$OMEGA_REPO_ROOT/source/psi"
 do
@@ -81,6 +82,20 @@ done
   fail "Delta-written Epsilon evaluator source manifest is absent"
 [ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCES" ] ||
   fail "Epsilon-written Omega D source manifest is absent"
+[ -f "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" ] ||
+  fail "Gamma derivation checker source manifest is absent"
+[ -f "$OMEGA_PATH_BETA_ENCODING_SOURCES" ] ||
+  fail "Beta encoding theory source manifest is absent"
+
+for flat_rung in "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA"
+do
+  nested_directories=$(find "$flat_rung" -mindepth 1 -type d -print)
+  [ -z "$nested_directories" ] || fail "flat rung contains subdirectories: $nested_directories"
+done
+for compiler_rung in "$OMEGA_PATH_DELTA" "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA_D"
+do
+  [ ! -e "$compiler_rung/compiler" ] || fail "redundant compiler directory remains: $compiler_rung/compiler"
+done
 [ -x "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" ] ||
   fail "source-closure materializer is not executable"
 [ -x "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.sh" ] ||
@@ -122,9 +137,10 @@ expected_bootstrap_roots='0_alpha
 2_gamma
 3_delta
 4_epsilon
-5_omega'
+5_omega
+proofs'
 [ "$tracked_bootstrap_roots" = "$expected_bootstrap_roots" ] ||
-  fail "tracked bootstrap owners differ from the selected rung set"
+  fail "tracked bootstrap owners differ from the selected rungs and proof work"
 
 tracked_compiler_sources=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
@@ -132,9 +148,9 @@ tracked_compiler_sources=$(find \
   -type f -name '*compiler.*' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
-expected_compiler_sources='bootstrap/1_beta/compiler/beta_compiler.beta
-bootstrap/3_delta/compiler/delta_compiler.gamma
-bootstrap/4_epsilon/compiler/epsilon_compiler.delta'
+expected_compiler_sources='bootstrap/1_beta/beta_compiler.beta
+bootstrap/3_delta/delta_compiler.gamma
+bootstrap/4_epsilon/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
@@ -153,7 +169,7 @@ tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_EPSILON_COMPILER" \
   -type f -name '*compiler*.tape' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | sort || true)
-expected_compiler_tapes='bootstrap/1_beta/compiler/beta_compiler_bytecode.tape'
+expected_compiler_tapes='bootstrap/1_beta/beta_compiler_bytecode.tape'
 [ "$tracked_compiler_tapes" = "$expected_compiler_tapes" ] ||
   fail "compiler tapes differ from selected edges or declared experiments"
 

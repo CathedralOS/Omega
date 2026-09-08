@@ -311,6 +311,8 @@ there, not at `cargo check`.
   goal.
 - `bootstrap/5_omega/` — the Epsilon-written first Omega compiler D. It is a
   bootstrap implementation, not the final Omega-owned product source.
+- `bootstrap/proofs/` — Gamma-written derivation checking and artifact-specific
+  encoding theories beside the rungs, not an additional language stage.
 - `source/library/` — bundled Omega packages; `omega::` imports resolve here,
   as either `name.omg` or `name/mod.omg`.
 

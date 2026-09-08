@@ -42,28 +42,28 @@ wrong-subject evidence, and resource exhaustion cannot accept. Product proof
 ambitions do not enlarge this bootstrap tool automatically.
 
 An artifact-accepted checker and complete Beta encoding certificate are still
-absent. The [concrete inner format](../../../../bootstrap/2_gamma/derivation_checker/FORMAT.md)
+absent. The [concrete inner format](../../../../bootstrap/proofs/checker/FORMAT.md)
 assigns theory, template, ground-term, and proof-row fields without adding an
 accepted artifact. The ordinary-Gamma
-[outer request admission](../../../../bootstrap/2_gamma/derivation_checker/REQUEST.md)
+[outer request admission](../../../../bootstrap/proofs/checker/REQUEST.md)
 retains separate exact theory, proposition, and certificate spans; a framed
 result is neither theory validation nor proof acceptance. A separate
-[inner layout traversal](../../../../bootstrap/2_gamma/derivation_checker/LAYOUT.md)
+[inner layout traversal](../../../../bootstrap/proofs/checker/LAYOUT.md)
 checks every physical record without admitting a theory or checking a proof.
-[Theory formation](../../../../bootstrap/2_gamma/derivation_checker/FORMATION.md)
+[Theory formation](../../../../bootstrap/proofs/checker/FORMATION.md)
 then indexes and checks conservative definitions, including finite inhabitants,
 scoped sorted templates, complete cases, and structural self-decrease. Its
 `Formed` result is neither proof acceptance nor Beta subject authority.
-[Ground-term validation](../../../../bootstrap/2_gamma/derivation_checker/GROUND.md)
+[Ground-term validation](../../../../bootstrap/proofs/checker/GROUND.md)
 indexes owner and witness terms separately, checks their applications, and
 requires well-sorted owner-only root references. `Grounded` does not compare
 those roots for equality or check any proof row.
-[Structural comparison](../../../../bootstrap/2_gamma/derivation_checker/COMPARISON.md)
+[Structural comparison](../../../../bootstrap/proofs/checker/COMPARISON.md)
 compares validated term syntax with completed-pair memoization and cumulative
 session work. A structurally different result does not disprove theory equality;
-[checked substitution](../../../../bootstrap/2_gamma/derivation_checker/SUBSTITUTION.md)
+[checked substitution](../../../../bootstrap/proofs/checker/SUBSTITUTION.md)
 validates a stated unfolding without evaluating functions or polluting structural
-memoization. [Explicit derivation checking](../../../../bootstrap/2_gamma/derivation_checker/CHECKING.md)
+memoization. [Explicit derivation checking](../../../../bootstrap/proofs/checker/CHECKING.md)
 validates all rows and the final owner root under one cumulative resource profile.
 Its generic Checked outcome proves equality under the supplied formed theory;
 it does not authenticate that theory or root as the intended Beta subject. The

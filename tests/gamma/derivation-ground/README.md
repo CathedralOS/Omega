@@ -5,9 +5,9 @@ arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha see
 are required; macOS additionally requires `codesign`. A portable entrypoint does
 not establish Windows runtime validation.
 
-The contract is [GROUND.md](../../../bootstrap/2_gamma/derivation_checker/GROUND.md),
-following [formation](../../../bootstrap/2_gamma/derivation_checker/FORMATION.md)
-and [physical layout](../../../bootstrap/2_gamma/derivation_checker/LAYOUT.md).
+The contract is [GROUND.md](../../../bootstrap/proofs/checker/GROUND.md),
+following [formation](../../../bootstrap/proofs/checker/FORMATION.md)
+and [physical layout](../../../bootstrap/proofs/checker/LAYOUT.md).
 The gate materializes the complete canonical checker implementation with its
 explicit diagnostic entry, checks the `source.tsv` identity, and calls the real
 `check_derivation_ground()` through the selected Gamma evaluator. It never

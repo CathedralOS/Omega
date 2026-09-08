@@ -28,10 +28,10 @@ esac
 ENCODING_TMP=$(mktemp -d)
 trap 'rm -rf -- "$ENCODING_TMP"' EXIT HUP INT TERM
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_GAMMA/beta_encoding/theory/theory.gamma.sources" \
+    "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$ENCODING_TMP/producer.gamma" --prefix "$GATE_DIR/main.gamma"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_GAMMA/derivation_checker/implementation/implementation.gamma.sources" \
+    "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$ENCODING_TMP/checker.gamma" \
     --prefix "$OMEGA_REPO_ROOT/tests/gamma/derivation-checking/main.gamma"
 materialize_gamma_evaluator "$ENCODING_TMP/evaluator" >/dev/null

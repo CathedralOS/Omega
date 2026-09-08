@@ -20,7 +20,7 @@ esac
 GROUND_TMP=$(mktemp -d)
 trap 'rm -rf -- "$GROUND_TMP"' EXIT HUP INT TERM
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
-    "$OMEGA_PATH_GAMMA/derivation_checker/implementation/implementation.gamma.sources" \
+    "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$GROUND_TMP/diagnostic.gamma" --prefix "$GATE_DIR/main.gamma"
 materialize_gamma_evaluator "$GROUND_TMP/evaluator" >/dev/null
 python3 -B "$GATE_DIR/gate.py" "$GROUND_TMP"
