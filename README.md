@@ -1,20 +1,24 @@
 # Omega
 
-Omega is a systems language built around explicit state machines, checked contracts,
-and ownership of memory and resources. Borrow-checked, proof-checked, high-assurance,
-with zero-cost abstractions.
+Omega is a systems language built around explicit state machines, checked
+contracts, and ownership of memory and resources.
 
-There is no "unsafe" code, only explicit trust boundaries. If that trust holds, all code
-is verifiably safe, even inline assembly.
+Make trust explicit. Prove that, when those assumptions hold, the program keeps
+its promises. There is no `unsafe` escape hatch: even inline assembly must
+satisfy checked contracts or rely on explicitly admitted assumptions.
 
-By modeling a program as a state machine, we can answer otherwise impossible questions in other languages:
-- Does a program halt?
-- Does this API access the filesystem?
-- Can this program or library crash?
+These contracts make questions about program behavior part of checking:
 
-Omega is designed to eliminate entire categories of errors, designed for software where failure is costly, from aircraft systems to OS kernels—without sacrificing performance.
+- Which operations are proved to terminate?
+- Can this API access the filesystem, including through its dependencies?
+- Under what conditions can this operation crash?
 
-To prove these claims, Omega is being co-developed alongside an Operating system called Cathedral. Cathedral puts Omega's guarantees to work on real problems: managing memory, controlling hardware and drivers, and running untrusted software safely.
+Omega is being built for software where failure is costly—from aircraft systems
+to OS kernels—without sacrificing performance.
+
+Its first major application is **Cathedral**, an operating system being developed
+alongside the language. Cathedral puts the design to work on kernel problems:
+managing memory, controlling hardware, and running untrusted software.
 
 **Pre-Alpha.** The Rust compiler is under active development. The language
 design is ahead of its implementation; native support is still being completed.
@@ -26,7 +30,7 @@ design is ahead of its implementation; native support is still being completed.
 
 ## Example
 
-A language example: removing health from a player without unsigned underflow.
+Apply damage to a player without unsigned underflow:
 
 ```omega
 data Player {
@@ -49,9 +53,8 @@ machine Player::take_damage(&mut self, amount: u32)
   access through another ordinary borrow is rejected.
 
 The condition makes subtraction valid. Failing to prove it is a compile error,
-not an automatically inserted runtime assertion. This is a design example;
-the [contract guide](wiki/language_guide/chapter_7_types_constraints_invariants.md)
-explains the model in more depth.
+not an automatically inserted runtime assertion. See the
+[contract guide](wiki/language_guide/chapter_7_types_constraints_invariants.md).
 
 For longer control flow, a machine contains named states and explicit
 transitions. State transfers carry their inputs and do not grow the call stack.
@@ -62,7 +65,7 @@ See [states and transitions](wiki/language_guide/chapter_4_states_transitions.md
 Omega also supports authoring mathematical proofs. A proved machine's contract
 can be used in another proof, or to justify an operation in systems code.
 
-For example, contract syntax can state a theorem: **(a + b)(a − b) = a² − b²**.
+The same contract syntax can state a theorem: **(a + b)(a − b) = a² − b²**.
 
 ```omega
 machine difference_of_squares(a: Int, b: Int)
@@ -82,19 +85,18 @@ See [compile-time proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
 
 ## Failures Omega addresses
 
-**Prevented** means excluded by required checking and admission. **Conditional**
-means the guarantee requires a selected policy or additional proof. These describe
-the language guarantees, not today's implementation coverage.
+These are design guarantees, within the stated trust boundaries:
 
-✅ = Completely prevented
-⭐ = Severely mitigated (opt-in or conditionally solved)
+- ✅ **Prevented** by required checking and admission.
+- ⭐ **Conditional** on an arithmetic policy, additional proof, or trust decision;
+  the row states what is covered and what remains possible.
 
 | Failure | Guarantee | What Omega does about it |
 | --- | --- | --- |
 | Use-after-free, double-free, dangling references | ✅ | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
 | Out-of-bounds reads and writes | ✅ | Array and slice access requires proof that the index or range is valid. |
 | Stack overflow | ✅ | Tail recursion becomes iteration. Worst-case stack demand, including compiler spills, must fit provisioned storage before execution. |
-| Integer overflow and division by zero | ⭐ | Prevented entirely by opting in. Exact arithmetic proves validity. Explicit wrapping, saturation, or trapping policies choose other behavior rather than promising failure-free arithmetic. |
+| Integer overflow and division by zero | ⭐ | Exact arithmetic is the default and requires proof of validity. Explicit wrapping, saturation, or trapping policies choose other behavior rather than promising failure-free arithmetic. |
 | Data races | ✅ | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
 | Deadlocks and indefinite waits | ⭐ | Protocol proofs rule out wait cycles and missing wakeups for the checked composition and its stated external assumptions. Ownership alone does not promise progress. |
 | Unintended infinite loops | ⭐ | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
