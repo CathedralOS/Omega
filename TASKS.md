@@ -294,7 +294,7 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   constraints while changed endpoints and intervening writes invalidate their
   premises. Preserve the private-witness/public-guarantee split described in
   chapter 3 and the
-  [termination brief](wiki/pre_migration/design_briefs/termination_ranking_and_progress.md).
+  [termination contract](wiki/spec/language/termination.md).
 
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
@@ -410,7 +410,7 @@ Owners include
 
 - **GENERAL-CYCLIC-EXECUTION.** Implement the
   [settled cyclic control contract](wiki/spec/terminal-psi/control_flow.md)
-  and [separate safety/progress rules](wiki/pre_migration/design_briefs/termination_ranking_and_progress.md)
+  and [separate safety/progress rules](wiki/spec/language/termination.md)
   for the actual effectful state graphs used by `print_squares` and the
   Console writer. Reuse blocks, `Jump`, `Conditional`, successor arguments,
   and ordinary operations. No new loop opcode, fabricated per-state machine,

@@ -29,7 +29,7 @@ to request inference. An authored memberless `reaches` on a private body is an
 explicit empty ceiling, not inference.
 
 May-ceilings permit behavior; they do not assert that every run performs it.
-`terminates` has the opposite polarity: a positive progress promise under its
+[`terminates`](termination.md) has the opposite polarity: a positive progress promise under its
 pinned premises, not an effect. It does not by itself prove fairness, eventual
 wakeup, a deadline, or starvation freedom. Omitting suspension/blocking proves
 only the corresponding negative guarantee, not positive progress.

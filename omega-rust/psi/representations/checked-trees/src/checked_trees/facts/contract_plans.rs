@@ -1,4 +1,4 @@
-//! STR4 checked plans (machine_taxonomy.md): the normalized MACHINE
+//! STR4 checked plans (wiki/spec/language/machines.md): the normalized MACHINE
 //! SEMANTIC CONTRACT, independent of syntax and lowering -- component
 //! manifests, proof artifacts, provider admission, and hot-swap checks
 //! reference this identity, never re-derived booleans. The checked public

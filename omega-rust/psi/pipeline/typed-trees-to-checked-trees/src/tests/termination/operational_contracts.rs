@@ -377,7 +377,7 @@ fn qualification_facts_record_policy_commitments() {
 
 #[test]
 fn contract_plans_fingerprint_published_halves() {
-    // STR4 checked plans (machine_taxonomy.md): the contract fingerprint
+    // STR4 checked plans (wiki/spec/language/machines.md): the contract fingerprint
     // covers ONLY the published halves -- two machines with the same
     // declared surface share it; a different `reaches` clause changes it;
     // inferred rows never enter (prover-independence by construction).

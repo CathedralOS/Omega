@@ -10,7 +10,7 @@ function-like call is one important use of a machine, not its definition.
 > boundary provision consume the same semantic construct. Checked bodies, requirements,
 > external providers, and accepted trust declarations are supply modes, not
 > separate machine species. See
-> [machine_taxonomy.md](../pre_migration/design_briefs/machine_taxonomy.md).
+> [machines and contract refinement](../spec/language/machines.md).
 
 Machines may be attached to data, or free-standing when there is no natural
 owning data type.
@@ -363,7 +363,7 @@ call; inside `scan`, that parser is the whole receiver and remains the same
 referent across iterations. Conflicting parent access rejects while the loan
 is live, and writes affect the original field after return. Changing cursors
 can be ordinary loop-carried reference parameters; no new `self`-rebinding
-surface is planned. The [ranked-callee ruling](../pre_migration/design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers)
+surface is planned. The [ranked-callee ruling](../spec/language/termination.md#ranked-callees-on-projected-receivers)
 records the semantics and acceptance. The current native whole-entry countdown
 route does not yet compose an ordinary caller with such a ranked callee; this
 requires call/return, borrow, ranking, and resource implementation, not new
@@ -470,7 +470,7 @@ is the published guarantee. Cross-package operational recursion remains
 unsupported until a compositional termination interface is designed; any such
 interface must close from published termination evidence and must neither
 expose nor inspect private measures. See
-[termination_ranking_and_progress.md](../pre_migration/design_briefs/termination_ranking_and_progress.md).
+[termination and progress](../spec/language/termination.md).
 
 ## Contracts
 

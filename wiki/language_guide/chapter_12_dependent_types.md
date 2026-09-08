@@ -6,7 +6,7 @@ parameters, and locals, not only constants.
 The staged systems fragment is settled; implementation remains incomplete.
 Motivation, prior-art evidence, and the implementation ladder live in the
 companion design brief
-([dependent_types.md](../pre_migration/design_briefs/dependent_types.md)). Chapters
+([value-dependent facts and views](../spec/language/dependent_values.md)). Chapters
 [7](chapter_7_types_constraints_invariants.md),
 [8](chapter_8_domains.md), [11](chapter_11_invariant_windows.md), and
 [13](chapter_13_generics.md) are assumed.
@@ -482,7 +482,7 @@ systems restrictions above do not constrain that mathematical language.
 Universes, equality, and foundation compatibility need explicit design; the
 current specialized checker is not a complete implementation. See
 [Mathematical Proofs](../spec/proofs/contracts.md) and the
-[proof-engine direction](../pre_migration/design_briefs/proof_engine_north_star.md).
+[proof contracts](../spec/proofs/contracts.md).
 
 ## Relationship To Other Chapters
 

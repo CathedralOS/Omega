@@ -54,6 +54,56 @@ relation expressions and typed index telescopes precede evidence-bearing
 quotients. Approximation theorems must explicitly connect Real specifications
 to executable float implementations.
 
+### Total arithmetic
+
+Every term in a contract, domain predicate, or crash guard is total. Formation
+is checked per operation, not per binding: comparison, equality, classification,
+and total bitwise operations may consume Trapping-qualified values. An arithmetic
+operation whose selected meaning can transfer control cannot form a proof term.
+It is not silently read as Exact or mathematical arithmetic.
+
+Exact operations discharge representability before formation. Wrapping and
+Saturating discharge primitive definedness not resolved by their overflow policy,
+such as a nonzero divisor. A term cannot use the condition containing that same
+term to justify its own formation. Explicit policy erasure or `embed` selects
+the intended total reading; the two are not equivalent.
+
+Integer/address embedding is injective within its exact source carrier and
+preserves that carrier's range. It neither mutates the source nor creates runtime
+storage. Computed operands preserve their selected policy: embedding a wrapped
+sum does not turn it into unbounded addition. A call interpreted denotationally
+needs a checked observation-free, reach-free, crash-free, terminating invocation,
+not merely a same-spelled mathematical operation.
+
+`embed` cannot be used as an executable conversion. Boolean and noninteger
+carriers have no integer embedding merely because their operands are integers;
+float meaning uses its separate projection.
+
+All integer/address carriers embed into signed proof `Int`, so subtraction is
+ordinary signed subtraction even for unsigned source values. Exact conversion
+to `Nat` requires nonnegativity. Ordinary `Nat - Nat` requires right <= left;
+explicit `Nat::saturating_sub` instead denotes `max(left - right, 0)`.
+Target-relative bounds retain the exact observation dependency. An exclusive
+one-past address bound may be representable in proof mathematics without fitting
+the runtime address carrier.
+
+For mathematical primitive result `M` and result-carrier bounds `[MIN, MAX]`,
+the selected catalog supplies these denotations after primitive definedness:
+
+| Policy | Law |
+| --- | --- |
+| Exact | Formation proves `MIN <= M <= MAX`; embedded result equals `M`. |
+| Wrapping | Embedded result equals width-specific wrapping of `M`. |
+| Saturating | Embedded result equals `M` clamped to the carrier. |
+| Trapping | A normal return embeds to `M`; the exact primitive trap predicate governs failure. |
+
+The trap predicate is not a generic range test: division includes zero and
+signed minimum divided by -1, while shift counts and floats follow their own
+[numeric rules](../language/numeric_values.md). The compiler defines the
+primitive's meaning; an authored crash guard only bounds its possible failures.
+[Crash coverage](../language/effects.md#guarded-crashes) checks that bound.
+`ensures` constrains normal returns, not crash paths.
+
 ## Citation and induction
 
 An ordinary statement call cites a checked theorem. Import its `ensures` under
@@ -108,6 +158,25 @@ Structural field rows retain authored relevance and exact normalized type
 identity. Erased fields need not enter the executable structural-type graph;
 layout skips them before ABI classification. Semantic fingerprints retain them.
 Mismatched relevance/type rows reject.
+
+### Explicit erased bindings
+
+`[erased]` marks a binding occurrence, independently of the carrier's
+multiplicity and validity:
+
+```omega
+data Certified<T> {
+    value: T;
+    proof [erased]: Valid<T>;
+}
+```
+
+The binding remains in checking and semantic identity but contributes no runtime
+field, address, read, or cleanup. It may supply proof computation or static
+authorization; it cannot determine runtime data or control. A zero-layout Type
+value is not implicitly erased. Construction supplies the erased term unless a
+visible accessible nullary constructor determines it structurally; there is no
+general implicit inhabitance or default-value search.
 
 Evidence attached to executable work binds its exact operation, callee, result,
 and specialization, not a second inferred invocation. Independent replay rejects
@@ -166,6 +235,26 @@ normalization licenses, derivation/checker version, and trust/deferral closure.
 Deterministic normalization owns identity; stronger proof search may establish
 more claims but cannot rename them. Terminal obligations and certificate checks
 follow the [verification contract](../terminal-psi/verification.md).
+
+## Certified elaboration and review
+
+Source presents a proof strategy, not every primitive inference. Local
+computation, constructors, branch facts, contract extraction, and licensed
+decision procedures may be implicit, but acceptance needs checked evidence under
+exact premises. Theorem, conformance, boundary, and other provenance-bearing
+dependencies remain explicit in source even when resolution is unique.
+
+A specified total procedure may be replayed by the checker. Partial or heuristic
+search must instead supply evidence checked without repeating the search. A
+replayed normalizer remains trusted checker logic unless it emits a lower-level
+certificate; totality alone does not establish soundness. Normalization cites
+its exact conformance and laws and inherits their complete assumption closure.
+
+Derive the review synopsis deterministically from the checked certificate and
+its source-attribution metadata, never a second analysis of what probably
+happened. It reports certificate identity, recursive components, implicit closure
+rules, cited laws, and trust closure. The synopsis is explanatory; the complete
+certificate and its checked question remain authoritative.
 
 ## Published quotient correspondence
 

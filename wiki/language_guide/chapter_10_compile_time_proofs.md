@@ -285,7 +285,7 @@ site. A specification occurrence creates no crash edge. Authored `crashes`
 routes are total may-ceilings, and coverage checks each derived guard `D`
 against the authored alternatives `C_i` by requiring
 `D implies (C_1 or ... or C_n)`. See
-[Total Specification Arithmetic](../pre_migration/design_briefs/total_specification_arithmetic.md)
+[Total Specification Arithmetic](../spec/proofs/contracts.md#total-arithmetic)
 for the complete policy bridges and Terminal-Psi rules.
 
 ## Proof-Only Data
@@ -881,7 +881,7 @@ stratum and is rejected if runtime lowering is requested.
 The normalized artifact separates the public termination guarantee from the
 private ranking witness. A witness change invalidates its provider proof cache,
 not caller or external requirement-binding identity. See chapter 9 and
-[Termination, Ranking, And Progress](../pre_migration/design_briefs/termination_ranking_and_progress.md).
+[Termination, Ranking, And Progress](../spec/language/termination.md).
 
 ## Citing Proofs
 

@@ -868,7 +868,7 @@ fn selected_data_conformance<'program>(
     matches.next().is_none().then_some(selected)
 }
 
-/// STR4 checked plans (machine_taxonomy.md): assemble each machine's
+/// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
 /// normalized contract plan from the published halves already carried on
 /// the records (supply mode, service/operational ceilings, published termination),
 /// with a deterministic fingerprint over them. Only DECLARED material

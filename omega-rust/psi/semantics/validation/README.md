@@ -4,6 +4,30 @@ Start at [lib.rs](src/lib.rs). Source automation must preserve the
 [mathematical proof contract](../../../../wiki/spec/proofs/contracts.md) and
 feed the separately reconstructed [Terminal questions](../../../../wiki/spec/terminal-psi/verification.md).
 
+## Source proof automation
+
+[contract_entailment.rs](src/contract_entailment.rs) handles a bounded contract
+fragment: canonical integer polynomials, substitutions from equalities,
+difference-bound closure, congruence, correlated intervals, signed remainder
+bounds, and accumulator-style self induction. Each recursive hypothesis needs
+strict descent at its exact edge. This is trusted source automation, not yet
+the source-to-kernel certificate bridge.
+
+The [proof pass corpus](../../../../tests/omega/pass/proofs) and
+[false twins](../../../../tests/omega/fail/proofs) test this fragment;
+[math_proofs](../../../../samples/cli/proofs/math_proofs) is a readable example.
+Unsupported judgments are not proved because this engine stands down. General
+quantified contracts, arbitrary mathematical functions/predicates, noncomputable
+values, proof views, and broader recursive proofs remain separate work.
+
+`PROOF-CERTIFICATION-BRIDGE` and `PROOF-CONTRACT-MIGRATION` on the
+[execution board](../../../../TASKS.md) own portable production: per-component
+well-foundedness, per-edge descent, exact normalization licenses, transitive
+assumptions, and certificate-derived review. The [proof admission kernel](../proof-admission/README.md)
+already has bounded recursion and normalization certificate checkers; that
+does not establish that source automation emits them or that general
+mathematical foundations are complete.
+
 ## Arithmetic and arrival analysis
 
 The source rules are [numeric values](../../../../wiki/spec/language/numeric_values.md)

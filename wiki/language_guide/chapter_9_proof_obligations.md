@@ -189,7 +189,7 @@ The ranking witness is excluded from published contract identity. Swapping one
 valid view for another revalidates the implementation and proof cache only;
 callers and external requirement bindings continue to see the same guarantee. The complete
 ruling and acceptance register are frozen in
-[termination_ranking_and_progress.md](../pre_migration/design_briefs/termination_ranking_and_progress.md).
+[termination and progress](../spec/language/termination.md).
 
 ## Example
 

@@ -5,6 +5,8 @@ edges, successor arguments, and terminals. Cycles introduce no separate loop
 language, implicit induction variable, or optimizer-owned progress rule.
 [Calls and outcomes](calls_and_outcomes.md) defines exits and suspension;
 [ownership](ownership.md) defines transfers and cleanup.
+[Source termination](../language/termination.md) separates published guarantees
+from private ranking witnesses and provider progress premises.
 
 ## Graph and frontier
 
