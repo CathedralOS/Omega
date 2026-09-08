@@ -148,12 +148,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   recovery rules, physical slot reuse/coloring, and independent validation.
   Existing logical spill plans grant no frame, unwind, instruction, or
   publication authority.
-  Connect final spill-inclusive frame extents to existing WCSU composition and
-  stack provisioning under the
+  Extend final spill-inclusive frame demand into stack provisioning under the
   [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses).
   Keep `WRITE-ONLY-BORROW`'s source-backed three-call regression as the hosted
-  execution control; its object-publication dependency remains open. Reuse the
-  existing final-local-frame demand path, not a parallel spill-byte estimate.
+  execution control, including its installed-image demand replay and stale-frame
+  rejection. Reuse the existing final-local-frame demand path, not a parallel
+  spill-byte estimate.
   Acceptance: slot reuse is not double-counted; changed allocation/frame
   realization invalidates stale demand; insufficient supply rejects before
   execution; and generated loads/stores independently replay their physical

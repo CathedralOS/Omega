@@ -93,9 +93,57 @@ fn source_location(
                 .find(|parameter| parameter.target.place == place)
         })
         .ok_or(Error::Mismatch("structural argument has no incoming root"))?;
-    Ok(StructuralSourceLocation::IncomingIndirectPointer {
-        register: pointer(&parameter.target.placement)?,
-    })
+    incoming_location(parameter.target.access, &parameter.target.placement)
+}
+
+fn incoming_location(
+    access: terminal_psi::StructuralAccess,
+    placement: &ValuePlacement,
+) -> Result<StructuralSourceLocation, Error> {
+    if access == terminal_psi::StructuralAccess::Owned {
+        return Ok(StructuralSourceLocation::IncomingIndirectPointer {
+            register: pointer(placement)?,
+        });
+    }
+    if placement.shape.class != calling_conventions::ValueClass::BorrowedReference {
+        return Err(Error::Mismatch("borrowed home has no reference ABI"));
+    }
+    let location = match placement.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 8,
+            },
+        ] => IndirectPointerLocation::Register(*register),
+        [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ] => IndirectPointerLocation::Stack {
+            stack_byte_offset: *stack_byte_offset,
+            alignment: 8,
+        },
+        [
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size,
+                alignment,
+            },
+        ] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment => {
+            *pointer
+        }
+        _ => {
+            return Err(Error::Unsupported(
+                "borrowed publication requires exact pointer placement",
+            ));
+        }
+    };
+    Ok(StructuralSourceLocation::IncomingBorrowedPointer { location })
 }
 
 /// Exact selected memory membership, not a target-specific byte template.
@@ -203,9 +251,7 @@ pub(super) fn populate(
                 access: target.access,
                 shape: target.shape,
                 source: target.placement.clone(),
-                location: StructuralSourceLocation::IncomingIndirectPointer {
-                    register: pointer(&target.placement)?,
-                },
+                location: incoming_location(target.access, &target.placement)?,
                 indirect: true,
             });
         }
@@ -258,11 +304,17 @@ pub(super) fn populate(
                 &target.source
             else {
                 return Err(Error::Unsupported(
-                    "owned Unit copy requires incoming placement",
+                    "Unit argument requires incoming placement",
                 ));
             };
             let (code_offset, byte_count) =
-                copy_extent(selected, fragment, contract.operation, target.place)?;
+                if target.access == terminal_psi::StructuralAccess::Owned {
+                    copy_extent(selected, fragment, contract.operation, target.place)?
+                } else {
+                    // The call names this pointer use. Retained physical replay owns
+                    // its projection and transport; no referent copy is implied.
+                    (host(call_span.offset)?, call_span.bytes.len())
+                };
             arguments.push(InternalUnitCallArgumentRecord {
                 place: target.place,
                 access: target.access,
@@ -282,7 +334,7 @@ pub(super) fn populate(
                 bytes: fragment
                     .bytes
                     .get(code_offset..code_offset.checked_add(byte_count).ok_or(Error::Overflow)?)
-                    .ok_or(Error::Mismatch("copy extent exceeds function"))?
+                    .ok_or(Error::Mismatch("argument extent exceeds function"))?
                     .to_vec(),
             });
         }

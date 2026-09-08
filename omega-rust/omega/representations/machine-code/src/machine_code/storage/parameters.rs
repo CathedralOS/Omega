@@ -15,7 +15,7 @@ pub struct UnitParameterHomeRecord {
     pub location: StructuralSourceLocation,
     /// Stack slots can contain direct bytes or a saved pointer. An incoming
     /// pointer location is valid only with `indirect == true` and the exact ABI
-    /// source register; it never denotes an invented stack home.
+    /// pointer placement; it never denotes an invented stack home.
     pub indirect: bool,
 }
 
@@ -54,19 +54,29 @@ pub enum UnitScalarParameterLocationRecord {
     FrameSpill { byte_offset: u32 },
 }
 
-/// Actual residence of a structural source. Incoming pointers do not imply
-/// an unperformed spill or copy into a stack home.
+/// Structural source residence or incoming ABI origin. Physical replay retains
+/// subsequent pointer transport; an incoming location implies no referent copy
+/// or invented activation-local home.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructuralSourceLocation {
-    Stack { byte_offset: u32 },
-    IncomingIndirectPointer { register: MachineRegister },
+    Stack {
+        byte_offset: u32,
+    },
+    IncomingIndirectPointer {
+        register: MachineRegister,
+    },
+    /// Original borrowed referent reached through the incoming ABI pointer.
+    /// A stack location contains pointer bits, not a copied referent or local home.
+    IncomingBorrowedPointer {
+        location: calling_conventions::IndirectPointerLocation,
+    },
 }
 
 impl StructuralSourceLocation {
     pub const fn stack_byte_offset(self) -> Option<u32> {
         match self {
             Self::Stack { byte_offset } => Some(byte_offset),
-            Self::IncomingIndirectPointer { .. } => None,
+            Self::IncomingIndirectPointer { .. } | Self::IncomingBorrowedPointer { .. } => None,
         }
     }
 }

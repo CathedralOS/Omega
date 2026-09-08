@@ -25,6 +25,8 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::IntegerWiden { psi_operation, .. }
                 | AbstractOperation::ExactIntegerAdd { psi_operation, .. }
                 | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
+                | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
+                | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
                 | AbstractOperation::Call { psi_operation, .. }
                 | AbstractOperation::CallUnit { psi_operation, .. }
                 | AbstractOperation::BoundaryCall { psi_operation, .. } => {

@@ -23,6 +23,7 @@ use terminal_psi::{
     StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, TerminalPsiIdentity,
 };
 
+mod borrowed_structural;
 mod boundary_result_scalar_codec;
 mod boundary_settlement_codec;
 mod call_site_owner_codec;
@@ -101,7 +102,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 87;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 88;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2144,7 +2145,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (incoming_structural::has_incoming(function)
                 && !incoming_structural::function_is_exact(record, function))
+            || (borrowed_structural::has_borrowed(function)
+                && !borrowed_structural::function_is_exact(record, function))
             || (!incoming_structural::has_incoming(function)
+                && !borrowed_structural::has_borrowed(function)
                 && !function.unit_body
                 && !has_scalar_cleanup
                 && (!function.unit_parameters.is_empty()
@@ -2847,6 +2851,22 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             InstallationError::InvalidInternalUnitCall(installed.machine),
         )?;
         let custody = &installed.custody;
+        if borrowed_structural::has_borrowed(function) {
+            let key = (
+                installed.machine,
+                custody.operation_ordinal,
+                custody.code_offset,
+            );
+            if previous_call.is_some_and(|previous| previous >= key)
+                || !borrowed_structural::call_is_exact(record, function, installed)
+            {
+                return Err(InstallationError::InvalidInternalUnitCall(
+                    installed.machine,
+                ));
+            }
+            previous_call = Some(key);
+            continue;
+        }
         let incoming_call = incoming_structural::has_incoming(function);
         if (incoming_call && !incoming_structural::call_is_exact(record, function, installed))
             || (!incoming_call

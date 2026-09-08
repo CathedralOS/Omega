@@ -38,7 +38,10 @@ pub struct InternalUnitCallArgumentRecord {
     pub destination: ValuePlacement,
     pub code_offset: usize,
     pub byte_count: usize,
-    /// Immutable target bytes that realize this exact source-to-destination copy.
+    /// Immutable bytes for this exact argument transfer. Legacy owned arguments
+    /// retain their copy prefix. An incoming borrowed-pointer source instead
+    /// retains the selected call instruction; independently retained physical
+    /// replay establishes preceding pointer transport without copying the referent.
     pub bytes: Vec<u8>,
 }
 

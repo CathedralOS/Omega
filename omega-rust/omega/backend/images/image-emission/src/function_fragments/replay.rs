@@ -21,6 +21,41 @@ impl Eq for FragmentReplay {}
 
 pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnostics::Diagnostic> {
     if artifact.fragment_replay.is_none()
+        && artifact.functions().iter().any(|function| {
+            function
+            .unit_parameters
+            .iter()
+            .any(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
+            || function.unit_parameter_homes.iter().any(|home| {
+                home.access != terminal_psi::StructuralAccess::Owned
+                    || home.source.shape.class == calling_conventions::ValueClass::BorrowedReference
+                    || matches!(
+                        home.location,
+                        machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
+                    )
+            })
+            || function
+                .internal_unit_calls
+                .iter()
+                .flat_map(|call| &call.arguments)
+                .any(|argument| {
+                    argument.access != terminal_psi::StructuralAccess::Owned
+                        || argument.source.shape.class
+                            == calling_conventions::ValueClass::BorrowedReference
+                        || argument.destination.shape.class
+                            == calling_conventions::ValueClass::BorrowedReference
+                        || matches!(
+                            argument.source_location,
+                            machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
+                        )
+                })
+        })
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "borrowed structural pointers require common-pipeline replay evidence",
+        ));
+    }
+    if artifact.fragment_replay.is_none()
         && artifact
             .functions()
             .iter()

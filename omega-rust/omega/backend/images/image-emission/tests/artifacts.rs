@@ -750,6 +750,24 @@ fn legacy_call_free_function_rejects_an_incoming_pointer_role() {
         build_object_artifact(&plan),
         Err(ObjectError::InvalidInternalUnitCallEvidence(machine_id(1)))
     );
+    for location in [
+        calling_conventions::IndirectPointerLocation::Register(
+            calling_conventions::MachineRegister::X86Rcx,
+        ),
+        calling_conventions::IndirectPointerLocation::Stack {
+            stack_byte_offset: 32,
+            alignment: 8,
+        },
+    ] {
+        plan.functions[0].unit_parameter_homes[0].location =
+            machine_code::StructuralSourceLocation::IncomingBorrowedPointer { location };
+        plan.functions[0].unit_parameter_homes[0].access =
+            terminal_psi::StructuralAccess::WriteOnlyBorrow;
+        assert_eq!(
+            build_object_artifact(&plan),
+            Err(ObjectError::InvalidInternalUnitCallEvidence(machine_id(1)))
+        );
+    }
 }
 
 #[test]
@@ -2325,11 +2343,37 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
+    // This fixture contains no borrowed-pointer rows. Its format-88 payload
+    // differs from format 87 only in the marker. The predecessor golden was
+    // reproduced at base 0736c2d70a; the former checked-in expectation was stale
+    // from format 83. Reconstruct framing independently of the production helper.
+    use sha2::{Digest, Sha256};
+    let independent_fingerprint = |payload: &[u8]| {
+        let mut digest = Sha256::new();
+        digest.update(b"omega-installation-record\0");
+        digest.update(u64::try_from(payload.len()).unwrap().to_le_bytes());
+        digest.update(payload);
+        format!("{:x}", digest.finalize())
+    };
+    let mut predecessor_payload = bytes.clone();
+    predecessor_payload[8..10].copy_from_slice(&87_u16.to_le_bytes());
+    assert_eq!(
+        independent_fingerprint(&predecessor_payload),
+        "a61e3cef0395823c258158d97a2ab819b8e34caa4212a189c5655e374f58ffa4"
+    );
+    assert_eq!(
+        decode_installation_record(&predecessor_payload),
+        Err(InstallationError::UnsupportedFormatMarker(87))
+    );
+    assert_eq!(
+        independent_fingerprint(&bytes),
+        "a82feb82c212d16a57d20aa2e79dac02ca5341af96fab21028f2bba11123ee59"
+    );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "24c7ff8f027b57b446458aa99ab8b885719bc82587caaf68fca8c5e6ada49b64"
+        "a82feb82c212d16a57d20aa2e79dac02ca5341af96fab21028f2bba11123ee59"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a

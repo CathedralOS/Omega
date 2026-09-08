@@ -48,13 +48,10 @@ pub(in crate::function_fragments) fn validate_function(
             || home.shape != expected.shape
             || home.source != expected.placement
             || !home.indirect
-            || home.location
-                != (StructuralSourceLocation::IncomingIndirectPointer {
-                    register: pointer(&expected.placement)?,
-                })
         {
             return Err(invalid());
         }
+        validate_incoming_location(expected.access, &expected.placement, home.location)?;
     }
     let frame_bytes = u32::try_from(
         source::frame(source, function.machine)?.map_or(0, |frame| frame.frame_size_bytes),
@@ -167,7 +164,28 @@ pub(in crate::function_fragments) fn validate_function(
             else {
                 return Err(invalid());
             };
-            validate_copy(selected, fragment, contract.operation, target.place, actual)?;
+            if target.access == terminal_psi::StructuralAccess::Owned {
+                validate_copy(selected, fragment, contract.operation, target.place, actual)?;
+            } else if actual.code_offset != host(call_span.offset)?
+                || actual.byte_count != call_span.bytes.len()
+                || actual.bytes != call_span.bytes
+            {
+                // Borrowed arguments identify the exact call, not a referent-copy
+                // prefix. Retained physical replay owns the pointer preparation.
+                return Err(invalid());
+            }
+            let mut roots = parameters
+                .iter()
+                .filter(|parameter| parameter.target.place == target.place);
+            let root = roots.next().ok_or_else(invalid)?;
+            if roots.next().is_some() {
+                return Err(invalid());
+            }
+            validate_incoming_location(
+                root.target.access,
+                &root.target.placement,
+                actual.source_location,
+            )?;
             if actual.place != target.place
                 || actual.access != target.access
                 || actual.path != target.path
@@ -175,7 +193,6 @@ pub(in crate::function_fragments) fn validate_function(
                 || actual.structural_type != target.structural_type
                 || actual.shape != target.shape
                 || actual.source_byte_offset != target.source_byte_offset
-                || actual.source_location != source_location(selected, target.place)?
                 || actual.call_stack_bytes != frame_bytes
                 || actual.fixed_array_length != target.fixed_array_length
                 || actual.element_stride != target.element_stride
@@ -188,6 +205,84 @@ pub(in crate::function_fragments) fn validate_function(
     }
     Ok(())
 }
+
+/// Consume the recorded incoming location against the exact declared placement.
+/// Borrowed pointer bits never become an owned referent home, including on stack.
+fn validate_incoming_location(
+    access: terminal_psi::StructuralAccess,
+    placement: &ValuePlacement,
+    location: StructuralSourceLocation,
+) -> Result<(), Error> {
+    let invalid =
+        || Error::Mismatch("structural incoming location differs from declared access or ABI");
+    if access == terminal_psi::StructuralAccess::Owned {
+        return if location
+            == (StructuralSourceLocation::IncomingIndirectPointer {
+                register: pointer(placement)?,
+            }) {
+            Ok(())
+        } else {
+            Err(invalid())
+        };
+    }
+    if placement.shape.class != calling_conventions::ValueClass::BorrowedReference {
+        return Err(invalid());
+    }
+    let StructuralSourceLocation::IncomingBorrowedPointer { location } = location else {
+        return Err(invalid());
+    };
+    match (placement.locations.as_slice(), location) {
+        (
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ],
+            IndirectPointerLocation::Register(actual),
+        ) if *register == actual => Ok(()),
+        (
+            [
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    alignment: 8,
+                },
+            ],
+            IndirectPointerLocation::Stack {
+                stack_byte_offset: actual,
+                alignment: 8,
+            },
+        ) if *stack_byte_offset == actual => Ok(()),
+        (
+            [
+                ValueLocation::Indirect {
+                    pointer,
+                    copy_stack_byte_offset: None,
+                    byte_size,
+                    alignment,
+                },
+            ],
+            actual,
+        ) if *pointer == actual
+            && *byte_size == placement.shape.byte_size
+            && *alignment == placement.shape.alignment
+            && matches!(
+                pointer,
+                IndirectPointerLocation::Register(_)
+                    | IndirectPointerLocation::Stack { alignment: 8, .. }
+            ) =>
+        {
+            Ok(())
+        }
+        _ => Err(invalid()),
+    }
+}
+
+#[cfg(test)]
+mod tests;
 pub(in crate::function_fragments) fn validate_settlements(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     rows: &[ObjectBoundarySettlement],
