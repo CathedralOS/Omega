@@ -85,7 +85,7 @@ requires embed(base) + embed(length) <= addr::Bound;
 
 `addr::Bound` is a target-semantic compile-time constant supplied through the
 sealed target capsule described by
-[`build_time_evaluation.md`](build_time_evaluation.md). The transparent formula
+[semantic evaluation](../../spec/language/evaluation.md). The transparent formula
 has no runtime Boolean result, reach, crash edge, or provider selection.
 
 The establishment clause does not invoke those requirements. It licenses their selected
@@ -493,5 +493,5 @@ Chapter 8 owns the guide surface; chapter 5 owns primitive arithmetic;
 chapter 10 owns proof machines; chapter 14 owns traits, complete named
 conformances, and exact-requirement satisfiers;
 chapter 16 owns terminal failure; and
-`authority_values_and_boundary_evidence.md` owns authority provenance and
+authority and qualification owns authority provenance and
 receipts.

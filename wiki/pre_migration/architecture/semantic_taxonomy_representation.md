@@ -135,7 +135,7 @@ to boundary-issuance evidence, provider facts, foreign stack/callback plans,
 timing conversion, and later normalized evidence products.
 
 See
-[`../design_briefs/authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
+[authority and qualification](../../spec/resources/authority.md).
 
 ### Domain theory
 

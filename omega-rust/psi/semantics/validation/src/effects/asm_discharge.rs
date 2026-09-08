@@ -3,17 +3,12 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
-/// The v0 `machine_control`/port-I/O DISCHARGE gate
-/// (privileged_effects_and_binary_trust brief, LOCKED point 4 + the M3
-/// actionable subset): declaring an effect labels the code truthfully;
-/// DISCHARGE proves the code is PERMITTED to run it. Until the
-/// owns-the-machine capability token lands (the parked capability_lifecycle
-/// arc), discharge v0 is "permitted in the freestanding boundary root": the
-/// boot root trivially owns the machine, and a HOSTED build has no business
-/// executing `hlt` (ring-3 faults) or raw port I/O (unmapped I/O bitmap
-/// faults) -- so authority-bearing asm intrinsics in a non-freestanding build
-/// are a compile error, not a runtime fault. Effect-free instructions such as
-/// x86 memory fences do not require machine ownership.
+/// Current coarse target-class gate for authority-bearing assembly intrinsics.
+/// Hosted compilation rejects them; freestanding selection passes this gate.
+/// That implementation restriction is not proof of a concrete machine-control
+/// capability. The required authority contract is in
+/// wiki/spec/build/permissions.md#privileged-services. Instructions with no
+/// authority requirement do not need this gate's freestanding condition.
 pub fn validate_asm_discharge(
     program: &TypedTrees,
     freestanding: bool,
@@ -52,10 +47,10 @@ pub fn validate_asm_discharge(
 
 /// Asm-sourced service reach is STRICTLY must-declare -- private inference does
 /// not exempt the privileged tier
-/// (privileged_effects_and_binary_trust brief, LOCKED points 2-3: every asm
+/// (wiki/spec/build/permissions.md#privileged-services): every asm
 /// instruction emits its contract, and the function AND every machine that
 /// directly-or-indirectly reaches it must publish the service; the top-level
-/// row is what a package manager reads).
+/// row is what a package manager reads.
 ///
 /// Two rules:
 /// 1. A machine whose body CONTAINS an asm intrinsic must declare that

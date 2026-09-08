@@ -57,8 +57,8 @@ transcripts. Rejected designs normally leave the tree. Git retains them.
 
 ### 1. Consolidate the large mixed references
 
-Continue with the remaining authority/effect, build-evaluation, proof, and
-freestanding references in `pre_migration/design_briefs/`, consolidating against
+Continue with the remaining proof, domain, machine, and optimizer references
+in `pre_migration/design_briefs/`, consolidating against
 their existing specification owners before adding another document.
 
 For each coherent subject:
@@ -118,7 +118,7 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: consolidate the remaining authority/effect and freestanding references. Complete
+Next: consolidate the remaining proof, domain, and machine references. Complete
 byte-level Terminal tables remain explicit PSIIR work, not an implied achievement
 of prose migration. The remaining documents in pre_migration still need review,
 not automatic promotion into the specification.

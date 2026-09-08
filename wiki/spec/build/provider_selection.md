@@ -4,6 +4,8 @@
 [Boundary realization](../terminal-psi/boundary_calls.md) defines execution and
 coverage evidence. Selection chooses a declared candidate; it does not construct
 provider rows or grant runtime permission.
+Receiving [permission policy](permissions.md) independently checks exact
+service/schema permissions against exercised physical mechanisms.
 
 ## Declaration and choice
 

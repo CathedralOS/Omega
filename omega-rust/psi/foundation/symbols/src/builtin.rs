@@ -172,7 +172,7 @@ pub enum BuiltinFunction {
     /// arm reads the first SSE register only).
     Sqrt,
     /// `asm { hlt }`: the x86 privileged halt instruction as a known-contract
-    /// asm intrinsic (privileged_effects_and_binary_trust brief). Reaches the
+    /// asm intrinsic (wiki/spec/build/permissions.md). Reaches the
     /// canonical `MachineControl` service. The `#` in the symbol name is not an
     /// identifier character, so the intrinsic is UNNAMEABLE from source --
     /// only the parser's asm-block desugar can reference it.

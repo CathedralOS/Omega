@@ -285,7 +285,7 @@ volatile-capable build before running it. The artifact separately reports:
 A hash-pinned dependency artifact can satisfy the first even when its own build
 used a volatile observation, in which case the graph fails the second. See the
 [package-boundary contract](../spec/packages/boundaries.md) and the
-[semantic-evaluation brief](../pre_migration/design_briefs/build_time_evaluation.md).
+[semantic evaluation](../spec/language/evaluation.md).
 
 ## Path separator: `::` for names, `.` for values
 
@@ -609,7 +609,7 @@ An admitted provider may originate a routed qualification when it satisfies
 an exact boundary requirement named in the domain declaration; admission
 records the receipt. Checked resource transformations preserve or divide that
 evidence while accounting for every linear claim. See
-[`authority_values_and_boundary_evidence.md`](../pre_migration/design_briefs/authority_values_and_boundary_evidence.md).
+[authority and qualification](../spec/resources/authority.md).
 
 Confidential state remains in provider custody. A public value may carry an
 index into that state, while the provider boundary controls lookup and

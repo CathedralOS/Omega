@@ -304,7 +304,7 @@ machinery must not migrate into the Omega-written compiler source.
 ## P1 - Authority, roots, and entry
 
 Owners include
-`wiki/pre_migration/design_briefs/authority_values_and_boundary_evidence.md` and
+`wiki/spec/resources/authority.md` and
 `wiki/spec/resources/storage.md`.
 
 - **ENTRY-CONTENT-ROOTS.** Connect the generated target entry stub to the exact
@@ -338,6 +338,12 @@ Owners include
   return all custody on stale-key failure and consume boot-scoped services only
   on success. Acceptance includes stale-key, exhaustion, lost-custody,
   post-exit provider-use, and successful handoff canaries.
+
+- **AP-BRINGUP.** Complete one secondary-processor entry through the executable
+  installation and external-root owners. Acceptance covers low-memory and
+  alignment constraints, CPU-regime transitions, placed-byte visibility,
+  installed AP entry, and separately accounted per-CPU stack/state. An emitted
+  trampoline alone does not satisfy the entry and custody contract.
 
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Carry one real
   content-bearing program through checked source, Terminal Psi, provider
@@ -654,7 +660,7 @@ Owners include
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
-  [filesystem control/lifecycle policy](wiki/pre_migration/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority).
+  [filesystem control/lifecycle policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
   Acceptance: remaining requirements have justified dispositions; every
   admitted leaf has one exact mechanism/contract row; unknowns and duplicates
   reject; exercised classes fit independently supplied service permissions.

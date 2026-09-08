@@ -1,6 +1,6 @@
 // Inline Assembly: structured memory-access mnemonics `ldr`/`str` are not in the
 // known-contract accepted set, so the block is refused. Load/store contract
-// emission is a future rung (privileged_effects_and_binary_trust brief); until
+// emission is unfinished (wiki/spec/build/hardware_materialization.md); until
 // then an unknown mnemonic does not compile rather than being smuggled through
 // opaquely.
 
