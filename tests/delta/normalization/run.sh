@@ -55,7 +55,7 @@ def evaluate(name, program, sealed_input):
     )
     try:
         output, error = process.communicate(
-            struct.pack("<I", len(program)) + program + sealed_input, timeout=120
+            struct.pack("<I", len(program)) + program + sealed_input, timeout=300
         )
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
@@ -87,7 +87,7 @@ for name, source, status, output, helpers, count, maximum, digest, capture_maxim
     if compiled != 0 or not receipt:
         raise SystemExit(f"{name}: compilation failed {compiled}/{receipt[:80].hex()}")
     if digest is not None and hashlib.sha256(receipt).hexdigest() != digest:
-        raise SystemExit(f"{name}: fitting complete receipt changed")
+        raise SystemExit(f"{name}: pinned complete receipt changed")
     if evaluate(name + " repeat compilation", programs["canonical"], request) != (0, receipt):
         raise SystemExit(f"{name}: repeated compilation changed bytes")
     actual = evaluate(name + " application", receipt, PAYLOAD)

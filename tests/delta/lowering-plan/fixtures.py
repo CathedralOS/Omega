@@ -53,4 +53,17 @@ def fixtures():
                   b"(def main () Int (match (Packet 7 (bytes_single 8) (Leaf 9)) "
                   b"((Packet number bytes leaf) (match leaf "
                   b"((Leaf amount) (+ number amount))))))\n", (17,)))
+    for width in (256, 257):
+        fields = b" Int" * width
+        values = b" 0" * width
+        binders = b" ".join(f"field{index}".encode() for index in range(width))
+        source = (b"(data Wide (Wide" + fields + b"))\n"
+                  b"(data Other (Other" + fields + b"))\n"
+                  b"(def make () Wide (Wide" + values + b"))\n"
+                  b"(def inspect ((value Wide)) Int (match value ((Wide "
+                  + binders + b") field" + str(width - 1).encode()
+                  + b")))\n(def main () Int 7)\n")
+        # Two wide owners install one shared body of height three, not two.
+        heights = (256, 514, 0) if width == 256 else (3, 257, 261, 0)
+        cases.append((f"projection lowering width {width}", source, heights))
     return cases

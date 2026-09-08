@@ -11,10 +11,26 @@
     (let node Int (first forms)
       (let head Int (syntax_child node 0)
         (if (token_data (syntax_start head) (syntax_after head))
-          (lowering_definitions (- remaining 1) (second forms) globals count reversed)
+          ; Grammar places all data before functions. During this prefix,
+          ; count is zero or the one already-installed shared projection body.
+          (let install Int
+            (if (eq count 0)
+              (lowering_wide_constructor (- (syntax_count node) 2)
+                (second (second (syntax_children node))))
+              0)
+            (lowering_definitions (- remaining 1) (second forms) globals
+              (+ count install)
+              (if install (pair (lowering_projection_definition) reversed) reversed)))
           (let definition Int (lowering_definition node globals)
             (lowering_definitions (- remaining 1) (second forms) globals
               (+ count 1) (pair definition reversed))))))))
+
+(def lowering_wide_constructor ((remaining Int) (constructors Int)) Int
+  (if (eq remaining 0)
+    0
+    (if (lt (lowering_inline_projection_width) (- (syntax_count (first constructors)) 1))
+      1
+      (lowering_wide_constructor (- remaining 1) (second constructors)))))
 
 (def lowering_definition ((node Int) (globals Int)) Int
   (let parameters Int (syntax_child node 2)

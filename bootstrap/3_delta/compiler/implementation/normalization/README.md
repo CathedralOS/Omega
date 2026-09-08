@@ -35,7 +35,9 @@ At budget one, an over-height fragment is extracted whole. Its replacement is
 a call whose arguments are only references to already-bound values. Those
 arguments have height zero, so the replacement call has height one. The helper
 body is normalized under a fresh budget of 255; further extraction handles any
-remaining over-height structure.
+remaining over-height structure. The initial program can also contain lowering's
+shared projection definition for wide constructors. Its height-three body
+already fits; it is not an extraction helper or an authored Delta function.
 
 No work is moved into a sibling expression or before an enclosing initializer.
 The helper call occupies the extracted fragment's exact evaluation position.
@@ -136,7 +138,8 @@ therefore fits its 131,072-row validation environment. This is a conservative
 source-level audit argument, not a claim that 68,608 is attainable or a checked
 edge certificate. It does not bound aggregate bindings during non-tail runtime
 calls. Fixed runtime and adapter definitions are separate from the transform
-and must fit independently.
+and must fit independently. Lowering's shared projection definition likewise
+fits independently with two parameters and no local binders.
 
 ## Phase and receipt boundaries
 

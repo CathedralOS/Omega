@@ -1,8 +1,9 @@
 # Checked Delta to expanded Gamma
 
 Start at [program.gamma](program.gamma). It consumes the complete checked
-program and resolved catalogs after selected-profile schema validation, skips
-data declarations, and builds every function definition in authored order.
+program and resolved catalogs after selected-profile schema validation and
+builds every function definition in authored order. Data declarations select
+whether one shared projection definition is needed; they emit no Delta types.
 No lowering helper publishes receipt bytes. Its result is the complete
 [expanded Gamma program](../representation/README.md).
 
@@ -48,6 +49,36 @@ payload projections. The completed subject appears once under its generated
 binding; arm bodies use the common continuation machine. Constructor metadata
 supplies checked representation and tags.
 
+### Wide payload projections
+
+Patterns with at most 256 fields keep their existing inline projection chains;
+each individual chain then has at most 255 Gamma expression lists. Wider
+patterns call one ordinary generated Gamma function, `$dp(payload, index)`,
+which tail-recursively takes `second` until the index reaches zero. Nonfinal
+fields take `first` of that tail; the final field is the unwrapped tail itself.
+Indices are generated in `0..arity-1`, so each reached `second` has a pair
+under the already-checked product representation. The helper neither allocates
+product nodes nor changes field order, provenance, or authored trap behavior.
+Its recursive call is proper-tail, but each initializer's initial call consumes
+one ordinary runtime context; this is not a promise of unchanged exhaustion
+thresholds for arbitrary application stacks.
+
+The checked data-before-functions order lets `program.gamma` install `$dp` once
+when the first constructor wider than 256 fields is encountered. During that
+prefix the definition count is zero or one. Later wide constructors reuse it,
+even across nominal owners; a wide declaration without a matching use retains
+the same small definition instead of requiring another usage-analysis pass.
+The helper's two parameters and height-three body are ordinary Gamma structure.
+Its reserved name cannot collide with renamed authored functions or generated
+`$hN` extraction names. It is not a new primitive, adapter, or language rung.
+
+This avoids rebuilding and printing quadratic projection chains for wide
+patterns. It does not change the product layout or make evaluation of all `k`
+fields subquadratic: the runtime still walks each requested prefix. Enclosing
+binding chains and wide constructor products still undergo normal height
+normalization. Programs whose constructors all fit 256 fields retain their
+previous plan and receipt bytes.
+
 Calls, lets, products, and guards are ordinary Gamma plan nodes. Their
 constructors compute expanded expression-list heights, including generated
 wrappers, and cache exact serialization extents through the serializer's
@@ -66,4 +97,4 @@ Allocated plan and continuation pairs consume the evaluator's finite immutable
 arena. Resource/internal DCOUT closure and full generated-profile admission
 remain open. Body-height normalization does not by itself bound helper count,
 live runtime contexts, or cumulative storage. Exact checking and execution
-receipts remain unchanged when the original bodies already fit the profile.
+receipts remain explicit regression obligations.
