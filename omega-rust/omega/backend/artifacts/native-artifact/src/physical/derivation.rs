@@ -226,9 +226,9 @@ pub(crate) fn derive_physical_evidence(
                     ),
                     (
                         BoundaryExecutionRecord::CompilerBuiltin(
-                            CompilerBuiltinExecution::LinuxReadByte
+                            CompilerBuiltinExecution::HostedReadByte
                         ),
-                        BoundaryRealization::LinuxReadByte(_),
+                        BoundaryRealization::HostedReadByte(_),
                     )
                 ) =>
             {
@@ -806,13 +806,14 @@ fn derive_read_byte_child(
 ) -> Result<NativePhysicalChild, &'static str> {
     let settlement = &installed.settlement;
     let Some(result) = settlement.native_result.structural() else {
-        return Err("Linux read-byte physical child requires one structural result");
+        return Err("hosted read-byte physical child requires one structural result");
     };
-    if target.object_format != ObjectFormat::Elf
-        || !matches!(
-            target.architecture,
-            Architecture::X86_64 | Architecture::Aarch64
-        )
+    if ![
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ]
+    .contains(&target)
         || !settlement.scalar_arguments.is_empty()
         || !settlement.runtime_scalar_arguments.is_empty()
         || !settlement.arguments.is_empty()
@@ -834,16 +835,20 @@ fn derive_read_byte_child(
                 byte_offset: 4,
             }]
     {
-        return Err("Linux read-byte D41 settlement custody is incomplete or substituted");
+        return Err("hosted read-byte D41 settlement custody is incomplete or substituted");
     }
     let payload_offset = result
         .home_byte_offset
         .checked_add(u32::from(result.layout.payload_byte_offset))
-        .ok_or("Linux read-byte physical child result home overflow")?;
+        .ok_or("hosted read-byte physical child result home overflow")?;
     let expected = match target.architecture {
         Architecture::X86_64 => {
             isa_x86_64::encode_linux_read_byte_to_stack(result.home_byte_offset, payload_offset)
                 .map_err(|_| "Linux read-byte x86-64 encoding is not reproducible")?
+        }
+        Architecture::Aarch64 if target == NativeTarget::macos_arm64() => {
+            isa_aarch64::encode_macos_read_byte_to_stack(result.home_byte_offset, payload_offset)
+                .map_err(|_| "macOS read-byte AArch64 encoding is not reproducible")?
         }
         Architecture::Aarch64 => {
             isa_aarch64::encode_linux_read_byte_to_stack(result.home_byte_offset, payload_offset)
@@ -854,13 +859,13 @@ fn derive_read_byte_child(
         .functions()
         .iter()
         .find(|function| function.machine == occurrence.machine())
-        .ok_or("Linux read-byte physical child names an absent object function")?;
+        .ok_or("hosted read-byte physical child names an absent object function")?;
     let expected_object_offset = function
         .text_offset
         .checked_add(settlement.code_offset)
-        .ok_or("Linux read-byte physical child object span overflow")?;
+        .ok_or("hosted read-byte physical child object span overflow")?;
     if installed.text_offset != expected_object_offset || expected.len() != settlement.byte_count {
-        return Err("Linux read-byte physical child span is detached");
+        return Err("hosted read-byte physical child span is detached");
     }
     let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
     let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
@@ -872,12 +877,12 @@ fn derive_read_byte_child(
         || machine_bytes != object_bytes
         || object_bytes != final_image_bytes
     {
-        return Err("Linux read-byte physical child bytes changed across custody");
+        return Err("hosted read-byte physical child bytes changed across custody");
     }
     let object_end = installed
         .text_offset
         .checked_add(settlement.byte_count)
-        .ok_or("Linux read-byte physical child relocation span overflow")?;
+        .ok_or("hosted read-byte physical child relocation span overflow")?;
     if object.relocations().records().any(|(_, relocation)| {
         relocation.section == SectionKind::Text
             && ranges_overlap(
@@ -887,12 +892,12 @@ fn derive_read_byte_child(
                 relocation.offset.saturating_add(relocation.byte_width),
             )
     }) {
-        return Err("Linux read-byte physical child unexpectedly contains a relocation");
+        return Err("hosted read-byte physical child unexpectedly contains a relocation");
     }
     let role = BoundaryTraitSettlementRole::CompilerBuiltinStructural {
         catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
-        execution: CompilerBuiltinExecution::LinuxReadByte,
-        realization: BoundaryRealization::LinuxReadByte(Default::default()),
+        execution: CompilerBuiltinExecution::HostedReadByte,
+        realization: BoundaryRealization::HostedReadByte(Default::default()),
         result: result.clone(),
     };
     let parent_identity = builtin_structural_boundary_trait_settlement_identity(

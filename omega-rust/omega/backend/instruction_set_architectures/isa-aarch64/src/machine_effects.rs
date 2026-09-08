@@ -66,7 +66,9 @@ pub fn aarch64_machine_effect_catalog(
                 }
                 if semantic == MachineSemanticKind::HostedReadByte {
                     return Ok(
-                        crate::selected_form_encoding::hosted_read_byte::declaration(constraint),
+                        crate::selected_form_encoding::hosted_read_byte::declaration(
+                            target, constraint,
+                        ),
                     );
                 }
                 if semantic == MachineSemanticKind::HostedWriteByteI32 {
@@ -128,8 +130,13 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
-        hosted_read_byte: (target == NativeTarget::linux_arm64())
-            .then_some(crate::AARCH64_HOSTED_READ_BYTE),
+        hosted_read_byte: if target == NativeTarget::linux_arm64() {
+            Some(crate::AARCH64_HOSTED_READ_BYTE)
+        } else if target == NativeTarget::macos_arm64() {
+            Some(crate::AARCH64_DARWIN_HOSTED_READ_BYTE)
+        } else {
+            None
+        },
         hosted_exit_process_i32: if target == NativeTarget::linux_arm64() {
             Some(crate::AARCH64_HOSTED_EXIT_PROCESS_I32)
         } else if target == NativeTarget::macos_arm64() {

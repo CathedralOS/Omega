@@ -181,17 +181,24 @@ fn hosted_byte_catalog_retains_exact_target_and_provider_custody() {
                 retained.row_compiler_intrinsic_executions[exit],
                 Some(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
             );
-            for method in ["read_byte", "read_line"] {
-                let row = plan
-                    .rows
-                    .iter()
-                    .position(|row| row.method == method)
-                    .unwrap();
-                assert_eq!(
-                    retained.row_compiler_intrinsic_executions[row], None,
-                    "byte output does not admit the separate {method} catalog role"
-                );
-            }
+            let read = plan
+                .rows
+                .iter()
+                .position(|row| row.method == "read_byte")
+                .unwrap();
+            assert_eq!(
+                retained.row_compiler_intrinsic_executions[read],
+                Some(CompilerIntrinsicExecutionIdentity::HostedReadByte)
+            );
+            let line = plan
+                .rows
+                .iter()
+                .position(|row| row.method == "read_line")
+                .unwrap();
+            assert_eq!(
+                retained.row_compiler_intrinsic_executions[line], None,
+                "native byte leaves do not admit the separate read_line catalog role"
+            );
         }
     }
 }

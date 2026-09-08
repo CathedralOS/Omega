@@ -20,8 +20,8 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// plan and target catalog retain its OS-specific realization identity.
     HostedWriteByteI32,
     /// Exact toolchain-owned `Console::read_byte() -> ByteRead` execution
-    /// selected for one canonical Linux target.
-    LinuxReadByte,
+    /// selected for one canonical hosted target.
+    HostedReadByte,
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: CompilerPrimitiveFloatBinaryOperation,
@@ -45,7 +45,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
     match identity {
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => bytes[0] = 0,
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
-        CompilerIntrinsicExecutionIdentity::LinuxReadByte => bytes[0] = 6,
+        CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             bytes[0] = 1;
             bytes[1..5].copy_from_slice(&(function.ordinal() as u32).to_be_bytes());
@@ -1024,7 +1024,7 @@ mod tests {
         let mut identities = vec![
             CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
             CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
-            CompilerIntrinsicExecutionIdentity::LinuxReadByte,
+            CompilerIntrinsicExecutionIdentity::HostedReadByte,
         ];
         identities.extend(
             symbols::BuiltinFunction::ALL

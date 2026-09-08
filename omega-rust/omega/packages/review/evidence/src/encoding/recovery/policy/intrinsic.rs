@@ -29,7 +29,7 @@ pub(super) fn execution(
         },
         4 => Execution::HostedExitProcessI32,
         5 => Execution::HostedWriteByteI32,
-        6 => Execution::LinuxReadByte,
+        6 => Execution::HostedReadByte,
         _ => return Err(Error::InvalidTag),
     })
 }

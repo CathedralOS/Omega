@@ -33,14 +33,12 @@ pub(super) fn boundary_result_is_exact(
                             }]
                 })
         }
-        BoundaryRealization::LinuxReadByte(_) => {
+        BoundaryRealization::HostedReadByte(_) => {
             let Some(result) = result.structural() else {
                 return false;
             };
-            matches!(
-                target.architecture,
-                Architecture::X86_64 | Architecture::Aarch64
-            ) && result.layout.tag_byte_offset == 0
+            target_operations::HostedReadByteRealization::supports_target(target)
+                && result.layout.tag_byte_offset == 0
                 && result.layout.tag_shape == ValueShape::integer(4, 4)
                 && result.layout.common_fields.is_empty()
                 && result.layout.payload_byte_offset == 4
@@ -61,7 +59,7 @@ mod tests {
     use machine_code::BoundaryScalarResultRecord;
     use semantic_vocabulary::{EdgeId, OperationId, PlaceId, ServiceId, StructuralTypeId};
     use target_operations::{
-        DirectPortReadU8Realization, LinuxReadByteRealization, MetadataOnlyPortRealization,
+        DirectPortReadU8Realization, HostedReadByteRealization, MetadataOnlyPortRealization,
     };
 
     #[test]
@@ -129,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn linux_read_byte_requires_the_exact_structural_sum_home() {
+    fn hosted_read_byte_requires_the_exact_target_and_structural_sum_home() {
         let layout = calling_conventions::evaluate_conventional_sum_layout(
             &[],
             &[vec![], vec![ValueShape::integer(4, 4)]],
@@ -149,16 +147,31 @@ mod tests {
                 layout,
                 home_byte_offset: 16,
             });
-        assert!(boundary_result_is_exact(
+        for target in [
             NativeTarget::linux_x64(),
-            BoundaryRealization::LinuxReadByte(LinuxReadByteRealization),
-            &result,
-        ));
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            assert!(boundary_result_is_exact(
+                target,
+                BoundaryRealization::HostedReadByte(HostedReadByteRealization),
+                &result,
+            ));
+        }
+        let mut wrong_geometry = NativeTarget::macos_arm64();
+        wrong_geometry.pointer_alignment = 4;
+        for target in [NativeTarget::windows_x64(), wrong_geometry] {
+            assert!(!boundary_result_is_exact(
+                target,
+                BoundaryRealization::HostedReadByte(HostedReadByteRealization),
+                &result,
+            ));
+        }
         let mut wrong = result.structural().unwrap().clone();
         wrong.layout.payload_byte_offset = 8;
         assert!(!boundary_result_is_exact(
             NativeTarget::linux_x64(),
-            BoundaryRealization::LinuxReadByte(LinuxReadByteRealization),
+            BoundaryRealization::HostedReadByte(HostedReadByteRealization),
             &BoundaryResultRecord::Structural(wrong),
         ));
     }

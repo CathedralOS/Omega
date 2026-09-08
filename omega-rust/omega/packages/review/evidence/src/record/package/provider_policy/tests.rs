@@ -129,7 +129,7 @@ fn unresolved_intrinsic_is_disclosure_not_an_execution_atom() {
     };
     assert_eq!(value.validate_canonical_structure(), Ok(()));
     value.plans[1].rows[0].compiler_intrinsic_execution =
-        Some(PackageReviewCompilerIntrinsicExecution::LinuxReadByte);
+        Some(PackageReviewCompilerIntrinsicExecution::HostedReadByte);
     assert!(value.validate_canonical_structure().is_err());
 }
 

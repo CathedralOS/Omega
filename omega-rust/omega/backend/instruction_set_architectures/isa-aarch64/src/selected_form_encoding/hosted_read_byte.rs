@@ -4,7 +4,7 @@ use ::selected_instructions::*;
 use register_model::RegisterConstraintKey;
 use target::NativeTarget;
 
-pub(crate) fn effects() -> MachineEncodedEffects {
+pub(crate) fn effects(target: NativeTarget) -> MachineEncodedEffects {
     let physical = crate::aarch64_physical_register_model();
     let view = |name: &str| {
         physical
@@ -16,7 +16,12 @@ pub(crate) fn effects() -> MachineEncodedEffects {
     uses.sort_unstable();
     uses.dedup();
     let mut clobbers = Vec::new();
-    for name in ["x0", "x1", "x2", "x8", "x9", "nzcv"] {
+    let syscall_register = if target == NativeTarget::macos_arm64() {
+        "x16"
+    } else {
+        "x8"
+    };
+    for name in ["x0", "x1", "x2", syscall_register, "x9", "nzcv"] {
         clobbers.extend(view(name).units.iter().copied());
     }
     clobbers.sort_unstable();
@@ -36,7 +41,10 @@ pub(crate) fn effects() -> MachineEncodedEffects {
     }
 }
 
-pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
+pub(crate) fn declaration(
+    target: NativeTarget,
+    constraint: RegisterConstraintKey,
+) -> MachineEffectDeclaration {
     MachineEffectDeclaration {
         semantic: MachineSemanticKind::HostedReadByte,
         constraint,
@@ -51,9 +59,13 @@ pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDec
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(56),
+            size: MachineSizeKnowledge::ExactBytes(if target == NativeTarget::macos_arm64() {
+                60
+            } else {
+                56
+            }),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(),
+            encoded: effects(target),
         }],
     }
 }
@@ -66,7 +78,7 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
-    if target != NativeTarget::linux_arm64()
+    if (target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64())
         || physical.model() != &crate::aarch64_physical_register_model()
         || !matches!(
             kind,
@@ -88,7 +100,7 @@ fn request(
     Ok(())
 }
 
-/// Encode a Linux read into an eight-byte caller-owned structural home.
+/// Encode a hosted read into an eight-byte caller-owned structural home.
 pub fn encode_aarch64_selected_hosted_read_byte_form(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
@@ -98,8 +110,12 @@ pub fn encode_aarch64_selected_hosted_read_byte_form(
     displacement: u32,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     request(target, physical, kind, alternative, operands, displacement)?;
-    let bytes = crate::encode_linux_read_byte_to_stack(displacement, displacement + 4)
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+    let bytes = if target == NativeTarget::macos_arm64() {
+        crate::encode_macos_read_byte_to_stack(displacement, displacement + 4)
+    } else {
+        crate::encode_linux_read_byte_to_stack(displacement, displacement + 4)
+    }
+    .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     validate_aarch64_selected_hosted_read_byte_form(
         target,
         physical,
@@ -131,14 +147,41 @@ pub fn validate_aarch64_selected_hosted_read_byte_form(
             register_reads: Vec::new(),
             register_writes: Vec::new(),
             writes_nzcv: true,
-            encoded: effects(),
+            encoded: effects(target),
         },
     })
 }
 
-/// Decode the complete Linux read leaf, returning its structural home byte offset.
+/// Decode the complete target-specific read leaf, returning its structural home byte offset.
 pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
-    if target != NativeTarget::linux_arm64() || bytes.len() != 56 {
+    let middle: &[u32] = if target == NativeTarget::linux_arm64() {
+        &[
+            0xd280_0000,
+            0xd280_0022,
+            0xd280_07e8,
+            0xd400_0001,
+            0xb400_00e0,
+            0xf100_041f,
+            0x5400_0081,
+            0x5280_0029,
+        ]
+    } else if target == NativeTarget::macos_arm64() {
+        &[
+            0xd280_0000,
+            0xd280_0022,
+            0xd280_0070,
+            0xd400_1001,
+            0x5400_00e2,
+            0xb400_00e0,
+            0xf100_041f,
+            0x5400_0081,
+            0x5280_0029,
+        ]
+    } else {
+        return None;
+    };
+    let tag_store = 3 + middle.len();
+    if bytes.len() != (tag_store + 3) * 4 {
         return None;
     }
     let words = bytes
@@ -155,20 +198,10 @@ pub fn decode_aarch64_selected_hosted_read_byte(target: NativeTarget, bytes: &[u
         || ((words[1] >> 10) & 4095) * 4 != payload
         || words[2] & 0xffc0_03ff != 0x9100_03e1
         || (words[2] >> 10) & 4095 != payload
-        || words[3..11]
-            != [
-                0xd280_0000,
-                0xd280_0022,
-                0xd280_07e8,
-                0xd400_0001,
-                0xb400_00e0,
-                0xf100_041f,
-                0x5400_0081,
-                0x5280_0029,
-            ]
-        || words[11] & 0xffc0_03ff != 0xb900_03e9
-        || ((words[11] >> 10) & 4095) * 4 != home
-        || words[12..] != [0x1400_0002, 0xd420_0000]
+        || &words[3..tag_store] != middle
+        || words[tag_store] & 0xffc0_03ff != 0xb900_03e9
+        || ((words[tag_store] >> 10) & 4095) * 4 != home
+        || words[tag_store + 1..] != [0x1400_0002, 0xd420_0000]
     {
         return None;
     }
@@ -197,160 +230,259 @@ mod tests {
             family: MachineAlternativeFamily::HostedReadByte,
             variant: 0,
         };
-        for displacement in [0, 32, 4088] {
-            let encoded = encode_aarch64_selected_hosted_read_byte_form(
-                target::NativeTarget::linux_arm64(),
-                &physical,
-                kind,
-                alternative,
-                &[],
-                displacement,
-            )
-            .unwrap();
-            assert_eq!(
-                decode_aarch64_selected_hosted_read_byte(
-                    target::NativeTarget::linux_arm64(),
-                    encoded.bytes()
-                ),
-                Some(displacement)
-            );
-            assert_eq!(encoded.footprint().encoded, effects());
-            assert!(encoded.footprint().register_reads.is_empty());
-            assert!(encoded.footprint().register_writes.is_empty());
-            assert_eq!(
-                encoded.footprint().encoded.stack,
-                MachineEncodedStackEffect::UnchangedV1
-            );
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate_aarch64_selected_hosted_read_byte_form(
-                        target::NativeTarget::linux_arm64(),
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        displacement,
-                        &changed
-                    )
-                    .is_err(),
-                    "bit {bit}"
-                );
-                assert_eq!(
-                    decode_aarch64_selected_hosted_read_byte(
-                        target::NativeTarget::linux_arm64(),
-                        &changed
-                    ),
-                    None,
-                    "decoder bit {bit}"
-                );
-            }
-            for invalid_offset in [1, 3, 4092, u32::MAX] {
-                assert!(
-                    encode_aarch64_selected_hosted_read_byte_form(
-                        target::NativeTarget::linux_arm64(),
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        invalid_offset
-                    )
-                    .is_err()
-                );
-            }
-            assert!(
-                validate_aarch64_selected_hosted_read_byte_form(
-                    target::NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &[],
-                    displacement ^ 4,
-                    encoded.bytes()
-                )
-                .is_err()
-            );
-            let boundary = SelectedInstructionKind::HostedReadByte {
-                slot: LocalStorageSlotId::Boundary { operation },
-            };
-            assert!(
-                encode_aarch64_selected_hosted_read_byte_form(
-                    target::NativeTarget::linux_arm64(),
-                    &physical,
-                    boundary,
-                    alternative,
-                    &[],
-                    displacement
-                )
-                .is_err()
-            );
-            let source = [physical.model().view_named("x0").unwrap().id];
-            assert!(
-                encode_aarch64_selected_hosted_read_byte_form(
-                    target::NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &source,
-                    displacement
-                )
-                .is_err()
-            );
-            let wrong = MachineAlternativeKey {
-                variant: 1,
-                ..alternative
-            };
-            assert!(
-                encode_aarch64_selected_hosted_read_byte_form(
-                    target::NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    wrong,
-                    &[],
-                    displacement
-                )
-                .is_err()
-            );
-            assert!(
-                validate_aarch64_selected_hosted_read_byte_form(
-                    target::NativeTarget::linux_arm64(),
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            for displacement in [0, 32, 4088] {
+                let encoded = encode_aarch64_selected_hosted_read_byte_form(
+                    target,
                     &physical,
                     kind,
                     alternative,
                     &[],
                     displacement,
-                    &encoded.bytes()[1..]
                 )
-                .is_err()
-            );
-            let mut padded = encoded.bytes().to_vec();
-            padded.push(0);
-            assert_eq!(
-                decode_aarch64_selected_hosted_read_byte(
-                    target::NativeTarget::linux_arm64(),
-                    &padded
-                ),
-                None
-            );
-            assert!(
-                encode_aarch64_selected_hosted_read_byte_form(
-                    target::NativeTarget::macos_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &[],
-                    displacement
-                )
-                .is_err()
-            );
-            assert_eq!(
-                decode_aarch64_selected_hosted_read_byte(
-                    target::NativeTarget::macos_arm64(),
-                    encoded.bytes()
-                ),
-                None
-            );
+                .unwrap();
+                assert_eq!(
+                    decode_aarch64_selected_hosted_read_byte(target, encoded.bytes()),
+                    Some(displacement)
+                );
+                assert_eq!(encoded.footprint().encoded, effects(target));
+                assert!(encoded.footprint().register_reads.is_empty());
+                assert!(encoded.footprint().register_writes.is_empty());
+                assert_eq!(
+                    encoded.footprint().encoded.stack,
+                    MachineEncodedStackEffect::UnchangedV1
+                );
+                for bit in 0..encoded.bytes().len() * 8 {
+                    let mut changed = encoded.bytes().to_vec();
+                    changed[bit / 8] ^= 1 << (bit % 8);
+                    assert!(
+                        validate_aarch64_selected_hosted_read_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &[],
+                            displacement,
+                            &changed
+                        )
+                        .is_err(),
+                        "bit {bit}"
+                    );
+                    assert_eq!(
+                        decode_aarch64_selected_hosted_read_byte(target, &changed),
+                        None,
+                        "decoder bit {bit}"
+                    );
+                }
+                for invalid_offset in [1, 3, 4092, u32::MAX] {
+                    assert!(
+                        encode_aarch64_selected_hosted_read_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &[],
+                            invalid_offset
+                        )
+                        .is_err()
+                    );
+                }
+                assert!(
+                    validate_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        displacement ^ 4,
+                        encoded.bytes()
+                    )
+                    .is_err()
+                );
+                let boundary = SelectedInstructionKind::HostedReadByte {
+                    slot: LocalStorageSlotId::Boundary { operation },
+                };
+                assert!(
+                    encode_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        &physical,
+                        boundary,
+                        alternative,
+                        &[],
+                        displacement
+                    )
+                    .is_err()
+                );
+                let source = [physical.model().view_named("x0").unwrap().id];
+                assert!(
+                    encode_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &source,
+                        displacement
+                    )
+                    .is_err()
+                );
+                let wrong = MachineAlternativeKey {
+                    variant: 1,
+                    ..alternative
+                };
+                assert!(
+                    encode_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        &physical,
+                        kind,
+                        wrong,
+                        &[],
+                        displacement
+                    )
+                    .is_err()
+                );
+                assert!(
+                    validate_aarch64_selected_hosted_read_byte_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        displacement,
+                        &encoded.bytes()[1..]
+                    )
+                    .is_err()
+                );
+                let mut padded = encoded.bytes().to_vec();
+                padded.push(0);
+                assert_eq!(
+                    decode_aarch64_selected_hosted_read_byte(target, &padded),
+                    None
+                );
+                let other_target = if target == NativeTarget::linux_arm64() {
+                    NativeTarget::macos_arm64()
+                } else {
+                    NativeTarget::linux_arm64()
+                };
+                assert!(
+                    validate_aarch64_selected_hosted_read_byte_form(
+                        other_target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &[],
+                        displacement,
+                        encoded.bytes()
+                    )
+                    .is_err()
+                );
+                assert_eq!(
+                    decode_aarch64_selected_hosted_read_byte(other_target, encoded.bytes()),
+                    None
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn read_byte_linux_golden_and_darwin_return_paths() {
+        let linux = crate::encode_linux_read_byte_to_stack(16, 20).unwrap();
+        let golden: [u32; 14] = [
+            0xb900_13ff,
+            0xb900_17ff,
+            0x9100_53e1,
+            0xd280_0000,
+            0xd280_0022,
+            0xd280_07e8,
+            0xd400_0001,
+            0xb400_00e0,
+            0xf100_041f,
+            0x5400_0081,
+            0x5280_0029,
+            0xb900_13e9,
+            0x1400_0002,
+            0xd420_0000,
+        ];
+        assert_eq!(
+            linux,
+            golden
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>()
+        );
+        let bytes = crate::encode_macos_read_byte_to_stack(16, 20).unwrap();
+        let words = bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| u32::from_le_bytes(*word))
+            .collect::<Vec<_>>();
+        assert_eq!(&words[..5], &golden[..5]);
+        assert_eq!(&words[5..8], &[0xd280_0070, 0xd400_1001, 0x5400_00e2]);
+        assert_eq!(&words[8..], &golden[7..]);
+        for (home, payload) in [(0, 0), (0, 8), (2, 6), (4092, 4096), (u32::MAX, 3)] {
+            assert!(crate::encode_macos_read_byte_to_stack(home, payload).is_err());
+        }
+        // Execute the branch suffix from actual words, with injected syscall
+        // results. In particular errno 1 must never manufacture a Byte.
+        for carry in [false, true] {
+            for count in [0, 1, 2, 4, u64::MAX] {
+                let mut position = 7;
+                let mut zero = false;
+                let mut tag = 0;
+                let mut trapped = false;
+                for _ in 0..8 {
+                    if position == words.len() {
+                        break;
+                    }
+                    let word = words[position];
+                    if word & 0xff00_0010 == 0x5400_0000 {
+                        let condition = word & 15;
+                        let taken = match condition {
+                            1 => !zero,
+                            2 => carry,
+                            _ => panic!("unexpected condition"),
+                        };
+                        position += if taken {
+                            ((word >> 5) & 0x7ffff) as usize
+                        } else {
+                            1
+                        };
+                    } else if word & 0xff00_001f == 0xb400_0000 {
+                        position += if count == 0 {
+                            ((word >> 5) & 0x7ffff) as usize
+                        } else {
+                            1
+                        };
+                    } else {
+                        match word {
+                            0xf100_041f => {
+                                zero = count == 1;
+                                position += 1;
+                            }
+                            0x5280_0029 => {
+                                position += 1;
+                            }
+                            0xb900_13e9 => {
+                                tag = 1;
+                                position += 1;
+                            }
+                            0x1400_0002 => {
+                                position += (word & 0x03ff_ffff) as usize;
+                            }
+                            0xd420_0000 => {
+                                trapped = true;
+                                break;
+                            }
+                            _ => panic!("unexpected instruction"),
+                        }
+                    }
+                }
+                assert_eq!(trapped, carry || count > 1, "carry {carry}, count {count}");
+                if !trapped {
+                    assert_eq!(position, words.len());
+                    assert_eq!(tag, u32::from(count == 1));
+                }
+            }
         }
     }
 
@@ -365,28 +497,46 @@ mod tests {
             &physical,
         )
         .unwrap();
-        let target = target::NativeTarget::linux_arm64();
-        let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-        let validated =
-            crate::validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone())
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            let validated = crate::validate_aarch64_machine_effect_catalog(
+                target,
+                &constraints,
+                catalog.clone(),
+            )
+            .unwrap();
+            let declaration = validated
+                .catalog()
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
                 .unwrap();
-        let declaration = validated
-            .catalog()
-            .declarations
-            .iter()
-            .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
-            .unwrap();
-        assert_eq!(declaration.constraint, crate::AARCH64_HOSTED_READ_BYTE);
-        assert_eq!(declaration.alternatives[0].encoded, effects());
-        let mut damaged = catalog;
-        let row = damaged
-            .declarations
-            .iter_mut()
-            .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
-            .unwrap();
-        row.alternatives[0].encoded.implicit_unit_clobbers.pop();
-        assert!(
-            crate::validate_aarch64_machine_effect_catalog(target, &constraints, damaged).is_err()
-        );
+            let expected_key = if target == NativeTarget::linux_arm64() {
+                crate::AARCH64_HOSTED_READ_BYTE
+            } else {
+                crate::AARCH64_DARWIN_HOSTED_READ_BYTE
+            };
+            assert_eq!(declaration.constraint, expected_key);
+            assert_eq!(
+                declaration.alternatives[0].size,
+                MachineSizeKnowledge::ExactBytes(if target == NativeTarget::linux_arm64() {
+                    56
+                } else {
+                    60
+                })
+            );
+            assert_eq!(declaration.alternatives[0].encoded, effects(target));
+            let mut damaged = catalog;
+            let row = damaged
+                .declarations
+                .iter_mut()
+                .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
+                .unwrap();
+            row.alternatives[0].encoded.implicit_unit_clobbers.pop();
+            assert!(
+                crate::validate_aarch64_machine_effect_catalog(target, &constraints, damaged)
+                    .is_err()
+            );
+        }
     }
 }

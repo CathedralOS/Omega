@@ -12,8 +12,8 @@ pub(crate) fn encode_compiler_intrinsic_execution(
         PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32 => {
             encoder.tag("hosted_write_byte_i32", 5);
         }
-        PackageReviewCompilerIntrinsicExecution::LinuxReadByte => {
-            encoder.tag("linux_read_byte", 6);
+        PackageReviewCompilerIntrinsicExecution::HostedReadByte => {
+            encoder.tag("hosted_read_byte", 6);
         }
         PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function) => {
             encoder.tag("builtin_function", 0);

@@ -25,7 +25,7 @@ fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin() {
     let mut values = vec![
         Execution::HostedExitProcessI32,
         Execution::HostedWriteByteI32,
-        Execution::LinuxReadByte,
+        Execution::HostedReadByte,
     ];
     values.extend(
         symbols::BuiltinFunction::ALL

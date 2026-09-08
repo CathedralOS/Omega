@@ -138,8 +138,8 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             Some(CompilerBuiltinExecution::HostedWriteByteI32)
         }
-        CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
-            Some(CompilerBuiltinExecution::LinuxReadByte)
+        CompilerIntrinsicExecutionIdentity::HostedReadByte => {
+            Some(CompilerBuiltinExecution::HostedReadByte)
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(_)
         | CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { .. }

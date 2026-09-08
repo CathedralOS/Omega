@@ -15,7 +15,7 @@ pub(super) fn project(
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
         } if scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
-            == target_operations::CompilerBuiltinExecution::LinuxReadByte =>
+            == target_operations::CompilerBuiltinExecution::HostedReadByte =>
         {
             LegalizedScalarInstructionKind::HostedReadByte {
                 boundary: *boundary,

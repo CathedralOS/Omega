@@ -167,9 +167,9 @@ fn lower(
         crate::AdmittedBoundarySettlement {
             boundary: plan.boundary_machines[1].id,
             execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::LinuxReadByte,
+                target_operations::CompilerBuiltinExecution::HostedReadByte,
             ),
-            realization: target_operations::LinuxReadByteRealization.into(),
+            realization: target_operations::HostedReadByteRealization.into(),
         },
     ];
     if let Some(exit) = plan.boundary_machines.get(2) {

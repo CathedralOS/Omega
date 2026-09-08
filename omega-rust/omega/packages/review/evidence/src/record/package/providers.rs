@@ -8,7 +8,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub enum PackageReviewCompilerIntrinsicExecution {
     HostedExitProcessI32,
     HostedWriteByteI32,
-    LinuxReadByte,
+    HostedReadByte,
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
@@ -55,7 +55,7 @@ impl CheckedPackageProviderRowIdentity {
             Some(PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. })
             | Some(PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32)
             | Some(PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32)
-            | Some(PackageReviewCompilerIntrinsicExecution::LinuxReadByte)
+            | Some(PackageReviewCompilerIntrinsicExecution::HostedReadByte)
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatConversion { .. })
             | None => None,
