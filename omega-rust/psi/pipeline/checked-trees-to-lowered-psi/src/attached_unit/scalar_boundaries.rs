@@ -15,6 +15,13 @@ pub(super) fn retain_catalog_roots<'checked>(
                 graph
                     .states
                     .iter()
+                    .flat_map(|state| &state.primitive_locals)
+                    .map(|local| local.type_identity.clone()),
+            );
+            type_roots.extend(
+                graph
+                    .states
+                    .iter()
                     .flat_map(|state| &state.structural_parameters)
                     .map(|parameter| parameter.type_identity.clone()),
             );

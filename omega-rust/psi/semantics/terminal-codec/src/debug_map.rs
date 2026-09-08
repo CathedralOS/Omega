@@ -260,10 +260,12 @@ fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
                 || machine.parameters.iter().any(|value| value.id == id)
                 || machine.blocks.iter().any(|block| {
                     block.parameters.iter().any(|value| value.id == id)
-                        || block
-                            .operations
-                            .iter()
-                            .any(|operation| operation.result.expect_scalar().id == id)
+                        || block.operations.iter().any(|operation| {
+                            operation
+                                .result
+                                .scalar()
+                                .is_some_and(|result| result.id == id)
+                        })
                 })
         }),
         DebugSubject::Contract(id) => module

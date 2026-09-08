@@ -1216,7 +1216,17 @@ fn assemble_unit_closure(
             } else {
                 Vec::new()
             };
-            Ok((callee.source_machine(), parameters))
+            let locals = if let CheckedScalarCallee::Graph(graph) = callee {
+                crate::scalar_graph_lowering::primitive_locals::allocate(
+                    checked,
+                    graph,
+                    &type_ids,
+                    &mut next_place,
+                )?
+            } else {
+                Vec::new()
+            };
+            Ok((callee.source_machine(), parameters, locals))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let prepared_scalar_machines = scalar_callees
@@ -1225,7 +1235,7 @@ fn assemble_unit_closure(
             let source = callee.source_machine();
             let parameters = scalar_graph_parameters
                 .iter()
-                .find(|(symbol, _)| *symbol == source)
+                .find(|(symbol, _, _)| *symbol == source)
                 .ok_or(LoweringError::Unsupported(
                     "scalar graph has no allocated parameter namespace",
                 ))?;
@@ -1234,6 +1244,7 @@ fn assemble_unit_closure(
                 source,
                 scalar_roots.contains(&source) && !(scalar_entry && source == entry),
                 &parameters.1,
+                &parameters.2,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -2162,9 +2173,13 @@ fn assemble_unit_closure(
                         claim_transfers,
                         ..
                     } = operation
-                        && (!structural_arguments.is_empty() || !claim_transfers.is_empty())
+                        && (!structural_arguments.is_empty()
+                            || !claim_transfers.is_empty()
+                            || target.requires_structural_frame())
                     {
-                        if target.structural_parameters().is_empty() {
+                        if target.structural_parameters().is_empty()
+                            && !structural_arguments.is_empty()
+                        {
                             return unsupported(
                                 "structural scalar call has no structural checked body",
                             );
@@ -3531,7 +3546,7 @@ fn assemble_unit_closure(
         };
         let graph_parameters = scalar_graph_parameters
             .iter()
-            .find(|(source, _)| *source == machine.source_machine)
+            .find(|(source, _, _)| *source == machine.source_machine)
             .ok_or(LoweringError::Unsupported(
                 "scalar graph emission lost its allocated parameters",
             ))?;

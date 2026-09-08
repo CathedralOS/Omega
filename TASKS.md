@@ -961,10 +961,10 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  extend scalar-result roots to owned structural signatures and borrowable
-  primitive local storage, then publish cyclic scalar control with exact structural
+  extend scalar-result roots to owned structural signatures,
+  then publish cyclic scalar control with exact structural
   forwarding and natural-descent evidence. Reuse the computed borrowed-call
-  closure shared by primitive-reference scalar roots and ordinary Unit operands.
+  closure and primitive-local storage shared by scalar roots and ordinary Unit operands.
   Realize native storage and
   borrowed-call observations without substituting snapshots. Preserve the authored
   guard and structural payload; the linked command still rejects the rank range

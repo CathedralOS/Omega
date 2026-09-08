@@ -58,6 +58,7 @@ use typed_trees::{
 };
 
 mod guards;
+pub(super) mod primitive_locals;
 
 #[cfg(test)]
 mod tests;
@@ -132,7 +133,7 @@ fn build_machine_graph(
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
             });
-            let (structural_parameters, scalar_parameters, shapes) = if mixed {
+            let (structural_parameters, scalar_parameters, mut shapes) = if mixed {
                 // Structural state forwarding and cyclic custody are a later
                 // extension of this graph, not implicit scalar parameter slots.
                 if source_states.len() != 1 || machine.attached_data.is_some() {
@@ -184,21 +185,45 @@ fn build_machine_graph(
             let result_type = program.primitive_type_reference(state.return_type)?;
             let statements = program.statement_table.statements(state.statement_nodes);
             let bindings = checked_binding_prefix(program, state, computations)?;
-            if mixed {
-                // Call-free primitive-reference leaves retain their existing
-                // structural scalar-return owner, including its admission fences.
-                if matches!(statements, [StatementNode::Expression(_)])
-                    && !computations
-                        .roots
-                        .iter()
-                        .any(|(_, root)| root.state == state.symbol)
+            // Call-free primitive-reference leaves retain their existing
+            // structural scalar-return owner, including its admission fences.
+            if mixed
+                && matches!(statements, [StatementNode::Expression(_)])
+                && !computations
+                    .roots
+                    .iter()
+                    .any(|(_, root)| root.state == state.symbol)
+            {
+                return None;
+            }
+            let primitive_locals = primitive_locals::collect(
+                program,
+                machine,
+                state,
+                expressions,
+                computations,
+                &bindings,
+            )?;
+            let has_places = mixed || !primitive_locals.is_empty();
+            if !primitive_locals.is_empty()
+                && (source_states.len() != 1 || machine.attached_data.is_some())
+            {
+                return None;
+            }
+            for local in &primitive_locals {
+                let shape = checked_trees::CheckedUnitStructuralTypePlan {
+                    identity: local.type_identity.clone(),
+                    shape: checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
+                        local.primitive_type,
+                    ),
+                };
+                if let Some(existing) = shapes.iter().find(|entry| entry.identity == shape.identity)
                 {
-                    return None;
-                }
-                if bindings.iter().any(|binding| {
-                    binding.destination != checked_trees::CheckedScalarBindingDestination::Immutable
-                }) {
-                    return None;
+                    if existing != &shape {
+                        return None;
+                    }
+                } else {
+                    shapes.push(shape);
                 }
             }
             let binding_count = bindings.len();
@@ -324,7 +349,7 @@ fn build_machine_graph(
                 }
                 _ => return None,
             };
-            if mixed
+            if has_places
                 && match &terminator {
                     CheckedScalarStateTerminator::Jump(_) => true,
                     CheckedScalarStateTerminator::Conditional {
@@ -347,6 +372,7 @@ fn build_machine_graph(
                     scalar_parameters,
                     parameter_types,
                     parameter_storage: arena::HandleSpan::empty(),
+                    primitive_locals,
                     bindings,
                     result_type,
                     terminator,

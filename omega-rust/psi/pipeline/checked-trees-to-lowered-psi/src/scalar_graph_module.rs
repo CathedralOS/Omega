@@ -1131,6 +1131,26 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             },
         )?;
     }
+    for operation in blocks.iter().flat_map(|block| &block.operations) {
+        if matches!(
+            operation.kind,
+            OperationKind::EstablishPrimitiveLocal { .. }
+        ) {
+            let OperationResult::Structural(result) = &operation.result else {
+                return unsupported("primitive local establishment lost its structural result");
+            };
+            merge_content_place_declaration(
+                &mut structural_places,
+                StructuralPlaceDeclaration {
+                    id: result.place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: operation.id,
+                        structural_type: result.structural_type,
+                    },
+                },
+            )?;
+        }
+    }
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,

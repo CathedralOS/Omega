@@ -1,5 +1,7 @@
 use super::*;
 
+mod primitive_locals;
+
 fn crash_source(cause: &str, guard: &str, prefix: &str) -> checked_trees::CheckedTrees {
     let source = format!(
         "machine identity(flag: bool) -> bool {{ flag }}
