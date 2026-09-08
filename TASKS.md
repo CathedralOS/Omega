@@ -162,16 +162,24 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe with production checkpoint `52ce6f9c78`
+  The downstream native `cli_mvp` probe at production checkpoint `835b7175c5`
   passes Terminal and native abstract admission but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution: the selected macOS Console provider has no closed native catalog
-  identities for `exit_process`, `read_line`, and `write_byte`.
-  `compiler/src/compiler/intrinsic_settlements.rs` currently realizes only the
-  Linux leaves. Complete the macOS provider definitions and realization; do not
-  substitute Linux or interpreter output.
+  execution with missing catalog identities for `exit_process`, `read_line`, and
+  `write_byte`. Distinguish missing implementation from missing authority:
+  `compiler/tests/samples_compile.rs::sample_package_inputs` supplies package-owned
+  std without accepted semantic bindings, so even the implemented hosted byte
+  leaf correctly remains unclassified in this harness. Route sample native
+  compilation through exact reviewed package acceptance and receiving permissions;
+  do not infer authority from package names or weaken the production checks.
+  `compiler/tests/support/console_acceptance.rs` is the existing explicit fixture
+  binding helper, not a substitute for product review. The reviewed-package
+  `hosted_byte_catalog` canary pins macOS byte-output classification independently.
+  macOS input and exit still need provider definitions and native realization in
+  `selected-dispatch/` and `native-realization/`; do not substitute Linux or
+  interpreter output.
   Natural slice-decrease graphs use ordinary verified native admission, retaining
   their grouped proofs and exact transfers. Downstream source inspection also
   identifies countdown-only cycle replay in
@@ -215,17 +223,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `terminal_byte_views/subslice_calls.rs` for descriptor custody; Unit
   acceptance needs observable effects and caller continuation, not merely a
   resultless call or synthetic incoming descriptor.
-  Use `terminal_byte_views/byte_output.rs` for the Linux `i32` byte leaf's
-  selected/frame/object/image custody; Linux execution requires a Linux host.
+  Use `terminal_byte_views/byte_output.rs` for the shared hosted `i32` byte leaf's
+  selected/frame/object/image custody on Linux x64/ARM64 and macOS ARM64.
+  `byte_output/hosted_runtime.rs` executes published text for all 256 byte values,
+  noncanonical upper input bits, failed-write traps, widened calls and caller
+  continuation on macOS ARM64; Linux execution requires a Linux host.
   Retain the byte widening, scalar-only calls, branches/joins and derived-view
   Unit-output and object/image/installation regression floor in
   `terminal_byte_views/byte_output/`.
   Preserve the defining operation, normalized byte ABI inputs, exact selected
   call evidence, output order and visible caller continuation; do not fabricate
   a descriptor or scalar return.
-  macOS/Windows
-  byte-output providers remain separate
-  native realization dependencies; do not substitute Linux or interpreter output.
+  Windows byte output remains a native realization dependency; do not substitute
+  another host's provider or interpreter output.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.
