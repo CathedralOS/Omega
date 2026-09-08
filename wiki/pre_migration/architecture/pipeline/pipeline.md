@@ -404,7 +404,7 @@ Current deliberate gaps:
 - [Tokens To Syntax Trees](stages/tokens_to_syntax_trees.md)
 - [Syntax Trees To Symbol Resolved Trees](stages/syntax_trees_to_symbol_resolved_trees.md)
 - [Symbol Resolved Trees To Typed Trees](stages/symbol_resolved_trees_to_typed_trees.md)
-- [Typed Trees To Checked Trees](stages/typed_trees_to_checked_trees.md)
+- [Typed Trees To Checked Trees](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md)
 - [Abstract Operations Optimization](stages/abstract_operations_optimization.md)
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
 - [Target To Register Environment](stages/target_to_register_environment.md)

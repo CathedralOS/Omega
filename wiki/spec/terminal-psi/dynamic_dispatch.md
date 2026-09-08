@@ -4,6 +4,35 @@ Dynamic calls retain the descriptor or parameter slot that selects their
 realization. They do not replace that selection with a static callee or a copy
 of its source expression.
 
+## Local selection and call shape
+
+`dyn Trait` stays inside one artifact and uses its internal convention, not a
+boundary calling plan. A named whole-trait conformance supplies one closed map
+with exactly one row for each inherited `(declaring trait, complete requirement
+overload)` slot. Each row selects the conformance's member, explicit machine
+reference, or own default instantiation. The complete overload includes its
+normalized parameter signature and dispatch-bearing result-domain set.
+
+Calls retain the exact requirement symbol, including inherited requirements.
+Same-spelled inherited requirements are not one slot; ambiguous unqualified
+calls reject. An independent per-requirement satisfier does not form a whole
+dynamic conformance. Neither attached-machine names nor uniquely visible
+machines supply missing rows.
+
+A named-conformance coercion retains source data/place, target trait, exact
+conformance, and normalized rows. A bare place coercion cannot search visible
+conformances. A bare dynamic parameter retains eligible complete closed maps;
+a concrete argument must have exactly one applicable conformance, or name the
+intended conformance in its dynamic type. A bodyless declaration without a
+normalized map is not a dynamic candidate.
+
+The requirement owns one erased caller shape. Every realization supplies a
+checked adapter to it; a representative candidate cannot choose the shape for
+the rest. Descriptor forwarding, rebinding, joins, and storage preserve the
+actual instance and table. At a join, each predecessor supplies its own descriptor
+to the shared parameter; retain all predecessor paths and selection identities,
+never a representative conformance or synthetic joined table.
+
 ## Complete application identity
 
 Each selection retains the complete canonical `ClosedConformanceApplication`:
@@ -78,3 +107,22 @@ call is insufficient unless the caller's original referent reflects the writes.
 Current source and native subsets are described beside
 [Terminal-to-abstract lowering](../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/README.md#dynamic-dispatch).
 They are implementation limits, not additional source semantics.
+
+## Resource and component boundary
+
+An erased call accounts for descriptor dispatch, table adapter, erased physical
+shape, and selected satisfier demand. A suspension-capable caller shape still
+costs its frame and structural work when a particular satisfier never suspends.
+The selected implementation may meet a suspension promise while exceeding a
+separate stack or work ceiling.
+
+An occurrence-specific, whole-artifact devirtualization may replace a nonescaping
+selection/call with its exact realization and original receiver. It must retain
+the realized direct-call cost, not erase it because the target is known. General
+escaping descriptors still need their actual table and adapter. Private
+realization footprints compose into the enclosing root's evidence without
+inventing separate boundary contracts.
+
+Local tables do not cross replaceable component boundaries. Those calls use
+the requirement's evaluated boundary plan and entry contract; a local proxy may
+adapt the component binding back into a dynamic value inside its consumer.

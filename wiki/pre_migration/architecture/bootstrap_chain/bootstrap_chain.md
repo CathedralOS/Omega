@@ -72,11 +72,11 @@ The selected Gamma-authored Delta compiler has a
 passing stage for finite arbitrary-field recursive ADTs plus exhaustive matches,
 including two-field List and three-field Bytes-rope witnesses; the
 complete edge remains open. The Delta-written Epsilon evaluator and
-Epsilon-written Omega D are incomplete; D has no compiled tape. Omega-written C
-is also incomplete, so `omega0` remains absent. No compatibility route fills these
-gaps. The former concatenative Gamma implementation and its Delta compiler are
-[retired](../../design_briefs/legacy_bootstrap_retirement.md); their historical
-comparison findings are not selected proof edges.
+Epsilon-written Omega D are incomplete. The
+[interpreted D emitter customer](../../../../tests/epsilon/interpreted-omega-experiment/README.md)
+produces a small target tape that executes under Alpha; this is not a complete
+D compiler or a closed refinement edge. Omega-written C is also incomplete,
+so `omega0` remains absent. No compatibility route fills these gaps.
 
 See the [manifest](chain_manifest.md), [repository map](repository_structure.md),
 and [`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md).

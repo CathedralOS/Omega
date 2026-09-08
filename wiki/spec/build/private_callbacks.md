@@ -5,6 +5,29 @@ Structural signature coincidence does not select it. The callback's native
 address is a private realization result, never a source runtime value or
 semantic input.
 
+## Authored selection
+
+A registrar's static machine binder declares
+`where machine Selected satisfies CallbackRequirement::call`. That
+signature-free path must select one exact overload at the binder declaration;
+signature coincidence or a uniquely visible machine cannot choose it later.
+Adding an overload that makes such a reference ambiguous is a compatibility
+break, diagnosed at the declaring trait and affected uses. No callback-specific
+expanded-signature or `as Name` overload-selector form exists.
+
+A direct destination is written `native callback name from Selected` at its
+actual native argument position. It has no source runtime argument. A nested
+destination uses the explicitly cited `PrivateCallbackSlot<Requirement>`
+conformance in its owning layout. The [calling plan](calling_plans.md) places
+these declared demands; it does not invent hidden trailing parameters.
+
+The binder receives its signature, contracts, operational ceilings, and entry
+plan from the requirement. Per-instance state uses the protocol's context
+parameter, a checked generational handle recoverable from callback arguments,
+or package-owned stable state. No implicit closure environment rides on a
+function pointer. Raw addresses and pointers remain inert representation tokens,
+not readable/writable views.
+
 ## Required identities
 
 | Record | Binds |
@@ -76,6 +99,35 @@ external-root ownership, or component publication. Those require the actual
 registrar outcome and the separate root/lease protocol. Registration capacity
 counts live registrations, not emitted thunks; unregister and required quiescence
 precede release of code/component leases.
+
+The registrar is an ordinary runtime boundary operation. Build selects its
+realization and resource profile, not successful registration. Success creates
+the admitted future root and moves the exact live-registration capacity into
+the linear registration. Failure creates no root and preserves that authority;
+successful teardown returns the same capacity occurrence. Call-scoped borrows
+create no durable registration. A consumable lifetime budget is a different
+resource.
+
+Materialization retains binder and destination, not a duplicate lifetime field.
+The native parameter's ordinary custody contract determines whether its storage
+is call-scoped or retained. Foreign internal tables are provider state; retained
+caller storage needs the general foreign-retention contract.
+
+`invokes` describes possible synchronous entry before the registrar returns;
+it is separate from creating a future root. Bodyful machines infer direct
+invocations; bodyless requirements declare them. Omitted `invokes` on a bodyless
+requirement means no synchronous invocation. The handler's service and
+selected operational envelope contribute to current-invocation reach. The direct
+synchronous invocation graph must be acyclic; inserting another synchronous
+trait does not break a cycle. A genuine new-activation boundary does. A package
+may handle restricted synchronous queries and queue ordinary application events
+without inferring an opaque provider's internal call graph.
+
+The registration retains the selected concrete envelope but does not import it
+automatically into the caller's proof context. An API exposing those facts must
+forward them in its contract. [Installed roots](external_roots.md) and
+[entry stacks](../resources/entry_stacks.md) govern later entry and resource
+admission.
 
 Compact provider-execution coordinates remain reports. Admission retains the
 selected provider authority, strong closure identity, and exact requirement;

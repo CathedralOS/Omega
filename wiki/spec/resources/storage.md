@@ -45,7 +45,8 @@ verified lowering correspondence remain necessary.
 
 A native body-demand theorem excludes external entry adapters and architectural
 arrival state. Root admission joins it to the selected context-indexed entry
-realization. Body demand contributes only to the Body epoch's execution domain;
+realization specified by [entry-stack composition](entry_stacks.md).
+Body demand contributes only to the Body epoch's execution domain;
 arrival and generated/admitted adapter epochs retain their own domains and
 nesting allowances. Changing a strong premise changes the bound identity even
 when numeric totals happen to match.

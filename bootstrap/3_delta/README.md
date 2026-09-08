@@ -15,10 +15,9 @@ Gamma-authored staged Delta implementation -> canonical Gamma/Delta receipts
 The selected compiler now begins under `compiler/` with a Gamma-authored stage
 for finite arbitrary-field data, including recursive nominal fields and
 exhaustive matching through right-nested immutable pairs. The complete Delta
-edge remains open. The former concatenative compiler and its redundant slice
-gate are retired after mapping their useful assertions to selected coverage;
-see the [retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#concatenative-delta-compiler-slice).
-Current staged-bootstrap experiments remain under `tests/delta/`.
+edge remains open. [Selected validation](../../tests/delta/README.md) owns
+staged compiler behavior and conformance controls; there is no alternate
+concatenative compiler.
 
 The Delta compiler may know only Gamma, Delta, and its exact application
 profiles. It may not encode Alpha, parse Epsilon source itself,

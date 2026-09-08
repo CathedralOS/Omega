@@ -55,9 +55,9 @@ tests/
 ```
 
 The Gamma evaluator belongs under `bootstrap/2_gamma/evaluator/` because it
-implements Gamma meaning and is written in Beta. The former concatenative
-implementations are [retired](../../design_briefs/legacy_bootstrap_retirement.md),
-with comparison findings preserved in documentation and Git history.
+implements Gamma meaning and is written in Beta. The selected validation
+owners are [Gamma tests](../../../../tests/gamma/README.md) and
+[Delta tests](../../../../tests/delta/README.md).
 The selected Delta compiler's complete proof edge remains open.
 
 ## Naming

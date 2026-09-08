@@ -34,6 +34,40 @@ Compiler-owned build markers and lowered assembly use closed intrinsic variants,
 not invented package declarations. Unresolved package static paths remain late
 obligations and cannot be admitted without exact declaration custody.
 
+Logical, bitwise, and shift operators without declaration-spelling forms finalize
+as intrinsics after type checking. Exact wire-schema encode/decode calls retain
+distinct intrinsic selection and separate schema/value nominal identities.
+Statement-call finalization rejoins exact flow-call coordinates and source target
+spans. Projected receivers resolve from the current state's input or preceding
+local through `lookup/receivers/projections.rs`; a retained conflicting nominal
+endpoint or attached method rejects. Mutation analysis keeps the lexical storage
+root plus field selectors, not the endpoint field declaration as a new root.
+
+## Selected operator applications
+
+Checked boundary uses retain requirement-owner/category/declaration-ordinal
+coordinates and complete type/const applications. One structural operand judgment
+serves spelling selection and application derivation. Explicit arguments must
+corroborate operand-derived bindings, not fill missing inference. Property bounds
+use exact nominal identity; consts carry decoded canonical values in their exact
+declared integer carriers. Checked lowering replays telescope, bounds, operand
+selection, and const identity rather than trusting display strings or digests.
+
+Monomorphic uses retain the canonical empty application. Closed generic provider
+specialization alternates with ordinary machine specialization to a fixed point,
+retaining immutable authored templates and one authoritative specialization per
+distinct application. Concrete operands independently rederive applications;
+open templates remain symbolic non-coverage. Package review rejoins specialization
+and strong selected-plan custody. External generic/symbolic cross-artifact demand,
+unsupported telescope categories, and unimplemented Terminal call companions
+remain fail-closed. This local closure does not define universal provider proof
+or an exported symbolic-demand format.
+
+Unit named calls normalized to generated expressions retain their authored call
+occurrence. Inferred conformances remain separate from explicit evidence
+arguments and retain exact package-scoped selection in specialization custody.
+No generic operator application creates a general operator `where` syntax.
+
 Package-aware preliminary/final checking currently permits unresolved late rows
 only with exact compiler-owned Toolchain source origin. They remain TCB input,
 are not attributed to the requesting package, and do not bypass visibility.

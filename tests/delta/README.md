@@ -13,33 +13,8 @@ Run the focused serializer gate with `sh tests/delta/emission/run.sh`; its
 [README](emission/README.md) distinguishes private representation controls from
 admitted Delta sources and executable Gamma programs.
 
-Completed direct-Beta topology comparisons are recorded in
-[D88](../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d88--typed-functional-gamma-is-evaluated-directly-by-beta)
-and [D92](../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d92--matched-direct-delta-does-not-displace-minimized-gamma).
-Their prototypes are not maintained as alternate implementations. Selected
-recursive-data, malformed-source, proper-tail, scale, and reordered-match
-coverage belongs to `staged-compiler/`; the selected evaluator and augmentation
-route are checked under `tests/gamma/`. See the
-[retirement boundary](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#completed-topology-discriminators)
-for the historical coverage mapping.
-
-The owner-retired Forth-Gamma experiment and its unused symbolic-label resolver
-are also removed. D93/D94 retain its historical comparison; the
-[Forth retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#forth-experiment)
-maps useful behavior to the selected tests without retaining the alternate dialect.
-
-The scalar direct-Alpha and streaming compiler prototypes are retired as well:
-D80/D82/D88 retain their architectural findings, and their shared recursive and
-scalar-surface sources now belong to `staged-compiler/`. See the
-[scalar retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#scalar-compiler-experiments)
-for coverage.
-
-The concatenative compiler-slice gate and schema-specific elaborator are retired.
-Its mutual-tail and nested-match sources run in `staged-compiler/`. The
-[slice retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#concatenative-delta-compiler-slice)
-maps those assertions. The remaining Gamma-to-Beta comparison, speculative
-state-machine Delta compiler, concatenative Gamma artifacts, and shared helper
-are now retired together. Their
-[retirement review](../../wiki/pre_migration/design_briefs/legacy_bootstrap_retirement.md)
-maps useful coverage, preserves architecture findings, and identifies the still
-open selected proof obligations.
+Selected scalar, recursive-data, malformed-source, proper-tail, mutual-tail,
+nested-match, scale, and reordered-match coverage belongs to
+[`staged-compiler/`](staged-compiler/run.sh). The evaluator and augmentation
+route are checked under [Gamma tests](../gamma/README.md). These selected
+controls are conformance evidence, not proof admission for the complete edge.

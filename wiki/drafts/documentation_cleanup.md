@@ -57,9 +57,9 @@ transcripts. Rejected designs normally leave the tree. Git retains them.
 
 ### 1. Consolidate the large mixed references
 
-Continue with the remaining callback, external-root, and implementation material
-in [calling plans](../pre_migration/design_briefs/calling_plans.md) and the
-[typed-to-checked stage](../pre_migration/architecture/pipeline/stages/typed_trees_to_checked_trees.md).
+Continue with the remaining boundary/format, layout, and hardware references in
+`pre_migration/design_briefs/`, consolidating against their existing specification
+owners before adding another document.
 
 For each coherent subject:
 
@@ -94,9 +94,11 @@ claims and redundant history rather than moving them unchanged.
 
 The owner has authorized consolidating the
 [bootstrap decision record](../pre_migration/architecture/bootstrap_chain/decisions.md)
-and [chain alternatives](../pre_migration/design_briefs/bootstrap_chain_alternatives.md)
 under the same rules. Preserve current contracts, not the ledger format or
-superseded history. No old-location exception remains.
+superseded history. No old-location exception remains. The
+[chain comparison proposal](../proposals/bootstrap_chain_alternatives.md) is
+separate from the selected chain and its
+[minimization contract](../../bootstrap/MINIMIZATION.md).
 
 ### 4. Close the migration
 
@@ -116,7 +118,7 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: finish retiring the calling-plan brief and the typed-to-checked reference. Complete
+Next: consolidate the remaining boundary and layout references. Complete
 byte-level Terminal tables remain explicit PSIIR work, not an implied achievement
 of prose migration. The remaining documents in pre_migration still need review,
 not automatic promotion into the specification.

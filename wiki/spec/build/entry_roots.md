@@ -3,6 +3,8 @@
 [Target selection](configuration.md) fixes one profile per child activation.
 Its closed typed slots define what an installable artifact must bind; source
 does not discover an entry by name.
+[External-root admission](external_roots.md) governs installed liveness and
+resource evidence after that selection.
 
 ## Slots
 
