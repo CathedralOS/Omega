@@ -1,4 +1,4 @@
-use super::{exact_integer_destination, expression_custody};
+use super::{exact_probe_destination, expression_custody};
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Binding,
     AuthoredDeclarationSelectionTarget as Target,
@@ -35,7 +35,7 @@ fn index_destination_rejects_range_constraints_even_under_exact_policy() {
     let machine = program.machines().iter().next().expect("probe machine");
     let destination = program.machine_states(machine)[0].return_type;
     assert_eq!(
-        exact_integer_destination(&program, destination),
+        exact_probe_destination(&program, destination),
         Some(PrimitiveType::U64)
     );
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression).clone()
@@ -64,10 +64,59 @@ fn index_destination_rejects_range_constraints_even_under_exact_policy() {
         ArithmeticDomain::Exact
     );
     assert_eq!(
-        exact_integer_destination(&program, constrained),
+        exact_probe_destination(&program, constrained),
         None,
         "a primitive projection and Exact policy do not discharge range obligations"
     );
+}
+
+#[test]
+fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
+    for value in [false, true] {
+        let text = format!("machine run() -> bool {{ {value} }}");
+        let tokens = Lexer::new(&text).tokenize().expect("Boolean probe tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("Boolean probe syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("Boolean probe resolution");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("Boolean probe typing");
+        let machine = program.machines().iter().next().expect("Boolean machine");
+        let state = &program.machine_states(machine)[0];
+        assert_eq!(
+            exact_probe_destination(&program, state.return_type),
+            Some(PrimitiveType::Bool)
+        );
+        let expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(handle, node)| matches!(node, ExpressionNode::Boolean(_)).then_some(handle))
+            .expect("Boolean literal");
+        let (canonical, warnings) =
+            super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
+                .expect("selected Boolean literal");
+        assert_eq!(
+            canonical,
+            language_semantics::const_value::CanonicalConstValue::boolean(value)
+        );
+        assert!(warnings.is_empty());
+        assert!(
+            super::value::evaluate(
+                &program,
+                machine,
+                state,
+                ExpressionHandle::invalid(),
+                PrimitiveType::Bool
+            )
+            .is_err()
+        );
+    }
+    let (program, expression) = typed_binary();
+    let machine = program.machines().iter().next().expect("integer machine");
+    let state = &program.machine_states(machine)[0];
+    let (canonical, _) =
+        super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
+            .expect("landed integer retains its carrier for the caller's destination check");
+    assert_eq!(canonical.type_name, "u64");
 }
 
 #[test]
@@ -118,10 +167,12 @@ fn folded_literal_cannot_promote_unresolved_operator_custody() {
     };
     let literal = program.expression_table.expression(binary.left).clone();
     assert!(matches!(literal, ExpressionNode::Integer(_)));
-    *program.expression_table.expression_mut(expression) = literal;
-    let error = expression_custody(&program, &machine, &state, expression, false)
-        .expect_err("folded literal has no checked operator meaning");
-    assert!(error.contains("checked builtin meaning"));
+    for literal in [literal, ExpressionNode::Boolean(true)] {
+        *program.expression_table.expression_mut(expression) = literal;
+        let error = expression_custody(&program, &machine, &state, expression, false)
+            .expect_err("folded literal has no checked operator meaning");
+        assert!(error.contains("checked builtin meaning"));
+    }
 }
 
 #[test]

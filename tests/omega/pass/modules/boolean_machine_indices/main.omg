@@ -1,0 +1,9 @@
+use settings;
+const ENABLED: bool = true;
+data Flag<const Value: bool> { value: u8; }
+machine keep(value: Flag<ENABLED>) -> Flag<ENABLED> {
+    let local: Flag<ENABLED> = value;
+    local
+}
+data Main {}
+machine Main::main(&mut self) {}

@@ -1,4 +1,4 @@
-//! Typed evaluation of closed integer index expressions before data synthesis.
+//! Typed evaluation of closed integer expressions and named Boolean indices.
 //!
 //! The probe owns no published layout or symbols. Only its canonical result and
 //! exact authored selection custody return to the original syntax forest.
@@ -44,7 +44,7 @@ pub(super) fn evaluate(
         };
         if !matches!(
             destination_name.as_str(),
-            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool"
         ) {
             continue;
         }
@@ -122,10 +122,14 @@ pub(super) fn evaluate(
     // frontend type the selected expression before any real instance is created.
     // Original expressions and their authored names remain unchanged in the probe.
     let mut probe = syntax.clone();
-    for (argument, _, _) in &arguments {
+    for (argument, destination, _) in &arguments {
+        let placeholder = match syntax.type_references.type_reference(*destination) {
+            TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",
+            _ => "0",
+        };
         probe.type_references.replace_type_reference(
             *argument,
-            TypeReferenceNode::Named(Identifier::generated("0")),
+            TypeReferenceNode::Named(Identifier::generated(placeholder)),
         );
     }
     for (ordinal, (_, expression, destination, _)) in pending.iter().enumerate() {
@@ -173,9 +177,9 @@ pub(super) fn evaluate(
             return Err(failure("typed probe return is not a value".to_owned()));
         };
         let destination =
-            exact_integer_destination(&typed, state.return_type).ok_or_else(|| {
+            exact_probe_destination(&typed, state.return_type).ok_or_else(|| {
                 failure(
-                    "index destination requires an unconstrained exact builtin integer carrier"
+                    "index destination requires an unconstrained exact builtin integer or Boolean carrier"
                         .to_owned(),
                 )
             })?;
@@ -201,11 +205,14 @@ pub(super) fn evaluate(
                 destination.name()
             )));
         }
-        let Some(DecodedCanonicalConstValue::Integer { value, .. }) = result.decode_encoding()
-        else {
-            return Err(failure(
-                "integer index evaluation returned a noninteger value".to_owned(),
-            ));
+        let replacement = match result.decode_encoding() {
+            Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
+            Some(DecodedCanonicalConstValue::Boolean(_)) => result.atom(),
+            _ => {
+                return Err(failure(
+                    "index probe returned an unsupported canonical value".to_owned(),
+                ));
+            }
         };
         for warning in warnings {
             eprintln!("{warning}");
@@ -219,7 +226,7 @@ pub(super) fn evaluate(
         );
         syntax.type_references.replace_type_reference(
             argument,
-            TypeReferenceNode::Named(Identifier::generated(value.to_string())),
+            TypeReferenceNode::Named(Identifier::generated(replacement)),
         );
     }
     Ok(syntax)
@@ -245,7 +252,7 @@ fn contains_constant_reference(syntax: &SyntaxTrees, expression: ExpressionHandl
     false
 }
 
-fn exact_integer_destination(
+fn exact_probe_destination(
     program: &typed_trees::TypedTrees,
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {
@@ -265,6 +272,7 @@ fn exact_integer_destination(
         BuiltinTypeAtom::U16 => PrimitiveType::U16,
         BuiltinTypeAtom::U32 => PrimitiveType::U32,
         BuiltinTypeAtom::U64 => PrimitiveType::U64,
+        BuiltinTypeAtom::Bool => PrimitiveType::Bool,
         _ => return None,
     })
 }

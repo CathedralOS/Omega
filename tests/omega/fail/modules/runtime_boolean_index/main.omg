@@ -1,0 +1,6 @@
+// Runtime parameters cannot become same-spelled canonical static values.
+const SIZE: bool = true;
+data Flag<const Enabled: bool> { value: u8; }
+machine keep(SIZE: bool, value: Flag<SIZE>) -> Flag<SIZE> { value }
+data Main {}
+machine Main::main(&mut self) {}
