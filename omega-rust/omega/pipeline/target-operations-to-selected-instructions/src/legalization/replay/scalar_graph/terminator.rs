@@ -2,9 +2,17 @@ use super::*;
 pub(super) fn validate(
     actual: &LegalizedScalarTerminator,
     node: &optimization_unit::OptimizationNode,
+    function: &optimization_unit::PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = Error::NonCanonicalLegalizedPlan;
     match (actual, &node.operation) {
+        (
+            LegalizedScalarTerminator::StructuralCase { .. },
+            AbstractOperation::StructuralCase { .. },
+        ) => {
+            super::structural_case::validate(actual, node, function, plan)?;
+        }
         (LegalizedScalarTerminator::Return(returned), source) => {
             if returned.fuel != node.fuel
                 || returned.effect != node.effect

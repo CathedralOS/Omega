@@ -18,6 +18,9 @@ pub(super) fn build(
     let constraints = builder.constraints;
     let keys = &constraints.keys;
     match &block.terminator {
+        // Case payloads are edge-produced values. Until selection retains that
+        // transport, they cannot be treated as ordinary scalar arguments.
+        LegalizedScalarTerminator::StructuralCase { .. } => Err(invalid()),
         LegalizedScalarTerminator::Return(returned) => {
             let (kind, key, operands, values) = match returned.value {
                 LegalizedScalarReturnValue::Unit => (

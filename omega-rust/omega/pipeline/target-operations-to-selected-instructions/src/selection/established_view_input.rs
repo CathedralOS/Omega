@@ -24,7 +24,10 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
 pub(super) fn transferred(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     source.blocks.iter().any(|block| {
         let successors = match &block.terminator {
-            legalized_operations::LegalizedScalarTerminator::Return(_) => [None, None],
+            legalized_operations::LegalizedScalarTerminator::Return(_)
+            | legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {
+                [None, None]
+            }
             legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
                 [Some(successor), None]
             }

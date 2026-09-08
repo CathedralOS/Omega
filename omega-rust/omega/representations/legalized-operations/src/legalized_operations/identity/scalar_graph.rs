@@ -255,6 +255,41 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
 
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
+        LegalizedScalarTerminator::StructuralCase {
+            defining_operation,
+            result,
+            layout,
+            cases,
+            effect,
+            ownership,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
+            super::projected_structural_call_return::encode_operation_result(bytes, result);
+            super::read_byte::encode_layout(bytes, layout);
+            encode_len(bytes, cases.len());
+            for case in cases {
+                for identity in [case.edge.get(), case.target.get(), case.case.get()] {
+                    bytes.extend_from_slice(&identity.to_le_bytes());
+                }
+                bytes.extend_from_slice(&case.case_tag.to_le_bytes());
+                encode_len(bytes, case.payloads.len());
+                for payload in &case.payloads {
+                    bytes.extend_from_slice(&payload.field.get().to_le_bytes());
+                    bytes.extend_from_slice(&payload.field_byte_offset.to_le_bytes());
+                    bytes.extend_from_slice(&payload.parameter.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, payload.parameter.scalar_type);
+                    encode_definition_site(bytes, payload.parameter.definition_site);
+                }
+                encode_ids(
+                    bytes,
+                    case.trivial_affine_discards.iter().map(|place| place.get()),
+                );
+                encode_fuel(bytes, &case.fuel);
+            }
+            encode_effect(bytes, *effect);
+            encode_ownership_roster(bytes, ownership);
+        }
         LegalizedScalarTerminator::Return(returned) => {
             bytes.push(0);
             bytes.extend_from_slice(&returned.edge.get().to_le_bytes());

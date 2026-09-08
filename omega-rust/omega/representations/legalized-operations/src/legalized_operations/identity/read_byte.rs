@@ -23,6 +23,10 @@ pub(super) fn encode_payload(
 ) {
     bytes.extend_from_slice(&boundary.get().to_le_bytes());
     super::projected_structural_call_return::encode_operation_result(bytes, result);
+    encode_layout(bytes, layout);
+}
+
+pub(super) fn encode_layout(bytes: &mut Vec<u8>, layout: &ConventionalSumLayout) {
     super::calling::encode_shape(bytes, layout.shape);
     bytes.extend_from_slice(&layout.tag_byte_offset.to_le_bytes());
     super::calling::encode_shape(bytes, layout.tag_shape);

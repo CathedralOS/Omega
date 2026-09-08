@@ -1,8 +1,13 @@
 use super::*;
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
+    function: &optimization_unit::PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     match &node.operation {
+        AbstractOperation::StructuralCase { .. } => {
+            super::structural_case::project(node, function, plan)
+        }
         AbstractOperation::ReturnUnit { psi_edge, .. } => {
             Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge: *psi_edge,

@@ -3,6 +3,7 @@ use super::shared::*;
 use crate::legalization::scalar_graph_input;
 use ::legalized_operations::*;
 mod instruction;
+mod structural_case;
 mod terminator;
 pub(super) fn derive(
     target: &target_operations::TargetFunction,
@@ -43,7 +44,7 @@ pub(super) fn derive(
                     .iter()
                     .map(|node| instruction::project(node, optimized, native, plan, unit))
                     .collect::<Result<Vec<_>, LegalizationError>>()?,
-                terminator: terminator::project(last)?,
+                terminator: terminator::project(last, optimized, plan)?,
             })
         })
         .collect::<Result<Vec<_>, LegalizationError>>()?;

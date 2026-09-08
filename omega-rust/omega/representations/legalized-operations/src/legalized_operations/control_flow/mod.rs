@@ -5,3 +5,5 @@
 
 mod scalar_graph;
 pub use scalar_graph::*;
+mod structural_case;
+pub use structural_case::*;
