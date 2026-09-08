@@ -1,116 +1,119 @@
 # Omega
 
-Omega is a proof-carrying systems language whose programs are data-oriented
-state machines. This repository contains its language contracts, Rust reference
-compiler, Omega-written product compiler, and trust-minimizing bootstrap chain.
-The language design is broader than the compiler's implemented support.
+A systems language built around explicit state machines, checked contracts,
+and ownership of memory and resources.
 
-Start with the [language guide](wiki/language_guide/language_guide.md) for
-examples and the [specification index](wiki/README.md#current-specification-subjects)
-for current contracts.
+**Experimental.** The Rust compiler is under active development. The language
+design is ahead of its implementation; native support is still being completed.
 
-## Language Direction
+[Language guide](wiki/language_guide/language_guide.md) ·
+[Specification](wiki/README.md#current-specification-subjects) ·
+[Examples](samples/) ·
+[Contributing](#development)
 
-State transitions make control flow explicit. Ownership and loans govern memory
-access; contracts and proof obligations describe valid operations; capabilities
-carry authority across boundaries. Layouts and target realization connect those
-semantics to systems programming without making physical representation the
-meaning of a value.
+## What it looks like
 
-Safety, termination, concurrency and resource guarantees have explicit scopes
-and assumptions. A logical-work bound is not a host CPU-time measurement, and
-an external boundary needs its own admitted contract. See the specification
-rather than treating these goals as unconditional implementation guarantees.
+A language example: removing items from stock without unsigned underflow.
 
-## Building
+```omega
+data Stock {
+    available: u32;
+}
 
-Install Rust through `rustup`; [rust-toolchain.toml](rust-toolchain.toml) pins
-the compiler, formatter and linter. Use `mbx` for compiling commands when
-available, or substitute `cargo`. Keep `cargo fmt` and `cargo clean` direct.
-
-To request checking of the smallest CLI sample:
-
-```bash
-mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
+machine Stock::take(&mut self, count: u32)
+requires count <= self.available
+ensures self.available == before(self.available) - count
+{
+    self.available = self.available - count;
+}
 ```
 
-Checking is not evidence of native execution. The
-[CLI sample instructions](samples/cli/basics/cli_mvp/README.md) describe its
-current boundary and host-specific build/run commands. Do not execute an old
-image after a failed compilation.
+- **`requires`**: the caller establishes that enough stock exists—perhaps through
+  a runtime branch, perhaps from facts it already knows.
+- **`ensures`**: the implementation must establish the promised result.
+  `before(...)` refers to the value on entry.
+- **`&mut self`**: the operation borrows the original stock exclusively; it
+  cannot race an ordinary overlapping access.
 
-Compiler observations normally go into an ignored `build/` beside the
-entrypoint; `--build-dir <dir>` overrides that location. Available reports
-depend on the requested product and observation policy. `--output-only`
-suppresses auxiliary reports, not checking or required admission. See
-[compiler products and observations](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
-for the owning contract.
+The condition makes subtraction valid. Failing to prove it is a compile error,
+not an automatically inserted runtime assertion. This is a design example;
+the [contract guide](wiki/language_guide/chapter_7_types_constraints_invariants.md)
+explains the model in more depth.
 
-## Current Native Status
+For longer control flow, a machine contains named states and explicit
+transitions. State transfers carry their inputs and do not grow the call stack.
+See [states and transitions](wiki/language_guide/chapter_4_states_transitions.md).
 
-The native route consumes verified Terminal Psi and rejects unsupported
-constructs; it has no checked-tree or source-shaped fallback. A parser,
-interpreter or individual backend test does not establish end-to-end native
-support for a sample or target. The
-[completion plan](wiki/drafts/rust_compiler_completion.md) owns the required
-acceptance matrix, and [native realization](omega-rust/omega/compiler/native-realization/README.md)
-owns the implementation boundary.
+## What the checks are for
 
-Unfinished work belongs on [the compiler board](TASKS.md) and
-[optimizer board](TASKS_OPTIMIZER.md), not a parallel capability ledger here.
+| You express | Checking establishes | Still explicit |
+| --- | --- | --- |
+| Ownership and borrows | Legal access, transfer, and cleanup | Storage supply and external lifetime contracts |
+| Preconditions, bounds, and guarantees | Operations are valid under established facts | Any admitted assumptions |
+| States and transitions | Valid successor inputs and ownership transfers | A termination promise when one is needed |
+| Boundary calls and capabilities | Declared effects and required authority | Provider trust and deployment policy |
 
-## Architecture
+The aim is systems code whose assumptions can be inspected—not a claim that
+the compiler proves every property of the surrounding operating system.
 
-[Psi](omega-rust/psi/README.md) owns source semantics through Terminal Psi.
-Omega consumes that portable product for provider selection, optimization,
-target realization, ABI and native emission. Target backends own unavoidable
-ISA, ABI, object-format and relocation details. The
-[connected pipeline](omega-rust/pipeline.md) maps transformations to code owners.
+## Try the compiler
 
-- [omega-rust/](omega-rust/README.md) is the Rust reference producer and
-  differential comparator, not a canonical language rung or source of authority.
-- [source/](source/README.md) holds the Omega-written product compiler.
-- [bootstrap/](bootstrap/README.md) holds Alpha → Beta → Gamma → Delta →
-  Epsilon → Omega and its separate proof tools.
+Install Rust with `rustup`, clone this repository, and run from its root.
+The checked-in toolchain file selects the required Rust version.
 
-Gamma is the small typed scalar/effect functional language with a direct Beta
-evaluator. Delta authors the Epsilon evaluator; Epsilon authors the first Omega
-compiler, D. D builds the Omega-written compiler, which rebuilds that same
-product source. Intermediate self-hosting is not a goal. The
-[bootstrap contract](bootstrap/CONTRACT.md) defines the source subjects and
-required evidence; [whole-chain minimization](bootstrap/MINIMIZATION.md)
-governs implementation choices.
+Start with a small precondition-checking case:
 
-## Samples And Language Cases
+```sh
+cargo run -p omega -- --check --output-only tests/omega/pass/constraints/scalar_requires_satisfied_by_literal/main.omg
+```
 
-Samples are copyable language pressure tests, not a blanket support claim.
-They may contain intended syntax that the compiler does not yet implement.
-Browse [CLI](samples/cli), [GUI](samples/gui), or [UEFI](samples/uefi) examples;
-each project's ignored `build/` owns its generated output.
+It should finish successfully: its call supplies `5` to a machine requiring
+a positive value. This checks source; it does not emit or run a native program.
+`--output-only` omits auxiliary reports.
 
-Language cases isolate compiler behavior in `tests/omega/pass/<feature>/`,
-`fail/<feature>/` and `run/<feature>/`. Name cases for that behavior, not the
-sample that exposed it. Keep permanent expectations small and checked in;
-generated build artifacts are not expectations.
+For a full application, start with the [CLI example](samples/cli/basics/cli_mvp/README.md).
+Its instructions distinguish the intended result from the current compiler
+limitations.
 
-## Bundled Omega Packages
+## How the compiler fits together
 
-Imports beginning with `omega::` resolve beneath [source/library/](source/library),
-as either `name.omg` or `name/mod.omg`. `OMEGA_LIBRARY_ROOT` selects an
-alternate bundled library root for toolchain-layout testing.
+```mermaid
+flowchart LR
+    source["Omega source"] --> psi["Psi · source checking"]
+    psi --> terminal["Terminal Psi"]
+    terminal --> verify["Independent verification"]
+    verify --> native["Omega · native realization"]
+    verify --> interpret["Reference interpretation"]
+```
 
-## Useful Commands
+**Terminal Psi is the portable boundary.** Source checking and target realization
+can happen in separate invocations. The native compiler consumes that product,
+not a second source-shaped shortcut.
+[Follow the pipeline →](omega-rust/pipeline.md)
 
-[AGENTS.md](AGENTS.md#driving-the-compiler) documents the CLI and
-[focused canary commands](AGENTS.md#running-one-test).
-[Local testing](tools/testing.md) covers nextest installation, platform
-integration and affected-test selection. Choose validation from the changed
-behavior; a fresh worktree alone does not require a full baseline.
+The separate [bootstrap chain](bootstrap/README.md) works toward constructing
+the compiler from a small auditable starting point. It is not required to work
+on the Rust implementation.
 
-## Design Notes
+## Find your way around
 
-- [Documentation index](wiki/README.md)
-- [Language guide](wiki/language_guide/language_guide.md)
-- [Language and toolchain specification](wiki/README.md#current-specification-subjects)
-- [Compiler ownership and pipeline](omega-rust/pipeline.md)
-- [Optimizer implementation](omega-rust/optimization.md)
+| If you want to… | Start here |
+| --- | --- |
+| Learn the language | [Language guide](wiki/language_guide/language_guide.md) |
+| Look up an exact rule | [Language and toolchain specification](wiki/README.md) |
+| Explore programs and library code | [Samples](samples/) · [Bundled library](source/library/) |
+| Work on the current compiler | [Rust implementation](omega-rust/README.md) |
+| Read the self-hosted compiler sources | [Product source](source/README.md) |
+| Understand bootstrap and trust | [Bootstrap](bootstrap/README.md) |
+| Discuss a language change | [Proposals](wiki/proposals/README.md) · [Open decisions](OWNER_QUESTIONS.md) |
+
+## Development
+
+Current work prioritizes finishing the Rust compiler before self-hosting and
+bootstrap completion. The [compiler board](TASKS.md),
+[optimizer board](TASKS_OPTIMIZER.md), and
+[completion criteria](wiki/drafts/rust_compiler_completion.md) describe the work.
+
+Read [repository conventions](AGENTS.md#repository-conventions) before changing
+code. [Local testing](tools/testing.md) covers focused checks and supported
+development hosts.
