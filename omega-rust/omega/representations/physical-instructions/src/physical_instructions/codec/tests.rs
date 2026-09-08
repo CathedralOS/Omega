@@ -140,14 +140,23 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 #[test]
 fn physical_codec_retains_byte_view_address_family_not_exact_add() {
     let mut source = plan();
-    source.functions[0].blocks[0].instructions[0].alternative.key.family =
-        MachineAlternativeFamily::ByteViewAddress;
+    source.functions[0].blocks[0].instructions[0]
+        .alternative
+        .key
+        .family = MachineAlternativeFamily::ByteViewAddress;
     source.identity = post_allocation_machine_identity(&source);
-    assert_eq!(PostAllocationMachinePlan::decode(&source.encode()), Ok(source.clone()));
-    source.functions[0].blocks[0].instructions[0].alternative.key.family =
-        MachineAlternativeFamily::ExactAddI64;
-    assert_eq!(PostAllocationMachinePlan::decode(&source.encode()),
-        Err(PostAllocationMachineDecodeError::InvalidIdentity));
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    source.functions[0].blocks[0].instructions[0]
+        .alternative
+        .key
+        .family = MachineAlternativeFamily::ExactAddI64;
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&source.encode()),
+        Err(PostAllocationMachineDecodeError::InvalidIdentity)
+    );
 }
 
 #[test]
