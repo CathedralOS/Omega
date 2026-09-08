@@ -213,6 +213,14 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   execution. Void-call return and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
   and source-place evidence when joining these dependencies.
+  Literal-backed scalar helper calls at `3735e6dfa4` (macOS ARM64) first need
+  exact local-view source admission
+  in `optimization-unit-semantics/src/unit_validation/operation_contracts/`:
+  `cargo nextest run -p omega-native-differential-test --test terminal_byte_views
+  literal_calls --no-fail-fast` pins the current post-verification
+  `StructuralCallContractMismatch` at caller 100, block 101, node 1. Replace that
+  rejection oracle with native byte-result observations when storage and call
+  realization close; do not substitute a synthetic incoming view parameter.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.
