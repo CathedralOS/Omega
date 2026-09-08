@@ -305,7 +305,7 @@ machine AlphaTapeBuffer::write_reserved_address(&mut self, target: i32) {
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 1048571) {
+        transition (target >= 0) && (target <= 16777211) {
             true -> check_capacity()
             _ -> invalid_target()
         }
@@ -492,7 +492,7 @@ machine AlphaTapeBuffer::emit_jump(
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 1048571) {
+        transition (target >= 0) && (target <= 16777211) {
             true -> reserve_instruction()
             _ -> invalid_target()
         }
@@ -547,7 +547,7 @@ machine AlphaTapeBuffer::emit_rx(
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 1048571) {
+        transition (target >= 0) && (target <= 16777211) {
             true -> reserve_instruction()
             _ -> invalid_target()
         }
@@ -615,7 +615,7 @@ machine AlphaTapeBuffer::emit_rrx(
     }
 
     state check_target() {
-        transition (target >= 0) && (target <= 1048571) {
+        transition (target >= 0) && (target <= 16777211) {
             true -> reserve_instruction()
             _ -> invalid_target()
         }

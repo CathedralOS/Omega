@@ -194,13 +194,36 @@ profile is unchanged.
 The second customer concatenates the whole, unchanged D
 `representations.epsilon` and `alpha_tape.epsilon` members with
 [`customers/omega_alpha_tape/main.epsilon`](customers/omega_alpha_tape/main.epsilon).
-Every member and its 63,530-byte packed source is pinned. Its two distinct
+Every member and its 67,489-byte packed source is pinned. Its two distinct
 `AlphaTapeBuffer` receivers execute D's actual `initialize`,
 `write_reserved_word`, and `payload_length` machines, including their nested
 calls. It checks separate byte storage and lengths, little-endian word writes,
 the four `255` bytes written for `-1`, and reinitialization of one buffer without
-changing the other. Its expected observation is tagged `Exit(0)` with stdout
-`ABCDEFGH`. No D functions or types are extracted or replaced.
+changing the other. It also exercises actual symbolic label allocation,
+forward fixup resolution, instruction-boundary replay, and sealing. A jump to
+the following `ret` finalizes to exactly `0c 09 00 00 00 00 00 00 00 14`.
+Post-seal writes and emission cannot change that payload; a second finalization
+returns zero. An undefined registered label instead retains the placeholder,
+reports D's internal-misuse state, and cannot finalize.
+
+All four direct address-writing paths admit offset 16,777,211 and reject
+16,777,212 before appending bytes. The jump control also crosses the retired
+one-MiB target ceiling at 1,048,572. These short unfinished forward-target buffers
+exercise encoding guards, not full-size tape realization or successful
+finalization at those high offsets. Finalization still requires a target inside
+the actual payload at a reconstructed instruction start. The old four guards
+failed this same customer at `07e8c1df86` with diagnostic `01 08` and stdout
+`ABCDEFGH`; their one-MiB ceiling contradicted the selected Alpha profile.
+
+The successful observation is tagged `Exit(0)` with stdout `ABCDEFGH` followed
+by the actual ten-byte sealed payload above, compared independently by the host.
+The jump/return payload is structural evidence, not a terminating standalone
+Alpha program. No D functions or types are extracted or replaced. Run it with:
+
+```sh
+sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D Alpha tape buffers'
+```
+
 The third customer concatenates whole `representations.epsilon` and
 `request_and_utf8.epsilon` members with
 [`customers/omega_request/main.epsilon`](customers/omega_request/main.epsilon).

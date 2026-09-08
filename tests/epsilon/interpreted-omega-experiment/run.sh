@@ -127,11 +127,12 @@ add_customer("Omega D lexical helpers", (
 add_customer("Omega D Alpha tape buffers", (
     (compiler / "representations.epsilon", 30905,
      "7b2b1ca57752256e9b10446ea8a2469075d9a0cac11ffe97f2037340528064ed"),
-    (compiler / "alpha_tape.epsilon", 30828,
-     "302bddf1161fa06b07d1aba914f1e84209006a03020e50127c2db22c0daba59d"),
-    (test_directory / "customers/omega_alpha_tape/main.epsilon", 1797,
-     "0ccf1ef98023c4e19038bb0bcde4fd27140dbed47df166874e84d2e8930c348f"),
-), 63530, "08284b839b374d8e611bba77cd63d4093f1f72d7034dca7b8b1aeb26cec6c5b5", b"\x00\x00\x00\x00\x00ABCDEFGH")
+    (compiler / "alpha_tape.epsilon", 30832,
+     "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
+    (test_directory / "customers/omega_alpha_tape/main.epsilon", 5752,
+     "b838a398907a2e4a7f81f5a15dddec4c8a3f96f920fc560f2b2d326548734208"),
+), 67489, "56eea535c8c3b59e87612d257d8e07c13f4924f87b4240a492b8a7ad946507b4",
+    b"\x00\x00\x00\x00\x00ABCDEFGH\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14")
 
 add_customer("Omega D request and UTF-8", (
     (compiler / "representations.epsilon", 30905,
