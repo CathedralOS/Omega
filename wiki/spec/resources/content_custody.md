@@ -87,6 +87,18 @@ An assembly-local parent cap does not establish a cross-epoch ceiling.
 
 ## Runtime establishment
 
+The required-slot closure is derived from exact target declarations; missing,
+duplicate, extra, and cross-profile selections reject. It is descriptive
+evidence, not authority. One non-clonable registry authority tied to the exact
+installed-code occurrence creates the sole ledger for that installation scope;
+dropping a ledger does not reissue it. Slot and owner identities share the
+target declaration's derivation, not compiler-local restatements.
+
+The ledger issues its cohort verifier once, with no public constructor.
+Prebindings must come from retained required roots; sealing all eligible members
+is transactional for one ledger/epoch and failure returns every lease. Mutable
+prebinding counts and compact fingerprints cannot establish a root.
+
 The closed cohort becomes a non-clonable epoch runtime, not a vector of reusable
 mint grants. An installed-entry subject binds the exact root, ABI and semantic
 parameter positions, qualification, carrier, invocation, and runtime place.

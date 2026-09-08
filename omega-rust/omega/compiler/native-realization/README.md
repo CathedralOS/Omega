@@ -22,6 +22,22 @@ child-local. This reuse is an implementation optimization, not review, proof,
 or audit evidence. Equal Terminal artifacts may enter different ISA lowerers;
 different target-selected root artifacts must remain separate.
 
+## Program-entry settlement
+
+[Entry roots](../../../../wiki/spec/build/entry_roots.md) owns the source/arrival
+contract. [entry_settlement](src/entry_settlement/mod.rs) independently replays
+target, source signature, calling/storage plans, canonical artifact, exact
+Terminal entry, and service establishment before issuing the validated carrier.
+It does not call the Psi receipt producer to validate that producer's output.
+
+[service_establishment.rs](src/entry_settlement/service_establishment.rs) joins
+selected Fused service evidence to the Terminal receiver's attachment and exact
+erased fields, then to the selected provider plans. Semantic receiver identity
+and retained Terminal attachment identity are separate facts and need not have
+the same spelling. The [entry controls](src/tests/native_realization/entry_settlement.rs)
+cover this join; it is not evidence of runtime slot publication or Independent
+execution support.
+
 ## Callback custody boundaries
 
 [callback_custody.rs](src/realization/callback_custody.rs) returns the caller's

@@ -36,6 +36,7 @@ beside code; completed work belongs in Git, not current reference material.
   [placed access](spec/resources/placed_access.md).
 - Build: [declarations and package identity](spec/build/declarations.md),
   [configuration and targets](spec/build/configuration.md),
+  [target slots and entry roots](spec/build/entry_roots.md),
   [execution and generated source](spec/build/execution.md),
   [standalone compiler request](spec/build/compiler_request.md),
   [native products and component publication](spec/build/component_publication.md)
