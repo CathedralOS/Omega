@@ -10,6 +10,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     scalar_values: Option<&[ValueDeclaration]>,
+    byte_argument_places: &[PlaceId],
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     let CheckedUnitEffectOperationPlan::CallUnit {
@@ -48,8 +49,14 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         structural_types,
         &[],
     )?;
-    let structural_arguments =
-        lower_structural_arguments(structural_arguments, parameters, &[], &[], &[], &[])?;
+    let structural_arguments = lower_structural_arguments(
+        structural_arguments,
+        parameters,
+        &[],
+        &[],
+        &[],
+        byte_argument_places,
+    )?;
     // Instantiate against completed arguments, never callee-local value IDs or
     // a second evaluation of the authored argument expressions.
     let crash_continuations =

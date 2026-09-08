@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -143,13 +146,10 @@ pub(super) fn build(
                     ..
                 } if claim_transfers.is_empty()
                     && structural_arguments.iter().all(|argument| {
-                        argument.source_parameter_index().is_some()
-                            && argument.path.is_empty()
-                            && matches!(
-                                argument.access,
-                                CheckedStructuralAccess::MutableBorrow
-                                    | CheckedStructuralAccess::SharedBorrow
-                            )
+                        whole_shared_argument(argument)
+                            || (argument.source_parameter_index().is_some()
+                                && argument.path.is_empty()
+                                && argument.access == CheckedStructuralAccess::MutableBorrow)
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
@@ -306,11 +306,17 @@ fn prefix_initializers(
 }
 
 fn whole_view_arguments(arguments: &[CheckedUnitStructuralArgumentPlan]) -> bool {
-    arguments.iter().all(|argument| {
-        argument.source_parameter_index().is_some()
-            && argument.path.is_empty()
-            && argument.access == CheckedStructuralAccess::SharedBorrow
-    })
+    arguments.iter().all(whole_shared_argument)
+}
+
+fn whole_shared_argument(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
+    argument.path.is_empty()
+        && argument.access == CheckedStructuralAccess::SharedBorrow
+        && (argument.source_parameter_index().is_some()
+            || matches!(
+                argument.source,
+                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+            ))
 }
 
 type Signature = (

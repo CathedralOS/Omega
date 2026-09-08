@@ -8,6 +8,7 @@ mod custody;
 pub(super) mod dynamic_result;
 mod emission;
 mod internal_calls;
+mod literal_arguments;
 mod nested_control;
 mod prefixed_control;
 mod routing;

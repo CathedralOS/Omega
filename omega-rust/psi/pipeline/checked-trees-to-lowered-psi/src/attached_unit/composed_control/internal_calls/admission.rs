@@ -27,7 +27,8 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     };
     if !claim_transfers.is_empty()
         || structural_arguments.iter().any(|argument| {
-            argument.source_parameter_index().is_none()
+            (argument.source_parameter_index().is_none()
+                && argument.byte_sequence_literal().is_none())
                 || !argument.path.is_empty()
                 || !matches!(
                     argument.access,
@@ -59,6 +60,28 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         return unsupported("composed internal Unit call disagrees with its checked target");
     }
     for (argument, target) in structural_arguments.iter().zip(entry.structural_parameters) {
+        if argument.byte_sequence_literal().is_some() {
+            if argument.type_identity != target.type_identity
+                || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || argument.access != target.access
+                || target.multiplicity != Multiplicity::Unrestricted
+                || !target.qualifications.is_empty()
+                || !plans.structural_types.iter().any(|declaration| {
+                    declaration.identity == target.type_identity
+                        && matches!(
+                            declaration.shape,
+                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                                checked_trees::CheckedByteSequenceCarrier::BorrowedView
+                            )
+                        )
+                })
+            {
+                return unsupported(
+                    "composed Unit literal call lost its exact shared-view custody",
+                );
+            }
+            continue;
+        }
         let source = argument
             .source_parameter_index()
             .and_then(|position| state.structural_parameters.get(position as usize))

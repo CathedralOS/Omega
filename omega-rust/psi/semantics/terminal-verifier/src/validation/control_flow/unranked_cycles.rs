@@ -107,11 +107,23 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     operation.result == OperationResult::Unit
                         && structural_arguments.iter().all(|argument| {
                             argument.path.is_empty()
-                                && argument.access == StructuralAccess::MutableBorrow
-                                && machine.structural_parameters.iter().any(|parameter| {
-                                    parameter.place == argument.place
-                                        && persistent_receiver(module, parameter)
-                                })
+                                && ((argument.access == StructuralAccess::MutableBorrow
+                                    && machine.structural_parameters.iter().any(|parameter| {
+                                        parameter.place == argument.place
+                                            && persistent_receiver(module, parameter)
+                                    }))
+                                    || (argument.access == StructuralAccess::SharedBorrow
+                                        && super::super::byte_sequence_length::validate_source(
+                                            module,
+                                            machine,
+                                            operation,
+                                            argument.place,
+                                            || ModuleError::InvalidByteSequenceLengthSource {
+                                                operation: operation.id,
+                                                source: argument.place,
+                                            },
+                                        )
+                                        .is_ok()))
                         })
                         && claim_transfers.is_empty()
                         && requirement_obligations.is_empty()

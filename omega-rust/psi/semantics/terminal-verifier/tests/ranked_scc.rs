@@ -807,6 +807,9 @@ mod unranked_bindings;
 #[path = "ranked_scc/unranked_views.rs"]
 mod unranked_views;
 
+#[path = "ranked_scc/unranked_unit_calls.rs"]
+mod unranked_unit_calls;
+
 #[path = "ranked_scc/natural_stale_observations.rs"]
 mod natural_stale_observations;
 
