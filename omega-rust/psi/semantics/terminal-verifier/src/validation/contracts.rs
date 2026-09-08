@@ -26,6 +26,9 @@ pub(super) fn validate_contract_clause_kind(
     }
 }
 
+// Logical contracts retain supplied requirements and proof goals, not runtime
+// observations. Reconstruct their exact subjects without granting or requiring
+// read access; executable observations and premise availability check separately.
 pub(super) fn validate_contract_scope(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -47,7 +50,7 @@ pub(super) fn validate_contract_scope(
         } => {
             for field in [left, right] {
                 if !matches!(
-                    readable_field_type(module, machine, field.root(), field.path()),
+                    structural_leaf_type(module, machine, field.root(), field.path()),
                     Some(StructuralFieldType::IeeeFloat(actual)) if actual == format
                 ) {
                     return Err(ModuleError::InvalidIeeeFloatFieldTerm {
@@ -63,7 +66,7 @@ pub(super) fn validate_contract_scope(
         Proposition::ByteSequenceEqual { left, right } => {
             for field in [left, right] {
                 if !matches!(
-                    readable_field_type(module, machine, field.root(), field.path()),
+                    structural_leaf_type(module, machine, field.root(), field.path()),
                     Some(StructuralFieldType::ByteSequence(_))
                 ) {
                     return Err(ModuleError::InvalidByteSequenceFieldTerm {
@@ -193,7 +196,7 @@ fn validate_term_scope(
         }
         ScalarTerm::BooleanField { root, path } => {
             if !matches!(
-                readable_field_type(module, machine, *root, path),
+                structural_leaf_type(module, machine, *root, path),
                 Some(StructuralFieldType::Scalar(ScalarType::Boolean))
             ) {
                 return Err(ModuleError::InvalidBooleanFieldTerm {
@@ -209,7 +212,7 @@ fn validate_term_scope(
             scalar_type,
         } => {
             if !matches!(
-                readable_field_type(module, machine, *root, path),
+                structural_leaf_type(module, machine, *root, path),
                 Some(StructuralFieldType::Scalar(ScalarType::Integer(actual))) if actual == scalar_type
             ) {
                 return Err(ModuleError::InvalidIntegerFieldTerm {
@@ -223,19 +226,4 @@ fn validate_term_scope(
         ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
     }
     Ok(())
-}
-
-/// Contract field terms name readable direct parameter roots. Reconstruct the
-/// complete canonical path even when no operation or proof uses this clause.
-/// This is formation checking only: no contract becomes its own safety premise.
-fn readable_field_type<'module>(
-    module: &'module TerminalModule,
-    machine: &TerminalMachine,
-    root: PlaceId,
-    path: &[CanonicalStructuralPathSegment],
-) -> Option<&'module StructuralFieldType> {
-    machine.structural_parameters.iter().find(|parameter| {
-        parameter.place == root && parameter.access != StructuralAccess::WriteOnlyBorrow
-    })?;
-    structural_leaf_type(module, machine, root, path)
 }

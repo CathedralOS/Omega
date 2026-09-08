@@ -25,8 +25,11 @@ Do not duplicate those policies in operation-specific verifier branches.
 
 Contract formation checks every field term, including unused requirements and
 ordinary or outcome-specific guarantees. The existing scope traversal resolves
-canonical paths, exact Boolean/integer/IEEE leaf types, byte-field kinds, and
-readable parameter access before proof reconstruction. Nominal cleanup sites
+canonical paths, exact Boolean/integer/IEEE leaf types, and byte-field kinds
+before proof reconstruction. Caller-supplied facts do not perform observations:
+write-only parameters may occur in those logical contracts without acquiring
+readable access. Executable field reads and tag dispatch require their own access
+judgment, even with a supplied case refinement. Nominal cleanup sites
 separately validate their action-bound proof-only receivers. These checks add
 neither arithmetic safety premises nor entry-snapshot authority. The codec's
 `canonical::contract_fields` tests exercise source-free decoding with substituted

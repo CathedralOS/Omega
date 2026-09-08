@@ -291,6 +291,20 @@ pub(super) fn validate_control_flow(
                 }
             }
             Terminator::StructuralCase { source, cases } => {
+                // Dispatch observes the stored tag. Logical entry refinements
+                // do not grant an executable read through a write-only loan.
+                // Operation results retain their independently validated owned
+                // origin and are not narrowed by this parameter access check.
+                if machine.structural_parameters.iter().any(|parameter| {
+                    parameter.place == *source
+                        && parameter.access == StructuralAccess::WriteOnlyBorrow
+                }) {
+                    return Err(ModuleError::StructuralCaseRequiresReadableAccess {
+                        machine: machine.id,
+                        block: block.id,
+                        source: *source,
+                    });
+                }
                 for successor in cases {
                     super::block_views::validate_successor(
                         machine,

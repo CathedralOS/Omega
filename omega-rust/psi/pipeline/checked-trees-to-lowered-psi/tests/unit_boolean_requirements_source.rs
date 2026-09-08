@@ -51,9 +51,72 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
+fn write_only_parameter_retains_a_caller_supplied_field_requirement() {
+    let source = r#"
+        data Cell { flag: bool; }
+        data Main {}
+        machine Main::main(cell: &write Cell)
+        requires cell.flag
+        { cell.flag = false; }
+    "#;
+    let lowered = roundtrip(source);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    assert_eq!(
+        entry.structural_parameters[0].access,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(entry.contract.requires.len(), 1);
+    assert!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .all(|operation| !matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BooleanStructuralField { .. }
+            ))
+    );
+}
+
+#[test]
 fn boolean_parameter_requirement_survives_mixed_unit_call() {
     let lowered = roundtrip(SOURCE);
     assert_call_requirement_certificates(&lowered);
+}
+
+#[test]
+fn write_only_forwarding_proves_the_callee_field_requirement() {
+    let lowered = roundtrip(
+        r#"
+        data Cell { flag: bool; }
+        data Helper {}
+        machine Helper::consume(destination: &write Cell)
+        requires destination.flag
+        { destination.flag = false; }
+        data Main {}
+        machine Main::main(cell: &write Cell)
+        requires cell.flag
+        { Helper::consume(&write cell); }
+    "#,
+    );
+    assert_call_requirement_certificates(&lowered);
+    assert!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .all(|operation| !matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BooleanStructuralField { .. }
+            ))
+    );
 }
 
 fn assert_call_requirement_certificates(lowered: &lowered_psi::LoweredPsi) {

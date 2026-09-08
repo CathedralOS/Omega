@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn decoding_rejects_nonexistent_fields_in_unused_contracts() {
+fn decoding_rejects_nonexistent_fields_in_write_only_contracts() {
     for is_requirement in [true, false] {
         let mut module = unit_fixture();
         // This identity is unique to the declaration and the two contract terms.
@@ -30,7 +30,7 @@ fn decoding_rejects_nonexistent_fields_in_unused_contracts() {
                 is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
-                access: StructuralAccess::SharedBorrow,
+                access: StructuralAccess::WriteOnlyBorrow,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             });

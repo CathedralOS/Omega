@@ -52,12 +52,50 @@ fn field_mut(module: &mut TerminalModule) -> &mut StructuralFieldDeclaration {
 }
 
 #[test]
-fn unused_contract_fields_validate_exact_paths_carriers_and_readable_access() {
+fn supplied_case_requirement_does_not_read_a_write_only_parameter() {
+    let mut module = module();
+    let case = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    module.structural_types[1].shape = StructuralTypeShape::Sum {
+        cases: vec![
+            terminal_psi::StructuralCaseDeclaration {
+                id: case,
+                identity: "Present".into(),
+                fields: Vec::new(),
+            },
+            terminal_psi::StructuralCaseDeclaration {
+                id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                identity: "Absent".into(),
+                fields: Vec::new(),
+            },
+        ],
+    };
+    let root = module.machines[0].structural_parameters[0].place;
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::StructuralCaseMembership {
+            subject: semantic_vocabulary::StructuralCaseSubject::new(
+                root,
+                vec![CanonicalStructuralPathSegment::Field(
+                    id::<StructuralFieldId>(1),
+                )],
+            ),
+            case,
+        });
+    validate_module(&module).expect("readable nested case requirement");
+    module.machines[0].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+    terminal_verifier::verify_module(&module, &Default::default(), &Default::default())
+        .expect("caller-supplied refinement introduces no tag read");
+}
+
+#[test]
+fn contract_fields_validate_exact_paths_and_carriers_under_every_access() {
     for clause in [Clause::Requires, Clause::Ensures] {
         for access in [
             StructuralAccess::Owned,
             StructuralAccess::SharedBorrow,
             StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
         ] {
             let mut original = module();
             original.machines[0].structural_parameters[0].access = access;
@@ -68,7 +106,7 @@ fn unused_contract_fields_validate_exact_paths_carriers_and_readable_access() {
                 Proposition::Equal(field.clone(), field),
             );
             validate_module(&original).expect("valid unused field clause");
-            for mutation in 0..4 {
+            for mutation in 0..3 {
                 let mut invalid = original.clone();
                 match mutation {
                     0 => field_mut(&mut invalid).id = id::<StructuralFieldId>(2),
@@ -81,10 +119,6 @@ fn unused_contract_fields_validate_exact_paths_carriers_and_readable_access() {
                             StructuralFieldType::Scalar(ScalarType::Integer(
                                 IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
                             ))
-                    }
-                    3 => {
-                        invalid.machines[0].structural_parameters[0].access =
-                            StructuralAccess::WriteOnlyBorrow
                     }
                     _ => unreachable!(),
                 }
@@ -230,16 +264,15 @@ fn boolean_ieee_and_byte_contract_fields_retain_their_own_leaf_kind() {
             };
             install(&mut original, clause, proposition);
             validate_module(&original).expect("exact leaf kind");
-            for unreadable in [false, true] {
+            for access in [
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::WriteOnlyBorrow,
+            ] {
                 let mut invalid = original.clone();
-                if unreadable {
-                    invalid.machines[0].structural_parameters[0].access =
-                        StructuralAccess::WriteOnlyBorrow;
-                } else {
-                    field_mut(&mut invalid).field_type =
-                        StructuralFieldType::Scalar(integer_type());
-                }
-                let error = validate_module(&invalid).expect_err("wrong or unreadable leaf");
+                invalid.machines[0].structural_parameters[0].access = access;
+                validate_module(&invalid).expect("supplied contract is not an observation");
+                field_mut(&mut invalid).field_type = StructuralFieldType::Scalar(integer_type());
+                let error = validate_module(&invalid).expect_err("wrong leaf type");
                 assert!(matches!(
                     (kind, error),
                     (0, ModuleError::InvalidBooleanFieldTerm { .. })
