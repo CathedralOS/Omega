@@ -159,6 +159,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         for operation in &abstracted.operations {
             let admitted = match operation {
                 AbstractOperation::IntegerConstant { .. } => true,
+                AbstractOperation::ByteSequenceLength { .. }
+                | AbstractOperation::ByteSequenceRead { .. }
+                | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
                 AbstractOperation::Call {
                     callee,
                     arguments,
@@ -225,6 +228,72 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
     }
     Ok(())
+}
+
+/// Restrict publication to the Unit graph's unique byte-operation membership.
+/// Payloads, bounds, and dominance are checked by the mandatory source replay in
+/// `admit`; this boundary must not maintain a second expression verifier.
+fn byte_operation_retained(
+    operation: &AbstractOperation,
+    target: &target_operations::TargetFunction,
+) -> bool {
+    use target_operations::{
+        TargetByteView, TargetIntegerExpression, TargetOperation, TargetScalarExpression,
+        TargetUnitOperation,
+    };
+    let TargetOperation::UnitGraph(graph) = &target.operation else {
+        return false;
+    };
+    graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|node| match (operation, node) {
+            (
+                AbstractOperation::ByteSequenceLength { psi_operation, .. },
+                TargetUnitOperation::ScalarDefinition {
+                    expression:
+                        TargetScalarExpression::Integer {
+                            expression:
+                                TargetIntegerExpression::ByteSequenceLength {
+                                    psi_operation: retained,
+                                    ..
+                                },
+                            ..
+                        },
+                    ..
+                },
+            )
+            | (
+                AbstractOperation::ByteSequenceRead { psi_operation, .. },
+                TargetUnitOperation::ScalarDefinition {
+                    expression:
+                        TargetScalarExpression::Integer {
+                            expression:
+                                TargetIntegerExpression::ByteSequenceRead {
+                                    psi_operation: retained,
+                                    ..
+                                },
+                            ..
+                        },
+                    ..
+                },
+            )
+            | (
+                AbstractOperation::ByteSequenceSubslice { psi_operation, .. },
+                TargetUnitOperation::ByteSequenceSubslice {
+                    view:
+                        TargetByteView::Subslice {
+                            psi_operation: retained,
+                            ..
+                        },
+                    ..
+                },
+            ) => psi_operation == retained,
+            _ => false,
+        })
+        .count()
+        == 1
 }
 
 /// Copy retained ranked metadata; admission remains with the complete source replay.

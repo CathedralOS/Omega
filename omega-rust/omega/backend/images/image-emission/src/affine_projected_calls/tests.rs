@@ -285,7 +285,7 @@ fn argument(
         call_stack_bytes: 0,
         fixed_array_length: length,
         element_stride: stride,
-        source: home.source.clone(),
+        source: home.source.clone().into(),
         destination: ValuePlacement {
             shape,
             locations: Vec::new(),
@@ -600,7 +600,12 @@ fn owned_subtree_indirect_temporary_has_exact_x86_and_aarch64_bytes() {
         }],
         32,
     );
-    aarch64.source.locations = vec![ValueLocation::Indirect {
+    let machine_code::InternalUnitStructuralArgumentSourceRecord::Placement(source) =
+        &mut aarch64.source
+    else {
+        panic!("incoming projection source");
+    };
+    source.locations = vec![ValueLocation::Indirect {
         pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
         copy_stack_byte_offset: Some(0),
         byte_size: 48,

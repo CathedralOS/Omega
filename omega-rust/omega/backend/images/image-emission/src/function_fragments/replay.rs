@@ -40,8 +40,10 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
                 .flat_map(|call| &call.arguments)
                 .any(|argument| {
                     argument.access != terminal_psi::StructuralAccess::Owned
-                        || argument.source.shape.class
-                            == calling_conventions::ValueClass::BorrowedReference
+                        || argument.source.placement().is_none_or(|placement| {
+                            placement.shape.class
+                                == calling_conventions::ValueClass::BorrowedReference
+                        })
                         || argument.destination.shape.class
                             == calling_conventions::ValueClass::BorrowedReference
                         || matches!(

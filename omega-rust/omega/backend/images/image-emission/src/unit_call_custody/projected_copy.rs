@@ -13,17 +13,18 @@ pub(super) fn expected_owned_projected_copy_bytes(
     target: NativeTarget,
     argument: &InternalUnitCallArgumentRecord,
 ) -> Option<Vec<u8>> {
+    let source_placement = argument.source.placement()?;
     if argument.access != terminal_psi::StructuralAccess::Owned
         || argument.path.is_empty()
         || argument.shape.class != ValueClass::Integer
-        || argument.source.shape.class != ValueClass::Integer
+        || source_placement.shape.class != ValueClass::Integer
         || argument.destination.shape != argument.shape
         || argument.shape.byte_size == 0
         || argument.shape.alignment == 0
         || argument
             .source_byte_offset
             .checked_add(u32::from(argument.shape.byte_size))?
-            > u32::from(argument.source.shape.byte_size)
+            > u32::from(source_placement.shape.byte_size)
     {
         return None;
     }
@@ -31,7 +32,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
         .call_stack_bytes
         .checked_add(argument.source_location.stack_byte_offset()?)?;
     let indirect_source = matches!(
-        argument.source.locations.as_slice(),
+        source_placement.locations.as_slice(),
         [ValueLocation::Indirect { .. }]
     );
     let mut bytes = Vec::new();
@@ -168,6 +169,7 @@ fn append_fragment(
     bytes: &mut Vec<u8>,
     destination: ValueLocation,
 ) -> Option<()> {
+    let source_placement = argument.source.placement()?;
     let (value_offset, width, stack) = match destination {
         ValueLocation::Register {
             value_byte_offset,
@@ -191,7 +193,7 @@ fn append_fragment(
         .source_byte_offset
         .checked_add(u32::from(value_offset))?;
     let indirect = matches!(
-        argument.source.locations.as_slice(),
+        source_placement.locations.as_slice(),
         [ValueLocation::Indirect { .. }]
     );
     let offset = if indirect {

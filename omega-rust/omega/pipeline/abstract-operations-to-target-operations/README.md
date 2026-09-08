@@ -156,16 +156,20 @@ Unit-call arguments, derived-view block transfers, or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
 executes caller-owned descriptors, derived views, and framed helper chains
-on supported hosts; it does not establish Omega-source writer closure or
-standalone executable publication.
+on supported hosts; cross-emission alone does not establish matching-host
+execution or Omega-source writer closure.
 The void-call runtime fixture checks normal return, descriptor preservation, and
 surrounding stack canaries. Its discarded byte-reader result does not establish
 observable byte output or Boolean-dependent behavior. The separate
 `byte_output/derived_unit.rs` fixture retains a checked suffix, a genuine Unit
-reader's guarded byte output, and caller continuation. Its Linux runtime oracle
-requires a Linux host. Object/image publication still needs the derived structural
-argument's selected producer and descriptor-home custody; the existing object
-record builder accepts incoming placements only.
+reader's guarded byte output, and caller continuation. It publishes ordinary
+objects, Linux images, and installation records. Structural call records keep
+incoming ABI placements distinct from established-view producers and their actual
+local descriptor slots; mandatory retained replay binds the source and physical
+transport. Installation format 89 encodes that distinction and rejects older
+markers. The runtime oracle consumes validated published text and requires a
+Linux host. Scalar-result image publication and literal-backed descriptors remain
+separate dependencies.
 
 [Structural-header validation](src/validation/structural_signatures.rs) rejoins
 retained Unit and mixed scalar ABI parameters to the source declarations and

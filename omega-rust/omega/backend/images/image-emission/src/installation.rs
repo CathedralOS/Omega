@@ -102,7 +102,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 88;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 89;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2851,7 +2851,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             InstallationError::InvalidInternalUnitCall(installed.machine),
         )?;
         let custody = &installed.custody;
-        if borrowed_structural::has_borrowed(function) {
+        if borrowed_structural::has_borrowed(function) || custody.arguments.iter().any(|argument| {
+            matches!(
+                argument.source,
+                machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { .. }
+            )
+        }) {
             let key = (
                 installed.machine,
                 custody.operation_ordinal,
@@ -2866,6 +2871,15 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             }
             previous_call = Some(key);
             continue;
+        }
+        if custody
+            .arguments
+            .iter()
+            .any(|argument| argument.source.placement().is_none())
+        {
+            return Err(InstallationError::InvalidInternalUnitCall(
+                installed.machine,
+            ));
         }
         let incoming_call = incoming_structural::has_incoming(function);
         if (incoming_call && !incoming_structural::call_is_exact(record, function, installed))
@@ -3594,13 +3608,14 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .zip(&plan.parameters[scalar_count..])
                 .enumerate()
                 .any(|(argument_index, (argument, destination))| {
+                    let Some(source_placement) = argument.source.placement() else { return true; };
                     let parameter_source = parameter_homes
                         .iter()
                         .find(|home| home.place == argument.place)
                         .is_some_and(|home| {
                             argument.root_structural_type == home.structural_type
-                                && argument.source == home.source
-                                && argument.source.shape == home.shape
+                                && *source_placement == home.source
+                                && source_placement.shape == home.shape
                                 && argument.source_location == home.location
                                 && (incoming_call || home.location.stack_byte_offset().is_some())
                         });
@@ -3620,8 +3635,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                         && argument.root_structural_type == structural_type.id
                                         && argument.structural_type == structural_type.id
                                         && argument.shape == ValueShape::integer(0, 1)
-                                        && argument.source.shape == argument.shape
-                                        && argument.source.locations.is_empty()
+                                        && source_placement.shape == argument.shape
+                                        && source_placement.locations.is_empty()
                                         && argument.destination.shape == argument.shape
                                         && argument.destination.locations.is_empty()
                                         && argument.source_location.stack_byte_offset() == Some(0)
@@ -3663,7 +3678,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         && argument.byte_count == 0
                         && argument.bytes.is_empty()
                         && argument.shape == ValueShape::integer(0, 1)
-                        && argument.source.locations.is_empty()
+                        && source_placement.locations.is_empty()
                         && argument.destination.locations.is_empty();
                     argument.destination != *destination
                         || (!parameter_source && !result_source && !local_source)
@@ -3681,11 +3696,11 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         || argument
                             .source_byte_offset
                             .checked_add(u32::from(argument.shape.byte_size))
-                            .is_none_or(|end| end > u32::from(argument.source.shape.byte_size))
+                            .is_none_or(|end| end > u32::from(source_placement.shape.byte_size))
                         || match argument.path.as_slice() {
                             [] => {
                                 argument.source_byte_offset != 0
-                                    || argument.source.shape != argument.shape
+                                    || source_placement.shape != argument.shape
                                     || argument.root_structural_type != argument.structural_type
                                     || argument.fixed_array_length.is_some()
                                     || argument.element_stride.is_some()
@@ -3721,8 +3736,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     || u64::from(stride).checked_mul(*index)
                                         != Some(u64::from(argument.source_byte_offset))
                                     || u64::from(stride).checked_mul(length)
-                                        != Some(u64::from(argument.source.shape.byte_size))
-                                    || argument.source.shape.alignment != argument.shape.alignment
+                                        != Some(u64::from(source_placement.shape.byte_size))
+                                    || source_placement.shape.alignment != argument.shape.alignment
                             }
                             [
                                 StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
@@ -3755,8 +3770,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     || *inner >= u64::from(inner_length)
                                     || Some(argument.source_byte_offset) != expected_offset
                                     || outer_stride.checked_mul(2)
-                                        != Some(u32::from(argument.source.shape.byte_size))
-                                    || argument.source.shape.alignment != argument.shape.alignment
+                                        != Some(u32::from(source_placement.shape.byte_size))
+                                    || source_placement.shape.alignment != argument.shape.alignment
                             }
                             path @ [StructuralPathSegment::Field(_), ..]
                                 if path.iter().all(|segment| {
@@ -5052,6 +5067,7 @@ pub enum InstallationError {
     InvalidCallSiteOwnerTag(u8),
     InvalidStructuralSourceLocationTag(u8),
     InvalidInternalUnitCallSourceTag(u8),
+    InvalidInternalUnitStructuralSourceTag(u8),
     InvalidProviderCandidateRecord(terminal_codec::CodecError),
     InvalidScalarCallingPolicyTag(u8),
     InvalidScalarEntryControlTag(u8),
