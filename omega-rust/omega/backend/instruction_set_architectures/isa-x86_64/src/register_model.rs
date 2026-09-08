@@ -121,18 +121,22 @@ pub fn x86_64_microsoft_register_call_keys() -> Vec<RegisterConstraintKey> {
 
 /// Register-only Unit call keys, indexed by argument count.
 pub fn x86_64_system_v_register_unit_call_keys() -> Vec<RegisterConstraintKey> {
-    (0..=6).map(|arity| RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 740 + arity,
-    }).collect()
+    (0..=6)
+        .map(|arity| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: 740 + arity,
+        })
+        .collect()
 }
 
 /// Register-only Unit call keys, indexed by argument count.
 pub fn x86_64_microsoft_register_unit_call_keys() -> Vec<RegisterConstraintKey> {
-    (0..=4).map(|arity| RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: if arity == 2 { 700 } else { 720 + arity },
-    }).collect()
+    (0..=4)
+        .map(|arity| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: if arity == 2 { 700 } else { 720 + arity },
+        })
+        .collect()
 }
 
 /// Arity-ordered keys for the complete register-only U64 call ABI.
@@ -285,17 +289,50 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 46] = [
         variant: 14,
     },
     X86_64_MICROSOFT_CALL_UNIT,
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 720 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 721 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 723 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 724 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 740 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 741 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 742 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 743 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 744 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 745 },
-    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 746 },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 720,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 721,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 723,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 724,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 740,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 741,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 742,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 743,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 744,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 745,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 746,
+    },
     X86_64_SYSTEM_V_RETURN,
     X86_64_MICROSOFT_RETURN,
     X86_64_SYSTEM_V_RETURN_UNIT,
@@ -980,16 +1017,28 @@ pub fn x86_64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
-    for (scalar_key, unit_key) in x86_64_system_v_register_call_keys().into_iter()
+    for (scalar_key, unit_key) in x86_64_system_v_register_call_keys()
+        .into_iter()
         .zip(x86_64_system_v_register_unit_call_keys())
-        .chain(x86_64_microsoft_register_call_keys().into_iter().zip(x86_64_microsoft_register_unit_call_keys()))
+        .chain(
+            x86_64_microsoft_register_call_keys()
+                .into_iter()
+                .zip(x86_64_microsoft_register_unit_call_keys()),
+        )
     {
-        let mut call = constraints.iter().find(|row| row.key == scalar_key)
-            .expect("canonical scalar call row").clone();
+        let mut call = constraints
+            .iter()
+            .find(|row| row.key == scalar_key)
+            .expect("canonical scalar call row")
+            .clone();
         call.key = unit_key;
         call.operands.pop();
         // Unit has no result operand; the ABI result register remains clobbered.
-        call.clobbers = sorted_units(call.clobbers.into_iter().chain(view("rax").units.iter().copied()));
+        call.clobbers = sorted_units(
+            call.clobbers
+                .into_iter()
+                .chain(view("rax").units.iter().copied()),
+        );
         constraints.push(call);
     }
     constraints.sort_by_key(|constraint| constraint.key);

@@ -28,7 +28,6 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     Aarch64PreservationStorageCatalogError, aarch64_preservation_storage_catalog,
 };
-pub use register_model::{aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys};
 pub use register_model::aarch64_aapcs64_register_call_keys;
 pub use register_model::aarch64_darwin_register_call_keys;
 pub use register_model::{
@@ -43,6 +42,9 @@ pub use register_model::{
     aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
 pub use register_model::{AARCH64_LOAD8_INDEXED, AARCH64_LOAD64};
+pub use register_model::{
+    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
+};
 pub use selected_form_encoding::{
     AARCH64_SCALAR_CALL_OPCODE_OFFSET, AARCH64_SCALAR_CALL_PATCH_OFFSET,
     AARCH64_SCALAR_CALL_PATCH_WIDTH, AARCH64_SCALAR_CALL_REFERENCE_OFFSET,

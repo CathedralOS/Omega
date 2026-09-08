@@ -7,4 +7,5 @@ pub(super) mod ordinary_graph;
 pub(super) mod plain_unit;
 pub(super) mod projected_structural_call_return;
 pub(super) mod scalar_call_unit;
+pub(super) mod shared_unit_calls;
 pub(super) mod structural_call;

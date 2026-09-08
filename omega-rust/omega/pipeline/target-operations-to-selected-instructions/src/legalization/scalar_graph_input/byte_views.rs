@@ -9,16 +9,28 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let (call_plan, scalar_parameters, structural_parameters) = match (&abstracted.result, &target.operation, &target.mixed_structural_scalar_abi) {
+    let (call_plan, scalar_parameters, structural_parameters) = match (
+        &abstracted.result,
+        &target.operation,
+        &target.mixed_structural_scalar_abi,
+    ) {
         (AbstractFunctionResult::Unit, TargetOperation::UnitBody(body), None)
             if optimized.blocks.len() == 1 && body.call_plan.result.is_none() =>
-            (&body.call_plan, &body.scalar_parameters, &body.parameters),
+        {
+            (&body.call_plan, &body.scalar_parameters, &body.parameters)
+        }
         (AbstractFunctionResult::Scalar(result), _, Some(abi))
             if result.scalar_type == ScalarType::Integer(u64_type())
                 && abi.result.value == result.value
                 && abi.result.scalar_type == result.scalar_type
                 && Some(&abi.result.placement) == abi.call_plan.result.as_ref() =>
-            (&abi.call_plan, &abi.scalar_parameters, &abi.structural_parameters),
+        {
+            (
+                &abi.call_plan,
+                &abi.scalar_parameters,
+                &abi.structural_parameters,
+            )
+        }
         _ => return Err(invalid),
     };
     let parameters = abstracted
@@ -44,7 +56,8 @@ pub(super) fn validate(
             .enumerate()
             .any(|(position, (((actual, declared), optimized), placement))| {
                 actual.value != declared.value
-                    || ![ScalarType::Integer(u64_type()), ScalarType::Boolean].contains(&actual.scalar_type)
+                    || ![ScalarType::Integer(u64_type()), ScalarType::Boolean]
+                        .contains(&actual.scalar_type)
                     || declared.scalar_type != actual.scalar_type
                     || optimized.value != declared.value
                     || optimized.scalar_type != declared.scalar_type

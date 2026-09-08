@@ -4,8 +4,10 @@
 use crate::selection::constraints::{fixed_input_constraint, instruction, row};
 use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+use semantic_vocabulary::IntegerValue;
 
 mod control;
+mod scalar_call;
 mod structural;
 mod zero_compare;
 
@@ -169,6 +171,7 @@ pub(super) fn build(
                 continue;
             }
             if structural::operation(
+                function,
                 source,
                 block_id,
                 start,
@@ -291,6 +294,11 @@ pub(super) fn build(
                     output
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
+                    if scalar_type == ScalarType::Boolean
+                        && !matches!(value, IntegerValue::Unsigned(0 | 1))
+                    {
+                        return Err(invalid());
+                    }
                     let output =
                         builder.register(result.value, result.definition_site, scalar_type)?;
                     builder.emit(
@@ -356,89 +364,8 @@ pub(super) fn build(
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
                     return Err(invalid());
                 }
-                LegalizedScalarInstructionKind::Call(call) => {
-                    let key = constraints
-                        .keys
-                        .call_i64
-                        .get(call.arguments.len())
-                        .copied()
-                        .ok_or_else(invalid)?;
-                    crate::selection::scalar_call_abi::validate(
-                        function,
-                        source,
-                        call,
-                        key,
-                        row(catalog, key)?,
-                        &environment,
-                    )?;
-                    let mut operands = Vec::new();
-                    for argument in &call.arguments {
-                        if let legalized_operations::LegalizedScalarArgument::Structural {
-                            semantic,
-                            ..
-                        } = argument
-                        {
-                            operands.push(structural::call_pointer(
-                                &mut builder,
-                                operation,
-                                semantic.place,
-                            )?);
-                            continue;
-                        }
-                        let (_, input, site, argument_type) = builder
-                            .resolve(argument.scalar_source().ok_or_else(invalid)?)
-                            .ok_or_else(invalid)?;
-                        operands.push(builder.copy(
-                            input,
-                            argument.scalar_source().ok_or_else(invalid)?,
-                            site,
-                            argument_type,
-                        )?);
-                    }
-                    let short_result =
-                        builder.register(result.value, result.definition_site, scalar_type)?;
-                    operands.push(short_result);
-                    builder
-                        .transport
-                        .calls
-                        .push(selected_instructions::SelectedCallContract {
-                            instruction: SelectedInstructionId(
-                                builder
-                                    .instructions
-                                    .len()
-                                    .try_into()
-                                    .map_err(|_| invalid())?,
-                            ),
-                            operation: operation.operation,
-                            call: call.clone(),
-                            effect: operation.effect,
-                            ownership: operation.ownership.clone(),
-                        });
-                    builder.emit(
-                        SelectedInstructionKind::CallI64 {
-                            callee: call.callee,
-                        },
-                        key,
-                        &operands,
-                        SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: call
-                                .arguments
-                                .iter()
-                                .filter_map(|argument| argument.scalar_source())
-                                .chain(std::iter::once(result.value))
-                                .collect(),
-                            obligations: call.requirement_obligations.clone(),
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    builder.copy(
-                        short_result,
-                        result.value,
-                        result.definition_site,
-                        scalar_type,
-                    )?
+                LegalizedScalarInstructionKind::Call(_) => {
+                    scalar_call::emit(function, source, operation, &environment, &mut builder)?
                 }
             };
             builder

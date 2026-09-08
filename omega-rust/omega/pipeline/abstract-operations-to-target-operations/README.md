@@ -53,7 +53,11 @@ Boolean/integer parameters or literals through the existing `UnitBody` operation
 and structural signature classifier. A Unit helper may invoke a scalar byte-view
 helper and discard that scalar result before `ReturnUnit`; the enclosing Unit
 signature has no result placement or fabricated scalar result. Whole references
-retain their original pointer placements. Conditional Unit bodies, descriptor
+retain their original pointer placements. Native selection admits `u64` and
+Boolean scalar actuals beside one whole shared view, with resultless call
+constraints for each supported native register arity. Independent replay checks
+the scalar types, original pointer, call order, and absence of a result operand.
+Conditional Unit bodies, descriptor
 rebinding, and the console writer's ranked loop remain separate dependencies.
 
 Checked subslices retain their exact source, structural result, endpoints, and
@@ -72,13 +76,17 @@ the existing indexed load. No arithmetic proof is asserted about the pointer,
 and an empty suffix need not form a one-past address. Independent replay checks
 the same source chain and every contributing home.
 
-This does not complete literal descriptor materialization, general Unit calls,
-non-`u64` mixed helper calls, derived-view calls/block transfers, or ranked control. The
+This does not complete literal descriptor materialization, general Unit control,
+mixed scalar types beyond `u64` and Boolean, derived-view calls/block transfers,
+or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
 executes caller-owned descriptors, derived views, and framed helper chains
 on supported hosts; it does not establish Omega-source writer closure or
 standalone executable publication.
+The void-call runtime fixture checks normal return, descriptor preservation, and
+surrounding stack canaries. Its discarded byte-reader result does not establish
+observable byte output or Boolean-dependent behavior.
 
 [Structural-header validation](src/validation/structural_signatures.rs) rejoins
 retained Unit and mixed scalar ABI parameters to the source declarations and

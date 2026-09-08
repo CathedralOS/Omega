@@ -1,4 +1,5 @@
 use super::*;
+use semantic_vocabulary::IntegerValue;
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -37,7 +38,16 @@ pub(super) fn project(
                 accepted_fact: fact.identity,
             }
         }
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallUnit {
+            callee,
+            arguments: scalar_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        }
+        | AbstractOperation::CallStructuralScalar {
             callee,
             arguments: scalar_arguments,
             structural_arguments,
@@ -125,6 +135,9 @@ pub(super) fn project(
         },
         AbstractOperation::IntegerConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(*value)
+        }
+        AbstractOperation::BooleanConstant { value, .. } => {
+            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(*value)))
         }
         AbstractOperation::Call {
             callee,

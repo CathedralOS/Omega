@@ -58,7 +58,6 @@ pub use preservation_storage::{
     X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
 };
 pub use register_model::x86_64_microsoft_register_call_keys;
-pub use register_model::{x86_64_system_v_register_unit_call_keys, x86_64_microsoft_register_unit_call_keys};
 pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
@@ -70,6 +69,9 @@ pub use register_model::{
     X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
     x86_64_fixed_register_view, x86_64_physical_register_model,
     x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
+};
+pub use register_model::{
+    x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 pub use selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedScalarCallTemplate,

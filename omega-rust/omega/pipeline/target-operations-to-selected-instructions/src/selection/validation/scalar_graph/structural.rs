@@ -9,6 +9,7 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 mod byte_views;
+mod shared_unit_call;
 mod subslice;
 
 pub(super) use byte_views::byte_observation;
@@ -163,7 +164,7 @@ pub(super) fn call_pointer(
     if !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
         || row
             .result
-            .is_none_or(|result| result.scalar_type != ScalarType::Integer(integer))
+            .is_some_and(|result| result.scalar_type != ScalarType::Integer(integer))
     {
         return Err(replay.invalid());
     }
@@ -225,6 +226,10 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &node.kind else {
         return Err(replay.invalid());
     };
+    if call.arguments.iter().any(|argument| matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::SharedBorrow)) {
+        shared_unit_call::validate(source, node, environment, replay)?;
+        return Ok(true);
+    }
     let signature = source.structural.as_ref().ok_or_else(|| replay.invalid())?;
     call.validate_shape().map_err(|_| replay.invalid())?;
     call.validate_source(&node.ownership)

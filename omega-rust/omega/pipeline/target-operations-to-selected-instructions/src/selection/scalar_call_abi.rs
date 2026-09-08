@@ -26,23 +26,29 @@ pub(super) fn validate(
         validate_borrowed_argument(source, call).ok_or_else(invalid)?;
     }
     let count = call.arguments.len();
-    if environment.selected_keys().call_i64.get(count) != Some(&key)
+    let result = call.call_plan.result.as_ref();
+    let selected_keys = environment.selected_keys();
+    let keys = if result.is_some() {
+        &selected_keys.call_i64
+    } else {
+        &selected_keys.call_unit
+    };
+    if keys.get(count) != Some(&key)
         || environment.constraint(key) != Some(row)
         || row.key != key
         || call.call_plan.parameters.len() != count
-        || row.operands.len() != count + 1
+        || row.operands.len() != count + usize::from(result.is_some())
     {
         return Err(invalid());
     }
-    let result = call.call_plan.result.as_ref().ok_or_else(invalid)?;
-    if Some(result) != call.result_placement.as_ref() {
+    if result != call.result_placement.as_ref() {
         return Err(invalid());
     }
     for (index, (placement, operand)) in call
         .call_plan
         .parameters
         .iter()
-        .chain(std::iter::once(result))
+        .chain(result)
         .zip(&row.operands)
         .enumerate()
     {
@@ -51,9 +57,9 @@ pub(super) fn validate(
                 ValueLocation::Register {
                     register,
                     value_byte_offset: 0,
-                    byte_size: 8,
+                    byte_size,
                 },
-            ] => register,
+            ] if *byte_size == placement.shape.byte_size && matches!(*byte_size, 1 | 8) => register,
             [
                 ValueLocation::Indirect {
                     pointer: IndirectPointerLocation::Register(register),
@@ -82,10 +88,15 @@ pub(super) fn validate(
         {
             return Err(invalid());
         }
-        if let Some(argument) = call.arguments.get(index)
-            && argument.placement() != placement
-        {
-            return Err(invalid());
+        if let Some(argument) = call.arguments.get(index) {
+            if argument.placement() != placement {
+                return Err(invalid());
+            }
+            if let LegalizedScalarArgument::Scalar { source: value, .. } = argument
+                && scalar_value_shape(source, *value) != Some(placement.shape)
+            {
+                return Err(invalid());
+            }
         }
     }
     Ok(())
@@ -105,8 +116,6 @@ fn validate_borrowed_argument(
     let LegalizedScalarArgument::Structural { semantic, target } = last else {
         return None;
     };
-    let scalar_type =
-        ScalarType::Integer(semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
     // The structural vector has its own positions; its single descriptor follows
     // the complete declared scalar prefix in the caller's physical signature.
     if source.parameters.len().checked_add(1)? != source.call_plan.parameters.len()
@@ -115,15 +124,26 @@ fn validate_borrowed_argument(
             .iter()
             .zip(&source.call_plan.parameters)
             .any(|(parameter, placement)| {
-                parameter.scalar_type != scalar_type || parameter.placement != *placement
+                borrowed_scalar_shape(parameter.scalar_type) != Some(placement.shape)
+                    || parameter.placement != *placement
             })
     {
         return None;
     }
-    if scalars.iter().any(|argument| !matches!(argument,
-        LegalizedScalarArgument::Scalar { placement, .. } if placement.shape == ValueShape::integer(8, 8))) {
-        return None;
-    }
+    let scalar_shapes = scalars
+        .iter()
+        .map(|argument| {
+            let LegalizedScalarArgument::Scalar {
+                source: value,
+                placement,
+            } = argument
+            else {
+                return None;
+            };
+            let shape = borrowed_scalar_shape(scalar_value_type(source, *value)?)?;
+            (placement.shape == shape).then_some(shape)
+        })
+        .collect::<Option<Vec<_>>>()?;
     let parameters = [crate::structural_unit_input::Parameter {
         semantic: &parameter.semantic,
         target: &parameter.target,
@@ -132,12 +152,14 @@ fn validate_borrowed_argument(
     let expected = evaluate_call_plan(
         source.call_plan.policy,
         &CallSignature {
-            parameters: scalars
-                .iter()
-                .map(|_| ValueShape::integer(8, 8))
+            parameters: scalar_shapes
+                .into_iter()
                 .chain(std::iter::once(shape))
                 .collect(),
-            result: Some(ValueShape::integer(8, 8)),
+            result: call
+                .result_placement
+                .as_ref()
+                .map(|_| ValueShape::integer(8, 8)),
         },
     )
     .ok()?;
@@ -173,4 +195,49 @@ fn validate_borrowed_argument(
         return None;
     }
     Some(())
+}
+
+fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+    match scalar_type {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) if integer.bits() == 64 => Some(ValueShape::integer(8, 8)),
+        _ => None,
+    }
+}
+
+fn borrowed_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+    if matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() != IntegerSign::Unsigned)
+    {
+        return None;
+    }
+    scalar_shape(scalar_type)
+}
+
+fn scalar_value_shape(source: &LegalizedScalarFunction, value: ValueId) -> Option<ValueShape> {
+    scalar_value_type(source, value).and_then(scalar_shape)
+}
+
+fn scalar_value_type(source: &LegalizedScalarFunction, value: ValueId) -> Option<ScalarType> {
+    source
+        .parameters
+        .iter()
+        .find(|parameter| parameter.value == value)
+        .map(|parameter| parameter.scalar_type)
+        .or_else(|| {
+            source
+                .blocks
+                .iter()
+                .flat_map(|block| &block.parameters)
+                .find(|parameter| parameter.value == value)
+                .map(|parameter| parameter.scalar_type)
+        })
+        .or_else(|| {
+            source
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|instruction| instruction.result)
+                .find(|result| result.value == value)
+                .map(|result| result.scalar_type)
+        })
 }

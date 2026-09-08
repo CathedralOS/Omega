@@ -1,4 +1,5 @@
 use super::*;
+use semantic_vocabulary::IntegerValue;
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
@@ -62,7 +63,16 @@ pub(super) fn validate(
         }
         (
             LegalizedScalarInstructionKind::Call(call),
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallUnit {
+                callee,
+                arguments: scalar_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            }
+            | AbstractOperation::CallStructuralScalar {
                 callee,
                 arguments: scalar_arguments,
                 structural_arguments,
@@ -170,6 +180,10 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::Constant(actual),
             AbstractOperation::IntegerConstant { value, .. },
         ) if actual == value => {}
+        (
+            LegalizedScalarInstructionKind::Constant(actual),
+            AbstractOperation::BooleanConstant { value, .. },
+        ) if *actual == IntegerValue::Unsigned(u128::from(*value)) => {}
         (
             LegalizedScalarInstructionKind::Call(call),
             AbstractOperation::Call {

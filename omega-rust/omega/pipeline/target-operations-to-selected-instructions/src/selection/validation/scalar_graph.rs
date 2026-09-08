@@ -6,6 +6,7 @@ use super::integrity::{validate_block_constraints, validate_def_use};
 use crate::selection::constraints::{fixed_input_constraint, row};
 use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+use semantic_vocabulary::IntegerValue;
 
 mod control;
 mod scalar_call;
@@ -299,6 +300,11 @@ pub(in crate::selection) fn validate(
                     output
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
+                    if scalar_type == ScalarType::Boolean
+                        && !matches!(value, IntegerValue::Unsigned(0 | 1))
+                    {
+                        return Err(invalid());
+                    }
                     let register = replay.result_register(
                         result.value,
                         result.definition_site,

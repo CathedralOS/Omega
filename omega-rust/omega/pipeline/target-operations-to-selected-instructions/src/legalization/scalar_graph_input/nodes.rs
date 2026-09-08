@@ -5,7 +5,9 @@ use semantic_vocabulary::OperationId;
 pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
 ) -> Option<(OperationId, Option<ValueId>)> {
-    if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. } = &node.operation {
+    if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
+    | AbstractOperation::CallUnit { psi_operation, .. } = &node.operation
+    {
         Some((*psi_operation, None))
     } else {
         scalar_instruction(node).map(|(operation, result)| (operation, Some(result)))
@@ -13,6 +15,11 @@ pub(in crate::legalization) fn instruction(
 }
 fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)> {
     match &node.operation {
+        AbstractOperation::BooleanConstant {
+            psi_operation,
+            result,
+            ..
+        } => Some((*psi_operation, *result)),
         AbstractOperation::CallStructuralScalar {
             psi_operation,
             result,
@@ -165,6 +172,25 @@ pub(super) fn validate(
             }
             continue;
         }
+        if let AbstractOperation::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || structural_arguments.len() != 1
+                || !claim_transfers.is_empty()
+                || !requirement_obligations.is_empty()
+                || !crash_continuations.is_empty()
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
         let [definition] = node.definitions.as_slice() else {
             return Err(invalid);
         };
@@ -178,6 +204,7 @@ pub(super) fn validate(
             return Err(invalid);
         }
         let expected_type = match &node.operation {
+            AbstractOperation::BooleanConstant { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructuralScalar { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {
                 source,

@@ -41,6 +41,16 @@ pub(super) fn validate(
         let (_, input, site, argument_type) = replay
             .resolve(argument.scalar_source().ok_or_else(invalid)?)
             .ok_or_else(invalid)?;
+        let shape = match argument_type {
+            ScalarType::Boolean => calling_conventions::ValueShape::integer(1, 1),
+            ScalarType::Integer(integer) if integer.bits() == 64 => {
+                calling_conventions::ValueShape::integer(8, 8)
+            }
+            _ => return Err(invalid()),
+        };
+        if argument.placement().shape != shape {
+            return Err(invalid());
+        }
         operands.push(replay.check_copy(
             input,
             argument.scalar_source().ok_or_else(invalid)?,

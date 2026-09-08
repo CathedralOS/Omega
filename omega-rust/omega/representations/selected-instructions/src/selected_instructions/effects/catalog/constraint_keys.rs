@@ -67,12 +67,19 @@ impl SelectedConstraintKeys {
         MachineSemanticKind::ALL
             .into_iter()
             .flat_map(|semantic| {
-                if matches!(semantic, MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit) {
-                    (if semantic == MachineSemanticKind::CallUnit { &self.call_unit } else { &self.call_i64 })
-                        .iter()
-                        .copied()
-                        .map(|key| (semantic, key))
-                        .collect()
+                if matches!(
+                    semantic,
+                    MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+                ) {
+                    (if semantic == MachineSemanticKind::CallUnit {
+                        &self.call_unit
+                    } else {
+                        &self.call_i64
+                    })
+                    .iter()
+                    .copied()
+                    .map(|key| (semantic, key))
+                    .collect()
                 } else {
                     self.for_semantic(semantic)
                         .map(|key| (semantic, key))

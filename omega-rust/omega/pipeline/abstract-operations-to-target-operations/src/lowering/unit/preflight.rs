@@ -41,15 +41,22 @@ fn has_shared_view_call_sequence(function: &AbstractFunction) -> bool {
         })
         && function.entry_claims.is_empty()
         && function.published_service_ceiling.is_empty()
-        && function.operations.split_last().is_some_and(|(last, preceding)| {
-            matches!(last, AbstractOperation::ReturnUnit { cleanup_actions, .. }
+        && function
+            .operations
+            .split_last()
+            .is_some_and(|(last, preceding)| {
+                matches!(last, AbstractOperation::ReturnUnit { cleanup_actions, .. }
                 if cleanup_actions.is_empty())
-                && preceding.iter().all(|operation| matches!(operation,
-                    AbstractOperation::CallUnit { .. }
-                        | AbstractOperation::CallStructuralScalar { .. }
-                        | AbstractOperation::IntegerConstant { .. }
-                        | AbstractOperation::BooleanConstant { .. }))
-        })
+                    && preceding.iter().all(|operation| {
+                        matches!(
+                            operation,
+                            AbstractOperation::CallUnit { .. }
+                                | AbstractOperation::CallStructuralScalar { .. }
+                                | AbstractOperation::IntegerConstant { .. }
+                                | AbstractOperation::BooleanConstant { .. }
+                        )
+                    })
+            })
 }
 
 fn has_scalar_unit_leaf_shape(function: &AbstractFunction) -> bool {

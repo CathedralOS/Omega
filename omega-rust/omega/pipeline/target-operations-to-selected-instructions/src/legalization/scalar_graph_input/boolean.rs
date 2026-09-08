@@ -39,6 +39,25 @@ pub(super) fn validate(
         }
     }
     for node in body {
+        if let AbstractOperation::BooleanConstant { result, .. } = node.operation {
+            let mut consumers = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .filter(|consumer| consumer.uses.iter().any(|used| used.value == result))
+                .peekable();
+            if consumers.peek().is_none()
+                || !consumers.all(|consumer| {
+                    matches!(&consumer.operation,
+                    AbstractOperation::CallUnit { arguments, .. }
+                        | AbstractOperation::CallStructuralScalar { arguments, .. }
+                        if arguments.contains(&result))
+                })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
         if let Some(definition) = node.definitions.first()
             && definition.scalar_type == ScalarType::Boolean
             && (!suffix.contains(&definition.value)
