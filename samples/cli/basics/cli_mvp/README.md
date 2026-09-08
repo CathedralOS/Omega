@@ -132,8 +132,11 @@ The shared free/attached Unit graph retains scalar prefixes, guarded head/tail
 operands, repeated descriptor bindings, and authored `Slice::Length` ranking.
 A writer-shaped source regression passes serialized Terminal verification and
 interpretation with raw bytes, both newline choices, caller continuation, and
-fuel suspension. This does not establish that the unchanged std provider closure
-or this native sample executes.
+fuel suspension. The native `terminal_byte_views::natural_writer` regression also
+publishes its object, image and installation record for Linux x64/ARM64 and macOS
+ARM64, and executes published text on the host with raw bytes, empty views and
+both newline choices. Its explicit test-owned output settlement does not
+establish that the unchanged std provider closure or this native sample executes.
 
 Writer acceptance requires the actual authored closure through verified Terminal
 and native execution: empty/nonempty bytes, both newline choices, exact output
