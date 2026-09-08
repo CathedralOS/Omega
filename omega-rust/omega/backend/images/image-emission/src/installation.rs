@@ -2022,7 +2022,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && matches!(
                     settlement.settlement.realization,
                     BoundaryRealization::DirectPortReadU8(_)
-                        | BoundaryRealization::LinuxExitGroupI32(_)
+                        | BoundaryRealization::HostedExitProcessI32(_)
                 )
         });
         let has_scalar_custody = has_scalar_cleanup
@@ -4056,7 +4056,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && function.unit_body
                     && function.scalar_stack.is_none()
             }
-            BoundaryRealization::LinuxExitGroupI32(_) => {
+            BoundaryRealization::HostedExitProcessI32(_) => {
                 let [argument] = installed.settlement.scalar_arguments.as_slice() else {
                     return Err(InstallationError::BoundaryRealizationMismatch {
                         machine: installed.machine,
@@ -4076,23 +4076,30 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     _ => None,
                 };
                 let expected_destination =
-                    match (record.target.object_format, record.target.architecture) {
-                        (target::ObjectFormat::Elf, Architecture::X86_64) => {
-                            Some(calling_conventions::MachineRegister::X86Rdi)
+                    if !target_operations::HostedExitProcessI32Realization::supports_target(
+                        record.target,
+                    ) {
+                        None
+                    } else {
+                        match record.target.architecture {
+                            Architecture::X86_64 => {
+                                Some(calling_conventions::MachineRegister::X86Rdi)
+                            }
+                            Architecture::Aarch64 => {
+                                Some(calling_conventions::MachineRegister::Aarch64X(0))
+                            }
                         }
-                        (target::ObjectFormat::Elf, Architecture::Aarch64) => {
-                            Some(calling_conventions::MachineRegister::Aarch64X(0))
-                        }
-                        _ => None,
                     };
                 let expected_byte_count = value
                     .and_then(|value| match record.target.architecture {
                         Architecture::X86_64 => {
-                            Some(isa_x86_64::encode_linux_exit_group_i32(value).len())
+                            Some(isa_x86_64::encode_hosted_exit_process_i32(value).len())
                         }
-                        Architecture::Aarch64 => isa_aarch64::encode_linux_exit_group_i32(value)
-                            .ok()
-                            .map(|bytes| bytes.len()),
+                        Architecture::Aarch64 => {
+                            isa_aarch64::encode_hosted_exit_process_i32(record.target, value)
+                                .ok()
+                                .map(|bytes| bytes.len())
+                        }
                     })
                     .unwrap_or(0);
                 let exact_nominal_tail = installed
@@ -4126,8 +4133,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             .count()
                             == 1
                     });
-                record.target.object_format == target::ObjectFormat::Elf
-                    && expected_destination == Some(argument.destination)
+                expected_destination == Some(argument.destination)
                     && installed.settlement.runtime_scalar_arguments.is_empty()
                     && installed.settlement.byte_count == expected_byte_count
                     && expected_byte_count != 0

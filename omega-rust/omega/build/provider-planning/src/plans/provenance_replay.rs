@@ -891,7 +891,10 @@ fn inferred_hosted_console_compiler_intrinsic(
     let supports_target = |target: &str| {
         matches!(target, "linux_x86_64" | "linux_arm64")
             || (target == "macos_arm64"
-                && machine.name.as_str() == "ConsoleNativeProvider::write_byte")
+                && matches!(
+                    machine.name.as_str(),
+                    "ConsoleNativeProvider::write_byte" | "ConsoleNativeProvider::exit_process"
+                ))
     };
     if selected_target.is_some_and(|target| !supports_target(target))
         || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary

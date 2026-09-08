@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsewhere() {
+fn hosted_exit_process_i32_requires_exact_literal_shape_and_stays_fail_closed_elsewhere() {
     let machine = MachineId::new(901).unwrap();
     let boundary = BoundaryMachineId::new(901).unwrap();
     let constant_operation = OperationId::new(901).unwrap();
@@ -77,7 +77,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
     let binding = target_operations::BoundarySettlementBinding {
         boundary,
         execution: provider_execution.into(),
-        realization: target_operations::LinuxExitGroupI32Realization.into(),
+        realization: target_operations::HostedExitProcessI32Realization.into(),
     };
 
     let x86 = lower_to_target_operations_with_settlements(
@@ -121,15 +121,18 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
             NativeTarget::windows_x64(),
             std::slice::from_ref(&binding),
         ),
-        Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+        Err(LoweringError::HostedExitProcessUnsupportedTarget { .. })
     ));
     assert!(matches!(
         lower_to_target_operations_with_settlements(
             &plan,
             NativeTarget::macos_arm64(),
             std::slice::from_ref(&binding),
-        ),
-        Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+        )
+        .expect("macOS AArch64 exit lowering")
+        .functions[0]
+            .operation,
+        TargetOperation::ExitProcessI32 { .. }
     ));
 
     let mut wrong_signature = plan;
@@ -140,6 +143,6 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
             NativeTarget::linux_x64(),
             std::slice::from_ref(&binding),
         ),
-        Err(LoweringError::InvalidLinuxExitGroupShape(machine))
+        Err(LoweringError::InvalidHostedExitProcessShape(machine))
     );
 }

@@ -173,7 +173,7 @@ fn returning_byte_output_publishes_objects_and_images_with_exact_source_custody(
                     }
                     4 => {
                         settlement.execution = BoundaryExecutionRecord::CompilerBuiltin(
-                            CompilerBuiltinExecution::LinuxExitGroupI32,
+                            CompilerBuiltinExecution::HostedExitProcessI32,
                         )
                     }
                     _ => unreachable!(),

@@ -144,7 +144,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
         target_operations::BoundarySettlementBinding {
             boundary: exit_boundary,
             execution: provider(930).into(),
-            realization: target_operations::LinuxExitGroupI32Realization.into(),
+            realization: target_operations::HostedExitProcessI32Realization.into(),
         },
     ];
 
@@ -170,7 +170,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
         assert!(matches!(
             &body.operations[3],
             TargetUnitOperation::BoundarySettlement {
-                realization: target_operations::BoundaryRealization::LinuxExitGroupI32(_),
+                realization: target_operations::BoundaryRealization::HostedExitProcessI32(_),
                 scalar_arguments,
                 ..
             } if scalar_arguments[0].immediate == IntegerValue::Signed(37)
@@ -183,7 +183,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
             &settlements,
         ),
         Err(LoweringError::LinuxWriteLineUnsupportedOrInvalid { .. })
-            | Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+            | Err(LoweringError::HostedExitProcessUnsupportedTarget { .. })
     ));
     assert!(matches!(
         lower_to_target_operations_with_settlements(
@@ -192,6 +192,6 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
             &settlements,
         ),
         Err(LoweringError::LinuxWriteLineUnsupportedOrInvalid { .. })
-            | Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+            | Err(LoweringError::HostedExitProcessUnsupportedTarget { .. })
     ));
 }

@@ -171,14 +171,16 @@ pub(crate) fn derive_physical_evidence(
                     ),
                     (
                         BoundaryExecutionRecord::CompilerBuiltin(
-                            CompilerBuiltinExecution::LinuxExitGroupI32
+                            CompilerBuiltinExecution::HostedExitProcessI32
                         ),
-                        BoundaryRealization::LinuxExitGroupI32(_),
+                        BoundaryRealization::HostedExitProcessI32(_),
                     )
                 ) =>
             {
                 if installed.settlement.byte_count == 0 {
-                    return Err("Linux exit-group physical child requires a nonempty emitted span");
+                    return Err(
+                        "Hosted process-exit physical child requires a nonempty emitted span",
+                    );
                 }
                 children.push(derive_exit_group_child(
                     occurrence,
@@ -528,15 +530,15 @@ fn derive_exit_group_child(
 ) -> Result<NativePhysicalChild, &'static str> {
     let settlement = &installed.settlement;
     let [scalar_argument] = settlement.scalar_arguments.as_slice() else {
-        return Err("Linux exit-group physical child requires one scalar argument");
+        return Err("Hosted process-exit physical child requires one scalar argument");
     };
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
-    let expected_destination = match (target.object_format, target.architecture) {
-        (ObjectFormat::Elf, Architecture::X86_64) => target_operations::MachineRegister::X86Rdi,
-        (ObjectFormat::Elf, Architecture::Aarch64) => {
-            target_operations::MachineRegister::Aarch64X(0)
-        }
-        _ => return Err("Linux exit-group physical child requires a Linux ELF target"),
+    if !target_operations::HostedExitProcessI32Realization::supports_target(target) {
+        return Err("Hosted process-exit physical child requires a canonical supported target");
+    }
+    let expected_destination = match target.architecture {
+        Architecture::X86_64 => target_operations::MachineRegister::X86Rdi,
+        Architecture::Aarch64 => target_operations::MachineRegister::Aarch64X(0),
     };
     if scalar_argument.scalar_type != ScalarType::Integer(i32_type)
         || !matches!(scalar_argument.immediate, semantic_vocabulary::IntegerValue::Signed(value) if i32::try_from(value).is_ok())
@@ -548,19 +550,19 @@ fn derive_exit_group_child(
         || !settlement.completion_provider_custody.is_empty()
         || !settlement.native_result.is_unit()
     {
-        return Err("Linux exit-group D41 settlement custody is incomplete or substituted");
+        return Err("Hosted process-exit D41 settlement custody is incomplete or substituted");
     }
     let function = object
         .functions()
         .iter()
         .find(|function| function.machine == occurrence.machine())
-        .ok_or("Linux exit-group physical child names an absent object function")?;
+        .ok_or("Hosted process-exit physical child names an absent object function")?;
     let expected_object_offset = function
         .text_offset
         .checked_add(settlement.code_offset)
-        .ok_or("Linux exit-group physical child object span overflow")?;
+        .ok_or("Hosted process-exit physical child object span overflow")?;
     if installed.text_offset != expected_object_offset {
-        return Err("Linux exit-group physical child object span is detached");
+        return Err("Hosted process-exit physical child object span is detached");
     }
     let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
     let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
@@ -569,12 +571,12 @@ fn derive_exit_group_child(
     let object_bytes = span(object.text_bytes(), object_span)?;
     let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
     if machine_bytes != object_bytes || object_bytes != final_image_bytes {
-        return Err("Linux exit-group physical child bytes changed across physical custody");
+        return Err("Hosted process-exit physical child bytes changed across physical custody");
     }
     let object_end = installed
         .text_offset
         .checked_add(settlement.byte_count)
-        .ok_or("Linux exit-group physical child relocation span overflow")?;
+        .ok_or("Hosted process-exit physical child relocation span overflow")?;
     if object.relocations().records().any(|(_, relocation)| {
         relocation.section == SectionKind::Text
             && ranges_overlap(
@@ -584,13 +586,13 @@ fn derive_exit_group_child(
                 relocation.offset.saturating_add(relocation.byte_width),
             )
     }) {
-        return Err("Linux exit-group physical child unexpectedly contains a relocation");
+        return Err("Hosted process-exit physical child unexpectedly contains a relocation");
     }
 
     let role = BoundaryTraitSettlementRole::CompilerBuiltin {
-        catalog: NativeCompilerBuiltinCatalogIdentity::LinuxElfV1,
-        execution: CompilerBuiltinExecution::LinuxExitGroupI32,
-        realization: BoundaryRealization::LinuxExitGroupI32(Default::default()),
+        catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+        execution: CompilerBuiltinExecution::HostedExitProcessI32,
+        realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
         scalar_argument: *scalar_argument,
     };
     let parent_identity = builtin_boundary_trait_settlement_identity(
@@ -710,7 +712,7 @@ fn derive_write_byte_child(
         return Err("Linux write-byte physical child unexpectedly contains a relocation");
     }
     let role = BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar {
-        catalog: NativeCompilerBuiltinCatalogIdentity::LinuxElfV1,
+        catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
         execution: CompilerBuiltinExecution::HostedWriteByteI32,
         realization: BoundaryRealization::HostedWriteByteI32(Default::default()),
         scalar_argument: scalar_argument.clone(),
@@ -862,7 +864,7 @@ fn derive_read_byte_child(
         return Err("Linux read-byte physical child unexpectedly contains a relocation");
     }
     let role = BoundaryTraitSettlementRole::CompilerBuiltinStructural {
-        catalog: NativeCompilerBuiltinCatalogIdentity::LinuxElfV1,
+        catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
         execution: CompilerBuiltinExecution::LinuxReadByte,
         realization: BoundaryRealization::LinuxReadByte(Default::default()),
         result: result.clone(),
@@ -1495,8 +1497,8 @@ fn builtin_boundary_trait_settlement_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([1]); // LinuxElfV1 compiler-builtin catalog.
-    digest.update([1, 1]); // CompilerBuiltin::LinuxExitGroupI32 + realization.
+    digest.update([1]); // HostedV1 compiler-builtin catalog.
+    digest.update([1, 1]); // CompilerBuiltin::HostedExitProcessI32 + realization.
     digest.update(scalar_argument.source_value.get().to_le_bytes());
     digest.update([1]); // exact signed i32 scalar schema
     let semantic_vocabulary::IntegerValue::Signed(value) = scalar_argument.immediate else {
@@ -1608,7 +1610,7 @@ fn builtin_structural_boundary_trait_settlement_identity(
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([1, 3, 3]); // LinuxElfV1, read-byte execution, structural role.
+    digest.update([1, 3, 3]); // HostedV1, read-byte execution, structural role.
     digest.update(result.defining_operation.get().to_le_bytes());
     digest.update(result.result.place.get().to_le_bytes());
     digest.update(result.result.structural_type.get().to_le_bytes());

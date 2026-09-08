@@ -24,7 +24,7 @@ pub(super) fn committed_policy_mechanisms() -> &'static [CompilerIntrinsicExecut
 
 pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdentity> {
     let mut mechanisms = Vec::with_capacity(CLOSED_POLICY_ROW_COUNT as usize);
-    mechanisms.push(CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::LinuxReadByte);
     mechanisms.extend(

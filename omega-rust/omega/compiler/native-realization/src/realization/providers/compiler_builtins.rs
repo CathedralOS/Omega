@@ -6,8 +6,8 @@ use abstract_operations_to_target_operations::{
 use diagnostics::Diagnostic;
 use effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
 use target_operations::{
-    BoundarySettlementRealization, CompilerBuiltinExecution, HostedWriteByteI32Realization,
-    LinuxExitGroupI32Realization, LinuxReadByteRealization,
+    BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
+    HostedWriteByteI32Realization, LinuxReadByteRealization,
 };
 
 pub(super) fn settle_compiler_builtins<'request>(
@@ -77,14 +77,14 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match proposal.execution {
-            CompilerBuiltinExecution::LinuxExitGroupI32
-                if request.target.object_format == target::ObjectFormat::Elf =>
+            CompilerBuiltinExecution::HostedExitProcessI32
+                if HostedExitProcessI32Realization::supports_target(request.target) =>
             {
-                LinuxExitGroupI32Realization.into()
+                HostedExitProcessI32Realization.into()
             }
-            CompilerBuiltinExecution::LinuxExitGroupI32 => {
+            CompilerBuiltinExecution::HostedExitProcessI32 => {
                 return Err(vec![Diagnostic::error(format!(
-                    "local target catalog cannot realize Linux exit-group for `{requirement}` on {:?}",
+                    "local target catalog cannot realize hosted process exit for `{requirement}` on {:?}",
                     request.target
                 ))]);
             }
@@ -128,14 +128,51 @@ const fn compiler_intrinsic_execution_identity(
     execution: CompilerBuiltinExecution,
 ) -> CompilerIntrinsicExecutionIdentity {
     match execution {
-        CompilerBuiltinExecution::LinuxExitGroupI32 => {
-            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
+        CompilerBuiltinExecution::HostedExitProcessI32 => {
+            CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
         }
         CompilerBuiltinExecution::HostedWriteByteI32 => {
             CompilerIntrinsicExecutionIdentity::HostedWriteByteI32
         }
         CompilerBuiltinExecution::LinuxReadByte => {
             CompilerIntrinsicExecutionIdentity::LinuxReadByte
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HostedExitProcessI32Realization;
+    use target::{Architecture, NativeTarget};
+
+    #[test]
+    fn hosted_exit_catalog_requires_a_complete_canonical_target() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            assert!(HostedExitProcessI32Realization::supports_target(target));
+        }
+        for target in [
+            NativeTarget::windows_x64(),
+            NativeTarget {
+                architecture: Architecture::X86_64,
+                ..NativeTarget::macos_arm64()
+            },
+            NativeTarget {
+                pointer_size: 4,
+                ..NativeTarget::macos_arm64()
+            },
+            NativeTarget {
+                pointer_alignment: 4,
+                ..NativeTarget::linux_arm64()
+            },
+        ] {
+            assert!(
+                !HostedExitProcessI32Realization::supports_target(target),
+                "{target:?}"
+            );
         }
     }
 }

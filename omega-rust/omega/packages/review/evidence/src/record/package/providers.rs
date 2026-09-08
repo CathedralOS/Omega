@@ -6,7 +6,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
-    LinuxExitGroupI32,
+    HostedExitProcessI32,
     HostedWriteByteI32,
     LinuxReadByte,
     BuiltinFunction(symbols::BuiltinFunction),
@@ -53,7 +53,7 @@ impl CheckedPackageProviderRowIdentity {
                 Some(function)
             }
             Some(PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. })
-            | Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32)
+            | Some(PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32)
             | Some(PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32)
             | Some(PackageReviewCompilerIntrinsicExecution::LinuxReadByte)
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))

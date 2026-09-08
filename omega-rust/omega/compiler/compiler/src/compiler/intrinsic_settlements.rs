@@ -132,8 +132,8 @@ fn compiler_builtin_execution(
 ) -> Option<target_operations::CompilerBuiltinExecution> {
     use target_operations::CompilerBuiltinExecution;
     match identity {
-        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
-            Some(CompilerBuiltinExecution::LinuxExitGroupI32)
+        CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
+            Some(CompilerBuiltinExecution::HostedExitProcessI32)
         }
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             Some(CompilerBuiltinExecution::HostedWriteByteI32)

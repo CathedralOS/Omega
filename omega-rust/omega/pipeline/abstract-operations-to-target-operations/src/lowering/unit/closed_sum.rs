@@ -216,7 +216,9 @@ pub(super) fn lower(
             unreachable!("block_return_index accepts only a Unit return")
         };
         if !cleanup_actions.is_empty() {
-            return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+            return Err(LoweringError::InvalidHostedExitProcessShape(
+                function.machine,
+            ));
         }
         target_cases.push(target_operations::TargetUnitStructuralCaseSuccessor {
             psi_edge: successor.psi_edge,
@@ -361,12 +363,16 @@ fn lower_arm(
         ));
     };
     if !cleanup_actions.is_empty() {
-        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
     }
     let mut saw_nonreturning = false;
     for operation in &function.operations[start..return_index] {
         if saw_nonreturning {
-            return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+            return Err(LoweringError::InvalidHostedExitProcessShape(
+                function.machine,
+            ));
         }
         match operation {
             AbstractOperation::IntegerConstant {
@@ -418,7 +424,9 @@ fn lower_arm(
         }
     }
     if !saw_nonreturning {
-        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
     }
     if final_arm {
         operations.push(TargetUnitOperation::Return {

@@ -47,8 +47,8 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
-        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
-            PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32
+        CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
+            PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32
         }
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32
@@ -79,8 +79,8 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
-        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
-            "Linux exit-group with one `i32` argument".to_owned()
+        CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
+            "Hosted process exit with one `i32` argument".to_owned()
         }
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             "Hosted write-byte with one `i32` argument".to_owned()
@@ -166,7 +166,7 @@ mod tests {
         use numerics::arithmetic::ArithmeticDomain;
         use numerics::literals::FloatFormat;
         use provider_planning::plans::CompilerIntrinsicExecutionIdentity::{
-            BuiltinFunction, LinuxExitGroupI32, NamedFloatConversion, NamedFloatNegation,
+            BuiltinFunction, HostedExitProcessI32, NamedFloatConversion, NamedFloatNegation,
             PrimitiveFloatBinary,
         };
         use provider_planning::plans::CompilerNumericType;
@@ -177,15 +177,15 @@ mod tests {
                 "linux-exit",
                 true,
                 Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-                    LinuxExitGroupI32,
+                    HostedExitProcessI32,
                 )),
-                Some(LinuxExitGroupI32),
+                Some(HostedExitProcessI32),
             ),
-            Ok(Some(LinuxExitGroupI32)),
+            Ok(Some(HostedExitProcessI32)),
         );
         assert_eq!(
-            project_execution_identity(LinuxExitGroupI32),
-            PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32,
+            project_execution_identity(HostedExitProcessI32),
+            PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32,
         );
 
         assert_eq!(
@@ -317,11 +317,11 @@ mod tests {
             "unresolved",
             true,
             Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
-            Some(LinuxExitGroupI32),
+            Some(HostedExitProcessI32),
         )
         .expect_err("an unsupported intrinsic cannot retain a closed execution identity");
         assert!(spoofed_unresolved.contains(
-            "unsupported compiler-intrinsic row carries spoofed compiler execution identity Linux exit-group with one `i32` argument"
+            "unsupported compiler-intrinsic row carries spoofed compiler execution identity Hosted process exit with one `i32` argument"
         ));
 
         let spoofed = reconcile_compiler_intrinsic_execution(

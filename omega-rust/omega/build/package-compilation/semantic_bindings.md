@@ -7,7 +7,7 @@ generic accepted-boundary protocol for arbitrary nominal carriers.
 
 | Role | Required identity and current consumer |
 | --- | --- |
-| Console exit | Exact package, boundary declaration, normalized service schema, and complete selected-plan digest. Only the joined symbol receives Process classification. Physical `LinuxExitGroupI32` realization remains a separate Linux x86-64/AArch64 catalog route. |
+| Console exit | Exact package, boundary declaration, normalized service schema, and complete selected-plan digest. Only the joined symbol receives Process classification. Physical `HostedExitProcessI32` realization remains a separate Linux x86-64/AArch64 and macOS AArch64 catalog route; catalog admission does not establish selected-instruction support. |
 | `FilesystemHostService` | Exact package, boundary declaration, and complete schema; no plan digest or provider synthesis. Candidate review may nominate a reached same-named declaration and expose its checked schema as inert policy-authoring input. Final checking consumes the exact accepted binding. |
 | `UefiX64ProgramEntry` | Exact package, UefiApplication declaration, and schema for the UEFI x86-64 consumer. The key omits two target-evaluated calling-plan fields because the target independently replays the semantic and physical plans; no second ABI authority is introduced. Non-UEFI use rejects. |
 

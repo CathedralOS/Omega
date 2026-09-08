@@ -13,7 +13,7 @@ pub(super) fn classify_compiler_intrinsic(
     mechanism: CompilerIntrinsicExecutionIdentity,
 ) -> TerminalAuthorityDisposition {
     match mechanism {
-        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
+        CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             disposition([TerminalAuthorityClass::ProcessTermination])
         }
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {

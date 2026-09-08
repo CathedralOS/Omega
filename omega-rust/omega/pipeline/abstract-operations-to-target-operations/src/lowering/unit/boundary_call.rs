@@ -295,19 +295,19 @@ pub(super) fn lower_boundary_call(
                         bytes: bytes.clone(),
                     });
                 }
-                BoundaryRealization::LinuxExitGroupI32(_) => {
+                BoundaryRealization::HostedExitProcessI32(_) => {
                     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
                     let [argument] = arguments.as_slice() else {
-                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                        return Err(LoweringError::InvalidHostedExitProcessShape(
+                            function.machine,
+                        ));
                     };
                     let Some((_, actual_type, value)) = integer_constants.get(argument) else {
-                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                        return Err(LoweringError::InvalidHostedExitProcessShape(
+                            function.machine,
+                        ));
                     };
-                    if target.object_format != ObjectFormat::Elf
-                        || !matches!(
-                            target.architecture,
-                            Architecture::X86_64 | Architecture::Aarch64
-                        )
+                    if !target_operations::HostedExitProcessI32Realization::supports_target(target)
                         || declaration.scalar_parameters.as_slice()
                             != [ScalarType::Integer(i32_type)]
                         || !declaration.structural_parameters.is_empty()
@@ -316,7 +316,9 @@ pub(super) fn lower_boundary_call(
                         || !i32_type.admits(*value)
                         || !structural_arguments.is_empty()
                     {
-                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                        return Err(LoweringError::InvalidHostedExitProcessShape(
+                            function.machine,
+                        ));
                     }
                     scalar_arguments.push(BoundaryScalarArgument {
                         source_value: *argument,
@@ -354,13 +356,16 @@ pub(super) fn lower_boundary_call(
                 BoundaryRealization::HostedWriteByteI32(_) => {
                     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
                     let [source_value] = arguments.as_slice() else {
-                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                        return Err(LoweringError::InvalidHostedExitProcessShape(
+                            function.machine,
+                        ));
                     };
                     let Some(known) = scalar_values.get(source_value).copied() else {
                         return Err(LoweringError::UnknownValue(*source_value));
                     };
-                    let shape = fixed_native_integer_shape(i32_type)
-                        .ok_or(LoweringError::InvalidLinuxExitGroupShape(function.machine))?;
+                    let shape = fixed_native_integer_shape(i32_type).ok_or(
+                        LoweringError::InvalidHostedExitProcessShape(function.machine),
+                    )?;
                     let call_plan = evaluate_call_plan(
                         CallingPolicy::native_for_target(target),
                         &CallSignature {
@@ -370,7 +375,9 @@ pub(super) fn lower_boundary_call(
                     )
                     .map_err(LoweringError::AbiPlan)?;
                     let [placement] = call_plan.parameters.as_slice() else {
-                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                        return Err(LoweringError::InvalidHostedExitProcessShape(
+                            function.machine,
+                        ));
                     };
                     if !target_operations::HostedWriteByteI32Realization::supports_target(target)
                         || declaration.scalar_parameters.as_slice()
@@ -381,7 +388,9 @@ pub(super) fn lower_boundary_call(
                         || !structural_arguments.is_empty()
                         || placement.shape != shape
                     {
-                        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                        return Err(LoweringError::InvalidHostedExitProcessShape(
+                            function.machine,
+                        ));
                     }
                     runtime_scalar_arguments.push(TargetUnitScalarCallArgument {
                         parameter_index: 0,

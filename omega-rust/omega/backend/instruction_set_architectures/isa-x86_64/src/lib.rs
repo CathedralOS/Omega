@@ -131,7 +131,7 @@ pub use xor_zero_i64_materialization::{
 use diagnostics::Diagnostic;
 
 /// Exact import-free Linux x86-64 realization of `exit_process(i32)`.
-pub fn encode_linux_exit_group_i32(value: i32) -> Vec<u8> {
+pub fn encode_hosted_exit_process_i32(value: i32) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(14);
     bytes.push(0xbf); // mov edi, imm32
     bytes.extend_from_slice(&value.to_le_bytes());
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn linux_exit_and_write_literal_keep_exact_bytes() {
         assert_eq!(
-            encode_linux_exit_group_i32(0x1234_5678),
+            encode_hosted_exit_process_i32(0x1234_5678),
             [
                 0xbf, 0x78, 0x56, 0x34, 0x12, 0xb8, 0xe7, 0x00, 0x00, 0x00, 0x0f, 0x05, 0x0f, 0x0b,
             ]

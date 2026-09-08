@@ -152,7 +152,7 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 accepted_console_binding,
             ) {
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
-                    if identity == effects::CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
+                    if identity == effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                         && let Some(binding) = accepted_console_binding
                     {
                         match crate::compiler_intrinsic::accepted_binding_matches_console_exit_process_i32_row(

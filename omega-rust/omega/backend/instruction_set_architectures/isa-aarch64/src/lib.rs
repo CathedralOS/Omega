@@ -89,12 +89,28 @@ pub use selected_form_encoding::{
 
 use diagnostics::Diagnostic;
 
-/// Exact import-free Linux AArch64 realization of `exit_process(i32)`.
-pub fn encode_linux_exit_group_i32(value: i32) -> Result<Vec<u8>, Diagnostic> {
+/// Exact import-free hosted AArch64 realization of `exit_process(i32)`.
+/// Darwin uses syscall 1 in x16 and SVC 0x80; Linux uses exit_group 94 in x8.
+/// See Apple's xnu `bsd/kern/syscalls.master` and `libsyscall/custom/SYS.h`:
+/// <https://github.com/apple-oss-distributions/xnu>.
+pub fn encode_hosted_exit_process_i32(
+    target: target::NativeTarget,
+    value: i32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (syscall_register, syscall_number, supervisor_call) =
+        if target == target::NativeTarget::linux_arm64() {
+            (8, 94, 0)
+        } else if target == target::NativeTarget::macos_arm64() {
+            (16, 1, 0x80)
+        } else {
+            return Err(Diagnostic::error(
+                "unsupported hosted AArch64 process-exit target",
+            ));
+        };
     let mut bytes = Vec::new();
     append_unsigned_immediate(&mut bytes, 0, i64::from(value) as u64);
-    append_unsigned_immediate(&mut bytes, 8, 94);
-    bytes.extend(encode_svc(0));
+    append_unsigned_immediate(&mut bytes, syscall_register, syscall_number);
+    bytes.extend(encode_svc(supervisor_call));
     bytes.extend(encode_brk(0));
     Ok(bytes)
 }
@@ -350,8 +366,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hosted_exit_process_uses_exact_darwin_trap_abi() {
+        use target::NativeTarget;
+        let bytes = encode_hosted_exit_process_i32(NativeTarget::macos_arm64(), 37).unwrap();
+        assert_eq!(
+            bytes,
+            [0xd280_04a0_u32, 0xd280_0030, 0xd400_1001, 0xd420_0000]
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>()
+        );
+        for value in [0, 1, 255, 256, -1, i32::MIN, i32::MAX] {
+            let darwin =
+                encode_hosted_exit_process_i32(NativeTarget::macos_arm64(), value).unwrap();
+            let linux = encode_hosted_exit_process_i32(NativeTarget::linux_arm64(), value).unwrap();
+            assert_eq!(&darwin[..darwin.len() - 12], &linux[..linux.len() - 12]);
+            assert_eq!(&darwin[darwin.len() - 4..], &0xd420_0000_u32.to_le_bytes());
+            assert_ne!(darwin, linux);
+        }
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget {
+                pointer_size: 4,
+                ..NativeTarget::macos_arm64()
+            },
+        ] {
+            assert!(encode_hosted_exit_process_i32(target, 37).is_err());
+        }
+    }
+
+    #[test]
     fn linux_exit_and_write_literal_keep_exact_bytes() {
-        let bytes = encode_linux_exit_group_i32(37).unwrap();
+        let bytes =
+            encode_hosted_exit_process_i32(target::NativeTarget::linux_arm64(), 37).unwrap();
         assert_eq!(bytes.len(), 16);
         assert_eq!(&bytes[0..4], &0xd280_04a0_u32.to_le_bytes());
         assert_eq!(&bytes[4..8], &0xd280_0bc8_u32.to_le_bytes());

@@ -144,7 +144,7 @@ pub enum LoweringError {
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
-    LinuxExitGroupUnsupportedTarget {
+    HostedExitProcessUnsupportedTarget {
         machine: MachineId,
         target: NativeTarget,
     },
@@ -153,7 +153,7 @@ pub enum LoweringError {
         boundary: BoundaryMachineId,
         target: NativeTarget,
     },
-    InvalidLinuxExitGroupShape(MachineId),
+    InvalidHostedExitProcessShape(MachineId),
     UnsupportedOperationInScalarFunction(MachineId),
     UnsupportedOperationInUnitFunction(MachineId),
     DuplicateIeeeFloatFmaSettlement(OperationId),

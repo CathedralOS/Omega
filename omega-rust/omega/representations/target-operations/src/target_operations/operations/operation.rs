@@ -2,7 +2,7 @@
 
 use crate::{
     BoundaryExecutionBinding, BoundaryScalarArgument, DirectPortReadU8Realization,
-    LinuxExitGroupI32Realization, ScalarAbiValue, ScalarParameterLocation, TargetBooleanControl,
+    HostedExitProcessI32Realization, ScalarAbiValue, ScalarParameterLocation, TargetBooleanControl,
     TargetBooleanExpression, TargetConditionalBooleanArm, TargetConditionalIntegerArm,
     TargetDynamicDescriptorParameterAbi, TargetIntegerExpression, TargetRankedU32Countdown,
     TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
@@ -172,17 +172,17 @@ pub enum TargetOperation {
         call_plan: CallPlan,
         structural_parameters: Vec<TargetStructuralParameter>,
     },
-    /// One verified `exit_process(i32)` call realized directly by Linux
-    /// `exit_group`. `nominal_return_edge` remains zero-byte provenance: if
-    /// the nominally nonreturning syscall returns, the emitted code traps
-    /// before that semantic tail can execute.
+    /// One verified `exit_process(i32)` call realized directly by the selected
+    /// kernel's process-exit syscall. `nominal_return_edge` remains zero-byte
+    /// provenance: if the syscall returns, the emitted code traps before that
+    /// semantic tail can execute.
     ExitProcessI32 {
         constant_operation: OperationId,
         psi_operation: OperationId,
         nominal_return_edge: EdgeId,
         boundary: BoundaryMachineId,
         execution: BoundaryExecutionBinding,
-        realization: LinuxExitGroupI32Realization,
+        realization: HostedExitProcessI32Realization,
         argument: BoundaryScalarArgument,
         completion_claim_sources: Vec<CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
