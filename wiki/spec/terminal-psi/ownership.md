@@ -24,7 +24,7 @@ a bijection between caller transfers, callee entry claims, returned transfers,
 and caller result bindings. Result custody is established only on successful
 completion; it cannot also remain on the input owner.
 
-Boundary completion carries the verifier-derived receipt set for every live
+Normal boundary completion carries the verifier-derived receipt set for every live
 claim at each exact argument position, not one receipt per parameter. Missing,
 duplicate, reordered, or path-mismatched rows reject. Commit consumption only
 after validating successful completion and its result. Rejection leaves the
@@ -89,7 +89,8 @@ preserves the distinction, such as a sum tag, provider key, or explicit state.
 Otherwise the author must represent the alternative or normalize custody.
 The checker cannot duplicate a semantic state to repair an invalid join.
 
-Every incoming owned obligation occurs exactly once in the edge's transfer map,
+On an ordinary continuing or returning edge, every incoming owned obligation
+occurs exactly once in the edge's transfer map,
 explicit terminal consumption, eligible automatic cleanup, or validated no-code
 affine discard. A dying linear obligation requires an owner-authorized terminal
 disposition. The target frontier checks shape, facts, multiplicity, access, and
@@ -102,6 +103,13 @@ consumer may support their combination. Transformations unable to preserve an
 edge's residuals reject rather than silently dropping them. A crash retains its
 abandoned frontier and has no cleanup successor; see [calls and outcomes](calls_and_outcomes.md).
 
+Canonical [process exit](../language/process_exit.md#abandonment-and-survivors)
+is a distinct non-crashing terminal abandonment. It creates no return value,
+consumption receipt, cleanup successor, or post-exit frontier. A reconstructed
+local frontier is only a lower bound, not a complete domain-wide resource census
+or evidence of safe survivors. Conditional exit does not alter the partition
+required on the returning branch.
+
 ## Nominal cleanup
 
 The attached `T::drop(&mut self)` target is a compiler-owned edge dependency,
@@ -109,6 +117,9 @@ not a source-selectable call or static-machine value. Authored early disposal
 uses the ordinary consuming `omega::core::drop(value)` call. The cleanup plan
 keeps Type-side discharge eligibility, logical prerequisites, operational
 reach/effects/work, and derived guarantees separate.
+
+The target must return normally. Termination and exclusion of crashes alone
+are insufficient if its transitive contract permits external process exit.
 
 Each action names an exact place, type, and target. Reusing a target for different
 places remains multiple actions and multiple work charges. Empty cleanup emits

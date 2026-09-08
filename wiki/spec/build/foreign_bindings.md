@@ -46,7 +46,9 @@ target, and sealed catalog entry with accepted package/toolchain custody.
 An empty `via` value, lookalike symbol, or targetless plan supplies no catalog
 identity. Physical nonreturning behavior does not establish semantic successful
 termination; [boundary realization](../terminal-psi/boundary_calls.md#consumer-owned-settlement)
-requires the distinct terminal-effect identity.
+must preserve the canonical [ProcessExit requirement](../language/process_exit.md)
+and its explicit terminal completion and exact arguments. The syscall, provider
+name, or physical status encoding cannot supply or change that identity.
 
 ## Exact requirement lifetime application
 
