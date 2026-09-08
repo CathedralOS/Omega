@@ -26,7 +26,8 @@ pub(super) fn published_text(source_text: &str, target: NativeTarget) -> (Vec<u8
     let source = std::sync::Arc::new(
         object_file::stage_optimized_relocation_free_object_container(placed).unwrap(),
     );
-    let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
+    let object = image_emission::build_function_fragment_object_artifact(source.clone())
+        .unwrap_or_else(|error| panic!("{target:?}: object publication: {error:?}\n{source_text}"));
     image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
     let entry_offset = object
         .functions()
