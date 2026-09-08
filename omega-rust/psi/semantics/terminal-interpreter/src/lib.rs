@@ -7,7 +7,9 @@
 
 mod block_bindings;
 mod boundary_byte_buffers;
+mod byte_sequence_binding;
 mod byte_sequence_subslice;
+use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
 mod effect_results;
 mod primitive_storage;
@@ -529,10 +531,10 @@ pub struct TerminalExecution {
     /// parameter. Immutable backing implements a logical copy of the live prefix.
     structural_byte_sequence_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
-    /// Immutable exact bytes owned by this invocation, including borrowed
-    /// arguments rebound to its parameter places. Opaque identities do not
-    /// determine byte contents.
-    byte_sequence_values: BTreeMap<PlaceId, ByteSequenceView>,
+    /// Frame-local immutable descriptors or exact boundary-introduced mutable
+    /// field loans, rebound to callee parameters. Opaque identities alone do
+    /// not supply either byte contents or permission to mutate a field.
+    byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
@@ -564,7 +566,7 @@ struct SuspendedCall {
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
-    byte_sequence_values: BTreeMap<PlaceId, ByteSequenceView>,
+    byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
     live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
     dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
@@ -1156,14 +1158,13 @@ impl TerminalExecution {
         Ok(resolved)
     }
 
-    /// Rebind exact immutable byte payloads by structural argument position.
-    /// Only whole borrowed views have executable contents in this lane.
+    /// Rebind whole existing byte arguments, without converting inline storage.
     fn bind_byte_sequence_arguments(
         &self,
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
         resolved_arguments: &[TerminalStructuralValue],
-    ) -> Result<BTreeMap<PlaceId, ByteSequenceView>, TerminalInterpretError> {
+    ) -> Result<BTreeMap<PlaceId, ByteSequenceBinding>, TerminalInterpretError> {
         if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
@@ -1181,19 +1182,35 @@ impl TerminalExecution {
             if *carrier != terminal_psi::ByteSequenceCarrier::BorrowedView
                 || parameter.structural_type != resolved.structural_type
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || parameter.access != StructuralAccess::SharedBorrow
-                || argument.access != StructuralAccess::SharedBorrow
+                || parameter.access != argument.access
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                || (parameter.access == StructuralAccess::SharedBorrow && !resolved.path.is_empty())
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || !resolved.qualifications.is_empty()
                 || !argument.path.is_empty()
-                || !resolved.path.is_empty()
             {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
             let bytes = self.byte_sequence_values.get(&argument.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
             )?;
+            match bytes {
+                ByteSequenceBinding::Immutable(_) => {
+                    if parameter.access != StructuralAccess::SharedBorrow {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                }
+                ByteSequenceBinding::MutableField { .. } => {
+                    if parameter.access != StructuralAccess::MutableBorrow {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    bytes.validate_mutable_referent(&self.structural_types, resolved)?;
+                }
+            }
             if values.insert(parameter.place, bytes.clone()).is_some() {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
@@ -1209,7 +1226,7 @@ impl TerminalExecution {
         callee_id: MachineId,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[StructuralArgument],
-        resolved_arguments: &[TerminalStructuralValue],
+        prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
         dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
@@ -1223,12 +1240,8 @@ impl TerminalExecution {
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let structural_values =
-            bind_structural_arguments(&callee.structural_parameters, resolved_arguments)?;
-        let byte_sequence_values = self.bind_byte_sequence_arguments(
-            &callee.structural_parameters,
-            structural_arguments,
-            resolved_arguments,
-        )?;
+            bind_structural_arguments(&callee.structural_parameters, &prepared_arguments.values)?;
+        let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
         let (remaining_claims, live_claims) = transfer_claims(
@@ -1409,6 +1422,7 @@ impl TerminalExecution {
         result: StructuralOperationResult,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[StructuralArgument],
+        prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
     ) -> Result<(), TerminalInterpretError> {
@@ -1433,7 +1447,14 @@ impl TerminalExecution {
             && result.claims.is_empty();
         if structural_arguments
             .iter()
-            .any(|argument| !argument.path.is_empty())
+            .zip(&callee.structural_parameters)
+            .any(|(argument, parameter)| {
+                !argument.path.is_empty()
+                    && !matches!(
+                        prepared_arguments.byte_sequences.get(&parameter.place),
+                        Some(ByteSequenceBinding::MutableField { .. })
+                    )
+            })
             || result.structural_type != callee_result.structural_type
             || result.multiplicity != callee_result.multiplicity
             || result.qualifications != callee_result.qualifications
@@ -1445,18 +1466,9 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        let arguments = resolve_structural_arguments(
-            &self.structural_types,
-            &self.structural_values,
-            structural_arguments,
-        )?;
         let structural_values =
-            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
-        let byte_sequence_values = self.bind_byte_sequence_arguments(
-            &callee.structural_parameters,
-            structural_arguments,
-            &arguments,
-        )?;
+            bind_structural_arguments(&callee.structural_parameters, &prepared_arguments.values)?;
+        let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
         let (remaining_claims, live_claims) = transfer_claims(
@@ -1734,14 +1746,17 @@ impl TerminalExecution {
                                 || self
                                     .byte_sequence_values
                                     .get(&destination)
-                                    .is_none_or(|view| view.bytes() != bytes)
+                                    .is_none_or(|binding| !matches!(binding.immutable(), Ok(view) if view.bytes() == bytes))
                             {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
                             }
                         } else {
                             if self
                                 .byte_sequence_values
-                                .insert(destination, ByteSequenceView::new(bytes))
+                                .insert(
+                                    destination,
+                                    ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
+                                )
                                 .is_some()
                             {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -1852,11 +1867,6 @@ impl TerminalExecution {
                         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                        let arguments = resolve_structural_arguments(
-                            &self.structural_types,
-                            &self.structural_values,
-                            &structural_arguments,
-                        )?;
                         let scalar_arguments = scalar_argument_ids
                             .iter()
                             .map(|argument| {
@@ -1868,11 +1878,13 @@ impl TerminalExecution {
                             .collect::<Result<Vec<_>, _>>()?;
                         let dynamic_parameters =
                             self.resolve_dynamic_call_arguments(operation.id)?;
+                        let prepared_arguments =
+                            self.prepare_structural_call_arguments(callee, &structural_arguments)?;
                         self.begin_unit_call(
                             callee,
                             &scalar_arguments,
                             &structural_arguments,
-                            &arguments,
+                            prepared_arguments,
                             &claim_transfers,
                             dynamic_parameters,
                         )?;
@@ -2013,11 +2025,14 @@ impl TerminalExecution {
                             .structural()
                             .cloned()
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let prepared_arguments =
+                            self.prepare_structural_call_arguments(callee, &structural_arguments)?;
                         self.begin_structural_result_call(
                             callee,
                             result,
                             &[],
                             &structural_arguments,
+                            prepared_arguments,
                             &claim_transfers,
                             returned_claim_transfers,
                         )?;
@@ -2045,11 +2060,14 @@ impl TerminalExecution {
                                     .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
+                        let prepared_arguments =
+                            self.prepare_structural_call_arguments(callee, &structural_arguments)?;
                         self.begin_structural_result_call(
                             callee,
                             result,
                             &scalar_arguments,
                             &structural_arguments,
+                            prepared_arguments,
                             &claim_transfers,
                             returned_claim_transfers,
                         )?;
@@ -2079,19 +2097,18 @@ impl TerminalExecution {
                             &scalar_arguments,
                         )?;
                         if self.provider_candidates.contains(&boundary) {
-                            // Checked provider bodies retain ordinary call
-                            // binding; external mutable-buffer presentation
-                            // does not supply a callee view/writeback protocol.
-                            let arguments = resolve_structural_arguments(
-                                &self.structural_types,
-                                &self.structural_values,
+                            let boundary_arguments = self.prepare_boundary_arguments(
+                                &boundary_declaration.structural_parameters,
                                 &structural_arguments,
                             )?;
                             bind_structural_arguments(
                                 &boundary_declaration.structural_parameters,
-                                &arguments,
+                                &boundary_arguments.values,
                             )?;
-                            validate_boundary_requirements(boundary_declaration, &arguments)?;
+                            validate_boundary_requirements(
+                                boundary_declaration,
+                                &boundary_arguments.values,
+                            )?;
                             let supported_result = match &operation.result {
                                 terminal_psi::OperationResult::Unit => {
                                     scalar_argument_ids.is_empty()
@@ -2112,6 +2129,11 @@ impl TerminalExecution {
                                 self.provider_installation.get(&boundary).copied().ok_or(
                                     TerminalInterpretError::ProviderInstallationMissing(boundary),
                                 )?;
+                            let callee = self.machines.get(&callee_id).ok_or(
+                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
+                            )?;
+                            let prepared_arguments = boundary_arguments
+                                .into_call_arguments(&callee.structural_parameters)?;
                             let claim_transfers = completion_receipts
                                 .iter()
                                 .map(|receipt| ClaimTransfer {
@@ -2124,7 +2146,7 @@ impl TerminalExecution {
                                     callee_id,
                                     &[],
                                     &structural_arguments,
-                                    &arguments,
+                                    prepared_arguments,
                                     &claim_transfers,
                                     BTreeMap::new(),
                                 )?,
@@ -2134,6 +2156,7 @@ impl TerminalExecution {
                                         result.clone(),
                                         &scalar_arguments,
                                         &structural_arguments,
+                                        prepared_arguments,
                                         &claim_transfers,
                                         Vec::new(),
                                     )?;
@@ -2544,9 +2567,13 @@ impl TerminalExecution {
                         };
                         let byte_index = count(index)?;
                         let byte_length = count(length)?;
-                        let bytes = self.byte_sequence_values.get(&source).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-                        )?;
+                        let bytes = self
+                            .byte_sequence_values
+                            .get(&source)
+                            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                source,
+                            ))?
+                            .immutable()?;
                         if u64::try_from(bytes.len()).ok() != Some(byte_length)
                             || byte_index >= byte_length
                         {
@@ -2574,9 +2601,13 @@ impl TerminalExecution {
                         if result.scalar_type != ScalarType::Integer(integer_type) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                        let bytes = self.byte_sequence_values.get(&source).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-                        )?;
+                        let bytes = self
+                            .byte_sequence_values
+                            .get(&source)
+                            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                source,
+                            ))?
+                            .immutable()?;
                         let length = u64::try_from(bytes.len())
                             .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.values.insert(
@@ -3434,7 +3465,7 @@ impl TerminalExecution {
                     }) {
                         self.structural_values.remove(&parameter.place);
                     }
-                    // Immutable byte views end with this invocation and carry
+                    // Frame-local byte views and loans end here and carry
                     // no affine cleanup, including locally established literals.
                     for place in self.byte_sequence_values.keys() {
                         self.structural_values.remove(place);

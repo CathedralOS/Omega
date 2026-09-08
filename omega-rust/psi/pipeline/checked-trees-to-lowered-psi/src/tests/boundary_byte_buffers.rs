@@ -1,6 +1,7 @@
 //! Source-produced bounded byte fields presented to an external boundary.
 
 use super::*;
+mod checked_provider;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,

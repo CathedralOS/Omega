@@ -59,8 +59,16 @@ before any field writeback or completion is committed. The effect trace records
 pre-call bytes; `structural_byte_sequence_field` observes committed replacements.
 Handlers without this callback reject mutable buffers before performing an
 effect. Missing backing remains an error, including for an opaque entry object.
-Checked provider-body dispatch of these mutable views and native `read_line`
-realization remain unsupported.
+
+Installed checked providers receive a frame-owned mutable field binding, not a
+copy of the incoming bytes. Whole mutable-view arguments can forward that binding
+through ordinary helpers or reborrow it at another boundary. Each external call
+observes the current backing and commits to the original field; returning from
+the provider does not restore its entry snapshot. Calls and fuel suspension
+retain the binding's exact referent, record/array path, and capacity. An equal
+opaque identity without that binding supplies no mutable loan. Immutable-view
+operations still require immutable bindings. Native byte-field forwarding and
+`read_line` realization remain separate dependencies.
 
 ## Boundary responses
 

@@ -138,11 +138,13 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         byte_sequence_values: BTreeMap::from([
             (
                 PlaceId::new(1).unwrap(),
-                ByteSequenceView::new(vec![0, 128]),
+                crate::ByteSequenceBinding::Immutable(crate::ByteSequenceView::new(vec![0, 128])),
             ),
             (
                 PlaceId::new(2).unwrap(),
-                ByteSequenceView::new(vec![255, 7, 42]),
+                crate::ByteSequenceBinding::Immutable(crate::ByteSequenceView::new(vec![
+                    255, 7, 42,
+                ])),
             ),
         ]),
         live_affine_frontier: Default::default(),
@@ -170,7 +172,10 @@ fn assert_swap_after_fuel(terminator: Terminator) {
     assert_eq!(execution.structural_values, original_structural);
     assert_eq!(execution.values, original_scalars);
     assert_eq!(
-        execution.byte_sequence_values[&PlaceId::new(1).unwrap()].bytes(),
+        execution.byte_sequence_values[&PlaceId::new(1).unwrap()]
+            .immutable()
+            .unwrap()
+            .bytes(),
         &[0, 128]
     );
     meter.replenish(1).unwrap();
@@ -189,19 +194,29 @@ fn assert_swap_after_fuel(terminator: Terminator) {
         );
         assert_eq!(
             execution.byte_sequence_values[&PlaceId::new(destination).unwrap()]
+                .immutable()
+                .unwrap()
                 .bytes()
                 .as_ptr(),
             original_views[&PlaceId::new(source).unwrap()]
+                .immutable()
+                .unwrap()
                 .bytes()
                 .as_ptr()
         );
     }
     assert_eq!(
-        execution.byte_sequence_values[&PlaceId::new(1).unwrap()].bytes(),
+        execution.byte_sequence_values[&PlaceId::new(1).unwrap()]
+            .immutable()
+            .unwrap()
+            .bytes(),
         &[255, 7, 42]
     );
     assert_eq!(
-        execution.byte_sequence_values[&PlaceId::new(2).unwrap()].bytes(),
+        execution.byte_sequence_values[&PlaceId::new(2).unwrap()]
+            .immutable()
+            .unwrap()
+            .bytes(),
         &[0, 128]
     );
     assert!(execution.live_affine_frontier.is_empty());

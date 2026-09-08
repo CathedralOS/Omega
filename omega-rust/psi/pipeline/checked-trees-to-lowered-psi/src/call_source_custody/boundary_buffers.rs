@@ -1,4 +1,4 @@
-//! Mutable boundary byte operands retain their exact authored field destination.
+//! Mutable boundary byte operands retain their authored field or borrowed-view root.
 
 use super::{authored, literal_arguments, projected_receivers};
 use crate::{CheckedTrees, LoweringError, unsupported};
@@ -91,7 +91,7 @@ pub(super) fn validate(
         if borrow.access != language_core::ReferenceAccess::Mutable
             || argument.access != CheckedStructuralAccess::MutableBorrow
             || source_parameter.symbol != source.root
-            || source.path.is_empty()
+            || (source.path.is_empty() && !is_mutable_byte_view(source_parameter))
             || source.path != argument.path
         {
             return unsupported(
