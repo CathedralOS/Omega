@@ -16,6 +16,9 @@ The first executable customer is the test-owned 85-line `const` augmenter under
 `tests/gamma/self-augmentation-experiment/`. The direct evaluator executes that
 source, produces an exact richer-language receipt, and evaluates the expanded
 program to byte 42.
+Gamma's language-chain customer is the [staged Delta compiler](../3_delta/README.md).
+Other small bootstrap tools require explicit justification under
+[whole-chain minimization](../MINIMIZATION.md).
 
 The selected evaluator is complete for the current Gamma contract. Proper-tail
 execution, whole-program static validation, provenance-tagged immutable pairs,

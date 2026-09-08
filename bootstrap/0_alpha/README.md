@@ -36,6 +36,8 @@ programs.
 Alpha has no textual source language, assembler grammar, type system, or proof
 kernel. The selected bootstrap floor consists of an audited native Alpha seed
 plus the admitted Beta compiler tape.
+It contains no compiler framework or higher-language primitive. Host stamping
+packages a raw tape; it does not compile a language.
 
 ## Owned files
 

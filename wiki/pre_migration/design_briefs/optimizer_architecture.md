@@ -774,15 +774,15 @@ rule appearing to own another rule's wire format or fixtures.
 
 ## Deeper briefs
 
-- [Semantic contract](optimizer/semantic_contract.md): observability, exact
+- [Semantic contract](../../spec/build/optimizations.md#observations-and-resources): observability, exact
   arithmetic, floats, effects, proofs, ownership, provenance, and fuel.
-- [Rule engine](optimizer/rule_engine.md): catalogs, analyses, candidates,
+- [Candidate validation](../../spec/build/optimizations.md#atomic-candidates-and-independent-validation): catalogs, analyses, candidates,
   validation, budgets, reporting, and ML/search boundaries.
 - [Physical pipeline](optimizer/physical_pipeline.md): lowering, allocation,
   symbolic machine rules, encoding, layout, and publication custody.
 - [Source organization](optimizer/source_organization.md): entrance-file rules,
   folder taxonomy, size guardrails, and tests.
-- [Rollout](optimizer/rollout.md): build opt-in, compatibility firewall,
+- [Rollout](../../spec/build/optimizations.md#release-rollback-and-promotion): build opt-in, compatibility firewall,
   stabilization, and promotion policy.
 
 ## Resolved decisions

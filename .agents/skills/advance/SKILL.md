@@ -35,7 +35,7 @@ selection to that board; an explicitly named customer limits it to that customer
 and its useful dependencies. State the customer, missing dependencies, and bounded
 acceptance condition.
 
-Read the owning design and [completion contract](../../../wiki/pre_migration/releases/rust_compiler_completion_contract.md).
+Read the owning design and [completion plan](../../../wiki/drafts/rust_compiler_completion.md).
 For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md).
 Apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints) using recent
 milestones across invocations and delegated work. Required customer behavior and

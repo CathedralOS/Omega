@@ -157,7 +157,7 @@ compiler `omega₀`, which compiles the Omega-written closure `C` into productio
 `omega`. Intermediate self-hosting is not a goal. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
-[`repository_structure.md`](wiki/pre_migration/architecture/bootstrap_chain/repository_structure.md).
+[the bootstrap source map](bootstrap/README.md).
 Beta's self-reconstructing compiler and admitted Alpha tape live under
 `bootstrap/1_beta/`; the older imperative Gamma rung remains retired.
 The whole-chain audit is defined in
@@ -258,4 +258,4 @@ The language is moving quickly. The best current design references are:
 - [Documentation index](wiki/README.md)
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
 - [Architecture](wiki/pre_migration/architecture/architecture.md)
-- [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md)
+- [Rust compiler completion](wiki/drafts/rust_compiler_completion.md)

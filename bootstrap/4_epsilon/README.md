@@ -241,10 +241,7 @@ sh tests/delta/staged-compiler/run.sh
 ```
 
 [Implementation notes](implementation_notes.md) describe the supported checking
-and execution slices and their conformance controls. The historical
-[Delta abstraction review](../../wiki/pre_migration/design_briefs/delta_abstraction_review.md)
-preserves the rejected experiments' cost findings and selected coverage;
-their elaborator and comparison kernels are no longer validation dependencies.
+and execution slices and their conformance controls.
 The staging executor supports unqualified calls, value/resultless returns,
 effect-threaded expressions, record/fixed-array/sum value copies, nested receiver
 places, and independent recursive invocation homes. Runtime places distinguish

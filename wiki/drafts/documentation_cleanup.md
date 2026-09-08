@@ -57,7 +57,7 @@ transcripts. Rejected designs normally leave the tree. Git retains them.
 
 ### 1. Consolidate the large mixed references
 
-Continue with the remaining optimizer references
+Continue with the remaining optimizer architecture, physical pipeline, and source-organization references
 in `pre_migration/design_briefs/`, consolidating against
 their existing specification owners before adding another document.
 
@@ -118,7 +118,7 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: consolidate the optimizer contracts, then the remaining architecture and bootstrap records. Complete
+Next: consolidate optimizer implementation organization and the remaining architecture and bootstrap records. Complete
 byte-level Terminal tables remain explicit PSIIR work, not an implied achievement
 of prose migration. The remaining documents in pre_migration still need review,
 not automatic promotion into the specification.

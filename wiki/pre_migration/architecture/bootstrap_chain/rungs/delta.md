@@ -3,7 +3,7 @@
 > **Needs porting.** This document has not been consolidated or vetted for the
 > current documentation structure. See the [migration index](../../../README.md).
 
-[Chain overview](../bootstrap_chain.md) | Prev: [Gamma](gamma.md) | Next: [Epsilon](epsilon.md)
+[Chain overview](../bootstrap_chain.md) | Prev: [Gamma](../../../../../bootstrap/2_gamma/README.md) | Next: [Epsilon](../../../../../bootstrap/4_epsilon/README.md)
 
 Delta is the small typed pure functional language above Gamma. It adds
 static nominal algebraic data, exhaustive matching, checked signed integers,
