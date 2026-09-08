@@ -269,9 +269,10 @@ The source-to-artifact/runtime regression is:
 cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_cycles --no-fail-fast
 ```
 
-`omega inspect-terminal --machine walk --target macos_arm64 main.omg` reaches
-its separate fixed-fuel reporting limitation: it selects the legacy countdown
-deriver for every ranked module and reports `NotRankedCountdown`. Inspection
-must distinguish verified Natural control from optional fixed-work evidence;
-termination alone cannot supply a work ceiling. Native owned integer-field reads
-and primitive-local storage are still required before native execution.
+`omega inspect-terminal --machine walk --target macos_arm64 main.omg` reports
+the verified Natural component and `fixed_fuel status=unknown`: the existing
+fixed-work deriver does not close this graph. The
+[inspection command](../../../omega/src/command/inspect_terminal/README.md)
+keeps proof checking mandatory and fixed-work evidence separate; termination
+alone cannot supply a work ceiling. Native owned integer-field reads and
+primitive-local storage are still required before native execution.

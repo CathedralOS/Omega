@@ -2,6 +2,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[path = "../src/command/inspect_terminal/evidence.rs"]
+mod evidence;
+#[path = "inspect_terminal/owned_scalar_cycles.rs"]
+mod owned_scalar_cycles;
+
 fn temporary_source(name: &str, source: &str) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -34,6 +39,34 @@ fn remove_fixture(path: PathBuf) {
     std::fs::remove_dir_all(directory).expect("remove inspect-terminal fixture");
 }
 
+fn lower_source(machine: &str, source: &Path) -> lowered_psi::LoweredPsi {
+    let checked = compiler::compile_to_checked(source, None).expect("check inspection source");
+    checked_trees_to_lowered_psi::lower_machine(&checked, machine).expect("lower inspection source")
+}
+
+fn unknown_fuel_reason(stdout: &str) -> &str {
+    let mut rows = stdout
+        .lines()
+        .filter(|line| line.starts_with("fixed_fuel "));
+    let row = rows.next().expect("fixed-fuel observation");
+    assert!(
+        rows.next().is_none(),
+        "duplicate fixed-fuel observation: {stdout}"
+    );
+    let reason = row
+        .strip_prefix("fixed_fuel status=unknown reason=")
+        .expect("unknown fixed-fuel observation");
+    assert!(
+        !reason.trim().is_empty(),
+        "unknown needs a reason: {stdout}"
+    );
+    assert!(
+        !stdout.contains("ceiling_units="),
+        "unknown fabricated a ceiling: {stdout}"
+    );
+    reason
+}
+
 #[test]
 fn exact_ranked_u32_countdown_reports_its_replayed_fixed_fuel_ceiling() {
     let source = temporary_source(
@@ -55,6 +88,7 @@ fn exact_ranked_u32_countdown_reports_its_replayed_fixed_fuel_ceiling() {
     );
 
     let output = inspect("Root::countdown", &source);
+    let lowered = lower_source("Root::countdown", &source);
     remove_fixture(source);
 
     assert!(
@@ -65,6 +99,13 @@ fn exact_ranked_u32_countdown_reports_its_replayed_fixed_fuel_ceiling() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("selected_machine=Root::countdown"));
     assert!(stdout.contains("ceiling_units=25769803775"), "{stdout}");
+    let fuel = evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("verify and replay the countdown certificate");
+    let evidence::FixedFuel::Available(certificate) = fuel else {
+        panic!("u32 countdown lost its fixed-fuel certificate: {fuel:?}");
+    };
+    assert_eq!(certificate.entry(), lowered.semantic_module.entry);
+    assert_eq!(certificate.ceiling_units(), 25_769_803_775);
 }
 
 #[test]
@@ -93,10 +134,12 @@ fn acyclic_inspection_keeps_the_ordinary_fixed_fuel_path() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("selected_machine=Root::forward"));
     assert!(stdout.contains("fixed_fuel "), "{stdout}");
+    assert!(stdout.contains("ceiling_units="), "{stdout}");
+    assert!(!stdout.contains("status=unknown"), "{stdout}");
 }
 
 #[test]
-fn unsupported_wider_ranked_countdown_fails_closed() {
+fn wider_ranked_countdown_inspects_without_fabricating_an_overflowed_ceiling() {
     let source = temporary_source(
         "ranked-u64",
         r#"
@@ -118,12 +161,19 @@ fn unsupported_wider_ranked_countdown_fails_closed() {
     let output = inspect("Root::countdown", &source);
     remove_fixture(source);
 
-    assert!(!output.status.success(), "wider ranked slice was accepted");
-    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("cannot lower terminal machine")
-            || stderr.contains("cannot verify terminal machine")
-            || stderr.contains("cannot derive ranked fixed fuel"),
-        "unexpected rejection: {stderr}"
+        output.status.success(),
+        "verified u64 countdown could not be inspected: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("selected_machine=Root::countdown"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("verified=true"), "{stdout}");
+    assert_eq!(
+        unknown_fuel_reason(&stdout),
+        terminal_fixed_fuel::FixedFuelError::BoundOverflow.to_string()
     );
 }
