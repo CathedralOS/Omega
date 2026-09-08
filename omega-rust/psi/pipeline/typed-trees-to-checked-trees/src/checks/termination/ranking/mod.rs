@@ -4,6 +4,7 @@ mod patterns;
 mod ranges;
 mod slice;
 mod struct_view;
+mod write_preservation;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::ranking::{
