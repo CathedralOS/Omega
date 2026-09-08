@@ -193,6 +193,10 @@ prerequisite to every lower-rung milestone.
   `bootstrap/5_omega/omega_compiler.epsilon.sources` as the first full Omega
   compiler. Work against settled product semantics and actual C requirements;
   conservative, slow interpreted execution is acceptable when feasible.
+  Complete the [standalone request](wiki/spec/build/compiler_request.md) field/tag,
+  outcome/phase, and scalar-resource tables with C; exact/adjacent vectors,
+  malformed-input rejection, bounded arithmetic, and Complete-only publication
+  must agree before either implementation claims the V1 boundary.
   Acceptance: interpreted D compiles the exact Omega C closure for its ordinary
   `alpha_bootstrap` target and produces `omega0_compiler_bytecode.tape`.
   Depends on P3 and the product-source work in `TASKS.md`.

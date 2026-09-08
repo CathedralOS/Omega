@@ -3,6 +3,10 @@
 This is the operation-owning `package-manager` crate. Start at
 [`src/lib.rs`](src/lib.rs), then enter the operation you are following.
 
+[Source selection](../../../../wiki/spec/packages/sources.md) owns the
+requester-local graph and workspace-member contract. Acquisition enforces the
+[resolver security boundary](../sources/acquisition/SOURCE_RESOLVER_SECURITY.md).
+
 The ratified destination is Cargo-like repository install/update with
 compiler-derived reachability, unsafe API, and assumption review. The lock
 records pins, the graph, accepted baselines, and decisions; the project trusts
