@@ -44,6 +44,9 @@ callee plan, ordered scalar actuals, whole-reference structural actuals, and
 call contracts. Repeated calls remain ordered operations even when an earlier
 result is unused. This route admits unqualified, unrestricted shared byte-view
 parameters; it does not infer projection or mutable-reference support.
+Standalone selection and replay also rejoin the caller's complete scalar roster
+and placements to its ABI before forwarding the descriptor pointer. An extra or
+missing scalar declaration cannot be inferred from an otherwise plausible ABI.
 
 Checked subslices retain their exact source, structural result, endpoints, and
 two-leg bounds obligation. Acyclic scalar-result graphs can measure, read, and

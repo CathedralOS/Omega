@@ -105,6 +105,21 @@ fn validate_borrowed_argument(
     let LegalizedScalarArgument::Structural { semantic, target } = last else {
         return None;
     };
+    let scalar_type =
+        ScalarType::Integer(semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
+    // The structural vector has its own positions; its single descriptor follows
+    // the complete declared scalar prefix in the caller's physical signature.
+    if source.parameters.len().checked_add(1)? != source.call_plan.parameters.len()
+        || source
+            .parameters
+            .iter()
+            .zip(&source.call_plan.parameters)
+            .any(|(parameter, placement)| {
+                parameter.scalar_type != scalar_type || parameter.placement != *placement
+            })
+    {
+        return None;
+    }
     if scalars.iter().any(|argument| !matches!(argument,
         LegalizedScalarArgument::Scalar { placement, .. } if placement.shape == ValueShape::integer(8, 8))) {
         return None;
