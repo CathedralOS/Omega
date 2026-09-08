@@ -29,6 +29,7 @@ pub(crate) fn unit() -> PsiOptimizationUnit {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -118,6 +119,7 @@ fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -172,6 +174,7 @@ pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -257,6 +260,7 @@ pub(crate) fn scalar_call_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -302,6 +306,7 @@ pub(crate) fn scalar_call_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -360,6 +365,7 @@ pub(crate) fn scalar_boundary_call_unit() -> PsiOptimizationUnit {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -440,6 +446,7 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -474,6 +481,7 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -551,6 +559,7 @@ pub(crate) fn projected_shared_structural_scalar_call_unit() -> PsiOptimizationU
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -597,6 +606,7 @@ pub(crate) fn projected_shared_structural_scalar_call_unit() -> PsiOptimizationU
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_block,
                     parameters: Vec::new(),
                     operation_offset: 0,

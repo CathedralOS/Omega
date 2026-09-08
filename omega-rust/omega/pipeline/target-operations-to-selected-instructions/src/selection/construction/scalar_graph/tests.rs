@@ -104,6 +104,7 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
         parameters: Vec::new(),
         entry_block: block,
         blocks: vec![LegalizedScalarBlock {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             instructions,

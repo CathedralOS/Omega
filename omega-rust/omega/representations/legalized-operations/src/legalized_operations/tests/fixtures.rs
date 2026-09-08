@@ -149,6 +149,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             entry_block: id(1),
             blocks: vec![LegalizedScalarBlock {
                 id: id(1),
+                structural_parameters: Vec::new(),
                 parameters: Vec::new(),
                 instructions: vec![LegalizedScalarInstruction {
                     operation: call,
@@ -364,6 +365,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         entry_block: block,
         blocks: vec![LegalizedScalarBlock {
             id: block,
+            structural_parameters: Vec::new(),
             parameters: vec![],
             instructions: vec![
                 instruction(

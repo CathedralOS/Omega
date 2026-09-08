@@ -79,6 +79,7 @@ fn abstract_plan(operation: OperationId) -> AbstractOperationPlan {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: BlockId::new(84).unwrap(),
                 parameters: Vec::new(),
                 operation_offset: 0,

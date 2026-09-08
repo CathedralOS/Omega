@@ -7,9 +7,11 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
             psi_edge,
             target,
             bindings,
+            structural_bindings,
             trivial_affine_discards,
             residual_affine_discards,
         } => vec![OptimizationEdge {
+            structural_bindings: structural_bindings.clone(),
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
@@ -32,6 +34,7 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
 
 fn successor_edge(successor: &AbstractSuccessor) -> OptimizationEdge {
     OptimizationEdge {
+        structural_bindings: successor.structural_bindings.clone(),
         psi_edge: successor.psi_edge,
         target: successor.target,
         bindings: successor.bindings.clone(),

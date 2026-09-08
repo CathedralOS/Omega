@@ -36,6 +36,7 @@ fn jump_residual_identity_binds_both_operation_and_derived_edge() {
         },
     ];
     source_plan.functions[0].operations[0] = AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(204, EdgeId::new),
         target: id(205, BlockId::new),
         bindings: Vec::new(),
@@ -212,18 +213,18 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            247, 151, 22, 197, 106, 169, 206, 163, 82, 36, 171, 182, 236, 114, 35, 145, 42, 119,
-            136, 162, 21, 131, 134, 249, 91, 47, 151, 31, 28, 81, 103, 23,
+            125, 237, 183, 215, 223, 6, 242, 51, 249, 101, 233, 176, 60, 35, 70, 85, 80, 162, 61,
+            106, 82, 223, 18, 200, 106, 73, 17, 215, 152, 176, 16, 243,
         ],
-        "v21 identity pins integer-constant and scalar-return tags and fields",
+        "v22 identity binds structural block telescopes alongside unchanged scalar operation tags",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            166, 232, 217, 229, 105, 185, 104, 251, 86, 140, 21, 174, 15, 31, 40, 72, 242, 87, 39,
-            47, 79, 252, 205, 185, 146, 16, 137, 178, 31, 105, 77, 191,
+            88, 180, 155, 196, 88, 182, 60, 118, 206, 161, 14, 227, 91, 108, 245, 215, 180, 127,
+            109, 15, 41, 187, 157, 24, 4, 52, 108, 161, 199, 233, 243, 196,
         ],
-        "v21 identity pins write-only structural storage and unit-return tags and fields",
+        "v22 identity binds structural block telescopes alongside unchanged storage and return tags",
     );
 }
 
@@ -508,6 +509,7 @@ fn canonical_identity_binds_every_retained_field_class() {
     unit.functions[0].blocks[0].nodes[0]
         .successors
         .push(OptimizationEdge {
+            structural_bindings: Vec::new(),
             psi_edge: id(101, EdgeId::new),
             target: block,
             bindings: vec![ValueBinding {

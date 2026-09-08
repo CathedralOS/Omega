@@ -192,12 +192,7 @@ impl Checker<'_> {
             when_false,
         } = control
         {
-            let Some(parameter) = self
-                .function
-                .scalar_abi
-                .as_ref()
-                .and_then(|abi| abi.parameters.get(*condition_parameter_index))
-            else {
+            let Some(parameter) = self.scalar_parameters().get(*condition_parameter_index) else {
                 return false;
             };
             if parameter.scalar_type != ScalarType::Boolean

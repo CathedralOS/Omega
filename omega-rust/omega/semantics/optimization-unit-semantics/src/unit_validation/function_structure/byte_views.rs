@@ -29,6 +29,22 @@ pub(super) fn validate_immutable_byte_view_source(
         _ => return Ok(()),
     };
     let structural_type = match source_kind {
+        Some(StructuralPlaceKind::BlockParameter {
+            block: owner,
+            position,
+        }) => function
+            .blocks
+            .iter()
+            .find(|block| block.id == *owner)
+            .and_then(|block| block.structural_parameters.get(*position as usize))
+            .filter(|parameter| {
+                parameter.place == source
+                    && parameter.access == StructuralAccess::SharedBorrow
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+            })
+            .map(|parameter| parameter.structural_type),
         Some(StructuralPlaceKind::Parameter { .. }) => function
             .structural_parameters
             .iter()

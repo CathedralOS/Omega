@@ -156,7 +156,7 @@ fn copy_extent(
 ) -> Result<(usize, usize), Error> {
     let mut spans = Vec::new();
     for access in function.memory_accesses.iter().filter(|access| {
-        access.operation == operation
+        access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation)
             && access.place == place
             && !matches!(
                 access.role,
@@ -313,6 +313,16 @@ pub(super) fn populate(
                         psi_operation: *psi_operation,
                     },
                     established_views::location(source, selected, target, *psi_operation)?,
+                ),
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block,
+                    place,
+                } => (
+                    InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+                        block: *block,
+                        place: *place,
+                    },
+                    established_views::block_location(source, selected, target, *block, *place)?,
                 ),
             };
             let (code_offset, byte_count) =

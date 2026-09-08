@@ -82,6 +82,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         trivial_affine_discards: Vec::new(),
     };
     let jump = |edge| AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: edge,
         target: join,
         bindings: Vec::new(),
@@ -91,12 +92,14 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
     let conditional = || AbstractOperation::Conditional {
         condition,
         when_true: AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(383, EdgeId::new),
             target: producer_block,
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(384, EdgeId::new),
             target: bypass_block,
             bindings: Vec::new(),
@@ -107,21 +110,25 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         OperationResultCfgShape::DominatingNonTopological => (
             vec![
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: join,
                     parameters: Vec::new(),
                     operation_offset: 0,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: producer_block,
                     parameters: Vec::new(),
                     operation_offset: 1,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: bypass_block,
                     parameters: Vec::new(),
                     operation_offset: 2,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: entry,
                     parameters: Vec::new(),
                     operation_offset: 3,
@@ -138,16 +145,19 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         OperationResultCfgShape::SiblingReturn => (
             vec![
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: entry,
                     parameters: Vec::new(),
                     operation_offset: 0,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: producer_block,
                     parameters: Vec::new(),
                     operation_offset: 1,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: bypass_block,
                     parameters: Vec::new(),
                     operation_offset: 3,
@@ -163,21 +173,25 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         OperationResultCfgShape::PartialPredecessor => (
             vec![
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: entry,
                     parameters: Vec::new(),
                     operation_offset: 0,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: producer_block,
                     parameters: Vec::new(),
                     operation_offset: 1,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: bypass_block,
                     parameters: Vec::new(),
                     operation_offset: 3,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: join,
                     parameters: Vec::new(),
                     operation_offset: 4,
@@ -247,6 +261,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
                 entry_claims: vec![entry_claim(callee_input)],
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_block,
                     parameters: Vec::new(),
                     operation_offset: 0,

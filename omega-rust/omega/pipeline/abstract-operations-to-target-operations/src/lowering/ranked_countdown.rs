@@ -30,6 +30,25 @@ pub(super) fn lower(
         || function.structural_parameters.len() != 1
         || function.entry != custody.graph.entry
         || function.block_entries.len() != 4
+        || function
+            .block_entries
+            .iter()
+            .any(|block| !block.structural_parameters.is_empty())
+        || function.operations.iter().any(|operation| match operation {
+            AbstractOperation::Jump {
+                structural_bindings,
+                ..
+            } => !structural_bindings.is_empty(),
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                !when_true.structural_bindings.is_empty()
+                    || !when_false.structural_bindings.is_empty()
+            }
+            _ => false,
+        })
     {
         return Err(invalid());
     }
@@ -109,6 +128,7 @@ pub(super) fn lower(
             psi_edge: preheader_edge,
             target: preheader_target,
             bindings: preheader_bindings,
+            structural_bindings: preheader_structural,
             trivial_affine_discards: preheader_discards,
             residual_affine_discards: preheader_residuals,
         },
@@ -126,6 +146,7 @@ pub(super) fn lower(
         || preheader_binding.scalar_type != ScalarType::Integer(u32_type)
         || !preheader_discards.is_empty()
         || !preheader_residuals.is_empty()
+        || !preheader_structural.is_empty()
     {
         return Err(invalid());
     }
@@ -189,6 +210,7 @@ pub(super) fn lower(
             right: subtract_right,
         },
         AbstractOperation::Jump {
+            structural_bindings: _,
             psi_edge: backedge,
             target: backedge_target,
             bindings: backedge_bindings,

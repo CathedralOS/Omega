@@ -143,6 +143,7 @@ fn same_reconstructible_projection(
                     && left.blocks.iter().zip(&right.blocks).all(|(left, right)| {
                         left.id == right.id
                             && left.parameters == right.parameters
+                            && left.structural_parameters == right.structural_parameters
                             && left.nodes.len() == right.nodes.len()
                             && left.nodes.iter().zip(&right.nodes).all(|(left, right)| {
                                 left.operation == right.operation
@@ -155,6 +156,8 @@ fn same_reconstructible_projection(
                                             left.psi_edge == right.psi_edge
                                                 && left.target == right.target
                                                 && left.bindings == right.bindings
+                                                && left.structural_bindings
+                                                    == right.structural_bindings
                                         },
                                     )
                                     && left.ownership == right.ownership

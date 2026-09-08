@@ -426,6 +426,7 @@ fn corruption_classes_fail_independently() {
 
     let mut cfg = unit();
     cfg.functions[0].blocks[0].nodes[1].operation = AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(5, EdgeId::new),
         target: id(77, BlockId::new),
         bindings: Vec::new(),
@@ -478,6 +479,7 @@ fn corruption_classes_fail_independently() {
     let mut cycle = unit();
     let block = cycle.functions[0].entry;
     let operation = AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(5, EdgeId::new),
         target: block,
         bindings: Vec::new(),

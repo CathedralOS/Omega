@@ -130,12 +130,13 @@ fn fixture() -> TerminalModule {
 }
 
 #[test]
-fn block_parameters_reject_before_any_byte_operation() {
+fn shared_view_block_parameters_retain_their_declarations() {
     let mut module = fixture();
-    // Visit the declaration first to test its fence independently of arguments.
+    assert_eq!(validate_structural_block_bindings(&module), Ok(()));
+    module.machines[0].blocks[1].structural_parameters[0].access = StructuralAccess::Owned;
     module.machines[0].blocks.swap(0, 1);
     assert_eq!(
-        reject_structural_block_bindings(&module),
+        validate_structural_block_bindings(&module),
         Err(LoweringError::UnsupportedStructuralBlockParameters {
             machine: module.entry,
             block: BlockId::new(2).unwrap(),
@@ -160,7 +161,7 @@ fn each_conditional_arm_is_checked_even_without_byte_operations() {
             .push(StructuralArgument {
                 place: PlaceId::new(1).unwrap(),
                 path: Vec::new(),
-                access: StructuralAccess::SharedBorrow,
+                access: StructuralAccess::Owned,
             });
         let expected_edge = successors[selected_arm].edge;
         let [when_true, when_false] = successors;
@@ -172,7 +173,7 @@ fn each_conditional_arm_is_checked_even_without_byte_operations() {
         // Deliberately inspect the consumer gate directly: neither a missing
         // condition value nor the target declaration can conceal an arm.
         assert_eq!(
-            reject_structural_block_bindings(&module),
+            validate_structural_block_bindings(&module),
             Err(LoweringError::UnsupportedStructuralSuccessorArguments {
                 machine: module.entry,
                 edge: expected_edge,
@@ -193,19 +194,35 @@ fn empty_block_bindings_preserve_the_existing_gate() {
         unreachable!()
     };
     structural_arguments.clear();
-    assert_eq!(reject_structural_block_bindings(&module), Ok(()));
+    assert_eq!(validate_structural_block_bindings(&module), Ok(()));
 }
 
 #[test]
 fn common_native_and_optimizer_lowering_cannot_drop_descriptor_only_transfer() {
     let module = fixture();
     for retain_payloadless in [false, true] {
+        let plan = crate::lowering::lower_decoded_module(&module, retain_payloadless).unwrap();
+        let function = &plan.functions[0];
         assert_eq!(
-            crate::lowering::lower_decoded_module(&module, retain_payloadless),
-            Err(LoweringError::UnsupportedStructuralSuccessorArguments {
-                machine: module.entry,
-                edge: EdgeId::new(1).unwrap(),
-            })
+            function.block_entries[1].structural_parameters,
+            module.machines[0].blocks[1].structural_parameters
+        );
+        let abstract_operations::AbstractOperation::Jump {
+            structural_bindings,
+            ..
+        } = &function.operations[0]
+        else {
+            panic!("expected exact jump");
+        };
+        assert_eq!(structural_bindings.len(), 1);
+        assert_eq!(structural_bindings[0].parameter, PlaceId::new(2).unwrap());
+        assert_eq!(
+            structural_bindings[0].argument,
+            StructuralArgument {
+                place: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow
+            }
         );
     }
 }

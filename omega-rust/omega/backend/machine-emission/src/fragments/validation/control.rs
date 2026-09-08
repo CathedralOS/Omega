@@ -120,6 +120,7 @@ mod tests {
     fn continuation_retains_exact_successor_role_and_destination() {
         let source = SelectedSuccessor {
             role: SelectedSuccessorRole::EdgeTransferContinuation,
+            structural_bindings: Vec::new(),
             psi_edge: EdgeId::new(1).unwrap(),
             block: SelectedBlockId(2),
             source_target: BlockId::new(3).unwrap(),

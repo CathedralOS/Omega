@@ -3,6 +3,29 @@ use super::*;
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
     match operation {
+        O::Jump {
+            structural_bindings,
+            ..
+        } => {
+            places.extend(
+                structural_bindings
+                    .iter()
+                    .flat_map(|binding| [binding.parameter, binding.argument.place]),
+            );
+        }
+        O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => {
+            places.extend(
+                when_true
+                    .structural_bindings
+                    .iter()
+                    .chain(&when_false.structural_bindings)
+                    .flat_map(|binding| [binding.parameter, binding.argument.place]),
+            );
+        }
         O::ByteSequenceSubslice { source, result, .. } => {
             places.insert(*source);
             places.insert(result.place);

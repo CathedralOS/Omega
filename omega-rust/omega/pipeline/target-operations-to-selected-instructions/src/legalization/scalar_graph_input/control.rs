@@ -44,6 +44,7 @@ pub(super) fn validate(
                 psi_edge,
                 target,
                 bindings,
+                structural_bindings,
                 trivial_affine_discards,
                 residual_affine_discards,
             },
@@ -52,7 +53,11 @@ pub(super) fn validate(
             let [edge] = node.successors.as_slice() else {
                 return Err(invalid);
             };
-            if edge.psi_edge != *psi_edge || edge.target != *target || edge.bindings != *bindings {
+            if edge.psi_edge != *psi_edge
+                || edge.target != *target
+                || edge.bindings != *bindings
+                || edge.structural_bindings != *structural_bindings
+            {
                 return Err(invalid);
             }
             branch_edges(node)
@@ -75,6 +80,7 @@ pub(super) fn validate(
                 if actual.psi_edge != expected.psi_edge
                     || actual.target != expected.target
                     || actual.bindings != expected.bindings
+                    || actual.structural_bindings != expected.structural_bindings
                     || !expected.trivial_affine_discards.is_empty()
                 {
                     return Err(invalid);

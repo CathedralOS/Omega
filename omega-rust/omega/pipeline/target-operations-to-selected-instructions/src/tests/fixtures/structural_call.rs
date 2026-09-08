@@ -91,6 +91,7 @@ pub(in crate::tests) fn structural_call_fixture() -> (
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -135,6 +136,7 @@ pub(in crate::tests) fn structural_call_fixture() -> (
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_block,
                     parameters: Vec::new(),
                     operation_offset: 0,

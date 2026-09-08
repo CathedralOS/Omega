@@ -93,8 +93,23 @@ pub(in crate::lowering::scalar) fn lower(
         .zip(call_plan.parameters.iter().skip(arguments.len()))
         .map(
             |(((argument, destination_parameter), shape), destination)| {
-                if let Some((producer, structural_type)) =
+                if let Some((source, structural_type)) =
                     established_view(caller, *psi_operation, argument.place, structural_types)
+                        .map(|(producer, structural_type)| {
+                            (
+                        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                            psi_operation: producer,
+                        },
+                        structural_type,
+                    )
+                        })
+                        .or_else(|| {
+                            super::super::byte_views::block_source(
+                                caller,
+                                argument.place,
+                                structural_types,
+                            )
+                        })
                 {
                     if !argument.path.is_empty()
                         || argument.access != terminal_psi::StructuralAccess::SharedBorrow
@@ -117,10 +132,7 @@ pub(in crate::lowering::scalar) fn lower(
                         source_byte_offset: 0,
                         fixed_array_length: None,
                         element_stride: None,
-                        source:
-                            target_operations::TargetStructuralArgumentSource::EstablishedByteView {
-                                psi_operation: producer,
-                            },
+                        source,
                         destination: destination.clone(),
                     });
                 }

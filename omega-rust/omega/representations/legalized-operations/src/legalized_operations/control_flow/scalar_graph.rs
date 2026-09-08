@@ -70,6 +70,7 @@ pub struct LegalizedScalarParameter {
 pub struct LegalizedScalarBlock {
     pub id: BlockId,
     pub parameters: Vec<optimization_unit::ValueDefinition>,
+    pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
     pub instructions: Vec<LegalizedScalarInstruction>,
     pub terminator: LegalizedScalarTerminator,
 }
@@ -175,6 +176,7 @@ pub struct LegalizedScalarSuccessor {
     pub edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
+    pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
     pub fuel: Vec<FuelSettlement>,
 }
 

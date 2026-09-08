@@ -185,6 +185,7 @@ pub(crate) fn phi_translated_gvn_fixture(
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: join,
                         parameters: vec![AbstractParameter {
                             value: join_input,
@@ -193,16 +194,19 @@ pub(crate) fn phi_translated_gvn_fixture(
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: left_block,
                         parameters: Vec::new(),
                         operation_offset: 2,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 4,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: right_block,
                         parameters: Vec::new(),
                         operation_offset: 5,
@@ -219,6 +223,7 @@ pub(crate) fn phi_translated_gvn_fixture(
                     },
                     left_expression,
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_720, EdgeId::new),
                         target: join,
                         bindings: vec![ValueBinding {
@@ -232,12 +237,14 @@ pub(crate) fn phi_translated_gvn_fixture(
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_718, EdgeId::new),
                             target: left_block,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_719, EdgeId::new),
                             target: right_block,
                             bindings: Vec::new(),
@@ -246,6 +253,7 @@ pub(crate) fn phi_translated_gvn_fixture(
                     },
                     right_expression,
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_717, EdgeId::new),
                         target: join,
                         bindings: vec![ValueBinding {

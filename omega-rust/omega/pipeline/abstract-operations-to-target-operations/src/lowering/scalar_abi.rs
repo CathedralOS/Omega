@@ -27,7 +27,8 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     };
     if !result_supported
         || function.parameters.iter().any(|parameter| {
-            !matches!(parameter.scalar_type, ScalarType::Integer(integer)
+            parameter.scalar_type != ScalarType::Boolean
+                && !matches!(parameter.scalar_type, ScalarType::Integer(integer)
                 if fixed_native_integer_shape(integer).is_some())
         })
     {
@@ -48,15 +49,10 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
         .parameters
         .iter()
         .zip(&prepared.call_plan.parameters[..scalar_count])
-        .map(|(parameter, placement)| {
-            let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
-                unreachable!("mixed ABI scalar family was checked above")
-            };
-            ScalarAbiValue {
-                value: parameter.value,
-                scalar_type: ScalarType::Integer(scalar_type),
-                placement: placement.clone(),
-            }
+        .map(|(parameter, placement)| ScalarAbiValue {
+            value: parameter.value,
+            scalar_type: parameter.scalar_type,
+            placement: placement.clone(),
         })
         .collect();
     Ok(Some(MixedStructuralScalarFunctionAbi {
@@ -335,6 +331,66 @@ mod tests {
             );
             assert_eq!(abi.result.value, mixed.result.scalar().unwrap().value);
             assert_eq!(abi.call_plan.result.as_ref(), Some(&abi.result.placement));
+        }
+    }
+
+    #[test]
+    fn mixed_abi_retains_boolean_prefix_and_two_independent_shared_views() {
+        let mut mixed = function();
+        mixed.parameters[0].scalar_type = ScalarType::Boolean;
+        mixed.parameters.push(AbstractParameter {
+            value: ValueId::new(3).unwrap(),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        });
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        mixed.structural_parameters = (0..2)
+            .map(|position| terminal_psi::StructuralParameterDeclaration {
+                place: PlaceId::new(u64::from(position) + 10).unwrap(),
+                position,
+                is_self: false,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            })
+            .collect();
+        let declaration = StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "bytes".into(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView,
+            ),
+        };
+        let declarations = BTreeMap::from([(structural_type, &declaration)]);
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let abi = derive_mixed_structural_scalar_function_abi(&mixed, target, &declarations)
+                .unwrap()
+                .unwrap();
+            assert_eq!(abi.call_plan.parameters.len(), 4);
+            assert_eq!(abi.scalar_parameters[0].scalar_type, ScalarType::Boolean);
+            assert_eq!(
+                abi.scalar_parameters[0].placement.shape,
+                ValueShape::integer(1, 1)
+            );
+            for (position, parameter) in abi.structural_parameters.iter().enumerate() {
+                assert_eq!(parameter.place, mixed.structural_parameters[position].place);
+                assert_eq!(parameter.placement, abi.call_plan.parameters[position + 2]);
+                assert_eq!(parameter.shape, ValueShape::borrowed_reference(16, 8));
+            }
+            let mut address = mixed.clone();
+            address.parameters[0].scalar_type =
+                ScalarType::Integer(IntegerType::address(64).unwrap());
+            assert!(
+                derive_mixed_structural_scalar_function_abi(&address, target, &declarations)
+                    .unwrap()
+                    .is_none()
+            );
         }
     }
 

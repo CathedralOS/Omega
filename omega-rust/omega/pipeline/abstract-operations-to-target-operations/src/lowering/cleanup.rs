@@ -118,6 +118,7 @@ pub(super) fn validate_bounded_nominal_cleanup_body(
             || !helper.published_service_ceiling.is_empty()
             || helper.block_entries.as_slice()
                 != [abstract_operations::AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: helper.entry,
                     parameters: Vec::new(),
                     operation_offset: 0,

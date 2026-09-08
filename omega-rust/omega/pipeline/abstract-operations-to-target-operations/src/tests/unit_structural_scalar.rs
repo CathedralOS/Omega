@@ -34,6 +34,7 @@ fn direct_projected_integer_plan() -> AbstractOperationPlan {
         projected_qualifications: Vec::new(),
     };
     let block_entry = |machine: MachineId| AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: BlockId::new(machine.get()).unwrap(),
         parameters: Vec::new(),
         operation_offset: 0,

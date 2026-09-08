@@ -7,7 +7,9 @@ use machine_code::{
     InternalStructuralCallResult, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
     InternalUnitScalarCallArgumentRecord, InternalUnitStructuralArgumentSourceRecord,
 };
-use semantic_vocabulary::{ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{
+    BlockId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId,
+};
 use target_operations::CallSiteOwner;
 use terminal_psi::{
     ClaimTransfer, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
@@ -49,6 +51,11 @@ fn encode_structural_source(
             bytes.push(1);
             push_u64(bytes, psi_operation.get());
         }
+        InternalUnitStructuralArgumentSourceRecord::BlockParameter { block, place } => {
+            bytes.push(2);
+            push_u64(bytes, block.get());
+            push_u64(bytes, place.get());
+        }
     }
     Ok(())
 }
@@ -66,6 +73,12 @@ fn decode_structural_source(
                     .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
             },
         ),
+        2 => Ok(InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+            block: BlockId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            place: PlaceId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+        }),
         tag => Err(InstallationError::InvalidInternalUnitStructuralSourceTag(
             tag,
         )),
@@ -758,6 +771,10 @@ mod tests {
         assert_eq!(bytes, [1, 8, 7, 6, 5, 4, 3, 2, 1]);
         for source in [
             established,
+            InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+                block: BlockId::new(211).unwrap(),
+                place: PlaceId::new(213).unwrap(),
+            },
             calling_conventions::ValuePlacement {
                 shape: calling_conventions::ValueShape::borrowed_reference(16, 8),
                 locations: vec![calling_conventions::ValueLocation::Register {
@@ -782,9 +799,25 @@ mod tests {
             Err(InstallationError::ZeroInternalUnitCallIdentity),
         );
         assert_eq!(
-            decode_structural_source(&mut Reader::new(&[2])),
-            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(2)),
+            decode_structural_source(&mut Reader::new(&[3])),
+            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(3)),
         );
+        for zero_offset in [1, 9] {
+            let mut bytes = Vec::new();
+            encode_structural_source(
+                &mut bytes,
+                &InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+                    block: BlockId::new(211).unwrap(),
+                    place: PlaceId::new(213).unwrap(),
+                },
+            )
+            .unwrap();
+            bytes[zero_offset..zero_offset + 8].fill(0);
+            assert_eq!(
+                decode_structural_source(&mut Reader::new(&bytes)),
+                Err(InstallationError::ZeroInternalUnitCallIdentity)
+            );
+        }
     }
 
     fn affine_result() -> InternalStructuralCallResult {

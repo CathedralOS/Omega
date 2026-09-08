@@ -64,12 +64,14 @@ fn fixture(
     }];
     caller.block_entries = [(1, 0), (2, 3), (3, 5)]
         .map(|(block, operation_offset)| AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: BlockId::new(block).unwrap(),
             parameters: Vec::new(),
             operation_offset,
         })
         .to_vec();
     let successor = |identity, target| AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(identity).unwrap(),
         target: BlockId::new(target).unwrap(),
         bindings: Vec::new(),

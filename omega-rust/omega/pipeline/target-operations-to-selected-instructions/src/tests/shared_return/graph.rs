@@ -70,6 +70,7 @@ fn expanded(
     when_true.target = block(5);
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     function.block_entries.push(AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: block(5),
         parameters: vec![],
         operation_offset: function.operations.len(),
@@ -82,6 +83,7 @@ fn expanded(
             value: IntegerValue::Unsigned(13),
         },
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: edge(6),
             target: block(3),
             bindings,

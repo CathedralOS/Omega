@@ -20,6 +20,15 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.predecessor.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    // These rewrites substitute scalar bindings only.
+    if function
+        .blocks
+        .iter()
+        .any(|block| !block.structural_parameters.is_empty())
+    {
+        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+    }
+
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
@@ -32,6 +41,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
     let O::Jump {
+        structural_bindings: _,
         psi_edge: outgoing_edge,
         target,
         bindings: outgoing_bindings,
@@ -83,6 +93,7 @@ pub(super) fn validate(
             .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
     };
     let O::Jump {
+        structural_bindings: _,
         psi_edge: incoming_edge,
         target: predecessor_target,
         bindings: incoming_bindings,
@@ -177,6 +188,7 @@ pub(super) fn validate(
     let mut combined_fuel = predecessor_edge.fuel.clone();
     combined_fuel.extend_from_slice(&empty_edge.fuel);
     output_predecessor.operation = O::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: patch.incoming_edge,
         target: patch.target,
         bindings: composed_bindings,

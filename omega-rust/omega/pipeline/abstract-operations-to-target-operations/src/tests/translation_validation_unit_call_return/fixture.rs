@@ -50,6 +50,7 @@ pub(super) fn base_plan() -> AbstractOperationPlan {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_entry,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -80,6 +81,7 @@ pub(super) fn base_plan() -> AbstractOperationPlan {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_entry,
                     parameters: Vec::new(),
                     operation_offset: 0,

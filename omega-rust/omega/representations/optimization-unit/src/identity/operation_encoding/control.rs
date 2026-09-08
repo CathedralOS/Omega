@@ -9,6 +9,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             psi_edge,
             target,
             bindings,
+            structural_bindings,
             trivial_affine_discards,
             residual_affine_discards,
         } => {
@@ -16,6 +17,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_edge);
             bytes.id(*target);
             bytes.slice(bindings, encode_binding);
+            bytes.slice(structural_bindings, encode_structural_binding);
             encode_ids(bytes, trivial_affine_discards);
             bytes.slice(residual_affine_discards, encode_residual_cleanup);
         }
@@ -107,5 +109,6 @@ fn encode_successor(bytes: &mut CanonicalBytes, successor: &AbstractSuccessor) {
     bytes.id(successor.psi_edge);
     bytes.id(successor.target);
     bytes.slice(&successor.bindings, encode_binding);
+    bytes.slice(&successor.structural_bindings, encode_structural_binding);
     encode_ids(bytes, &successor.trivial_affine_discards);
 }

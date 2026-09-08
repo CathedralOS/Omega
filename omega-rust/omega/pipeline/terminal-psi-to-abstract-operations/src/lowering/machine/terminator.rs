@@ -19,8 +19,7 @@ pub(super) fn lower_terminator(
             arguments,
             trivial_affine_discards,
             residual_affine_discards,
-            // The common lowering entrance rejects structural arguments.
-            structural_arguments: _,
+            structural_arguments,
         } => {
             let target_block =
                 blocks
@@ -30,12 +29,25 @@ pub(super) fn lower_terminator(
                         machine: machine.id,
                         block: *target,
                     })?;
-            if target_block.parameters.len() != arguments.len() {
+            if target_block.parameters.len() != arguments.len()
+                || target_block.structural_parameters.len() != structural_arguments.len()
+            {
                 return Err(LoweringError::VerifiedJumpArityMismatch { edge: *edge });
             }
             operations.push(AbstractOperation::Jump {
                 psi_edge: *edge,
                 target: *target,
+                structural_bindings: target_block
+                    .structural_parameters
+                    .iter()
+                    .zip(structural_arguments)
+                    .map(
+                        |(parameter, argument)| abstract_operations::AbstractStructuralBinding {
+                            parameter: parameter.place,
+                            argument: argument.clone(),
+                        },
+                    )
+                    .collect(),
                 bindings: target_block
                     .parameters
                     .iter()
@@ -62,7 +74,10 @@ pub(super) fn lower_terminator(
                         block: successor.target,
                     },
                 )?;
-                if target_block.parameters.len() != successor.arguments.len() {
+                if target_block.parameters.len() != successor.arguments.len()
+                    || target_block.structural_parameters.len()
+                        != successor.structural_arguments.len()
+                {
                     return Err(LoweringError::VerifiedJumpArityMismatch {
                         edge: successor.edge,
                     });
@@ -70,6 +85,17 @@ pub(super) fn lower_terminator(
                 Ok(AbstractSuccessor {
                     psi_edge: successor.edge,
                     target: successor.target,
+                    structural_bindings: target_block
+                        .structural_parameters
+                        .iter()
+                        .zip(&successor.structural_arguments)
+                        .map(|(parameter, argument)| {
+                            abstract_operations::AbstractStructuralBinding {
+                                parameter: parameter.place,
+                                argument: argument.clone(),
+                            }
+                        })
+                        .collect(),
                     bindings: target_block
                         .parameters
                         .iter()

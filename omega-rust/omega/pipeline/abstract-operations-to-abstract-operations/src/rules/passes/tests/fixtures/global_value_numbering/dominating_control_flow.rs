@@ -117,11 +117,13 @@ pub(crate) fn scalar_dominator_gvn_unit(proof_certified: bool) -> PsiOptimizatio
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: dominated,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 3,
@@ -156,6 +158,7 @@ pub(crate) fn scalar_dominator_gvn_unit(proof_certified: bool) -> PsiOptimizatio
                         right,
                     ),
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_350, EdgeId::new),
                         target: dominated,
                         bindings: Vec::new(),
@@ -221,21 +224,25 @@ pub(crate) fn diamond_dominator_gvn_unit() -> PsiOptimizationUnit {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: join,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: left_block,
                         parameters: Vec::new(),
                         operation_offset: 3,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 4,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: right_block,
                         parameters: Vec::new(),
                         operation_offset: 7,
@@ -262,6 +269,7 @@ pub(crate) fn diamond_dominator_gvn_unit() -> PsiOptimizationUnit {
                         cleanup_actions: Vec::new(),
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_415, EdgeId::new),
                         target: join,
                         bindings: Vec::new(),
@@ -283,12 +291,14 @@ pub(crate) fn diamond_dominator_gvn_unit() -> PsiOptimizationUnit {
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_418, EdgeId::new),
                             target: left_block,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_419, EdgeId::new),
                             target: right_block,
                             bindings: Vec::new(),
@@ -296,6 +306,7 @@ pub(crate) fn diamond_dominator_gvn_unit() -> PsiOptimizationUnit {
                         },
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_420, EdgeId::new),
                         target: join,
                         bindings: Vec::new(),
@@ -354,21 +365,25 @@ pub(crate) fn sibling_only_gvn_unit() -> PsiOptimizationUnit {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: join,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: left_block,
                         parameters: Vec::new(),
                         operation_offset: 2,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 4,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: right_block,
                         parameters: Vec::new(),
                         operation_offset: 5,
@@ -395,6 +410,7 @@ pub(crate) fn sibling_only_gvn_unit() -> PsiOptimizationUnit {
                         operand,
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_453, EdgeId::new),
                         target: join,
                         bindings: Vec::new(),
@@ -404,12 +420,14 @@ pub(crate) fn sibling_only_gvn_unit() -> PsiOptimizationUnit {
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_454, EdgeId::new),
                             target: left_block,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_455, EdgeId::new),
                             target: right_block,
                             bindings: Vec::new(),
@@ -417,6 +435,7 @@ pub(crate) fn sibling_only_gvn_unit() -> PsiOptimizationUnit {
                         },
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_456, EdgeId::new),
                         target: join,
                         bindings: Vec::new(),

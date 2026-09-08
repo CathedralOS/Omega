@@ -1,7 +1,7 @@
 //! Semantic call and memory contracts attached to ordinary selected instructions.
 use crate::{SelectedBlockId, SelectedInstructionId};
 use optimization_unit::{EffectLink, OwnershipEvent};
-use semantic_vocabulary::{OperationId, PlaceId};
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OutgoingArgumentSlotId {
@@ -12,6 +12,10 @@ pub struct OutgoingArgumentSlotId {
 /// Activation-local storage identity, independent of any call's ABI copies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LocalStorageSlotId {
+    StructuralBlockParameter {
+        block: BlockId,
+        place: PlaceId,
+    },
     /// One compiler-owned slot per original virtual value, scoped to its function.
     Spill {
         register: crate::VirtualRegisterId,
@@ -29,13 +33,15 @@ impl LocalStorageSlotId {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Structural { operation, .. } | Self::Boundary { operation } => Some(operation),
-            Self::Spill { .. } => None,
+            Self::Spill { .. } | Self::StructuralBlockParameter { .. } => None,
         }
     }
 
     pub const fn structural_place(self) -> Option<PlaceId> {
         match self {
-            Self::Structural { place, .. } => Some(place),
+            Self::Structural { place, .. } | Self::StructuralBlockParameter { place, .. } => {
+                Some(place)
+            }
             Self::Boundary { .. } | Self::Spill { .. } => None,
         }
     }
@@ -43,6 +49,11 @@ impl LocalStorageSlotId {
     /// Tagged storage-origin identity; boundary scratch never fabricates a place.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
+            Self::StructuralBlockParameter { block, place } => {
+                bytes.push(3);
+                bytes.extend_from_slice(&block.get().to_le_bytes());
+                bytes.extend_from_slice(&place.get().to_le_bytes());
+            }
             Self::Spill { register } => {
                 bytes.push(2);
                 bytes.extend_from_slice(&register.0.to_le_bytes());
@@ -124,11 +135,30 @@ pub enum SelectedMemoryAccessRole {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedMemoryAccess {
     pub instruction: SelectedInstructionId,
-    pub operation: OperationId,
+    pub origin: SelectedMemoryAccessOrigin,
     pub place: PlaceId,
     pub byte_offset: u32,
     pub byte_count: u32,
     pub role: SelectedMemoryAccessRole,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedMemoryAccessOrigin {
+    Operation(OperationId),
+    Edge(EdgeId),
+    Block(BlockId),
+}
+
+impl SelectedMemoryAccessOrigin {
+    pub fn encode_identity(self, bytes: &mut Vec<u8>) {
+        let (tag, identity) = match self {
+            Self::Operation(identity) => (0, identity.get()),
+            Self::Edge(identity) => (1, identity.get()),
+            Self::Block(identity) => (2, identity.get()),
+        };
+        bytes.push(tag);
+        bytes.extend_from_slice(&identity.to_le_bytes());
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

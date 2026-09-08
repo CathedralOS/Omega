@@ -90,6 +90,7 @@ pub(crate) fn unary_constant_unit(
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,

@@ -58,6 +58,7 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -117,6 +118,26 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
         )
     };
     check(&target.functions[0]).unwrap();
+    let mut invented = target.functions[0].clone();
+    let TargetOperation::UnitGraph(graph) = &mut invented.operation else {
+        panic!("graph");
+    };
+    let TargetUnitOperation::ByteSequenceSubslice { view, .. } = &mut graph.blocks[0].operations[1]
+    else {
+        panic!("subslice");
+    };
+    let target_operations::TargetByteView::Subslice { source, .. } = view else {
+        panic!("view");
+    };
+    **source = target_operations::TargetByteView::BlockParameter {
+        block: unit.functions[0].entry,
+        place,
+        structural_type,
+    };
+    assert!(
+        check(&invented).is_err(),
+        "machine parameter cannot masquerade as a block descriptor"
+    );
     for mutation in 0..5 {
         let mut changed = target.functions[0].clone();
         let TargetOperation::UnitGraph(graph) = &mut changed.operation else {

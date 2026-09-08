@@ -32,6 +32,7 @@ fn value(identity: u64) -> ValueId {
 }
 fn successor(identity: u64, target: u64) -> AbstractSuccessor {
     AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: edge(identity),
         target: block(target),
         bindings: Vec::new(),
@@ -51,6 +52,7 @@ fn call(identity: u64, argument: u64) -> AbstractOperation {
 }
 fn jump(identity: u64) -> AbstractOperation {
     AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: edge(identity),
         target: block(4),
         bindings: Vec::new(),
@@ -92,6 +94,7 @@ pub(super) fn fixture(
     ];
     caller.block_entries = [(1, 0), (2, 1), (3, 4), (4, 6)]
         .map(|(identity, offset)| AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(identity),
             parameters: Vec::new(),
             operation_offset: offset,

@@ -45,7 +45,19 @@ checks the expansion and contracts it back to the source graph, with the authore
 edge and its fuel retained once; the final implementation jump carries lineage,
 not a second semantic transition. No source block or operation is fabricated.
 Computed Boolean comparisons remain branch predicates until value materialization
-is implemented; structural descriptor transfers and ranked control are separate.
+is implemented; natural-ranked native control remains separate.
+
+Whole, unqualified, unrestricted shared byte views use the same edge bridges.
+Each block parameter owns a 16-byte activation-local descriptor slot. Its address
+is formed at invocation entry without reading uninitialized contents. The chosen
+edge snapshots both words of every incoming descriptor and all scalar arguments
+before any destination replacement, preserving parallel swaps and earlier aliases
+when a producer's slot is reused. Backing bytes are never copied. Independent
+replay rejoins the exact source place, destination block/place, offsets and edge;
+memory metadata distinguishes operation, block-address and edge-copy origins.
+Source-graph availability establishes initialized descriptor contents; address
+register dominance alone does not. Length/bounds observations belong to the newly
+bound destination view rather than an arbitrary predecessor's scalar length.
 
 Structural argument snapshots, loads/stores, frame addresses and calls use
 ordinary virtual instructions with exact slot/access/call metadata. Copying an
@@ -70,12 +82,12 @@ whose referent is exactly the SSA source's primitive scalar type. Boolean and
 fixed 8/16/32/64-bit integers are supported; no synthetic record, field, readable
 borrow, or IEEE-to-integer conversion is introduced.
 
-Literal and called subslice descriptors use activation-local homes, separately
+Literal and transported subslice descriptors use activation-local homes, separately
 from ABI argument-copy slots. A subslice retains the original backing plus
-exact integer offset and length; only a view used as a call argument acquires
+exact integer offset and length; a subslice used as a call or block argument acquires
 an addressable 16-byte descriptor. Repeated calls forward that descriptor,
-never a copy of its bytes. Producer/result identity, bounds and selected SSA
-dominance remain required, including across guarded blocks.
+never a copy of its bytes. Producer/result identity, bounds, source-place availability
+and selected address lifetime remain required, including across guarded blocks.
 
 On the current 64-bit targets, `ByteViewAddress` forms the private descriptor's
 address bits without asserting exact source integer arithmetic. Valid root

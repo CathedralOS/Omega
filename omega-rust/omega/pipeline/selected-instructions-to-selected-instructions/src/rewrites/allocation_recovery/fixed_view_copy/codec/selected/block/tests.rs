@@ -3,6 +3,7 @@ use semantic_vocabulary::ScalarType;
 fn successor() -> SelectedSuccessor {
     SelectedSuccessor {
         role: SelectedSuccessorRole::Semantic,
+        structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(1).unwrap(),
         block: SelectedBlockId(2),
         source_target: BlockId::new(3).unwrap(),
@@ -25,7 +26,7 @@ fn successor_register_transport_has_exact_canonical_bytes() {
     let original = successor();
     let mut encoded = Vec::new();
     encode_successor(&mut encoded, &original);
-    let golden = "0001000000000000000200000003000000000000000100000000000000040000000000000005000000000000000001110000001d0000000000000000000000";
+    let golden = "0001000000000000000200000003000000000000000100000000000000040000000000000005000000000000000001110000001d00000000000000000000000000000000000000";
     let expected = (0..golden.len())
         .step_by(2)
         .map(|offset| u8::from_str_radix(&golden[offset..offset + 2], 16).unwrap())
@@ -44,6 +45,48 @@ fn successor_register_transport_has_exact_canonical_bytes() {
         decode_successor(&mut Cursor::new(&unused_encoded)).unwrap(),
         unused
     );
+}
+
+#[test]
+fn descriptor_binding_retains_semantic_place_and_transport_without_scalar_identity() {
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedStructuralBinding, SelectedStructuralTransport,
+    };
+    use semantic_vocabulary::PlaceId;
+    let mut original = successor();
+    original
+        .structural_bindings
+        .push(SelectedStructuralBinding {
+            semantic: abstract_operations::AbstractStructuralBinding {
+                parameter: PlaceId::new(31).unwrap(),
+                argument: terminal_psi::StructuralArgument {
+                    place: PlaceId::new(37).unwrap(),
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+            },
+            transport: SelectedStructuralTransport::Descriptor {
+                argument: VirtualRegisterId(41),
+                destination: LocalStorageSlotId::StructuralBlockParameter {
+                    block: original.source_target,
+                    place: PlaceId::new(31).unwrap(),
+                },
+            },
+        });
+    for transport in [
+        original.structural_bindings[0].transport,
+        SelectedStructuralTransport::Unused,
+    ] {
+        original.structural_bindings[0].transport = transport;
+        let mut bytes = Vec::new();
+        encode_successor(&mut bytes, &original);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_successor(&mut cursor).unwrap(), original);
+        assert_eq!(cursor.remaining(), 0);
+        for length in 0..bytes.len() {
+            assert!(decode_successor(&mut Cursor::new(&bytes[..length])).is_err());
+        }
+    }
 }
 #[test]
 fn successor_rejects_unknown_transport_and_incomplete_register_pair() {

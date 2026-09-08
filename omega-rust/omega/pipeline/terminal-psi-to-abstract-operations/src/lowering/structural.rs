@@ -115,6 +115,7 @@ pub(super) fn lower_structural_machine(
             entry_claims: vec![entry_claim.clone()],
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: block.id,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -301,6 +302,7 @@ pub(super) fn lower_structural_machine(
         entry_claims: vec![entry_claim.clone()],
         published_service_ceiling: Vec::new(),
         block_entries: vec![AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block.id,
             parameters: Vec::new(),
             operation_offset: 0,
@@ -433,6 +435,7 @@ fn lower_claim_free_affine_mixed_machine(
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         block_entries: vec![AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block.id,
             parameters,
             operation_offset: 0,

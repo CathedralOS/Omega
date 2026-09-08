@@ -20,6 +20,12 @@ pub(crate) fn reconstruct_declared_places(
     let mut known_places = function
         .structural_parameters
         .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
         .map(|parameter| parameter.place)
         .chain(
             function
@@ -72,6 +78,29 @@ pub(crate) fn validate_operation_places(
         }
     };
     match operation {
+        O::Jump {
+            structural_bindings,
+            ..
+        } => {
+            for binding in structural_bindings {
+                require(binding.parameter, known)?;
+                require(binding.argument.place, known)?;
+            }
+        }
+        O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => {
+            for binding in when_true
+                .structural_bindings
+                .iter()
+                .chain(&when_false.structural_bindings)
+            {
+                require(binding.parameter, known)?;
+                require(binding.argument.place, known)?;
+            }
+        }
         O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. } => {}

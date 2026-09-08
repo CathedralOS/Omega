@@ -19,16 +19,9 @@ pub(super) fn create(
     else {
         return Err(replay.invalid());
     };
-    let signature = function
-        .structural
-        .as_ref()
-        .ok_or_else(|| replay.invalid())?;
-    let [parameter] = signature.parameters.as_slice() else {
-        return Err(replay.invalid());
-    };
     if row.result.is_some()
-        || parameter.semantic.access != StructuralAccess::SharedBorrow
-        || view.structural_type != parameter.semantic.structural_type
+        || crate::selection::established_view_input::view_type(function, *source)
+            != Some(view.structural_type)
         || view.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !view.qualifications.is_empty()
         || !view.projected_qualifications.is_empty()
@@ -117,7 +110,7 @@ pub(super) fn create(
         byte_length,
         root_length,
     });
-    if crate::selection::established_view_input::called(function, view.place) {
+    if crate::selection::established_view_input::requires_descriptor(function, view.place) {
         let slot = selected_instructions::LocalStorageSlotId::Structural {
             operation: row.operation,
             place: view.place,

@@ -78,7 +78,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     encode_len(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
         bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
-        bytes.extend_from_slice(&row.operation.get().to_le_bytes());
+        row.origin.encode_identity(bytes);
         bytes.extend_from_slice(&row.place.get().to_le_bytes());
         bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
         bytes.extend_from_slice(&row.byte_count.to_le_bytes());

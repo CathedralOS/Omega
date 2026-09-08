@@ -3,6 +3,30 @@
 use super::*;
 use target_operations::TargetByteView;
 
+pub(in crate::lowering) fn block_source(
+    function: &AbstractFunction,
+    place: PlaceId,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<(
+    target_operations::TargetStructuralArgumentSource,
+    StructuralTypeId,
+)> {
+    function.block_entries.iter().find_map(|entry| {
+        let parameter = entry
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)?;
+        (entry.block != function.entry && is_immutable_byte_parameter(parameter, structural_types))
+            .then_some((
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block: entry.block,
+                    place,
+                },
+                parameter.structural_type,
+            ))
+    })
+}
+
 pub(in crate::lowering) fn is_immutable_byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -172,6 +196,24 @@ pub(in crate::lowering) fn view_for_place(
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
     if active.contains(&place) {
         return Err(invalid());
+    }
+    if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
+        entry
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+            .map(|parameter| (entry, parameter))
+    }) {
+        if entry.block == function.entry
+            || !is_immutable_byte_parameter(parameter, structural_types)
+        {
+            return Err(invalid());
+        }
+        return Ok(TargetByteView::BlockParameter {
+            block: entry.block,
+            place,
+            structural_type: parameter.structural_type,
+        });
     }
     if let Some(semantic) = function
         .structural_parameters

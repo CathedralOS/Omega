@@ -176,14 +176,31 @@ pub(super) fn lower_structural_unit_call(
         .zip(callee_shapes.iter().copied())
         .zip(callee_plan.parameters.iter().skip(scalar_arguments.len()))
         .map(|(((argument, callee_parameter), shape), destination)| {
-            if let Some((producer, structural_type)) = established_views.get(&argument.place) {
+            if let Some((source, structural_type)) = established_views
+                .get(&argument.place)
+                .map(|(producer, structural_type)| {
+                    (
+                        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                            psi_operation: *producer,
+                        },
+                        *structural_type,
+                    )
+                })
+                .or_else(|| {
+                    super::super::scalar::byte_views::block_source(
+                        function,
+                        argument.place,
+                        structural_types,
+                    )
+                })
+            {
                 if !argument.path.is_empty()
                     || argument.access != StructuralAccess::SharedBorrow
                     || !super::super::scalar::byte_views::is_immutable_byte_parameter(
                         callee_parameter,
                         structural_types,
                     )
-                    || *structural_type != callee_parameter.structural_type
+                    || structural_type != callee_parameter.structural_type
                     || shape != ValueShape::borrowed_reference(16, 8)
                 {
                     return Err(LoweringError::StructuralCallArgumentTypeMismatch {
@@ -195,16 +212,13 @@ pub(super) fn lower_structural_unit_call(
                     place: argument.place,
                     access: argument.access,
                     path: Vec::new(),
-                    root_structural_type: *structural_type,
-                    structural_type: *structural_type,
+                    root_structural_type: structural_type,
+                    structural_type,
                     shape,
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
-                    source:
-                        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
-                            psi_operation: *producer,
-                        },
+                    source,
                     destination: destination.clone(),
                 });
             }

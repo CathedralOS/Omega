@@ -23,7 +23,7 @@ pub(in crate::selection) fn prepare(
                     SelectedValueTransport::Unused => None,
                 })
                 .collect::<Vec<_>>();
-            if active.is_empty() {
+            if active.is_empty() && successor.structural_bindings.is_empty() {
                 continue;
             }
             let bridge_id = SelectedBlockId(
@@ -35,7 +35,21 @@ pub(in crate::selection) fn prepare(
             let mut instructions = Vec::new();
             let mut snapshots = Vec::new();
             let mut transfers = Vec::new();
+            let mut descriptors = Vec::new();
             for phase in 0..2 {
+                if phase == 1 {
+                    descriptors = super::descriptors::snapshot(
+                        function_index,
+                        &mut function.virtual_registers,
+                        &mut function.memory_accesses,
+                        &mut instructions,
+                        &mut next_instruction,
+                        successor.psi_edge,
+                        &successor.structural_bindings,
+                        constraints,
+                        catalog,
+                    )?;
+                }
                 for (position, (semantic, argument, _)) in active.iter().enumerate() {
                     let input = if phase == 0 {
                         *argument
@@ -84,6 +98,17 @@ pub(in crate::selection) fn prepare(
                     }
                 }
             }
+            super::descriptors::store(
+                function_index,
+                &mut function.memory_accesses,
+                &mut instructions,
+                &mut next_instruction,
+                successor.psi_edge,
+                &successor.structural_bindings,
+                &descriptors,
+                constraints,
+                catalog,
+            )?;
             let mut position = 0;
             for binding in &mut continuation.bindings {
                 if let SelectedValueTransport::Registers { argument, .. } = &mut binding.transport {
@@ -118,6 +143,9 @@ pub(in crate::selection) fn prepare(
             successor.block = bridge_id;
             for binding in &mut successor.bindings {
                 binding.transport = SelectedValueTransport::Unused;
+            }
+            for binding in &mut successor.structural_bindings {
+                binding.transport = selected_instructions::SelectedStructuralTransport::Unused;
             }
         }
     }

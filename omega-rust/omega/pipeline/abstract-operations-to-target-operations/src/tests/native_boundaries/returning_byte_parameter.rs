@@ -34,6 +34,7 @@ pub(super) fn fixture() -> AbstractOperationPlan {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -121,6 +122,7 @@ fn returning_byte_output_accepts_canonical_empty_or_declared_entry_parameters() 
                 1 => changed.functions[0].parameters[0].scalar_type = ScalarType::Boolean,
                 2 => changed.boundary_machines[0].scalar_parameters[0] = ScalarType::Boolean,
                 3 => changed.functions[0].block_entries.push(AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: BlockId::new(999).unwrap(),
                     parameters: Vec::new(),
                     operation_offset: 1,

@@ -64,11 +64,13 @@ pub(crate) fn redundant_block_parameter_unit(redundant: bool) -> PsiOptimization
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: merge,
                         parameters: vec![AbstractParameter {
                             value: parameter,
@@ -81,12 +83,14 @@ pub(crate) fn redundant_block_parameter_unit(redundant: bool) -> PsiOptimization
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(709, EdgeId::new),
                             target: merge,
                             bindings: vec![binding(shared)],
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(710, EdgeId::new),
                             target: merge,
                             bindings: vec![binding(if redundant { shared } else { alternate })],

@@ -39,21 +39,25 @@ pub(crate) fn shared_terminal_unit() -> PsiOptimizationUnit {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: left_block,
                         parameters: Vec::new(),
                         operation_offset: 1,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: right_block,
                         parameters: Vec::new(),
                         operation_offset: 2,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: target,
                         parameters: Vec::new(),
                         operation_offset: 3,
@@ -63,12 +67,14 @@ pub(crate) fn shared_terminal_unit() -> PsiOptimizationUnit {
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(931, EdgeId::new),
                             target: left_block,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(932, EdgeId::new),
                             target: right_block,
                             bindings: Vec::new(),
@@ -76,6 +82,7 @@ pub(crate) fn shared_terminal_unit() -> PsiOptimizationUnit {
                         },
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(933, EdgeId::new),
                         target,
                         bindings: Vec::new(),
@@ -83,6 +90,7 @@ pub(crate) fn shared_terminal_unit() -> PsiOptimizationUnit {
                         residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(934, EdgeId::new),
                         target,
                         bindings: Vec::new(),

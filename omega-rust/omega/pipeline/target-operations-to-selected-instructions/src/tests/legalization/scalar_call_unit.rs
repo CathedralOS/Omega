@@ -272,6 +272,7 @@ fn register_arity_source(arity: usize) -> abstract_operations::AbstractOperation
         })
         .collect();
     callee.block_entries = vec![AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: callee.entry,
         parameters: Vec::new(),
         operation_offset: 0,

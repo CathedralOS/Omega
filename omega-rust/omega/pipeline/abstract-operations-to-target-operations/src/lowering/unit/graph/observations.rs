@@ -27,6 +27,7 @@ pub(super) fn lower(
                 .iter()
                 .any(|parameter| parameter.place == *source)
                 && !live.views.contains_key(source)
+                && !live.block_views.contains(source)
             {
                 return Err(invalid());
             }

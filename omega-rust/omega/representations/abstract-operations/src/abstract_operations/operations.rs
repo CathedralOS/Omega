@@ -513,6 +513,7 @@ pub enum AbstractOperation {
         psi_edge: EdgeId,
         target: BlockId,
         bindings: Vec<ValueBinding>,
+        structural_bindings: Vec<crate::AbstractStructuralBinding>,
         /// Exact Terminal-Psi edge cleanup order. These no-ABI affine
         /// discards still participate in ownership semantics and therefore
         /// cannot be reconstructed from the target block alone.

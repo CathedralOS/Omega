@@ -7,6 +7,12 @@ pub(super) fn place_structural_type(
     function
         .structural_parameters
         .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
         .find_map(|parameter| (parameter.place == place).then_some(parameter.structural_type))
         .or_else(|| {
             function

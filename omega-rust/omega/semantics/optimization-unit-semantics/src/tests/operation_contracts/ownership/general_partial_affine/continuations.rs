@@ -29,6 +29,7 @@ fn continuation(mut unit: PsiOptimizationUnit) -> PsiOptimizationUnit {
         .collect();
     let mut jump = returned.clone();
     jump.operation = AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(70_002, EdgeId::new),
         target,
         bindings: Vec::new(),
@@ -37,6 +38,7 @@ fn continuation(mut unit: PsiOptimizationUnit) -> PsiOptimizationUnit {
     };
     unit.functions[0].blocks[0].nodes.push(jump);
     unit.functions[0].blocks.push(OptimizationBlock {
+        structural_parameters: Vec::new(),
         id: target,
         parameters: Vec::new(),
         nodes: vec![returned],

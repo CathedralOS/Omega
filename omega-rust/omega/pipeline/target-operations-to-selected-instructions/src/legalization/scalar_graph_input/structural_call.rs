@@ -76,19 +76,45 @@ pub(in crate::legalization) fn argument(
                 psi_operation: producer,
             },
         )
-    } else {
-        let [source] = caller.structural_parameters.as_slice() else {
+    } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == semantic.place)
+            .map(|parameter| (block, parameter))
+    }) {
+        if block.id == caller.entry
+            || parameter.access != StructuralAccess::SharedBorrow
+            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || parameter.is_self
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
             return Err(invalid);
-        };
+        }
+        (
+            parameter.structural_type,
+            TargetStructuralArgumentSource::BlockParameter {
+                block: block.id,
+                place: parameter.place,
+            },
+        )
+    } else {
+        let source = caller
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == semantic.place)
+            .ok_or(invalid.clone())?;
         let target_caller = native
             .functions
             .iter()
             .find(|function| function.machine == caller.machine)
             .ok_or(invalid.clone())?;
         let parameters = super::structural_parameters(target_caller).ok_or(invalid.clone())?;
-        let [parameter] = parameters else {
-            return Err(invalid);
-        };
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.place == semantic.place)
+            .ok_or(invalid.clone())?;
         if semantic.place != source.place
             || source.access != StructuralAccess::SharedBorrow
             || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted

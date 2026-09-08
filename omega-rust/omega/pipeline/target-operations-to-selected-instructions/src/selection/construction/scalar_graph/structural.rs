@@ -8,6 +8,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerType, PlaceId};
 
+mod block_views;
 mod byte_views;
 mod literals;
 mod local_storage;
@@ -67,6 +68,7 @@ pub(super) fn entry(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
+    block_views::entry(source, builder)?;
     let Some(signature) = &source.structural else {
         return Ok(());
     };
@@ -114,7 +116,7 @@ pub(super) fn entry(
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
-        let used = source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
+        let used = crate::selection::established_view_input::transferred(source, place) || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
@@ -523,7 +525,7 @@ fn memory(
                 .try_into()
                 .map_err(|_| invalid())?,
         ),
-        operation: row.operation,
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
         place,
         byte_offset,
         byte_count,

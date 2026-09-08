@@ -84,5 +84,6 @@ fn matches_edge(
     actual.edge == source.psi_edge
         && actual.target == source.target
         && actual.bindings == source.bindings
+        && actual.structural_bindings == source.structural_bindings
         && actual.fuel == source.fuel
 }

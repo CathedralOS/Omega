@@ -46,6 +46,7 @@ fn graph(
     };
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let successor = |raw, target, bindings| LegalizedScalarSuccessor {
+        structural_bindings: Vec::new(),
         edge: edge(raw),
         target: block(target),
         bindings,
@@ -87,6 +88,7 @@ fn graph(
     for raw in [2, 3] {
         let operation = OperationId::new(raw + 4).unwrap();
         source.blocks.push(LegalizedScalarBlock {
+            structural_parameters: Vec::new(),
             id: block(raw),
             parameters: Vec::new(),
             instructions: vec![LegalizedScalarInstruction {
@@ -123,6 +125,7 @@ fn graph(
         });
     }
     source.blocks.push(LegalizedScalarBlock {
+        structural_parameters: Vec::new(),
         id: block(4),
         parameters: vec![ValueDefinition {
             value: value(8),

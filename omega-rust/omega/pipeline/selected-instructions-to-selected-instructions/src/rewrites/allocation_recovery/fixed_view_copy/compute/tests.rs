@@ -133,6 +133,7 @@ pub(crate) fn fixture() -> (
                     instruction: branch,
                     when_nonzero: SelectedSuccessor {
                         role: selected_instructions::SelectedSuccessorRole::Semantic,
+                        structural_bindings: Vec::new(),
                         psi_edge: EdgeId::new(1).unwrap(),
                         block: SelectedBlockId(1),
                         source_target: BlockId::new(2).unwrap(),
@@ -141,6 +142,7 @@ pub(crate) fn fixture() -> (
                     },
                     when_zero: SelectedSuccessor {
                         role: selected_instructions::SelectedSuccessorRole::Semantic,
+                        structural_bindings: Vec::new(),
                         psi_edge: EdgeId::new(2).unwrap(),
                         block: SelectedBlockId(2),
                         source_target: BlockId::new(3).unwrap(),

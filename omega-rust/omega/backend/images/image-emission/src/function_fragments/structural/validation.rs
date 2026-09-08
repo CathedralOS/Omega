@@ -201,6 +201,24 @@ pub(in crate::function_fragments) fn validate_function(
                         return Err(invalid());
                     }
                 }
+                (
+                    target_operations::TargetStructuralArgumentSource::BlockParameter {
+                        block,
+                        place,
+                    },
+                    InternalUnitStructuralArgumentSourceRecord::BlockParameter {
+                        block: actual_block,
+                        place: actual_place,
+                    },
+                ) if block == actual_block && place == actual_place => {
+                    if actual.source_location
+                        != established_views::block_location(
+                            source, selected, target, *block, *place,
+                        )?
+                    {
+                        return Err(invalid());
+                    }
+                }
                 _ => return Err(invalid()),
             }
             if actual.place != target.place
@@ -510,7 +528,7 @@ fn validate_copy(
         .memory_accesses
         .iter()
         .filter(|row| {
-            row.operation == operation
+            row.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation)
                 && row.place == place
                 && matches!(
                     row.role,

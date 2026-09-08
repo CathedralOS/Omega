@@ -14,8 +14,11 @@ pub(crate) fn validate_structural_place_availability(
     blocks: &BTreeMap<BlockId, &optimization_unit::OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let mut producers = BTreeMap::<PlaceId, (BlockId, u32)>::new();
+    let mut producers = BTreeMap::<PlaceId, (BlockId, Option<u32>)>::new();
     for block in &function.blocks {
+        for parameter in &block.structural_parameters {
+            producers.insert(parameter.place, (block.id, None));
+        }
         for (node_index, node) in block.nodes.iter().enumerate() {
             let place = match &node.operation {
                 O::ByteSequenceSubslice { result, .. }
@@ -35,7 +38,7 @@ pub(crate) fn validate_structural_place_availability(
                     place,
                     (
                         block.id,
-                        u32::try_from(node_index).expect("unit node index fits u32"),
+                        Some(u32::try_from(node_index).expect("unit node index fits u32")),
                     ),
                 );
             }
@@ -49,7 +52,8 @@ pub(crate) fn validate_structural_place_availability(
                 let Some((producer_block, producer_node)) = producers.get(&place) else {
                     continue;
                 };
-                let available = (*producer_block == block.id && *producer_node < node_index)
+                let available = (*producer_block == block.id
+                    && producer_node.is_none_or(|producer| producer < node_index))
                     || (*producer_block != block.id
                         && dominators
                             .get(&block.id)
@@ -72,6 +76,23 @@ pub(crate) fn validate_structural_place_availability(
 
 fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
     let mut inputs = match operation {
+        O::Jump {
+            structural_bindings,
+            ..
+        } => structural_bindings
+            .iter()
+            .map(|binding| binding.argument.place)
+            .collect(),
+        O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => when_true
+            .structural_bindings
+            .iter()
+            .chain(&when_false.structural_bindings)
+            .map(|binding| binding.argument.place)
+            .collect(),
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => vec![destination.place],
         O::CallUnit {

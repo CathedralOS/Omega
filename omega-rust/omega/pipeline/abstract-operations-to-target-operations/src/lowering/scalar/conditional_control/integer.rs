@@ -161,6 +161,7 @@ fn lower_conditional_block(
             bindings,
             trivial_affine_discards,
             residual_affine_discards,
+            ..
         } => {
             if !residual_affine_discards.is_empty() {
                 return Err(LoweringError::UnsupportedPartialAffineContinuation {

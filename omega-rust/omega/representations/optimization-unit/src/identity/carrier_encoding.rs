@@ -95,6 +95,14 @@ pub(super) fn encode_structural_parameter(
     );
 }
 
+pub(super) fn encode_structural_binding(
+    bytes: &mut CanonicalBytes,
+    binding: &abstract_operations::AbstractStructuralBinding,
+) {
+    bytes.id(binding.parameter);
+    encode_structural_argument(bytes, &binding.argument);
+}
+
 pub(super) fn encode_structural_argument(
     bytes: &mut CanonicalBytes,
     argument: &StructuralArgument,

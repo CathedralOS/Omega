@@ -331,6 +331,7 @@ pub(super) fn lower_unit_return(
                         || !cleanup_function.published_service_ceiling.is_empty()
                         || cleanup_function.block_entries.as_slice()
                             != [abstract_operations::AbstractBlockEntry {
+                                structural_parameters: Vec::new(),
                                 block: cleanup_function.entry,
                                 parameters: Vec::new(),
                                 operation_offset: 0,

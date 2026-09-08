@@ -14,6 +14,14 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     cursor: &mut Cursor<'_>,
 ) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 3 {
+        return Ok(
+            selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                block: decode_id(cursor, semantic_vocabulary::BlockId::new)?,
+                place: decode_id(cursor, PlaceId::new)?,
+            },
+        );
+    }
     if tag == 2 {
         return Ok(selected_instructions::LocalStorageSlotId::Spill {
             register: selected_instructions::VirtualRegisterId(cursor.u32()?),
@@ -73,7 +81,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     length(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
         bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
-        bytes.extend_from_slice(&row.operation.get().to_le_bytes());
+        row.origin.encode_identity(bytes);
         bytes.extend_from_slice(&row.place.get().to_le_bytes());
         bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
         bytes.extend_from_slice(&row.byte_count.to_le_bytes());
@@ -157,7 +165,21 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
     let count = cursor.length()?;
     for _ in 0..count {
         let instruction = SelectedInstructionId(cursor.u32()?);
-        let operation = decode_id(cursor, OperationId::new)?;
+        let origin = match cursor.byte()? {
+            0 => selected_instructions::SelectedMemoryAccessOrigin::Operation(decode_id(
+                cursor,
+                OperationId::new,
+            )?),
+            1 => selected_instructions::SelectedMemoryAccessOrigin::Edge(decode_id(
+                cursor,
+                semantic_vocabulary::EdgeId::new,
+            )?),
+            2 => selected_instructions::SelectedMemoryAccessOrigin::Block(decode_id(
+                cursor,
+                semantic_vocabulary::BlockId::new,
+            )?),
+            tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+        };
         let place = decode_id(cursor, PlaceId::new)?;
         let byte_offset = cursor.u32()?;
         let byte_count = cursor.u32()?;
@@ -190,7 +212,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
         };
         function.memory_accesses.push(SelectedMemoryAccess {
             instruction,
-            operation,
+            origin,
             place,
             byte_offset,
             byte_count,

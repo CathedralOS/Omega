@@ -35,8 +35,9 @@ pub use constraints::{
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedSelectionConstraints,
 };
 pub use control_flow::{
-    SelectedBlock, SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
-    SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+    SelectedBlock, SelectedBlockOrigin, SelectedFunction, SelectedStructuralBinding,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
+    SelectedValueBinding, SelectedValueTransport,
 };
 pub use effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineAlternative,

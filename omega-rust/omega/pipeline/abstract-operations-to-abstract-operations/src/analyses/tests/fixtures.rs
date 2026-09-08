@@ -28,6 +28,7 @@ pub(super) fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
 
 pub(super) fn edge(raw: u64, target: u64) -> AbstractSuccessor {
     AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: id(raw, EdgeId::new),
         target: id(target, BlockId::new),
         bindings: Vec::new(),
@@ -48,6 +49,7 @@ pub(super) fn operation(raw: u64, terminator: Terminator) -> O {
             frontier_lower_bound: Vec::new(),
         },
         Terminator::Jump(target) => O::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: id(raw * 10 + 1, EdgeId::new),
             target: id(target, BlockId::new),
             bindings: Vec::new(),
@@ -102,6 +104,7 @@ pub(super) fn function(
         blocks: blocks
             .into_iter()
             .map(|(block, terminator)| OptimizationBlock {
+                structural_parameters: Vec::new(),
                 id: id(block, BlockId::new),
                 parameters: Vec::new(),
                 nodes: vec![node(operation(block, terminator))],
@@ -179,6 +182,7 @@ pub(super) fn block_parameter_constant_unit(
     let false_edge = id(14, EdgeId::new);
     function.blocks[0].nodes[0].successors = vec![
         OptimizationEdge {
+            structural_bindings: Vec::new(),
             psi_edge: true_edge,
             target: id(2, BlockId::new),
             bindings: Vec::new(),
@@ -191,6 +195,7 @@ pub(super) fn block_parameter_constant_unit(
             }],
         },
         OptimizationEdge {
+            structural_bindings: Vec::new(),
             psi_edge: false_edge,
             target: id(3, BlockId::new),
             bindings: Vec::new(),
@@ -216,6 +221,7 @@ pub(super) fn block_parameter_constant_unit(
         };
         *bindings = vec![binding];
         function.blocks[block_index].nodes[0].successors = vec![OptimizationEdge {
+            structural_bindings: Vec::new(),
             psi_edge: edge,
             target: id(4, BlockId::new),
             bindings: vec![binding],

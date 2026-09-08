@@ -41,6 +41,11 @@ pub struct TargetStructuralArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetStructuralArgumentSource {
     Placement(ValuePlacement),
+    /// The current descriptor bound at this exact block entry, not a producer operation.
+    BlockParameter {
+        block: semantic_vocabulary::BlockId,
+        place: PlaceId,
+    },
     /// Exact literal or subslice producer; its retained operation owns contents
     /// and bounds, and source validation independently establishes dominance.
     EstablishedByteView {

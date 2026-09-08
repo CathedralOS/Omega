@@ -12,6 +12,7 @@ pub(crate) fn successors_match_operation(
             actual.psi_edge == expected.psi_edge
                 && actual.target == expected.target
                 && actual.bindings == expected.bindings
+                && actual.structural_bindings == expected.structural_bindings
                 && actual.trivial_affine_discards == expected.trivial_affine_discards
                 && actual.residual_affine_discards == expected.residual_affine_discards
                 && actual.provenance.first() == Some(&PsiProvenance::Edge(actual.psi_edge))
@@ -31,9 +32,11 @@ pub(crate) fn expected_edges(
             psi_edge,
             target,
             bindings,
+            structural_bindings,
             trivial_affine_discards,
             residual_affine_discards,
         } => vec![OptimizationEdge {
+            structural_bindings: structural_bindings.clone(),
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
@@ -52,6 +55,7 @@ pub(crate) fn expected_edges(
         } => [when_true, when_false]
             .into_iter()
             .map(|edge| OptimizationEdge {
+                structural_bindings: edge.structural_bindings.clone(),
                 psi_edge: edge.psi_edge,
                 target: edge.target,
                 bindings: edge.bindings.clone(),

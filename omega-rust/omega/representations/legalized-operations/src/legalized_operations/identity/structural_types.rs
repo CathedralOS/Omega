@@ -71,6 +71,11 @@ pub(super) fn encode_target_structural_argument(
     encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
     match &argument.source {
+        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+        }
         target_operations::TargetStructuralArgumentSource::Placement(placement) => {
             bytes.push(0);
             encode_placement(bytes, placement);

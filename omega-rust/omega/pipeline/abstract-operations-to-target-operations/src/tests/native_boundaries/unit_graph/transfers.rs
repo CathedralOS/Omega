@@ -36,21 +36,25 @@ fn transferred() -> AbstractOperationPlan {
         .collect::<Vec<_>>();
     caller.block_entries = vec![
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(1),
             parameters: Vec::new(),
             operation_offset: 0,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(4),
             parameters,
             operation_offset: 1,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(5),
             parameters: Vec::new(),
             operation_offset: 4,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(6),
             parameters: Vec::new(),
             operation_offset: 5,

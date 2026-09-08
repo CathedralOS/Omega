@@ -98,6 +98,11 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
                     else {
                         continue;
                     };
+                    if function.blocks.iter().any(|block| {
+                        !reachable.contains(&block.id) && !block.structural_parameters.is_empty()
+                    }) {
+                        continue;
+                    }
                     let Some((affected_blocks, provenance)) = conditional_fold_accounting(
                         function,
                         location,
