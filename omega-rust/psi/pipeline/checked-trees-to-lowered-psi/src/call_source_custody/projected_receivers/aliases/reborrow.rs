@@ -13,6 +13,7 @@ pub(super) fn reborrow_resource(
 ) -> Result<(), LoweringError> {
     let borrow = &checked.facts.borrow;
     let loan = borrow.loans.get(loan_handle);
+    let parent_loan = borrow.loans.get(parent_handle);
     let parents = borrow
         .direct_loan_resources
         .iter()
@@ -43,8 +44,10 @@ pub(super) fn reborrow_resource(
         || !resource.owner_path.is_empty()
         || resource.captured_place.root_symbol != loan.root_symbol
         || resource.captured_place.segments != borrow.loan_segments(loan)
-        || resource.access != BorrowAccessKind::WriteOnly
-        || resource.parent_access != BorrowAccessKind::WriteOnly
+        || resource.access != loan.kind
+        || resource.parent_access != parent_loan.kind
+        || parent_loan.kind.direct_reborrow_effect(&loan.kind)
+            != Some(CheckedReborrowAccessEffect::ExclusiveSuspension)
         || resource.parent_loan != parent_handle
         || resource.parent_resource != *parent
         || resource.activation_source != activation

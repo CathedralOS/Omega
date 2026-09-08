@@ -25,6 +25,9 @@ mod nested_aliases;
 #[path = "terminal_psi_indexed_receivers/projected_aliases.rs"]
 mod projected_aliases;
 
+#[path = "terminal_psi_indexed_receivers/mutable_aliases.rs"]
+mod mutable_aliases;
+
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")
 }

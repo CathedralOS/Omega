@@ -10,7 +10,8 @@ use checked_trees::statement::StatementNode;
 use checked_trees::types::TypeReferenceNode;
 use checked_trees::{
     BorrowAccessKind, BorrowLoanFact, BorrowLoanLineage, CheckedParentBorrowResource,
-    FlowBorrowWeakeningReason, FlowConstraintKind, FlowInvalidationSource,
+    CheckedReborrowAccessEffect, FlowBorrowWeakeningReason, FlowConstraintKind,
+    FlowInvalidationSource,
 };
 use language_semantics::ReferenceAccess;
 use symbols::SymbolHandle;
@@ -70,10 +71,18 @@ pub(super) fn parameter_source(
     if !checked
         .expression_table
         .expression_is_valid(local.initial_value)
-        || initializer.access != ReferenceAccess::WriteOnly
+        || !matches!(
+            initializer.access,
+            ReferenceAccess::Mutable | ReferenceAccess::WriteOnly
+        )
     {
         return unsupported("receiver alias initializer identity or access changed");
     }
+    let access = match initializer.access {
+        ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
+        ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
+        ReferenceAccess::Shared => return unsupported("receiver alias must have exclusive access"),
+    };
     let captured = super::resolve_source(
         checked,
         machine,
@@ -98,17 +107,20 @@ pub(super) fn parameter_source(
     };
     let TypeReferenceNode::Reference {
         referee: local_type,
-        access: ReferenceAccess::WriteOnly,
+        access: local_access,
         ..
     } = checked
         .type_reference_table
         .type_reference(local.type_reference)
     else {
-        return unsupported("receiver alias is not a write-only reference");
+        return unsupported("receiver alias is not a reference");
     };
+    if *local_access != initializer.access {
+        return unsupported("receiver alias declaration disagrees with its initializer access");
+    }
     let TypeReferenceNode::Reference {
         referee: root_type,
-        access: ReferenceAccess::Mutable | ReferenceAccess::WriteOnly,
+        access: root_access @ (ReferenceAccess::Mutable | ReferenceAccess::WriteOnly),
         ..
     } = checked
         .type_reference_table
@@ -116,6 +128,9 @@ pub(super) fn parameter_source(
     else {
         return unsupported("receiver alias root cannot grant write-only access");
     };
+    if *root_access == ReferenceAccess::WriteOnly && access != BorrowAccessKind::WriteOnly {
+        return unsupported("receiver alias widens its root access");
+    }
     // Attached self carries machine/Self identity in the typed reference. Its
     // actual referent is the independently resolved attachment, as in signatures.
     let root_type = if root.is_self {
@@ -202,14 +217,16 @@ pub(super) fn parameter_source(
         matches!(parent_loans.as_slice(), [(parent_handle, parent)]
             if loan.lineage == BorrowLoanLineage::Reborrow { parent_loan: *parent_handle }
                 && loan.source_owner_symbol == captured.owner
-                && loan.root_symbol == parent.root_symbol)
+                && loan.root_symbol == parent.root_symbol
+                && parent.kind.direct_reborrow_effect(&access)
+                    == Some(CheckedReborrowAccessEffect::ExclusiveSuspension))
     } else {
         loan.lineage == BorrowLoanLineage::DirectRoot
             && !loan.source_owner_symbol.is_valid()
             && loan.root_symbol == captured.captured_place.root_symbol
     };
     if loan.statement_index != *declaration_index
-        || loan.kind != BorrowAccessKind::WriteOnly
+        || loan.kind != access
         || !exact_lineage
         || loan.root_symbol != captured.captured_place.root_symbol
         || borrow.loan_segments(loan) != captured.captured_place.segments
@@ -242,7 +259,13 @@ pub(super) fn parameter_source(
                     return unsupported("receiver alias escapes through a local initializer");
                 };
                 if child.is_mutable
-                    || initializer.access != ReferenceAccess::WriteOnly
+                    || !matches!(
+                        (local_access, initializer.access),
+                        (
+                            ReferenceAccess::Mutable,
+                            ReferenceAccess::Mutable | ReferenceAccess::WriteOnly
+                        ) | (ReferenceAccess::WriteOnly, ReferenceAccess::WriteOnly)
+                    )
                     || receiver_root(checked, initializer.target)? != owner
                 {
                     return unsupported("receiver alias child formation changed");
@@ -367,7 +390,7 @@ pub(super) fn parameter_source(
         || resource.owner_symbol != owner
         || !resource.owner_path.is_empty()
         || resource.captured_place != captured.captured_place
-        || resource.access != BorrowAccessKind::WriteOnly
+        || resource.access != access
         || resource.activation_source != activation
         || resource.weakening_source != weakening
         || resource.weakening_reason != reason

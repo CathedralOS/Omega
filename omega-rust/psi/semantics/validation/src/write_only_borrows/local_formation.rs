@@ -67,6 +67,26 @@ pub(super) fn admitted(
                 })
             }),
     );
+    // Earlier immutable carriers preserve mutable authority until attenuation.
+    // They are formation sources only, not write-only roots for observations.
+    sources.extend(
+        program.statement_table.statements(state.statement_nodes).iter()
+            .take_while(|statement| !matches!(statement, StatementNode::LocalData(candidate) if candidate.symbol == local.symbol))
+            .filter_map(|statement| {
+                let StatementNode::LocalData(source) = statement else { return None; };
+                if source.is_mutable || !source.symbol.is_valid() { return None; }
+                let TypeReferenceNode::Reference { referee, access: ReferenceAccess::Mutable, .. } =
+                    program.type_reference_table.type_reference(source.type_reference)
+                else { return None; };
+                Some(WriteOnlyRoot {
+                    symbol: source.symbol,
+                    receiver_machine: SymbolHandle::invalid(),
+                    name: source.name.as_str().to_owned(),
+                    referee: *referee,
+                    is_parameter: false,
+                })
+            }),
+    );
     receiver::captured_type(program, borrow.target, &sources).is_some_and(|actual| {
         crate::type_references::type_references_match(program, actual, *referee)
     })

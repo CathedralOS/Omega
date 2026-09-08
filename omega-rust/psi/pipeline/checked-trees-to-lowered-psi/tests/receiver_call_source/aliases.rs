@@ -5,6 +5,9 @@ use super::*;
 #[path = "aliases/projected.rs"]
 mod projected;
 
+#[path = "aliases/mutable.rs"]
+mod mutable;
+
 fn source(signature: &str, prefix: &str, calls: &str) -> String {
     format!(
         "data Record [copy] {{ value: u16; }}
@@ -286,6 +289,21 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
             "mutation {mutation}"
         );
     }
+}
+
+#[test]
+fn mutable_parent_alias_attenuates_before_repeated_receiver_calls() {
+    let text = source(
+        "forward(destination: &mut [Record; 2], value: u16)",
+        "let parent: &mut [Record; 2] = &mut destination; let child: &write Record = &write parent[1];",
+        "child.replace(17); child.replace(value);",
+    );
+    let checked = checked_from_source(&text);
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+        .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(module.reborrow_root_handoffs.len(), 1);
+    assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 1);
 }
 
 #[test]
