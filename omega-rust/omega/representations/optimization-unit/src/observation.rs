@@ -420,6 +420,7 @@ fn operation_observations(
         | O::EstablishAffineScalarRecord { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }

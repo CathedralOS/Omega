@@ -8,7 +8,7 @@ use super::dynamic::{
     lower_stored_dynamic_scalar_call,
 };
 use super::return_unit::lower_unit_return;
-use super::scalar_call::{KnownUnitInteger, lower_scalar_call};
+use super::scalar_call::lower_scalar_call;
 use super::scalar_definitions::{
     lower_boolean_constant, lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
 };
@@ -58,29 +58,7 @@ pub(super) fn lower_unit_body(
     let mut boolean_constants = BTreeMap::<ValueId, (OperationId, bool)>::new();
     let mut ieee_float_constants =
         BTreeMap::<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>::new();
-    let mut scalar_values = scalar_parameters
-        .iter()
-        .enumerate()
-        .filter_map(|(parameter_index, parameter)| match parameter.scalar_type {
-            ScalarType::Boolean => None,
-            ScalarType::Integer(scalar_type) => Some(
-                u32::try_from(parameter_index)
-                    .map(|parameter_index| {
-                        (
-                            parameter.value,
-                            KnownUnitInteger::Parameter {
-                                parameter_index,
-                                scalar_type,
-                            },
-                        )
-                    })
-                    .map_err(|_| LoweringError::UnitFunctionHasScalarParameters(function.machine)),
-            ),
-            ScalarType::IeeeFloat(_) => Some(Err(LoweringError::UnitFunctionHasScalarParameters(
-                function.machine,
-            ))),
-        })
-        .collect::<Result<BTreeMap<ValueId, KnownUnitInteger>, LoweringError>>()?;
+    let mut scalar_values = super::setup::integer_parameters(function.machine, scalar_parameters)?;
     let mut nonreturning_boundary = false;
     let mut scalar_aliases = super::scalar_bindings::initial(function);
 
@@ -548,6 +526,7 @@ pub(super) fn lower_unit_body(
             | AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::ByteSequenceLength { .. }
             | AbstractOperation::ByteSequenceRead { .. }
+            | AbstractOperation::ByteSequenceSubslice { .. }
             | AbstractOperation::BooleanNot { .. }
             | AbstractOperation::BooleanEqual { .. }
             | AbstractOperation::IntegerEqual { .. }

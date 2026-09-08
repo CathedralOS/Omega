@@ -31,6 +31,7 @@ impl LegalizedScalarFunction {
                 .instructions
                 .iter()
                 .any(|instruction| match &instruction.kind {
+                    LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
@@ -88,6 +89,15 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    ByteSequenceSubslice {
+        result: terminal_psi::StructuralOperationResult,
+        source: semantic_vocabulary::PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     ByteSequenceRead {
         source: semantic_vocabulary::PlaceId,
         index: ValueId,

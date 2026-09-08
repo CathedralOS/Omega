@@ -3,6 +3,36 @@
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_signature::StructuralCallSignature;
+use super::scalar_call::KnownUnitInteger;
+
+pub(super) fn integer_parameters(
+    machine: MachineId,
+    parameters: &[ScalarAbiValue],
+) -> Result<BTreeMap<ValueId, KnownUnitInteger>, LoweringError> {
+    parameters
+        .iter()
+        .enumerate()
+        .filter_map(|(parameter_index, parameter)| match parameter.scalar_type {
+            ScalarType::Boolean => None,
+            ScalarType::Integer(scalar_type) => Some(
+                u32::try_from(parameter_index)
+                    .map(|parameter_index| {
+                        (
+                            parameter.value,
+                            KnownUnitInteger::Parameter {
+                                parameter_index,
+                                scalar_type,
+                            },
+                        )
+                    })
+                    .map_err(|_| LoweringError::UnitFunctionHasScalarParameters(machine)),
+            ),
+            ScalarType::IeeeFloat(_) => {
+                Some(Err(LoweringError::UnitFunctionHasScalarParameters(machine)))
+            }
+        })
+        .collect()
+}
 
 pub(super) struct PreparedUnitFunction {
     pub(super) call_plan: CallPlan,

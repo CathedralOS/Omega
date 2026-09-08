@@ -179,7 +179,7 @@ fn byte_sequence_read_retains_exact_verified_operands_and_proof() {
 }
 
 #[test]
-fn byte_sequence_subslice_has_an_explicit_native_realization_fence_after_verification() {
+fn byte_sequence_subslice_retains_exact_verified_operands_and_proof() {
     byte_sequence_operations::byte_operation_fence(true);
 }
 

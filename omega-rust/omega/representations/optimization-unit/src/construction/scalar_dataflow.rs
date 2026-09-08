@@ -163,6 +163,9 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::ByteSequenceSubslice {
+            start, end, length, ..
+        } => vec![*start, *end, *length],
         O::Call { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),

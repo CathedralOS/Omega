@@ -1,6 +1,6 @@
 //! Integer expression vocabulary and exact proof-bearing arithmetic.
 
-use crate::{ScalarParameterLocation, TargetCallArgument};
+use crate::{ScalarParameterLocation, TargetByteView, TargetCallArgument};
 use calling_conventions::ValuePlacement;
 use semantic_vocabulary::{
     IntegerType, IntegerValue, MachineId, OperationId, PlaceId, StructuralFieldId, ValueId,
@@ -9,14 +9,14 @@ use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetIntegerExpression {
-    /// Exact `u8` observation. Placement locates the descriptor, whose backing
-    /// pointer is at offset zero. The index expression retains its Terminal
+    /// Exact `u8` observation. The view retains its parameter placement or
+    /// checked derivation. The index expression retains its Terminal
     /// identity; length and obligation retain proof custody, not a new check.
     ByteSequenceRead {
         psi_operation: OperationId,
         source_value: ValueId,
         source: PlaceId,
-        source_placement: ValuePlacement,
+        view: Box<TargetByteView>,
         index: Box<TargetIntegerExpression>,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
@@ -25,7 +25,7 @@ pub enum TargetIntegerExpression {
         psi_operation: OperationId,
         source_value: ValueId,
         source: PlaceId,
-        source_placement: ValuePlacement,
+        view: Box<TargetByteView>,
         length_byte_offset: u32,
     },
     Call {

@@ -275,6 +275,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::BooleanConstant { psi_operation, .. }
         | AbstractOperation::BooleanStructuralField { psi_operation, .. }
         | AbstractOperation::ByteSequenceRead { psi_operation, .. }
+        | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
         | AbstractOperation::ByteSequenceLength { psi_operation, .. }
         | AbstractOperation::IntegerStructuralField { psi_operation, .. }
         | AbstractOperation::BooleanNot { psi_operation, .. }

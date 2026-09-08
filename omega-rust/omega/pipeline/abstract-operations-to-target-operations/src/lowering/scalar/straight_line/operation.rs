@@ -150,6 +150,7 @@ pub(super) fn lower_operation(
             provenance.operations.push(*psi_operation);
         }
         AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceRead { .. } => {
             byte_views::lower_byte_observation(
                 operation,

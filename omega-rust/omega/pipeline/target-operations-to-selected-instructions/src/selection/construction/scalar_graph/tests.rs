@@ -4,6 +4,7 @@ mod borrowed_calls;
 mod byte_views;
 mod control;
 mod parameters;
+mod subslices;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{
     LegalizedCallUnitSource, LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall,

@@ -431,6 +431,7 @@ pub(super) fn conditional_provenance(
         let psi_operation = match operation {
             AbstractOperation::ByteSequenceLength { psi_operation, .. }
             | AbstractOperation::ByteSequenceRead { psi_operation, .. }
+            | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
             | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
             | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
             | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }

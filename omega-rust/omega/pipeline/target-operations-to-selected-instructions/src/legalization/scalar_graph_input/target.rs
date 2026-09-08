@@ -5,6 +5,7 @@ use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression as Boolean, TargetIntegerControl as Control,
     TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
+mod byte_view;
 mod expressions;
 mod unit;
 pub(super) fn validate_target(

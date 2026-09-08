@@ -41,6 +41,13 @@ pub(super) fn folded_zero<'a>(
                 continue;
             }
             let uses = match &instruction.kind {
+                LegalizedScalarInstructionKind::ByteSequenceSubslice {
+                    start, end, length, ..
+                } => {
+                    *start == definition.value
+                        || *end == definition.value
+                        || *length == definition.value
+                }
                 LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => {
                     *index == definition.value || *length == definition.value
                 }

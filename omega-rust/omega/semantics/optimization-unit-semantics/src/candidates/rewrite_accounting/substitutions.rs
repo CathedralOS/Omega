@@ -100,6 +100,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnUnit { .. }

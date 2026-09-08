@@ -18,6 +18,14 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
+        O::ByteSequenceSubslice {
+            start, end, length, ..
+        } => {
+            matches!(scalar(*start), Some(ScalarType::Integer(integer))
+                if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
+                && scalar(*start) == scalar(*end)
+                && scalar(*start) == scalar(*length)
+        }
         O::ByteSequenceRead {
             result,
             index,

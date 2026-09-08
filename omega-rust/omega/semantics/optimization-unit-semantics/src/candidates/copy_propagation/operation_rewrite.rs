@@ -131,6 +131,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnUnit { .. }

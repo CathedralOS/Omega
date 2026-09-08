@@ -352,7 +352,10 @@ pub(super) fn build(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::BoundarySettlement(_) => return Err(invalid()),
+                LegalizedScalarInstructionKind::BoundarySettlement(_)
+                | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
+                    return Err(invalid());
+                }
                 LegalizedScalarInstructionKind::Call(call) => {
                     let key = constraints
                         .keys

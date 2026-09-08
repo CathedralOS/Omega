@@ -168,7 +168,7 @@ fn encode_semantic_parameter(bytes: &mut Vec<u8>, parameter: &StructuralParamete
     encode_projected_qualifications(bytes, &parameter.projected_qualifications);
 }
 
-fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
+pub(super) fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
     bytes.extend_from_slice(&result.place.get().to_le_bytes());
     bytes.extend_from_slice(&result.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, result.multiplicity);

@@ -122,7 +122,8 @@ pub(crate) fn validate_function_structural_catalog(
                         .any(|node| {
                             matches!(
                                 &node.operation,
-                                O::EstablishPayloadlessCase {
+                                O::ByteSequenceSubslice { psi_operation, result, .. }
+                                | O::EstablishPayloadlessCase {
                                     psi_operation,
                                     result,
                                     ..
@@ -191,7 +192,8 @@ pub(crate) fn validate_function_structural_catalog(
     }
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         let structural_result = match &node.operation {
-            O::EstablishPayloadlessCase { result, .. }
+            O::ByteSequenceSubslice { result, .. }
+            | O::EstablishPayloadlessCase { result, .. }
             | O::EstablishAffineScalarRecord { result, .. }
             | O::CallStructural { result, .. }
             | O::BoundaryCall {
@@ -221,7 +223,12 @@ pub(crate) fn validate_function_structural_catalog(
             // tuple compressed into ReturnStructural. Their one-to-one
             // recognition is validated together below.
             O::EstablishTrivialAffineLocal { .. } => None,
-            O::EstablishPayloadlessCase {
+            O::ByteSequenceSubslice {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::EstablishPayloadlessCase {
                 psi_operation,
                 result,
                 ..

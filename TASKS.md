@@ -203,12 +203,12 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
   length and guarded head/tail observations at selected edges, and
   slice-decrease evidence.
-  Continue native descriptor creation/transport and subslice realization from
+  Continue native descriptor creation and transport from
   the byte-observation leaves in `tests/native-differential/tests/terminal_byte_views.rs`.
   They measure and read one shared parameter with runtime `u64` indices guarded
   by the exact view's length, through the ordinary native pipeline. Complete
-  literal descriptor materialization, subslices, and general Unit/mixed helper
-  calls; scalar-result whole-view forwarding alone does not execute
+  literal descriptor materialization, derived-view calls/block transfers, and
+  general Unit/mixed helper calls; scalar-result whole-view forwarding alone does not execute
   the writer. Retain the exact slice-decrease and source-place evidence when
   joining these dependencies.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact

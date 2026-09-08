@@ -20,6 +20,16 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// Establish an immutable view with the exact source, endpoints and two-leg bounds proof.
+    ByteSequenceSubslice {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Read one byte with the verified same-view length and bounds obligation.
     ByteSequenceRead {
         psi_operation: OperationId,

@@ -38,11 +38,27 @@ Selection snapshots only the pointer, never the descriptor's contents, and
 independent replay checks its incoming and outgoing homes. No separate call IR
 or byte-view calling convention is introduced.
 
+Checked subslices retain their exact source, structural result, endpoints, and
+two-leg bounds obligation. Acyclic scalar-result graphs can measure, read, and
+derive nested views without copying the original descriptor or backing bytes.
+Target expressions retain the derivation, and legalization independently rejoins
+it to the verified operations. Derived views need an addressable descriptor
+before they can be passed through the reference ABI; that call path is not yet
+implemented.
+
+Selection retains the original backing pointer with an integer byte offset and
+length in ordinary value homes. For root length `R`, each derived view preserves
+`offset + length <= R`; the two bounds legs justify nested offset addition and
+length subtraction. Guarded reads add the relative index to that offset before
+the existing indexed load. No arithmetic proof is asserted about the pointer,
+and an empty suffix need not form a one-past address. Independent replay checks
+the same source chain and every contributing home.
+
 This does not complete literal descriptor materialization, general Unit/mixed
-helper calls, subslices, or ranked control. The
+helper calls, derived-view calls/block transfers, or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
-executes caller-owned descriptors and framed, internally relocated helper chains
+executes caller-owned descriptors, derived views, and framed helper chains
 on supported hosts; it does not establish Omega-source writer closure or
 standalone executable publication.
 

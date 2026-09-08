@@ -12,8 +12,8 @@ pub(super) fn validate(
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(invalid.clone())?;
     if actual.operation != operation
         || actual.result
-            != Some(LegalizedValueDefinition {
-                value: result,
+            != result.map(|value| LegalizedValueDefinition {
+                value,
                 scalar_type: node.definitions[0].scalar_type,
                 definition_site: node.definitions[0].site,
             })
@@ -24,6 +24,42 @@ pub(super) fn validate(
         return Err(invalid);
     }
     match (&actual.kind, &node.operation) {
+        (
+            LegalizedScalarInstructionKind::ByteSequenceSubslice {
+                result,
+                source,
+                start,
+                end,
+                length,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::ByteSequenceSubslice {
+                result: expected_result,
+                source: expected_source,
+                start: expected_start,
+                end: expected_end,
+                length: expected_length,
+                obligation: expected_obligation,
+                ..
+            },
+        ) => {
+            if result != expected_result
+                || source != expected_source
+                || start != expected_start
+                || end != expected_end
+                || length != expected_length
+                || obligation != expected_obligation
+                || !unit.accepted_obligation_facts.iter().any(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == operation
+                        && fact.obligation == *obligation
+                        && fact.identity == *accepted_fact
+                })
+            {
+                return Err(invalid);
+            }
+        }
         (
             LegalizedScalarInstructionKind::Call(call),
             AbstractOperation::CallStructuralScalar {
