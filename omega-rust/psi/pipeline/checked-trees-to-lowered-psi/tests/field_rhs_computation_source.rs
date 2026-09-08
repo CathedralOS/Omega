@@ -28,6 +28,27 @@ fn unsigned(value: u128) -> TerminalScalarValue {
 }
 
 #[test]
+fn borrowed_operand_mutation_completes_before_its_field_assignment() {
+    execute(
+        r#"
+        boundary trait Trace { machine observe(value: u16) reaches Trace; }
+        data Main { value: u16; }
+        machine stamp(value: &mut u16, number: u16) -> u16 { value = number; number }
+        machine Main::main(&mut self) reaches Trace {
+            let mut scratch: u16 = 91;
+            self.value = stamp(&mut scratch, 7);
+            Trace::observe(self.value);
+            Trace::observe(scratch);
+        }
+        "#,
+        &[],
+        &[unsigned(7), unsigned(7)],
+        false,
+        1,
+    );
+}
+
+#[test]
 fn unsigned_wrapping_conversion_helper_calls_preserve_modular_boundaries() {
     for (source_bits, target_bits) in [(16, 8), (32, 8), (32, 16), (64, 32), (8, 8), (8, 16)] {
         let source = format!(
