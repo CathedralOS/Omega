@@ -400,7 +400,7 @@ fn write_only_subloan_remains_checked_body_only() {
 }
 
 #[test]
-fn projected_write_only_subloan_cannot_be_retained_in_a_local_alias() {
+fn projected_write_only_local_does_not_allow_bare_observation() {
     let rendered = rendered_rejection(
         r#"
             data Leaf [copy] { value: u16; }
@@ -413,10 +413,87 @@ fn projected_write_only_subloan_cannot_be_retained_in_a_local_alias() {
         "#,
     );
     assert!(
-        rendered.contains("forms `&write` from an unsupported projection")
-            && rendered.contains("only as a direct checked-call argument"),
-        "a projected subloan unexpectedly escaped into a reusable local: {rendered}"
+        rendered.contains("reads write-only parameter `child`")
+            && !rendered.contains("forms `&write` from an unsupported projection"),
+        "a projected local must retain its no-read obligation: {rendered}"
     );
+}
+
+#[test]
+fn projected_write_only_locals_capture_primitive_and_record_paths() {
+    for access in ["write", "mut"] {
+        for body in [
+            "let held: &write Record = &write outer.records[1]; held.value = 17;",
+            "let held: &write u16 = &write outer.records[1].value; fill(&write held);",
+            "let held: &write [Record; 2] = &write outer.records; let child: &write Record = &write held[1]; child.value = 17;",
+            "let held: &write Record = &write outer.records[1]; let child: &write u16 = &write held.value; fill(&write child);",
+        ] {
+            let source = format!(
+                "data Record [copy] {{ value: u16; }}
+                 data Outer {{ records: [Record; 2]; }}
+                 machine fill(value: &write u16) {{ value = 17; }}
+                 machine forward(outer: &{access} Outer) {{ {body} }}"
+            );
+            lower_typed_trees(typed(&source))
+                .unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+        }
+    }
+}
+
+#[test]
+fn projected_write_only_local_rejects_dynamic_and_mutable_capture() {
+    for body in [
+        "let held: &write Record = &write records[index]; held.value = 17;",
+        "let held: &write Record = &write records[2]; held.value = 17;",
+        "let mut held: &write Record = &write records[1]; held.value = 17;",
+    ] {
+        let source = format!(
+            "data Record [copy] {{ value: u16; }}
+             machine forward(records: &write [Record; 2], index: u64) {{ {body} }}"
+        );
+        let rendered = rendered_rejection(&source);
+        assert!(
+            rendered.contains("forms `&write` from an unsupported projection"),
+            "{source}: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn projected_write_only_local_requires_builtin_indexing() {
+    for (element, accepted) in [("Record", false), ("u8", true)] {
+        let source = format!(
+            "data Record [copy] {{ value: u16; }}
+             boundary operator [] Collection::read(items: &[{element}], index: u64) -> {element};
+             machine forward(records: &write [Record; 2]) {{
+                 let held: &write Record = &write records[1]; held.value = 17;
+             }}"
+        );
+        let result = lower_typed_trees(typed(&source));
+        assert_eq!(result.is_ok(), accepted, "{source}");
+    }
+}
+
+#[test]
+fn projected_write_only_local_does_not_widen_access() {
+    for body in [
+        "let held: &write Record = &write records[1]; let observed: u16 = held.value;",
+        "let held: &write Record = &write records[1]; read(&held);",
+        "let held: &write Record = &write records[1]; mutate(&mut held);",
+    ] {
+        let source = format!(
+            "data Record [copy] {{ value: u16; }}
+             machine read(value: &Record) {{}}
+             machine mutate(value: &mut Record) {{}}
+             machine forward(records: &write [Record; 2]) {{ {body} }}"
+        );
+        let rendered = rendered_rejection(&source);
+        assert!(rendered.contains("write-only"), "{source}: {rendered}");
+        assert!(
+            !rendered.contains("forms `&write` from an unsupported projection"),
+            "formation should be admitted: {rendered}"
+        );
+    }
 }
 
 #[test]

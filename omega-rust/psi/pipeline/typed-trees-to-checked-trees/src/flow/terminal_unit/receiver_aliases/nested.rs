@@ -95,11 +95,17 @@ pub(super) fn formation(
     statement_index: usize,
     owner: SymbolHandle,
     source_owner: SymbolHandle,
-    root: SymbolHandle,
+    projection: &[facts::PlaceSegment],
     parent_loan: Handle<BorrowLoanFact>,
     statement_count: usize,
 ) -> Option<(Handle<BorrowLoanFact>, usize)> {
     let parent = facts.borrow.loans.get(parent_loan);
+    let parent_place = checked_trees::CapturedPlace {
+        root_symbol: parent.root_symbol,
+        segments: facts.borrow.loan_segments(parent).to_vec(),
+    };
+    let mut place = parent_place.clone();
+    place.segments.extend_from_slice(projection);
     let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
         facts.borrow.state_owns_loan(state, *handle) && loan.owner_symbol == owner
     });
@@ -109,8 +115,8 @@ pub(super) fn formation(
         || loan.lineage != (BorrowLoanLineage::Reborrow { parent_loan })
         || loan.source_owner_symbol != source_owner
         || loan.kind != BorrowAccessKind::WriteOnly
-        || loan.root_symbol != root
-        || !facts.borrow.loan_segments(loan).is_empty()
+        || loan.root_symbol != place.root_symbol
+        || facts.borrow.loan_segments(loan) != place.segments
         || !facts.borrow.loan_owner_path(loan).is_empty()
         || parent.owner_symbol != source_owner
         || parent.kind != BorrowAccessKind::WriteOnly
@@ -189,10 +195,6 @@ pub(super) fn formation(
         return None;
     }
     let parent_entry_constraint = span_handle(statement.entry_constraints, entry_offset)?;
-    let place = checked_trees::CapturedPlace {
-        root_symbol: root,
-        segments: Vec::new(),
-    };
     if child.machine_symbol != flow.machine_symbol
         || child.state_symbol != flow.state_symbol
         || child.owner_symbol != owner
@@ -252,9 +254,9 @@ pub(super) fn formation(
         parent_weakening,
         child_weakening_source: weakening_source,
         child_weakening_reason: weakening_reason,
-        parent_place: place.clone(),
+        parent_place,
         child_place: place,
-        projection_remainder: Vec::new(),
+        projection_remainder: projection.to_vec(),
         containment: CheckedReborrowContainmentKind::ExclusiveSuspension,
     };
     let mut certificates = facts

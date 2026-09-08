@@ -9,6 +9,7 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod local_formation;
 mod receiver;
 
 #[derive(Clone)]
@@ -544,6 +545,14 @@ fn validate_statement(
         StatementNode::Expression(expression) => {
             validate_expression(program, machine, state, *expression, roots, diagnostics)
         }
+        StatementNode::LocalData(local)
+            if local_formation::admitted(
+                program,
+                machine_definition,
+                state_definition,
+                local,
+                roots,
+            ) => {}
         StatementNode::LocalData(local) => validate_expression(
             program,
             machine,

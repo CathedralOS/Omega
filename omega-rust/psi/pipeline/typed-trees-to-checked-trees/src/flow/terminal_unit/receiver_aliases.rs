@@ -7,16 +7,18 @@ use checked_trees::{
 use typed_trees::expression::ExpressionHandle;
 
 mod nested;
+mod projection;
 #[cfg(test)]
 mod tests;
 
 pub(super) struct ReceiverAlias {
     pub(super) owner: SymbolHandle,
     pub(super) root: SymbolHandle,
+    pub(super) segments: Vec<facts::PlaceSegment>,
 }
 
 /// This is source correspondence for direct calls, not restored-use authority.
-/// Every erased local is a whole-referent write-only loan with no escaping use.
+/// Every erased local is an exactly captured write-only loan with no escaping use.
 pub(super) fn prefix(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -65,34 +67,18 @@ pub(super) fn prefix(
         if borrow.access != language_semantics::ReferenceAccess::WriteOnly {
             return None;
         }
-        let ExpressionNode::Name(name) = program.expression_table.expression(borrow.target) else {
+        let (place, source) =
+            projection::formation_place(program, machine, state, statement_index, borrow.target)?;
+        let facts::PlaceRoot::Symbol(source_root) = place.root else {
             return None;
         };
-        if !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
-            || !program.expression_table.expression_is_valid(borrow.target)
-            || !name.symbol.is_valid()
-            || name.symbol != name.head_symbol
-            || program
-                .expression_table
-                .name_path_members(name.members)
-                .len()
-                != 1
-            || program
-                .expression_table
-                .name_path_member_symbols(name.member_symbols)
-                .first()
-                .is_some_and(|symbol| *symbol != name.symbol)
-        {
-            return None;
-        }
-        if let Some(parent_position) = aliases.iter().position(|alias| alias.owner == name.symbol) {
-            let StatementNode::LocalData(parent_local) = &statements[parent_position] else {
-                return None;
-            };
+        if let Some(parent_position) = aliases.iter().position(|alias| alias.owner == source_root) {
+            let (projected_type, _) =
+                calls::projected_argument_path(program, state.symbol, statement_index, &place)?;
             if parents.contains(&Some(parent_position))
-                || base_type_identity(program, parent_local.type_reference, &[])?
+                || source.root_symbol != source_root
+                || source.segments != place.segments
+                || base_type_identity(program, projected_type, &[])?
                     != base_type_identity(program, local.type_reference, &[])?
             {
                 return None;
@@ -105,21 +91,24 @@ pub(super) fn prefix(
                 borrow_state,
                 statement_index,
                 local.symbol,
-                name.symbol,
-                aliases[parent_position].root,
+                source_root,
+                &source.segments,
                 parent.0,
                 statements.len(),
             )?;
+            let mut segments = aliases[parent_position].segments.clone();
+            segments.extend_from_slice(&place.segments);
             aliases.push(ReceiverAlias {
                 owner: local.symbol,
                 root: aliases[parent_position].root,
+                segments,
             });
             loans.push(loan);
             parents.push(Some(parent_position));
             continue;
         }
         let mut roots = parameters.iter().filter(|parameter| {
-            parameter.symbol == name.symbol || (parameter.is_self && name.symbol == machine.symbol)
+            parameter.symbol == source_root || (parameter.is_self && source_root == machine.symbol)
         });
         let root = roots.next()?;
         if roots.next().is_some()
@@ -152,13 +141,24 @@ pub(super) fn prefix(
             {
                 return None;
             }
-            program
-                .type_reference_table
-                .find_named_type_reference(machine.attached_data_symbol)?
+            if place.segments.is_empty() {
+                program
+                    .type_reference_table
+                    .find_named_type_reference(machine.attached_data_symbol)?
+            } else {
+                // Projected self reaches its type through the exact attachment
+                // field below; no separately authored root type is required.
+                root.type_reference
+            }
         } else {
             root.type_reference
         };
-        if base_type_identity(program, root_type, &[])?
+        let projected_type = if place.segments.is_empty() {
+            root_type
+        } else {
+            calls::projected_argument_path(program, state.symbol, statement_index, &place)?.0
+        };
+        if base_type_identity(program, projected_type, &[])?
             != base_type_identity(program, local.type_reference, &[])?
         {
             return None;
@@ -166,19 +166,7 @@ pub(super) fn prefix(
         // Reconstruct the loan's capture with its original owner. Flow's
         // contextual place spelling normalizes runtime self to its formal,
         // while the borrowing owner retains the exact machine/Self root.
-        let source = crate::borrow::accesses::borrow_access_place(
-            program,
-            state.symbol,
-            statement_index,
-            borrow.target,
-            machine.symbol,
-        )?;
         let captured_root = source.root_symbol;
-        if !source.segments.is_empty()
-            || !(captured_root == root.symbol || (root.is_self && captured_root == machine.symbol))
-        {
-            return None;
-        }
         let mut candidates = facts.borrow.loans.iter().filter(|(handle, loan)| {
             facts.borrow.state_owns_loan(borrow_state, *handle) && loan.owner_symbol == local.symbol
         });
@@ -189,7 +177,7 @@ pub(super) fn prefix(
             || loan.source_owner_symbol.is_valid()
             || loan.kind != BorrowAccessKind::WriteOnly
             || loan.root_symbol != captured_root
-            || !facts.borrow.loan_segments(loan).is_empty()
+            || facts.borrow.loan_segments(loan) != source.segments
             || !facts.borrow.loan_owner_path(loan).is_empty()
         {
             return None;
@@ -207,7 +195,7 @@ pub(super) fn prefix(
             || resource.owner_symbol != local.symbol
             || !resource.owner_path.is_empty()
             || resource.captured_place.root_symbol != captured_root
-            || !resource.captured_place.segments.is_empty()
+            || resource.captured_place != source
             || resource.access != BorrowAccessKind::WriteOnly
             || resource.activation_source != activation
             || resource.parent_lifetime.machine_symbol != machine.symbol
@@ -260,7 +248,12 @@ pub(super) fn prefix(
         }
         aliases.push(ReceiverAlias {
             owner: local.symbol,
-            root: captured_root,
+            root: if root.is_self {
+                machine.symbol
+            } else {
+                root.symbol
+            },
+            segments: place.segments,
         });
         loans.push((loan_handle, loan.last_use_statement_index));
         parents.push(None);

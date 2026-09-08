@@ -1,4 +1,4 @@
-//! Source replay for erased whole-referent receiver alias chains.
+//! Source replay for erased statically projected receiver alias chains.
 //!
 //! This binds erased names to their exact loans. The separate root-handoff
 //! receiving pass retains complete lineage; neither pass grants restored use.
@@ -18,24 +18,14 @@ use symbols::SymbolHandle;
 mod reborrow;
 use reborrow::reborrow_resource;
 
-pub(super) fn parameter_root(
-    checked: &CheckedTrees,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    statement_index: usize,
-    owner: SymbolHandle,
-) -> Result<Option<SymbolHandle>, LoweringError> {
-    replay_alias(checked, machine, state, statement_index, owner, false)
-}
-
-fn replay_alias(
+pub(super) fn parameter_source(
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
     owner: SymbolHandle,
     formation: bool,
-) -> Result<Option<SymbolHandle>, LoweringError> {
+) -> Result<Option<super::ReceiverSource>, LoweringError> {
     let (authored_machine, authored_state) =
         crate::scalar_source_custody::authored_state(checked, state)?;
     if authored_machine.symbol != machine {
@@ -77,49 +67,25 @@ fn replay_alias(
     else {
         return unsupported("receiver alias has no explicit borrow initializer");
     };
-    let ExpressionNode::Name(name) = checked.expression_table.expression(initializer.target) else {
-        return unsupported("receiver alias initializer is not a whole parameter");
-    };
     if !checked
         .expression_table
         .expression_is_valid(local.initial_value)
-        || !checked
-            .expression_table
-            .expression_is_valid(initializer.target)
         || initializer.access != ReferenceAccess::WriteOnly
-        || !name.symbol.is_valid()
-        || name.symbol != name.head_symbol
-        || checked
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-        || checked
-            .expression_table
-            .name_path_member_symbols(name.member_symbols)
-            .first()
-            .is_some_and(|symbol| *symbol != name.symbol)
     {
         return unsupported("receiver alias initializer identity or access changed");
     }
+    let captured = super::resolve_source(
+        checked,
+        machine,
+        state,
+        initializer.target,
+        false,
+        Some((*declaration_index, true)),
+    )?;
     let parent_declaration = statements[..*declaration_index].iter().any(|statement| {
-        matches!(statement, StatementNode::LocalData(parent) if parent.symbol == name.symbol)
+        matches!(statement, StatementNode::LocalData(parent) if parent.symbol == captured.owner)
     });
-    let root_symbol = if parent_declaration {
-        replay_alias(
-            checked,
-            machine,
-            state,
-            *declaration_index,
-            name.symbol,
-            true,
-        )?
-        .ok_or(LoweringError::Unsupported(
-            "receiver alias lost its immediate parent",
-        ))?
-    } else {
-        name.symbol
-    };
+    let root_symbol = captured.root;
     let roots = checked
         .state_parameters(authored_state)
         .iter()
@@ -167,18 +133,41 @@ fn replay_alias(
         {
             return unsupported("receiver alias self disagrees with its attachment");
         }
-        checked
-            .type_reference_table
-            .find_named_type_reference(authored_machine.attached_data_symbol)
-            .ok_or(LoweringError::Unsupported(
-                "receiver alias self lost its attachment",
-            ))?
+        if captured.path.is_empty() {
+            checked
+                .type_reference_table
+                .find_named_type_reference(authored_machine.attached_data_symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "receiver alias self lost its attachment",
+                ))?
+        } else {
+            // A projected initializer supplies its exact field/element type.
+            // It does not require a separately authored whole attachment type.
+            *root_type
+        }
     } else {
         *root_type
     };
+    let projected_type = if captured.path.is_empty() {
+        root_type
+    } else {
+        let reference = validation::declared_place_type_raw(
+            &checked.typed,
+            authored_machine,
+            Some(authored_state),
+            initializer.target,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "receiver alias initializer has no exact referent type",
+        ))?;
+        match checked.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => *referee,
+            _ => reference,
+        }
+    };
     if root.is_const
         || checked.typed.normalized_type_identity(*local_type)
-            != checked.typed.normalized_type_identity(root_type)
+            != checked.typed.normalized_type_identity(projected_type)
     {
         return unsupported("receiver alias changes its referent type");
     }
@@ -205,23 +194,25 @@ fn replay_alias(
         .loans
         .iter()
         .filter(|(handle, candidate)| {
-            borrow.state_owns_loan(borrow_state, *handle) && candidate.owner_symbol == name.symbol
+            borrow.state_owns_loan(borrow_state, *handle)
+                && candidate.owner_symbol == captured.owner
         })
         .collect::<Vec<_>>();
     let exact_lineage = if parent_declaration {
         matches!(parent_loans.as_slice(), [(parent_handle, parent)]
             if loan.lineage == BorrowLoanLineage::Reborrow { parent_loan: *parent_handle }
-                && loan.source_owner_symbol == name.symbol
+                && loan.source_owner_symbol == captured.owner
                 && loan.root_symbol == parent.root_symbol)
     } else {
         loan.lineage == BorrowLoanLineage::DirectRoot
             && !loan.source_owner_symbol.is_valid()
-            && loan.root_symbol == name.symbol
+            && loan.root_symbol == captured.captured_place.root_symbol
     };
     if loan.statement_index != *declaration_index
         || loan.kind != BorrowAccessKind::WriteOnly
         || !exact_lineage
-        || !borrow.loan_segments(loan).is_empty()
+        || loan.root_symbol != captured.captured_place.root_symbol
+        || borrow.loan_segments(loan) != captured.captured_place.segments
         || !borrow.loan_owner_path(loan).is_empty()
     {
         return unsupported("receiver alias loan disagrees with its direct initializer");
@@ -250,15 +241,9 @@ fn replay_alias(
                 else {
                     return unsupported("receiver alias escapes through a local initializer");
                 };
-                let ExpressionNode::Name(name) =
-                    checked.expression_table.expression(initializer.target)
-                else {
-                    return unsupported("receiver alias child is not a whole referent");
-                };
                 if child.is_mutable
                     || initializer.access != ReferenceAccess::WriteOnly
-                    || name.symbol != owner
-                    || name.head_symbol != owner
+                    || receiver_root(checked, initializer.target)? != owner
                 {
                     return unsupported("receiver alias child formation changed");
                 }
@@ -367,7 +352,7 @@ fn replay_alias(
             weakening,
             reason,
         )?;
-        return Ok(Some(root.symbol));
+        return Ok(Some(captured));
     }
     let resources = borrow
         .direct_loan_resources
@@ -381,8 +366,7 @@ fn replay_alias(
         || resource.state_symbol != state
         || resource.owner_symbol != owner
         || !resource.owner_path.is_empty()
-        || resource.captured_place.root_symbol != loan.root_symbol
-        || !resource.captured_place.segments.is_empty()
+        || resource.captured_place != captured.captured_place
         || resource.access != BorrowAccessKind::WriteOnly
         || resource.activation_source != activation
         || resource.weakening_source != weakening
@@ -396,7 +380,7 @@ fn replay_alias(
     {
         return unsupported("receiver alias resource disagrees with its source lifetime");
     }
-    Ok(Some(root.symbol))
+    Ok(Some(captured))
 }
 
 fn receiver_root(

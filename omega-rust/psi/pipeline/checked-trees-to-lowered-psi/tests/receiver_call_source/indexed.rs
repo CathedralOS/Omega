@@ -149,6 +149,24 @@ fn nested_indexed_alias_executes_once_across_every_fuel_boundary() {
     assert_indexed_receiver_fuel(&checked);
 }
 
+#[test]
+fn projected_alias_capture_executes_once_across_every_fuel_boundary() {
+    for body in [
+        "let held: &write [Record; 2] = &write records[1];
+         held[0].replace();",
+        "let held: &write [Record; 2] = &write records[1];
+         let child: &write Record = &write held[0];
+         child.replace();",
+    ] {
+        let checked = checked_from_source(&format!(
+            "data Record [copy] {{ value: u16; }}
+             machine Record::replace(&write self) {{ self.value = 17; }}
+             machine forward(records: &write [[Record; 2]; 2]) {{ {body} }}"
+        ));
+        assert_indexed_receiver_fuel(&checked);
+    }
+}
+
 fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
     let artifact = terminal_production::produce_terminal_artifact(checked, "forward").unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();

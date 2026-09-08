@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[path = "aliases/projected.rs"]
+mod projected;
+
 fn source(signature: &str, prefix: &str, calls: &str) -> String {
     format!(
         "data Record [copy] {{ value: u16; }}

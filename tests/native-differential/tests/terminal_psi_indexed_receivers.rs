@@ -16,6 +16,9 @@ mod primitive_stores;
 #[path = "terminal_psi_indexed_receivers/nested_aliases.rs"]
 mod nested_aliases;
 
+#[path = "terminal_psi_indexed_receivers/projected_aliases.rs"]
+mod projected_aliases;
+
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     artifact_for(source, "forward")
 }

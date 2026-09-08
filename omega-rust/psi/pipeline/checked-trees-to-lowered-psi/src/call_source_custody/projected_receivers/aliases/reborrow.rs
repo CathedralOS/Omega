@@ -42,7 +42,7 @@ pub(super) fn reborrow_resource(
         || resource.owner_symbol != owner
         || !resource.owner_path.is_empty()
         || resource.captured_place.root_symbol != loan.root_symbol
-        || !resource.captured_place.segments.is_empty()
+        || resource.captured_place.segments != borrow.loan_segments(loan)
         || resource.access != BorrowAccessKind::WriteOnly
         || resource.parent_access != BorrowAccessKind::WriteOnly
         || resource.parent_loan != parent_handle
