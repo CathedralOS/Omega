@@ -1,6 +1,7 @@
 //! Input correspondence controls; selection remains a separate admission boundary.
 
 use super::*;
+mod legalized;
 use abstract_operations::{
     AbstractBlockEntry, AbstractParameter, AbstractStructuralCasePayloadBinding,
     AbstractStructuralCaseSuccessor,
@@ -145,9 +146,42 @@ fn structural_case_graph_replays_exact_payloads_and_cleanup() {
             &unit,
         )
         .unwrap();
-        assert!(
-            crate::legalize_target_operations(&target, &plan, &unit).is_err(),
-            "target correspondence does not imply implemented native case selection"
+        let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
+        crate::validate_legalized_operations(&target, &plan, &unit, legal.plan().clone()).unwrap();
+        let function = &legal.plan().scalar_functions[0];
+        assert_eq!(
+            function
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>(),
+            unit.functions[0]
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>()
+        );
+        let legalized_operations::LegalizedScalarTerminator::StructuralCase {
+            cases, result, ..
+        } = &function.blocks[0].terminator
+        else {
+            panic!("case")
+        };
+        assert_eq!(result.place, PlaceId::new(1).unwrap());
+        assert_eq!(cases[0].target, BlockId::new(20).unwrap());
+        assert_eq!(cases[1].target, BlockId::new(30).unwrap());
+        assert_eq!(
+            cases[1].payloads[0].parameter.definition_site,
+            optimization_unit::ValueDefinitionSite::BlockParameter {
+                block: BlockId::new(30).unwrap(),
+                position: 0
+            }
+        );
+        assert_ne!(
+            crate::legalization_validator_identity(),
+            optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+                b"omega.terminal-target-legalization-independent-replay.v37"
+            )
         );
     }
 }

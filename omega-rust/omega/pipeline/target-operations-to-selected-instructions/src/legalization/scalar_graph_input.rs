@@ -21,6 +21,7 @@ mod byte_views;
 mod header;
 mod hosted_scalar;
 pub(super) mod read_byte;
+pub(super) mod structural_case;
 pub(super) use hosted_scalar::hosted_execution;
 mod literals;
 mod ranked;

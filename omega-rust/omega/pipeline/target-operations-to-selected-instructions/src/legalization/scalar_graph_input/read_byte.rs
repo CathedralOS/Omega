@@ -137,15 +137,13 @@ pub(in crate::legalization) fn validate(
     Ok(())
 }
 
-/// This first result route retains a straight-line roster of owned read results,
+/// Retains the complete graph roster of owned read results,
 /// alongside erased provider-attachment witnesses checked by unit custody.
 pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
-    let [block] = function.blocks.as_slice() else {
-        return false;
-    };
-    let results = block
-        .nodes
+    let results = function
+        .blocks
         .iter()
+        .flat_map(|block| &block.nodes)
         .filter_map(|node| match &node.operation {
             AbstractOperation::BoundaryCall {
                 psi_operation,
@@ -195,7 +193,7 @@ pub(super) fn cleanup(
     function: &PsiOptimizationFunction,
     actions: &[TerminalAffineCleanupAction],
 ) -> bool {
-    if !roster(function) {
+    if !roster(function) || function.blocks.len() != 1 {
         return false;
     }
     let mut results = function.blocks[0]

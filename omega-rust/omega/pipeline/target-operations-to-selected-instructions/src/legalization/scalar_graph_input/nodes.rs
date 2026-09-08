@@ -181,8 +181,12 @@ pub(super) fn validate(
         if (integer_type(parameter.scalar_type).is_none()
             && !(optimized.result == AbstractFunctionResult::Unit
                 && !ranked
-                && [ScalarType::Boolean, ScalarType::Integer(u8_type())]
-                    .contains(&parameter.scalar_type)))
+                && [
+                    ScalarType::Boolean,
+                    ScalarType::Integer(u8_type()),
+                    ScalarType::Integer(i32_type()),
+                ]
+                .contains(&parameter.scalar_type)))
             || parameter.site
                 != (ValueDefinitionSite::BlockParameter {
                     block: block.id,

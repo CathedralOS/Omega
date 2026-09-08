@@ -14,18 +14,20 @@ pub(super) fn derive(
     let mut outgoing = Vec::new();
     for block in &source.blocks {
         let targets = match &block.terminator {
-            LegalizedScalarTerminator::Return(_) => [None, None],
-            LegalizedScalarTerminator::Jump { successor, .. } => [Some(successor.target), None],
+            LegalizedScalarTerminator::Return(_) => Vec::new(),
+            LegalizedScalarTerminator::Jump { successor, .. } => vec![successor.target],
             LegalizedScalarTerminator::Conditional {
                 when_true,
                 when_false,
                 ..
-            } => [Some(when_true.target), Some(when_false.target)],
+            } => vec![when_true.target, when_false.target],
+            LegalizedScalarTerminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| case.target).collect()
+            }
         };
         outgoing.push(
             targets
                 .into_iter()
-                .flatten()
                 .map(|target| {
                     source
                         .blocks
@@ -82,4 +84,86 @@ pub(super) fn derive(
         order.push(next);
     }
     Ok(order)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use legalized_operations::{
+        LegalizedScalarInstructionKind, LegalizedScalarSuccessor, LegalizedStructuralCaseSuccessor,
+    };
+    use optimization_unit::EffectLink;
+    use semantic_vocabulary::{BlockId, EdgeId, StructuralCaseId};
+
+    #[test]
+    fn case_targets_precede_their_join_in_a_permuted_roster() {
+        let (abstracted, native, unit) =
+            crate::tests::legalization::byte_input::fixture(target::NativeTarget::linux_x64());
+        let legal = crate::legalize_target_operations(&native, &abstracted, &unit).unwrap();
+        // Exercise layout on raw graph data, not a forged admission receipt.
+        let mut source = legal.plan().scalar_functions[0].clone();
+        let operation = source.blocks[0].instructions[0].operation;
+        let LegalizedScalarInstructionKind::HostedReadByte { result, layout, .. } =
+            source.blocks[0].instructions[0].kind.clone()
+        else {
+            unreachable!()
+        };
+        let mut join = source.blocks[0].clone();
+        join.id = BlockId::new(4).unwrap();
+        join.instructions.clear();
+        let arm = |identity, edge| {
+            let mut block = join.clone();
+            block.id = BlockId::new(identity).unwrap();
+            block.terminator = LegalizedScalarTerminator::Jump {
+                successor: LegalizedScalarSuccessor {
+                    edge: EdgeId::new(edge).unwrap(),
+                    target: join.id,
+                    bindings: Vec::new(),
+                    structural_bindings: Vec::new(),
+                    fuel: Vec::new(),
+                },
+                effect: EffectLink {
+                    input: 0,
+                    output: 0,
+                },
+                ownership: Vec::new(),
+            };
+            block
+        };
+        let empty = arm(2, 12);
+        let present = arm(3, 13);
+        source.blocks[0].terminator = LegalizedScalarTerminator::StructuralCase {
+            defining_operation: operation,
+            result,
+            layout,
+            cases: [empty.id, present.id]
+                .into_iter()
+                .enumerate()
+                .map(|(position, target)| LegalizedStructuralCaseSuccessor {
+                    edge: EdgeId::new(10 + position as u64).unwrap(),
+                    target,
+                    case: StructuralCaseId::new(1 + position as u64).unwrap(),
+                    case_tag: position as i32,
+                    payloads: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                    fuel: Vec::new(),
+                })
+                .collect(),
+            effect: EffectLink {
+                input: 0,
+                output: 0,
+            },
+            ownership: Vec::new(),
+        };
+        source.blocks.extend([empty, join, present]);
+        assert_eq!(derive(&source).unwrap(), [0, 1, 3, 2]);
+
+        let LegalizedScalarTerminator::StructuralCase { cases, .. } =
+            &mut source.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        cases[1].target = BlockId::new(99).unwrap();
+        assert!(derive(&source).is_err());
+    }
 }

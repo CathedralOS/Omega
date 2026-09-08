@@ -8,6 +8,9 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (&node.operation, &function.result) {
+        (AbstractOperation::StructuralCase { .. }, AbstractFunctionResult::Unit) => {
+            super::structural_case::validate(node, function)
+        }
         (
             AbstractOperation::ReturnUnit {
                 psi_edge,

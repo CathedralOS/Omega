@@ -3,6 +3,7 @@ use super::shared::*;
 use crate::legalization::scalar_graph_input;
 use ::legalized_operations::*;
 mod instruction;
+mod structural_case;
 mod terminator;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay(
@@ -63,7 +64,7 @@ pub(super) fn replay(
         for (actual, node) in block.instructions.iter().zip(body) {
             instruction::validate(actual, node, optimized, native, plan, unit, proposed_plan)?;
         }
-        terminator::validate(&block.terminator, last)?;
+        terminator::validate(&block.terminator, last, optimized, plan)?;
     }
     Ok(())
 }

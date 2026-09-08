@@ -195,6 +195,14 @@ pub struct LegalizedScalarSuccessor {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
+    StructuralCase {
+        defining_operation: OperationId,
+        result: terminal_psi::StructuralOperationResult,
+        layout: calling_conventions::ConventionalSumLayout,
+        cases: Vec<super::LegalizedStructuralCaseSuccessor>,
+        effect: EffectLink,
+        ownership: Vec<OwnershipEvent>,
+    },
     Return(LegalizedScalarReturn),
     Jump {
         successor: LegalizedScalarSuccessor,
@@ -220,6 +228,7 @@ impl LegalizedScalarTerminator {
                 .any(|binding| binding.argument == value)
         };
         match self {
+            Self::StructuralCase { .. } => false,
             Self::Return(returned) => matches!(returned.value,
                 LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value),
             Self::Jump { successor, .. } => binds(successor),
