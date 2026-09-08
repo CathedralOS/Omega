@@ -1,5 +1,6 @@
 //! Returning Unit branches join through ordinary source blocks.
 use super::*;
+mod cycles;
 mod transfers;
 use abstract_operations::AbstractSuccessor;
 
