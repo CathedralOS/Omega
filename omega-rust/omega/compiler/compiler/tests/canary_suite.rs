@@ -2721,6 +2721,9 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
 // Cross-compile their exact authored root on every development host instead
 // of selecting the development host or substituting the legacy entry seam.
 const ROOTED_TARGET_BACKEND_PASS_CANARIES: &[(&str, &str)] = &[
+    ("host/runtime_console_exit_i32_status", "linux_x86_64"),
+    ("host/runtime_console_exit_i32_status", "linux_arm64"),
+    ("host/runtime_console_exit_i32_status", "macos_arm64"),
     ("filesystem/windows_raw_breadth_exit", "windows_x86_64"),
     ("filesystem/windows_raw_roundtrip_exit", "windows_x86_64"),
     ("host/runtime_user32_key_state_exit", "windows_x86_64"),
