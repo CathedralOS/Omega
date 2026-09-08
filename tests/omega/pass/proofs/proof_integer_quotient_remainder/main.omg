@@ -35,3 +35,8 @@ ensures
     ((embed(18446744073709551615u64) + 1) * (embed(18446744073709551615u64) + 1) * 2 + 1) % 2 == 1,
     7 / 2 == 3.5
 {}
+
+machine remainder_bounds(value: i32, divisor: i32)
+requires divisor == 2
+ensures embed(value) % embed(divisor) >= -1, embed(value) % embed(divisor) <= 1
+{}

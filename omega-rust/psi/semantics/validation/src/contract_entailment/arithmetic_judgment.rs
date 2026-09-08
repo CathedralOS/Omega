@@ -1235,7 +1235,7 @@ impl<'program> Engine<'program> {
                         return Some(Polynomial::atom(atom));
                     }
                     let operand = dividend;
-                    let modulus = divisor.constant_value()?;
+                    let modulus = self.substituted(&divisor).constant_value()?;
                     if modulus.is_zero() {
                         return None;
                     }
