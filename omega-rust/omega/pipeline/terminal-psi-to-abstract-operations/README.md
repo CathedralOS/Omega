@@ -98,9 +98,21 @@ or arbitrary cleanup composition.
 ## Ranked native admission
 
 Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
-[ranked_native.rs](src/artifact/ranked_native.rs) currently admits only the entry
-machine's exact unsigned countdown and ceiling. Native and fixed-fuel verification
-run independently. This is not admission of an ordinary call to a ranked callee.
+[native.rs](src/artifact/native.rs) routes natural-ranked modules through ordinary
+Terminal verification and abstract lowering. That verifier checks the exact
+grouped control-cycle evidence, including slice-decrease proofs; the route does
+not require or manufacture a fixed-work ceiling. The abstract graph retains its
+cyclic edges and structural bindings, and the separately verified optimizer input
+retains the canonical Terminal module and proof bundle. Native artifact admission
+alone does not establish downstream optimization, target lowering, or publication
+support for these cycles.
+
+Only the legacy unsigned-countdown carrier selects
+[ranked_native.rs](src/artifact/ranked_native.rs). This specialized entrance admits
+the entry machine's exact unsigned countdown and ceiling. Native and fixed-fuel
+verification run independently. Unsupported countdowns still reject rather than
+falling back to ordinary admission. This is not admission of an ordinary call to
+a countdown-ranked callee.
 The [projected-receiver contract](../../../../wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
 needs composed argument references, call/return, cleanup, callee measure checking,
 and resource evidence; removing an entry guard or widening parameter count is

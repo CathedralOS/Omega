@@ -117,6 +117,7 @@ fn function(machine: u32, boundary_ids: &[u32]) -> AbstractFunction {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         block_entries: vec![abstract_operations::AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block,
             parameters: Vec::new(),
             operation_offset: 0,
