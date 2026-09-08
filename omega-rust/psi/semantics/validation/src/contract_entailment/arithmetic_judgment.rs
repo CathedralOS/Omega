@@ -1242,8 +1242,23 @@ impl<'program> Engine<'program> {
                     let magnitude = modulus.abs().sub(&BigInt::from_i64(1));
                     let operand_interval = self.polynomial_interval(&self.substituted(&operand));
                     let display = format!("({}) % {}", polynomial_display(&operand), modulus);
-                    self.arithmetic_intervals.insert(
-                        display.clone(),
+                    let interval = if builtin_proof_integer
+                        && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation)
+                        && let (Some(low), Some(high)) =
+                            (&operand_interval.low, &operand_interval.high)
+                        && let (
+                            Some((low_quotient, low_remainder)),
+                            Some((high_quotient, high_remainder)),
+                        ) = (low.div_rem(&modulus), high.div_rem(&modulus))
+                        && low_quotient == high_quotient
+                    {
+                        // A constant quotient makes remainder increase with the
+                        // dividend, including when the divisor is negative.
+                        Interval {
+                            low: Some(low_remainder),
+                            high: Some(high_remainder),
+                        }
+                    } else {
                         Interval {
                             low: Some(operand_interval.low.map_or_else(
                                 || magnitude.negate(),
@@ -1253,8 +1268,9 @@ impl<'program> Engine<'program> {
                                 || magnitude.clone(),
                                 |maximum| maximum.max(BigInt::zero()).min(magnitude.clone()),
                             )),
-                        },
-                    );
+                        }
+                    };
+                    self.arithmetic_intervals.insert(display.clone(), interval);
                     Some(Polynomial::atom(display))
                 }
                 _ => None,

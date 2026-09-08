@@ -40,3 +40,8 @@ machine remainder_bounds(value: i32, divisor: i32)
 requires divisor == 2
 ensures embed(value) % embed(divisor) >= -1, embed(value) % embed(divisor) <= 1
 {}
+
+machine remainder_window(value: i32)
+requires value >= 13, value <= 15
+ensures embed(value) % 8 >= 5, embed(value) % 8 <= 7
+{}
