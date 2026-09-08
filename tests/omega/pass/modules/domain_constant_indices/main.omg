@@ -1,0 +1,14 @@
+use combat;
+use rooms;
+
+const SIZE: u64 = 1;
+domain<T, const N: u64> T::Indexed<N>;
+
+data Root {
+    named: u64 in Indexed<SIZE>;
+    same: u64 in Indexed<SIZE + 0>;
+    next: u64 in Indexed<SIZE + 1>;
+}
+
+data Main {}
+machine Main::main(&mut self) {}

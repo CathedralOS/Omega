@@ -16,6 +16,111 @@ mod public_domains;
 mod traits_and_lifetimes;
 
 #[test]
+fn module_constant_domain_index_enters_canonical_public_data_artifact() {
+    use support::*;
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+
+    let project = |package: &TempPackage, size: u64, argument: &str| {
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        );
+        package.write(
+            "combat.omg",
+            &format!("module combat; pub const SIZE: u64 = {size};"),
+        );
+        package.write("rooms.omg", "module rooms; pub const SIZE: u64 = 9;");
+        package.write(
+            "main.omg",
+            &format!(
+                "use combat; use rooms; const SIZE: u64 = 1;
+             pub domain<T, const N: u64> T::Indexed<N>;
+             pub data Root {{ value: u64 in Indexed<{argument}>; }}"
+            ),
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x86_64"),
+            package_inputs(&package.0),
+        )
+        .expect("public indexed domain application checks");
+        let [family] = checked.typed.domain_definitions() else {
+            panic!("one authored indexed family");
+        };
+        let root = checked
+            .typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Root")
+            .expect("Root declaration");
+        let [DataMember::Field(field)] = checked.typed.data_members(root) else {
+            panic!("one public constrained field");
+        };
+        let TypeReferenceNode::Constrained { constraints, .. } = checked
+            .typed
+            .type_reference_table
+            .type_reference(field.type_reference)
+        else {
+            panic!("domain constraint remains in semantic API input");
+        };
+        let [TypeConstraintNode::Domain(domain)] =
+            checked.typed.type_reference_table.constraints(*constraints)
+        else {
+            panic!("one exact domain application");
+        };
+        assert_eq!(
+            domain.symbol, family.symbol,
+            "canonical domain refers to its declaration, not its rendered spelling"
+        );
+        assert!(domain.symbol.is_valid());
+        assert!(domain.semantic_id.is_valid());
+        assert_eq!(domain.arguments.len(), 1);
+        project_checked_package_review(&checked).expect("indexed domain API projects")
+    };
+    let first_package = TempPackage::new();
+    let relocated_package = TempPackage::new();
+    let original = project(&first_package, 2, "combat::SIZE + 1");
+    let relocated = project(&relocated_package, 2, "combat::SIZE + 1");
+    assert_ne!(first_package.0, relocated_package.0);
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        relocated.canonical_review_bytes().unwrap()
+    );
+    let data_rows = |review: &CheckedPackageReviewProjection| {
+        review
+            .canonical_rows()
+            .unwrap()
+            .into_iter()
+            .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
+            .collect::<Vec<_>>()
+    };
+    let rows = data_rows(&original);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows, data_rows(&relocated));
+    for row in &rows {
+        let bytes = encode_package_review_canonical_row(row).unwrap();
+        let decoded = decode_package_review_canonical_row(&bytes).unwrap();
+        assert_eq!(decoded.key_bytes(), row.key_bytes());
+        assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
+    }
+    let payloads = |review: &CheckedPackageReviewProjection| {
+        data_rows(review)
+            .iter()
+            .map(|row| (row.key_bytes().to_vec(), row.canonical_bytes().to_vec()))
+            .collect::<Vec<_>>()
+    };
+    let literal = project(&TempPackage::new(), 2, "3");
+    let equivalent = project(&TempPackage::new(), 2, "combat::SIZE + combat::SIZE - 1");
+    assert_eq!(payloads(&original), payloads(&literal));
+    assert_eq!(payloads(&original), payloads(&equivalent));
+    let changed = project(&TempPackage::new(), 3, "combat::SIZE + 1");
+    let changed_literal = project(&TempPackage::new(), 3, "4");
+    assert_eq!(payloads(&changed), payloads(&changed_literal));
+    assert_ne!(payloads(&original), payloads(&changed));
+}
+
+#[test]
 fn module_constant_index_enters_canonical_public_data_artifact() {
     use support::*;
 

@@ -196,14 +196,26 @@ fn named_module_domain_indices_cannot_fold_through_root_names() {
         };
         assert_eq!(name.as_str(), "SIZE");
         assert_eq!(name.source_span().source_id, SourceId(2));
-        let errors = desugar_generic_data_instances(&mut syntax, &mut Vec::new())
-            .expect_err("eager domain selection rejects a possible module constant");
+        desugar_generic_data_instances(&mut syntax, &mut Vec::new())
+            .expect("named domain index selects the exact module constant");
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("module constant `SIZE`")),
-            "{errors:?}"
+            matches!(syntax.type_references.type_reference(index), TypeReferenceNode::Named(value) if value.as_str() == "2")
         );
+        let normalization = syntax
+            .type_references
+            .const_argument_normalization(index)
+            .expect("retained named index normalization");
+        assert_eq!(normalization.canonical_result_encoding, "integer3:u641:2");
+        let [origin] = syntax
+            .type_references
+            .const_argument_origins(normalization.selections)
+        else {
+            panic!("one exact selected declaration");
+        };
+        assert_eq!(origin.reference.source_id, SourceId(2));
+        assert_eq!(origin.declaration.source_id, SourceId(2));
+        assert_eq!(origin.initializer.source_id, SourceId(2));
+        assert_eq!(origin.canonical_value_encoding, "integer3:u641:2");
     }
 }
 

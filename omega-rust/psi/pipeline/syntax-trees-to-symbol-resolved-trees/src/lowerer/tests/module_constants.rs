@@ -9,6 +9,165 @@ use syntax_trees::{
 };
 use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
+fn domain_index_sources(sources: &[(SourceId, &str)]) -> SyntaxTrees {
+    let mut syntax = SyntaxTrees::default();
+    for (source, text) in sources {
+        let tokens = Lexer::new(text)
+            .tokenize()
+            .expect("tokenize domain indices");
+        parse_syntax_trees_into_with_id(&mut syntax, *source, &tokens)
+            .expect("parse domain indices");
+    }
+    syntax
+}
+
+#[test]
+fn named_domain_indices_retain_exact_root_module_and_import_selections() {
+    for reverse in [false, true] {
+        let mut sources = [
+            (
+                SourceId(1),
+                "pub const SIZE: u64 = 1; domain<T, const N: u64> T::Indexed<N>; data Root { value: u64 in Indexed<SIZE>; }",
+            ),
+            (
+                SourceId(2),
+                "module combat; pub const SIZE: u64 = 2; data Combat { local: u64 in Indexed<SIZE>; qualified: u64 in Indexed<combat::SIZE>; }",
+            ),
+            (
+                SourceId(3),
+                "module rooms; pub const SIZE: u64 = 3; pub data Rooms { value: u64 in Indexed<SIZE>; }",
+            ),
+            (
+                SourceId(4),
+                "module consumer; use combat::SIZE; data Imported { value: u64 in Indexed<SIZE>; }",
+            ),
+        ];
+        if reverse {
+            sources.reverse();
+        }
+        let syntax = crate::normalize_generic_data(domain_index_sources(&sources))
+            .expect("normalize named domain indices");
+        let mut origins = Vec::new();
+        for constraint in syntax.type_references.domain_constraints() {
+            let [argument] = syntax
+                .type_references
+                .type_reference_handles(constraint.arguments)
+            else {
+                panic!("one domain index");
+            };
+            let normalization = syntax
+                .type_references
+                .const_argument_normalization(*argument)
+                .expect("domain argument custody");
+            let [origin] = syntax
+                .type_references
+                .const_argument_origins(normalization.selections)
+            else {
+                panic!("one selected declaration");
+            };
+            let expected = if origin.reference.source_id == SourceId(4) {
+                2
+            } else {
+                origin.reference.source_id.0
+            };
+            assert_eq!(origin.declaration.source_id, SourceId(expected));
+            assert_eq!(
+                normalization.canonical_result_encoding,
+                format!("integer3:u641:{expected}")
+            );
+            let TypeReferenceNode::Named(value) = syntax.type_references.type_reference(*argument)
+            else {
+                panic!("canonical index");
+            };
+            assert_eq!(value.as_str(), expected.to_string());
+            origins.push(origin.clone());
+        }
+        assert_eq!(origins.len(), 5);
+        let program = lower_syntax_trees(&syntax).expect("final domain custody join");
+        for origin in origins {
+            let selected = program
+                .const_declarations
+                .iter()
+                .find(|declaration| {
+                    program.symbols.symbol_source_span(declaration.symbol)
+                        == Some(origin.declaration)
+                })
+                .expect("exact constant")
+                .symbol;
+            let occurrences = program.authored_declaration_selections().iter().filter(|selection| selection.source_span() == origin.reference && matches!(selection.target(), symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == selected)).collect::<Vec<_>>();
+            assert!(!occurrences.is_empty());
+            let expected = if origin.reference.source_id == SourceId(3) {
+                AuthoredDeclarationSelectionExposure::PublicInterface
+            } else {
+                AuthoredDeclarationSelectionExposure::PrivateImplementation
+            };
+            assert!(
+                occurrences
+                    .iter()
+                    .all(|selection| selection.exposure() == expected)
+            );
+        }
+    }
+}
+
+#[test]
+fn domain_index_selection_cannot_fall_back_from_ambiguous_imports() {
+    let syntax = crate::normalize_generic_data(domain_index_sources(&[
+        (SourceId(1), "domain<T, const N: u64> T::Indexed<N>;"),
+        (SourceId(2), "module combat; pub const SIZE: u64 = 2;"),
+        (SourceId(3), "module rooms; pub const SIZE: u64 = 3;"),
+        (SourceId(4), "module consumer; use combat::SIZE; use rooms::SIZE; data Use { value: u64 in Indexed<SIZE>; }"),
+    ])).expect("defer ambiguous selection");
+    let constraints = syntax.type_references.domain_constraints();
+    let argument = syntax
+        .type_references
+        .type_reference_handles(constraints[0].arguments)[0];
+    assert!(
+        syntax
+            .type_references
+            .const_argument_normalization(argument)
+            .is_none()
+    );
+    assert!(
+        matches!(syntax.type_references.type_reference(argument), TypeReferenceNode::Named(name) if name.as_str() == "SIZE")
+    );
+}
+
+#[test]
+fn named_domain_indices_preserve_open_and_machine_bindings() {
+    let syntax = crate::normalize_generic_data(domain_index_sources(&[
+        (SourceId(1), "use combat::SIZE; domain<T, const N: u64> T::Indexed<N>; data Open<const SIZE: u64> { value: u64 in Indexed<SIZE>; } machine run(SIZE: u64) -> u64 { let value: u64 in Indexed<SIZE>; transition { _ -> 0u64 } }"),
+        (SourceId(2), "module combat; pub const SIZE: u64 = 2;"),
+    ])).expect("retain lexical indices");
+    for constraint in syntax.type_references.domain_constraints() {
+        let argument = syntax
+            .type_references
+            .type_reference_handles(constraint.arguments)[0];
+        assert!(
+            syntax
+                .type_references
+                .const_argument_normalization(argument)
+                .is_none()
+        );
+        assert!(
+            matches!(syntax.type_references.type_reference(argument), TypeReferenceNode::Named(name) if name.as_str() == "SIZE")
+        );
+    }
+}
+
+#[test]
+fn named_domain_index_keeps_its_declared_integer_carrier() {
+    let diagnostics = crate::normalize_generic_data(domain_index_sources(&[
+        (SourceId(1), "domain<T, const N: u64> T::Indexed<N>;"),
+        (
+            SourceId(2),
+            "module combat; const SIZE: u8 = 2; data Use { value: u64 in Indexed<SIZE>; }",
+        ),
+    ]))
+    .expect_err("u8 constant cannot silently become u64 index");
+    assert!(format!("{diagnostics:?}").contains("declares type `u8`"));
+}
+
 fn normalized(public: bool) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::default();
     let module = format!(
