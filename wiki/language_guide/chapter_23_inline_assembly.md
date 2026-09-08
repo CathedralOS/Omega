@@ -297,4 +297,4 @@ instruction family.
 
 See
 [`OS Memory And Hardware Foundation`](../pre_migration/design_briefs/os_memory_and_hardware_foundation.md)
-and [`Calling And Machine-State Plans`](../pre_migration/design_briefs/calling_plans.md).
+and [machine-state realization evidence](../spec/build/machine_state_evidence.md).

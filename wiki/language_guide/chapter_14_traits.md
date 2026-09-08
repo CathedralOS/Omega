@@ -560,28 +560,30 @@ boundary trait TimerInterrupt:
 `requires InterruptService;` and `: InterruptService` normalize to the same
 requirement edge. The referenced trait determines the edge's role: a boundary
 parent contributes service reach, while an ordinary parent such as
-`Calling<C>` contributes policy/contract identity and no service reach. An
+`Calling<C, Policy>` contributes policy/contract identity and no service reach. An
 ordinary trait therefore cannot inherit a boundary parent; the child must also
 be a `boundary trait`.
 
-`Calling<C>` is not compiler recognition of a friendly type name. `C` satisfies
-`CallingPolicy`, whose compile-time `plan` machine evaluates the normalized
+`Calling<C, Policy>` is not compiler recognition of a friendly type name.
+`Policy` names the exact conformance of `C` to `CallingPolicy`; its compile-time
+`plan` machine evaluates the normalized
 boundary signature to `Accepted(BoundaryEntryPlan)` or a structured `Rejected`
 reason. The compiler validates and canonicalizes accepted plans; their evaluated
 identity, not the policy symbol or machine body, becomes part of the boundary
 contract. A rejected result has no boundary-plan identity and its structured
-reason is reported at the `Calling<C>` relationship. Policy authorship is open,
+reason is reported at the `Calling<C, Policy>` relationship. Policy authorship is open,
 but the plan vocabulary and validator are closed compiler interfaces. See the
-calling-plans design brief for the complete boundary rule.
+[calling-plan contract](../spec/build/calling_plans.md) for the complete rule and
+its linked implementation-status note.
 
 For a hardware-dictated convention, rejection is a normal use of the policy:
 the policy rejects an incompatible frame, result, or control-return shape at the
 relationship site rather than encoding an invalid plan for a later phase to
 discover.
 
-The policy is a type parameter deliberately, not a workaround for unavailable
+The policy is a named conformance parameter, not a workaround for unavailable
 machine parameters. Static machine parameters select and directly invoke one
-authored machine. `Calling<C>` selects a policy relationship that may use several
+authored machine. `Calling<C, Policy>` selects a relationship that may use several
 ordinary machines and whose canonical result, rather than any helper symbol,
 defines the boundary promise. Neither form reifies a machine as a runtime value,
 code address, or relocation source.

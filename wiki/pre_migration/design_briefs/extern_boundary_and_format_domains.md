@@ -821,7 +821,7 @@ inferred from library or symbol strings.
 
 Bindings cite a plan identity. Provider admission verifies that the binding and
 entry stub implement the pinned boundary-machine contract. See
-[`calling_plans.md`](calling_plans.md).
+[the calling-plan contract](../../spec/build/calling_plans.md).
 
 The evaluated plan belongs to the satisfied requirement through ordinary
 `Calling<C>` policy composition. The old `boundary(<Plan>)` marker is retired;
