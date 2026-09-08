@@ -302,6 +302,87 @@ fn folded_boolean_prefix_keeps_the_selected_comparison_operands() {
 }
 
 #[test]
+fn folded_prefix_preserves_a_nested_mutable_condition() {
+    let source = r#"
+        machine stamp(value: &mut u64) -> bool { value = 7; true }
+        machine consume(value: bool) { }
+        machine enter(enabled: bool, output: &mut u64) {
+            let mut selected: bool = enabled;
+            let mut scratch: u64 = 91;
+            consume(true && (selected && stamp(&mut scratch)));
+            output = scratch;
+        }
+    "#;
+    execute_with_arguments(
+        source,
+        &[TerminalScalarValue::Boolean(false)],
+        &[201, 91],
+        0,
+    );
+    execute_with_arguments(source, &[TerminalScalarValue::Boolean(true)], &[201, 7], 1);
+    let disjunction = source.replace("true && (", "false || (");
+    execute_with_arguments(
+        &disjunction,
+        &[TerminalScalarValue::Boolean(false)],
+        &[201, 91],
+        0,
+    );
+    execute_with_arguments(
+        &disjunction,
+        &[TerminalScalarValue::Boolean(true)],
+        &[201, 7],
+        1,
+    );
+
+    let original = checked(source);
+    let plans = &original.facts.values.scalar_computations;
+    let root = plans
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .find(|root| {
+            matches!(
+                plans.nodes.get(root.root).kind,
+                checked_trees::CheckedScalarComputationKind::Select { .. }
+            )
+        })
+        .unwrap();
+    let node = plans.nodes.get(root.root);
+    let checked_trees::CheckedScalarComputationKind::Select {
+        source_expression, ..
+    } = node.kind
+    else {
+        panic!("retained inner selection");
+    };
+    assert!(
+        original
+            .expression_table
+            .expression_is_valid(node.authored_root)
+    );
+    assert_ne!(source_expression, node.authored_root);
+    for replacement in [
+        checked_trees::expression::ExpressionHandle::invalid(),
+        node.authored_root,
+    ] {
+        let mut changed = original.clone();
+        let checked_trees::CheckedScalarComputationKind::Select {
+            source_expression, ..
+        } = &mut changed
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(root.root)
+            .kind
+        else {
+            panic!("retained selection");
+        };
+        *source_expression = replacement;
+        assert!(terminal_production::produce_terminal_artifact(&changed, "enter").is_err());
+    }
+}
+
+#[test]
 fn comparison_operand_cannot_substitute_a_different_mutable_read() {
     let original = checked(
         r#"

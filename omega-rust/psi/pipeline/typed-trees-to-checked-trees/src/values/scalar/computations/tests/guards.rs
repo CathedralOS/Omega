@@ -56,6 +56,7 @@ fn guard_nodes(checked: &checked_trees::CheckedTrees) -> Vec<&CheckedScalarCompu
                 condition,
                 when_true,
                 when_false,
+                ..
             } => {
                 pending.extend([*condition, *when_true, *when_false]);
             }

@@ -425,6 +425,7 @@ impl<'a> Expansion<'a> {
                 condition,
                 when_true,
                 when_false,
+                ..
             } => {
                 if self.argument_type(&Argument::Computation(condition))? != ScalarType::Boolean
                     || self.argument_type(&Argument::Computation(when_true))? != result_type
@@ -659,6 +660,7 @@ fn collect_call_targets(
                 condition,
                 when_true,
                 when_false,
+                ..
             } => pending.extend([*condition, *when_true, *when_false]),
             CheckedScalarComputationKind::Call {
                 target_machine,

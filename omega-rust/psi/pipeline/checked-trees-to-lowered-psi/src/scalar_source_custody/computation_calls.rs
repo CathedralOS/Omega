@@ -64,12 +64,16 @@ pub(crate) fn validate_computation_calls(
                 )?;
             }
             CheckedScalarComputationKind::Select {
+                source_expression,
                 condition,
                 when_true,
                 when_false,
             } => {
+                if !authored_expressions(checked, authored_scope)?.contains(source_expression) {
+                    return unsupported("computed selection escaped its authored operand scope");
+                }
                 let (condition_scope, selected_scope, evaluate_when) =
-                    operand_scopes::selection(checked, authored_scope)?;
+                    operand_scopes::selection(checked, *source_expression)?;
                 let (selected, skipped) = if evaluate_when {
                     (*when_true, *when_false)
                 } else {

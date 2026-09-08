@@ -410,6 +410,7 @@ fn collect(
             condition,
             when_true,
             when_false,
+            ..
         } => {
             for operand in [condition, when_true, when_false] {
                 collect(
