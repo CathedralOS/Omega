@@ -533,7 +533,8 @@ pub struct CheckedTraitOperatorScalarReturnMachinePlan {
 pub struct CheckedStructuralScalarReturnMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// Free bodies have no attachment; attached bodies retain their exact owner.
+    pub attachment_type_identity: Option<String>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Dense scalar input order with each entry's original source position.
     /// Together with `structural_parameters`, this must exactly partition the
@@ -543,6 +544,9 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     /// expressions remain in `CheckedScalarExpressionPlans` at the binding's
     /// exact statement coordinate.
     pub bindings: Vec<CheckedScalarBinding>,
+    /// Ordered effects after the binding prefix and before return evaluation.
+    /// Each effect retains its exact authored statement coordinate.
+    pub effects: Vec<CheckedUnitEffectOperationPlan>,
     pub result_type: PrimitiveType,
     pub return_statement_ordinal: u32,
     /// One bounded actual CFG convergence: a single finite `!`/`&&`/`||`

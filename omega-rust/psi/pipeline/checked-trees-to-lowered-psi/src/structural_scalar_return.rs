@@ -6,6 +6,7 @@
 
 use super::*;
 
+mod effects;
 mod expressions;
 mod nominal;
 mod selected_operator;
@@ -96,10 +97,11 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         synthesized_realization = CheckedStructuralScalarReturnMachinePlan {
             machine: plan.realization_machine,
             state: plan.realization_state,
-            attachment_type_identity,
+            attachment_type_identity: Some(attachment_type_identity),
             structural_parameters,
             scalar_parameters: Vec::new(),
             bindings: Vec::new(),
+            effects: Vec::new(),
             result_type: plan.result_type,
             return_statement_ordinal: 0,
             shared_boolean_convergence: None,
@@ -310,6 +312,7 @@ pub(super) fn lower_structural_scalar_return_machine(
             CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)
         )
     }) {
+        effects::validate(checked, plan)?;
         return lower_nominal_structural_scalar_return_machine(checked, plan);
     }
     lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0, None)
@@ -322,6 +325,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     identity_base: u64,
     shared_structural_types: Option<&[StructuralTypeDeclaration]>,
 ) -> Result<LoweredPsi, LoweringError> {
+    let primitive_store_return = effects::validate(checked, plan)?;
     if plan.cleanup_actions.iter().any(|action| {
         matches!(
             action,
@@ -363,7 +367,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     let mut positions = BTreeSet::new();
     for parameter in &plan.structural_parameters {
         if parameter.is_self
-            || parameter.multiplicity != Multiplicity::Affine
+            || (parameter.multiplicity != Multiplicity::Affine && !primitive_store_return)
             || !parameter.qualifications.is_empty()
             || !positions.insert(parameter.position)
         {
@@ -403,6 +407,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
         .structural_parameters
         .iter()
         .rev()
+        .filter(|parameter| parameter.multiplicity == Multiplicity::Affine)
         .map(|parameter| {
             CheckedStructuralScalarReturnCleanupAction::DiscardRoot(parameter.position)
         })
@@ -410,7 +415,14 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     if plan.cleanup_actions != expected_cleanup {
         return unsupported("structural scalar return cleanup does not consume its exact frontier");
     }
-    let expected_return_ordinal = u32::try_from(plan.bindings.len()).map_err(|_| {
+    let prefix_count =
+        plan.bindings
+            .len()
+            .checked_add(plan.effects.len())
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar return prefix count exceeds usize",
+            ))?;
+    let expected_return_ordinal = u32::try_from(prefix_count).map_err(|_| {
         LoweringError::Unsupported("structural scalar return binding count exceeds u32")
     })?;
     if plan.return_statement_ordinal != expected_return_ordinal {
@@ -567,6 +579,14 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
         );
         scalar_values.push(ValueDeclaration { id, scalar_type });
     }
+    effects::emit(
+        plan,
+        &structural_parameters,
+        &structural_types,
+        &scalar_values,
+        &mut next_value,
+        &mut operations,
+    )?;
     let expression = lower_checked_scalar_expression_at(
         checked,
         plan.state,
@@ -866,7 +886,11 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     };
     let machine = TerminalMachine {
         id: terminal_machine,
-        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+        attachment: plan
+            .attachment_type_identity
+            .as_deref()
+            .map(|identity| lookup_type_id(&type_ids, identity))
+            .transpose()?,
         parameters: scalar_parameters,
         structural_parameters: structural_parameters.clone(),
         ranked_scc: None,

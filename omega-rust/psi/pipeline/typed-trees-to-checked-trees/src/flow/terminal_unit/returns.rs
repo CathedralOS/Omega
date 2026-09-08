@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod primitive_effects;
 mod selected_operator;
 use selected_operator::build_selected_operator_structural_scalar_return_machine;
 
@@ -1566,12 +1567,16 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
     let retained = machines
         .iter()
         .flat_map(|machine| {
-            std::iter::once(machine.attachment_type_identity.as_str()).chain(
-                machine
-                    .structural_parameters
-                    .iter()
-                    .map(|parameter| parameter.type_identity.as_str()),
-            )
+            machine
+                .attachment_type_identity
+                .as_deref()
+                .into_iter()
+                .chain(
+                    machine
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
         })
         .chain(trait_operator_machines.iter().flat_map(|machine| {
             machine
@@ -2106,9 +2111,35 @@ pub(super) fn build_structural_scalar_return_machine(
     {
         return None;
     }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let has_primitive_effect = matches!(
+        statements,
+        [StatementNode::Assignment(_), StatementNode::Expression(_)]
+    );
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+        if machine.attached_data.is_none() && has_primitive_effect {
+            let (structural, scalar) =
+                free_structural_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
+        } else {
+            let (attachment, structural, scalar) =
+                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+            (Some(attachment), structural, scalar)
+        };
+    let effects = if has_primitive_effect {
+        primitive_effects::build(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            &structural_parameters,
+            &scalar_parameters,
+        )?
+    } else {
+        Vec::new()
+    };
     let source_state_parameters = program.state_parameters(state);
     let authored_parameter_positions = structural_parameters
         .iter()
@@ -2132,13 +2163,12 @@ pub(super) fn build_structural_scalar_return_machine(
             .any(|pair| pair[0].source_position >= pair[1].source_position)
         || structural_parameters.iter().any(|parameter| {
             parameter.is_self
-                || parameter.multiplicity != Multiplicity::Affine
+                || (effects.is_empty() && parameter.multiplicity != Multiplicity::Affine)
                 || !parameter.qualifications.is_empty()
         })
     {
         return None;
     }
-    let statements = program.statement_table.statements(state.statement_nodes);
     let binding_count = statements
         .iter()
         .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
@@ -2194,10 +2224,11 @@ pub(super) fn build_structural_scalar_return_machine(
         .into_iter()
         .map(|(binding, _)| binding)
         .collect::<Vec<_>>();
-    let [StatementNode::Expression(_)] = &statements[binding_count..] else {
+    let return_position = binding_count.checked_add(effects.len())?;
+    let [StatementNode::Expression(_)] = &statements[return_position..] else {
         return None;
     };
-    let return_statement_ordinal = u32::try_from(binding_count).ok()?;
+    let return_statement_ordinal = u32::try_from(return_position).ok()?;
     let result_type = program.primitive_type_reference(state.return_type)?;
     let return_expression = facts.values.scalar_expressions.expression_at(
         state.symbol,
@@ -2338,6 +2369,9 @@ pub(super) fn build_structural_scalar_return_machine(
         machine.symbol,
         state,
     )?;
+    if !effects.is_empty() && !whole_discards.is_empty() {
+        return None;
+    }
     let has_nominal_cleanup = whole_discards.iter().any(|(_, position)| {
         source_state_parameters
             .get(*position as usize)
@@ -2521,6 +2555,7 @@ pub(super) fn build_structural_scalar_return_machine(
         structural_parameters,
         scalar_parameters,
         bindings,
+        effects,
         result_type,
         return_statement_ordinal,
         shared_boolean_convergence,

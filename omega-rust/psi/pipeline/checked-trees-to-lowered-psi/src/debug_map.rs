@@ -65,21 +65,10 @@ pub(super) fn build_debug_map(
                 .copied()
                 .filter(|span| *span != source::SourceSpan::default())
                 .filter(|span| has_source_file(*span));
-            if let Some(source_span) = source_span {
-                push(DebugSubject::Operation(operation.id), Some(source_span));
-                push(
-                    DebugSubject::Value(operation.result.expect_scalar().id),
-                    Some(source_span),
-                );
-            } else {
-                push(
-                    DebugSubject::Operation(operation.id),
-                    source_state.state_span,
-                );
-                push(
-                    DebugSubject::Value(operation.result.expect_scalar().id),
-                    source_state.state_span,
-                );
+            let source_span = source_span.or(source_state.state_span);
+            push(DebugSubject::Operation(operation.id), source_span);
+            if let Some(result) = operation.result.scalar() {
+                push(DebugSubject::Value(result.id), source_span);
             }
         }
         for (parameter_index, parameter) in block.parameters.iter().enumerate() {

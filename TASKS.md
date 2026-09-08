@@ -313,9 +313,10 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   exact arrival mappings and preserved premises for ranked subjects and pinned
   endpoints. Mutable premises need live write-frame evidence.
   Custom struct-view ranges involving borrowed or nested projections,
-  constrained measure parameters, and named-state arrivals (including
-  operand-call hoists) need exact
-  view-application evidence. Flow-dependent computed
+  constrained measure parameters, and authored named-state arrivals need exact
+  view-application evidence. Retire generated operand-call states through
+  STATE-LOCAL-VALUE-FRONTIER's checked computation route rather than add ranking
+  provenance for those artificial edges. Flow-dependent computed
   endpoint formation needs its own arithmetic proof, not an unchecked
   polynomial. Non-polynomial endpoint substitutions beyond exact input
   forwarding need their own equality evidence.
@@ -890,6 +891,10 @@ Owners include
   computation lowering. Acceptance: selected arguments
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
+  Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
+  integrate the existing primitive-store return body with borrowed operands and
+  the shared Terminal call closure. Preserve its authored guard and structural
+  payload; the generated hop currently rejects the range.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
   calls and boundary calls, plus the remaining

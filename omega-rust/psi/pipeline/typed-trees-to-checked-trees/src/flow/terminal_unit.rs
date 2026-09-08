@@ -59,6 +59,7 @@ mod cleanup;
 mod composed_control;
 pub(crate) mod control;
 mod dynamic_scalar_calls;
+mod primitive_store;
 mod providers;
 mod receiver_aliases;
 mod receiver_calls;
@@ -77,6 +78,7 @@ use cleanup::*;
 use composed_control::*;
 use control::*;
 use dynamic_scalar_calls::*;
+use primitive_store::build_write_only_primitive_store;
 use providers::*;
 use returns::*;
 use scalar_locals::*;
@@ -482,7 +484,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 else {
                     continue;
                 };
-                retained_type_identities.insert(realization.attachment_type_identity.as_str());
+                retained_type_identities.extend(realization.attachment_type_identity.as_deref());
                 retained_type_identities.extend(
                     realization
                         .structural_parameters
