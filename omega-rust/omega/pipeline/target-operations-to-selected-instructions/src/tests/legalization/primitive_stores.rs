@@ -21,6 +21,8 @@ use terminal_psi::{
 
 use crate::{legalize_target_operations, validate_legalized_operations};
 
+mod scalar_returns;
+
 fn integer(sign: IntegerSign, bits: u16) -> ScalarType {
     ScalarType::Integer(IntegerType::new(sign, bits).unwrap())
 }

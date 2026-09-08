@@ -239,8 +239,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   groups, bodies, literals, effects and transfers must reject. Do not fabricate
   countdown certificates or fixed-work bounds. This test-owned output settlement
   is not package/provider acceptance for the actual sample.
-  Linux runtime remains unverified on macOS. Mixed scalar-result image publication
-  remains unsupported and is not a prerequisite for this Unit writer route.
+  Linux runtime remains unverified on macOS. Mixed scalar/view expression and
+  returned-call image publication remain unsupported and are not prerequisites
+  for this Unit writer route.
   Use `terminal_byte_views/byte_output.rs` for the shared hosted `i32` byte leaf's
   selected/frame/object/image custody on Linux x64/ARM64 and macOS ARM64.
   `byte_output/hosted_runtime.rs` executes published text for all 256 byte values,
@@ -1071,9 +1072,10 @@ Owners include
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
   realize owned structural block arrivals, native primitive-local storage, and
-  primitive stores in scalar-returning borrowed callees without substituting
-  snapshots. The native entrance rejects `UnsupportedStructuralBlockParameters`
-  for this source (macOS, `d2960bdb1d`); its ranking-only field reads are erased,
+  selected structural-scalar calls from those locals without substituting
+  snapshots. Reuse the scalar-returning primitive-store callee route covered by
+  `primitive_store_return`. The native entrance rejects `UnsupportedStructuralBlockParameters`
+  for this source (macOS, `1bc4ba47f9`); its ranking-only field reads are erased,
   not a runtime load dependency. Preserve the authored guard,
   structural payload, selected call order, and Natural descent through native
   lowering. The source-to-Terminal acceptance lives in `owned_scalar_cycles`.

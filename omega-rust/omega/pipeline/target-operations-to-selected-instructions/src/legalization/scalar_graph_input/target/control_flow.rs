@@ -32,6 +32,29 @@ pub(super) fn validate(
     }
     match optimized.result {
         AbstractFunctionResult::Unit => {}
+        AbstractFunctionResult::Scalar(_) if function.mixed_structural_scalar_abi.is_some() => {
+            let expected = super::super::byte_views::validate(
+                function,
+                abstracted,
+                optimized,
+                native.target,
+                plan,
+            )?;
+            let abi = function
+                .mixed_structural_scalar_abi
+                .as_ref()
+                .ok_or(invalid.clone())?;
+            if graph.call_plan != expected
+                || graph.scalar_parameters != abi.scalar_parameters
+                || graph.parameters != abi.structural_parameters
+                || graph
+                    .blocks
+                    .iter()
+                    .any(|block| !block.structural_parameters.is_empty())
+            {
+                return Err(invalid);
+            }
+        }
         AbstractFunctionResult::Scalar(_) => {
             let expected =
                 super::super::header::function_abi(native.target, function, abstracted, optimized)?;

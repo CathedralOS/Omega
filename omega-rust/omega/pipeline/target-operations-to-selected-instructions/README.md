@@ -119,6 +119,13 @@ whose referent is exactly the SSA source's primitive scalar type. Boolean and
 fixed 8/16/32/64-bit integers and IEEE binary32/binary64 are supported; no synthetic
 record, field, readable borrow, or IEEE-to-integer conversion is introduced.
 
+The ordinary control graph also composes fixed-integer primitive writes with a
+64-bit integer result. Independent input replay joins the complete mixed ABI,
+exact incoming reference, ordered store source, and scalar return. Selection
+uses the existing pointer store and result constraint; it introduces neither a
+Unit wrapper nor legacy store-byte records. Object/image publication retains
+the mixed ABI and incoming borrowed homes under mandatory common-pipeline replay.
+
 Runtime IEEE Unit arguments use their target's floating-register or exact-width
 stack placement. Explicit raw-bit transfers connect floating ABI views to ordinary
 GPR payload storage; the values retain IEEE scalar types. Mixed call constraints

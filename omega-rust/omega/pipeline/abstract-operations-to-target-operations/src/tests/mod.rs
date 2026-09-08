@@ -12,6 +12,7 @@ mod projected_result_qualifications;
 mod ranked_countdown;
 mod scalar;
 mod scalar_abi;
+mod scalar_primitive_stores;
 mod shared_view_calls;
 mod structural_and_cleanup;
 mod structural_borrows;

@@ -100,6 +100,7 @@ pub fn validate_function_fragment_object_artifact(
             || function.attachment != attachment
             || function.provenance != *provenance
             || function.scalar_abi != targeted.scalar_abi
+            || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi
             || !unit_abi_matches
             || !ranked_matches
             || function.text_offset != offset
@@ -181,8 +182,7 @@ pub fn validate_function_fragment_object_artifact(
 }
 
 fn empty_unsupported_records(function: &ObjectFunction) -> bool {
-    function.mixed_structural_scalar_abi.is_none()
-        && function.structural_call_scalar_return.is_none()
+    function.structural_call_scalar_return.is_none()
         && function.x86_scalar_fma.is_empty()
         && function.x86_scalar_fma_occurrences.is_empty()
         && function.x86_floating_control.is_none()
@@ -202,7 +202,5 @@ fn empty_unsupported_records(function: &ObjectFunction) -> bool {
         && function.unit_continuations.is_empty()
         && function.scalar_affine_cleanup.is_none()
         && function.scalar_control_affine_cleanups.is_empty()
-        && function.scalar_structural_parameters.is_empty()
-        && function.scalar_structural_parameter_homes.is_empty()
         && function.structural_return.is_none()
 }

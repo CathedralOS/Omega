@@ -208,6 +208,34 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
             == structural_count
 }
 
+/// Incoming borrowed pointers remain caller-owned referents, not legacy stack copies.
+pub(super) fn mixed_structural_home_is_canonical(
+    home: &machine_code::UnitParameterHomeRecord,
+    parameter: &target_operations::TargetStructuralParameter,
+) -> bool {
+    if let machine_code::StructuralSourceLocation::IncomingBorrowedPointer { location } =
+        home.location
+    {
+        return parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            )
+            && parameter.projected_qualifications.is_empty()
+            && home.indirect
+            && super::borrowed_structural::pointer_location(&parameter.placement)
+                == Some(location);
+    }
+    home.location.stack_byte_offset() == Some(0)
+        && home.indirect
+            == matches!(
+                parameter.placement.locations.as_slice(),
+                [ValueLocation::Indirect { .. }]
+            )
+}
+
 pub(super) fn installed_scalar_abi_is_canonical(
     abi: &target_operations::ScalarFunctionAbi,
     target: NativeTarget,

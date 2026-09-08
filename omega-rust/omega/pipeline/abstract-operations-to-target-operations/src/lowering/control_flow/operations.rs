@@ -29,6 +29,19 @@ pub(super) fn lower_operation(
         ));
     }
     match operation {
+        AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
+            crate::lowering::unit::write_only_primitive_store::lower_write_only_primitive_store(
+                operation,
+                function,
+                structural_types,
+                &crate::lowering::function_signature::parameters_by_place(&prepared.parameters),
+                &live.integers,
+                &live.booleans,
+                &BTreeMap::new(),
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::BoundaryCall { boundary, .. }
             if settlements.get(boundary).is_some_and(|binding| {
                 matches!(

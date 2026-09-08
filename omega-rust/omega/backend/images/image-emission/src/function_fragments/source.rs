@@ -129,18 +129,24 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         if abstracted.attachment != fragment.attachment
             || targeted.provenance != fragment.provenance
-            || targeted.mixed_structural_scalar_abi.is_some()
             || (!abstracted.structural_parameters.is_empty() && structural.is_none())
-            || (structural.is_some() && !unit)
+            || (structural.is_some() && !unit && targeted.mixed_structural_scalar_abi.is_none())
             || (structural.is_none()
                 && (!abstracted.entry_claims.is_empty()
                     || (!unit && !abstracted.published_service_ceiling.is_empty())))
-            || (unit && targeted.scalar_abi.is_some())
-            || (!unit && targeted.scalar_abi.is_none())
+            || (unit
+                && (targeted.scalar_abi.is_some()
+                    || targeted.mixed_structural_scalar_abi.is_some()))
+            || (!unit
+                && (targeted.scalar_abi.is_some()
+                    == targeted.mixed_structural_scalar_abi.is_some()))
         {
             return Err(Error::Unsupported(
                 "shared function has unsupported ABI or boundary effects",
             ));
+        }
+        if let Some(abi) = &targeted.mixed_structural_scalar_abi {
+            super::mixed_scalar_abi::admit(abstracted, targeted, selected, abi)?;
         }
         if unit && !abstracted.parameters.is_empty() && ranked.is_none() {
             let (call_plan, scalar_parameters, structural_parameters) = unit_scalar_abi(targeted)

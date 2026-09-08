@@ -50,7 +50,9 @@ Start at [control_flow.rs](src/lowering/control_flow.rs): signature preparation,
 dominance, operations, terminators, and edge bindings have separate owners.
 Lowering retains dominating definitions and authored block order independently
 of traversal. Actual topology selects the cyclic scalar route, not a ranking
-annotation; acyclic scalar functions retain their existing expression lowering.
+annotation. Scalar bodies with primitive writes also use this graph to retain
+the store before their scalar return; other acyclic scalar functions retain
+their existing expression lowering.
 The common target-to-selected
 reader independently checks this graph against source before constructing the
 existing legalized/selected graph. The target-only family receipt does not claim
@@ -90,8 +92,16 @@ no termination certificate or fixed-work bound. The
 [source-produced scalar cycles](../../../../tests/native-differential/tests/scalar_control_cycles.rs)
 exercise selected calls, scalar returns, and simultaneous backedge swaps through
 object/image/installation replay on four hosted targets and execution on supported
-hosts. Owned structural arrivals, primitive locals, scalar-body primitive stores,
-and scalar return cleanup remain separate native dependencies.
+hosts. Owned structural arrivals, primitive locals, and scalar return cleanup
+remain separate native dependencies.
+
+Scalar-returning primitive-store callees retain the same exclusive reference
+parameter, ordered store, and mixed scalar/structural ABI as their source.
+The common graph reuses Unit primitive-store lowering; it does not wrap the
+callee in a Unit function or convert its referent to an owned copy.
+The [source-produced store-return tests](../../../../tests/native-differential/tests/primitive_store_return.rs)
+exercise the original caller word and independent scalar result through the
+ordinary physical and publication route.
 
 Closed-sum inspection of an admitted boundary result uses this same graph,
 without a fixed block count, arm order, or exit-only body template. Each case
@@ -214,8 +224,8 @@ incoming ABI placements distinct from established-view producers and their actua
 local descriptor slots; mandatory retained replay binds the source and physical
 transport. Installation format 89 encodes that distinction and rejects older
 markers. The runtime oracle consumes validated published text and requires a
-Linux host. Scalar-result image publication and literal-backed descriptors remain
-separate dependencies.
+Linux host. Scalar-result view expression/call image publication and
+literal-backed descriptors remain separate dependencies.
 
 [Structural-header validation](src/validation/structural_signatures.rs) rejoins
 retained Unit and mixed scalar ABI parameters to the source declarations and

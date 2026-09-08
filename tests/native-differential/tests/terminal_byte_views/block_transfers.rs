@@ -145,19 +145,18 @@ fn byte_view_block_transfers_preserve_selected_pointer_and_bounds_through_calls(
 fn assert_mixed_result_publication_boundary(
     text: machine_emission::StagedOptimizedFixedFrameTextSection,
 ) {
-    // Scalar-result mixed-ABI publication is a separate, still-closed family.
-    // Effectful Unit block-view tests exercise the complete publication route.
+    // Mixed-result expression/call publication remains outside the admitted
+    // ordinary control-graph route. Unit block-view tests publish completely.
     let source = std::sync::Arc::new(
         object_file::stage_optimized_relocation_free_object_container(text).unwrap(),
     );
-    assert!(matches!(
-        image_emission::build_function_fragment_object_artifact(source),
-        Err(
-            image_emission::FunctionFragmentObjectArtifactError::Unsupported(
-                "shared function has unsupported ABI or boundary effects"
-            )
-        )
-    ));
+    match image_emission::build_function_fragment_object_artifact(source) {
+        Err(image_emission::FunctionFragmentObjectArtifactError::Unsupported(
+            "mixed scalar publication requires an ordinary control graph",
+        )) => {}
+        Err(error) => panic!("unexpected mixed-result publication boundary: {error:?}"),
+        Ok(_) => panic!("mixed-result expression/call publication unexpectedly accepted"),
+    }
 }
 
 fn assert_contents(bytes: &[u8], entry_offset: usize) {

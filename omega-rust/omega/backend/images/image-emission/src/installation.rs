@@ -2130,12 +2130,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 && home.access == retained.access
                                 && home.shape == retained.shape
                                 && home.source == retained.placement
-                                && home.location.stack_byte_offset() == Some(0)
-                                && home.indirect
-                                    == matches!(
-                                        retained.placement.locations.as_slice(),
-                                        [calling_conventions::ValueLocation::Indirect { .. }]
-                                    )
+                                && installed_unit_scalar_transport::mixed_structural_home_is_canonical(home, retained)
                         })
             });
         if !installed_stack_facts_are_canonical(function, &attachments)

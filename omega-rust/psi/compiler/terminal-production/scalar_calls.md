@@ -277,7 +277,14 @@ keeps proof checking mandatory and fixed-work evidence separate; termination
 alone cannot supply a work ceiling. Here the `Limits` field reads occur only
 in erased ranking expressions; this customer does not require runtime field
 loads. Native owned block arrivals, activation-local primitive storage, and
-the scalar-returning callee's primitive store remain required.
+their selected structural-scalar call integration remain required.
+
+The exact `reset` callee is exercised independently through native publication
+and execution by
+[`primitive_store_return`](../../../../tests/native-differential/tests/primitive_store_return.rs).
+It retains the caller's pointer and a separate scalar result through the ordinary
+control graph, mixed ABI, and object/image/installation replay. Its acceptance is
+a callee prerequisite, not execution of this complete loop.
 
 The [native scalar-cycle companions](../../../../tests/native-differential/tests/scalar_control_cycles.rs)
 retain the loop, selected scalar call, and scalar return without replacing this

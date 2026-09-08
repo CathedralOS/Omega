@@ -46,6 +46,8 @@ pub(super) fn entry(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let accepts_stack_parameters =
+        crate::selection::scalar_call_abi::accepts_stack_parameter_entry(source);
     for (parameter_index, parameter) in source.parameters.iter().enumerate() {
         if !builder.required_values.contains(&parameter.value) {
             continue;
@@ -55,7 +57,7 @@ pub(super) fn entry(
         else {
             continue;
         };
-        if source.call_plan.result.is_some()
+        if !accepts_stack_parameters
             || source.ranked.is_some()
             || scalar_shape(parameter.scalar_type) != Some(parameter.placement.shape)
             || source.call_plan.parameters.get(parameter_index) != Some(&parameter.placement)

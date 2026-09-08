@@ -36,20 +36,26 @@ pub(crate) fn has_free_unit_entry(
 }
 
 pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnostics::Diagnostic> {
-    if artifact.fragment_replay.is_none()
+    let missing_borrowed_replay = artifact.fragment_replay.is_none()
         && artifact.functions().iter().any(|function| {
             function
             .unit_parameters
             .iter()
+            .chain(&function.scalar_structural_parameters)
             .any(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
-            || function.unit_parameter_homes.iter().any(|home| {
-                home.access != terminal_psi::StructuralAccess::Owned
-                    || home.source.shape.class == calling_conventions::ValueClass::BorrowedReference
-                    || matches!(
-                        home.location,
-                        machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
-                    )
-            })
+            || function
+                .unit_parameter_homes
+                .iter()
+                .chain(&function.scalar_structural_parameter_homes)
+                .any(|home| {
+                    home.access != terminal_psi::StructuralAccess::Owned
+                        || home.source.shape.class
+                            == calling_conventions::ValueClass::BorrowedReference
+                        || matches!(
+                            home.location,
+                            machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
+                        )
+                })
             || function
                 .internal_unit_calls
                 .iter()
@@ -67,8 +73,8 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
                             machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
                         )
                 })
-        })
-    {
+        });
+    if missing_borrowed_replay {
         return Err(diagnostics::Diagnostic::error(
             "borrowed structural pointers require common-pipeline replay evidence",
         ));
