@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn constructor_operands_retain_their_nominal_type_for_selected_meaning() {
+    let program =
+        typed("data Card { rank: u64; } machine make(card: Card) -> Card { Card { rank: 1 } }");
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let (expression, owner) = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            if let ExpressionNode::StructLiteral(literal) = node {
+                Some((handle, literal.type_symbol))
+            } else {
+                None
+            }
+        })
+        .expect("constructor operand");
+    let expected = program
+        .type_reference_table
+        .find_named_type_reference(owner)
+        .expect("exact Card carrier");
+    assert_eq!(
+        meanings::builtin(&program, machine, state, expression, 0),
+        Some(Some(expected))
+    );
+}
+
+#[test]
 fn state_aliases_cannot_reuse_root_or_sibling_formal_symbols() {
     let mut program = typed(
         "machine walk(left: u32, right: u32) -> u32 { transition { _ -> next(right, left) } state next(first: u32, second: u32) { first } }",

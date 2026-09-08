@@ -16,9 +16,9 @@ pub(super) fn required_symbols(
     let mut symbols = Vec::new();
     let mut expressions = vec![range.start, range.end];
     match measure {
-        RankingRangeMeasure::Single(subject) | RankingRangeMeasure::SliceLength(subject) => {
-            expressions.push(subject)
-        }
+        RankingRangeMeasure::Single(subject)
+        | RankingRangeMeasure::SliceLength(subject)
+        | RankingRangeMeasure::Field { subject, .. } => expressions.push(subject),
         RankingRangeMeasure::Distance { lower, upper }
         | RankingRangeMeasure::IncreasingTo {
             subject: lower,
