@@ -592,6 +592,13 @@ pub(super) fn parse_domain_argument_handles<'tokens, 'source>(
         let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
         input = rest;
         let argument = match syntax_trees.expressions.expression(expression) {
+            ExpressionNode::Boolean(value) => {
+                let name = Identifier::new(
+                    value.to_string(),
+                    syntax_trees.expressions.source_span(expression),
+                );
+                syntax_trees.type_references.insert_named(name)
+            }
             ExpressionNode::Name(path) => {
                 let name = syntax_trees.expressions.display_name(expression);
                 let members = syntax_trees.expressions.identifier_path_members(*path);

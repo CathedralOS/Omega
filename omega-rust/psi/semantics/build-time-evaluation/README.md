@@ -19,15 +19,18 @@ requires declaration admission before early evaluation. The
 [selection-custody note](../../pipeline/typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
 maps that gate to exact calls, candidate sets, and authored application sites.
 
-Closed integer indices for data applications and root-owned domain families in
+Closed integer expressions for data applications and root-owned domain families in
 concrete data fields, payloads and nongeneric machine type annotations use
 [typed expression probes](src/const_generic_expressions.rs) before generic data
-synthesis. The temporary probe carries original source/import custody; its
+synthesis. Nongeneric machine owners also admit named Boolean indices through
+the same probe. The temporary probe carries original source/import custody; its
 symbols and placeholder layouts never become the published program. Exact
-unconstrained builtin integer destinations and each operator's builtin meaning
-are required. Declaration visibility and direct package selection are checked
-before arithmetic. Existing fixed-integer kernels enforce every node's carrier
-bounds; anonymous arithmetic lands once through the shared rational evaluator,
+unconstrained builtin integer or Boolean destinations and each integer operator's
+builtin meaning are required. Named Boolean constants retain their selected typed literal and
+canonical Boolean atom; this does not evaluate Boolean expressions. Declaration
+visibility and direct package selection are checked before evaluation.
+Existing fixed-integer kernels enforce every node's carrier bounds; anonymous
+arithmetic lands once through the shared rational evaluator,
 including fractional-intermediate warnings. The canonical result is distinct
 from the arena-backed constant and operator occurrences retained at the real use.
 Machine parameters, results, locals and casts first resolve in their original
@@ -38,9 +41,9 @@ entry signatures publish public-interface occurrences; body and internal-state
 annotations retain private implementation exposure. Root scalar constants use
 the same resolved substitution as module constants, while legacy aggregate
 materialization remains separate.
-Open templates, noninteger expression destinations, authored operator execution,
-constrained destinations and address-dependent arithmetic need their own complete
-contexts; the standalone probe does not claim those forms.
+Open templates, aggregate indices, computed Boolean expressions, authored operator
+execution, constrained destinations and address-dependent arithmetic need their
+own complete contexts; the standalone probe does not claim those forms.
 
 ## Semantic admission boundary
 

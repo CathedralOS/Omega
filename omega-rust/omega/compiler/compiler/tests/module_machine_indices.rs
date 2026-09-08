@@ -14,6 +14,9 @@ use std::{
 };
 use typed_trees::{statement::StatementNode, types::TypeReferenceHandle};
 
+#[path = "module_machine_indices/noninteger.rs"]
+mod noninteger;
+
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
 const BUFFER: &str = "pub data Buffer<const N: u64> { value: [u8; N]; }";
 

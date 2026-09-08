@@ -1,4 +1,4 @@
-//! Exact integer evaluation after declaration and operator selection.
+//! Exact integer evaluation and Boolean literals after declaration selection.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -30,6 +30,12 @@ pub(super) fn evaluate(
     expression: ExpressionHandle,
     destination: PrimitiveType,
 ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return Err("invalid constant expression".to_owned());
+    }
+    if let ExpressionNode::Boolean(value) = program.expression_table.expression(expression) {
+        return Ok((CanonicalConstValue::boolean(*value), Vec::new()));
+    }
     enum Step {
         Enter(ExpressionHandle),
         Binary(ExpressionHandle, BinaryOperator),

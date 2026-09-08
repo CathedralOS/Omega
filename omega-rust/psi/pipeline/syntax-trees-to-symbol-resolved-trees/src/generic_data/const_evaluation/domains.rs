@@ -282,6 +282,21 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                 if name.as_str().parse::<i128>().is_ok() {
                     continue;
                 }
+                if matches!(name.as_str(), "true" | "false") {
+                    let required =
+                        syntax_type_identity(syntax, *parameter_type).map_err(Diagnostic::error)?;
+                    if required != "bool" {
+                        return Err(Diagnostic::error(format!(
+                            "index argument for `{family_name}::{parameter_name}` has canonical type `bool`, expected `{required}`"
+                        )).with_source_span(name.source_span()));
+                    }
+                    let value = CanonicalConstValue::boolean(name.as_str() == "true");
+                    syntax.type_references.replace_type_reference(
+                        argument,
+                        TypeReferenceNode::Named(Identifier::new(value.atom(), name.source_span())),
+                    );
+                    continue;
+                }
                 // Exact header selection is limited to concrete data owners.
                 // Other owners retain their existing normalization path until
                 // their complete lexical selection context is available.
