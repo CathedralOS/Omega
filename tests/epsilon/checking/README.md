@@ -85,8 +85,16 @@ reserved duplicates to entry formation. A missing `Console` alongside an
 than the missing-support candidate at source extent 83. The pre-repair checker
 also publishes these exact diagnostics; the fixtures pin their preservation.
 
-`receipt.tsv` records the measured 707,983-byte checker receipt with SHA-256
-`96304c2690c1321db665a74877e1d03244129a49f95599a48853d0bf2babf47a`.
-Every gate run reconstructs this exact receipt before comparing the 60 complete
+Ten call-head controls protect the exact-current-callable fast path. Callable
+resolution follows child checking; only a newest fact with the current kind,
+start, and end may skip the otherwise fruitless value-result lookup. An argument
+call cannot authorize an outer value call, including a nested application with
+the same start. Grouped receiver calls still accept; field and local value heads,
+unknown ordinary calls, arity errors before unknown arguments, and independent
+argument errors retain their authored diagnostic coordinates.
+
+`receipt.tsv` records the measured 708,456-byte checker receipt with SHA-256
+`60136690095d1d11419086910e6d97a4df784ac5143a27793e0368bea5f837af`.
+Every gate run reconstructs this exact receipt before comparing the 70 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.

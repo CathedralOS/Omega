@@ -48,8 +48,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,984 lines / 610,428 bytes, SHA-256
-`656c57b59d1ea8923343496b032d10ef8980e89e3c39b3855feae5498611a1c0`.
+The packed evaluator is 11,998 lines / 611,266 bytes, SHA-256
+`566139b6c2e97d06d1c18297432ebe4453801be45d35c8c76385bda3ecde0ad8`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
@@ -92,6 +92,16 @@ Current Delta constructor lowering represents that payload with one additional
 Gamma pair per branch reconstruction, including paths superseded by later inserts.
 
 ## Validation and completion
+
+Call checking reuses the newest resolved-callable fact only when its kind and
+both span endpoints identify the current application. Children are checked
+first; receiver and unqualified callable resolution then prepend that exact
+fact. A resolved callable head has no value result to find, so this case avoids
+searching the accumulated whole-source expression ledger. Other heads retain
+the original value-category lookup and diagnostic ordering. This adds no index,
+cache, representation, or language/profile change. The
+[checking controls](../../../tests/epsilon/checking/README.md) cover nested
+same-start calls, grouped/local value heads, and independent argument errors.
 
 From the repository root:
 

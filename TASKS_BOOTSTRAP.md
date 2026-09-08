@@ -140,8 +140,8 @@ prerequisite to every lower-rung milestone.
   `96a1d0457683d39b09e80122be5265070154728596b18a19a5847dc7f4dae534`
   and the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
-  `sh tests/epsilon/checking/run.sh` reconstructs the unchanged 707,983-byte
-  receipt and passes all 60 checking judgments with the selected evaluator.
+  `sh tests/epsilon/checking/run.sh` reconstructs the 708,456-byte
+  receipt and checks 70 exact judgments with the selected evaluator.
   Follow the [selected producer's resource ownership](bootstrap/3_delta/compiler/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
   Alpha local-slot/label/fixup resources have zero use here, and match coverage
   is bounded by admitted constructors. Do not implement fictitious tables or
@@ -194,6 +194,14 @@ prerequisite to every lower-rung milestone.
   with the selected Alpha seed. This covers a concrete D dependency, not the
   complete source or final resource envelope; the remaining acceptance below
   must not be replaced by further emitter-only controls.
+  At base `564b45e205`, the unchanged 92,229-byte D lexer took 145.273 seconds
+  on macOS arm64; exact-current-callable checking reduces the measured run to
+  120.518 seconds without a new index or profile. Run
+  `sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D lexer'`.
+  Next acceptance is the complete-D parser command
+  `sh tests/bootstrap/omega-parser/run.sh` with the current receipt; that
+  combination has not yet run. Its earlier complete-source pass is not evidence
+  of current whole-D timing or final evaluator completion.
   Final acceptance depends on complete D: that exact source executes through
   the selected lower chain and refines `RunEpsilon`, with no Epsilon-owned
   Alpha backend or hidden host implementation.

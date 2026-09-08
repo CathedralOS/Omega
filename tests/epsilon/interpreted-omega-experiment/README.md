@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,984
-lines / 610,428 bytes, authored in 87 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,998
+lines / 611,266 bytes, authored in 87 explicitly manifested members.
 The complete gate checks 142 ordinary fixtures, five D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
@@ -72,8 +72,8 @@ This removes no language observation and does not close the resource profile.
 The gate compiles the exact evaluator plus the 55-line / 2,565-byte
 `execution_driver.delta` (SHA-256
 `ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`) through the
-selected Delta route and pins the measured 711,597-byte receipt, SHA-256
-`8b5cea511a5d286212848b2c4f919d2bde4d815a91f46be556e557d7ffb17217`.
+selected Delta route and pins the measured 712,070-byte receipt, SHA-256
+`c657884fde474a63c8ffafd628959c8c47e6a7440172d3a4d449991d1dab148f`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -278,13 +278,16 @@ keyword/punctuation/base metadata, escaped-string length, nested comments,
 whole-view completion, UTF-8 priority, trailing out-of-profile rejection,
 unterminated comments, unsupported escapes, and recovery after a previous
 failure. The required observation is tagged `Exit(0)` with stdout `A`.
-The current receipt produced that exact observation in 183.898 seconds in the
-complete gate, with no other bootstrap evaluator job running during this
-customer. Checkpoint `3d3c033f8d` took 293.095 seconds through the
-selected-customer gate, with other fixtures running concurrently for part of
-that earlier measurement. Both used the unchanged 300-second watchdog. This
-pair provides gate completion and local timing evidence, not a controlled
-benchmark series, an Epsilon execution bound, or a portable speed claim.
+On macOS arm64, base `564b45e205` ran this unchanged customer in 145.273
+seconds. Reusing the exact current callable fact during checking reduced the
+measured invocation to 120.518 seconds; the current 712,070-byte receipt was
+reconstructed separately in 107.401 seconds. Both customer runs used the same
+selected evaluator and 300-second watchdog, without another bootstrap job.
+These are single-run measurements, not a controlled benchmark series, an
+Epsilon execution bound, or a complete-D parser speed claim. Earlier runs at
+different checkpoints took 183.898 seconds without another bootstrap job and
+293.095 seconds at `3d3c033f8d` with overlapping fixtures; they are not a matched
+comparison for this change.
 No scanner function is extracted, rewritten, or replaced; this contract is not
 evidence of complete Omega parsing or compilation.
 
