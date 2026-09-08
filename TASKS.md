@@ -1021,11 +1021,6 @@ Owners include
   observations without substituting snapshots. Preserve the authored guard,
   structural payload, selected call order, and Natural descent through native
   lowering. The source-to-Terminal acceptance lives in `owned_scalar_cycles`.
-  The macOS `omega inspect-terminal --machine walk --target macos_arm64 main.omg`
-  probe now reaches `NotRankedCountdown`: `omega/src/command/inspect_terminal.rs`
-  incorrectly selects legacy fixed-fuel derivation for every ranked module.
-  Let inspection report verified Natural control without inventing a fixed-work
-  bound, retaining supported work certificates and genuine verification failures.
   Generalize mixed state signatures and borrowed loop formals through their exact
   ownership and arrival contracts rather than source-state duplication.
   Align compile-known numeric conditions between flow call capture and scalar

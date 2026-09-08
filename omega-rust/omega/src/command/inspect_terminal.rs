@@ -2,14 +2,10 @@ use std::fmt::Write;
 use std::path::PathBuf;
 
 use compiler::compile_to_checked;
-use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{ServiceId, StructuralTypeId};
-use terminal_fixed_fuel::{
-    derive_fixed_entry_fuel, derive_ranked_countdown_entry_fuel, validate_fixed_entry_fuel,
-    validate_ranked_countdown_entry_fuel,
-};
 use terminal_psi::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
-use terminal_verifier::{verify_module, verify_module_for_fixed_fuel};
+
+mod evidence;
 
 pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
     let Some(arguments) = parse_inspect_terminal_arguments(arguments) else {
@@ -37,78 +33,15 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) {
             std::process::exit(1);
         }
     };
-    let fixed_fuel = if lowered
-        .semantic_module
-        .machines
-        .iter()
-        .any(|machine| machine.ranked_scc.is_some())
-    {
-        let verified = match verify_module_for_fixed_fuel(
-            &lowered.semantic_module,
-            &lowered.proof_bundle,
-            &AdmissionProfile::default(),
-        ) {
-            Ok(verified) => verified,
-            Err(error) => {
-                eprintln!(
-                    "cannot verify terminal machine `{}` for fixed fuel: {error}",
-                    arguments.machine
-                );
-                std::process::exit(1);
-            }
-        };
-        let fixed_fuel =
-            match derive_ranked_countdown_entry_fuel(&verified, lowered.semantic_module.entry) {
-                Ok(fixed_fuel) => fixed_fuel,
-                Err(error) => {
-                    eprintln!(
-                        "cannot derive ranked fixed fuel for terminal machine `{}`: {error}",
-                        arguments.machine
-                    );
-                    std::process::exit(1);
-                }
-            };
-        if let Err(error) = validate_ranked_countdown_entry_fuel(&verified, &fixed_fuel) {
+    let fixed_fuel = match evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle) {
+        Ok(fixed_fuel) => fixed_fuel,
+        Err(error) => {
             eprintln!(
-                "cannot validate ranked fixed fuel for terminal machine `{}`: {error}",
+                "cannot inspect terminal machine `{}`: {error}",
                 arguments.machine
             );
             std::process::exit(1);
         }
-        fixed_fuel
-    } else {
-        let verified = match verify_module(
-            &lowered.semantic_module,
-            &lowered.proof_bundle,
-            &AdmissionProfile::default(),
-        ) {
-            Ok(verified) => verified,
-            Err(error) => {
-                eprintln!(
-                    "cannot verify terminal machine `{}`: {error}",
-                    arguments.machine
-                );
-                std::process::exit(1);
-            }
-        };
-        let fixed_fuel = match derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry) {
-            Ok(fixed_fuel) => fixed_fuel,
-            Err(error) => {
-                eprintln!(
-                    "cannot derive fixed fuel for terminal machine `{}`: {error}",
-                    arguments.machine
-                );
-                std::process::exit(1);
-            }
-        };
-        if let Err(error) = validate_fixed_entry_fuel(&verified, &fixed_fuel) {
-            eprintln!(
-                "cannot validate fixed fuel for terminal machine `{}`: {error}",
-                arguments.machine
-            );
-            std::process::exit(1);
-        }
-        fixed_fuel
     };
     print!(
         "{}",
@@ -162,12 +95,12 @@ fn parse_inspect_terminal_arguments(
 fn terminal_summary(
     selected_machine: &str,
     module: &TerminalModule,
-    fixed_fuel: &terminal_fixed_fuel::FixedEntryFuelCertificate,
+    fixed_fuel: &evidence::FixedFuel,
 ) -> String {
     let mut output = String::new();
     writeln!(
         output,
-        "terminal selected_machine={} entry=machine:{}",
+        "terminal selected_machine={} entry=machine:{} verified=true",
         selected_machine,
         module.entry.get()
     )
@@ -282,6 +215,17 @@ fn terminal_summary(
             }))
         )
         .expect("writing to a String cannot fail");
+        if let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc {
+            for component in components {
+                writeln!(
+                    output,
+                    "control_cycle machine=machine:{} component={} ranking=natural",
+                    machine.id.get(),
+                    terminal_verifier::control_cycle_identity(machine, component).get(),
+                )
+                .expect("writing to a String cannot fail");
+            }
+        }
         for (index, parameter) in machine.structural_parameters.iter().enumerate() {
             writeln!(
                 output,
@@ -345,6 +289,14 @@ fn terminal_summary(
             .expect("writing to a String cannot fail");
         }
     }
+    let fixed_fuel = match fixed_fuel {
+        evidence::FixedFuel::Available(certificate) => certificate,
+        evidence::FixedFuel::Unavailable(reason) => {
+            writeln!(output, "fixed_fuel status=unknown reason={reason}")
+                .expect("writing to a String cannot fail");
+            return output;
+        }
+    };
     let identity = fixed_fuel.terminal_psi();
     writeln!(
         output,
