@@ -41,6 +41,25 @@ FMA target records retain occurrence, selected plan and admission without choosi
 XMM homes. An available target record does not imply that the common downstream
 selection/emission path supports it.
 
+Ordinary acyclic Unit control uses target-owned blocks and explicit
+`Jump`, `Conditional`, and `Return` terminators in `TargetUnitGraph`.
+Nonterminal definitions and calls reuse the ordered Unit operation vocabulary;
+branch targets are block identities, not nonreturning-arm layout ordinals.
+Lowering intersects predecessor definitions at joins and retains authored block
+order independently of its topological traversal. The common target-to-selected
+reader independently checks this graph against source before constructing the
+existing legalized/selected graph. The target-only family receipt does not claim
+this coverage; its legacy continuation check still rejects linear graph sources
+that match that older family. Nonempty block argument transfers, structural
+views, and cycles remain separately rejected until their native transport and
+authority are joined.
+The current node set is scalar constants, integer widening and ordinary Unit
+calls; conditions are canonical Boolean parameters or available constants.
+Abstract lowering preserves entry parameter metadata that exactly repeats the
+function parameters, but this is not native admission: optimization-unit
+validation still requires empty entry block parameters.
+Legacy cleanup/provider templates are not reinterpreted as ordinary graph edges.
+
 Dynamic-descriptor lowering preserves establishment, rebinding, aggregate store,
 and parameter forwarding as distinct semantic sources. Retain the exact selected
 application, receiver projection, requirement and native call plans, not a

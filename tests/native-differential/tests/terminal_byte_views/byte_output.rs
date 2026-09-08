@@ -11,6 +11,8 @@ use terminal_psi::{
 };
 #[path = "byte_output/unit_calls.rs"]
 mod unit_calls;
+#[path = "byte_output/unit_control.rs"]
+mod unit_control;
 #[path = "byte_output/widening.rs"]
 mod widening;
 

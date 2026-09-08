@@ -23,6 +23,9 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetOperation {
+    /// Ordinary Unit blocks and exact successor transfers. These enter the
+    /// common selected graph, not the legacy arm-layout execution templates.
+    UnitGraph(crate::TargetUnitGraph),
     /// Exact admitted structural-Unit `u32` countdown. This carrier preserves
     /// the verifier/fuel custody and cyclic graph identity directly; it is not
     /// an acyclic conditional-control tree.

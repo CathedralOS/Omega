@@ -127,8 +127,10 @@ pub(super) fn match_input(
         .iter()
         .flat_map(|block| &block.nodes)
         .any(|node| matches!(node.operation, AbstractOperation::BoundaryCall { .. }))
-        && (!matches!(target.operation, TargetOperation::UnitBody(_))
-            || abstracted.result != AbstractFunctionResult::Unit)
+        && (!matches!(
+            target.operation,
+            TargetOperation::UnitBody(_) | TargetOperation::UnitGraph(_)
+        ) || abstracted.result != AbstractFunctionResult::Unit)
     {
         return Err(invalid);
     }

@@ -1,11 +1,11 @@
 //! Join ordered scalar definitions to their exact prior SSA sources.
 use super::*;
-use target_operations::{TargetUnitBody, TargetUnitScalarArgumentSource as Source};
+use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
 pub(super) fn validate(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
-    body: &TargetUnitBody,
+    scalar_parameters: &[ScalarAbiValue],
     sources: &[(ValueId, Source)],
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
@@ -68,8 +68,7 @@ pub(super) fn validate(
                 && value == expected_value
                 && usize::try_from(*expected_index).ok() == Some(*parameter_index)
                 && *scalar_type == ScalarType::Integer(*source_type)
-                && body
-                    .scalar_parameters
+                && scalar_parameters
                     .get(*parameter_index)
                     .is_some_and(|parameter| {
                         parameter.value == *value

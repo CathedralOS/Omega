@@ -95,10 +95,10 @@ pub fn build_function_fragment_object_artifact(
             scalar_abi: targeted.scalar_abi.clone(),
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
-            unit_scalar_abi: source::unit_scalar_body(targeted).map(|body| {
+            unit_scalar_abi: source::unit_scalar_abi(targeted).map(|(call_plan, parameters, _)| {
                 machine_code::UnitScalarFunctionAbiRecord {
-                    call_plan: body.call_plan.clone(),
-                    parameters: body.scalar_parameters.clone(),
+                    call_plan: call_plan.clone(),
+                    parameters: parameters.to_vec(),
                     entry_register_spills: Vec::new(),
                 }
             }),

@@ -1,0 +1,132 @@
+//! Exact Unit block replay into the existing scalar graph, without executable target rows.
+use super::*;
+use target_operations::{TargetUnitGraph, TargetUnitSuccessor, TargetUnitTerminator};
+mod sources;
+
+pub(super) fn validate(
+    graph: &TargetUnitGraph,
+    optimized: &PsiOptimizationFunction,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<(), LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    if optimized.attachment.is_some()
+        || !graph.parameters.is_empty()
+        || graph.structural_types != plan.structural_types
+        || graph.structural_types != unit.structural_types
+        || graph.entry != optimized.entry
+        || graph.blocks.len() != optimized.blocks.len()
+        || optimized.result != AbstractFunctionResult::Unit
+    {
+        return Err(invalid);
+    }
+    for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
+        if block.block != source.id
+            || block.parameters.len() != source.parameters.len()
+            || block
+                .parameters
+                .iter()
+                .zip(&source.parameters)
+                .any(|(actual, expected)| {
+                    actual.value != expected.value || actual.scalar_type != expected.scalar_type
+                })
+            || (source.id != optimized.entry && !source.parameters.is_empty())
+            || (!source.parameters.is_empty()
+                && (source.parameters.len() != optimized.parameters.len()
+                    || source.parameters.iter().zip(&optimized.parameters).any(
+                        |(actual, expected)| {
+                            actual.value != expected.value
+                                || actual.scalar_type != expected.scalar_type
+                        },
+                    )))
+            || source.nodes.len() != block.operations.len() + 1
+        {
+            return Err(invalid);
+        }
+        let mut available = sources::available(graph, optimized, block.block);
+        for (operation, node) in block.operations.iter().zip(&source.nodes) {
+            // Returns belong only to the terminator, never an ordinary row.
+            if matches!(operation, TargetUnitOperation::Return { .. }) {
+                return Err(invalid);
+            }
+            super::unit::validate_operation(
+                operation,
+                &node.operation,
+                &graph.scalar_parameters,
+                &graph.parameters,
+                &mut available,
+                optimized,
+                native,
+                plan,
+                unit,
+            )?;
+        }
+        let source_terminator = &source.nodes.last().ok_or(invalid.clone())?.operation;
+        let matches = match (&block.terminator, source_terminator) {
+            (
+                TargetUnitTerminator::Return {
+                    psi_edge,
+                    cleanup_actions,
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: expected,
+                    cleanup_actions: cleanup,
+                },
+            ) => psi_edge == expected && cleanup_actions == cleanup && cleanup.is_empty(),
+            (
+                TargetUnitTerminator::Jump { successor },
+                AbstractOperation::Jump {
+                    psi_edge,
+                    target,
+                    bindings,
+                    trivial_affine_discards,
+                    residual_affine_discards,
+                },
+            ) => {
+                successor.psi_edge == *psi_edge
+                    && successor.target == *target
+                    && successor.bindings == *bindings
+                    && bindings.is_empty()
+                    && successor.cleanup_actions.is_empty()
+                    && trivial_affine_discards.is_empty()
+                    && residual_affine_discards.is_empty()
+            }
+            (
+                TargetUnitTerminator::Conditional {
+                    condition_source,
+                    condition,
+                    when_true,
+                    when_false,
+                },
+                AbstractOperation::Conditional {
+                    condition: expected,
+                    when_true: expected_true,
+                    when_false: expected_false,
+                },
+            ) => {
+                condition_source == expected
+                    && sources::boolean(condition, *expected, &graph.scalar_parameters, &available)
+                    && successor_matches(when_true, expected_true)
+                    && successor_matches(when_false, expected_false)
+            }
+            _ => false,
+        };
+        if !matches {
+            return Err(invalid);
+        }
+    }
+    Ok(())
+}
+
+fn successor_matches(
+    target: &TargetUnitSuccessor,
+    source: &abstract_operations::AbstractSuccessor,
+) -> bool {
+    target.psi_edge == source.psi_edge
+        && target.target == source.target
+        && target.bindings == source.bindings
+        && source.bindings.is_empty()
+        && source.trivial_affine_discards.is_empty()
+        && target.cleanup_actions.is_empty()
+}

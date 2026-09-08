@@ -9,6 +9,7 @@ mod dynamic;
 mod dynamic_join;
 mod dynamic_parameter;
 mod forwarded_dynamic_parameter;
+mod graph;
 mod preflight;
 mod projected_argument;
 mod projected_result;
@@ -53,6 +54,14 @@ pub(super) fn lower_unit_function(
     let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
     let bounded_closed_sum = closed_sum::has_bounded_shape(function);
     let dynamic_descriptor_join = dynamic_join::has_bounded_shape(function);
+    if function.block_entries.len() > 1
+        && !bounded_conditional_exit
+        && !bounded_closed_sum
+        && !dynamic_descriptor_join
+        && (function.structural_parameters.is_empty() || !continuation::has_shape(function))
+    {
+        return graph::lower(function, target, functions, structural_types);
+    }
     if !bounded_conditional_exit && !bounded_closed_sum && !dynamic_descriptor_join {
         validate_unit_function_shape(function)?;
     }

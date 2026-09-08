@@ -11,6 +11,7 @@ mod expressions;
 mod scalar_definitions;
 mod structural_call;
 mod unit;
+mod unit_graph;
 pub(super) fn validate_target(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -61,6 +62,9 @@ pub(super) fn validate_target(
             return Err(invalid);
         }
         return unit::validate(body, abstracted, optimized, native, plan, unit);
+    }
+    if let TargetOperation::UnitGraph(graph) = &target.operation {
+        return unit_graph::validate(graph, optimized, native, plan, unit);
     }
     let (scalar_type, control) = match &target.operation {
         TargetOperation::ReturnIntegerImmediate {
