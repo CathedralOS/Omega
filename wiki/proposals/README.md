@@ -18,7 +18,8 @@ Acceptance updates the specification; this directory does not define current rul
   unapproved library, provider, and diagnostic-build alternatives; admissions
   require no runtime checking independently of this design.
 - [Semantic reflection through data and ordinary machines](semantic_reflection.md):
-  candidate schema queries, compile-time plan construction, checked consumers,
-  and Layout/Placed joins without new keywords; not current rules.
+  candidate typed visitation shared by inspectors and serializers, optional policy
+  plans, runtime adapters, and owner-validated construction; preserves Layout/Placed
+  boundaries without new keywords and does not define current rules.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).
