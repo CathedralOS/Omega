@@ -69,25 +69,12 @@ prerequisite to every lower-rung milestone.
 
 ## Next decision - measured complexity follow-through
 
-- **EPSILON-RUNTIME-FIELD-IDENTITY.** Finish complete-D time and allocation
-  validation of compact field projections in
-  `bootstrap/4_epsilon/execution/storage/fields.delta`. Run the unchanged
-  customer with `sh tests/bootstrap/omega-parser/run.sh` on macOS arm64.
-  The source closure is `4a9d1e2fd1719705763057080b163506e92c2b2355327938f82235740185ec47`;
-  its execution receipt is pinned by that gate. The
-  [paired D lexer comparison](tests/epsilon/interpreted-omega-experiment/README.md)
-  observed 136.905 to 126.065 seconds, not a complete-parser speedup. The full
-  [parser baseline](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
-  now passes with measured allocation; the compact-key run remains pending.
-  Compact keys add three payload pairs per new projection; preserve the selected provision
-  and check the actual complete customer's fit, not just small-control success.
-  Acceptance: exact full-parser observation and measured time/allocation on
-  unchanged D source; compare retaining this representation with simplification
-  if its added allocation is not justified. No index, native engine, language,
-  or permanent profiling tool. Keep final evaluator/proof closure separate.
-- **GAMMA-RUNTIME-SCANNING-REVIEW.** After EPSILON-RUNTIME-FIELD-IDENTITY closes, reassess
+- **GAMMA-RUNTIME-SCANNING-REVIEW.** Reassess
   repeated expression scanning in `bootstrap/2_gamma/gamma_evaluator.beta`
-  against the same D customer. At `844e450838`, two short D-runtime windows
+  against the [complete D customer](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
+  after compact field identities. Its exact current source passes; remeasure
+  remaining costs before changing Gamma rather than transferring old sample
+  proportions to the new executor. At `844e450838`, two short D-runtime windows
   found expression skipping in 37/160 stacks; an independent OS sample placed 6077/6907 native PCs in
   Alpha dispatch. These overlap interpreter layers, not additive costs or a
   promised speedup. Prefer OS sampling and disposable diagnostics; retain no
@@ -244,11 +231,11 @@ prerequisite to every lower-rung milestone.
   on macOS arm64; exact-current-callable checking reduces the measured run to
   120.518 seconds without a new index or profile. Run
   `sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D lexer'`.
-  Next acceptance is the complete-D parser command
-  `sh tests/bootstrap/omega-parser/run.sh` with the current receipt; the
-  field-identity task above owns its pending time/allocation comparison.
-  Its earlier complete-source pass is not evidence
-  of current whole-D timing or final evaluator completion.
+  Retain `sh tests/bootstrap/omega-parser/run.sh` as the complete-source parser
+  regression. Its [current time/allocation comparison](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
+  passes, but does not close final checking, resource/entry conformance, or
+  whole-D compilation. Do not replace those remaining requirements with more
+  parser-only controls.
   Final acceptance depends on complete D: that exact source executes through
   the selected lower chain and refines `RunEpsilon`, with no Epsilon-owned
   Alpha backend or hidden host implementation.

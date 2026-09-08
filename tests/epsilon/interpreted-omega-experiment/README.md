@@ -299,6 +299,8 @@ were running. This single pair is not a benchmark series or a full-parser
 speedup; the canonical selected-customer command independently returned the
 same observation in 132.815 seconds. The baseline is the receipt at
 `844e450838`, unchanged by subsequent folder moves.
+The separate [complete-D parser comparison](../../bootstrap/omega-parser/README.md#field-identity-comparison)
+now records both full-customer outcomes, times, and cumulative allocations.
 
 Run that customer alone with:
 
