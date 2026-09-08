@@ -2,8 +2,11 @@
 use super::*;
 use target_operations::{TargetUnitGraph, TargetUnitSuccessor, TargetUnitTerminator};
 mod sources;
+#[cfg(test)]
+mod tests;
 
 pub(super) fn validate(
+    function: &TargetFunction,
     graph: &TargetUnitGraph,
     optimized: &PsiOptimizationFunction,
     native: &TargetOperationPlan,
@@ -12,7 +15,6 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     if optimized.attachment.is_some()
-        || !graph.parameters.is_empty()
         || graph.structural_types != plan.structural_types
         || graph.structural_types != unit.structural_types
         || graph.entry != optimized.entry
@@ -51,6 +53,7 @@ pub(super) fn validate(
                 return Err(invalid);
             }
             super::unit::validate_operation(
+                function,
                 operation,
                 &node.operation,
                 &graph.scalar_parameters,
@@ -106,7 +109,15 @@ pub(super) fn validate(
                 },
             ) => {
                 condition_source == expected
-                    && sources::boolean(condition, *expected, &graph.scalar_parameters, &available)
+                    && (Checker {
+                        function,
+                        available: Some(&available),
+                        optimized,
+                        native,
+                        plan,
+                        unit,
+                    })
+                    .boolean(condition, *expected, &[])
                     && successor_matches(when_true, expected_true)
                     && successor_matches(when_false, expected_false)
             }

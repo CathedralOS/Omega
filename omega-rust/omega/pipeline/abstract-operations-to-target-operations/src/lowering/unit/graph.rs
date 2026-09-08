@@ -1,23 +1,33 @@
 //! Ordinary acyclic Unit control; live definitions are intersected at joins.
 use super::super::shared::*;
 use super::scalar_call::KnownUnitInteger;
+mod observations;
 use target_operations::{
     TargetScalarBlockParameter, TargetUnitBlock, TargetUnitGraph, TargetUnitSuccessor,
     TargetUnitTerminator,
 };
 
 #[derive(Clone)]
-struct LiveScalars {
+struct LiveDefinitions {
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
+    boolean_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
+    lengths: BTreeMap<ValueId, PlaceId>,
 }
 
-impl LiveScalars {
+impl LiveDefinitions {
     fn intersect(&mut self, other: &Self) {
         self.integers
             .retain(|value, definition| other.integers.get(value) == Some(definition));
         self.booleans
             .retain(|value, definition| other.booleans.get(value) == Some(definition));
+        self.boolean_homes
+            .retain(|value, definition| other.boolean_homes.get(value) == Some(definition));
+        self.views
+            .retain(|place, definition| other.views.get(place) == Some(definition));
+        self.lengths
+            .retain(|value, place| other.lengths.get(value) == Some(place));
     }
 }
 
@@ -30,7 +40,12 @@ pub(super) fn lower(
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
     if function.result != AbstractFunctionResult::Unit
         || function.attachment.is_some()
-        || !function.structural_parameters.is_empty()
+        || !function.structural_parameters.iter().all(|parameter| {
+            super::super::scalar::byte_views::is_immutable_byte_parameter(
+                parameter,
+                structural_types,
+            )
+        })
         || !function.entry_claims.is_empty()
         || !function.published_service_ceiling.is_empty()
     {
@@ -47,13 +62,33 @@ pub(super) fn lower(
         let result = match operation {
             AbstractOperation::IntegerConstant { result, .. }
             | AbstractOperation::BooleanConstant { result, .. }
-            | AbstractOperation::IntegerWiden { result, .. } => Some(*result),
+            | AbstractOperation::IntegerWiden { result, .. }
+            | AbstractOperation::IntegerEqual { result, .. }
+            | AbstractOperation::IntegerLessThan { result, .. }
+            | AbstractOperation::IntegerLessOrEqual { result, .. } => Some(*result),
+            AbstractOperation::ByteSequenceLength { result, .. }
+            | AbstractOperation::ByteSequenceRead { result, .. } => Some(result.value),
             _ => None,
         };
         if let Some(result) = result
             && !definitions.insert(result)
         {
             return Err(LoweringError::DuplicateValue(result));
+        }
+    }
+    let mut places = function
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .collect::<BTreeSet<_>>();
+    if places.len() != function.structural_parameters.len() {
+        return Err(invalid());
+    }
+    for operation in &function.operations {
+        if let AbstractOperation::ByteSequenceSubslice { result, .. } = operation
+            && !places.insert(result.place)
+        {
+            return Err(invalid());
         }
     }
     let entries = &function.block_entries;
@@ -133,12 +168,15 @@ pub(super) fn lower(
     }
     let mut remaining = incoming.iter().map(Vec::len).collect::<Vec<_>>();
     let mut pending = vec![entry_position];
-    let mut live_exits: Vec<Option<LiveScalars>> = vec![None; entries.len()];
+    let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
-    let initial = LiveScalars {
+    let initial = LiveDefinitions {
         integers: super::setup::integer_parameters(function.machine, &prepared.scalar_parameters)?,
         booleans: BTreeMap::new(),
+        boolean_homes: BTreeMap::new(),
+        views: BTreeMap::new(),
+        lengths: BTreeMap::new(),
     };
     while let Some(position) = pending.pop() {
         let mut live = if position == entry_position {
@@ -232,11 +270,25 @@ fn lower_operation(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     prepared: &super::setup::PreparedUnitFunction,
-    live: &mut LiveScalars,
+    live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
     match operation {
+        AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::ByteSequenceRead { .. }
+        | AbstractOperation::ByteSequenceSubslice { .. }
+        | AbstractOperation::IntegerEqual { .. }
+        | AbstractOperation::IntegerLessThan { .. }
+        | AbstractOperation::IntegerLessOrEqual { .. } => observations::lower(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::IntegerConstant {
             psi_operation,
             result,
@@ -278,13 +330,11 @@ fn lower_operation(
             provenance,
         ),
         AbstractOperation::CallUnit {
-            structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
             ..
-        } if structural_arguments.is_empty()
-            && claim_transfers.is_empty()
+        } if claim_transfers.is_empty()
             && requirement_obligations.is_empty()
             && crash_continuations.is_empty() =>
         {
@@ -294,8 +344,9 @@ fn lower_operation(
                 target,
                 functions,
                 structural_types,
+                &super::setup::parameters_by_place(&prepared.parameters),
                 &BTreeMap::new(),
-                &BTreeMap::new(),
+                &live.views,
                 &live.integers,
                 &BTreeMap::new(),
                 &live.booleans,
@@ -315,7 +366,7 @@ fn terminator(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     prepared: &super::setup::PreparedUnitFunction,
-    live: &LiveScalars,
+    live: &LiveDefinitions,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetUnitTerminator, LoweringError> {
     let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
@@ -380,6 +431,8 @@ fn terminator(
                     source_value: *condition,
                     value: *value,
                 }
+            } else if let Some(home) = live.boolean_homes.get(condition) {
+                TargetBooleanExpression::ScalarHome(*home)
             } else {
                 return Err(invalid());
             };

@@ -106,3 +106,71 @@ pub(super) fn validate(
     }
     Ok(())
 }
+
+/// Observations retain their own ordered result homes; operands use prior homes.
+pub(super) fn observation(
+    target: &TargetUnitOperation,
+    abstracted: &AbstractOperation,
+    checker: &Checker<'_>,
+) -> Result<(), LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    let TargetUnitOperation::ScalarDefinition {
+        result_home,
+        expression,
+    } = target
+    else {
+        return Err(invalid);
+    };
+    let (operation, value, scalar_type) = match abstracted {
+        AbstractOperation::ByteSequenceLength {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ByteSequenceRead {
+            psi_operation,
+            result,
+            ..
+        } => (*psi_operation, result.value, result.scalar_type),
+        AbstractOperation::IntegerEqual {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerLessThan {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerLessOrEqual {
+            psi_operation,
+            result,
+            ..
+        } => (*psi_operation, *result, ScalarType::Boolean),
+        _ => return Err(invalid),
+    };
+    if result_home.defining_operation != operation
+        || result_home.source_value != value
+        || result_home.scalar_type != scalar_type
+        || Some(result_home.shape) != scalar_shape(scalar_type)
+    {
+        return Err(invalid);
+    }
+    let matches = match (expression, scalar_type) {
+        (
+            TargetScalarExpression::Integer {
+                scalar_type: actual,
+                expression,
+            },
+            ScalarType::Integer(expected),
+        ) => *actual == expected && checker.expression(expression, value, &[]),
+        (TargetScalarExpression::Boolean(expression), ScalarType::Boolean) => {
+            checker.boolean(expression, value, &[])
+        }
+        _ => false,
+    };
+    if !matches {
+        return Err(invalid);
+    }
+    Ok(())
+}

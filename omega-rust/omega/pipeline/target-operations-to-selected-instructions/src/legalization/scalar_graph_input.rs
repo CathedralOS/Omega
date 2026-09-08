@@ -29,6 +29,8 @@ fn structural_parameters(
         Some(&abi.structural_parameters)
     } else if let TargetOperation::UnitBody(body) = &target.operation {
         (!body.parameters.is_empty()).then_some(body.parameters.as_slice())
+    } else if let TargetOperation::UnitGraph(graph) = &target.operation {
+        (!graph.parameters.is_empty()).then_some(graph.parameters.as_slice())
     } else {
         None
     }

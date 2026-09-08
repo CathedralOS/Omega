@@ -14,15 +14,13 @@ impl Checker<'_> {
         match view {
             TargetByteView::Parameter { place, placement } => {
                 *place == source
-                    && self
-                        .function
-                        .mixed_structural_scalar_abi
-                        .as_ref()
-                        .is_some_and(|abi| {
-                            abi.structural_parameters.iter().any(|parameter| {
+                    && super::super::structural_parameters(self.function).is_some_and(
+                        |parameters| {
+                            parameters.iter().any(|parameter| {
                                 parameter.place == source && &parameter.placement == placement
                             })
-                        })
+                        },
+                    )
             }
             TargetByteView::Subslice {
                 psi_operation,

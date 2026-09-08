@@ -165,7 +165,7 @@ pub(super) fn insert_value(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum KnownScalar {
+pub(in crate::lowering) enum KnownScalar {
     Boolean(bool),
     BooleanRuntime(TargetBooleanExpression),
     Integer {
@@ -202,7 +202,7 @@ impl KnownScalar {
         }
     }
 
-    pub(super) fn into_expression(
+    pub(in crate::lowering) fn into_expression(
         self,
         source_value: ValueId,
     ) -> Result<TargetScalarExpression, LoweringError> {
@@ -267,7 +267,7 @@ pub(super) fn equal_boolean(
     }
 }
 
-pub(super) fn equal_integer(
+pub(in crate::lowering) fn equal_integer(
     left_id: ValueId,
     left: KnownScalar,
     right_id: ValueId,
@@ -306,7 +306,7 @@ pub(super) fn equal_integer(
     }
 }
 
-pub(super) fn order_integer(
+pub(in crate::lowering) fn order_integer(
     left_id: ValueId,
     left: KnownScalar,
     right_id: ValueId,
@@ -387,7 +387,7 @@ pub(super) fn direct_boolean_condition(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum KnownInteger {
+pub(in crate::lowering) enum KnownInteger {
     Immediate(IntegerValue),
     Runtime(TargetIntegerExpression),
 }

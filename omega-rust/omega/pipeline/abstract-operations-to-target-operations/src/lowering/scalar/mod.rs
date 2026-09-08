@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Scalar-result lowering: ABI setup, exact special forms, conditionals, then straight-line evaluation.
 
-mod byte_views;
+pub(in crate::lowering) mod byte_views;
 mod conditional_control;
 mod conditional_route;
 mod conditional_scalar;
@@ -28,7 +28,10 @@ use conditional_scalar::{
     lower_wrapping_shift,
 };
 use expressions::*;
-pub(in crate::lowering) use expressions::{scalar_parameter_location, scalar_shape};
+pub(in crate::lowering) use expressions::{
+    KnownInteger, KnownScalar, equal_integer, order_integer, scalar_parameter_location,
+    scalar_shape,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_scalar_function(

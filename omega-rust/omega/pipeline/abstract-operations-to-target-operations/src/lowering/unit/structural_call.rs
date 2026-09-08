@@ -24,6 +24,7 @@ pub(super) fn lower_structural_unit_call(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
+    established_views: &BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     scalar_values: &BTreeMap<ValueId, super::scalar_call::KnownUnitInteger>,
     scalar_aliases: &BTreeMap<ValueId, ValueId>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
@@ -164,6 +165,38 @@ pub(super) fn lower_structural_unit_call(
         .zip(callee_shapes.iter().copied())
         .zip(callee_plan.parameters.iter().skip(scalar_arguments.len()))
         .map(|(((argument, callee_parameter), shape), destination)| {
+            if let Some((producer, structural_type)) = established_views.get(&argument.place) {
+                if !argument.path.is_empty()
+                    || argument.access != StructuralAccess::SharedBorrow
+                    || !super::super::scalar::byte_views::is_immutable_byte_parameter(
+                        callee_parameter,
+                        structural_types,
+                    )
+                    || *structural_type != callee_parameter.structural_type
+                    || shape != ValueShape::borrowed_reference(16, 8)
+                {
+                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee: *callee,
+                        place: argument.place,
+                    });
+                }
+                return Ok(TargetStructuralArgument {
+                    place: argument.place,
+                    access: argument.access,
+                    path: Vec::new(),
+                    root_structural_type: *structural_type,
+                    structural_type: *structural_type,
+                    shape,
+                    source_byte_offset: 0,
+                    fixed_array_length: None,
+                    element_stride: None,
+                    source:
+                        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                            psi_operation: *producer,
+                        },
+                    destination: destination.clone(),
+                });
+            }
             let result_source = super::projected_result::source(operations, argument.place);
             let (source_structural_type, source_shape, source_placement) =
                 if let Some(source) = parameters_by_place.get(&argument.place).copied() {

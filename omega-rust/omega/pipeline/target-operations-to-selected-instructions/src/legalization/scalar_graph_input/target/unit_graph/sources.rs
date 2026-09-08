@@ -1,6 +1,6 @@
 //! Scalar source availability is indexed by source CFG dominance, not target block order.
 use super::*;
-use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
+use target_operations::TargetUnitScalarArgumentSource as Source;
 
 pub(super) fn available(
     graph: &TargetUnitGraph,
@@ -90,55 +90,4 @@ fn dominates(function: &PsiOptimizationFunction, candidate: BlockId, block: Bloc
         }
     }
     true
-}
-
-pub(super) fn boolean(
-    expression: &Boolean,
-    value: ValueId,
-    parameters: &[ScalarAbiValue],
-    available: &[(ValueId, Source)],
-) -> bool {
-    let mut definitions = available.iter().filter(|(identity, _)| *identity == value);
-    let Some((_, definition)) = definitions.next() else {
-        return false;
-    };
-    if definitions.next().is_some() {
-        return false;
-    }
-    match (expression, definition) {
-        (
-            Boolean::Parameter {
-                source_value,
-                parameter_index,
-                location,
-            },
-            Source::Parameter {
-                parameter_index: expected,
-                source_value: actual,
-                scalar_type,
-            },
-        ) => {
-            *source_value == value
-                && *actual == value
-                && usize::try_from(*expected).ok() == Some(*parameter_index)
-                && *scalar_type == ScalarType::Boolean
-                && parameters.get(*parameter_index).is_some_and(|parameter| {
-                    parameter.value == value
-                        && parameter.scalar_type == ScalarType::Boolean
-                        && location_matches(*location, &parameter.placement)
-                })
-        }
-        (
-            Boolean::Immediate {
-                source_value,
-                value: literal,
-            },
-            Source::BooleanImmediate {
-                source_value: actual,
-                value: expected,
-                ..
-            },
-        ) => *source_value == value && *actual == value && literal == expected,
-        _ => false,
-    }
 }
