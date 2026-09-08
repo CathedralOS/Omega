@@ -12,8 +12,9 @@ By modeling a program as a state machine, we can answer otherwise impossible que
 - Does this API access the filesystem?
 - Can this program or library crash?
 
-Omega aims to be a language you would feel safe running airplane software or an OS kernel,
-with zero compromise on speed.
+Omega is designed to eliminate entire categories of errors, designed for software where failure is costly, from aircraft systems to OS kernels—without sacrificing performance.
+
+To prove these claims, Omega is being co-developed alongside an Operating system called Cathedral. Cathedral puts Omega's guarantees to work on real problems: managing memory, controlling hardware and drivers, and running untrusted software safely.
 
 **Pre-Alpha.** The Rust compiler is under active development. The language
 design is ahead of its implementation; native support is still being completed.
