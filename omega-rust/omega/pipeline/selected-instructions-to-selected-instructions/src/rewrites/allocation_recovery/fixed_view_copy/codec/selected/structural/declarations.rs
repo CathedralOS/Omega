@@ -285,13 +285,16 @@ fn decode_target_parameter(
     })
 }
 
-pub(super) fn encode_semantic_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {
+pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) fn encode_semantic_argument(
+    bytes: &mut Vec<u8>,
+    argument: &StructuralArgument,
+) {
     bytes.extend_from_slice(&argument.place.get().to_le_bytes());
     encode_path(bytes, &argument.path);
     encode_access(bytes, argument.access);
 }
 
-pub(super) fn decode_semantic_argument(
+pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) fn decode_semantic_argument(
     cursor: &mut Cursor<'_>,
 ) -> Result<StructuralArgument, FixedViewCopyDecodeError> {
     Ok(StructuralArgument {

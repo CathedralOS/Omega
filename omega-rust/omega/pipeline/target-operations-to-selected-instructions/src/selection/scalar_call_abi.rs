@@ -254,7 +254,8 @@ fn validate_borrowed_argument(
                 return None;
             }
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. } => {
+        target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
+        | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
             if exclusive {
                 return None;
             }

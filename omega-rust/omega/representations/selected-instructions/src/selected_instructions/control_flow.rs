@@ -99,8 +99,24 @@ pub struct SelectedSuccessor {
     pub block: SelectedBlockId,
     pub source_target: BlockId,
     pub bindings: Vec<SelectedValueBinding>,
+    pub structural_bindings: Vec<SelectedStructuralBinding>,
     /// Path-specific logical fuel for this exact semantic edge.
     pub fuel: Vec<FuelSettlement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedStructuralBinding {
+    pub semantic: abstract_operations::AbstractStructuralBinding,
+    pub transport: SelectedStructuralTransport,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedStructuralTransport {
+    Unused,
+    Descriptor {
+        argument: VirtualRegisterId,
+        destination: super::LocalStorageSlotId,
+    },
 }
 
 /// A source transfer and its selected realization. Source identity alone cannot

@@ -3,6 +3,64 @@ use abstract_operations::ValueBinding;
 use optimization_unit::{ValueDefinition, ValueDefinitionSite};
 
 #[test]
+fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
+    let mut plan = scalar_call_unit_plan();
+    let parameter = terminal_psi::StructuralParameterDeclaration {
+        place: id(500),
+        position: 0,
+        is_self: false,
+        structural_type: id(501),
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    plan.scalar_functions[0].blocks[0]
+        .structural_parameters
+        .push(parameter);
+    plan.scalar_functions[0].blocks[0].terminator = LegalizedScalarTerminator::Jump {
+        successor: LegalizedScalarSuccessor {
+            edge: id(502),
+            target: id(503),
+            bindings: Vec::new(),
+            fuel: Vec::new(),
+            structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
+                parameter: id(500),
+                argument: terminal_psi::StructuralArgument {
+                    place: id(504),
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+            }],
+        },
+        effect: EffectLink {
+            input: 0,
+            output: 1,
+        },
+        ownership: Vec::new(),
+    };
+    let original = legalized_operation_plan_identity(&plan);
+    for mutation in 0..5 {
+        let mut changed = plan.clone();
+        let block = &mut changed.scalar_functions[0].blocks[0];
+        let LegalizedScalarTerminator::Jump { successor, .. } = &mut block.terminator else {
+            panic!("jump");
+        };
+        match mutation {
+            0 => block.structural_parameters[0].position = 1,
+            1 => block.structural_parameters[0].structural_type = id(505),
+            2 => successor.structural_bindings[0].parameter = id(506),
+            3 => successor.structural_bindings[0].argument.place = id(507),
+            _ => {
+                successor.structural_bindings[0].argument.access =
+                    terminal_psi::StructuralAccess::MutableBorrow
+            }
+        }
+        assert_ne!(original, legalized_operation_plan_identity(&changed));
+    }
+}
+
+#[test]
 fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
     let mut plan = scalar_call_unit_plan();
     let function = &mut plan.scalar_functions[0];
@@ -38,6 +96,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             ownership: vec![],
         });
     let successor = |edge, target, argument| LegalizedScalarSuccessor {
+        structural_bindings: Vec::new(),
         edge: id(edge),
         target: id(target),
         bindings: vec![ValueBinding {
@@ -62,6 +121,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
     };
     function.blocks.push(LegalizedScalarBlock {
         id: id(123),
+        structural_parameters: Vec::new(),
         parameters: vec![ValueDefinition {
             value: id(130),
             scalar_type,
@@ -73,6 +133,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
         instructions: vec![],
         terminator: LegalizedScalarTerminator::Jump {
             successor: LegalizedScalarSuccessor {
+                structural_bindings: Vec::new(),
                 edge: id(125),
                 target: id(126),
                 bindings: vec![],
@@ -90,6 +151,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
     });
     function.blocks.push(LegalizedScalarBlock {
         id: id(126),
+        structural_parameters: Vec::new(),
         parameters: vec![],
         instructions: vec![],
         terminator: end,

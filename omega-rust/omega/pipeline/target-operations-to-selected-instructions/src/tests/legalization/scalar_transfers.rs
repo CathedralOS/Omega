@@ -42,6 +42,7 @@ fn parameters(first: u64) -> Vec<AbstractParameter> {
 }
 fn successor(identity: u64, destination: u64, first: u64, argument: u64) -> AbstractSuccessor {
     AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: edge(identity),
         target: block(destination),
         bindings: parameters(first)
@@ -59,6 +60,7 @@ fn successor(identity: u64, destination: u64, first: u64, argument: u64) -> Abst
 fn jump(identity: u64, argument: u64) -> AbstractOperation {
     let successor = successor(identity, 4, 140, argument);
     AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: successor.psi_edge,
         target: successor.target,
         bindings: successor.bindings,
@@ -98,6 +100,7 @@ fn fixture(
         (6, 8, None),
     ]
     .map(|(identity, operation_offset, first)| AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: block(identity),
         parameters: first.map(parameters).unwrap_or_default(),
         operation_offset,
@@ -117,12 +120,14 @@ fn fixture(
         AbstractOperation::Conditional {
             condition: value(140),
             when_true: AbstractSuccessor {
+                structural_bindings: Vec::new(),
                 psi_edge: edge(14),
                 target: block(5),
                 bindings: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
             when_false: AbstractSuccessor {
+                structural_bindings: Vec::new(),
                 psi_edge: edge(15),
                 target: block(6),
                 bindings: Vec::new(),

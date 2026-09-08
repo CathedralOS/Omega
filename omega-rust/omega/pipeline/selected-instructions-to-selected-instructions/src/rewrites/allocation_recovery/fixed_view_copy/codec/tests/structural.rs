@@ -91,7 +91,7 @@ fn structural_function() -> SelectedFunction {
     }];
     function.memory_accesses = vec![SelectedMemoryAccess {
         instruction: SelectedInstructionId(0),
-        operation: slot.operation,
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(slot.operation),
         place: PlaceId::new(1).unwrap(),
         byte_offset: 8,
         byte_count: 8,
@@ -148,7 +148,9 @@ fn activation_local_roster_and_memory_roles_round_trip() {
     ] {
         function.memory_accesses.push(SelectedMemoryAccess {
             instruction: SelectedInstructionId(1),
-            operation: slot.operation().expect("source-backed local slot"),
+            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                slot.operation().expect("source-backed local slot"),
+            ),
             place: slot.structural_place().unwrap(),
             byte_offset: 0,
             byte_count: 8,
@@ -159,6 +161,60 @@ fn activation_local_roster_and_memory_roles_round_trip() {
         .functions
         .push(function);
     assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+}
+
+#[test]
+fn block_descriptor_slots_and_non_operation_memory_origins_round_trip() {
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
+    };
+    use semantic_vocabulary::{BlockId, EdgeId};
+    let block = BlockId::new(61).unwrap();
+    let place = PlaceId::new(67).unwrap();
+    let slot = LocalStorageSlotId::StructuralBlockParameter { block, place };
+    assert_eq!(slot.operation(), None);
+    assert_eq!(slot.structural_place(), Some(place));
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    function.local_storage_slots.push(SelectedLocalStorageSlot {
+        id: slot,
+        byte_size: 16,
+        alignment: 8,
+    });
+    for (origin, role) in [
+        (
+            SelectedMemoryAccessOrigin::Block(block),
+            SelectedMemoryAccessRole::AddressLocal { slot },
+        ),
+        (
+            SelectedMemoryAccessOrigin::Edge(EdgeId::new(71).unwrap()),
+            SelectedMemoryAccessRole::WriteLocal { slot },
+        ),
+    ] {
+        function.memory_accesses.push(SelectedMemoryAccess {
+            instruction: SelectedInstructionId(1),
+            origin,
+            place,
+            byte_offset: 8,
+            byte_count: 8,
+            role,
+        });
+    }
+    std::sync::Arc::make_mut(&mut plan.transformed)
+        .functions
+        .push(function);
+    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    let mut identities = Vec::new();
+    for origin in [
+        SelectedMemoryAccessOrigin::Block(block),
+        SelectedMemoryAccessOrigin::Edge(EdgeId::new(61).unwrap()),
+        SelectedMemoryAccessOrigin::Operation(OperationId::new(61).unwrap()),
+    ] {
+        let mut bytes = Vec::new();
+        origin.encode_identity(&mut bytes);
+        assert!(!identities.contains(&bytes));
+        identities.push(bytes);
+    }
 }
 
 #[test]

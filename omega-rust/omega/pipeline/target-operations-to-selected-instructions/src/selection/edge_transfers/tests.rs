@@ -84,6 +84,7 @@ fn cyclic_swap_snapshots_both_inputs_before_destination_copies() {
                 terminator: SelectedTerminator::Jump {
                     instruction: jump,
                     successor: SelectedSuccessor {
+                        structural_bindings: Vec::new(),
                         role: SelectedSuccessorRole::Semantic,
                         psi_edge: edge,
                         block: SelectedBlockId(0),

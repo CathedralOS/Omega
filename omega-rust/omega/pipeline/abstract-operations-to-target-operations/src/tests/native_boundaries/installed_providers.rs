@@ -84,6 +84,7 @@ fn installed_provider_plan() -> (
         },
     };
     let block_entry = |machine: MachineId| AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: BlockId::new(machine.get()).unwrap(),
         parameters: Vec::new(),
         operation_offset: 0,
@@ -262,6 +263,7 @@ fn installed_scalar_provider_plan() -> (
     };
     let scalar_parameter = |value| AbstractParameter { value, scalar_type };
     let block_entry = |machine: MachineId, value: ValueId| AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: BlockId::new(machine.get()).unwrap(),
         parameters: vec![scalar_parameter(value)],
         operation_offset: 0,

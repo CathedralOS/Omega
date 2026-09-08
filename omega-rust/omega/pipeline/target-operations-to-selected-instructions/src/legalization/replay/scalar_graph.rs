@@ -55,6 +55,7 @@ pub(super) fn replay(
         let (last, body) = source.nodes.split_last().ok_or(invalid.clone())?;
         if block.id != source.id
             || block.parameters != source.parameters
+            || block.structural_parameters != source.structural_parameters
             || block.instructions.len() != body.len()
         {
             return Err(invalid);

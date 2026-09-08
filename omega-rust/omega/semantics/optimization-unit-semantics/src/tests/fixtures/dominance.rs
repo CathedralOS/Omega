@@ -57,6 +57,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -192,6 +193,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -281,6 +283,7 @@ pub(crate) fn byte_literal_dominating_non_topological_unit() -> PsiOptimizationU
     let returned = nodes.next().expect("Unit return");
     let mut jump = returned.clone();
     jump.operation = AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(4_610, EdgeId::new),
         target: use_block,
         bindings: Vec::new(),
@@ -290,11 +293,13 @@ pub(crate) fn byte_literal_dominating_non_topological_unit() -> PsiOptimizationU
     unit.functions[0].entry = producer;
     unit.functions[0].blocks = vec![
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: use_block,
             parameters: Vec::new(),
             nodes: vec![boundary, returned],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: producer,
             parameters: Vec::new(),
             nodes: vec![establish, jump],
@@ -324,12 +329,14 @@ pub(crate) fn byte_literal_sibling_use_unit() -> PsiOptimizationUnit {
     conditional.operation = AbstractOperation::Conditional {
         condition,
         when_true: abstract_operations::AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(4_616, EdgeId::new),
             target: producer,
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: abstract_operations::AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(4_617, EdgeId::new),
             target: use_block,
             bindings: Vec::new(),
@@ -344,16 +351,19 @@ pub(crate) fn byte_literal_sibling_use_unit() -> PsiOptimizationUnit {
     unit.functions[0].entry = entry;
     unit.functions[0].blocks = vec![
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
             nodes: vec![boolean, conditional],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: producer,
             parameters: Vec::new(),
             nodes: vec![establish, producer_return],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: use_block,
             parameters: Vec::new(),
             nodes: vec![boundary, returned],
@@ -384,12 +394,14 @@ pub(crate) fn byte_literal_partial_predecessor_unit() -> PsiOptimizationUnit {
     conditional.operation = AbstractOperation::Conditional {
         condition,
         when_true: abstract_operations::AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(4_636, EdgeId::new),
             target: producer,
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: abstract_operations::AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(4_637, EdgeId::new),
             target: bypass,
             bindings: Vec::new(),
@@ -397,6 +409,7 @@ pub(crate) fn byte_literal_partial_predecessor_unit() -> PsiOptimizationUnit {
         },
     };
     let jump = |edge| AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(edge, EdgeId::new),
         target: join,
         bindings: Vec::new(),
@@ -410,21 +423,25 @@ pub(crate) fn byte_literal_partial_predecessor_unit() -> PsiOptimizationUnit {
     unit.functions[0].entry = entry;
     unit.functions[0].blocks = vec![
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
             nodes: vec![boolean, conditional],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: producer,
             parameters: Vec::new(),
             nodes: vec![establish, producer_jump],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: bypass,
             parameters: Vec::new(),
             nodes: vec![bypass_jump],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: join,
             parameters: Vec::new(),
             nodes: vec![boundary, returned],
@@ -443,6 +460,7 @@ pub(crate) fn explicit_local_dominating_non_topological_unit() -> PsiOptimizatio
     let returned = nodes.next().expect("local cleanup return");
     let mut jump = returned.clone();
     jump.operation = AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(4_641, EdgeId::new),
         target: cleanup,
         bindings: Vec::new(),
@@ -451,11 +469,13 @@ pub(crate) fn explicit_local_dominating_non_topological_unit() -> PsiOptimizatio
     };
     unit.functions[0].blocks = vec![
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: cleanup,
             parameters: Vec::new(),
             nodes: vec![returned],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: producer,
             parameters: Vec::new(),
             nodes: vec![establish, jump],
@@ -499,12 +519,14 @@ pub(crate) fn explicit_local_sibling_cleanup_unit() -> PsiOptimizationUnit {
     conditional.operation = AbstractOperation::Conditional {
         condition,
         when_true: abstract_operations::AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(4_625, EdgeId::new),
             target: producer,
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: abstract_operations::AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(4_626, EdgeId::new),
             target: cleanup,
             bindings: Vec::new(),
@@ -524,16 +546,19 @@ pub(crate) fn explicit_local_sibling_cleanup_unit() -> PsiOptimizationUnit {
     unit.functions[0].entry = entry;
     unit.functions[0].blocks = vec![
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
             nodes: vec![boolean, conditional],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: producer,
             parameters: Vec::new(),
             nodes: vec![establish, producer_return],
         },
         optimization_unit::OptimizationBlock {
+            structural_parameters: Vec::new(),
             id: cleanup,
             parameters: Vec::new(),
             nodes: vec![returned],

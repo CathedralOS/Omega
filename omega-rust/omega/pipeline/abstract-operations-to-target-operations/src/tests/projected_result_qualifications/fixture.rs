@@ -57,6 +57,7 @@ pub(super) fn projected_structural_call_return_plan() -> AbstractOperationPlan {
         },
     };
     let block_entry = |block| AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block,
         parameters: Vec::new(),
         operation_offset: 0,

@@ -162,6 +162,22 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             }
         }
     }
+    length(bytes, successor.structural_bindings.len());
+    for binding in &successor.structural_bindings {
+        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
+        super::structural::encode_semantic_argument(bytes, &binding.semantic.argument);
+        match binding.transport {
+            selected_instructions::SelectedStructuralTransport::Unused => bytes.push(0),
+            selected_instructions::SelectedStructuralTransport::Descriptor {
+                argument,
+                destination,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&argument.0.to_le_bytes());
+                destination.encode_identity(bytes);
+            }
+        }
+    }
     encode_fuel(bytes, &successor.fuel);
 }
 
@@ -197,12 +213,33 @@ fn decode_successor(
             transport,
         });
     }
+    let count = cursor.length()?;
+    let mut structural_bindings = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        let semantic = abstract_operations::AbstractStructuralBinding {
+            parameter: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+            argument: super::structural::decode_semantic_argument(cursor)?,
+        };
+        let transport = match cursor.byte()? {
+            0 => selected_instructions::SelectedStructuralTransport::Unused,
+            1 => selected_instructions::SelectedStructuralTransport::Descriptor {
+                argument: VirtualRegisterId(cursor.u32()?),
+                destination: super::structural::decode_local_slot(cursor)?,
+            },
+            tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
+        };
+        structural_bindings.push(selected_instructions::SelectedStructuralBinding {
+            semantic,
+            transport,
+        });
+    }
     Ok(SelectedSuccessor {
         role,
         psi_edge,
         block,
         source_target,
         bindings,
+        structural_bindings,
         fuel: decode_fuel(cursor)?,
     })
 }

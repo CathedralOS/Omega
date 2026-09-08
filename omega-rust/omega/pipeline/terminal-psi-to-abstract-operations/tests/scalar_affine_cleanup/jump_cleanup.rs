@@ -137,6 +137,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     };
     let [
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: jump_edge,
             target,
             bindings,

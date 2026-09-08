@@ -237,6 +237,12 @@ pub(crate) fn structural_source_contract(
     caller
         .structural_parameters
         .iter()
+        .chain(
+            caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
         .find(|parameter| parameter.place == place)
         .map(|parameter| StructuralSourceContract {
             structural_type: parameter.structural_type,

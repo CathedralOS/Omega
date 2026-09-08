@@ -17,6 +17,7 @@ fn operation(value: u64) -> OperationId {
 }
 fn successor(identity: u64, target: u64) -> AbstractSuccessor {
     AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: edge(identity),
         target: block(target),
         bindings: Vec::new(),
@@ -36,6 +37,7 @@ fn call(identity: u64, argument: ValueId) -> AbstractOperation {
 }
 fn jump(identity: u64) -> AbstractOperation {
     AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: edge(identity),
         target: block(4),
         bindings: Vec::new(),
@@ -63,6 +65,7 @@ fn fixture() -> AbstractOperationPlan {
     caller.block_entries = [(1, 0), (2, 1), (3, 4), (4, 7)]
         .into_iter()
         .map(|(identity, operation_offset)| AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(identity),
             parameters: Vec::new(),
             operation_offset,
@@ -177,6 +180,7 @@ fn ordinary_unit_graph_retains_linear_call_continuations() {
     caller.block_entries = [(1, 0), (4, 2)]
         .into_iter()
         .map(|(identity, operation_offset)| AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(identity),
             parameters: Vec::new(),
             operation_offset,

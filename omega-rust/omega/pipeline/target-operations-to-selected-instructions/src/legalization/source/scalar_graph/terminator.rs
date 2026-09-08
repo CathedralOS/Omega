@@ -58,6 +58,7 @@ fn successor(edge: &optimization_unit::OptimizationEdge) -> LegalizedScalarSucce
         edge: edge.psi_edge,
         target: edge.target,
         bindings: edge.bindings.clone(),
+        structural_bindings: edge.structural_bindings.clone(),
         fuel: edge.fuel.clone(),
     }
 }

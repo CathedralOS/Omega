@@ -36,6 +36,7 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
         instruction: jump,
         successor: SelectedSuccessor {
             role: selected_instructions::SelectedSuccessorRole::Semantic,
+            structural_bindings: Vec::new(),
             psi_edge: EdgeId::new(1).unwrap(),
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),

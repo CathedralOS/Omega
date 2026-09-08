@@ -75,6 +75,14 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
         };
         let mut candidates = Vec::new();
         for function in &unit.functions {
+            // Descriptor telescopes require structural substitution, outside this scalar rewrite.
+            if function
+                .blocks
+                .iter()
+                .any(|block| !block.structural_parameters.is_empty())
+            {
+                continue;
+            }
             let Some((_, function_post_dominators)) = post_dominators
                 .functions
                 .iter()
@@ -92,6 +100,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     continue;
                 };
                 let O::Jump {
+                    structural_bindings: _,
                     psi_edge: incoming_edge,
                     target: target_id,
                     bindings,

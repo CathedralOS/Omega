@@ -17,6 +17,15 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.empty.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    // These rewrites substitute scalar bindings only.
+    if function
+        .blocks
+        .iter()
+        .any(|block| !block.structural_parameters.is_empty())
+    {
+        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+    }
+
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
@@ -29,6 +38,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
     let O::Jump {
+        structural_bindings: _,
         psi_edge: outgoing_edge,
         target,
         bindings: outgoing_bindings,

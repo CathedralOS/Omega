@@ -389,6 +389,15 @@ fn redensify(
             SelectedTerminator::Return { .. } => Vec::new(),
         };
         for successor in successors {
+            for binding in &mut successor.structural_bindings {
+                if let selected_instructions::SelectedStructuralTransport::Descriptor {
+                    argument,
+                    ..
+                } = &mut binding.transport
+                {
+                    *argument = lower_register(function_index, *argument, removed_register)?;
+                }
+            }
             for binding in &mut successor.bindings {
                 if let selected_instructions::SelectedValueTransport::Registers {
                     argument,

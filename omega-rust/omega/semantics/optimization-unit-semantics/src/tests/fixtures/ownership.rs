@@ -121,6 +121,7 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -165,6 +166,7 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -256,6 +258,7 @@ pub(crate) fn partial_affine_quartet_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -279,6 +282,7 @@ pub(crate) fn partial_affine_quartet_unit() -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: callee_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -375,12 +379,14 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
         AbstractOperation::Conditional {
             condition,
             when_true: abstract_operations::AbstractSuccessor {
+                structural_bindings: Vec::new(),
                 psi_edge: id(4_811, EdgeId::new),
                 target: true_block,
                 bindings: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
             when_false: abstract_operations::AbstractSuccessor {
+                structural_bindings: Vec::new(),
                 psi_edge: id(4_812, EdgeId::new),
                 target: false_block,
                 bindings: Vec::new(),
@@ -392,6 +398,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
     operations.extend([
         completion(id(4_813, OperationId::new)),
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: id(4_814, EdgeId::new),
             target: join_block,
             bindings: Vec::new(),
@@ -404,6 +411,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
         operations.push(completion(id(4_815, OperationId::new)));
     }
     operations.push(AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(4_816, EdgeId::new),
         target: join_block,
         bindings: Vec::new(),
@@ -450,21 +458,25 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
             published_service_ceiling: Vec::new(),
             block_entries: vec![
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: entry_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: true_block,
                     parameters: Vec::new(),
                     operation_offset: true_offset,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: false_block,
                     parameters: Vec::new(),
                     operation_offset: false_offset,
                 },
                 AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: join_block,
                     parameters: Vec::new(),
                     operation_offset: join_offset,

@@ -74,11 +74,20 @@ impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
         };
         let mut candidates = Vec::new();
         for function in &unit.functions {
+            // Descriptor telescopes require structural substitution, outside this scalar rewrite.
+            if function
+                .blocks
+                .iter()
+                .any(|block| !block.structural_parameters.is_empty())
+            {
+                continue;
+            }
             for empty in &function.blocks {
                 if empty.id == function.entry || empty.nodes.len() != 1 {
                     continue;
                 }
                 let O::Jump {
+                    structural_bindings: _,
                     psi_edge: outgoing_edge,
                     target,
                     bindings: outgoing_bindings,

@@ -38,6 +38,7 @@ pub(super) fn derive(
             Ok(LegalizedScalarBlock {
                 id: block.id,
                 parameters: block.parameters.clone(),
+                structural_parameters: block.structural_parameters.clone(),
                 instructions: body
                     .iter()
                     .map(|node| instruction::project(node, optimized, native, plan, unit))

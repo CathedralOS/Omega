@@ -97,9 +97,10 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
         let known_type = match place.kind {
-            // Optimizer blocks do not yet retain structural parameter signatures
-            // or incoming descriptor bindings.
-            StructuralPlaceKind::BlockParameter { .. } => false,
+            StructuralPlaceKind::BlockParameter { block, position } => function.blocks.iter()
+                .find(|candidate| candidate.id == block)
+                .and_then(|candidate| candidate.structural_parameters.get(position as usize))
+                .is_some_and(|parameter| parameter.place == place.id && parameter.position == position),
             StructuralPlaceKind::Parameter { position, is_self } => function
                 .structural_parameters
                 .get(position as usize)

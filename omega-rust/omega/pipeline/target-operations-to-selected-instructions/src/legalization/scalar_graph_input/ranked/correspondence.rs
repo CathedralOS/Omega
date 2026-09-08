@@ -27,6 +27,25 @@ pub(super) fn validate(
         || function.structural_parameters.len() != 1
         || function.entry != custody.graph.entry
         || function.block_entries.len() != 4
+        || function
+            .block_entries
+            .iter()
+            .any(|block| !block.structural_parameters.is_empty())
+        || function.operations.iter().any(|operation| match operation {
+            AbstractOperation::Jump {
+                structural_bindings,
+                ..
+            } => !structural_bindings.is_empty(),
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                !when_true.structural_bindings.is_empty()
+                    || !when_false.structural_bindings.is_empty()
+            }
+            _ => false,
+        })
     {
         return Err(invalid());
     }
@@ -103,6 +122,7 @@ pub(super) fn validate(
 
     let [
         AbstractOperation::Jump {
+            structural_bindings: _,
             psi_edge: preheader_edge,
             target: preheader_target,
             bindings: preheader_bindings,
@@ -186,6 +206,7 @@ pub(super) fn validate(
             right: subtract_right,
         },
         AbstractOperation::Jump {
+            structural_bindings: _,
             psi_edge: backedge,
             target: backedge_target,
             bindings: backedge_bindings,

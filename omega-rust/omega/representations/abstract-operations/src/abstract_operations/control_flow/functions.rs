@@ -28,6 +28,7 @@ pub struct AbstractFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractBlockEntry {
     pub block: BlockId,
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
     /// Scalar parameters in canonical Terminal-Psi declaration order. This is
     /// retained independently of incoming bindings so entry and otherwise
     /// unreferenced declarations cannot disappear during lowering.

@@ -79,6 +79,14 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
 
         let mut candidates = Vec::new();
         for function in &unit.functions {
+            // Descriptor telescopes require structural substitution, outside this scalar rewrite.
+            if function
+                .blocks
+                .iter()
+                .any(|block| !block.structural_parameters.is_empty())
+            {
+                continue;
+            }
             let machine_dominators = dominators
                 .functions
                 .iter()
@@ -95,6 +103,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                     continue;
                 };
                 let O::Jump {
+                    structural_bindings: _,
                     psi_edge: incoming_edge,
                     target: target_id,
                     bindings,

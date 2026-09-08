@@ -3,7 +3,7 @@
 use crate::{UnitScalarHomeRecord, UnitScalarParameterLocationRecord};
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{
-    IntegerType, IntegerValue, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+    BlockId, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_psi::StructuralPathSegment;
 
@@ -56,6 +56,10 @@ pub enum InternalUnitStructuralArgumentSourceRecord {
     EstablishedByteView {
         psi_operation: OperationId,
     },
+    BlockParameter {
+        block: BlockId,
+        place: PlaceId,
+    },
 }
 
 impl InternalUnitStructuralArgumentSourceRecord {
@@ -64,7 +68,7 @@ impl InternalUnitStructuralArgumentSourceRecord {
     pub fn placement(&self) -> Option<&ValuePlacement> {
         match self {
             Self::Placement(placement) => Some(placement),
-            Self::EstablishedByteView { .. } => None,
+            Self::EstablishedByteView { .. } | Self::BlockParameter { .. } => None,
         }
     }
 }

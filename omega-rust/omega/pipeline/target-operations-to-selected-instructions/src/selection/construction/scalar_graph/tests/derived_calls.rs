@@ -106,6 +106,7 @@ fn branched_call(target: target::NativeTarget, sibling: bool) -> LegalizedScalar
             ownership: Vec::new(),
         });
     let successor = |edge, target| legalized_operations::LegalizedScalarSuccessor {
+        structural_bindings: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(target).unwrap(),
         bindings: Vec::new(),

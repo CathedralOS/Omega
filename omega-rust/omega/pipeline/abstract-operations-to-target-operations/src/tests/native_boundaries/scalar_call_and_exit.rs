@@ -81,6 +81,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
     multi_block.functions[0]
         .block_entries
         .push(AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: BlockId::new(970).unwrap(),
             parameters: Vec::new(),
             operation_offset: 3,

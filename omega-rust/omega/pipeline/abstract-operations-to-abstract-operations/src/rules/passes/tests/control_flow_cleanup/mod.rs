@@ -8,6 +8,7 @@ use super::*;
 mod block_merges;
 mod constant_conditionals;
 mod contracts;
+mod descriptor_pruning;
 mod empty_blocks;
 mod residual_edges;
 mod shared_jump_fusion;

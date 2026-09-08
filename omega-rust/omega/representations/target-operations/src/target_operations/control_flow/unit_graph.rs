@@ -21,6 +21,7 @@ pub struct TargetUnitGraph {
 pub struct TargetUnitBlock {
     pub block: BlockId,
     pub parameters: Vec<TargetScalarBlockParameter>,
+    pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
     /// Nonterminal operations only; control is owned by the terminator.
     pub operations: Vec<TargetUnitOperation>,
     pub terminator: TargetUnitTerminator,
@@ -54,5 +55,6 @@ pub struct TargetUnitSuccessor {
     pub psi_edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
+    pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }

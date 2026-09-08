@@ -56,6 +56,7 @@ pub(super) fn assemble(
         blocks: vec![legalized_operations::LegalizedScalarBlock {
             id: optimized_block.id,
             parameters: Vec::new(),
+            structural_parameters: Vec::new(),
             instructions,
             terminator: legalized_operations::LegalizedScalarTerminator::Return(
                 legalized_operations::LegalizedScalarReturn {

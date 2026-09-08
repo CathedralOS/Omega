@@ -12,6 +12,27 @@ impl Checker<'_> {
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
         match view {
+            TargetByteView::BlockParameter {
+                block,
+                place,
+                structural_type,
+            } => {
+                *place == source
+                    && self.optimized.blocks.iter().any(|owner| {
+                        owner.id == *block
+                            && owner.id != self.optimized.entry
+                            && owner.structural_parameters.iter().any(|parameter| {
+                                parameter.place == *place
+                                    && parameter.structural_type == *structural_type
+                                    && parameter.access
+                                        == terminal_psi::StructuralAccess::SharedBorrow
+                                    && parameter.multiplicity
+                                        == terminal_psi::StructuralMultiplicity::Unrestricted
+                                    && parameter.qualifications.is_empty()
+                                    && parameter.projected_qualifications.is_empty()
+                            })
+                    })
+            }
             TargetByteView::Parameter { place, placement } => {
                 *place == source
                     && super::super::structural_parameters(self.function).is_some_and(

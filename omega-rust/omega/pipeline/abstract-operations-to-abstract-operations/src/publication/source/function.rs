@@ -57,6 +57,7 @@ pub(super) fn project(
             })
             .collect::<Result<Vec<_>, _>>()?;
         block_entries.push(AbstractBlockEntry {
+            structural_parameters: block.structural_parameters.clone(),
             block: block.id,
             parameters,
             operation_offset,

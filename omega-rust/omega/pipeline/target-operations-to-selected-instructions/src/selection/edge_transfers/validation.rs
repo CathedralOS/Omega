@@ -20,7 +20,19 @@ pub(in crate::selection) fn project(
             .iter()
             .try_fold(0usize, |count, block| {
                 count
-                    .checked_add(block.instructions.len())
+                    .checked_add(
+                        block
+                            .instructions
+                            .iter()
+                            .filter(|instruction| {
+                                matches!(
+                                    instruction.kind,
+                                    SelectedInstructionKind::CopyI64
+                                        | SelectedInstructionKind::Load64 { .. }
+                                )
+                            })
+                            .count(),
+                    )
                     .ok_or_else(error)
             })?;
     let register_count = prepared
@@ -31,6 +43,18 @@ pub(in crate::selection) fn project(
     let mut projected = prepared.clone();
     projected.blocks.truncate(source_count);
     projected.virtual_registers.truncate(register_count);
+    let memory_count = projected
+        .memory_accesses
+        .iter()
+        .take_while(|access| {
+            !matches!(
+                access.origin,
+                selected_instructions::SelectedMemoryAccessOrigin::Edge(_)
+            )
+        })
+        .count();
+    projected.memory_accesses.truncate(memory_count);
+    let mut descriptor_accesses = Vec::new();
     let mut next_instruction = instruction_count(&projected);
     let mut next_register = register_count;
     let mut next_bridge = source_count;
@@ -40,9 +64,11 @@ pub(in crate::selection) fn project(
                 return Err(error());
             }
             if (successor.block.0 as usize) < source_count {
-                if successor.bindings.iter().any(|binding| {
-                    matches!(binding.transport, SelectedValueTransport::Registers { .. })
-                }) {
+                if !successor.structural_bindings.is_empty()
+                    || successor.bindings.iter().any(|binding| {
+                        matches!(binding.transport, SelectedValueTransport::Registers { .. })
+                    })
+                {
                     return Err(error());
                 }
                 continue;
@@ -59,6 +85,9 @@ pub(in crate::selection) fn project(
                     .bindings
                     .iter()
                     .any(|binding| binding.transport != SelectedValueTransport::Unused)
+                || successor.structural_bindings.iter().any(|binding| {
+                    binding.transport != selected_instructions::SelectedStructuralTransport::Unused
+                })
             {
                 return Err(error());
             }
@@ -75,6 +104,12 @@ pub(in crate::selection) fn project(
                 || continuation.block.0 as usize >= source_count
                 || !continuation.fuel.is_empty()
                 || continuation.bindings.len() != successor.bindings.len()
+                || continuation.structural_bindings.len() != successor.structural_bindings.len()
+                || !continuation
+                    .structural_bindings
+                    .iter()
+                    .zip(&successor.structural_bindings)
+                    .all(|(left, right)| left.semantic == right.semantic)
                 || !continuation
                     .bindings
                     .iter()
@@ -94,13 +129,36 @@ pub(in crate::selection) fn project(
                     SelectedValueTransport::Unused => None,
                 })
                 .collect::<Vec<_>>();
-            if active.is_empty() || active.len().checked_mul(2) != Some(bridge.instructions.len()) {
+            let descriptor_words = continuation
+                .structural_bindings
+                .len()
+                .checked_mul(2)
+                .ok_or_else(error)?;
+            let register_delta = active
+                .len()
+                .checked_mul(2)
+                .and_then(|count| count.checked_add(descriptor_words))
+                .ok_or_else(error)?;
+            if (active.is_empty() && descriptor_words == 0)
+                || register_delta.checked_add(descriptor_words) != Some(bridge.instructions.len())
+            {
                 return Err(error());
             }
+            descriptor_accesses.extend(super::descriptor_validation::check(
+                function_index,
+                prepared,
+                bridge,
+                continuation,
+                active.len(),
+                next_instruction,
+                next_register,
+                register_count,
+                constraints,
+            )?);
             let mut originals = Vec::new();
             for (position, (semantic, transfer, _)) in active.iter().enumerate() {
                 let snapshot = &bridge.instructions[position];
-                let copied = &bridge.instructions[position + active.len()];
+                let copied = &bridge.instructions[position + active.len() + descriptor_words];
                 let [input, output] = snapshot.operands.as_slice() else {
                     return Err(error());
                 };
@@ -130,8 +188,8 @@ pub(in crate::selection) fn project(
                     function_index,
                     prepared,
                     copied,
-                    next_instruction + active.len() + position,
-                    next_register + active.len() + position,
+                    next_instruction + active.len() + descriptor_words + position,
+                    next_register + active.len() + descriptor_words + position,
                     output.virtual_register,
                     original_row,
                     semantic.argument,
@@ -154,6 +212,7 @@ pub(in crate::selection) fn project(
                 return Err(error());
             }
             successor.block = continuation.block;
+            successor.structural_bindings = continuation.structural_bindings.clone();
             let mut active_position = 0;
             for (binding, retained) in successor.bindings.iter_mut().zip(&continuation.bindings) {
                 binding.transport = match retained.transport {
@@ -170,12 +229,15 @@ pub(in crate::selection) fn project(
             }
             next_instruction = jump_identity.checked_add(1).ok_or_else(error)?;
             next_register = next_register
-                .checked_add(bridge.instructions.len())
+                .checked_add(register_delta)
                 .ok_or_else(error)?;
             next_bridge += 1;
         }
     }
-    if next_bridge != prepared.blocks.len() || next_register != prepared.virtual_registers.len() {
+    if next_bridge != prepared.blocks.len()
+        || next_register != prepared.virtual_registers.len()
+        || prepared.memory_accesses[memory_count..] != descriptor_accesses
+    {
         return Err(error());
     }
     Ok(projected)

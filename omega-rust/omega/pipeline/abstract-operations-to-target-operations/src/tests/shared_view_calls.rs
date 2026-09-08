@@ -31,6 +31,7 @@ fn fixture() -> AbstractOperationPlan {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         block_entries: vec![AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: BlockId::new(raw).unwrap(),
             parameters: Vec::new(),
             operation_offset: 0,
@@ -192,6 +193,7 @@ fn conditional_mixed_view_calls_retain_selected_arm_occurrences() {
     }
     let second_return = caller.operations[2].clone();
     let successor = |raw| AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(raw).unwrap(),
         target: BlockId::new(raw).unwrap(),
         bindings: Vec::new(),
@@ -222,11 +224,13 @@ fn conditional_mixed_view_calls_retain_selected_arm_occurrences() {
     ];
     caller.block_entries.extend([
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: BlockId::new(40).unwrap(),
             parameters: Vec::new(),
             operation_offset: 3,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: BlockId::new(41).unwrap(),
             parameters: Vec::new(),
             operation_offset: 5,

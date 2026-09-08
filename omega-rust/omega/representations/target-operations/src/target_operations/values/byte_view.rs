@@ -1,10 +1,15 @@
 //! Immutable view descriptors retain their source and checked derivation.
 use crate::TargetIntegerExpression;
 use calling_conventions::ValuePlacement;
-use semantic_vocabulary::{ObligationId, OperationId, PlaceId, ValueId};
+use semantic_vocabulary::{BlockId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetByteView {
+    BlockParameter {
+        block: BlockId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     Parameter {
         place: PlaceId,
         placement: ValuePlacement,

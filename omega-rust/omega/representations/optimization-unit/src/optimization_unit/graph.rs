@@ -51,6 +51,7 @@ pub struct OptimizationEdge {
     pub psi_edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
+    pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
     /// Exact ordered affine discard work executed on this edge.
     pub trivial_affine_discards: Vec<PlaceId>,
     /// Ordered partial-owner cleanup performed before successor entry.
@@ -116,6 +117,7 @@ pub struct OptimizationNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationBlock {
     pub id: BlockId,
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
     pub parameters: Vec<ValueDefinition>,
     pub nodes: Vec<OptimizationNode>,
 }

@@ -320,6 +320,7 @@ pub(crate) fn wrapping_neutral_identity_unit_with_value_and_identity_types_and_l
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -381,6 +382,7 @@ pub(crate) fn wrapping_multiply_literal_pair_unit(
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,

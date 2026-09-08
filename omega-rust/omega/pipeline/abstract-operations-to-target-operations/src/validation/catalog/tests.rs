@@ -69,6 +69,7 @@ fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -123,6 +124,7 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -215,6 +217,7 @@ fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -286,6 +289,7 @@ fn integer_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -356,6 +360,7 @@ fn ieee_float_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -464,6 +469,7 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,

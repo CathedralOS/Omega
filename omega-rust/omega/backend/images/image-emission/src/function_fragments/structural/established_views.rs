@@ -8,7 +8,7 @@ use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstructionKind,
     SelectedMemoryAccessRole, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use target_operations::TargetStructuralArgument;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
@@ -23,16 +23,6 @@ pub(super) fn location(
     producer: OperationId,
 ) -> Result<StructuralSourceLocation, Error> {
     let invalid = || Error::Mismatch("established view differs from current descriptor custody");
-    if argument.access != StructuralAccess::SharedBorrow
-        || !argument.path.is_empty()
-        || argument.root_structural_type != argument.structural_type
-        || argument.shape != ValueShape::borrowed_reference(16, 8)
-        || argument.source_byte_offset != 0
-        || argument.fixed_array_length.is_some()
-        || argument.element_stride.is_some()
-    {
-        return Err(invalid());
-    }
     let (abstracted, _) = source::function(source, selected.machine)?;
     let mut producers = abstracted.operations.iter().filter(|operation| matches!(operation,
         abstract_operations::AbstractOperation::ByteSequenceSubslice { psi_operation, .. } if *psi_operation == producer));
@@ -51,6 +41,71 @@ pub(super) fn location(
     {
         return Err(invalid());
     }
+    local_location(
+        source,
+        selected,
+        argument,
+        LocalStorageSlotId::Structural {
+            operation: producer,
+            place: argument.place,
+        },
+        selected_instructions::SelectedMemoryAccessOrigin::Operation(producer),
+    )
+}
+
+pub(super) fn block_location(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    selected: &SelectedFunction,
+    argument: &TargetStructuralArgument,
+    block: BlockId,
+    place: PlaceId,
+) -> Result<StructuralSourceLocation, Error> {
+    let invalid = || Error::Mismatch("block view differs from current descriptor custody");
+    let (abstracted, _) = source::function(source, selected.machine)?;
+    let mut declarations = abstracted
+        .block_entries
+        .iter()
+        .filter(|entry| entry.block == block)
+        .flat_map(|entry| &entry.structural_parameters)
+        .filter(|parameter| parameter.place == place);
+    let parameter = declarations.next().ok_or_else(invalid)?;
+    if declarations.next().is_some()
+        || place != argument.place
+        || parameter.structural_type != argument.structural_type
+        || parameter.access != StructuralAccess::SharedBorrow
+        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+    {
+        return Err(invalid());
+    }
+    local_location(
+        source,
+        selected,
+        argument,
+        LocalStorageSlotId::StructuralBlockParameter { block, place },
+        selected_instructions::SelectedMemoryAccessOrigin::Block(block),
+    )
+}
+
+fn local_location(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    selected: &SelectedFunction,
+    argument: &TargetStructuralArgument,
+    slot: LocalStorageSlotId,
+    origin: selected_instructions::SelectedMemoryAccessOrigin,
+) -> Result<StructuralSourceLocation, Error> {
+    let invalid = || Error::Mismatch("local view differs from current descriptor custody");
+    if argument.access != StructuralAccess::SharedBorrow
+        || !argument.path.is_empty()
+        || argument.root_structural_type != argument.structural_type
+        || argument.shape != ValueShape::borrowed_reference(16, 8)
+        || argument.source_byte_offset != 0
+        || argument.fixed_array_length.is_some()
+        || argument.element_stride.is_some()
+    {
+        return Err(invalid());
+    }
     let declarations = &selected
         .structural
         .as_ref()
@@ -63,10 +118,6 @@ pub(super) fn location(
     }) {
         return Err(invalid());
     }
-    let slot = LocalStorageSlotId::Structural {
-        operation: producer,
-        place: argument.place,
-    };
     let mut selected_slots = selected
         .local_storage_slots
         .iter()
@@ -96,7 +147,7 @@ pub(super) fn location(
         return Err(invalid());
     }
     let mut accesses = selected.memory_accesses.iter().filter(|access| {
-        access.operation == producer
+        access.origin == origin
             && access.place == argument.place
             && access.role == (SelectedMemoryAccessRole::AddressLocal { slot })
     });
@@ -116,7 +167,22 @@ pub(super) fn location(
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             })
-        || instruction.provenance.operations != [producer]
+        || match origin {
+            selected_instructions::SelectedMemoryAccessOrigin::Operation(producer) => {
+                instruction.provenance.operations != [producer]
+            }
+            selected_instructions::SelectedMemoryAccessOrigin::Block(_) => {
+                instruction.provenance != Default::default()
+                    || !selected.blocks.iter().any(|block| {
+                        block.id == selected.entry_block
+                            && block
+                                .instructions
+                                .iter()
+                                .any(|entry| entry.id == instruction.id)
+                    })
+            }
+            selected_instructions::SelectedMemoryAccessOrigin::Edge(_) => true,
+        }
         || instruction.operands.len() != 1
     {
         return Err(invalid());

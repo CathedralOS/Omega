@@ -51,6 +51,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     encode_len(bytes, function.blocks.len());
     for block in &function.blocks {
         bytes.extend_from_slice(&block.id.get().to_le_bytes());
+        encode_len(bytes, block.structural_parameters.len());
+        for parameter in &block.structural_parameters {
+            super::structural_types::encode_structural_parameter(bytes, parameter);
+        }
         encode_len(bytes, block.parameters.len());
         for parameter in &block.parameters {
             bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
@@ -228,6 +232,11 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
     bytes.extend_from_slice(&successor.edge.get().to_le_bytes());
     bytes.extend_from_slice(&successor.target.get().to_le_bytes());
     encode_bindings(bytes, &successor.bindings);
+    encode_len(bytes, successor.structural_bindings.len());
+    for binding in &successor.structural_bindings {
+        bytes.extend_from_slice(&binding.parameter.get().to_le_bytes());
+        super::structural_types::encode_structural_argument(bytes, &binding.argument);
+    }
     encode_fuel(bytes, &successor.fuel);
 }
 

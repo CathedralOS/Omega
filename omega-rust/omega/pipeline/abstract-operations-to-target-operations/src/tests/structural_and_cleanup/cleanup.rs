@@ -33,6 +33,7 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
         cleanup_actions: cleanup_actions.clone(),
     };
     let block_entry = |block, operation_offset| abstract_operations::AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: BlockId::new(block).unwrap(),
         parameters: Vec::new(),
         operation_offset,
@@ -129,12 +130,14 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                     AbstractOperation::Conditional {
                         condition: left,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             bindings: Vec::new(),
@@ -144,12 +147,14 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                     AbstractOperation::Conditional {
                         condition: right,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: EdgeId::new(3).unwrap(),
                             target: BlockId::new(4).unwrap(),
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: EdgeId::new(4).unwrap(),
                             target: BlockId::new(5).unwrap(),
                             bindings: Vec::new(),
@@ -390,6 +395,7 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         block_entries: vec![abstract_operations::AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(machine),
             parameters: Vec::new(),
             operation_offset: 0,

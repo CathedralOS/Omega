@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v28\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v29\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -383,6 +383,42 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 bytes.push(1);
                 bytes.extend_from_slice(&argument.0.to_le_bytes());
                 bytes.extend_from_slice(&parameter.0.to_le_bytes());
+            }
+        }
+    }
+    encode_len(bytes, successor.structural_bindings.len());
+    for binding in &successor.structural_bindings {
+        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
+        bytes.extend_from_slice(&binding.semantic.argument.place.get().to_le_bytes());
+        encode_len(bytes, binding.semantic.argument.path.len());
+        for segment in &binding.semantic.argument.path {
+            match segment {
+                terminal_psi::StructuralPathSegment::Field(field) => {
+                    bytes.push(0);
+                    encode_len(bytes, field.len());
+                    bytes.extend_from_slice(field.as_bytes());
+                }
+                terminal_psi::StructuralPathSegment::FixedIndex(index) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&index.to_le_bytes());
+                }
+            }
+        }
+        bytes.push(match binding.semantic.argument.access {
+            terminal_psi::StructuralAccess::Owned => 0,
+            terminal_psi::StructuralAccess::SharedBorrow => 1,
+            terminal_psi::StructuralAccess::MutableBorrow => 2,
+            terminal_psi::StructuralAccess::WriteOnlyBorrow => 3,
+        });
+        match binding.transport {
+            selected_instructions::SelectedStructuralTransport::Unused => bytes.push(0),
+            selected_instructions::SelectedStructuralTransport::Descriptor {
+                argument,
+                destination,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&argument.0.to_le_bytes());
+                destination.encode_identity(bytes);
             }
         }
     }

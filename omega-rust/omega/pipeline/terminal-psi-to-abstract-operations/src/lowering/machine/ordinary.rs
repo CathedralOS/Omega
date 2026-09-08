@@ -64,6 +64,7 @@ pub(super) fn lower_ordinary_machine(
     for block in &machine.blocks {
         block_entries.push(AbstractBlockEntry {
             block: block.id,
+            structural_parameters: block.structural_parameters.clone(),
             parameters: block
                 .parameters
                 .iter()

@@ -158,6 +158,7 @@ pub(super) fn match_input(
             .get(entry.operation_offset..end)
             .ok_or(invalid.clone())?;
         if entry.block != block.id
+            || entry.structural_parameters != block.structural_parameters
             || entry.parameters.len() != block.parameters.len()
             || entry
                 .parameters
@@ -181,7 +182,7 @@ pub(super) fn match_input(
         .iter()
         .find(|block| block.id == optimized.entry)
         .ok_or(invalid.clone())?;
-    if !entry.parameters.is_empty() {
+    if !entry.parameters.is_empty() || !entry.structural_parameters.is_empty() {
         return Err(invalid);
     }
     if optimized

@@ -46,7 +46,9 @@ pub(super) fn argument_pointer(
                     .try_into()
                     .map_err(|_| invalid())?,
             ),
-            operation: operation.operation,
+            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                operation.operation,
+            ),
             place: semantic.place,
             byte_offset: 0,
             byte_count: 8,

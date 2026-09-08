@@ -368,6 +368,12 @@ pub(super) fn call_is_exact(
                             && argument.structural_type == source.structural_type
                             && argument.shape == source.shape)
             }
+            InternalUnitStructuralArgumentSourceRecord::BlockParameter { place, .. } => {
+                // The image's retained source/frame replay establishes block identity
+                // and incoming descriptor snapshots; a bare stack shape is not admission.
+                *place == argument.place
+                    && local_view_source_is_exact(argument, stack.active_frame_bytes)
+            }
             InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { psi_operation } => {
                 let attribution_count = record
                     .semantic_code_attribution

@@ -313,9 +313,36 @@ fn check_successor(
         || actual.block != block.id
         || actual.source_target != source.target
         || actual.bindings.len() != source.bindings.len()
+        || actual.structural_bindings.len() != source.structural_bindings.len()
         || actual.fuel != source.fuel
     {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    for (actual, semantic) in actual
+        .structural_bindings
+        .iter()
+        .zip(&source.structural_bindings)
+    {
+        let pointer = replay
+            .transport
+            .pointers
+            .iter()
+            .find(|(place, _)| *place == semantic.argument.place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+        if actual.semantic != *semantic
+            || actual.transport
+                != (selected_instructions::SelectedStructuralTransport::Descriptor {
+                    argument: pointer,
+                    destination:
+                        selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                            block: source.target,
+                            place: semantic.parameter,
+                        },
+                })
+        {
+            return Err(SelectedInstructionError::SourceCustodyMismatch);
+        }
     }
     for (actual, semantic) in actual.bindings.iter().zip(&source.bindings) {
         if actual.semantic != *semantic {

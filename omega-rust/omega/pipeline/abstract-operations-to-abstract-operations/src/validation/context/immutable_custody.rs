@@ -51,6 +51,14 @@ pub(super) fn same_immutable_signature_custody(
                         && seed.attachment == unit.attachment
                         && seed.parameters == unit.parameters
                         && seed.structural_parameters == unit.structural_parameters
+                        && unit.blocks.iter().all(|block| {
+                            seed.blocks
+                                .iter()
+                                .find(|source| source.id == block.id)
+                                .is_some_and(|source| {
+                                    source.structural_parameters == block.structural_parameters
+                                })
+                        })
                         && seed.structural_places == unit.structural_places
                         && seed.result == unit.result
                         && seed.entry_claim_declarations == unit.entry_claim_declarations

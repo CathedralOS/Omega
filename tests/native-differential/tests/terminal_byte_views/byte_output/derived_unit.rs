@@ -2,6 +2,8 @@
 use super::*;
 use semantic_vocabulary::{BlockId, ContractId, MachineId};
 
+#[path = "derived_unit/block_unit_transfers.rs"]
+mod block_unit_transfers;
 #[path = "derived_unit/publication.rs"]
 mod publication;
 

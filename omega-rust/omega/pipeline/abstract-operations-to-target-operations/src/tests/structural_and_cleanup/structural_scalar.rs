@@ -10,6 +10,7 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
     let callee_result = ValueId::new(71).unwrap();
     let callee_value = ValueId::new(72).unwrap();
     let block_entry = |machine: MachineId| abstract_operations::AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: BlockId::new(machine.get()).unwrap(),
         parameters: Vec::new(),
         operation_offset: 0,
@@ -184,6 +185,7 @@ fn unrestricted_shared_boolean_field_return_plan() -> AbstractOperationPlan {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![abstract_operations::AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: BlockId::new(realization.get()).unwrap(),
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -254,6 +256,7 @@ fn unrestricted_shared_integer_field_return_plan() -> AbstractOperationPlan {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![abstract_operations::AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: BlockId::new(realization.get()).unwrap(),
                 parameters: Vec::new(),
                 operation_offset: 0,

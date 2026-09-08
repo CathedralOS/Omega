@@ -61,7 +61,8 @@ pub(super) fn validate(
             ))
         || abstracted.parameters.len() != optimized.parameters.len()
         || scalar_parameters.len() != abstracted.parameters.len()
-        || call_plan.parameters.len() != abstracted.parameters.len() + 1
+        || call_plan.parameters.len()
+            != abstracted.parameters.len() + abstracted.structural_parameters.len()
         || scalar_parameters
             .iter()
             .zip(&abstracted.parameters)
@@ -78,8 +79,8 @@ pub(super) fn validate(
                     || scalar_shape(actual.scalar_type) != Some(placement.shape)
                     || actual.placement != *placement
             })
-        || structural_parameters.len() != 1
-        || abstracted.structural_parameters.len() != 1
+        || structural_parameters.is_empty()
+        || structural_parameters.len() != abstracted.structural_parameters.len()
         || optimized.structural_parameters != abstracted.structural_parameters
         || optimized.result != abstracted.result
         || call_plan.policy != CallingPolicy::native_for_target(native)
@@ -107,8 +108,11 @@ pub(super) fn validate(
     {
         return Err(invalid);
     }
-    let parameter = &abstracted.structural_parameters[0];
-    if parameter.is_self && target.attachment != Some(parameter.structural_type) {
+    if abstracted
+        .structural_parameters
+        .iter()
+        .any(|parameter| parameter.is_self && target.attachment != Some(parameter.structural_type))
+    {
         return Err(invalid);
     }
     let subslices = optimized
@@ -128,20 +132,63 @@ pub(super) fn validate(
             }
         })
         .collect::<Vec<_>>();
-    if optimized.structural_places.len() != 1 + subslices.len()
-        || optimized.structural_places[0].id != parameter.place
-        || optimized.structural_places[0].kind
-            != (semantic_vocabulary::StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: parameter.is_self,
-            })
+    let block_parameters = optimized
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            block
+                .structural_parameters
+                .iter()
+                .map(move |parameter| (block.id, parameter))
+        })
+        .collect::<Vec<_>>();
+    if optimized.structural_places.len()
+        != abstracted.structural_parameters.len() + block_parameters.len() + subslices.len()
     {
         return Err(invalid);
     }
-    for place in &optimized.structural_places[1..] {
+    for place in &optimized.structural_places {
+        if abstracted.structural_parameters.iter().any(|parameter| {
+            place.id == parameter.place
+                && place.kind
+                    == (semantic_vocabulary::StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                        is_self: parameter.is_self,
+                    })
+        }) {
+            continue;
+        }
+        if block_parameters.iter().any(|(block, parameter)| {
+            place.id == parameter.place
+                && place.kind
+                    == (semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                        block: *block,
+                        position: parameter.position,
+                    })
+                && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && !parameter.is_self
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && plan.structural_types.iter().any(|declaration| {
+                    declaration.id == parameter.structural_type
+                        && declaration.shape
+                            == terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            )
+                })
+        }) {
+            continue;
+        }
         if !subslices.iter().any(|(operation, result)| {
             place.id == result.place
-                && result.structural_type == parameter.structural_type
+                && plan.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && declaration.shape
+                            == terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            )
+                })
                 && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
@@ -165,6 +212,7 @@ pub(super) fn contains_view(
     place: semantic_vocabulary::PlaceId,
 ) -> bool {
     function.structural_parameters.iter().any(|parameter| parameter.place == place)
+        || function.blocks.iter().any(|block| block.structural_parameters.iter().any(|parameter| parameter.place == place))
         || function.blocks.iter().flat_map(|block| &block.nodes).any(|node|
             matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))
 }

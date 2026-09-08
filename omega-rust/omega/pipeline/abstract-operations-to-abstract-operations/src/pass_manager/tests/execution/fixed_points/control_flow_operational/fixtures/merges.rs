@@ -118,6 +118,7 @@ fn seed(
 
 fn block(block: BlockId, operation_offset: usize) -> AbstractBlockEntry {
     AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block,
         parameters: Vec::new(),
         operation_offset,
@@ -126,6 +127,7 @@ fn block(block: BlockId, operation_offset: usize) -> AbstractBlockEntry {
 
 fn successor(edge: u64, target: BlockId) -> AbstractSuccessor {
     AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: id(edge, EdgeId::new),
         target,
         bindings: Vec::new(),
@@ -135,6 +137,7 @@ fn successor(edge: u64, target: BlockId) -> AbstractSuccessor {
 
 fn jump(edge: u64, target: BlockId) -> AbstractOperation {
     AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: id(edge, EdgeId::new),
         target,
         bindings: Vec::new(),

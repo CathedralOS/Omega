@@ -239,6 +239,7 @@ pub(crate) fn live_exact_self_subtract_unit(integer: IntegerType) -> PsiOptimiza
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -338,6 +339,7 @@ pub(crate) fn live_self_remainder_unit(
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -430,6 +432,7 @@ pub(crate) fn live_self_divide_unit(
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -505,6 +508,7 @@ pub(crate) fn live_proof_binary_identity_unit(
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -608,6 +612,7 @@ pub(crate) fn exact_chain_unit(include_multiply: bool) -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,

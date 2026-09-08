@@ -1,5 +1,5 @@
 //! Incoming placements and established literal roots have distinct wire tags.
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use target_operations::TargetStructuralArgumentSource;
 
 use super::calling::{decode_placement, encode_placement};
@@ -16,6 +16,11 @@ pub(super) fn encode_argument_source(bytes: &mut Vec<u8>, source: &TargetStructu
             bytes.push(1);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
+        TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+        }
     }
 }
 
@@ -29,6 +34,10 @@ pub(super) fn decode_argument_source(
         1 => Ok(TargetStructuralArgumentSource::EstablishedByteView {
             psi_operation: decode_id(cursor, OperationId::new)?,
         }),
+        2 => Ok(TargetStructuralArgumentSource::BlockParameter {
+            block: decode_id(cursor, BlockId::new)?,
+            place: decode_id(cursor, PlaceId::new)?,
+        }),
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     }
 }
@@ -41,6 +50,10 @@ mod tests {
     #[test]
     fn argument_source_round_trip_preserves_origin_and_establishment() {
         for source in [
+            TargetStructuralArgumentSource::BlockParameter {
+                block: BlockId::new(211).unwrap(),
+                place: PlaceId::new(213).unwrap(),
+            },
             TargetStructuralArgumentSource::Placement(ValuePlacement {
                 shape: ValueShape {
                     byte_size: 16,

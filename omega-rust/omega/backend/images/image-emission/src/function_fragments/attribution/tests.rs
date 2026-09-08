@@ -146,6 +146,7 @@ fn bridge_continuation_does_not_attribute_the_semantic_edge_twice() {
     let (mut fragment, mut source) = fixture();
     let edge = EdgeId::new(4).unwrap();
     source.operations.push(AbstractOperation::Jump {
+        structural_bindings: Vec::new(),
         psi_edge: edge,
         target: BlockId::new(2).unwrap(),
         bindings: Vec::new(),

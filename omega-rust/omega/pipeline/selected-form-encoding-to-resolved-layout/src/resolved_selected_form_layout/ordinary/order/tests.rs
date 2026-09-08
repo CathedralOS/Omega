@@ -25,6 +25,7 @@ fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction
 fn successor(target: u32) -> SelectedSuccessor {
     SelectedSuccessor {
         role: selected_instructions::SelectedSuccessorRole::Semantic,
+        structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(u64::from(target) + 1).unwrap(),
         block: SelectedBlockId(target),
         source_target: BlockId::new(u64::from(target) + 1).unwrap(),

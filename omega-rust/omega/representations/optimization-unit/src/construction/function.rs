@@ -78,6 +78,18 @@ pub(super) fn build_function(
         .chain(function.result.structural().map(|result| result.place))
         .collect::<BTreeSet<_>>();
     let mut effect_token = 0u64;
+    for entry in &function.block_entries {
+        for parameter in &entry.structural_parameters {
+            structural_places.push(StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: entry.block,
+                    position: parameter.position,
+                },
+            });
+            declared_places.insert(parameter.place);
+        }
+    }
     let mut blocks = Vec::with_capacity(function.block_entries.len());
     for (block_index, entry) in function.block_entries.iter().enumerate() {
         let end = function
@@ -160,6 +172,7 @@ pub(super) fn build_function(
             effect_token += 1;
         }
         blocks.push(OptimizationBlock {
+            structural_parameters: entry.structural_parameters.clone(),
             id: entry.block,
             parameters: block_parameter_rows,
             nodes,

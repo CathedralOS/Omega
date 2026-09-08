@@ -56,21 +56,25 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: when_true,
                         parameters: Vec::new(),
                         operation_offset: 2,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: when_false,
                         parameters: Vec::new(),
                         operation_offset: 4,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: merge,
                         parameters: vec![AbstractParameter {
                             value: parameter,
@@ -88,12 +92,14 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(612, EdgeId::new),
                             target: when_true,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(613, EdgeId::new),
                             target: when_false,
                             bindings: Vec::new(),
@@ -107,6 +113,7 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
                         value: IntegerValue::Unsigned(7),
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(615, EdgeId::new),
                         target: merge,
                         bindings: vec![binding(true_value)],
@@ -120,6 +127,7 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
                         value: IntegerValue::Unsigned(8),
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(617, EdgeId::new),
                         target: merge,
                         bindings: vec![binding(false_value)],
@@ -242,11 +250,13 @@ pub(crate) fn constant_conditional_same_target_unit(constant: bool) -> PsiOptimi
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: merge,
                         parameters: Vec::new(),
                         operation_offset: 2,
@@ -261,12 +271,14 @@ pub(crate) fn constant_conditional_same_target_unit(constant: bool) -> PsiOptimi
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(656, EdgeId::new),
                             target: merge,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(657, EdgeId::new),
                             target: merge,
                             bindings: Vec::new(),

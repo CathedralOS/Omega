@@ -25,6 +25,7 @@ pub(super) fn validate(
     }
     for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
         if block.block != source.id
+            || block.structural_parameters != source.structural_parameters
             || block.parameters.len() != source.parameters.len()
             || block
                 .parameters
@@ -75,6 +76,7 @@ pub(super) fn validate(
                     psi_edge,
                     target,
                     bindings,
+                    structural_bindings,
                     trivial_affine_discards,
                     residual_affine_discards,
                 },
@@ -82,6 +84,7 @@ pub(super) fn validate(
                 successor.psi_edge == *psi_edge
                     && successor.target == *target
                     && successor.bindings == *bindings
+                    && successor.structural_bindings == *structural_bindings
                     && successor.cleanup_actions.is_empty()
                     && trivial_affine_discards.is_empty()
                     && residual_affine_discards.is_empty()
@@ -128,6 +131,7 @@ fn successor_matches(
     target.psi_edge == source.psi_edge
         && target.target == source.target
         && target.bindings == source.bindings
+        && target.structural_bindings == source.structural_bindings
         && source.trivial_affine_discards.is_empty()
         && target.cleanup_actions.is_empty()
 }

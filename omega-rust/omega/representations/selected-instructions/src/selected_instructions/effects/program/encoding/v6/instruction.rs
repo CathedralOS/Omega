@@ -179,6 +179,14 @@ pub fn decode_local_storage_slot(
     cursor: &mut Cursor<'_>,
 ) -> Result<crate::LocalStorageSlotId, PreAllocationMachineEffectDecodeError> {
     let tag = cursor.byte()?;
+    if tag == 3 {
+        return Ok(crate::LocalStorageSlotId::StructuralBlockParameter {
+            block: semantic_vocabulary::BlockId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        });
+    }
     if tag == 2 {
         return Ok(crate::LocalStorageSlotId::Spill {
             register: crate::VirtualRegisterId(cursor.u32()?),

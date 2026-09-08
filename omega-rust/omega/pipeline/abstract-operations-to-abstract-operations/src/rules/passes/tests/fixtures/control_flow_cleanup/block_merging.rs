@@ -42,11 +42,13 @@ pub(crate) fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: decision,
                         parameters: vec![AbstractParameter {
                             value: forwarded,
@@ -55,11 +57,13 @@ pub(crate) fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
                         operation_offset: 1,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: left,
                         parameters: Vec::new(),
                         operation_offset: 2,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: right,
                         parameters: Vec::new(),
                         operation_offset: 3,
@@ -67,6 +71,7 @@ pub(crate) fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
                 ],
                 operations: vec![
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(1_110, EdgeId::new),
                         target: decision,
                         bindings: vec![ValueBinding {
@@ -80,12 +85,14 @@ pub(crate) fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
                     AbstractOperation::Conditional {
                         condition: forwarded,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_111, EdgeId::new),
                             target: left,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(1_112, EdgeId::new),
                             target: right,
                             bindings: Vec::new(),
@@ -125,12 +132,14 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
     let entry_operation = AbstractOperation::Conditional {
         condition,
         when_true: AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(1_512, EdgeId::new),
             target: predecessor,
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: AbstractSuccessor {
+            structural_bindings: Vec::new(),
             psi_edge: id(1_513, EdgeId::new),
             target: sibling,
             bindings: Vec::new(),
@@ -159,6 +168,7 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
             operand: target_parameter,
         },
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: id(1_517, EdgeId::new),
             target: descendant,
             bindings: Vec::new(),
@@ -180,6 +190,7 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
             operand: incoming,
         },
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: id(1_519, EdgeId::new),
             target,
             bindings: vec![ValueBinding {
@@ -196,6 +207,7 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
     let mut operations = Vec::new();
     let mut push_block = |block, parameters, block_operations: Vec<_>| {
         block_entries.push(AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block,
             parameters,
             operation_offset: operations.len(),

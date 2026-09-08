@@ -205,9 +205,11 @@ pub(crate) fn validator_scalar_operation_successors(
             psi_edge,
             target,
             bindings,
+            structural_bindings,
             trivial_affine_discards,
             residual_affine_discards,
         } => vec![OptimizationEdge {
+            structural_bindings: structural_bindings.clone(),
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
@@ -226,6 +228,7 @@ pub(crate) fn validator_scalar_operation_successors(
         } => [when_true, when_false]
             .into_iter()
             .map(|successor| OptimizationEdge {
+                structural_bindings: successor.structural_bindings.clone(),
                 psi_edge: successor.psi_edge,
                 target: successor.target,
                 bindings: successor.bindings.clone(),
@@ -362,6 +365,7 @@ mod residual_edge_tests {
             })
             .to_vec();
         let operation = abstract_operations::AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: EdgeId::new(83).unwrap(),
             target: BlockId::new(84).unwrap(),
             bindings: Vec::new(),

@@ -59,6 +59,14 @@ pub(super) fn validate(
     let reachable =
         reachable_blocks_after_conditional_fold(function, patch.location.block, selected.psi_edge)
             .ok_or(OptimizationUnitValidationError::CandidateReachabilityMismatch)?;
+    // Removing descriptor roots needs catalog custody beyond scalar pruning.
+    if function
+        .blocks
+        .iter()
+        .any(|block| !reachable.contains(&block.id) && !block.structural_parameters.is_empty())
+    {
+        return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
+    }
     let (expected_blocks, accepted_provenance) = reconstruct_conditional_fold_accounting(
         function,
         patch.location,
@@ -116,6 +124,7 @@ pub(super) fn validate(
     let output_node =
         &mut output_block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
     output_node.operation = O::Jump {
+        structural_bindings: selected.structural_bindings.clone(),
         psi_edge: selected.psi_edge,
         target: selected.target,
         bindings: selected.bindings.clone(),
@@ -133,6 +142,7 @@ pub(super) fn validate(
         })
         .collect();
     output_node.successors = vec![OptimizationEdge {
+        structural_bindings: selected.structural_bindings.clone(),
         psi_edge: selected.psi_edge,
         target: selected.target,
         bindings: selected.bindings.clone(),

@@ -65,6 +65,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         block_entries: vec![abstract_operations::AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: BlockId::new(machine.get()).unwrap(),
             parameters: Vec::new(),
             operation_offset: 0,

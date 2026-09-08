@@ -14,7 +14,7 @@ impl Checker<'_> {
             && definitions.next().is_none()
     }
 
-    fn scalar_parameters(&self) -> &[target_operations::ScalarAbiValue] {
+    pub(super) fn scalar_parameters(&self) -> &[target_operations::ScalarAbiValue] {
         if let Some(abi) = &self.function.scalar_abi {
             &abi.parameters
         } else if let Some(abi) = &self.function.mixed_structural_scalar_abi {

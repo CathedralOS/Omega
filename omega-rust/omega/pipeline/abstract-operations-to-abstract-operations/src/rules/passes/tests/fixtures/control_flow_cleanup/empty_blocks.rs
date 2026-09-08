@@ -60,16 +60,19 @@ pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: empty,
                         parameters: vec![parameter(first), parameter(second)],
                         operation_offset: 1,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: target,
                         parameters: vec![parameter(target_first), parameter(target_second)],
                         operation_offset: 2,
@@ -77,6 +80,7 @@ pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
                 ],
                 operations: vec![
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(911, EdgeId::new),
                         target: empty,
                         bindings: vec![binding(first, left), binding(second, right)],
@@ -84,6 +88,7 @@ pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
                         residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(912, EdgeId::new),
                         target,
                         bindings: vec![
@@ -137,26 +142,31 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: left_block,
                         parameters: Vec::new(),
                         operation_offset: 1,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: right_block,
                         parameters: Vec::new(),
                         operation_offset: 2,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: empty,
                         parameters: Vec::new(),
                         operation_offset: 3,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: target,
                         parameters: Vec::new(),
                         operation_offset: 4,
@@ -166,12 +176,14 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
                     AbstractOperation::Conditional {
                         condition,
                         when_true: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(931, EdgeId::new),
                             target: left_block,
                             bindings: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: AbstractSuccessor {
+                            structural_bindings: Vec::new(),
                             psi_edge: id(932, EdgeId::new),
                             target: right_block,
                             bindings: Vec::new(),
@@ -179,6 +191,7 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
                         },
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(933, EdgeId::new),
                         target: empty,
                         bindings: Vec::new(),
@@ -186,6 +199,7 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
                         residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(934, EdgeId::new),
                         target: empty,
                         bindings: Vec::new(),
@@ -193,6 +207,7 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
                         residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
+                        structural_bindings: Vec::new(),
                         psi_edge: id(935, EdgeId::new),
                         target,
                         bindings: Vec::new(),

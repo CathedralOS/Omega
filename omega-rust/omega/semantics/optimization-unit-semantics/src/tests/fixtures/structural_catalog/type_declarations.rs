@@ -67,6 +67,7 @@ pub(crate) fn boolean_structural_field_unit() -> PsiOptimizationUnit {
                     entry_claims: Vec::new(),
                     published_service_ceiling: Vec::new(),
                     block_entries: vec![AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block,
                         parameters: Vec::new(),
                         operation_offset: 0,
@@ -107,6 +108,7 @@ pub(crate) fn boolean_structural_field_unit() -> PsiOptimizationUnit {
                     entry_claims: Vec::new(),
                     published_service_ceiling: Vec::new(),
                     block_entries: vec![AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: cleanup_block,
                         parameters: Vec::new(),
                         operation_offset: 0,

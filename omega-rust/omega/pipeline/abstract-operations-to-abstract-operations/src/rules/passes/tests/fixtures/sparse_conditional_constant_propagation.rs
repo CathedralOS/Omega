@@ -293,6 +293,7 @@ pub(crate) fn exact_cast_unit(value: u128) -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -378,6 +379,7 @@ pub(crate) fn goal_free_unary_unit(widen: bool) -> PsiOptimizationUnit {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,

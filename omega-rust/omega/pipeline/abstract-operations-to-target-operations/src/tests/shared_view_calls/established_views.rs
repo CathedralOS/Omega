@@ -1,6 +1,73 @@
 //! Raw target projection retains a derived producer; proof admission is separate.
 use super::*;
 
+#[test]
+fn block_descriptor_call_retains_block_identity_without_fabricated_producer() {
+    let mut plan = fixture();
+    let caller = &mut plan.functions[0];
+    let block = BlockId::new(30).unwrap();
+    let place = PlaceId::new(31).unwrap();
+    let mut declaration = caller.structural_parameters[0].clone();
+    declaration.place = place;
+    for operation in &mut caller.operations {
+        if let AbstractOperation::CallStructuralScalar {
+            structural_arguments,
+            ..
+        } = operation
+        {
+            structural_arguments[0].place = place;
+        }
+    }
+    caller.operations.insert(
+        0,
+        AbstractOperation::Jump {
+            psi_edge: EdgeId::new(32).unwrap(),
+            target: block,
+            bindings: Vec::new(),
+            structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
+                parameter: place,
+                argument: StructuralArgument {
+                    place: caller.structural_parameters[0].place,
+                    access: StructuralAccess::SharedBorrow,
+                    path: Vec::new(),
+                },
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    );
+    caller.block_entries.push(AbstractBlockEntry {
+        block,
+        parameters: Vec::new(),
+        structural_parameters: vec![declaration],
+        operation_offset: 1,
+    });
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations(&plan, target).unwrap();
+        let TargetOperation::ReturnIntegerExpression { expression, .. } =
+            &lowered.functions[0].operation
+        else {
+            panic!("scalar call");
+        };
+        let TargetIntegerExpression::StructuralCall {
+            structural_arguments,
+            ..
+        } = expression
+        else {
+            panic!("structural call");
+        };
+        assert_eq!(
+            structural_arguments[0].source,
+            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
+        );
+    }
+}
+
 fn subslice_calls() -> AbstractOperationPlan {
     let mut plan = fixture();
     let caller = &mut plan.functions[0];
@@ -205,6 +272,7 @@ fn unit_calls_reject_future_duplicate_and_sibling_view_producers() {
                     scalar_type: ScalarType::Boolean,
                 });
                 let successor = |edge, block| abstract_operations::AbstractSuccessor {
+                    structural_bindings: Vec::new(),
                     psi_edge: EdgeId::new(edge).unwrap(),
                     target: BlockId::new(block).unwrap(),
                     bindings: Vec::new(),
@@ -228,6 +296,7 @@ fn unit_calls_reject_future_duplicate_and_sibling_view_producers() {
                 caller.block_entries = [(1, 0), (30, 2), (31, 4)]
                     .into_iter()
                     .map(|(block, operation_offset)| AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: BlockId::new(block).unwrap(),
                         parameters: Vec::new(),
                         operation_offset,

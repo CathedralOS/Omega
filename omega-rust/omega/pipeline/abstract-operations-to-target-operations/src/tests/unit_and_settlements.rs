@@ -35,6 +35,7 @@ fn parameter_dynamic_unit_dispatch_retains_two_word_result_less_abi() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -133,6 +134,7 @@ fn write_only_primitive_store_reaches_exact_target_custody_on_both_linux_isas() 
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -383,6 +385,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
             entry_claims: Vec::new(),
             published_service_ceiling: vec![service],
             block_entries: vec![abstract_operations::AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 operation_offset: 0,
@@ -665,6 +668,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
             entry_claims,
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: BlockId::new(31).unwrap(),
                 parameters: Vec::new(),
                 operation_offset: 0,

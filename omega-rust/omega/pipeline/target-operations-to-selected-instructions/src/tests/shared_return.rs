@@ -53,21 +53,25 @@ fn fixture(
     });
     function.block_entries = vec![
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(1),
             parameters: Vec::new(),
             operation_offset: 0,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(2),
             parameters: vec![parameter(3)],
             operation_offset: 2,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(3),
             parameters: vec![parameter(5), parameter(6)],
             operation_offset: 3,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: block(4),
             parameters: vec![parameter(7), parameter(8)],
             operation_offset: 5,
@@ -83,12 +87,14 @@ fn fixture(
         AbstractOperation::Conditional {
             condition: value(4),
             when_true: AbstractSuccessor {
+                structural_bindings: Vec::new(),
                 psi_edge: edge(1),
                 target: block(3),
                 bindings: vec![binding(5, 1), binding(6, 2)],
                 trivial_affine_discards: Vec::new(),
             },
             when_false: AbstractSuccessor {
+                structural_bindings: Vec::new(),
                 psi_edge: edge(2),
                 target: block(4),
                 bindings: vec![binding(7, 1), binding(8, 2)],
@@ -109,6 +115,7 @@ fn fixture(
             value: IntegerValue::Unsigned(7),
         },
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: edge(4),
             target: block(2),
             bindings: vec![binding(3, 9)],
@@ -122,6 +129,7 @@ fn fixture(
             value: IntegerValue::Unsigned(0),
         },
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: edge(5),
             target: block(2),
             bindings: vec![binding(3, 10)],

@@ -263,6 +263,30 @@ fn successor(
             u32::try_from(position).map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
         ),
         source_target: next.target,
+        structural_bindings: next
+            .structural_bindings
+            .iter()
+            .map(|semantic| {
+                let argument = builder
+                    .transport
+                    .pointers
+                    .iter()
+                    .find(|(place, _)| *place == semantic.argument.place)
+                    .map(|(_, pointer)| *pointer)
+                    .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                Ok(selected_instructions::SelectedStructuralBinding {
+                    semantic: semantic.clone(),
+                    transport: selected_instructions::SelectedStructuralTransport::Descriptor {
+                        argument,
+                        destination:
+                            selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                                block: next.target,
+                                place: semantic.parameter,
+                            },
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>, SelectedInstructionError>>()?,
         bindings: next
             .bindings
             .iter()

@@ -62,6 +62,7 @@ pub(in crate::tests) fn scalar_call_unit_fixture() -> (
     let false_value = ValueId::new(127).unwrap();
     let result = ValueId::new(128).unwrap();
     let edge = |raw, target| AbstractSuccessor {
+        structural_bindings: Vec::new(),
         psi_edge: EdgeId::new(raw).unwrap(),
         target,
         bindings: Vec::new(),
@@ -130,6 +131,7 @@ pub(in crate::tests) fn scalar_call_unit_fixture() -> (
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
                     block: caller_block,
                     parameters: Vec::new(),
                     operation_offset: 0,
@@ -159,16 +161,19 @@ pub(in crate::tests) fn scalar_call_unit_fixture() -> (
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: callee_entry,
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: true_block,
                         parameters: Vec::new(),
                         operation_offset: 2,
                     },
                     AbstractBlockEntry {
+                        structural_parameters: Vec::new(),
                         block: false_block,
                         parameters: Vec::new(),
                         operation_offset: 4,

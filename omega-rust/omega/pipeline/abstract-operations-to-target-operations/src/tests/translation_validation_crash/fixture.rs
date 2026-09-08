@@ -38,6 +38,7 @@ pub(super) fn crash_plan(cause: CrashCause, result_type: ScalarType) -> Abstract
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,

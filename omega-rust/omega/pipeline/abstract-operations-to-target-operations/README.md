@@ -58,8 +58,11 @@ expression. The existing selected graph retains these as parallel transfers.
 Native allocation currently realizes only transfers whose argument/destination
 groups can share one legal register home; interfering groups reject rather than
 lose an arrival. General edge-copy realization remains a downstream dependency.
-Structural block transfers and cycles remain separately rejected until their
-native transport and authority are joined.
+Structural byte-view block parameters and ordered bindings retain their exact
+declarations through target and legalized graphs. Destination views have their
+own block/place identity, not an inherited producer operation or length value.
+The selected consumer must realize their descriptor transfers; this upper
+projection alone grants no native transport or cyclic admission.
 The node set includes scalar constants, integer widening, immutable byte length
 and read observations, integer comparisons, subslice establishments and ordinary
 Unit calls. Views must be exact shared parameters or dominating establishments;

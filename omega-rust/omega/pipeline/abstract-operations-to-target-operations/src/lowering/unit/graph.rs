@@ -15,6 +15,7 @@ struct LiveDefinitions {
     boolean_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
     boolean_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
+    block_views: BTreeSet<PlaceId>,
     lengths: BTreeMap<ValueId, PlaceId>,
 }
 
@@ -30,6 +31,8 @@ impl LiveDefinitions {
             .retain(|value, definition| other.boolean_parameters.get(value) == Some(definition));
         self.views
             .retain(|place, definition| other.views.get(place) == Some(definition));
+        self.block_views
+            .retain(|place| other.block_views.contains(place));
         self.lengths
             .retain(|value, place| other.lengths.get(value) == Some(place));
     }
@@ -88,6 +91,20 @@ pub(super) fn lower(
         .collect::<BTreeSet<_>>();
     if places.len() != function.structural_parameters.len() {
         return Err(invalid());
+    }
+    for entry in &function.block_entries {
+        for (position, parameter) in entry.structural_parameters.iter().enumerate() {
+            if entry.block == function.entry
+                || parameter.position as usize != position
+                || !super::super::scalar::byte_views::is_immutable_byte_parameter(
+                    parameter,
+                    structural_types,
+                )
+                || !places.insert(parameter.place)
+            {
+                return Err(invalid());
+            }
+        }
     }
     for operation in &function.operations {
         if let AbstractOperation::ByteSequenceSubslice { result, .. } = operation
@@ -177,6 +194,7 @@ pub(super) fn lower(
         boolean_homes: BTreeMap::new(),
         boolean_parameters: BTreeMap::new(),
         views: BTreeMap::new(),
+        block_views: BTreeSet::new(),
         lengths: BTreeMap::new(),
     };
     while let Some(position) = pending.pop() {
@@ -192,6 +210,12 @@ pub(super) fn lower(
         };
         if position != entry_position {
             transfers::enter(&entries[position], &mut live);
+            live.block_views.extend(
+                entries[position]
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.place),
+            );
         }
         let range = ranges[position].clone();
         let mut operations = Vec::new();
@@ -219,6 +243,7 @@ pub(super) fn lower(
         )?;
         lowered[position] = Some(TargetUnitBlock {
             block: entries[position].block,
+            structural_parameters: entries[position].structural_parameters.clone(),
             parameters: entries[position]
                 .parameters
                 .iter()
@@ -380,6 +405,7 @@ fn terminator(
         psi_edge: edge.psi_edge,
         target: edge.target,
         bindings: edge.bindings.clone(),
+        structural_bindings: edge.structural_bindings.clone(),
         cleanup_actions: Vec::new(),
     };
     match operation {
@@ -397,6 +423,7 @@ fn terminator(
             psi_edge,
             target,
             bindings,
+            structural_bindings,
             ..
         } => {
             provenance.edges.push(*psi_edge);
@@ -405,6 +432,7 @@ fn terminator(
                     psi_edge: *psi_edge,
                     target: *target,
                     bindings: bindings.clone(),
+                    structural_bindings: structural_bindings.clone(),
                     cleanup_actions: Vec::new(),
                 },
             })

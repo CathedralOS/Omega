@@ -17,6 +17,15 @@ pub(super) fn validate(
         .iter()
         .find(|function| function.machine == patch.predecessor.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    // These rewrites substitute scalar bindings only.
+    if function
+        .blocks
+        .iter()
+        .any(|block| !block.structural_parameters.is_empty())
+    {
+        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+    }
+
     let predecessor_position = function
         .blocks
         .iter()
@@ -54,6 +63,7 @@ pub(super) fn validate(
     }
     let predecessor_node = &predecessor.nodes[predecessor_index];
     let O::Jump {
+        structural_bindings: _,
         psi_edge,
         target: jump_target,
         bindings,

@@ -34,6 +34,7 @@ pub(super) fn base_plan() -> AbstractOperationPlan {
             entry_claims: Vec::new(),
             published_service_ceiling: vec![service()],
             block_entries: vec![AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,

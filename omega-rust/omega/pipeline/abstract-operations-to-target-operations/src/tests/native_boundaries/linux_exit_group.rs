@@ -46,6 +46,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             block_entries: vec![abstract_operations::AbstractBlockEntry {
+                structural_parameters: Vec::new(),
                 block,
                 parameters: Vec::new(),
                 operation_offset: 0,

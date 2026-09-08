@@ -135,6 +135,7 @@ fn branches(source: &mut LegalizedScalarFunction) {
     comparison.ownership.clear();
     source.blocks[0].instructions.push(comparison);
     let successor = |raw| LegalizedScalarSuccessor {
+        structural_bindings: Vec::new(),
         edge: EdgeId::new(raw).unwrap(),
         target: BlockId::new(raw + 1).unwrap(),
         bindings: Vec::new(),
@@ -156,6 +157,7 @@ fn branches(source: &mut LegalizedScalarFunction) {
             ValueDefinitionSite::Node { block, node: 0 };
         call.fuel[0].site = PsiProvenance::Operation(call.operation);
         source.blocks.push(LegalizedScalarBlock {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
             terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {

@@ -74,10 +74,10 @@ pub(crate) fn accepts_borrowed_view(
     parameters: &[Parameter<'_>],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    let [parameter] = parameters else {
+    if parameters.is_empty() {
         return false;
-    };
-    let Some(scalar_count) = call_plan.parameters.len().checked_sub(1) else {
+    }
+    let Some(scalar_count) = call_plan.parameters.len().checked_sub(parameters.len()) else {
         return false;
     };
     let mut shapes = call_plan.parameters[..scalar_count]
@@ -97,7 +97,11 @@ pub(crate) fn accepts_borrowed_view(
     {
         return false;
     }
-    shapes.push(calling_conventions::ValueShape::borrowed_reference(16, 8));
+    shapes.extend(
+        parameters
+            .iter()
+            .map(|_| calling_conventions::ValueShape::borrowed_reference(16, 8)),
+    );
     let expected = calling_conventions::evaluate_call_plan(
         call_plan.policy,
         &calling_conventions::CallSignature {
@@ -108,25 +112,29 @@ pub(crate) fn accepts_borrowed_view(
     expected
         .as_ref()
         .is_ok_and(|expected| expected == call_plan)
-        && parameter.semantic.position == 0
-        && !parameter.semantic.is_self
-        && parameter.semantic.access == StructuralAccess::SharedBorrow
-        && parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && parameter.semantic.qualifications.is_empty()
-        && parameter.semantic.projected_qualifications.is_empty()
-        && parameter.target.place == parameter.semantic.place
-        && parameter.target.structural_type == parameter.semantic.structural_type
-        && parameter.target.access == parameter.semantic.access
-        && parameter.target.projected_qualifications.is_empty()
-        && parameter.target.multiplicity == parameter.semantic.multiplicity
-        && parameter.target.shape == calling_conventions::ValueShape::borrowed_reference(16, 8)
-        && parameter.target.placement == call_plan.parameters[scalar_count]
-        && structural_types.iter().any(|declaration| {
-            declaration.id == parameter.semantic.structural_type
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
-                    )
+        && parameters.iter().enumerate().all(|(position, parameter)| {
+            parameter.semantic.position as usize == position
+                && !parameter.semantic.is_self
+                && parameter.semantic.access == StructuralAccess::SharedBorrow
+                && parameter.semantic.multiplicity
+                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                && parameter.semantic.qualifications.is_empty()
+                && parameter.semantic.projected_qualifications.is_empty()
+                && parameter.target.place == parameter.semantic.place
+                && parameter.target.structural_type == parameter.semantic.structural_type
+                && parameter.target.access == parameter.semantic.access
+                && parameter.target.projected_qualifications.is_empty()
+                && parameter.target.multiplicity == parameter.semantic.multiplicity
+                && parameter.target.shape
+                    == calling_conventions::ValueShape::borrowed_reference(16, 8)
+                && parameter.target.placement == call_plan.parameters[scalar_count + position]
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == parameter.semantic.structural_type
+                        && declaration.shape
+                            == StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            )
+                })
         })
 }
 

@@ -231,6 +231,7 @@ pub(super) fn validate(
                 }
                 (
                     AbstractOperation::Jump {
+                        structural_bindings: _,
                         psi_edge,
                         target: successor,
                         bindings,

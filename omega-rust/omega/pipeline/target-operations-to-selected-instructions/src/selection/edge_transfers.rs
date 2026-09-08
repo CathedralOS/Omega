@@ -3,6 +3,10 @@ use super::shared::*;
 use selected_instructions::{SelectedBlockOrigin, SelectedSuccessorRole, SelectedValueTransport};
 mod construction;
 #[cfg(test)]
+mod descriptor_tests;
+mod descriptor_validation;
+mod descriptors;
+#[cfg(test)]
 mod tests;
 mod validation;
 pub(super) use construction::prepare;

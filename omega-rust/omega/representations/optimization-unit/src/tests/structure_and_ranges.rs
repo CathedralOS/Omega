@@ -35,11 +35,13 @@ fn block_parameters_keep_terminal_declaration_order() {
     });
     function.block_entries = vec![
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: entry,
             parameters: Vec::new(),
             operation_offset: 0,
         },
         AbstractBlockEntry {
+            structural_parameters: Vec::new(),
             block: target,
             parameters: vec![
                 AbstractParameter {
@@ -56,6 +58,7 @@ fn block_parameters_keep_terminal_declaration_order() {
     ];
     function.operations = vec![
         AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
             psi_edge: id(60, EdgeId::new),
             target,
             bindings: vec![

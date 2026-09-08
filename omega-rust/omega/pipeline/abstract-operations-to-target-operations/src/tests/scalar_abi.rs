@@ -125,6 +125,7 @@ fn unit_and_unsupported_width_functions_publish_no_scalar_abi() {
     unit.functions[0].parameters.clear();
     unit.functions[0].result = AbstractFunctionResult::Unit;
     unit.functions[0].block_entries = vec![AbstractBlockEntry {
+        structural_parameters: Vec::new(),
         block: unit.functions[0].entry,
         parameters: Vec::new(),
         operation_offset: 0,

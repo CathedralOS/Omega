@@ -8,6 +8,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerType, PlaceId};
 
+mod block_views;
 mod byte_views;
 mod literals;
 mod local_storage;
@@ -18,7 +19,7 @@ pub(super) use byte_views::byte_observation;
 
 #[derive(Default)]
 pub(super) struct Transport {
-    pointers: Vec<(PlaceId, VirtualRegisterId)>,
+    pub(super) pointers: Vec<(PlaceId, VirtualRegisterId)>,
     views: Vec<ByteViewHomes>,
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
     pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,
@@ -76,6 +77,7 @@ pub(super) fn entry(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
+    block_views::entry(source, replay)?;
     let Some(signature) = &source.structural else {
         return Ok(());
     };
@@ -123,7 +125,7 @@ pub(super) fn entry(
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
-        if !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
+        if !crate::selection::established_view_input::transferred(source, place) && !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
@@ -531,7 +533,7 @@ fn memory(
                 .try_into()
                 .map_err(|_| replay.invalid())?,
         ),
-        operation: node.operation,
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(node.operation),
         place,
         byte_offset,
         byte_count,
