@@ -478,3 +478,35 @@ fn proof_integer_quotient_bounds_keep_operands_distinct() {
             .expect_err("distinct quotients or undefined division cannot prove this claim");
     }
 }
+
+#[test]
+fn proof_integer_remainder_bounds_use_a_known_divisor() {
+    for divisor in [2, -2] {
+        for (requirement, conclusion) in [
+            ("", ">= -1"),
+            ("", "<= 1"),
+            (", value >= 0", ">= 0"),
+            (", value <= 0", "<= 0"),
+        ] {
+            let source = format!(
+                "machine remainder(value: i32, divisor: i32)\nrequires divisor == {divisor}{requirement}\nensures embed(value) % embed(divisor) {conclusion}\n{{}}"
+            );
+            check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+        }
+    }
+    for (requirement, conclusion) in [
+        ("divisor == 2", ">= 0"),
+        ("divisor == -2", "<= 0"),
+        ("divisor == 0", "== 0"),
+        ("divisor >= 2", "<= 1"),
+        ("divisor == 3", "<= 1"),
+    ] {
+        let source = format!(
+            "machine remainder(value: i32, divisor: i32)\nrequires {requirement}\nensures embed(value) % embed(divisor) {conclusion}\n{{}}"
+        );
+        assert!(
+            check(&source).is_err(),
+            "false remainder contract: {source}"
+        );
+    }
+}
