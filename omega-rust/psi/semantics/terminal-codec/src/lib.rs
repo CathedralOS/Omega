@@ -122,7 +122,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 79;
+const FORMAT_MARKER: u16 = 80;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -905,6 +905,155 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::StructuralByteSequenceFieldStore {
+            destination,
+            path,
+            field,
+            source,
+            length,
+            ..
+        } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("byte field store requires Unit");
+            }
+            let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *destination)
+            else {
+                return malformed("byte field store destination is not a parameter");
+            };
+            if !matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) || !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || !is_bounded_structural_scalar_store_path(path)
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == *destination || claim.input == *source)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *destination || claim.input.root == *source)
+            {
+                return malformed("byte field store has invalid destination custody");
+            }
+            let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
+            let bounded_field = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parent_type)
+                .is_some_and(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields } => fields.iter().any(|candidate| {
+                        candidate.id == *field
+                            && !candidate.relevance.is_erased()
+                            && matches!(
+                                candidate.field_type,
+                                StructuralFieldType::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                    }),
+                    _ => false,
+                });
+            if !bounded_field {
+                return malformed("byte field store does not select a bounded byte field");
+            }
+            let Some(source_place) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == *source)
+            else {
+                return malformed("byte field store source is unknown");
+            };
+            let source_type = match source_place.kind {
+                StructuralPlaceKind::ByteSequenceLiteral {
+                    structural_type, ..
+                } => structural_type,
+                StructuralPlaceKind::Parameter { position, is_self } => {
+                    let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
+                        parameter.place == *source
+                            && parameter.position == position
+                            && parameter.is_self == is_self
+                            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                            && parameter.qualifications.is_empty()
+                            && parameter.projected_qualifications.is_empty()
+                    }) else {
+                        return malformed("byte field store source is not an immutable whole view");
+                    };
+                    parameter.structural_type
+                }
+                StructuralPlaceKind::BlockParameter { block, position } => {
+                    let Some(parameter) = machine
+                        .blocks
+                        .iter()
+                        .find(|candidate| candidate.id == block)
+                        .and_then(|block| block.structural_parameters.get(position as usize))
+                        .filter(|parameter| {
+                            parameter.place == *source
+                                && parameter.position == position
+                                && !parameter.is_self
+                                && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                && parameter.qualifications.is_empty()
+                                && parameter.projected_qualifications.is_empty()
+                        })
+                    else {
+                        return malformed(
+                            "byte field store block source is not an immutable whole view",
+                        );
+                    };
+                    parameter.structural_type
+                }
+                StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                } => {
+                    let mut producers = machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .filter(|operation| operation.id == producer);
+                    let Some(producer) = producers.next() else {
+                        return malformed("byte field store subslice source has no producer");
+                    };
+                    if producers.next().is_some()
+                        || !matches!(producer.kind, OperationKind::ByteSequenceSubslice { .. })
+                        || !producer.result.structural().is_some_and(|result| {
+                            result.place == *source
+                                && result.structural_type == structural_type
+                                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                                && result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && result.claims.is_empty()
+                        })
+                    {
+                        return malformed(
+                            "byte field store subslice source has inexact producer custody",
+                        );
+                    }
+                    structural_type
+                }
+                _ => return malformed("byte field store source is not an immutable whole view"),
+            };
+            if !module.structural_types.iter().any(|declaration| declaration.id == source_type
+                && matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
+                || !machine.blocks.iter().flat_map(|block| &block.operations).any(|candidate| {
+                    matches!(candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured == *source)
+                        && candidate.result.scalar_ref().is_some_and(|result| result.id == *length
+                            && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64))
+                })
+            {
+                return malformed("byte field store source or exact length is invalid");
+            }
+        }
         OperationKind::ByteSequenceSubslice { .. } => {
             let Some(result) = operation.result.structural() else {
                 return malformed("byte-sequence subslice requires a structural result");

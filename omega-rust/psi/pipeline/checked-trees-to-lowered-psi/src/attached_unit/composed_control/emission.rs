@@ -173,6 +173,7 @@ pub(in crate::attached_unit) fn emit_callable_body(
         .as_deref()
         .map(|identity| lookup_type_id(&catalogs.type_ids, identity))
         .transpose()?;
+    next_place = next_place.max(catalogs.next_place);
     let structural_places = if let Some(attachment) = attachment {
         let attachment_declaration = catalogs
             .structural_types
@@ -239,6 +240,9 @@ pub(in crate::attached_unit) fn emit_callable_body(
     machine.contract.crash_routes =
         lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
     machine.blocks.sort_by_key(|block| block.id);
+    machine
+        .structural_places
+        .append(&mut catalogs.literal_store_places);
     machine.structural_places.sort_by_key(|place| place.id);
     catalogs.next_value = next_value;
     catalogs.next_place = next_place;
@@ -318,6 +322,25 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     for operation in &state.operations {
+        if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) = operation {
+            let kind = crate::structural_byte_sequence_store::emit(
+                store,
+                parameters,
+                &mut catalogs.structural_types,
+                &mut catalogs.literal_store_places,
+                &mut catalogs.next_place,
+                next_value,
+                &mut catalogs.scalar_calls.next_call_obligation,
+                operations,
+            )?;
+            let id = operations.allocate();
+            operations.push(Operation {
+                id,
+                result: OperationResult::Unit,
+                kind,
+            });
+            continue;
+        }
         if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation {
             state_graph::body::emit_store(
                 checked, state, store, catalogs, parameters, evaluation, values, next_value,

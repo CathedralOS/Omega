@@ -30,6 +30,17 @@ pub(super) fn validate_operation_operands(
         }
         return Ok(());
     }
+    if let OperationKind::StructuralByteSequenceFieldStore { length, .. } = operation.kind {
+        require_defined(length, value_types, defined)?;
+        let expected =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+        if value_types[&length] != expected {
+            return Err(ModuleError::InvalidStructuralByteSequenceFieldStore(
+                operation.id,
+            ));
+        }
+        return Ok(());
+    }
     if let OperationKind::ByteSequenceRead { index, length, .. } = operation.kind {
         let expected =
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
@@ -635,6 +646,7 @@ pub(super) fn validate_operation_operands(
         OperationKind::Call { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
+        | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallDynamicScalar { .. }

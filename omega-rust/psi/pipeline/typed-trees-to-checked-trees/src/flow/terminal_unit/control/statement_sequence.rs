@@ -117,12 +117,19 @@ pub(in crate::flow::terminal_unit) fn build(
         let result = match statement {
             StatementNode::Assignment(_) => {
                 let store = stores.next()?;
-                if store.statement_index != statement_index {
+                let ordinal = match &store {
+                    CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+                        store.statement_index
+                    }
+                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                        store.statement_index
+                    }
+                    _ => return None,
+                };
+                if ordinal != statement_index {
                     return None;
                 }
-                operations.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-                    store,
-                ));
+                operations.push(store);
                 continue;
             }
             StatementNode::LocalData(local) => {

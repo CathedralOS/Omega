@@ -45,6 +45,7 @@ mod proof_recursion;
 mod quotient_correspondence;
 mod scalar_graph;
 mod service_reach_contracts;
+mod structural_byte_sequence_store;
 mod structural_control_cases;
 mod structural_return_cases;
 mod structural_scalar_store;
@@ -3375,7 +3376,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &79_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &80_u16.to_le_bytes());
     assert_eq!(
         terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -3497,7 +3498,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &79_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &80_u16.to_le_bytes());
     assert_eq!(
         terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

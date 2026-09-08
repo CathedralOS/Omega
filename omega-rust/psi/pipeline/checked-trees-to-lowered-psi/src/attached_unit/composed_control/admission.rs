@@ -470,7 +470,8 @@ pub(super) fn retain_call_targets<'a>(
                         &mut internal_targets,
                     )?;
                 }
-                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }

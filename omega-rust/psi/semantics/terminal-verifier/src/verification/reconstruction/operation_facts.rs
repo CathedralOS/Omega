@@ -55,11 +55,51 @@ pub(super) fn append_operation(
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
     if let OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-    | OperationKind::StructuralScalarFieldStore { destination, .. } = &operation.kind
+    | OperationKind::StructuralScalarFieldStore { destination, .. }
+    | OperationKind::StructuralByteSequenceFieldStore { destination, .. } = &operation.kind
     {
         axioms.retain(|proposition| {
             !crate::validation::proposition_observes_places(proposition, &[*destination])
         });
+    }
+    if let OperationKind::StructuralByteSequenceFieldStore {
+        length, obligation, ..
+    } = &operation.kind
+    {
+        let capacity =
+            crate::validation::structural_byte_sequence_store_capacity(module, machine, operation)?;
+        let integer_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        let bound = semantic_vocabulary::ScalarTerm::integer(
+            integer_type,
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
+        )
+        .map_err(|error| {
+            ModuleError::OperationSemanticSchema(
+                terminal_semantics::OperationSemanticError::InvalidProposition(error),
+            )
+        })?;
+        operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::Operation {
+                machine: machine.id,
+                operation: operation.id,
+            },
+            obligation: Obligation {
+                id: *obligation,
+                proposition: Proposition::LessOrEqual(
+                    semantic_vocabulary::ScalarTerm::value(
+                        *length,
+                        ScalarType::Integer(integer_type),
+                    ),
+                    bound,
+                ),
+                class: ObligationClass::Derivable,
+            },
+            semantic_axioms: axioms.clone(),
+            canonical_certificate: true,
+        });
+        return Ok(());
     }
     if let Some(semantics) = goal_free_scalar_leaf_semantics(operation, value_types)
         .map_err(ModuleError::OperationSemanticSchema)?
@@ -181,6 +221,7 @@ pub(super) fn append_operation(
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
+        | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }

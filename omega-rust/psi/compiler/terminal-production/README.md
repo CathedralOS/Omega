@@ -251,6 +251,16 @@ index. Interleaved mutable scalar locals, delayed results, computed IEEE sources
 short-circuit store values, and richer indexed/aggregate forms need further
 producer support.
 
+Bounded-owned byte fields accept literal replacement through the same ordered
+assignment and exact write-frame route. Source predicates are discharged before
+erasure; the Terminal operation independently proves the exact source length fits
+the destination capacity. Literal establishment stays at the assignment's authored
+position. Artifact interpretation replaces live bytes and live length on the
+original referent, including empty and shorter values across ordinary calls.
+Runtime-indexed byte mutation and native byte-field replacement are not realized;
+the native consumer explicitly rejects `StructuralByteSequenceFieldStore` before
+projection. This support does not make the unchanged `print_squares` sample runnable.
+
 Keep semantic scalar and structural ordinals distinct while preserving authored
 argument order. Receiver `Self` resolves through the attachment and uses the
 receiver write-frame root. Entry-bridge storage is a separate native obligation.

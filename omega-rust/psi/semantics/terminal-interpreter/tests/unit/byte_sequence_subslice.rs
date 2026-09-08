@@ -697,7 +697,7 @@ fn subslice_wire_and_certificate_tampering_reject_before_execution() {
     let module = module(vec![0, 128]);
     let proof = encode_proof_bundle(&certificate(&module)).unwrap();
     let bytes = encode_module(&module).unwrap();
-    assert_eq!(&bytes[10..12], &85_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], &86_u16.to_le_bytes());
     let pattern = [
         vec![57],
         3_u64.to_le_bytes().to_vec(),

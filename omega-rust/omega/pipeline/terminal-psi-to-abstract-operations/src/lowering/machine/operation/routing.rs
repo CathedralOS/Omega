@@ -28,6 +28,9 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::StructuralByteSequenceFieldStore { .. } => Err(
+            LoweringError::UnsupportedStructuralByteSequenceFieldStore(operation.id),
+        ),
         OperationKind::ByteSequenceRead {
             source,
             index,

@@ -480,6 +480,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         catalogs.next_operation = operations.next_identity;
     }
     blocks.sort_by_key(|block| block.id);
+    structural_places.append(&mut catalogs.literal_store_places);
     structural_places.sort_by_key(|place| place.id);
     let attachment = plan
         .attachment_type_identity

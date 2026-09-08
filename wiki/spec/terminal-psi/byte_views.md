@@ -13,6 +13,12 @@ before use and cannot supply an owned or mutable argument. Each invocation
 binds actual contents to parameter places and restores caller storage on return.
 Opaque identity without contents cannot execute a byte-consuming operation.
 
+Each literal declaration has one exact establishment operation. Establishment
+may occur at its authored position rather than an entry prefix; every use needs
+that operation to dominate it. Reentering the same producer through a backedge
+retains the identical immutable value and charges the operation again. A value
+left by an earlier iteration does not authorize a use before its producer.
+
 | Operation | Result | Required evidence |
 | --- | --- | --- |
 | `ByteSequenceLength { source }` | Exact `u64` byte count. | An available immutable view, not character count or a field merely named length. |

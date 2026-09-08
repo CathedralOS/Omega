@@ -834,6 +834,7 @@ fn assemble_unit_closure(
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
@@ -866,7 +867,7 @@ fn assemble_unit_closure(
         return unsupported("boundary Unit closure contains duplicate canonical identities");
     }
 
-    let (structural_types, type_ids) = if !additional_type_roots.is_empty() {
+    let (mut structural_types, type_ids) = if !additional_type_roots.is_empty() {
         catalog::lower_unit_structural_types_including(
             checked,
             &closure,
@@ -876,6 +877,22 @@ fn assemble_unit_closure(
     } else {
         catalog::lower_unit_structural_types(checked, &closure, &boundaries)?
     };
+    // Callable composed bodies borrow a complete shared catalog. Retain the
+    // generated immutable carrier before cloning it into any callee emitter.
+    for machine_symbol in &closure {
+        if UnitBody::find(plans, *machine_symbol)?
+            .operations()
+            .any(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                )
+            })
+        {
+            crate::structural_byte_sequence_store::literal_view_type(&mut structural_types)?;
+            break;
+        }
+    }
     let wrapper_domains = prepared_scalar_machines
         .iter()
         .filter_map(|callee| match callee {
@@ -1342,7 +1359,7 @@ fn assemble_unit_closure(
                 _ => {}
             }
         }
-        let literal_places = literal_arguments
+        let mut literal_places = literal_arguments
             .iter()
             .enumerate()
             .map(|(ordinal, argument)| {
@@ -1378,6 +1395,7 @@ fn assemble_unit_closure(
             });
         }
         let mut next_literal_argument = 0usize;
+        let call_literal_count = literal_places.len();
         let mut next_value_identity = next_value;
         let mut scalar_result_values = scalar_parameters.clone();
         let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
@@ -3071,6 +3089,18 @@ fn assemble_unit_closure(
                         value,
                     }
                 }
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                    crate::structural_byte_sequence_store::emit(
+                        store,
+                        parameters,
+                        &mut structural_types,
+                        &mut literal_places,
+                        &mut next_place,
+                        &mut next_value_identity,
+                        &mut next_call_obligation,
+                        &mut operations,
+                    )?
+                }
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                     let destination = parameters
                         .iter()
@@ -3152,7 +3182,7 @@ fn assemble_unit_closure(
                 kind,
             });
         }
-        if next_literal_argument != literal_places.len() {
+        if next_literal_argument != call_literal_count {
             return unsupported("byte-sequence literal argument consumption is incomplete");
         }
         next_operation = operations.next_identity;

@@ -138,6 +138,18 @@ pub enum OperationKind {
         destination: PlaceId,
         value: ValueId,
     },
+    /// Replace a bounded byte field's live prefix and live length from an
+    /// immutable view. The exact source's length observation must satisfy
+    /// length <= the independently resolved destination field capacity.
+    /// This neither reads old destination contents nor modifies sibling fields.
+    StructuralByteSequenceFieldStore {
+        destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        source: PlaceId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Store one already-defined scalar into one exact relevant field beneath
     /// a structural parameter. `path` resolves from the parameter root to the
     /// record containing `field`; authority remains on the parameter

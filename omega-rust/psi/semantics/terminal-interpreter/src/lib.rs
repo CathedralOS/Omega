@@ -9,6 +9,7 @@ mod block_bindings;
 mod byte_sequence_subslice;
 mod byte_sequence_view;
 mod effect_results;
+mod structural_byte_sequence_store;
 use byte_sequence_view::ByteSequenceView;
 mod semantic_value_comparison;
 
@@ -278,6 +279,12 @@ struct StructuralScalarRuntimeField {
     field: StructuralFieldId,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct StructuralByteSequenceRuntimeField {
+    parent: StructuralRuntimePlace,
+    field: StructuralFieldId,
+}
+
 impl From<&TerminalStructuralValue> for StructuralRuntimePlace {
     fn from(value: &TerminalStructuralValue) -> Self {
         Self {
@@ -491,6 +498,9 @@ pub struct TerminalExecution {
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
     structural_scalar_fields: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+    /// Owned byte contents are keyed by referent identity, not a callee-local
+    /// parameter. Immutable backing implements a logical copy of the live prefix.
+    structural_byte_sequence_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
     /// Immutable exact bytes owned by this invocation, including borrowed
     /// arguments rebound to its parameter places. Opaque identities do not
@@ -932,6 +942,7 @@ impl TerminalExecution {
             structural_primitive_storage,
             structural_primitive_entry_places,
             structural_scalar_fields: structural_boolean_fields,
+            structural_byte_sequence_fields: BTreeMap::new(),
             payloadless_case_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
             live_affine_frontier,
@@ -1594,9 +1605,7 @@ impl TerminalExecution {
                         );
                     }
                     OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
-                        if !matches!(operation.result, terminal_psi::OperationResult::Unit)
-                            || self.structural_values.contains_key(&destination)
-                        {
+                        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         let machine = self.machines.get(&self.current_machine).ok_or(
@@ -1616,22 +1625,39 @@ impl TerminalExecution {
                         else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
-                        if self
-                            .byte_sequence_values
-                            .insert(destination, ByteSequenceView::new(bytes))
-                            .is_some()
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        if let Some(previous) = self.structural_values.get(&destination) {
+                            // Reentering the unique literal producer retains the
+                            // same immutable value. Fuel was charged above;
+                            // existing aliases keep their exact original bytes.
+                            if previous.opaque_identity != destination.get()
+                                || previous.structural_type != *structural_type
+                                || !previous.path.is_empty()
+                                || !previous.qualifications.is_empty()
+                                || self
+                                    .byte_sequence_values
+                                    .get(&destination)
+                                    .is_none_or(|view| view.bytes() != bytes)
+                            {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                        } else {
+                            if self
+                                .byte_sequence_values
+                                .insert(destination, ByteSequenceView::new(bytes))
+                                .is_some()
+                            {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            self.structural_values.insert(
+                                destination,
+                                TerminalStructuralValue {
+                                    opaque_identity: destination.get(),
+                                    structural_type: *structural_type,
+                                    qualifications: Vec::new(),
+                                    path: Vec::new(),
+                                },
+                            );
                         }
-                        self.structural_values.insert(
-                            destination,
-                            TerminalStructuralValue {
-                                opaque_identity: destination.get(),
-                                structural_type: *structural_type,
-                                qualifications: Vec::new(),
-                                path: Vec::new(),
-                            },
-                        );
                     }
                     OperationKind::EstablishTrivialAffineLocal { destination } => {
                         if !matches!(operation.result, terminal_psi::OperationResult::Unit)
@@ -2275,6 +2301,9 @@ impl TerminalExecution {
                             },
                             source,
                         );
+                    }
+                    OperationKind::StructuralByteSequenceFieldStore { .. } => {
+                        self.execute_structural_byte_sequence_field_store(&operation)?;
                     }
                     OperationKind::IntegerConstant { value } => {
                         let ScalarType::Integer(scalar_type) =

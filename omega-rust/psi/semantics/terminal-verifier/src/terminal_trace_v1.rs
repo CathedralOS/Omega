@@ -199,6 +199,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::PortWrite { .. } => TerminalTraceV1OperationClassification::PortWrite,
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
+        | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }

@@ -564,12 +564,10 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 );
             }
         }
-        let literal_establishments = machine
+        let mut literal_establishments = machine
             .blocks
-            .first()
-            .into_iter()
+            .iter()
             .flat_map(|block| &block.operations)
-            .take(byte_sequence_literals.len())
             .filter_map(|operation| match operation.kind {
                 OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
                     Some(destination)
@@ -577,7 +575,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let expected_literal_establishments = byte_sequence_literals
+        let mut expected_literal_establishments = byte_sequence_literals
             .iter()
             .map(|(place, _, _)| *place)
             .collect::<Vec<_>>();
@@ -592,10 +590,13 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 )
             })
             .count();
-        if !byte_sequence_literals.is_empty()
-            && (machine.blocks.len() != 1
-                || literal_establishments != expected_literal_establishments
-                || total_literal_establishments != byte_sequence_literals.len())
+        // Declarations remain canonical, but an immutable literal may be
+        // established at its authored evaluation position. Full-graph view
+        // dominance below checks every consuming use independently.
+        literal_establishments.sort();
+        expected_literal_establishments.sort();
+        if literal_establishments != expected_literal_establishments
+            || total_literal_establishments != byte_sequence_literals.len()
         {
             return Err(ModuleError::ByteSequenceLiteralEstablishmentMismatch(
                 machine.id,

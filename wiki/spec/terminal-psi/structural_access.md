@@ -88,6 +88,7 @@ and receipt, unless installation supplies physical isolation evidence.
 | --- | --- |
 | `WriteOnlyPrimitiveStore` | Destination structural parameter and already-defined, exactly typed SSA value. The primitive referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination parameter, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. An empty carrier path denotes a field directly on the root record. |
+| `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.
@@ -103,6 +104,19 @@ retain value identity; integer, Boolean, and IEEE literals retain their exact
 type and value or raw bits. Fuel is consumed before mutation; suspension and
 resumption must not repeat a committed store. Referent backing survives callee
 frames so a completed write remains visible to the caller.
+
+Bounded byte replacement writes the source's live bytes and live length together,
+without observing displaced contents. The verifier resolves capacity from the
+exact destination field declaration and reconstructs `length <= capacity`;
+neither an asserted capacity nor another view's length supplies that evidence.
+Empty and shorter replacements are legal, and unused capacity is not live content.
+This is not raw fixed-array assignment, which retains its exact-length rule.
+The admitted destination is an unqualified, claim-free mutable or write-only
+parameter with unrestricted or affine multiplicity and a static carrier path.
+Source encoding predicates still require source-level proof. Immutable source
+backing may be shared, provided later writes cannot mutate that source or aliases.
+The store costs one logical operation unit and invalidates destination observations;
+it creates no new ownership frontier entry.
 
 Receiver writes require an actual mutable or write-only receiver. An attached
 namespace alone grants no storage authority. Source `Self`, receiver position,

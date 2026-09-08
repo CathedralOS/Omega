@@ -287,6 +287,12 @@ pub(super) fn validate_unit_operation_sequence(
                 statement_index: *statement_index,
                 call_ordinal: 0,
             },
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: store.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: store.statement_index,

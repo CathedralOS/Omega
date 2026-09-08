@@ -19,6 +19,7 @@ pub(crate) struct ComposedCatalogs {
     pub(crate) internal_targets: Vec<LoweredComposedInternalTarget>,
     pub(crate) service_ids: Vec<(ServiceReachId, ServiceId)>,
     pub(crate) next_place: u64,
+    pub(crate) literal_store_places: Vec<StructuralPlaceDeclaration>,
     pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
     pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) shared_units: Option<LoweredPsi>,
@@ -51,7 +52,8 @@ fn lower_composed_services(
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
             _ => return unsupported("composed Unit control contains a non-call operation"),
         };
         collect_service_summary(&facts.rows, service_reach, &mut selected)?;
@@ -292,6 +294,7 @@ fn lower_catalogs(
         internal_targets,
         service_ids,
         next_place,
+        literal_store_places: Vec::new(),
         scalar_calls,
         root_crash_routes,
         shared_units: None,

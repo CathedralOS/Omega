@@ -1,4 +1,4 @@
-//! Exact whole immutable byte-view observation without added proof equations.
+//! Exact whole immutable byte-view observation; control flow owns availability.
 
 use super::*;
 
@@ -31,7 +31,7 @@ pub(super) fn validate(
 pub(super) fn validate_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    operation: &terminal_psi::Operation,
+    _operation: &terminal_psi::Operation,
     source: PlaceId,
     invalid: impl Fn() -> ModuleError,
 ) -> Result<(), ModuleError> {
@@ -68,22 +68,8 @@ pub(super) fn validate_source(
         StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         } => {
-            // Literal foundation validation currently requires one block and one
-            // establishment per declared literal. Require that establishment before this read.
-            let [block] = machine.blocks.as_slice() else {
-                return Err(invalid());
-            };
-            let position = block
-                .operations
-                .iter()
-                .position(|candidate| candidate.id == operation.id)
-                .ok_or_else(&invalid)?;
-            let established = block.operations[..position].iter().any(|candidate| {
-                matches!(candidate.kind, OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == source)
-            });
-            if !established {
-                return Err(invalid());
-            }
+            // Foundation validation binds exactly one establishment to this
+            // declaration. The shared view-use pass checks its dominance.
             structural_type
         }
         StructuralPlaceKind::OperationResult { .. } => {

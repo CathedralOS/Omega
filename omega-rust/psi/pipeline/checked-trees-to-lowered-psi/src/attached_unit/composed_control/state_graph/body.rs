@@ -22,6 +22,21 @@ pub(super) fn validate(
         let ordinal = prefix + ordinal;
         match (operation, &statements[ordinal]) {
             (
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store),
+                StatementNode::Assignment(assignment),
+            ) => {
+                if store.statement_index as usize != ordinal {
+                    return unsupported("Unit graph reordered a byte-field store");
+                }
+                crate::structural_byte_sequence_store::validate_assignment(
+                    checked,
+                    machine,
+                    state.state,
+                    assignment,
+                    store,
+                )?;
+            }
+            (
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
                 StatementNode::Assignment(assignment),
             ) => {

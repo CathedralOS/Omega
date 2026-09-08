@@ -109,7 +109,14 @@ pub(super) fn validate_uses(
 ) -> Result<(), ModuleError> {
     let require = |place| {
         if (borrowed_result(machine, place).is_some()
-            || super::block_views::parameter(machine, place).is_some())
+            || super::block_views::parameter(machine, place).is_some()
+            || machine.structural_places.iter().any(|declaration| {
+                declaration.id == place
+                    && matches!(
+                        declaration.kind,
+                        StructuralPlaceKind::ByteSequenceLiteral { .. }
+                    )
+            }))
             && !available.contains(&place)
         {
             Err(ModuleError::ByteSequenceViewNotEstablished {
@@ -123,6 +130,7 @@ pub(super) fn validate_uses(
     match &operation.kind {
         OperationKind::ByteSequenceLength { source }
         | OperationKind::ByteSequenceRead { source, .. }
+        | OperationKind::StructuralByteSequenceFieldStore { source, .. }
         | OperationKind::ByteSequenceSubslice { source, .. } => require(*source),
         OperationKind::CallUnit {
             structural_arguments,
@@ -133,6 +141,10 @@ pub(super) fn validate_uses(
             ..
         }
         | OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
             structural_arguments,
             ..
         } => {

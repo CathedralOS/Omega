@@ -3,6 +3,82 @@ use super::{build_structural_scalar_field_store_sequence, frame};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 #[test]
+fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
+    let source = r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; flag: bool; }
+        machine Record::replace(&mut self) { self.out = "XXX"; self.flag = true; }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = crate::lower_typed_trees(typed).unwrap();
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Record::replace")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let mut shapes = ShapeCollector::new(program);
+    let (_, parameters) =
+        structural_signature(program, &mut shapes, machine, state, &[], true).unwrap();
+    let stores = build_structural_scalar_field_store_sequence(
+        program,
+        &checked.facts,
+        machine,
+        state,
+        &parameters,
+        &[],
+        0,
+    )
+    .unwrap();
+    assert!(matches!(
+        stores.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_),
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+        ]
+    ));
+    for replacement in [
+        facts::NormalizedWriteFrame::complete(vec!["self.out".into()]),
+        facts::NormalizedWriteFrame::complete(vec!["self.flag".into()]),
+        facts::NormalizedWriteFrame::complete(vec![
+            "self.flag".into(),
+            "self.out".into(),
+            "self.absent".into(),
+        ]),
+        facts::NormalizedWriteFrame::opaque(),
+    ] {
+        let mut changed = checked.facts.clone();
+        changed
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == machine.symbol)
+            .unwrap()
+            .state_write_frames[0]
+            .frame = replacement;
+        assert!(
+            build_structural_scalar_field_store_sequence(
+                program,
+                &changed,
+                machine,
+                state,
+                &parameters,
+                &[],
+                0
+            )
+            .is_none()
+        );
+    }
+}
+
+#[test]
 fn structural_entry_field_write_retains_its_ordered_unit_plan() {
     let source = r#"
         data Flag { enabled: bool; }

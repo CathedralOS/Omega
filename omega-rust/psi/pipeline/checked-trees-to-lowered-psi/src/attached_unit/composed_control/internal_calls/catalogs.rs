@@ -28,7 +28,8 @@ pub(in crate::attached_unit::composed_control) fn lower(
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => continue,
             _ => return unsupported("composed root retained a non-call operation"),
         };
         collect_service_summary(&checked.facts.service_reaches.rows, reach, &mut services)?;
@@ -128,6 +129,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
         shared.next_call_obligation,
     );
     Ok(super::super::catalogs::ComposedCatalogs {
+        literal_store_places: Vec::new(),
         structural_types: shared.lowered.semantic_module.structural_types.clone(),
         type_ids: shared.type_ids,
         domain_ids: shared.domain_ids,

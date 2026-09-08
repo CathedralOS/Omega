@@ -111,7 +111,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Work from the unchanged `print_squares` [outer command](samples/cli/basics/print_squares/README.md).
   Resume its native compiler-library probe with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  At base `2d2bc4f918` on macOS arm64, this exits 100 before
+  At base `9b2eba98e3` on macOS arm64, this exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
   The verifier admits scalar computations, immutable byte views, persistent
@@ -122,13 +122,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   validation yet.
   Shared state-body construction in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-  sends assignments through scalar-field-store admission. The first missing
-  operation is `self.out = "XXX"`; runtime-indexed byte writes are also absent
-  from the portable store vocabulary. Implement bounded-owned byte replacement
-  with exact source extent, live-length writeback, and `length <= capacity`
-  evidence, then indexed mutation. Reuse literal/length observations and checked
-  source predicate obligations; predicate-only `Utf8` erasure does not itself
-  require adding a projected qualification roster. The CLI outer command
+  retains ordered field replacement, but runtime-indexed byte writes remain
+  absent from the portable store vocabulary. Implement indexed mutation with
+  exact source byte, destination live-length evidence, bounds, and invariant
+  preservation. The bounded replacement owner is
+  `checked-trees-to-lowered-psi/src/structural_byte_sequence_store.rs`;
+  its native consumer still rejects `StructuralByteSequenceFieldStore` before
+  projection. Reuse literal/length observations and checked source predicate
+  obligations; predicate-only `Utf8` erasure does not itself require adding a
+  projected qualification roster. The CLI outer command
   separately exits 1 awaiting ordinary package review; do not manufacture acceptance.
   Producer widening alone cannot close this: general owned cyclic validation
   and native execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
@@ -261,7 +263,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
   still reject byte-field projections; canonical transport and verifier admission
   do not implement the call. Bounded inline storage and borrowed descriptors
-  have different layouts. Add runtime buffer support to the interpreter and
+  have different layouts. Add runtime byte-field view forwarding to the interpreter and
   an admitted `read_line` realization through native emission and installation
   replay; each target's `console_impl.omg` declares a bodyless intrinsic.
   Close this slice with the existing carrier round-trip and sequential-read
