@@ -59,7 +59,8 @@ own writes. See [state contracts](state_contracts.md).
 ## Default domains and zero initialization
 
 A data declaration's field constraints and `where` clauses define its default
-domain; omission means the empty domain. Zero-initializability is a storage
+domain; omission adds no predicates beyond its ordinary field/type obligations.
+This does not mean an uninhabited domain. Zero-initializability is a storage
 representation guarantee, not universal semantic membership or ambient write
 authority. A zeroed storage representation can be accessed as an established
 value only after its default-domain obligations hold.
@@ -70,6 +71,10 @@ domain before observation. A literal supplies every field whose zero value
 would violate it and proves the complete coupling. Establishment is monotone as
 observed: later mutation may temporarily open an invariant window, but no
 consumption sees the value outside its required domain.
+
+Permitting [uninhabited domain declarations](domains.md#uninhabited-domains)
+does not relax this establishment gate. An impossible qualification cannot be
+established merely because storage was allocated or zeroed.
 
 Gating propagates through containment; a zero-valid first sum case can represent
 emptiness without constructing a gated payload. Machine-owned storage may begin

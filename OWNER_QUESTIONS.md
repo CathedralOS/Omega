@@ -38,38 +38,7 @@ the concrete compiler customer or required proof obligation, compare existing
 languages and simpler refactors, and account for total audit cost and machinery
 displaced. Await an owner decision; a task or prototype is not approval.
 
-## Q1 — Empty domains and contradictory declarations
-
-### Context and problem
-
-A domain qualifies values already valid for its carrier. The former guide said
-that its predicates must not contradict carrier validity, but did not say whether
-an inconsistent declaration rejects or instead describes an empty domain.
-The [domain contract](wiki/spec/language/domains.md) leaves that declaration
-policy undetermined. Membership still requires carrier validity and every
-domain predicate; a contradiction cannot establish an ordinary value.
-
-This matters for generic constraints and mathematical classifications: a
-specialization may have no inhabitants without its declaration being malformed.
-Conversely, a contradictory constraint can expose a useful authoring mistake.
-
-### Proposed direction, not yet adopted
-
-Permit empty domains and reject uses that cannot establish membership. A proved
-empty domain may support an explanatory diagnostic, but failure to find a member
-must not be treated as proof of emptiness. Keep default-domain establishment
-gates and ordinary invariant windows unchanged.
-
-### Alternatives
-
-Reject declarations when the checker proves them empty, with an explicit rule
-for generic specialization and evidence-dependent diagnostics. Requiring every
-domain declaration to prove nonemptiness is a stronger alternative needing a
-constructor or witness contract. Guessing satisfiability, treating failed proof
-search as contradiction, or allowing an impossible qualification to bypass
-carrier validity is wrong.
-
-## Q2 — Foreign-domain import and applicability
+## Q1 — Foreign-domain import and applicability
 
 ### Context and problem
 
@@ -101,7 +70,7 @@ direction. Ambient dependency-wide activation or silent upstream-priority
 selection is wrong: either can change an existing contract without an authored
 selection.
 
-## Q3 — Runtime checking of admitted claims
+## Q2 — Runtime checking of admitted claims
 
 ### Context and problem
 
