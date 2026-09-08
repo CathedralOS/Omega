@@ -210,7 +210,7 @@ impl PreCheckEvaluation {
 pub fn evaluate_pre_resolution(
     syntax_trees: syntax_trees::SyntaxTrees,
 ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
-    evaluate_pre_resolution_with_optional_sources(syntax_trees, None, None)
+    evaluate_pre_resolution_with_optional_sources(syntax_trees, None, &[], None)
 }
 
 /// Package-aware pre-resolution evaluation.
@@ -223,7 +223,22 @@ pub fn evaluate_pre_resolution_with_sources(
     syntax_trees: syntax_trees::SyntaxTrees,
     sources: Arc<source::SourceMap>,
 ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
-    evaluate_pre_resolution_with_optional_sources(syntax_trees, Some(sources), None)
+    evaluate_pre_resolution_with_sources_and_top_level_bindings(syntax_trees, sources, Vec::new())
+}
+
+/// Preserve the loader's exact requester-to-declaration bindings in every
+/// normalization and probe compilation preceding ordinary resolution.
+pub fn evaluate_pre_resolution_with_sources_and_top_level_bindings(
+    syntax_trees: syntax_trees::SyntaxTrees,
+    sources: Arc<source::SourceMap>,
+    source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
+    evaluate_pre_resolution_with_optional_sources(
+        syntax_trees,
+        Some(sources),
+        &source_scoped_top_level_bindings,
+        None,
+    )
 }
 
 pub fn evaluate_pre_resolution_with_sources_and_authority(
@@ -231,9 +246,26 @@ pub fn evaluate_pre_resolution_with_sources_and_authority(
     sources: Arc<source::SourceMap>,
     selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
 ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
+    evaluate_pre_resolution_with_sources_top_level_bindings_and_authority(
+        syntax_trees,
+        sources,
+        Vec::new(),
+        selection_authority,
+    )
+}
+
+/// Add execution-admission authority without changing the loader's exact
+/// source-scoped name bindings used by normalization and probe resolution.
+pub fn evaluate_pre_resolution_with_sources_top_level_bindings_and_authority(
+    syntax_trees: syntax_trees::SyntaxTrees,
+    sources: Arc<source::SourceMap>,
+    source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
+) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
     evaluate_pre_resolution_with_optional_sources(
         syntax_trees,
         Some(sources),
+        &source_scoped_top_level_bindings,
         Some(selection_authority),
     )
 }
@@ -241,21 +273,27 @@ pub fn evaluate_pre_resolution_with_sources_and_authority(
 fn evaluate_pre_resolution_with_optional_sources(
     syntax_trees: syntax_trees::SyntaxTrees,
     sources: Option<Arc<source::SourceMap>>,
+    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
     let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls_with_optional_sources(
         syntax_trees,
         sources.clone(),
+        source_scoped_top_level_bindings,
         selection_authority.clone(),
     )?;
     syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax_trees)?;
     let placed_view_records = placed_views::desugar_placed_views_with_optional_sources(
         &mut syntax_trees,
-        sources,
+        sources.clone(),
+        source_scoped_top_level_bindings,
         selection_authority.clone(),
     )?;
-    let mut syntax_trees =
-        syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax_trees)?;
+    let mut syntax_trees = normalize_generic_data_with_optional_sources(
+        syntax_trees,
+        sources,
+        source_scoped_top_level_bindings,
+    )?;
     let plan_laid_records = desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,
@@ -267,14 +305,27 @@ fn evaluate_pre_resolution_with_optional_sources(
     })
 }
 
+fn normalize_generic_data_with_optional_sources(
+    syntax_trees: syntax_trees::SyntaxTrees,
+    sources: Option<Arc<source::SourceMap>>,
+    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
+) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
+    match sources {
+        Some(sources) => syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_sources_and_top_level_bindings(syntax_trees, sources, source_scoped_top_level_bindings.to_vec()),
+        None => syntax_trees_to_symbol_resolved_trees::normalize_generic_data(syntax_trees),
+    }
+}
+
 fn lower_probe_with_optional_sources(
     syntax_trees: &syntax_trees::SyntaxTrees,
     sources: Option<Arc<source::SourceMap>>,
+    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
 ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     match sources {
-        Some(sources) => syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+        Some(sources) => syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources_and_top_level_bindings(
             syntax_trees,
             sources,
+            source_scoped_top_level_bindings.to_vec(),
         ),
         None => syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(syntax_trees),
     }
@@ -329,6 +380,85 @@ mod tests {
         }
     "#;
 
+    #[test]
+    fn probe_retains_exact_loader_module_alias_binding() {
+        let mut sources = SourceMap::default();
+        let requester_text = "use selected::combat::Damage; data Main { damage: Damage; }";
+        let declaration_text = "module combat; pub data Damage { amount: u64; }";
+        let requester = sources
+            .add(PathBuf::from("root/main.omg"), requester_text.to_owned())
+            .source_id;
+        let declaration = sources
+            .add(
+                PathBuf::from("dependency/combat.omg"),
+                declaration_text.to_owned(),
+            )
+            .source_id;
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        for (source_id, text) in [(requester, requester_text), (declaration, declaration_text)] {
+            let tokens = Lexer::new(text)
+                .tokenize()
+                .expect("tokenize module alias probe");
+            tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
+                &mut syntax,
+                source_id,
+                &tokens,
+            )
+            .expect("parse module alias probe");
+        }
+        let bindings = [symbols::SourceScopedTopLevelBinding::module_import(
+            requester,
+            declaration,
+            "selected::combat::Damage",
+            1,
+        )];
+        let sources = Arc::new(sources);
+        let unbound = lower_probe_with_optional_sources(&syntax, Some(sources.clone()), &[])
+            .expect("unresolved nominal names remain for typing");
+        let root = unbound
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == "Main")
+            .expect("unbound requester");
+        let symbol_resolved_trees::data::DataMember::Field(field) =
+            &unbound.data_members(root.members)[0]
+        else {
+            panic!("unbound requester field");
+        };
+        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+            &field.type_reference
+        else {
+            panic!("unbound nominal field");
+        };
+        assert!(
+            !symbol.is_valid(),
+            "alias cannot be reconstructed without loader bindings"
+        );
+        let resolved = lower_probe_with_optional_sources(&syntax, Some(sources), &bindings)
+            .expect("resolve probe with exact alias binding");
+        let declaration = resolved
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == "Damage")
+            .expect("module data");
+        let root = resolved
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == "Main")
+            .expect("requester data");
+        let symbol_resolved_trees::data::DataMember::Field(field) =
+            &resolved.data_members(root.members)[0]
+        else {
+            panic!("requester field");
+        };
+        let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+            &field.type_reference
+        else {
+            panic!("nominal module field");
+        };
+        assert_eq!(*symbol, declaration.symbol);
+    }
+
     fn parsed_source(
         source: &str,
         package: PackageKeyIdentity,
@@ -352,7 +482,7 @@ mod tests {
         syntax: &syntax_trees::SyntaxTrees,
         sources: Arc<SourceMap>,
     ) -> typed_trees::TypedTrees {
-        let resolved = lower_probe_with_optional_sources(syntax, Some(sources))
+        let resolved = lower_probe_with_optional_sources(syntax, Some(sources), &[])
             .expect("resolve pre-evaluated syntax");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type pre-evaluated syntax")
@@ -365,7 +495,7 @@ mod tests {
             PackageKeyIdentity::from_digest([0x6a; 32]).expect("nonzero package identity");
         let (syntax, sources) = parsed_source(source, package);
 
-        let resolved = lower_probe_with_optional_sources(&syntax, Some(sources))
+        let resolved = lower_probe_with_optional_sources(&syntax, Some(sources), &[])
             .expect("package-aware probe resolution");
         let machine = resolved.machines.first().expect("selected machine");
 

@@ -16,6 +16,25 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
+    if let Some(origin) = syntax_trees
+        .type_references
+        .const_argument_origin(type_reference)
+    {
+        crate::constant::validate_normalized_const_argument(
+            syntax_trees.type_references.type_reference(type_reference),
+            origin,
+        )?;
+        if !lowerer.derived_const_argument_origins.contains(origin) {
+            lowerer.pending_const_argument_selections.push(
+            crate::lowerer::PendingConstArgumentSelection {
+                origin: origin.clone(),
+                exposure: lowerer.current_authored_expression_exposure.unwrap_or(
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                ),
+            },
+            );
+        }
+    }
     let lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
     let origin = syntax_trees
         .type_references

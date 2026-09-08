@@ -816,11 +816,15 @@ mod tests {
         let normalized_counts = units
             .into_iter()
             .map(|unit| {
-                build_time_evaluation::evaluate_pre_resolution_with_sources(unit, sources.clone())
-                    .expect("evaluate one extension unit")
-                    .into_syntax_and_pre_check()
-                    .0
-                    .root_item_count()
+                build_time_evaluation::evaluate_pre_resolution_with_sources_and_top_level_bindings(
+                    unit,
+                    sources.clone(),
+                    Vec::new(),
+                )
+                .expect("evaluate one extension unit")
+                .into_syntax_and_pre_check()
+                .0
+                .root_item_count()
             })
             .collect::<Vec<_>>();
         assert_eq!(normalized_counts, [1, 1]);
@@ -828,7 +832,7 @@ mod tests {
         let mut combined = template;
         combined.extend_from(&wrapper);
         assert_eq!(
-            syntax_trees_to_symbol_resolved_trees::normalize_generic_data(combined)
+            syntax_trees_to_symbol_resolved_trees::normalize_generic_data_with_sources_and_top_level_bindings(combined, sources, Vec::new())
                 .expect("combined normalization demonstrates the forbidden cross-unit synthesis")
                 .root_item_count(),
             3

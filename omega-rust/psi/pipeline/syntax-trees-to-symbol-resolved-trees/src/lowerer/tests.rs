@@ -12,6 +12,7 @@ use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 mod const_value_resolution;
 mod measure_resolution;
+mod module_constants;
 mod operator_contracts;
 mod selected_operand_hoisting;
 mod state_local_resolution;

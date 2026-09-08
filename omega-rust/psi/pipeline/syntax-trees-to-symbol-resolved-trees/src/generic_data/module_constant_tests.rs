@@ -22,8 +22,18 @@ fn parse_sources(root: &str, module: &str, module_first: bool) -> SyntaxTrees {
 #[test]
 fn module_constants_cannot_overwrite_or_fall_back_to_root_generic_indices() {
     for module_first in [false, true] {
-        for argument in ["SIZE", "SIZE + 0"] {
-            let root = "const SIZE: u64 = 1; data Buffer<const N: u64> { value: u64; }";
+        let root = "const SIZE: u64 = 1; data Buffer<const N: u64> { value: u64; }";
+        let module = "module combat; const SIZE: u64 = 2; data Use { value: Buffer<SIZE>; }";
+        let syntax = normalize_generic_data(parse_sources(root, module, module_first))
+            .expect("bare module constant selects its exact value");
+        assert!(syntax.root_items().any(|item| matches!(item,
+            Item::Data(definition) if definition.name.as_str() == "Buffer<2>"
+        )));
+        assert!(!syntax.root_items().any(|item| matches!(item,
+            Item::Data(definition) if definition.name.as_str() == "Buffer<1>"
+        )));
+        {
+            let argument = "SIZE + 0";
             let module = format!(
                 "module combat; const SIZE: u64 = 2; data Use {{ value: Buffer<{argument}>; }}"
             );
@@ -40,6 +50,73 @@ fn module_constants_cannot_overwrite_or_fall_back_to_root_generic_indices() {
                     .any(|error| error.message.contains("module constant `SIZE`")),
                 "{errors:?}"
             );
+        }
+    }
+}
+
+#[test]
+fn generic_binders_keep_exact_template_arguments_while_concrete_constants_fold() {
+    for module_first in [false, true] {
+        for binder in ["const SIZE: u64", "SIZE"] {
+            let root = format!(
+                "const SIZE: u64 = 1;
+                 data Buffer<const N: u64> {{ value: u64; }}
+                 data Generic<{binder}> {{ value: Buffer<SIZE>; }}
+                 data Root {{ value: Buffer<SIZE>; }}"
+            );
+            let module = "module combat; const SIZE: u64 = 2; data Use { value: Buffer<SIZE>; }";
+            let syntax = parse_sources(&root, module, module_first);
+            let template = syntax
+                .root_items()
+                .find_map(|item| match item {
+                    Item::Data(definition) if definition.name.as_str() == "Generic" => {
+                        Some(definition)
+                    }
+                    _ => None,
+                })
+                .expect("generic template");
+            let [DataMember::Field(field)] = syntax.items.data_members(template.members) else {
+                panic!("one template field");
+            };
+            let field_type = field.type_reference;
+            let original_type = syntax.type_references.type_reference(field_type).clone();
+            let TypeReferenceNode::Generic { arguments, .. } = &original_type else {
+                panic!("generic field application");
+            };
+            let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
+                panic!("one template argument");
+            };
+            let argument = *argument;
+            let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(argument)
+            else {
+                panic!("authored binder argument");
+            };
+            let original_span = name.source_span();
+
+            let syntax =
+                normalize_generic_data(syntax).expect("generic templates defer binder selection");
+
+            assert_eq!(
+                syntax.type_references.type_reference(field_type),
+                &original_type
+            );
+            let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(argument)
+            else {
+                panic!("binder remains named");
+            };
+            assert_eq!(name.as_str(), "SIZE");
+            assert_eq!(name.source_span(), original_span);
+            for expected in ["Buffer<1>", "Buffer<2>"] {
+                assert!(
+                    syntax.root_items().any(|item| matches!(item,
+                        Item::Data(definition) if definition.name.as_str() == expected
+                    )),
+                    "missing concrete {expected}"
+                );
+            }
+            assert!(!syntax.root_items().any(|item| matches!(item,
+                Item::Data(definition) if definition.name.as_str() == "Buffer<SIZE>"
+            )));
         }
     }
 }
@@ -202,13 +279,57 @@ fn qualified_module_constants_cannot_fold_through_same_spelled_type_scopes() {
         data Use { value: Buffer<combat::SIZE>; }";
     for module_first in [false, true] {
         let mut syntax = parse_sources(root, "module combat; const SIZE: u64 = 2;", module_first);
-        let errors = desugar_generic_data_instances(&mut syntax, &mut Vec::new())
-            .expect_err("a qualified module path cannot become an unrelated type-scoped constant");
+        let applications = syntax.type_references.generic_nodes();
+        let [application] = applications.as_slice() else {
+            panic!("one authored generic application");
+        };
+        let original_application = syntax.type_references.type_reference(*application).clone();
+        let TypeReferenceNode::Generic { arguments, .. } = &original_application else {
+            panic!("generic application");
+        };
+        let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
+            panic!("one constant argument");
+        };
+        let argument = *argument;
+        let original_argument = syntax.type_references.type_reference(argument).clone();
+        let TypeReferenceNode::Named(name) = &original_argument else {
+            panic!("qualified named argument");
+        };
+        let original_span = name.source_span();
+        let selection = constant_selection::ConstantSelection::new(&syntax, None, Vec::new())
+            .expect("constant headers");
+        // The shared resolver admits both complete paths as candidates. It
+        // selects neither; normalization must leave rejection to validation.
         assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("module constant `combat::SIZE`")),
-            "{errors:?}"
+            selection
+                .select(&syntax, name)
+                .expect("ambiguous selection")
+                .is_none()
         );
+
+        desugar_generic_data_instances(&mut syntax, &mut Vec::new())
+            .expect("unresolved qualified argument is preserved for validation");
+
+        assert_eq!(
+            syntax.type_references.type_reference(*application),
+            &original_application
+        );
+        assert_eq!(
+            syntax.type_references.type_reference(argument),
+            &original_argument
+        );
+        let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(argument) else {
+            panic!("qualified argument remains named");
+        };
+        assert_eq!(name.source_span(), original_span);
+        assert!(
+            syntax
+                .type_references
+                .const_argument_origin(argument)
+                .is_none()
+        );
+        assert!(!syntax.root_items().any(|item| matches!(item,
+            Item::Data(definition) if matches!(definition.name.as_str(), "Buffer<1>" | "Buffer<2>")
+        )));
     }
 }

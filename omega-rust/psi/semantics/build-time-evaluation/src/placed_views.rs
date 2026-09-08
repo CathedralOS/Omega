@@ -103,12 +103,13 @@ type Discovery = (
 pub fn desugar_placed_views(
     syntax: &mut SyntaxTrees,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
-    desugar_placed_views_with_optional_sources(syntax, None, None)
+    desugar_placed_views_with_optional_sources(syntax, None, &[], None)
 }
 
 pub(crate) fn desugar_placed_views_with_optional_sources(
     syntax: &mut SyntaxTrees,
     sources: Option<Arc<source::SourceMap>>,
+    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
     let (applications, rewrites, schemas) =
@@ -125,9 +126,17 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
 
     let mut probe = syntax.clone();
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
-    let mut probe = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(probe)?;
+    let mut probe = crate::normalize_generic_data_with_optional_sources(
+        probe,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+    )?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
-    let resolved = crate::lower_probe_with_optional_sources(&probe, sources)?;
+    let resolved = crate::lower_probe_with_optional_sources(
+        &probe,
+        sources,
+        source_scoped_top_level_bindings,
+    )?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     crate::evaluate_const_array_lengths_with_authority(&mut typed, selection_authority.clone())?;

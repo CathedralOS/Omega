@@ -30,7 +30,9 @@ mod trait_definition;
 mod type_reference;
 mod wire;
 
-pub use generic_data::normalize_generic_data;
+pub use generic_data::{
+    normalize_generic_data, normalize_generic_data_with_sources_and_top_level_bindings,
+};
 pub use lowerer::{
     RebasedSeededSymbolResolvedTrees, SeededSymbolResolvedTrees,
     lower_syntax_extension_against_resolved_base,

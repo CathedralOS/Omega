@@ -1116,6 +1116,10 @@ impl SyntaxTrees {
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
         let origin = other.type_references.generic_application_origin(handle);
+        if let Some(origin) = other.type_references.const_argument_origin(handle) {
+            self.type_references
+                .retain_const_argument_origin(copied, origin.clone());
+        }
         if origin.is_valid() {
             let application = self.copy_type_reference_handle(other, origin);
             self.type_references

@@ -14,3 +14,98 @@ mod module_namespaces;
 mod public_domains;
 #[path = "public_api/traits_and_lifetimes.rs"]
 mod traits_and_lifetimes;
+
+#[test]
+fn module_constant_index_enters_canonical_public_data_artifact() {
+    use support::*;
+
+    let project = |package: &TempPackage, combat_size: u64, argument: &str| {
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        );
+        package.write(
+            "combat.omg",
+            &format!("module combat; pub const SIZE: u64 = {combat_size};"),
+        );
+        package.write("rooms.omg", "module rooms; pub const SIZE: u64 = 9;");
+        package.write(
+            "main.omg",
+            &format!(
+                "use combat; use rooms; const SIZE: u64 = 1;
+             pub data Buffer<const N: u64> {{ value: [u8; N]; }}
+             pub data Root {{ value: Buffer<{argument}>; }}"
+            ),
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x86_64"),
+            package_inputs(&package.0),
+        )
+        .expect("public named constant application checks");
+        project_checked_package_review(&checked).expect("public constant application projects")
+    };
+    let original_package = TempPackage::new();
+    let relocated_package = TempPackage::new();
+    assert_ne!(original_package.0, relocated_package.0);
+    let original = project(&original_package, 2, "combat::SIZE");
+    let relocated = project(&relocated_package, 2, "combat::SIZE");
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        relocated.canonical_review_bytes().unwrap()
+    );
+
+    let data_rows = |review: &CheckedPackageReviewProjection| {
+        review
+            .canonical_rows()
+            .unwrap()
+            .into_iter()
+            .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
+            .collect::<Vec<_>>()
+    };
+    let original_rows = data_rows(&original);
+    let relocated_rows = data_rows(&relocated);
+    assert!(!original_rows.is_empty());
+    assert_eq!(original_rows, relocated_rows);
+    for (original_row, relocated_row) in original_rows.iter().zip(&relocated_rows) {
+        let encoded = encode_package_review_canonical_row(original_row).unwrap();
+        assert_eq!(
+            encoded,
+            encode_package_review_canonical_row(relocated_row).unwrap()
+        );
+        let decoded = decode_package_review_canonical_row(&encoded).unwrap();
+        assert_eq!(decoded.key_bytes(), original_row.key_bytes());
+        assert_eq!(decoded.canonical_bytes(), original_row.canonical_bytes());
+    }
+
+    // Compare serialized public-data payloads against literal applications;
+    // a generated display name alone cannot establish the selected index.
+    let payloads = |review: &CheckedPackageReviewProjection| {
+        data_rows(review)
+            .iter()
+            .map(|row| (row.key_bytes().to_vec(), row.canonical_bytes().to_vec()))
+            .collect::<Vec<_>>()
+    };
+    let literal_two = project(&TempPackage::new(), 2, "2");
+    assert_eq!(payloads(&original), payloads(&literal_two));
+    let changed = project(&original_package, 3, "combat::SIZE");
+    let literal_three = project(&TempPackage::new(), 3, "3");
+    assert_eq!(payloads(&changed), payloads(&literal_three));
+    assert_ne!(payloads(&original), payloads(&changed));
+    let root_shape = |review: &CheckedPackageReviewProjection| {
+        review
+            .public_data()
+            .iter()
+            .find(|shape| shape.identity().path() == "Root")
+            .cloned()
+            .expect("Root retains a canonical public data row")
+    };
+    assert_eq!(
+        root_shape(&original).identity(),
+        root_shape(&changed).identity()
+    );
+    assert_ne!(
+        root_shape(&original).members(),
+        root_shape(&changed).members()
+    );
+}

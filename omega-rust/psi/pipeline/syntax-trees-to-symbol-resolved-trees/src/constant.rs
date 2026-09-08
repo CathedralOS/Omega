@@ -645,6 +645,81 @@ fn const_selection_record_diagnostic(error: AuthoredDeclarationSelectionRecordEr
     ))
 }
 
+/// Check the rewritten payload against its captured canonical value before
+/// binding the selected declaration to a final symbol.
+pub(crate) fn validate_normalized_const_argument(
+    argument: &syntax_trees::types::TypeReferenceNode,
+    origin: &syntax_trees::types::ConstArgumentOrigin,
+) -> Result<(), Diagnostic> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    let encoded = CanonicalConstValue::new("", &origin.canonical_value_encoding, "");
+    let matches = match (argument, encoded.decode_encoding()) {
+        (
+            syntax_trees::types::TypeReferenceNode::Named(name),
+            Some(DecodedCanonicalConstValue::Integer { value, .. }),
+        ) => name.as_str() == value.to_string(),
+        (syntax_trees::types::TypeReferenceNode::Named(name), Some(decoded)) => {
+            CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
+                let carrier = match &decoded {
+                    DecodedCanonicalConstValue::Boolean(_) => "bool",
+                    DecodedCanonicalConstValue::Array { type_name, .. }
+                    | DecodedCanonicalConstValue::Record { type_name, .. }
+                    | DecodedCanonicalConstValue::Variant { type_name, .. }
+                    | DecodedCanonicalConstValue::Integer { type_name, .. } => type_name.as_str(),
+                };
+                value.encoding == origin.canonical_value_encoding
+                    && value.type_name == carrier
+                    && value.decode_encoding() == Some(decoded)
+            })
+        }
+        _ => false,
+    };
+    if matches {
+        Ok(())
+    } else {
+        Err(Diagnostic::error(
+            "normalized constant argument value drifted from its selected declaration",
+        )
+        .with_source_span(origin.reference))
+    }
+}
+
+/// Bind exact selected declaration custody after ordinary symbol allocation.
+pub(crate) fn finalize_const_argument_selections(
+    program: &mut SymbolResolvedTrees,
+    pending: &[crate::lowerer::PendingConstArgumentSelection],
+) -> Result<(), Diagnostic> {
+    for selection in pending {
+        let origin = &selection.origin;
+        let mut declarations = program.const_declarations.iter().filter(|declaration| {
+            program.symbols.symbol_source_span(declaration.symbol) == Some(origin.declaration)
+        });
+        let declaration = declarations.next().ok_or_else(|| {
+            Diagnostic::error("normalized constant argument lost its exact selected declaration")
+                .with_source_span(origin.reference)
+        })?;
+        if declarations.next().is_some()
+            || declaration.initializer_source_span != origin.initializer
+            || declaration.canonical_value_encoding.as_ref()
+                != Some(&origin.canonical_value_encoding)
+        {
+            return Err(Diagnostic::error(
+                "normalized constant argument declaration or value custody drifted before resolution",
+            ).with_source_span(origin.reference));
+        }
+        let selected = declaration.symbol;
+        program
+            .record_resolved_authored_declaration_selection(
+                origin.reference,
+                selection.exposure,
+                AuthoredDeclarationSelectionKind::StaticPathSegment,
+                selected,
+            )
+            .map_err(const_selection_record_diagnostic)?;
+    }
+    Ok(())
+}
+
 /// v0 initializers are literals all the way down. Payloadless case names are
 /// nullary structural literals. The parser already folds `-5` into a single
 /// literal, so no operator node is legitimate here.

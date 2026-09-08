@@ -22,6 +22,7 @@ use syntax_trees::types::{
 
 mod arguments;
 mod const_evaluation;
+mod constant_selection;
 mod discovery;
 mod eligibility;
 mod module_constants;
@@ -82,6 +83,29 @@ pub(crate) fn canonicalize_declared_const_definition(
 /// sibling or reaching into the elaborator as an in-place syntax mutator.
 pub fn normalize_generic_data(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let (syntax, warnings) = normalize_generic_data_with_warnings(syntax)?;
+    for warning in warnings {
+        eprintln!("{warning}");
+    }
+    Ok(syntax)
+}
+
+/// Normalize with the loader's exact source/import custody. Temporary header
+/// symbols stay private; each erased constant argument retains its selected
+/// declaration coordinates for the complete resolver's checked join.
+pub fn normalize_generic_data_with_sources_and_top_level_bindings(
+    mut syntax: SyntaxTrees,
+    sources: std::sync::Arc<source::SourceMap>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    crate::module_normalization::validate_module_normalization(&syntax)?;
+    let selection = constant_selection::ConstantSelection::new(&syntax, Some(sources), bindings)?;
+    let mut warnings = Vec::new();
+    synthesis::desugar_generic_data_instances_with_selection(
+        &mut syntax,
+        &mut warnings,
+        Some(&selection),
+    )?;
+    deduplicate_generic_warnings(&mut warnings);
     for warning in warnings {
         eprintln!("{warning}");
     }

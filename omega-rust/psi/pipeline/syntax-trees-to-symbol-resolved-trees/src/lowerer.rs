@@ -39,6 +39,12 @@ pub(crate) struct PendingConstSelection {
 }
 
 #[derive(Debug, Clone)]
+pub(crate) struct PendingConstArgumentSelection {
+    pub(crate) origin: syntax_trees::types::ConstArgumentOrigin,
+    pub(crate) exposure: AuthoredDeclarationSelectionExposure,
+}
+
+#[derive(Debug, Clone)]
 pub(crate) struct PendingOutcomeSpecificContract {
     pub(crate) contract: arena::Handle<symbol_resolved_trees::signature::SignatureContract>,
     pub(crate) result_data_name: String,
@@ -259,6 +265,8 @@ pub(crate) struct Lowerer {
     /// Const values disappear during lowering, but their declaration identity
     /// must remain available to package-selection admission.
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
+    pub(crate) pending_const_argument_selections: Vec<PendingConstArgumentSelection>,
+    pub(crate) derived_const_argument_origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
     /// Scalar initializer handles retained only until namespace-aware substitution.
     pub(crate) pending_const_values: Vec<(usize, ExpressionHandle)>,
@@ -425,6 +433,8 @@ impl Lowerer {
             defer_const_substitution: false,
             pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
+            pending_const_argument_selections: Vec::new(),
+            derived_const_argument_origins: Vec::new(),
             current_compiler_selection_partition: None,
             sources,
             source_scoped_top_level_bindings,
@@ -607,6 +617,11 @@ impl Lowerer {
         crate::constant::finalize_const_declarations(
             &mut self.symbol_resolved_trees,
             &self.pending_const_declarations,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        crate::constant::finalize_const_argument_selections(
+            &mut self.symbol_resolved_trees,
+            &self.pending_const_argument_selections,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         if self.defer_const_substitution {

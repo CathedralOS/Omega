@@ -14,6 +14,60 @@ pub(crate) fn lower_data_definition(
     syntax_trees: &SyntaxTrees,
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
+    let prior_origins = lowerer.derived_const_argument_origins.len();
+    if let Some(application) = data_definition.generic_instance {
+        retain_derived_const_argument_origins(lowerer, syntax_trees, application);
+    }
+    let result =
+        lower_data_definition_with_argument_origins(lowerer, syntax_trees, data_definition);
+    lowerer
+        .derived_const_argument_origins
+        .truncate(prior_origins);
+    result
+}
+
+/// A substituted argument does not become a new authored occurrence in the
+/// template's public fields. Exclude only exact occurrences carried by this
+/// instance's arguments; independent template references still retain exposure.
+fn retain_derived_const_argument_origins(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    application: syntax::types::TypeReferenceHandle,
+) {
+    use syntax::types::TypeReferenceNode;
+    let mut pending = vec![application];
+    let mut visited = Vec::new();
+    while let Some(handle) = pending.pop() {
+        if visited.contains(&handle) {
+            continue;
+        }
+        visited.push(handle);
+        let table = &syntax_trees.type_references;
+        if let Some(origin) = table.const_argument_origin(handle) {
+            lowerer.derived_const_argument_origins.push(origin.clone());
+        }
+        let authored = table.generic_application_origin(handle);
+        if authored.is_valid() {
+            pending.push(authored);
+        }
+        match table.type_reference(handle) {
+            TypeReferenceNode::Generic { arguments, .. } => {
+                pending.extend_from_slice(table.type_reference_handles(*arguments));
+            }
+            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            _ => {}
+        }
+    }
+}
+
+fn lower_data_definition_with_argument_origins(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    data_definition: &syntax::item::DataDefinition,
+) -> Result<DataDefinition, Diagnostic> {
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
