@@ -27,6 +27,9 @@ mod projections;
 #[path = "receiver_call_source/indexed.rs"]
 mod indexed;
 
+#[path = "receiver_call_source/aliases.rs"]
+mod aliases;
+
 fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source)
         .tokenize()

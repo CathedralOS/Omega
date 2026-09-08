@@ -28,6 +28,37 @@ pub(in crate::flow::terminal_unit) fn tail_call<'a>(
     Some((*expression, call))
 }
 
+/// A Unit-result call can occupy a statement without being the state's tail.
+/// Tail consumers retain their existing final-statement check above.
+pub(in crate::flow::terminal_unit) fn unit_statement_call<'a>(
+    program: &'a TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+) -> Option<(
+    typed_trees::expression::ExpressionHandle,
+    &'a typed_trees::expression::TableCallExpression,
+)> {
+    if let Some(call) = tail_call(program, state, statement_index) {
+        return Some(call);
+    }
+    let StatementNode::Expression(expression) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?
+    else {
+        return None;
+    };
+    if !program.expression_table.expression_is_valid(*expression) {
+        return None;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
+        return None;
+    };
+    validation::unit_statement_call_is_supported(program, machine, state, *expression)
+        .then_some((*expression, call))
+}
+
 pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
@@ -60,7 +91,8 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             .statements(state.statement_nodes)
             .get(call.statement_index)?;
         if matches!(statement, StatementNode::Expression(_)) {
-            let (expression, authored) = tail_call(program, state, call.statement_index)?;
+            let (expression, authored) =
+                unit_statement_call(program, owner, state, call.statement_index)?;
             if call.authored_expression != expression
                 || call.target_symbol != authored.target_symbol
             {
@@ -92,7 +124,8 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                     .expression_handles(authored.arguments),
             ),
             StatementNode::Expression(_) => {
-                let (_, authored) = tail_call(program, state, call.statement_index)?;
+                let (_, authored) =
+                    unit_statement_call(program, owner, state, call.statement_index)?;
                 (
                     authored.target_symbol,
                     program

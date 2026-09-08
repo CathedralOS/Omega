@@ -60,6 +60,7 @@ mod composed_control;
 pub(crate) mod control;
 mod dynamic_scalar_calls;
 mod providers;
+mod receiver_aliases;
 mod receiver_calls;
 pub(crate) mod returns;
 mod scalar_locals;

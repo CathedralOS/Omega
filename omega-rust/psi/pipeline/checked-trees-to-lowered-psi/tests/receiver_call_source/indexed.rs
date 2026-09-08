@@ -24,6 +24,20 @@ fn indexed_write_only_receiver_reaches_canonical_terminal() {
 }
 
 #[test]
+fn retained_write_only_alias_preserves_the_indexed_receiver() {
+    let checked = checked_from_source(
+        "data Record [copy] { value: u16; }
+         machine Record::replace(&write self) { self.value = 17; }
+         machine forward(records: &write [Record; 2]) {
+             let held: &write [Record; 2] = &write records;
+             held[1].replace();
+         }",
+    );
+    let _artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+        .expect("erased alias preserves the original receiver and write-only access");
+}
+
+#[test]
 fn fixed_indexed_receiver_paths_keep_fields_and_nested_arrays() {
     for (signature, receiver, caller) in [
         (
@@ -105,7 +119,24 @@ fn indexed_receiver_executes_once_across_every_fuel_boundary() {
         "forward(records: &write [[Record; 2]; 2])",
         "records[1][0]",
     ));
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "forward").unwrap();
+    assert_indexed_receiver_fuel(&checked);
+}
+
+#[test]
+fn erased_indexed_alias_executes_once_across_every_fuel_boundary() {
+    let checked = checked_from_source(
+        "data Record [copy] { value: u16; }
+         machine Record::replace(&write self) { self.value = 17; }
+         machine forward(records: &mut [[Record; 2]; 2]) {
+             let held: &write [[Record; 2]; 2] = &write records;
+             held[1][0].replace();
+         }",
+    );
+    assert_indexed_receiver_fuel(&checked);
+}
+
+fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
+    let artifact = terminal_production::produce_terminal_artifact(checked, "forward").unwrap();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     assert_eq!(

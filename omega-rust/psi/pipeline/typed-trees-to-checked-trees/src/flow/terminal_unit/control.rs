@@ -1377,8 +1377,12 @@ pub(super) fn build_checked_machine_with(
     {
         return None;
     }
-    let restored_call_alias_prefix =
-        reborrow_restored_call_alias_prefix(program, facts, machine, state, statements);
+    let borrow_alias_prefix = reborrow_restored_call_alias_prefix(
+        program, facts, machine, state, statements,
+    )
+    .or_else(|| {
+        receiver_aliases::prefix(program, facts, machine, state).map(|aliases| aliases.len())
+    });
     let local_count = if has_scalar_result_local {
         scalar_result_local_count
     } else if affine_scalar_record_local.is_some() {
@@ -1386,7 +1390,7 @@ pub(super) fn build_checked_machine_with(
     } else {
         construction.as_ref().map_or_else(
             || {
-                restored_call_alias_prefix.unwrap_or_else(|| {
+                borrow_alias_prefix.unwrap_or_else(|| {
                     statements
                         .iter()
                         .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
@@ -1427,7 +1431,11 @@ pub(super) fn build_checked_machine_with(
                         !matches!(statement, StatementNode::Call(_))
                             && local_count
                                 .checked_add(index)
-                                .and_then(|index| tail_call(program, state, index))
+                                .and_then(|index| {
+                                    call_occurrences::unit_statement_call(
+                                        program, machine, state, index,
+                                    )
+                                })
                                 .is_none()
                     }))
         {
@@ -1487,7 +1495,7 @@ pub(super) fn build_checked_machine_with(
     let local_rows = match (
         has_scalar_result_local,
         construction,
-        restored_call_alias_prefix,
+        borrow_alias_prefix,
         affine_scalar_record_local.as_ref(),
     ) {
         (true, None, None, None) => sequence_trivial_locals.unwrap_or_default(),

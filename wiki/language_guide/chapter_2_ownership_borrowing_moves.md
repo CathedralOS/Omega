@@ -200,12 +200,16 @@ storage containing no live `T` is a separate feature.
 > interleaved with record fields, from either mutable or write-only parameter
 > roots. Source replay checks the exact authored path, and Terminal verification
 > reconstructs its bounds, type, and non-transferring access. Canonical artifacts
-> execute across fuel boundaries without replaying the call or store. Literal
-> indexed Unit receiver calls use the same native borrowed-reference pointer
-> adjustment as explicit subloans; lowering, assignment, object construction,
-> and installed replay retain the exact leaf and offset without copying the
-> referent. Dynamic indexes and retained local aliases remain outside this
-> Terminal receiver producer.
+> execute across fuel boundaries without replaying the call or store. A leading
+> immutable local `let held: &write T = &write parameter;` may supply these
+> receiver calls without publishing a local carrier when its exact direct-root
+> loan, activation, weakening, and nonescaping receiver uses replay. Whole, field,
+> and literal-indexed receivers retain the original parameter root and write-only
+> access, including sequential calls. This erasure uses existing direct-subloan
+> semantics; it does not publish source-local lifetime or restoration authority.
+> Nested/escaping carriers and dynamic indexes remain outside this producer.
+> The current shared native legalization route rejects structural field stores
+> and projected structural calls; native caller-observation coverage remains open.
 > Borrowed `self` uses the reference type's usage multiplicity, just like an
 > explicit reference parameter; its access still controls reading and mutation.
 > This does not provision a native executable's entry receiver.
@@ -216,10 +220,8 @@ storage containing no live `T` is a separate feature.
 > through recursively literal fixed arrays, either directly or after the
 > eligible field prefix, when the ultimate leaf is an unrestricted non-Atomic
 > primitive. The ordered fields and `FixedIndex` suffix cross checked and
-> Terminal replay. Direct Unit calls also carry that exact path through native
-> assignment, pointer adjustment, object construction, and installed replay on
-> Linux x86-64 and AArch64; each stage reconstructs the offset from the retained
-> structural declarations. Such a call may also pass checked scalar values;
+> Terminal replay. Native projected-call realization remains subject to the
+> legalization gaps above. Such a call may also pass checked scalar values;
 > their ordinary ABI prefix does not grant or widen write authority.
 > It cannot be retained in a local alias. Dynamic and range
 > subloans remain gated, as do whole nested-array and aggregate elements,

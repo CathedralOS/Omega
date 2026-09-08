@@ -178,10 +178,23 @@ records the callee's weaker access. Shared projections preserve unrestricted
 multiplicity and cannot originate from write-only roots.
 
 Projection replay rejoins every field/index, array bound, type, and source
-application. Dynamic/range projections, retained receiver aliases, deeper shared
+application. Nonescaping immutable whole-parameter write-only alias prefixes
+erase after replaying their direct loan resource, lifetime, and receiver uses;
+the existing call subloan retains the original root, path, and attenuated access.
+This is source erasure, not portable local-lineage or restoration evidence.
+Dynamic/range projections, nested or escaping receiver aliases, deeper shared
 array paths, and general reference-bearing or constrained data need separate
 producer support. A stored pointer cannot be read merely to locate a write-only
 receiver. Dynamic write summaries remain conservatively collection-wide.
+
+Run the source-to-canonical receiver controls, including direct alias erasure,
+exact source/loan tampering, and fuel-boundary interpretation, with:
+
+```sh
+cargo nextest run -p checked-trees-to-lowered-psi --test receiver_call_source --no-fail-fast --no-tests fail
+```
+
+This does not exercise native receiver realization.
 
 Whole-root stores accept exactly typed literals and bounded fixed-integer/Boolean
 scalar sources. Ordinary or selected fixed-integer call results retain their
