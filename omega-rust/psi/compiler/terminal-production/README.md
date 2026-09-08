@@ -205,8 +205,11 @@ records the callee's weaker access. Shared projections preserve unrestricted
 multiplicity and cannot originate from write-only roots.
 
 Projection replay rejoins every field/index, array bound, type, and source
-application. Nonescaping immutable write-only alias prefixes capture whole roots
-or static field/literal-index projections. Their captured prefix precedes each
+application. Nonescaping alias prefixes with immutable bindings to mutable or
+write-only references capture whole roots or static field/literal-index
+projections. Mutable parents permit
+mutable or write-only children; write-only parents permit only write-only
+children. Their captured prefix precedes each
 receiver suffix exactly once. Erasure replays every immediate parent, exact
 formation and lifetime, and receiver use. Nested exclusive chains retain the
 existing direct-root handoff evidence: every parent's final use forms its single
@@ -229,7 +232,7 @@ cargo nextest run -p checked-trees-to-lowered-psi --test receiver_call_source --
 For four-target publication and supported-host caller-storage observations:
 
 ```sh
-cargo nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail -E 'test(nested_aliases::) | test(projected_aliases::)'
+cargo nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail -E 'test(nested_aliases::) | test(projected_aliases::) | test(mutable_aliases::)'
 ```
 
 Cross-publication is not runtime coverage on the other targets.

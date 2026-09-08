@@ -628,9 +628,9 @@ Owners include
   and stack-passed primitive roots across three calls through publication.
   Preserve exact write widths, untouched bytes, and independent receiving
   replay; frame-slot stores or copied referents are not writeback.
-  Extend Terminal receiver production beyond nonescaping static projected alias
-  chains ending at state exit to escaping carriers, early nested closure,
-  restored-parent uses, and dynamic indexes; checked
+  Extend Terminal receiver production beyond nonescaping static projected
+  mutable/write-only alias chains ending at state exit to escaping carriers,
+  early nested closure, restored-parent uses, and dynamic indexes; checked
   admission alone does not supply their portable address and lifetime evidence.
   Extend non-observing receiver admission to
   reference-bearing projections only where locating the receiver does not read

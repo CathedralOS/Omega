@@ -97,6 +97,7 @@ pub(super) fn formation(
     source_owner: SymbolHandle,
     projection: &[facts::PlaceSegment],
     parent_loan: Handle<BorrowLoanFact>,
+    access: &BorrowAccessKind,
     statement_count: usize,
 ) -> Option<(Handle<BorrowLoanFact>, usize)> {
     let parent = facts.borrow.loans.get(parent_loan);
@@ -114,12 +115,13 @@ pub(super) fn formation(
         || loan.statement_index != statement_index
         || loan.lineage != (BorrowLoanLineage::Reborrow { parent_loan })
         || loan.source_owner_symbol != source_owner
-        || loan.kind != BorrowAccessKind::WriteOnly
+        || &loan.kind != access
         || loan.root_symbol != place.root_symbol
         || facts.borrow.loan_segments(loan) != place.segments
         || !facts.borrow.loan_owner_path(loan).is_empty()
         || parent.owner_symbol != source_owner
-        || parent.kind != BorrowAccessKind::WriteOnly
+        || parent.kind.direct_reborrow_effect(access)
+            != Some(CheckedReborrowAccessEffect::ExclusiveSuspension)
         || parent.statement_index >= statement_index
         || parent.last_use_statement_index != statement_index
         || loan.last_use_statement_index <= statement_index
@@ -200,8 +202,8 @@ pub(super) fn formation(
         || child.owner_symbol != owner
         || !child.owner_path.is_empty()
         || child.captured_place != place
-        || child.access != BorrowAccessKind::WriteOnly
-        || child.parent_access != BorrowAccessKind::WriteOnly
+        || &child.access != access
+        || child.parent_access != parent.kind
         || child.access_effect != CheckedReborrowAccessEffect::ExclusiveSuspension
         || child.activation_source != activation_source
         || child.weakening_source != weakening_source
@@ -244,8 +246,8 @@ pub(super) fn formation(
         child_resource,
         parent_loan,
         parent_resource,
-        parent_access: BorrowAccessKind::WriteOnly,
-        child_access: BorrowAccessKind::WriteOnly,
+        parent_access: parent.kind.clone(),
+        child_access: access.clone(),
         access_effect: CheckedReborrowAccessEffect::ExclusiveSuspension,
         child_activation,
         parent_entry_constraint,

@@ -18,7 +18,7 @@ pub(super) struct ReceiverAlias {
 }
 
 /// This is source correspondence for direct calls, not restored-use authority.
-/// Every erased local is an exactly captured write-only loan with no escaping use.
+/// Every erased local is an exactly captured exclusive loan with no escaping use.
 pub(super) fn prefix(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -54,17 +54,25 @@ pub(super) fn prefix(
             || aliases
                 .iter()
                 .any(|alias: &ReceiverAlias| alias.owner == local.symbol)
-            || structural_access_for_type_reference(program, local.type_reference)?
-                != CheckedStructuralAccess::WriteOnlyBorrow
         {
             return None;
         }
+        let access = exclusive_access(program, local.type_reference)?;
         let ExpressionNode::Borrow(borrow) =
             program.expression_table.expression(local.initial_value)
         else {
             return None;
         };
-        if borrow.access != language_semantics::ReferenceAccess::WriteOnly {
+        if !matches!(
+            (&access, borrow.access),
+            (
+                BorrowAccessKind::Mutable,
+                language_semantics::ReferenceAccess::Mutable
+            ) | (
+                BorrowAccessKind::WriteOnly,
+                language_semantics::ReferenceAccess::WriteOnly
+            )
+        ) {
             return None;
         }
         let (place, source) =
@@ -94,6 +102,7 @@ pub(super) fn prefix(
                 source_root,
                 &source.segments,
                 parent.0,
+                &access,
                 statements.len(),
             )?;
             let mut segments = aliases[parent_position].segments.clone();
@@ -113,10 +122,8 @@ pub(super) fn prefix(
         let root = roots.next()?;
         if roots.next().is_some()
             || root.is_const
-            || !matches!(
-                structural_access_for_type_reference(program, root.type_reference)?,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-            )
+            || exclusive_access(program, root.type_reference)?.direct_reborrow_effect(&access)
+                != Some(checked_trees::CheckedReborrowAccessEffect::ExclusiveSuspension)
         {
             return None;
         }
@@ -175,7 +182,7 @@ pub(super) fn prefix(
             || loan.statement_index != statement_index
             || loan.lineage != BorrowLoanLineage::DirectRoot
             || loan.source_owner_symbol.is_valid()
-            || loan.kind != BorrowAccessKind::WriteOnly
+            || loan.kind != access
             || loan.root_symbol != captured_root
             || facts.borrow.loan_segments(loan) != source.segments
             || !facts.borrow.loan_owner_path(loan).is_empty()
@@ -196,7 +203,7 @@ pub(super) fn prefix(
             || !resource.owner_path.is_empty()
             || resource.captured_place.root_symbol != captured_root
             || resource.captured_place != source
-            || resource.access != BorrowAccessKind::WriteOnly
+            || resource.access != access
             || resource.activation_source != activation
             || resource.parent_lifetime.machine_symbol != machine.symbol
             || resource.parent_lifetime.state_symbol != state.symbol
@@ -350,6 +357,17 @@ pub(super) fn prefix(
     }
     nested::closures(facts, flow, &loans, &parents)?;
     Some(aliases)
+}
+
+fn exclusive_access(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<BorrowAccessKind> {
+    match structural_access_for_type_reference(program, reference)? {
+        CheckedStructuralAccess::MutableBorrow => Some(BorrowAccessKind::Mutable),
+        CheckedStructuralAccess::WriteOnlyBorrow => Some(BorrowAccessKind::WriteOnly),
+        _ => None,
+    }
 }
 
 // All arguments retain their existing scalar/structural planner. This walk only

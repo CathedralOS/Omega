@@ -1,5 +1,7 @@
 use super::*;
 
+mod mutable;
+
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
