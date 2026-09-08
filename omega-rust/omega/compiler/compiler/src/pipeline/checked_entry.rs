@@ -22,6 +22,7 @@ pub struct CheckedCompilation {
     boundary_dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
     source_file_count: usize,
     subsystem: u16,
+    application_intent: Option<build_evaluation::HostedApplicationIntent>,
     package_subject: Option<package_compilation::PackageCompilationSubject>,
     resolved_semantic_bindings: Vec<selected_dispatch::ResolvedAcceptedSemanticBinding>,
     base_source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
@@ -67,6 +68,7 @@ impl PartialEq for CheckedCompilation {
             && self.boundary_dispatch_source_edits == other.boundary_dispatch_source_edits
             && self.source_file_count == other.source_file_count
             && self.subsystem == other.subsystem
+            && self.application_intent == other.application_intent
             && self.package_subject == other.package_subject
             && self.resolved_semantic_bindings == other.resolved_semantic_bindings
             && self.base_source_consumption_commitment == other.base_source_consumption_commitment
@@ -142,6 +144,11 @@ impl CheckedCompilation {
     /// Exact physical/generated source count consumed by this checked run.
     pub const fn source_file_count(&self) -> usize {
         self.source_file_count
+    }
+
+    /// Authored hosted presentation intent; never inferred from a PE word.
+    pub const fn application_intent(&self) -> Option<build_evaluation::HostedApplicationIntent> {
+        self.application_intent
     }
 
     /// Exact image subsystem selected by the owning build configuration.
@@ -1242,6 +1249,7 @@ fn compile_assembled_checked_child(
     let opaque_representation_selections = build_config.opaque_representation_selections.clone();
     let x86_scalar_fma_provider = build_config.x86_scalar_fma_provider;
     let subsystem = build_config.subsystem;
+    let application_intent = build_config.application_intent;
     let optimization = super::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
         build_config.optimizations.clone(),
         optimization_report,
@@ -1468,6 +1476,7 @@ fn compile_assembled_checked_child(
             .boundary_dispatch_source_edits,
         source_file_count,
         subsystem,
+        application_intent,
         package_subject,
         resolved_semantic_bindings: selected_execution_settlement.resolved_semantic_bindings,
         base_source_consumption_commitment: package_authority_verdict
@@ -1700,5 +1709,20 @@ machine Main::main(&mut self) { self.sink.emit(7); }
             Some(target::TargetProfile::LinuxX64),
         );
         assert_ne!(linux.subsystem(), windows.subsystem());
+        assert_eq!(
+            windows.application_intent(),
+            Some(build_evaluation::HostedApplicationIntent::Gui)
+        );
+        assert_eq!(
+            linux.application_intent(),
+            Some(build_evaluation::HostedApplicationIntent::Console)
+        );
+        let mut lost_intent = windows_again;
+        lost_intent.application_intent = None;
+        assert_eq!(lost_intent.subsystem(), windows.subsystem());
+        assert_ne!(
+            lost_intent, windows,
+            "checked identity must retain application intent"
+        );
     }
 }
