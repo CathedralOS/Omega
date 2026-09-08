@@ -1,7 +1,17 @@
 # Omega
 
-A systems language built around explicit state machines, checked contracts,
-and ownership of memory and resources.
+Omega is a systems language built around explicit state machines, checked contracts,
+and ownership of memory and resources. Borrow-checked, proof-checked, high-assurance, with zero-cost abstractions.
+
+The thesis is simple: Make trust extremely explicit, and make failure impossible if that trust holds.
+
+By modeling a program as a state machine, we can answer otherwise impossible questions in other language:
+- Does a program halt?
+- Does this API access the filesystem?
+- Can this program or library crash?
+
+Omega aims to be a language you would feel safe running airplane software or an OS kernel,
+with zero compromise on speed.
 
 **Pre-Alpha.** The Rust compiler is under active development. The language
 design is ahead of its implementation; native support is still being completed.
