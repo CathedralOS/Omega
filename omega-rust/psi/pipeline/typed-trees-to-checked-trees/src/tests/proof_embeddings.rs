@@ -30,6 +30,40 @@ fn embedding_is_an_exact_builtin_without_a_machine_declaration() {
 }
 
 #[test]
+fn signed_integer_remainders_cannot_prove_unsigned_bounds() {
+    for dividend in ["value", "embed(value)"] {
+        let source = format!(
+            "machine remainder(value: i32)\nrequires value == -7\nensures {dividend} % 2 >= 0\n{{}}"
+        );
+        assert!(
+            check(&source).is_err(),
+            "false remainder contract: {source}"
+        );
+    }
+}
+
+#[test]
+fn integer_remainder_proof_bounds_preserve_the_dividend_sign() {
+    for dividend in ["value", "embed(value)"] {
+        for divisor in ["2", "-2"] {
+            for (carrier, requirement, conclusion) in [
+                ("i32", "", ">= -1"),
+                ("i32", "", "<= 1"),
+                ("i32", "requires value <= 0", "<= 0"),
+                ("i32", "requires value >= 0", ">= 0"),
+            ] {
+                let source = format!(
+                    "machine remainder(value: {carrier})\n{requirement}\nensures {dividend} % {divisor} {conclusion}\n{{}}"
+                );
+                check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+            }
+        }
+        let source = format!("machine remainder(value: u64)\nensures {dividend} % 2 >= 0\n{{}}");
+        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+    }
+}
+
+#[test]
 fn embedding_rejects_boolean_and_comparison_results() {
     for expression in ["true", "value == value", "value < value", "value != value"] {
         let source = format!("machine predicate(value: u8) ensures embed({expression}) == 0 {{}}");

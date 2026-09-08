@@ -1135,6 +1135,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/nonlinear_square_range_false_twin",
     "proofs/order_antisymmetry_false_twin",
     "proofs/remainder_range_false_twin",
+    "proofs/signed_remainder_nonnegative_false_twin",
     "proofs/bag_view_false_twin",
     "proofs/vacuity_satisfiable_premise_false_twin",
     "proofs/ih_citation_false_twin",

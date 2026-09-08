@@ -1,0 +1,8 @@
+// Int remainder keeps the dividend's sign: -7 % 2 is -1.
+machine negative_remainder(value: i32)
+requires value == -7
+ensures embed(value) % 2 >= 0
+{}
+
+data Main {}
+machine Main::main(&mut self) {}
