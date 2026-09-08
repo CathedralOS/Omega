@@ -17,6 +17,35 @@ pub(super) fn build_scalar_graph_module(
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
 ) -> Result<LoweredPsi, LoweringError> {
+    build_scalar_graph_module_in_namespace(
+        states,
+        result_type,
+        contract,
+        crash_routes,
+        identity_reshuffles,
+        partition_compositions,
+        terminal_machine,
+        identity_base,
+        machine_ids,
+        requirement_counts,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_scalar_graph_module_in_namespace(
+    states: &[LoweredScalarBranchState],
+    result_type: ScalarType,
+    contract: PreparedScalarContract,
+    crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+    terminal_machine: MachineId,
+    identity_base: u64,
+    machine_ids: &[(symbols::SymbolHandle, MachineId)],
+    requirement_counts: &[(symbols::SymbolHandle, usize)],
+    structural_parameters: &[StructuralParameterDeclaration],
+) -> Result<LoweredPsi, LoweringError> {
     let parameters = states[0]
         .parameter_types
         .iter()
@@ -1090,6 +1119,18 @@ pub(super) fn build_scalar_graph_module(
         merge_content_place_declaration(&mut structural_places, place)
             .expect("checked lowering rejects conflicting structural places");
     }
+    for parameter in structural_parameters {
+        merge_content_place_declaration(
+            &mut structural_places,
+            StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                },
+            },
+        )?;
+    }
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
@@ -1120,7 +1161,7 @@ pub(super) fn build_scalar_graph_module(
             machines: vec![TerminalMachine {
                 id: terminal_machine,
                 attachment: None,
-                structural_parameters: Vec::new(),
+                structural_parameters: structural_parameters.to_vec(),
                 ranked_scc: None,
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),

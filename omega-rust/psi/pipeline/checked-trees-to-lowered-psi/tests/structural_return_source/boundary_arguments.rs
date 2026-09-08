@@ -482,7 +482,7 @@ fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
         .expect_err("private argument slots are not authored local bindings");
     assert!(
         format!("{error:?}")
-            .contains("scalar immutable operand is outside the established namespace"),
+            .contains("scalar read differs from its authored binding or mutable place"),
         "{error:?}"
     );
 }

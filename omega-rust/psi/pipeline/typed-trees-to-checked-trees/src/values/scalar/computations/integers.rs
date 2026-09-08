@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) struct IntegerOperand {
     pub(super) value: CheckedScalarExpression,
+    value_source: ExpressionHandle,
     domain: ArithmeticDomain,
     computation: CheckedScalarComputationHandle,
 }
@@ -16,10 +17,12 @@ impl Builder<'_, '_> {
         if operand.computation.is_valid() {
             Some(operand.computation)
         } else {
-            Some(self.insert(
+            let computation = self.insert(
                 scalar_expression_type(&operand.value)?,
                 CheckedScalarComputationKind::Value(operand.value),
-            ))
+            );
+            self.plans.nodes.get_mut(computation).value_source = operand.value_source;
+            Some(computation)
         }
     }
 
@@ -40,6 +43,7 @@ impl Builder<'_, '_> {
         );
         Some(IntegerOperand {
             value: parameter(0, primitive_type),
+            value_source: ExpressionHandle::invalid(),
             domain,
             computation,
         })
@@ -61,6 +65,7 @@ impl Builder<'_, '_> {
         ) {
             return Some(IntegerOperand {
                 value,
+                value_source: expression,
                 domain,
                 computation: CheckedScalarComputationHandle::invalid(),
             });
@@ -85,6 +90,7 @@ impl Builder<'_, '_> {
                 let computation = self.expression(expression, primitive_type)?;
                 Some(IntegerOperand {
                     value: parameter(0, primitive_type),
+                    value_source: ExpressionHandle::invalid(),
                     domain,
                     computation,
                 })
@@ -164,6 +170,7 @@ impl Builder<'_, '_> {
                     // Same-carrier qualification changes later policy, not payload.
                     Some(IntegerOperand {
                         value,
+                        value_source: expression,
                         domain,
                         ..operand
                     })
@@ -186,6 +193,7 @@ impl Builder<'_, '_> {
             land_anonymous_scalar_expression(self.program, self.operators, expression, destination)
                 .map(|value| IntegerOperand {
                     value,
+                    value_source: expression,
                     domain: ArithmeticDomain::Exact,
                     computation: CheckedScalarComputationHandle::invalid(),
                 })

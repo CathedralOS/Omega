@@ -55,6 +55,8 @@ pub(crate) fn validate_computation_calls(
         let node = plans.nodes.get(handle);
         match &node.kind {
             CheckedScalarComputationKind::Value(value) => {
+                let authored_scope =
+                    operand_scopes::value(checked, authored_scope, node.value_source)?;
                 crate::scalar_source_custody::validate_storage_read_expression(
                     checked,
                     state,

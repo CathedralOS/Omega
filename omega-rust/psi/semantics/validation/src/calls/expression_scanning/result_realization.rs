@@ -148,7 +148,7 @@ fn type_reference_contains_dynamic_trait(
     }
 }
 
-/// Free scalar initializers and immutable scalar result calls in a Unit body
+/// Free scalar graph initializers and immutable scalar result calls in a Unit body
 /// retain nested operands through checked computation lowering. Other value
 /// destinations keep the realization fence until they use that evaluation path.
 pub(crate) fn report_nested_call_in_local_initializer(
@@ -433,16 +433,50 @@ fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {
         && machine.owned_data.is_empty()
         && !states.is_empty()
         && states.iter().all(|state| {
+            let parameters = program.state_parameters(state);
+            let mixed = parameters.iter().any(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            });
+            // Mixed scalar roots now retain actual primitive parameter places.
+            // Structural state forwarding remains outside this graph slice;
+            // exact computation and borrow custody are still checked downstream.
+            if mixed && states.len() != 1 {
+                return false;
+            }
             program
                 .primitive_type_reference(state.return_type)
                 .is_some()
-                && program.state_parameters(state).iter().all(|parameter| {
+                && parameters.iter().all(|parameter| {
+                    let reference = if mixed {
+                        match program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference)
+                        {
+                            typed_trees::types::TypeReferenceNode::Reference {
+                                referee, ..
+                            } => *referee,
+                            _ => parameter.type_reference,
+                        }
+                    } else {
+                        parameter.type_reference
+                    };
                     !parameter.is_self
                         && !parameter.is_const
-                        && !parameter.is_mutable
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_some()
+                        && (!parameter.is_mutable
+                            || matches!(
+                                program
+                                    .type_reference_table
+                                    .type_reference(parameter.type_reference),
+                                typed_trees::types::TypeReferenceNode::Reference { .. }
+                            ))
+                        && (!mixed
+                            || matches!(
+                                program.type_reference_table.type_reference(reference),
+                                typed_trees::types::TypeReferenceNode::Named { .. }
+                            ))
+                        && program.primitive_type_reference(reference).is_some()
                 })
         })
 }

@@ -259,6 +259,7 @@ pub(crate) fn lower_unit_structural_type_roots(
         }
         let mut selected = None;
         for roster in [
+            &checked.facts.flow.terminal_scalar_graphs.structural_types,
             &checked.facts.flow.terminal_unit_effects.structural_types,
             &checked
                 .facts

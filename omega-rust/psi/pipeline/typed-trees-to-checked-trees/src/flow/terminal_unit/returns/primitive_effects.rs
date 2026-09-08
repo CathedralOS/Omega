@@ -118,7 +118,7 @@ pub(super) fn is_primitive_reference_plan(plan: &CheckedStructuralScalarReturnMa
         })
 }
 
-pub(super) fn has_plain_primitive_borrows(
+pub(in crate::flow::terminal_unit) fn has_plain_primitive_borrows(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> bool {

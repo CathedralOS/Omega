@@ -67,6 +67,7 @@ pub struct CheckedTerminalStateDebugPlan {
 pub struct CheckedScalarGraphPlans {
     pub machines: Vec<CheckedScalarMachineGraph>,
     pub parameter_storage: arena::Arena<CheckedScalarParameterStorage>,
+    pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
 }
 
 /// One owned mutable primitive seeded from the current state's incoming value.
@@ -103,6 +104,10 @@ pub struct CheckedScalarMachineGraph {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarStateGraph {
     pub state: SymbolHandle,
+    /// Structural formals retain their complete authored parameter positions.
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Dense scalar formals retain the corresponding authored positions.
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub parameter_types: Vec<PrimitiveType>,
     pub parameter_storage: arena::HandleSpan<CheckedScalarParameterStorage>,
     pub bindings: Vec<CheckedScalarBinding>,

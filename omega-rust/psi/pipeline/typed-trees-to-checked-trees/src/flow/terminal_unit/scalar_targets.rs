@@ -2,6 +2,81 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
+/// Rejoin mixed graph signatures before ordinary Unit calls acquire borrow lanes.
+pub(super) fn registered_primitive_graph_target<'facts>(
+    program: &TypedTrees,
+    facts: &'facts CheckFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    result: PrimitiveType,
+) -> Option<&'facts checked_trees::CheckedScalarStateGraph> {
+    let mut graphs = facts
+        .flow
+        .terminal_scalar_graphs
+        .machines
+        .iter()
+        .filter(|graph| graph.machine == machine_symbol);
+    let graph = graphs.next()?;
+    let [retained] = graph.states.as_slice() else {
+        return None;
+    };
+    if graphs.next().is_some()
+        || retained.state != state_symbol
+        || retained.result_type != result
+        || retained.structural_parameters.is_empty()
+        || !retained.parameter_storage.is_empty()
+        || facts
+            .flow
+            .terminal_structural_scalar_returns
+            .for_machine(machine_symbol)
+            .is_some()
+        || facts
+            .flow
+            .terminal_boundary_scalar_returns
+            .machines
+            .iter()
+            .any(|plan| plan.machine == machine_symbol)
+    {
+        return None;
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    if state.symbol != state_symbol
+        || program.primitive_type_reference(state.return_type) != Some(result)
+    {
+        return None;
+    }
+    let (structural, scalar, shapes) = primitive_scalar_graph_signature(program, state)?;
+    if structural != retained.structural_parameters
+        || scalar != retained.scalar_parameters
+        || retained.parameter_types
+            != scalar
+                .iter()
+                .map(|parameter| parameter.primitive_type)
+                .collect::<Vec<_>>()
+        || shapes.iter().any(|shape| {
+            let mut matching = facts
+                .flow
+                .terminal_scalar_graphs
+                .structural_types
+                .iter()
+                .filter(|candidate| candidate.identity == shape.identity);
+            matching.next() != Some(shape) || matching.next().is_some()
+        })
+    {
+        return None;
+    }
+    Some(retained)
+}
+
 pub(super) fn registered_primitive_store_target<'facts>(
     program: &TypedTrees,
     facts: &'facts CheckFacts,
@@ -63,11 +138,14 @@ pub(super) fn is_available(
     else {
         return false;
     };
-    if facts
+    if let Some(graph) = facts
         .flow
         .terminal_scalar_graphs
         .for_machine(*target_machine)
-        .is_some()
+        && graph
+            .states
+            .first()
+            .is_some_and(|state| state.structural_parameters.is_empty())
     {
         return structural_arguments.is_empty() && claim_transfers.is_empty();
     }
@@ -85,6 +163,27 @@ pub(super) fn is_available(
         return false;
     };
     let (structural, scalar, claims, result_type) = if facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(*target_machine)
+        .is_some()
+    {
+        let Some(plan) = registered_primitive_graph_target(
+            program,
+            facts,
+            *target_machine,
+            *target_state,
+            result.primitive_type,
+        ) else {
+            return false;
+        };
+        (
+            &plan.structural_parameters,
+            &plan.scalar_parameters,
+            &[][..],
+            plan.result_type,
+        )
+    } else if facts
         .flow
         .terminal_structural_scalar_returns
         .machines

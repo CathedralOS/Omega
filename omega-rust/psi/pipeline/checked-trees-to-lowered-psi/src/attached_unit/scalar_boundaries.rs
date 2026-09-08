@@ -4,13 +4,23 @@ use super::*;
 
 pub(super) fn retain_catalog_roots<'checked>(
     checked: &'checked CheckedTrees,
-    callees: &[PreparedScalarCallee<'checked>],
+    callees: &[CheckedScalarCallee<'checked>],
     boundaries: &mut Vec<(&'checked CheckedBoundaryMachinePlan, String)>,
     type_roots: &mut Vec<String>,
     service_roots: &mut Vec<ServiceReachId>,
 ) -> Result<(), LoweringError> {
     for callee in callees {
-        if let PreparedScalarCallee::Structural { plan, .. } = callee {
+        if let CheckedScalarCallee::Graph(graph) = callee {
+            type_roots.extend(
+                graph
+                    .states
+                    .iter()
+                    .flat_map(|state| &state.structural_parameters)
+                    .map(|parameter| parameter.type_identity.clone()),
+            );
+            continue;
+        }
+        if let CheckedScalarCallee::Structural(plan) = callee {
             crate::structural_scalar_return::validate_scalar_callee(checked, plan)?;
             type_roots.extend(plan.attachment_type_identity.iter().cloned());
             type_roots.extend(
@@ -20,7 +30,7 @@ pub(super) fn retain_catalog_roots<'checked>(
             );
             continue;
         }
-        let PreparedScalarCallee::Boundary { plan, .. } = callee else {
+        let CheckedScalarCallee::Boundary(plan) = callee else {
             continue;
         };
         let boundary =

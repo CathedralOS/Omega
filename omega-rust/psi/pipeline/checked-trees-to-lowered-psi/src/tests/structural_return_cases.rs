@@ -142,7 +142,7 @@ fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
-            "structural scalar return is outside its checked value/control slice"
+            "scalar read differs from its authored binding or mutable place"
         ))
     ));
 }
@@ -203,24 +203,24 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
-            "structural scalar binding is not one branch-free local expression"
+            "scalar read differs from its authored binding or mutable place"
         ))
     ));
 }
 
 #[test]
 fn structural_scalar_return_supports_repeated_carried_short_circuit_local_continuations() {
-    let mut checked = structural_scalar_return_fixture(
-        "left: Acknowledgement, right: Acknowledgement",
-        "bool",
-        "let first: bool = true;
+    let prefix = "let first: bool = true;
          let second: bool = first && false;
          let third: bool = !second;
          let fourth: bool = third || false;
          let fifth: bool = !fourth;
          let sixth: bool = fifth && true;
-         let seventh: bool = !sixth;
-         seventh",
+         let seventh: bool = !sixth;";
+    let checked = structural_scalar_return_fixture(
+        "left: Acknowledgement, right: Acknowledgement",
+        "bool",
+        &format!("{prefix} seventh"),
     );
 
     let lowered = lower_machine(&checked, "Root::enter")
@@ -339,11 +339,11 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         lowered.semantic_module
     );
 
-    checked.facts.values.scalar_expressions.expressions[7].expression =
-        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-            left: Box::new(CheckedBooleanExpression::Local { position: 6 }),
-            right: Box::new(CheckedBooleanExpression::Constant(false)),
-        }));
+    let mut checked = structural_scalar_return_fixture(
+        "left: Acknowledgement, right: Acknowledgement",
+        "bool",
+        &format!("{prefix} seventh && false"),
+    );
     let lowered = lower_machine(&checked, "Root::enter")
         .expect("repeated local decisions should feed a final short-circuit return");
     let machine = &lowered.semantic_module.machines[0];

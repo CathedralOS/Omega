@@ -8,7 +8,8 @@ This is the implementation map, not another call representation.
 
 Call-bearing initializers, assignments, guards, state arguments, and returns use
 arena-backed checked computation plans, separate from proof-side pure expressions.
-Value leaves retain the source namespace; call nodes retain generational authored
+Value leaves retain the exact source occurrence and namespace, separately from
+an enclosing destination whose constant condition folded away. Call nodes retain generational authored
 expression handles, exact flow calls, and occurrence ordinals. Conditional nodes
 select a result and retain the exact conditional expression handle, separately
 from the destination root when an enclosing constant condition folds away;
@@ -132,9 +133,25 @@ rejoins mutable reads inside computation operands as well as direct arguments.
 The source-to-artifact regressions in
 [`borrowed_computation_arguments.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_computation_arguments.rs)
 reload and independently verify the artifact, then execute with one-unit fuel
-pauses. This does not yet supply scalar-result roots with structural signatures,
-borrowable primitive-local storage, or ranked cyclic publication for the guarded
-customer below.
+pauses.
+
+Single-state scalar-result graphs also accept plain primitive-reference formals
+interleaved with scalar inputs. Their authored positions, referent types, and
+access modes rejoin the retained signature before graph preparation. The shared
+call assembler allocates their real parameter places and complete callee/type
+catalog before expanding computations. Standalone roots and ordinary Unit
+consumers use the same graph body and `CallStructuralScalar`; there is no Unit
+wrapper. Existing call-free reference leaves retain their scalar-return owner.
+[`borrowed_scalar_root.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_scalar_root.rs)
+checks returned snapshots, ordered mutations, selected calls, fuel suspension,
+and source-custody rejection. Borrowable primitive-local storage in scalar roots,
+owned structural signatures, and ranked cyclic publication remain required for
+the guarded customer below.
+Empty standalone scalar contracts must also agree with the authored normal-clause
+and parameter-range roster; a missing checked row cannot erase either. Crash
+routes retain their separate publication. The source-to-artifact regressions in
+[`scalar_empty_contract_custody.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_empty_contract_custody.rs)
+exercise roots and transitive callees.
 
 ## One complete call closure
 
