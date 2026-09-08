@@ -3,9 +3,12 @@
 use super::*;
 
 pub(super) mod byte_subslice;
+mod primitive_arguments;
 mod reference_forwarding;
 mod result_arguments;
 mod service_forward;
+
+pub(crate) use primitive_arguments::primitive_computation_argument;
 
 #[cfg(test)]
 mod scalar_argument_tests;
@@ -2006,39 +2009,26 @@ pub(super) fn structural_call_arguments(
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
-        if let Some(local) = super::primitive_store::primitive_local_before(
+        if super::primitive_store::primitive_local_before(
             program,
             caller_state,
             statement_index,
             source_symbol,
-        ) {
-            let target_access =
-                structural_access_for_type_reference(program, target.type_reference)?;
-            let access = exact_structural_argument_access(
-                program,
-                facts,
-                caller_machine.symbol,
-                caller_state.symbol,
-                call,
-                &authored_place,
-                target_access,
-            )?;
-            if !place.segments.is_empty()
-                || restored_alias.is_some()
-                || target_access == CheckedStructuralAccess::Owned
-                || access != target_access
-                || base_type_identity(program, local.type_reference, &[])? != target_identity
-            {
+        )
+        .is_some()
+        {
+            if restored_alias.is_some() {
                 return None;
             }
-            output.push(CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
-                    symbol: source_symbol,
-                },
-                path: Vec::new(),
-                type_identity: target_identity,
-                access,
-            });
+            output.push(primitive_arguments::primitive_local_argument(
+                program,
+                &facts.borrow,
+                caller_machine.symbol,
+                caller_state,
+                call,
+                &authored_place,
+                target.type_reference,
+            )?);
             continue;
         }
         if let Some((local, _)) = caller_trivial_affine_locals
@@ -2503,6 +2493,26 @@ fn exact_structural_argument_access(
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
 ) -> Option<CheckedStructuralAccess> {
+    exact_structural_borrow_access(
+        program,
+        &facts.borrow,
+        machine,
+        state,
+        call,
+        place,
+        target_access,
+    )
+}
+
+fn exact_structural_borrow_access(
+    program: &TypedTrees,
+    borrow: &checked_trees::BorrowFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    place: &crate::flow::CanonicalPlace,
+    target_access: CheckedStructuralAccess,
+) -> Option<CheckedStructuralAccess> {
     if target_access == CheckedStructuralAccess::Owned {
         return Some(CheckedStructuralAccess::Owned);
     }
@@ -2511,14 +2521,12 @@ fn exact_structural_argument_access(
     // place in the borrow spelling before matching, under the same self test
     // `canonical_place_type_reference` applies to types.
     let (root_symbol, segments) = borrow_access_spelling(program, machine, state, place)?;
-    let borrow_state = facts
-        .borrow
+    let borrow_state = borrow
         .states
         .iter()
         .map(|(_, state)| state)
         .find(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state)?;
-    let matching_calls = facts
-        .borrow
+    let matching_calls = borrow
         .calls
         .span_or_empty(borrow_state.calls)
         .iter()
@@ -2531,13 +2539,12 @@ fn exact_structural_argument_access(
     let [borrow_call] = matching_calls.as_slice() else {
         return None;
     };
-    let kinds = facts
-        .borrow
+    let kinds = borrow
         .argument_accesses
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| {
-            access.root_symbol == root_symbol && facts.borrow.access_segments(access) == segments
+            access.root_symbol == root_symbol && borrow.access_segments(access) == segments
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();
@@ -2550,7 +2557,7 @@ fn exact_structural_argument_access(
         && segments.is_empty()
         && reference_forwarding::preserves_mutable_referent(
             program,
-            facts,
+            borrow,
             borrow_state,
             borrow_call,
             call,

@@ -1,6 +1,7 @@
 //! Executable scalar evaluation, separate from pure proposition expressions.
 
 use super::*;
+use crate::CheckedUnitStructuralArgumentPlan;
 use typed_trees::types::PrimitiveType;
 
 pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
@@ -10,6 +11,7 @@ pub struct CheckedScalarComputationPlans {
     pub roots: Arena<CheckedScalarComputationRoot>,
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
+    pub structural_arguments: Arena<CheckedUnitStructuralArgumentPlan>,
 }
 
 impl CheckedScalarComputationPlans {
@@ -79,7 +81,10 @@ pub enum CheckedScalarComputationKind {
         target_state: SymbolHandle,
         /// Authored occurrence identity, not its position in execution order.
         call_ordinal: u32,
+        /// Dense scalar operands. The exact callee signature interleaves these
+        /// with structural arguments in authored formal-position order.
         arguments: HandleSpan<CheckedScalarComputationHandle>,
+        structural_arguments: HandleSpan<CheckedUnitStructuralArgumentPlan>,
     },
     Select {
         condition: CheckedScalarComputationHandle,

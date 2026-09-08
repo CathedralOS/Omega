@@ -259,6 +259,7 @@ fn scalar_computations_refuse_missing_or_duplicate_guard_call_custody() {
             &checked.typed,
             &checked.facts.operators,
             &flow,
+            &checked.facts.borrow,
             &checked.facts.proof,
             &checked.facts.values.scalar_expressions,
             &[],

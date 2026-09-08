@@ -12,6 +12,7 @@ mod parameters;
 mod storage_reads;
 pub(crate) use computation_calls::validate_computation_calls;
 pub(super) use parameters::parameter_storage;
+pub(crate) use storage_reads::validate_expression as validate_storage_read_expression;
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
     matches!(

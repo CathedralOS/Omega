@@ -1,8 +1,8 @@
 //! Independently rejoin a primitive local borrow to its exact checked occurrence.
 
 use checked_trees::{
-    BorrowAccessKind, CheckedStructuralAccess, CheckedTrees, CheckedUnitCallCoordinate,
-    CheckedUnitEffectMachinePlan,
+    BorrowAccessKind, BorrowCallFact, CheckedStructuralAccess, CheckedTrees,
+    CheckedUnitCallCoordinate, CheckedUnitEffectMachinePlan,
 };
 use symbols::SymbolHandle;
 
@@ -26,58 +26,125 @@ pub(super) fn validate(
             ));
         }
     };
-    let mut states = checked
-        .facts
-        .borrow
+    let call = call(checked, plan.machine, plan.state, coordinate, source_target)?;
+    validate_argument(checked, call, symbol, expected_kind)?;
+    Ok(())
+}
+
+pub(crate) fn call(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
+    target: SymbolHandle,
+) -> Result<&BorrowCallFact, LoweringError> {
+    let borrow = &checked.facts.borrow;
+    let mut states = borrow
         .states
         .iter()
         .map(|(_, state)| state)
-        .filter(|state| state.machine_symbol == plan.machine && state.state_symbol == plan.state);
+        .filter(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state);
     let state = states.next().ok_or(LoweringError::Unsupported(
-        "primitive local borrow lost its state custody",
+        "primitive borrow lost its state custody",
     ))?;
     if states.next().is_some() {
         return Err(LoweringError::Unsupported(
-            "primitive local borrow state custody is duplicated",
+            "primitive borrow state custody is duplicated",
         ));
     }
-    let mut calls = checked
-        .facts
-        .borrow
+    let mut calls = borrow
         .calls
-        .span_or_empty(state.calls)
+        .span(state.calls)
+        .ok_or(LoweringError::Unsupported(
+            "primitive borrow has a stale call span",
+        ))?
         .iter()
         .filter(|call| {
             call.statement_index == coordinate.statement_index as usize
                 && call.call_ordinal == coordinate.call_ordinal as usize
         });
     let call = calls.next().ok_or(LoweringError::Unsupported(
-        "primitive local borrow lost its exact call",
+        "primitive borrow lost its exact call",
     ))?;
-    if calls.next().is_some() || call.target_symbol != source_target {
+    if calls.next().is_some() || call.target_symbol != target {
         return Err(LoweringError::Unsupported(
-            "primitive local borrow call custody is duplicated or substituted",
+            "primitive borrow call custody is duplicated or substituted",
         ));
     }
-    // Select by root before validating the path and access: filtering by those
-    // expectations first could conceal a conflicting row for the same referent.
-    let mut accesses = checked
-        .facts
-        .borrow
+    Ok(call)
+}
+
+/// Returns the exact access-row position, so mixed callers can retain order.
+pub(crate) fn validate_argument(
+    checked: &CheckedTrees,
+    call: &BorrowCallFact,
+    symbol: SymbolHandle,
+    expected_kind: BorrowAccessKind,
+) -> Result<usize, LoweringError> {
+    let borrow = &checked.facts.borrow;
+    // Select the root before checking path/access; otherwise a conflicting
+    // row could disappear behind the expected path or permission filter.
+    let mut accesses = borrow
         .argument_accesses
-        .span_or_empty(call.accesses)
+        .span(call.accesses)
+        .ok_or(LoweringError::Unsupported(
+            "primitive borrow has a stale access span",
+        ))?
         .iter()
-        .filter(|argument| argument.root_symbol == symbol);
-    let argument = accesses.next().ok_or(LoweringError::Unsupported(
-        "primitive local borrow lost its exact referent",
+        .enumerate()
+        .filter(|(_, argument)| argument.root_symbol == symbol);
+    let (position, argument) = accesses.next().ok_or(LoweringError::Unsupported(
+        "primitive borrow lost its exact referent",
     ))?;
-    if accesses.next().is_some()
+    if !symbol.is_valid()
+        || accesses.next().is_some()
         || !argument.segments.is_empty()
-        || !checked.facts.borrow.access_segments(argument).is_empty()
+        || borrow
+            .access_segments
+            .span(argument.segments)
+            .is_none_or(|path| !path.is_empty())
         || argument.kind != expected_kind
     {
         return Err(LoweringError::Unsupported(
-            "primitive local borrow substituted its access or path",
+            "primitive borrow substituted its access or path",
+        ));
+    }
+    Ok(position)
+}
+
+/// Matches a shared occurrence after its caller has replayed the full ordered
+/// access roster, including scalar observations between structural operands.
+pub(crate) fn validate_shared_argument_at(
+    checked: &CheckedTrees,
+    call: &BorrowCallFact,
+    position: usize,
+    symbol: SymbolHandle,
+) -> Result<(), LoweringError> {
+    let borrow = &checked.facts.borrow;
+    let accesses =
+        borrow
+            .argument_accesses
+            .span(call.accesses)
+            .ok_or(LoweringError::Unsupported(
+                "shared primitive borrow has a stale access span",
+            ))?;
+    let argument = accesses.get(position).ok_or(LoweringError::Unsupported(
+        "shared primitive borrow lost its argument occurrence",
+    ))?;
+    if !symbol.is_valid()
+        || argument.root_symbol != symbol
+        || argument.kind != BorrowAccessKind::Read
+        || !argument.segments.is_empty()
+        || borrow
+            .access_segments
+            .span(argument.segments)
+            .is_none_or(|path| !path.is_empty())
+        || accesses
+            .iter()
+            .any(|candidate| candidate.root_symbol == symbol && candidate.kind.is_exclusive())
+    {
+        return Err(LoweringError::Unsupported(
+            "shared primitive borrow substituted its occurrence or access",
         ));
     }
     Ok(())

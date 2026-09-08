@@ -460,6 +460,7 @@ struct LoweredDirectCallBinding {
     target_machine: symbols::SymbolHandle,
     result_type: ScalarType,
     arguments: Vec<LoweredDirectExpression>,
+    structural_arguments: Vec<StructuralArgument>,
     crash_continuations: Vec<checked_trees::CrashRouteBucket>,
     parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }

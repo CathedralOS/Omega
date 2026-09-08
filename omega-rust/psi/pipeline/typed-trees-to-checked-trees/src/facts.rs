@@ -116,6 +116,7 @@ pub(crate) fn build_check_facts(
         program,
         &operators,
         &flow,
+        &borrow,
         &proof,
         &values.scalar_expressions,
         &validation_facts.exact_integer_casts,

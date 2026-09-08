@@ -16,6 +16,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
+    borrow: &checked_trees::BorrowFacts,
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -59,6 +60,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     program,
                     operators,
                     flow,
+                    borrow,
                     exact_integer_casts,
                     machine: machine.symbol,
                     state: state.symbol,
@@ -392,6 +394,7 @@ struct Builder<'program, 'plans> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
     flow: &'program FlowFacts,
+    borrow: &'program checked_trees::BorrowFacts,
     exact_integer_casts: &'program [validation::ExactIntegerCastFact],
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -516,6 +519,10 @@ impl Builder<'_, '_> {
                     parameter.is_self
                         || parameter.is_const
                         || (parameter.is_mutable
+                            && self
+                                .program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
                             && crate::values::mutable_scalar_parameter_type(
                                 self.program,
                                 parameter,
@@ -534,15 +541,34 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 let mut computed_arguments = Vec::with_capacity(arguments.len());
+                let mut structural_arguments = Vec::new();
                 for (argument, parameter) in arguments.iter().zip(target_parameters) {
-                    let primitive_type = self
+                    if let Some(primitive_type) = self
                         .program
-                        .primitive_type_reference(parameter.type_reference)?;
-                    let root = self.expression(*argument, primitive_type)?;
-                    self.plans.nodes.get_mut(root).authored_root = *argument;
-                    computed_arguments.push(root);
+                        .primitive_type_reference(parameter.type_reference)
+                    {
+                        let root = self.expression(*argument, primitive_type)?;
+                        self.plans.nodes.get_mut(root).authored_root = *argument;
+                        computed_arguments.push(root);
+                    } else {
+                        let state =
+                            crate::find_state_in_machine(self.program, self.machine, self.state)?;
+                        structural_arguments.push(crate::flow::primitive_computation_argument(
+                            self.program,
+                            self.borrow,
+                            self.machine,
+                            state,
+                            self.flow.control.calls.get(source_call),
+                            *argument,
+                            parameter,
+                        )?);
+                    }
                 }
                 let arguments = self.plans.operands.insert_many(computed_arguments);
+                let structural_arguments = self
+                    .plans
+                    .structural_arguments
+                    .insert_many(structural_arguments);
                 Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Call {
@@ -551,6 +577,7 @@ impl Builder<'_, '_> {
                         source_call,
                         call_ordinal,
                         arguments,
+                        structural_arguments,
                     },
                 ))
             }

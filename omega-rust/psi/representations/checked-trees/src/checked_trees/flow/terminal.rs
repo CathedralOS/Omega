@@ -1250,6 +1250,19 @@ pub struct CheckedUnitStructuralArgumentPlan {
     pub access: CheckedStructuralAccess,
 }
 
+impl Default for CheckedUnitStructuralArgumentPlan {
+    fn default() -> Self {
+        Self {
+            source: CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                symbol: SymbolHandle::invalid(),
+            },
+            path: Vec::new(),
+            type_identity: String::new(),
+            access: CheckedStructuralAccess::Owned,
+        }
+    }
+}
+
 impl CheckedUnitStructuralArgumentPlan {
     pub fn source_parameter_index(&self) -> Option<u32> {
         match self.source {

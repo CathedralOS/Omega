@@ -607,6 +607,7 @@ fn lower_checked_direct_call_binding(
         result_type,
         caller_value_types,
         arguments,
+        Vec::new(),
         ScalarCallCrashScope::CallerValues,
     )
 }
@@ -623,10 +624,25 @@ pub(super) fn lower_scalar_call(
     result_type: ScalarType,
     caller_value_types: &[ScalarType],
     arguments: Vec<LoweredDirectExpression>,
+    structural_arguments: Vec<StructuralArgument>,
     crash_scope: ScalarCallCrashScope,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
-    let target =
-        crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, target_machine)?;
+    let target = if structural_arguments.is_empty() {
+        crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, target_machine)?
+    } else {
+        crate::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+            checked,
+            target_machine,
+        )?
+    };
+    if target.structural_parameters().len() != structural_arguments.len()
+        || !target.entry_claims().is_empty()
+        || structural_arguments
+            .iter()
+            .any(|argument| !argument.path.is_empty() || argument.access == StructuralAccess::Owned)
+    {
+        return unsupported("computed scalar call requires exact whole primitive borrow custody");
+    }
     let target_parameter_types = target.parameter_types()?;
     if target.entry_state()? != target_state {
         return unsupported("direct scalar call must target the callee entry state");
@@ -700,6 +716,7 @@ pub(super) fn lower_scalar_call(
         target_machine,
         result_type,
         arguments,
+        structural_arguments,
         crash_continuations: crash_continuations.to_vec(),
         parameter_relative_crash_routes: target_contract.crash.published().to_vec(),
     })

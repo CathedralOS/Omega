@@ -73,6 +73,7 @@ mod state_graph;
 mod structural_scalar_store;
 pub(super) mod types;
 
+pub(crate) use calls::primitive_computation_argument;
 use calls::*;
 use cleanup::*;
 use composed_control::*;

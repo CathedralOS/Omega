@@ -10,7 +10,6 @@ pub(super) fn validate(
     binding: &checked_trees::CheckedScalarExpressionBindings,
     source: &SourceRoot,
 ) -> Result<(), LoweringError> {
-    let (_, state) = authored_state(checked, binding.state)?;
     let (_, retained) = checked
         .facts
         .values
@@ -19,12 +18,31 @@ pub(super) fn validate(
         .ok_or(LoweringError::Unsupported(
             "storage read has no exact scalar expression",
         ))?;
+    validate_expression(
+        checked,
+        binding.state,
+        binding.statement_ordinal,
+        source.expression,
+        retained,
+    )
+}
+
+/// Rejoin mutable observations in a pure expression to its exact source scope.
+/// Computation operands use this same check without inventing a pure-plan row.
+pub(crate) fn validate_expression(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    expression: ExpressionHandle,
+    retained: &CheckedScalarExpression,
+) -> Result<(), LoweringError> {
+    let (_, state) = authored_state(checked, state)?;
     let mut authored_reads = Vec::new();
     collect_authored_storage_reads(
         checked,
         state,
-        binding.statement_ordinal,
-        source.expression,
+        statement,
+        expression,
         &mut Vec::new(),
         &mut Vec::new(),
         &mut authored_reads,

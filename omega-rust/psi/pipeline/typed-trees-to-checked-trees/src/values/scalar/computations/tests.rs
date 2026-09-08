@@ -1,6 +1,7 @@
 use super::*;
 
 mod assignments;
+mod borrowed_arguments;
 mod guards;
 
 #[test]
@@ -441,6 +442,7 @@ fn scalar_computations_refuse_missing_or_duplicate_return_call_custody() {
             &checked.typed,
             &checked.facts.operators,
             &flow,
+            &checked.facts.borrow,
             &checked.facts.proof,
             &checked.facts.values.scalar_expressions,
             &[],

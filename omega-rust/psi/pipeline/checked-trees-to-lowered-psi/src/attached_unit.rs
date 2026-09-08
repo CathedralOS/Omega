@@ -334,8 +334,17 @@ fn assemble_unit_closure(
     let mut selected_scalar_roots = Vec::new();
     let mut structural_scalar_roots = Vec::new();
     for machine_symbol in &closure {
+        let computed_structural_roots =
+            crate::scalar_computations::structural_call_targets(checked, *machine_symbol)?;
         for target in crate::scalar_computations::call_targets(checked, *machine_symbol)? {
-            CheckedScalarCallee::find(checked, target)?;
+            if computed_structural_roots.contains(&target) {
+                CheckedScalarCallee::find_for_unit_call(checked, target)?;
+                if !structural_scalar_roots.contains(&target) {
+                    structural_scalar_roots.push(target);
+                }
+            } else {
+                CheckedScalarCallee::find(checked, target)?;
+            }
             if !ordinary_scalar_roots.contains(&target) {
                 ordinary_scalar_roots.push(target);
             }

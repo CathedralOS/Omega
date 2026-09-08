@@ -902,9 +902,10 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  extend the ordinary borrowed primitive-store call route to checked computation
-  operands and its shared Terminal closure, reusing ordinary Unit primitive
-  local establishment and storage reads. Realize their native storage and
+  extend scalar-result roots to structural signatures and borrowable primitive
+  local storage, then publish cyclic scalar control with exact structural
+  forwarding and natural-descent evidence. Reuse the computed borrowed-call
+  closure supported in ordinary Unit operands. Realize native storage and
   borrowed-call observations without substituting snapshots. Preserve the authored
   guard and structural payload; the linked command still rejects the rank range
   on macOS with primitive-local checkpoint `80ebfee112` because of the generated hop.

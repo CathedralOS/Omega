@@ -571,11 +571,22 @@ fn emit_direct_call_operation(
             id: result,
             scalar_type: call.result_type,
         }),
-        kind: OperationKind::Call {
-            callee,
-            arguments: arguments.iter().map(|argument| argument.id).collect(),
-            requirement_obligations,
-            crash_continuations,
+        kind: if call.structural_arguments.is_empty() {
+            OperationKind::Call {
+                callee,
+                arguments: arguments.iter().map(|argument| argument.id).collect(),
+                requirement_obligations,
+                crash_continuations,
+            }
+        } else {
+            OperationKind::CallStructuralScalar {
+                callee,
+                arguments: arguments.iter().map(|argument| argument.id).collect(),
+                structural_arguments: call.structural_arguments.clone(),
+                claim_transfers: Vec::new(),
+                requirement_obligations,
+                crash_continuations,
+            }
         },
     });
     Ok(result)

@@ -26,6 +26,7 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
     }
     let embedded_roots = closure.clone();
     let mut computation_targets = Vec::new();
+    let mut structural_members = structural_roots.to_vec();
     let mut attached_members = Vec::new();
     let mut next = 0_usize;
     while let Some(machine) = closure.get(next).copied() {
@@ -54,7 +55,7 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
         if selection.signature == CheckedTerminalSignatureEligibility::Attached {
             attached_members.push(machine);
         }
-        let callee = if structural_roots.contains(&machine) {
+        let callee = if structural_members.contains(&machine) {
             crate::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
                 checked, machine,
             )?
@@ -77,15 +78,32 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
             crate::scalar_call_closure::callee::CheckedScalarCallee::Structural(_) => Vec::new(),
         };
         let computed = source_checked_computation_targets(checked, machine)?;
+        let computed_structural =
+            crate::scalar_computations::structural_call_targets(checked, machine)?;
         for target in &computed {
             if !computation_targets.contains(target) {
                 computation_targets.push(*target);
             }
         }
-        for target in direct_targets.into_iter().chain(computed) {
-            // An independently authorized direct structural root must not make
-            // another caller's scalar-only computation edge discard custody.
+        for target in direct_targets {
             crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, target)?;
+            if !closure.contains(&target) {
+                closure.push(target);
+            }
+        }
+        for target in computed {
+            // Root validation above rejoins each mixed signature independently;
+            // another call reaching this target does not grant its borrow rows.
+            if computed_structural.contains(&target) {
+                crate::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+                    checked, target,
+                )?;
+                if !structural_members.contains(&target) {
+                    structural_members.push(target);
+                }
+            } else {
+                crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, target)?;
+            }
             if !closure.contains(&target) {
                 closure.push(target);
             }
