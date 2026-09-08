@@ -111,17 +111,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Work from the unchanged `print_squares` [outer command](samples/cli/basics/print_squares/README.md).
   Resume its native compiler-library probe with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  At `ae6f46edcd` on macOS arm64, this exits 100 before
+  At `a8908f279b` on macOS arm64, this exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
   Complete Main's checked transitive Unit closure without replacing its authored
-  graph. Source inspection identifies remaining scalar-call RHS assignment in
-  `digit_write`, projected `self.out` call arguments, and the raw fixed `pause`
-  array passed to `read_line`; the probe still reports only the missing Main plan,
+  graph. Source inspection identifies remaining projected `self.out` call
+  arguments and the raw fixed `pause` array passed to `read_line`; the probe
+  still reports only the missing Main plan,
   not an individually diagnosed ordering of these gaps. The source owners are
   `typed-trees-to-checked-trees/src/flow/terminal_unit/state_graph.rs` and
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-  with ordered field-store admission in `terminal_unit/structural_scalar_store.rs`.
+  with byte-field argument selection in `terminal_unit/calls.rs`.
   Retain the source live-prefix judgments in
   `typed-trees-to-checked-trees/src/checks/ranges/assignment_lengths.rs`;
   capacity must not substitute for live length in the portable plan.
@@ -139,6 +139,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   and native execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
   runtime-indexed byte stores; do not synthesize separate one-state machines.
+
+  Further helper-by-helper expansion for `print_squares` is paused under
+  [scope checkpoints](AGENTS.md#scope-checkpoints): two dependency milestones
+  left the customer probe at the same missing Main plan. The accumulated change
+  reuses private argument-evaluation blocks and computation handles without a
+  new Terminal format, but does not establish whole-customer feasibility.
+  Before another implementation slice, reassess the complete source-closure and
+  native dependencies above against a customer-level acceptance boundary.
+  This is a strategy pause, not a language-design blocker; independent board
+  work remains actionable.
   Main's unranked cycles do not need an invented termination witness.
   Acceptance remains native execution with the documented exit/output and
   unchanged checked text facts; the console dependencies below are also required.
