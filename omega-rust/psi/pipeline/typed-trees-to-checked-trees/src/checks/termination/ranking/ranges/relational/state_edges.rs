@@ -106,8 +106,8 @@ pub(super) fn prove<'program>(
 }
 
 /// Identity transfers anchor the first closure. Computations can then establish
-/// remaining telescopes from one dependency or one current representative of
-/// the already-authored scalar rank subject, without selecting a new witness.
+/// remaining telescopes from one dependency or the already-authored scalar rank
+/// subject, including its copies, without selecting a new witness.
 /// Each state enters the worklist once per tier. Every eligible incoming edge
 /// checks its proposal, including edges to already-processed destinations, so
 /// provisional discovery order cannot resolve conflicting correspondences.
@@ -217,21 +217,24 @@ fn argument_mapping(
     for argument in arguments {
         subjects.clear();
         argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
-        let mut selected_position = None;
+        let mut selected_entry = None;
         for subject in &subjects {
             let source_position = source_parameters.iter().position(|parameter| {
                 parameter.symbol == *subject && !parameter.is_mutable && !parameter.is_const
             })?;
-            if subjects.len() == 1 || source_mapping[source_position] == scalar_subject {
-                // Count current representatives, not just root ancestry. Two
-                // copies may have diverged and cannot choose each other's role.
-                if selected_position.replace(source_position).is_some() {
+            let entry_symbol = source_mapping[source_position];
+            if subjects.len() == 1 || entry_symbol == scalar_subject {
+                // Discover the authored role, not equality of current values.
+                // The edge judgment independently establishes equality of all
+                // required rank copies on every arrival before using it as an
+                // invariant. Diverging copies still fail that judgment.
+                if selected_entry.is_some_and(|selected| selected != entry_symbol) {
                     return None;
                 }
+                selected_entry = Some(entry_symbol);
             }
         }
-        let entry_symbol = source_mapping[selected_position?];
-        parameters.push(entry_symbol);
+        parameters.push(selected_entry?);
     }
     Some(parameters)
 }

@@ -711,6 +711,37 @@ fn prepared_build_program_specializes_static_machine_helpers() {
 }
 
 #[test]
+fn admission_rejects_explicit_self_loops_before_interpretation() {
+    for witness in ["", "terminates by remaining in 0..=5;"] {
+        let program = typed(&format!(
+            "machine spin(remaining: u32 [0..=5]) {witness}
+             -> u32 {{ transition {{ _ -> self }} }}
+             machine length() -> u32 {{ spin(3) }}"
+        ));
+        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+        for (name, path) in [("spin", "spin"), ("length", "length -> spin")] {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .expect("declared admission entry");
+            // Analyze admission only: a regression must never run this loop.
+            let error = admission
+                .require_common_floor(&program, machine)
+                .expect_err("an implicit self loop has no checked termination guarantee");
+            assert!(
+                error.contains("has no ordinary checked `Terminates` guarantee"),
+                "{error}"
+            );
+            assert!(
+                error.contains(&format!("machine call path `{path}`")),
+                "{error}"
+            );
+        }
+    }
+}
+
+#[test]
 fn admission_rejects_a_transitive_progress_premise_before_interpretation() {
     let typed = typed(
         r#"

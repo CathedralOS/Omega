@@ -45,6 +45,9 @@ pub(super) struct GuardedEdge<'program> {
     pub(super) statement_ordinal: usize,
     pub(super) is_continuation: bool,
     pub(super) guards: Vec<GuardFact>,
+    /// Authored actual expressions. SelfTarget has none: its implicit current
+    /// values need separate proof support, not manufactured name expressions.
+    /// Argument-based ranking queries must reject missing required inputs.
     pub(super) arguments: &'program [ExpressionHandle],
 }
 
@@ -81,15 +84,18 @@ pub(super) fn edges_to_state<'program>(
             if !target_handle.is_valid() {
                 continue;
             }
-            let TransitionTargetNode::Named {
-                path, arguments, ..
-            } = program.statement_table.transition_target(target_handle)
-            else {
-                continue;
+            let arguments = match program.statement_table.transition_target(target_handle) {
+                TransitionTargetNode::Named {
+                    path, arguments, ..
+                } if target_symbol_matches_state_symbol(program, target_symbol, path.symbol) => {
+                    program.statement_table.expression_handles(*arguments)
+                }
+                // Keep the occurrence and its exact guard even though the
+                // arithmetic readers cannot yet substitute implicit actuals.
+                // Omitting it would let another descending edge hide a loop.
+                TransitionTargetNode::SelfTarget if target_symbol == source.symbol => &[],
+                _ => continue,
             };
-            if !target_symbol_matches_state_symbol(program, target_symbol, path.symbol) {
-                continue;
-            }
             let mut guards = previous.clone();
             if let Some(expression) = guard {
                 guards.push(GuardFact {
@@ -101,7 +107,7 @@ pub(super) fn edges_to_state<'program>(
                 statement_ordinal,
                 is_continuation,
                 guards,
-                arguments: program.statement_table.expression_handles(*arguments),
+                arguments,
             });
         }
         if let Some(expression) = guard
