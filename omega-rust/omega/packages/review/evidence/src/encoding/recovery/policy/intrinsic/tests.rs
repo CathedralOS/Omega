@@ -24,7 +24,7 @@ fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin() {
     use PackageReviewCompilerIntrinsicExecution as Execution;
     let mut values = vec![
         Execution::LinuxExitGroupI32,
-        Execution::LinuxWriteByteI32,
+        Execution::HostedWriteByteI32,
         Execution::LinuxReadByte,
     ];
     values.extend(

@@ -34,7 +34,7 @@ pub(super) fn encode_boundary_settlement(
             bytes.push(0);
             settlement
         }
-        selected_instructions::SelectedBoundarySettlementPayload::LinuxWriteByteI32 {
+        selected_instructions::SelectedBoundarySettlementPayload::HostedWriteByteI32 {
             operation,
             boundary,
             source,
@@ -75,7 +75,7 @@ pub(super) fn decode_boundary_settlement(
         0 => {}
         1 => {
             return Ok(
-                selected_instructions::SelectedBoundarySettlementPayload::LinuxWriteByteI32 {
+                selected_instructions::SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                     operation: decode_id(cursor, semantic_vocabulary::OperationId::new)?,
                     boundary: decode_id(cursor, BoundaryMachineId::new)?,
                     source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,

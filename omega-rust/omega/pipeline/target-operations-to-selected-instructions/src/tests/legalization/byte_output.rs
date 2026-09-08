@@ -14,6 +14,33 @@ use target_operations::{
     TargetUnitOperation,
 };
 
+#[test]
+fn hosted_byte_output_replay_rejects_substituted_native_targets() {
+    let (source, target, unit) = fixture(NativeTarget::macos_arm64());
+    for native in [
+        NativeTarget::windows_x64(),
+        NativeTarget {
+            architecture: target::Architecture::X86_64,
+            ..NativeTarget::macos_arm64()
+        },
+        NativeTarget {
+            pointer_size: 4,
+            ..NativeTarget::macos_arm64()
+        },
+        NativeTarget {
+            pointer_alignment: 4,
+            ..NativeTarget::linux_arm64()
+        },
+    ] {
+        let mut changed = target.clone();
+        changed.target = native;
+        assert!(
+            legalize_target_operations(&changed, &source, &unit).is_err(),
+            "target substitution {native:?}"
+        );
+    }
+}
+
 pub(super) fn fixture(
     native: NativeTarget,
 ) -> (
@@ -54,8 +81,8 @@ pub(super) fn fixture(
     );
     let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
         &source, native, &[AdmittedBoundarySettlement { boundary,
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32),
-            realization: target_operations::LinuxWriteByteI32Realization.into(),
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
+            realization: target_operations::HostedWriteByteI32Realization.into(),
         }]).unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
         &source,
@@ -67,7 +94,11 @@ pub(super) fn fixture(
 
 #[test]
 fn byte_output_replays_exact_builtin_argument_and_occurrence() {
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (source, target, unit) = fixture(native);
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         for mutation in 0..4 {
@@ -76,14 +107,14 @@ fn byte_output_replays_exact_builtin_argument_and_occurrence() {
             match mutation {
                 0 => {
                     row.kind =
-                        legalized_operations::LegalizedScalarInstructionKind::LinuxWriteByteI32 {
+                        legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
                             boundary: BoundaryMachineId::new(2).unwrap(),
                             source: ValueId::new(5).unwrap(),
                         }
                 }
                 1 => {
                     row.kind =
-                        legalized_operations::LegalizedScalarInstructionKind::LinuxWriteByteI32 {
+                        legalized_operations::LegalizedScalarInstructionKind::HostedWriteByteI32 {
                             boundary: BoundaryMachineId::new(1).unwrap(),
                             source: ValueId::new(6).unwrap(),
                         }
@@ -134,7 +165,11 @@ fn byte_output_replays_exact_builtin_argument_and_occurrence() {
 fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
     use abstract_operations::{AbstractFunctionResult, AbstractResult};
     use semantic_vocabulary::{EdgeId, IntegerValue};
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (mut source, valid_unit_target, valid_unit) = fixture(native);
         legalize_target_operations(&valid_unit_target, &source, &valid_unit).unwrap();
         let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());

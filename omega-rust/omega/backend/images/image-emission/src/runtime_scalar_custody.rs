@@ -10,12 +10,12 @@ pub(crate) fn decode_selected_byte_output(
     target: NativeTarget,
     bytes: &[u8],
 ) -> Option<(MachineRegister, u32)> {
-    if target.object_format != ObjectFormat::Elf {
-        return None;
-    }
-    match target.architecture {
-        Architecture::X86_64 => isa_x86_64::decode_x86_64_selected_linux_write_byte_i32(bytes),
-        Architecture::Aarch64 => isa_aarch64::decode_aarch64_selected_linux_write_byte_i32(bytes),
+    if target == NativeTarget::linux_x64() {
+        isa_x86_64::decode_x86_64_selected_hosted_write_byte_i32(bytes)
+    } else if target == NativeTarget::linux_arm64() || target == NativeTarget::macos_arm64() {
+        isa_aarch64::decode_aarch64_selected_hosted_write_byte_i32(target, bytes)
+    } else {
+        None
     }
 }
 
@@ -69,18 +69,23 @@ pub(crate) fn selected_byte_output_shape_is_exact(
     else {
         return false;
     };
-    target.object_format == ObjectFormat::Elf
-        && matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
-        && settlement.byte_count
-            == match target.architecture {
-                Architecture::X86_64 => 40,
-                Architecture::Aarch64 => 36,
-            }
+    let byte_count = if target == NativeTarget::linux_x64() || target == NativeTarget::macos_arm64()
+    {
+        40
+    } else if target == NativeTarget::linux_arm64() {
+        36
+    } else {
+        return false;
+    };
+    matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+        && settlement.byte_count == byte_count
         && settlement.execution
-            == BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32)
+            == BoundaryExecutionRecord::CompilerBuiltin(
+                CompilerBuiltinExecution::HostedWriteByteI32,
+            )
         && matches!(
             settlement.realization,
-            target_operations::BoundaryRealization::LinuxWriteByteI32(_)
+            target_operations::BoundaryRealization::HostedWriteByteI32(_)
         )
         && settlement.native_result.is_unit()
         && settlement.scalar_arguments.is_empty()
@@ -127,7 +132,7 @@ pub(crate) fn inspected_linux_read_byte_roots(
             let exact_consumer = settlements.iter().any(|write| {
                 matches!(
                     write.realization,
-                    target_operations::BoundaryRealization::LinuxWriteByteI32(_)
+                    target_operations::BoundaryRealization::HostedWriteByteI32(_)
                 ) && write.operation_ordinal > read.operation_ordinal
                     && matches!(
                         write.runtime_scalar_arguments.as_slice(),
@@ -150,7 +155,7 @@ pub(crate) fn inspected_linux_read_byte_roots(
         .collect()
 }
 
-pub(crate) fn linux_write_byte_custody_is_exact(
+pub(crate) fn hosted_write_byte_custody_is_exact(
     target: NativeTarget,
     settlement: &BoundarySettlementRecord,
     all_settlements: &[BoundarySettlementRecord],
@@ -221,9 +226,9 @@ pub(crate) fn linux_write_byte_custody_is_exact(
         return false;
     };
     let suffix = match target.architecture {
-        Architecture::X86_64 => isa_x86_64::encode_linux_write_byte_i32_from_r11(),
+        Architecture::X86_64 => isa_x86_64::encode_hosted_write_byte_i32_from_r11(),
         Architecture::Aarch64 => {
-            let Ok(bytes) = isa_aarch64::encode_linux_write_byte_i32_from_w9() else {
+            let Ok(bytes) = isa_aarch64::encode_hosted_write_byte_i32_from_w9() else {
                 return false;
             };
             bytes
@@ -233,7 +238,9 @@ pub(crate) fn linux_write_byte_custody_is_exact(
     let settlement_end = settlement.code_offset.checked_add(settlement.byte_count);
     source_is_exact
         && settlement.execution
-            == BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32)
+            == BoundaryExecutionRecord::CompilerBuiltin(
+                CompilerBuiltinExecution::HostedWriteByteI32,
+            )
         && settlement.scalar_arguments.is_empty()
         && settlement.arguments.is_empty()
         && settlement.byte_sequence_arguments.is_empty()
@@ -378,8 +385,63 @@ mod tests {
     };
     use semantic_vocabulary::{BoundaryMachineId, IntegerValue, OperationId, ValueId};
     use target_operations::{
-        BoundaryRealization, CompilerBuiltinExecution, LinuxWriteByteI32Realization,
+        BoundaryRealization, CompilerBuiltinExecution, HostedWriteByteI32Realization,
     };
+
+    #[test]
+    fn selected_hosted_output_decoder_binds_the_exact_operating_system() {
+        let linux = [
+            0x3900_03e9_u32,
+            0xd280_0020,
+            0x9100_03e1,
+            0xd280_0022,
+            0xd280_0808,
+            0xd400_0001,
+            0xf100_001f,
+            0x5400_004c,
+            0xd420_0000,
+        ];
+        let macos = [
+            0x3900_03e9_u32,
+            0xd280_0020,
+            0x9100_03e1,
+            0xd280_0022,
+            0xd280_0090,
+            0xd400_1001,
+            0x5400_0062,
+            0xf100_041f,
+            0x5400_0040,
+            0xd420_0000,
+        ];
+        for (target, words) in [
+            (NativeTarget::linux_arm64(), linux.as_slice()),
+            (NativeTarget::macos_arm64(), macos.as_slice()),
+        ] {
+            let bytes = words
+                .iter()
+                .flat_map(|word| word.to_le_bytes())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                decode_selected_byte_output(target, &bytes),
+                Some((MachineRegister::Aarch64X(9), 0))
+            );
+            for wrong in [
+                NativeTarget::linux_x64(),
+                NativeTarget::windows_x64(),
+                if target == NativeTarget::linux_arm64() {
+                    NativeTarget::macos_arm64()
+                } else {
+                    NativeTarget::linux_arm64()
+                },
+            ] {
+                assert_eq!(
+                    decode_selected_byte_output(wrong, &bytes),
+                    None,
+                    "wrong target {wrong:?}"
+                );
+            }
+        }
+    }
 
     fn immediate_case(
         target: NativeTarget,
@@ -419,8 +481,8 @@ mod tests {
             super::super::expected_foreign_scalar_argument_bytes(target, &argument, 0).unwrap();
         argument.byte_count = materialization.len();
         let suffix = match target.architecture {
-            Architecture::X86_64 => isa_x86_64::encode_linux_write_byte_i32_from_r11(),
-            Architecture::Aarch64 => isa_aarch64::encode_linux_write_byte_i32_from_w9().unwrap(),
+            Architecture::X86_64 => isa_x86_64::encode_hosted_write_byte_i32_from_r11(),
+            Architecture::Aarch64 => isa_aarch64::encode_hosted_write_byte_i32_from_w9().unwrap(),
         };
         let mut bytes = materialization;
         bytes.extend_from_slice(&suffix);
@@ -429,9 +491,9 @@ mod tests {
                 psi_operation: OperationId::new(2).unwrap(),
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 execution: BoundaryExecutionRecord::CompilerBuiltin(
-                    CompilerBuiltinExecution::LinuxWriteByteI32,
+                    CompilerBuiltinExecution::HostedWriteByteI32,
                 ),
-                realization: BoundaryRealization::LinuxWriteByteI32(LinuxWriteByteI32Realization),
+                realization: BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
                 scalar_arguments: Vec::new(),
                 runtime_scalar_arguments: vec![argument],
                 arguments: Vec::new(),
@@ -459,7 +521,7 @@ mod tests {
     fn immediate_materialization_and_suffix_are_exact_on_both_linux_isas() {
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let (settlement, constants, bytes) = immediate_case(target);
-            assert!(linux_write_byte_custody_is_exact(
+            assert!(hosted_write_byte_custody_is_exact(
                 target,
                 &settlement,
                 &[],
@@ -471,7 +533,7 @@ mod tests {
 
             let mut changed = bytes.clone();
             changed[0] ^= 1;
-            assert!(!linux_write_byte_custody_is_exact(
+            assert!(!hosted_write_byte_custody_is_exact(
                 target,
                 &settlement,
                 &[],
@@ -483,7 +545,7 @@ mod tests {
 
             let mut changed = settlement.clone();
             changed.runtime_scalar_arguments[0].byte_count += 1;
-            assert!(!linux_write_byte_custody_is_exact(
+            assert!(!hosted_write_byte_custody_is_exact(
                 target,
                 &changed,
                 &[],
@@ -497,7 +559,7 @@ mod tests {
             changed.execution = BoundaryExecutionRecord::CompilerBuiltin(
                 CompilerBuiltinExecution::LinuxExitGroupI32,
             );
-            assert!(!linux_write_byte_custody_is_exact(
+            assert!(!hosted_write_byte_custody_is_exact(
                 target,
                 &changed,
                 &[],
@@ -530,9 +592,9 @@ mod tests {
         .unwrap();
         settlement.runtime_scalar_arguments[0].byte_count = materialization.len();
         let mut bytes = materialization;
-        bytes.extend_from_slice(&isa_x86_64::encode_linux_write_byte_i32_from_r11());
+        bytes.extend_from_slice(&isa_x86_64::encode_hosted_write_byte_i32_from_r11());
         settlement.byte_count = bytes.len();
-        assert!(linux_write_byte_custody_is_exact(
+        assert!(hosted_write_byte_custody_is_exact(
             target,
             &settlement,
             &[],
@@ -543,7 +605,7 @@ mod tests {
             },
             Some(&bytes),
         ));
-        assert!(!linux_write_byte_custody_is_exact(
+        assert!(!hosted_write_byte_custody_is_exact(
             target,
             &settlement,
             &[],
@@ -552,7 +614,7 @@ mod tests {
             |_, _, _| 1,
             Some(&bytes),
         ));
-        assert!(!linux_write_byte_custody_is_exact(
+        assert!(!hosted_write_byte_custody_is_exact(
             target,
             &settlement,
             &[],
@@ -561,7 +623,7 @@ mod tests {
             |_, _, _| 0,
             Some(&bytes),
         ));
-        assert!(!linux_write_byte_custody_is_exact(
+        assert!(!hosted_write_byte_custody_is_exact(
             target,
             &settlement,
             &[],

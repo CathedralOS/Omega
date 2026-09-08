@@ -390,6 +390,7 @@ mod tests {
                 block_entries: vec![AbstractBlockEntry {
                     block: BlockId::new(2).unwrap(),
                     parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
                     operation_offset: 0,
                 }],
                 operations: vec![

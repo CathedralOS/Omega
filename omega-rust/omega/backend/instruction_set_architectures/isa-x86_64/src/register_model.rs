@@ -12,7 +12,7 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
-pub const X86_64_LINUX_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
+pub const X86_64_HOSTED_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 704,
 };
@@ -366,7 +366,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 49] = [
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,
     X86_64_LOAD8_INDEXED,
-    X86_64_LINUX_WRITE_BYTE_I32,
+    X86_64_HOSTED_WRITE_BYTE_I32,
     X86_64_STORE,
     X86_64_ADDRESS_OFFSET,
 ];
@@ -1051,7 +1051,7 @@ pub fn x86_64_register_constraint_catalog(
     }
     constraints.push(RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
-        key: X86_64_LINUX_WRITE_BYTE_I32,
+        key: X86_64_HOSTED_WRITE_BYTE_I32,
         operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
         implicit_uses: {
             let mut units = view("rsp").units.clone();

@@ -3,6 +3,9 @@ use super::*;
 #[path = "providers_float_and_console/console_writer.rs"]
 mod console_writer;
 
+#[path = "providers_float_and_console/hosted_byte.rs"]
+mod hosted_byte;
+
 #[path = "../fixture_rosters/providers_float_and_console.rs"]
 pub(super) mod fixture_roster;
 
@@ -1808,7 +1811,7 @@ fn linux_console_compiler_intrinsic_review_identities_are_exact() {
         .expect("Console plan must retain write_byte");
     assert_eq!(
         retained.row_compiler_intrinsic_executions[write_byte],
-        Some(CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32),
+        Some(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32),
     );
     let derive = |requirement, realization, target| {
         selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row(

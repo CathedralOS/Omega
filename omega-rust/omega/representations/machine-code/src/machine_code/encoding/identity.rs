@@ -67,7 +67,7 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
             match address.symbolic {
-                Address::LinuxWriteByteI32 { slot } => {
+                Address::HostedWriteByteI32 { slot } => {
                     hasher.update([5]);
                     let mut identity = Vec::new();
                     slot.encode_identity(&mut identity);
@@ -259,7 +259,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(index_operand.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }
-        Memory::LinuxWriteByteV1 { stack_pointer } => {
+        Memory::HostedWriteByteV1 { stack_pointer } => {
             hasher.update([6]);
             hasher.update(stack_pointer.0.to_le_bytes());
         }
@@ -322,11 +322,11 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }
     hasher.update([match effects.trap {
         Trap::NeverV1 => 0,
-        Trap::LinuxWriteFailureV1 => 2,
+        Trap::HostedWriteFailureV1 => 2,
         Trap::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
-        Control::LinuxWriteReturnOrTrapV1 => hasher.update([6]),
+        Control::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         Control::FallThroughV1 => hasher.update([0]),
         Control::ConditionalRelativeBranchV1 => hasher.update([1]),
         Control::ReturnFromActivationStackV1 => hasher.update([2]),
@@ -361,7 +361,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
-        MachineAlternativeFamily::LinuxWriteByteI32 => 23,
+        MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,

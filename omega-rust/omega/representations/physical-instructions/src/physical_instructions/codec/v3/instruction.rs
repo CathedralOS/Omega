@@ -35,7 +35,7 @@ pub(super) fn decode_instruction(
         operands.push(decode_operand(cursor)?);
     }
     let address = match byte(cursor)? {
-        5 => Some(crate::PhysicalAddressOperation::LinuxWriteByteI32 {
+        5 => Some(crate::PhysicalAddressOperation::HostedWriteByteI32 {
             slot: effect_codec::decode_local_storage_slot(cursor).map_err(map_field_error)?,
         }),
         6 => {

@@ -114,8 +114,8 @@ pub(super) fn reconstruct_instruction(
                     index_operand: 1,
                 },
             ),
-            selected_instructions::SelectedInstructionKind::LinuxWriteByteI32 { slot } => {
-                Some(physical_instructions::PhysicalAddressOperation::LinuxWriteByteI32 { slot })
+            selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { slot } => {
+                Some(physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot })
             }
             selected_instructions::SelectedInstructionKind::Store {
                 byte_offset,

@@ -13,10 +13,9 @@ use typed_trees::types::TypeReferenceNode;
 /// Rederive one selected compiler-intrinsic row from exact checked declaration
 /// symbols and the independently selected canonical target.
 ///
-/// Boundary-operator rows preserve the established float catalog. The first
-/// boundary-trait catalog entry is deliberately singular: the exact Linux
-/// `Console::exit_process(i32) -> Unit` requirement and
-/// `ConsoleNativeProvider::exit_process(i32) -> Unit` realization. The source
+/// Boundary-operator rows preserve the established float catalog. Console
+/// entries bind the exact requirement and realization on each supported target.
+/// Byte output supports Linux and macOS; input and exit remain Linux-only. The source
 /// leaf is bodyless boundary supply without an authored payload-free `via`;
 /// toolchain custody or one settled ordinary-package consumer binding must
 /// additionally own that row.
@@ -128,7 +127,7 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
         )));
     }
-    if linux_console_write_byte_row(
+    if hosted_console_write_byte_row(
         checked,
         plan,
         row,
@@ -140,7 +139,7 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
         accepted_declaration_symbol,
     )? {
         return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32,
+            CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
         )));
     }
     if linux_console_read_byte_row(
@@ -163,7 +162,7 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
     ))
 }
 
-fn linux_console_write_byte_row(
+fn hosted_console_write_byte_row(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -174,7 +173,7 @@ fn linux_console_write_byte_row(
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    linux_console_row(
+    console_row_for_targets(
         checked,
         plan,
         row,
@@ -184,6 +183,7 @@ fn linux_console_write_byte_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
+        &["linux_x86_64", "linux_arm64", "macos_arm64"],
         "write_byte",
         "ConsoleNativeProvider::write_byte",
         ConsoleIntrinsicShape::I32ToUnit,
@@ -201,7 +201,7 @@ fn linux_console_read_byte_row(
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    linux_console_row(
+    console_row_for_targets(
         checked,
         plan,
         row,
@@ -211,6 +211,7 @@ fn linux_console_read_byte_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
+        &["linux_x86_64", "linux_arm64"],
         "read_byte",
         "ConsoleNativeProvider::read_byte",
         ConsoleIntrinsicShape::UnitToByteRead,
@@ -228,7 +229,7 @@ fn linux_console_exit_row(
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
-    linux_console_row(
+    console_row_for_targets(
         checked,
         plan,
         row,
@@ -238,6 +239,7 @@ fn linux_console_exit_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
+        &["linux_x86_64", "linux_arm64"],
         "exit_process",
         "ConsoleNativeProvider::exit_process",
         ConsoleIntrinsicShape::I32ToUnit,
@@ -251,7 +253,7 @@ enum ConsoleIntrinsicShape {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn linux_console_row(
+fn console_row_for_targets(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -261,11 +263,13 @@ fn linux_console_row(
     selected_target: Option<&str>,
     accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
+    supported_targets: &[&str],
     requirement_name: &str,
     realization_name: &str,
     shape: ConsoleIntrinsicShape,
 ) -> Result<bool, Diagnostic> {
-    let Some(selected_target @ ("linux_x86_64" | "linux_arm64")) = selected_target else {
+    let Some(selected_target) = selected_target.filter(|target| supported_targets.contains(target))
+    else {
         return Ok(false);
     };
     if plan.target != selected_target {
@@ -326,9 +330,14 @@ fn exact_bundled_console_binding(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../source/library/std/targets/linux_arm64/console_impl.omg"
     ));
+    const MACOS_ARM64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../source/library/std/targets/macos_arm64/console_impl.omg"
+    ));
     let (realization_path, realization_source) = match selected_target {
         "linux_x86_64" => ("targets/linux_x86_64/console_impl.omg", LINUX_X64),
         "linux_arm64" => ("targets/linux_arm64/console_impl.omg", LINUX_ARM64),
+        "macos_arm64" => ("targets/macos_arm64/console_impl.omg", MACOS_ARM64),
         _ => return false,
     };
     exact_bundled_standalone_source(typed, trait_symbol, "console.omg", CONSOLE)

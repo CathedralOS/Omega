@@ -7,7 +7,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
     LinuxExitGroupI32,
-    LinuxWriteByteI32,
+    HostedWriteByteI32,
     LinuxReadByte,
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
@@ -54,7 +54,7 @@ impl CheckedPackageProviderRowIdentity {
             }
             Some(PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. })
             | Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32)
-            | Some(PackageReviewCompilerIntrinsicExecution::LinuxWriteByteI32)
+            | Some(PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32)
             | Some(PackageReviewCompilerIntrinsicExecution::LinuxReadByte)
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatConversion { .. })

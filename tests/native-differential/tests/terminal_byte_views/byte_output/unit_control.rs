@@ -160,8 +160,8 @@ fn conditional_unit_byte_calls_reject_changed_selected_control() {
         let compiled = abstract_operations_to_target_operations::lower_optimized_to_target_operations_with_provider_executions(
             optimized, target, &[AdmittedBoundarySettlement {
                 boundary: module.boundary_machines[0].id,
-                execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::LinuxWriteByteI32),
-                realization: LinuxWriteByteI32Realization.into(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
+                realization: HostedWriteByteI32Realization.into(),
             }],
         ).unwrap();
         let environment =

@@ -14,7 +14,7 @@ pub(super) fn validate_declaration(
     declaration: &MachineEffectDeclaration,
 ) -> Result<(), MachineEffectCatalogValidationError> {
     let semantic = declaration.semantic;
-    let expected_barrier = if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+    let expected_barrier = if semantic == MachineSemanticKind::HostedWriteByteI32 {
         MachineBarrier::ExternalEffect
     } else if matches!(
         semantic,
@@ -167,16 +167,16 @@ fn validate_encoded_effects(
     {
         return Err(());
     }
-    if declaration.semantic == MachineSemanticKind::LinuxWriteByteI32
-        && (declaration.memory != crate::MachineMemoryEffect::LinuxWriteByteV1
-            || declaration.trap != crate::MachineTrapBehavior::LinuxWriteFailureV1
+    if declaration.semantic == MachineSemanticKind::HostedWriteByteI32
+        && (declaration.memory != crate::MachineMemoryEffect::HostedWriteByteV1
+            || declaration.trap != crate::MachineTrapBehavior::HostedWriteFailureV1
             || !matches!(
                 encoded.memory,
-                MachineEncodedMemoryEffect::LinuxWriteByteV1 { .. }
+                MachineEncodedMemoryEffect::HostedWriteByteV1 { .. }
             )
-            || encoded.trap != MachineEncodedTrapBehavior::LinuxWriteFailureV1
+            || encoded.trap != MachineEncodedTrapBehavior::HostedWriteFailureV1
             || encoded.stack != MachineEncodedStackEffect::UnchangedV1
-            || encoded.control != MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1)
+            || encoded.control != MachineEncodedControlEffect::HostedWriteReturnOrTrapV1)
     {
         return Err(());
     }
@@ -220,7 +220,7 @@ fn validate_encoded_effects(
         return Err(());
     }
     let expected_barrier = match encoded.control {
-        MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
+        MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::ConditionalRelativeBranchV1
@@ -235,13 +235,13 @@ fn validate_encoded_effects(
     }
     match (encoded.memory, encoded.stack, encoded.trap) {
         (
-            MachineEncodedMemoryEffect::LinuxWriteByteV1 { .. },
+            MachineEncodedMemoryEffect::HostedWriteByteV1 { .. },
             MachineEncodedStackEffect::UnchangedV1,
-            MachineEncodedTrapBehavior::LinuxWriteFailureV1,
-        ) if declaration.semantic == MachineSemanticKind::LinuxWriteByteI32
-            && declaration.memory == crate::MachineMemoryEffect::LinuxWriteByteV1
-            && declaration.trap == crate::MachineTrapBehavior::LinuxWriteFailureV1
-            && encoded.control == MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1
+            MachineEncodedTrapBehavior::HostedWriteFailureV1,
+        ) if declaration.semantic == MachineSemanticKind::HostedWriteByteI32
+            && declaration.memory == crate::MachineMemoryEffect::HostedWriteByteV1
+            && declaration.trap == crate::MachineTrapBehavior::HostedWriteFailureV1
+            && encoded.control == MachineEncodedControlEffect::HostedWriteReturnOrTrapV1
             && encoded.external_operand_reads == [0]
             && encoded.external_operand_writes.is_empty()
             && constraint.operands.len() == 1

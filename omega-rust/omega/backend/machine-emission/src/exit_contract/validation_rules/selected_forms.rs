@@ -141,8 +141,8 @@ pub(in crate::exit_contract) fn validate_non_return(
     layout: &machine_code::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
-        SelectedInstructionKind::LinuxWriteByteI32 { .. } => {
-            MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1
+        SelectedInstructionKind::HostedWriteByteI32 { .. } => {
+            MachineEncodedControlEffect::HostedWriteReturnOrTrapV1
         }
         SelectedInstructionKind::Jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -204,16 +204,16 @@ pub(in crate::exit_contract) fn validate_non_return(
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
-            SelectedInstructionKind::LinuxWriteByteI32 { slot },
-            MachineEncodedMemoryEffect::LinuxWriteByteV1 { .. },
+            SelectedInstructionKind::HostedWriteByteI32 { slot },
+            MachineEncodedMemoryEffect::HostedWriteByteV1 { .. },
             Some(address),
         ) => {
             matches!(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::LinuxWriteByteI32 { slot }
-                && effects.trap == MachineEncodedTrapBehavior::LinuxWriteFailureV1
+                == physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot }
+                && effects.trap == MachineEncodedTrapBehavior::HostedWriteFailureV1
         }
         (
             SelectedInstructionKind::Store {

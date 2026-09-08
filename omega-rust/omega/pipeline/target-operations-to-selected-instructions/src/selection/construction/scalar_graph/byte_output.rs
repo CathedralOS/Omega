@@ -12,7 +12,7 @@ pub(super) fn emit(
     block_start: usize,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::LinuxWriteByteI32 { boundary, source } = row.kind else {
+    let LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } = row.kind else {
         return Ok(false);
     };
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
@@ -47,18 +47,18 @@ pub(super) fn emit(
         .push(SelectedBoundarySettlement {
             block,
             instruction_index,
-            settlement: SelectedBoundarySettlementPayload::LinuxWriteByteI32 {
+            settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                 operation: row.operation,
                 boundary,
                 source,
             },
         });
     builder.emit(
-        SelectedInstructionKind::LinuxWriteByteI32 { slot },
+        SelectedInstructionKind::HostedWriteByteI32 { slot },
         builder
             .constraints
             .keys
-            .linux_write_byte_i32
+            .hosted_write_byte_i32
             .ok_or_else(invalid)?,
         &[input],
         SelectedInstructionProvenance {

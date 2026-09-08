@@ -54,9 +54,9 @@ pub(super) fn validate_completion_custody(
         )
         | (
             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::LinuxWriteByteI32,
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
             ),
-            target_operations::BoundaryRealization::LinuxWriteByteI32(_),
+            target_operations::BoundaryRealization::HostedWriteByteI32(_),
         )
         | (
             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
@@ -68,7 +68,7 @@ pub(super) fn validate_completion_custody(
         | (
             _,
             target_operations::BoundaryRealization::LinuxExitGroupI32(_)
-            | target_operations::BoundaryRealization::LinuxWriteByteI32(_)
+            | target_operations::BoundaryRealization::HostedWriteByteI32(_)
             | target_operations::BoundaryRealization::LinuxReadByte(_),
         ) => false,
         _ => true,
@@ -400,7 +400,7 @@ mod tests {
 
         let mut reverse_role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
         reverse_role_substitution.realization =
-            target_operations::BoundaryRealization::LinuxWriteByteI32(Default::default());
+            target_operations::BoundaryRealization::HostedWriteByteI32(Default::default());
         assert_eq!(
             validate_completion_custody(&reverse_role_substitution),
             Err(CompletionCustodyError::ProviderCustody)

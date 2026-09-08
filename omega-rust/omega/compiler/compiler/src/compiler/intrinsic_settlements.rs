@@ -107,29 +107,12 @@ pub(super) fn derive_compiler_intrinsic_settlement_proposals(
             )));
             continue;
         };
-        if !matches!(
-            *execution,
-            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
-                | CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32
-                | CompilerIntrinsicExecutionIdentity::LinuxReadByte
-        ) {
+        let Some(execution) = compiler_builtin_execution(*execution) else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no native boundary realization",
                 plan.name,
             )));
             continue;
-        }
-        let execution = match execution {
-            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
-                target_operations::CompilerBuiltinExecution::LinuxExitGroupI32
-            }
-            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
-                target_operations::CompilerBuiltinExecution::LinuxWriteByteI32
-            }
-            CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
-                target_operations::CompilerBuiltinExecution::LinuxReadByte
-            }
-            _ => unreachable!("native boundary intrinsic was checked above"),
         };
         evidence.push(CompilerIntrinsicSettlementProposal {
             requirement_identity: requirement.clone(),
@@ -141,5 +124,26 @@ pub(super) fn derive_compiler_intrinsic_settlement_proposals(
         Ok(evidence)
     } else {
         Err(diagnostics)
+    }
+}
+
+fn compiler_builtin_execution(
+    identity: CompilerIntrinsicExecutionIdentity,
+) -> Option<target_operations::CompilerBuiltinExecution> {
+    use target_operations::CompilerBuiltinExecution;
+    match identity {
+        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
+            Some(CompilerBuiltinExecution::LinuxExitGroupI32)
+        }
+        CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
+            Some(CompilerBuiltinExecution::HostedWriteByteI32)
+        }
+        CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
+            Some(CompilerBuiltinExecution::LinuxReadByte)
+        }
+        CompilerIntrinsicExecutionIdentity::BuiltinFunction(_)
+        | CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { .. }
+        | CompilerIntrinsicExecutionIdentity::NamedFloatNegation(_)
+        | CompilerIntrinsicExecutionIdentity::NamedFloatConversion { .. } => None,
     }
 }

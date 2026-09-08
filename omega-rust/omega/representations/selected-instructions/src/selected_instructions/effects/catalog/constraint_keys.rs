@@ -6,7 +6,7 @@ use crate::SelectedConstraintKeys;
 impl SelectedConstraintKeys {
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         [
-            self.linux_write_byte_i32,
+            self.hosted_write_byte_i32,
             self.store,
             self.address_offset,
             self.load64,
@@ -40,7 +40,7 @@ impl SelectedConstraintKeys {
         semantic: MachineSemanticKind,
     ) -> Option<RegisterConstraintKey> {
         Some(match semantic {
-            MachineSemanticKind::LinuxWriteByteI32 => return self.linux_write_byte_i32,
+            MachineSemanticKind::HostedWriteByteI32 => return self.hosted_write_byte_i32,
             MachineSemanticKind::Store => return self.store,
             MachineSemanticKind::AddressOffset => return self.address_offset,
             MachineSemanticKind::Load8Indexed => return self.load8_indexed,

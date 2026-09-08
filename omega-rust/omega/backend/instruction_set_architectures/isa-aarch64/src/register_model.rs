@@ -194,10 +194,15 @@ pub const AARCH64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
     variant: 9,
 };
 
-/// An eight-byte pointer read with an independently assigned result register.
-pub const AARCH64_LINUX_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
+/// Hosted byte output using the Linux syscall register convention.
+pub const AARCH64_HOSTED_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 14,
+};
+/// The same hosted byte operation using Darwin's syscall register convention.
+pub const AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 17,
 };
 
 pub const AARCH64_LOAD64: RegisterConstraintKey = RegisterConstraintKey {
@@ -229,7 +234,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 61] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 62] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -393,9 +398,10 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 61] = [
     AARCH64_LOAD8_INDEXED,
     AARCH64_STORE64,
     AARCH64_FRAME_ADDRESS,
-    AARCH64_LINUX_WRITE_BYTE_I32,
+    AARCH64_HOSTED_WRITE_BYTE_I32,
     AARCH64_STORE,
     AARCH64_ADDRESS_OFFSET,
+    AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1107,28 +1113,33 @@ pub fn aarch64_register_constraint_catalog(
         constraints.push(call);
     }
 
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: AARCH64_LINUX_WRITE_BYTE_I32,
-        operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
-        implicit_uses: {
-            let mut units = view("sp").units.clone();
-            units.extend(view("pc").units.iter().copied());
-            units.sort_unstable();
-            units.dedup();
-            units
-        },
-        implicit_defs: Vec::new(),
-        clobbers: {
-            let mut units = Vec::new();
-            for name in ["x0", "x1", "x2", "x8", "nzcv"] {
-                units.extend(view(name).units.iter().copied());
-            }
-            units.sort_unstable();
-            units.dedup();
-            units
-        },
-    });
+    for (key, syscall_register) in [
+        (AARCH64_HOSTED_WRITE_BYTE_I32, "x8"),
+        (AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32, "x16"),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            implicit_uses: {
+                let mut units = view("sp").units.clone();
+                units.extend(view("pc").units.iter().copied());
+                units.sort_unstable();
+                units.dedup();
+                units
+            },
+            implicit_defs: Vec::new(),
+            clobbers: {
+                let mut units = Vec::new();
+                for name in ["x0", "x1", "x2", syscall_register, "nzcv"] {
+                    units.extend(view(name).units.iter().copied());
+                }
+                units.sort_unstable();
+                units.dedup();
+                units
+            },
+        });
+    }
     for (scalar_key, unit_key) in aarch64_aapcs64_register_call_keys()
         .into_iter()
         .zip(aarch64_aapcs64_register_unit_call_keys())

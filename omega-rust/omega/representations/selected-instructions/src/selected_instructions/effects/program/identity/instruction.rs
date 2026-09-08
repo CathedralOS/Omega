@@ -25,7 +25,7 @@ pub(super) fn encode_ordinary_instruction(
     bytes.push(match instruction.memory {
         MachineMemoryEffect::NoneV1 => 0,
         MachineMemoryEffect::ReadPointerV1 => 1,
-        MachineMemoryEffect::LinuxWriteByteV1 => 3,
+        MachineMemoryEffect::HostedWriteByteV1 => 3,
         MachineMemoryEffect::WriteFrameStorageV1 => 2,
         MachineMemoryEffect::WritePointerV1 => 4,
     });
@@ -35,7 +35,7 @@ pub(super) fn encode_ordinary_instruction(
 fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffects) {
     bytes.push(match instruction.trap {
         MachineTrapBehavior::NeverV1 => 0,
-        MachineTrapBehavior::LinuxWriteFailureV1 => 2,
+        MachineTrapBehavior::HostedWriteFailureV1 => 2,
         MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     encode_barrier(bytes, instruction.barrier);
@@ -105,7 +105,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallI64 { .. } => 13,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
-        SelectedInstructionKind::LinuxWriteByteI32 { .. } => 23,
+        SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
         SelectedInstructionKind::Store64 { .. } => 17,
@@ -149,7 +149,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::LinuxWriteByteI32 { slot } => slot.encode_identity(bytes),
+        SelectedInstructionKind::HostedWriteByteI32 { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::ExactAddI64 {
             obligation,

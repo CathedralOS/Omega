@@ -6,7 +6,7 @@ use target_operations::MachineRegister;
 /// Numeric variants are deliberately not inferred by target-neutral stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstraintKeys {
-    pub linux_write_byte_i32: Option<RegisterConstraintKey>,
+    pub hosted_write_byte_i32: Option<RegisterConstraintKey>,
     pub store: Option<RegisterConstraintKey>,
     pub address_offset: Option<RegisterConstraintKey>,
     pub load64: Option<RegisterConstraintKey>,

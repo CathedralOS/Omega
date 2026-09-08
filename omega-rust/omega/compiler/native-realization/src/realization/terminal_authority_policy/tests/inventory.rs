@@ -129,7 +129,7 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
     );
     assert_eq!(
         policy
-            .classify(CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32)
+            .classify(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32)
             .expect("Linux write-byte must have a committed policy row")
             .classes(),
         &[TerminalAuthorityClass::ProcessOutput]

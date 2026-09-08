@@ -41,9 +41,9 @@ fn lower(
         &[crate::AdmittedBoundarySettlement {
             boundary: plan.boundary_machines[0].id,
             execution: crate::AdmittedBoundaryExecution::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::LinuxWriteByteI32,
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
             ),
-            realization: target_operations::LinuxWriteByteI32Realization.into(),
+            realization: target_operations::HostedWriteByteI32Realization.into(),
         }],
     )
 }

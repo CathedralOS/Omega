@@ -6,8 +6,8 @@ use abstract_operations_to_target_operations::{
 use diagnostics::Diagnostic;
 use effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
 use target_operations::{
-    BoundarySettlementRealization, CompilerBuiltinExecution, LinuxExitGroupI32Realization,
-    LinuxReadByteRealization, LinuxWriteByteI32Realization,
+    BoundarySettlementRealization, CompilerBuiltinExecution, HostedWriteByteI32Realization,
+    LinuxExitGroupI32Realization, LinuxReadByteRealization,
 };
 
 pub(super) fn settle_compiler_builtins<'request>(
@@ -88,14 +88,14 @@ pub(super) fn settle_compiler_builtins<'request>(
                     request.target
                 ))]);
             }
-            CompilerBuiltinExecution::LinuxWriteByteI32
-                if request.target.object_format == target::ObjectFormat::Elf =>
+            CompilerBuiltinExecution::HostedWriteByteI32
+                if HostedWriteByteI32Realization::supports_target(request.target) =>
             {
-                LinuxWriteByteI32Realization.into()
+                HostedWriteByteI32Realization.into()
             }
-            CompilerBuiltinExecution::LinuxWriteByteI32 => {
+            CompilerBuiltinExecution::HostedWriteByteI32 => {
                 return Err(vec![Diagnostic::error(format!(
-                    "local target catalog cannot realize Linux write-byte for `{requirement}` on {:?}",
+                    "local target catalog cannot realize hosted write-byte for `{requirement}` on {:?}",
                     request.target
                 ))]);
             }
@@ -131,8 +131,8 @@ const fn compiler_intrinsic_execution_identity(
         CompilerBuiltinExecution::LinuxExitGroupI32 => {
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
         }
-        CompilerBuiltinExecution::LinuxWriteByteI32 => {
-            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32
+        CompilerBuiltinExecution::HostedWriteByteI32 => {
+            CompilerIntrinsicExecutionIdentity::HostedWriteByteI32
         }
         CompilerBuiltinExecution::LinuxReadByte => {
             CompilerIntrinsicExecutionIdentity::LinuxReadByte

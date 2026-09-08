@@ -16,7 +16,7 @@ pub fn machine_effect_catalog_identity(
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
-        catalog.selected_keys.linux_write_byte_i32,
+        catalog.selected_keys.hosted_write_byte_i32,
         catalog.selected_keys.store,
         catalog.selected_keys.address_offset,
         catalog.selected_keys.load64,
@@ -42,13 +42,13 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
-            crate::MachineMemoryEffect::LinuxWriteByteV1 => 3,
+            crate::MachineMemoryEffect::HostedWriteByteV1 => 3,
             crate::MachineMemoryEffect::WriteFrameStorageV1 => 2,
             crate::MachineMemoryEffect::WritePointerV1 => 4,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::NeverV1 => 0,
-            crate::MachineTrapBehavior::LinuxWriteFailureV1 => 2,
+            crate::MachineTrapBehavior::HostedWriteFailureV1 => 2,
             crate::MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
         });
         bytes.push(match declaration.barrier {
@@ -157,7 +157,7 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
-        MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
+        MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
             bytes.push(6);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
         }
@@ -230,11 +230,11 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     }
     bytes.push(match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
-        MachineEncodedTrapBehavior::LinuxWriteFailureV1 => 2,
+        MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     match effects.control {
-        MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1 => bytes.push(6),
+        MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.push(6),
         MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
         MachineEncodedControlEffect::ReturnFromActivationStackV1 => bytes.push(2),
@@ -302,7 +302,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ZeroExtendU8 => 15,
         MachineSemanticKind::ZeroExtendU32 => 20,
         MachineSemanticKind::Load64 => 16,
-        MachineSemanticKind::LinuxWriteByteI32 => 23,
+        MachineSemanticKind::HostedWriteByteI32 => 23,
         MachineSemanticKind::Store => 24,
         MachineSemanticKind::AddressOffset => 25,
         MachineSemanticKind::ByteViewAddress => 22,
@@ -333,7 +333,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ZeroExtendU8 => 15,
         MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::Load64 => 16,
-        MachineAlternativeFamily::LinuxWriteByteI32 => 23,
+        MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::ByteViewAddress => 22,
@@ -387,7 +387,7 @@ mod tests {
 
     fn keys() -> SelectedConstraintKeys {
         SelectedConstraintKeys {
-            linux_write_byte_i32: Some(instruction(24)),
+            hosted_write_byte_i32: Some(instruction(24)),
             load64: Some(instruction(20)),
             load8_indexed: Some(instruction(23)),
             store: Some(instruction(25)),
@@ -438,17 +438,17 @@ mod tests {
         MachineEffectDeclaration {
             semantic,
             constraint,
-            memory: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
-                MachineMemoryEffect::LinuxWriteByteV1
+            memory: if semantic == MachineSemanticKind::HostedWriteByteI32 {
+                MachineMemoryEffect::HostedWriteByteV1
             } else {
                 MachineMemoryEffect::NoneV1
             },
-            trap: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
-                MachineTrapBehavior::LinuxWriteFailureV1
+            trap: if semantic == MachineSemanticKind::HostedWriteByteI32 {
+                MachineTrapBehavior::HostedWriteFailureV1
             } else {
                 MachineTrapBehavior::NeverV1
             },
-            barrier: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+            barrier: if semantic == MachineSemanticKind::HostedWriteByteI32 {
                 MachineBarrier::ExternalEffect
             } else if matches!(
                 semantic,
@@ -486,13 +486,13 @@ mod tests {
                 applicability: MachineAlternativeApplicability::Always,
                 size: MachineSizeKnowledge::ExactBytes(4),
                 latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-                encoded: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                encoded: if semantic == MachineSemanticKind::HostedWriteByteI32 {
                     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![]);
-                    encoded.memory = MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+                    encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {
                         stack_pointer: register_model::RegisterViewId(7),
                     };
-                    encoded.trap = MachineEncodedTrapBehavior::LinuxWriteFailureV1;
-                    encoded.control = MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1;
+                    encoded.trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
+                    encoded.control = MachineEncodedControlEffect::HostedWriteReturnOrTrapV1;
                     encoded
                 } else {
                     MachineEncodedEffects::fallthrough_v1(vec![], vec![])

@@ -10,7 +10,7 @@ pub(super) fn validate(
     row: &LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<bool, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::LinuxWriteByteI32 { boundary, source } = row.kind else {
+    let LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } = row.kind else {
         return Ok(false);
     };
     let (_, input, _, scalar_type) = replay.resolve(source).ok_or_else(|| replay.invalid())?;
@@ -38,18 +38,18 @@ pub(super) fn validate(
                 .block_cursor
                 .try_into()
                 .map_err(|_| replay.invalid())?,
-            settlement: SelectedBoundarySettlementPayload::LinuxWriteByteI32 {
+            settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                 operation: row.operation,
                 boundary,
                 source,
             },
         });
     replay.check_instruction(
-        SelectedInstructionKind::LinuxWriteByteI32 { slot },
+        SelectedInstructionKind::HostedWriteByteI32 { slot },
         replay
             .constraints
             .keys
-            .linux_write_byte_i32
+            .hosted_write_byte_i32
             .ok_or_else(|| replay.invalid())?,
         &[input],
         &SelectedInstructionProvenance {

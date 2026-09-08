@@ -146,7 +146,7 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
                             && !clause.via_expression.is_valid()
                             && clause.external_binding_source_span.is_none() =>
                     {
-                        let Some((binding, origin)) = inferred_linux_console_compiler_intrinsic(
+                        let Some((binding, origin)) = inferred_hosted_console_compiler_intrinsic(
                             typed,
                             machine,
                             clause,
@@ -878,17 +878,22 @@ fn exact_installed_external_binding_identity<'typed>(
     (binding.mechanism() == supply_mechanism).then_some(binding)
 }
 
-/// The first payload-free source-inferred compiler catalog leaf. This is only
+/// Payload-free source-inferred Console catalog leaves. This is only
 /// candidate derivation: selected-dispatch independently rejoins package
 /// custody and the canonical target before granting a closed execution.
-fn inferred_linux_console_compiler_intrinsic(
+fn inferred_hosted_console_compiler_intrinsic(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     conformance: &typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
-    if matches!(selected_target, Some(target) if !matches!(target, "linux_x86_64" | "linux_arm64"))
+    let supports_target = |target: &str| {
+        matches!(target, "linux_x86_64" | "linux_arm64")
+            || (target == "macos_arm64"
+                && machine.name.as_str() == "ConsoleNativeProvider::write_byte")
+    };
+    if selected_target.is_some_and(|target| !supports_target(target))
         || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
         || machine.body_is_present
         || !matches!(
@@ -915,7 +920,7 @@ fn inferred_linux_console_compiler_intrinsic(
             origin.machine == machine.symbol
                 && match selected_target {
                     Some(target) => origin.target == target,
-                    None => matches!(origin.target.as_str(), "linux_x86_64" | "linux_arm64"),
+                    None => supports_target(&origin.target),
                 }
         })
         .collect::<Vec<_>>();
@@ -2265,7 +2270,7 @@ fn replay_provider_row_binding(
                             plan.name, row.requirement_identity,
                         )));
                     };
-                    let (binding, replayed_origin) = inferred_linux_console_compiler_intrinsic(
+                    let (binding, replayed_origin) = inferred_hosted_console_compiler_intrinsic(
                         typed,
                         realization,
                         conformance,

@@ -15,13 +15,13 @@ pub(super) fn decode_instruction(
     let memory = match cursor.byte()? {
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
-        3 => MachineMemoryEffect::LinuxWriteByteV1,
+        3 => MachineMemoryEffect::HostedWriteByteV1,
         2 => MachineMemoryEffect::WriteFrameStorageV1,
         4 => MachineMemoryEffect::WritePointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
-        2 => MachineTrapBehavior::LinuxWriteFailureV1,
+        2 => MachineTrapBehavior::HostedWriteFailureV1,
         0 => MachineTrapBehavior::NeverV1,
         1 if allow_scalar_call => MachineTrapBehavior::MayArchitecturalFaultV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
@@ -99,7 +99,7 @@ fn decode_kind(
         2 => SelectedInstructionKind::CopyI64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
-        23 => SelectedInstructionKind::LinuxWriteByteI32 {
+        23 => SelectedInstructionKind::HostedWriteByteI32 {
             slot: decode_local_storage_slot(cursor)?,
         },
         22 => SelectedInstructionKind::ByteViewAddress,
@@ -276,7 +276,7 @@ fn decode_alternative_for_version(
         2 => MachineAlternativeFamily::CopyI64,
         15 => MachineAlternativeFamily::ZeroExtendU8,
         20 => MachineAlternativeFamily::ZeroExtendU32,
-        23 => MachineAlternativeFamily::LinuxWriteByteI32,
+        23 => MachineAlternativeFamily::HostedWriteByteI32,
         22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
         16 => MachineAlternativeFamily::Load64,
@@ -371,7 +371,7 @@ fn decode_encoded_effects(
     let implicit_unit_defs = decode_units(cursor)?;
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
-        6 => MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+        6 => MachineEncodedMemoryEffect::HostedWriteByteV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
         },
         0 => MachineEncodedMemoryEffect::NoneV1,
@@ -416,13 +416,13 @@ fn decode_encoded_effects(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
-        2 => MachineEncodedTrapBehavior::LinuxWriteFailureV1,
+        2 => MachineEncodedTrapBehavior::HostedWriteFailureV1,
         0 => MachineEncodedTrapBehavior::NeverV1,
         1 => MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let control = match cursor.byte()? {
-        6 => MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1,
+        6 => MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
         0 => MachineEncodedControlEffect::FallThroughV1,
         1 => MachineEncodedControlEffect::ConditionalRelativeBranchV1,
         2 => MachineEncodedControlEffect::ReturnFromActivationStackV1,

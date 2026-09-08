@@ -32,7 +32,7 @@ pub(super) fn encode_row(
         kind @ (SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Load64 { .. }
-        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
+        | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
@@ -43,13 +43,26 @@ pub(super) fn encode_row(
                 .map(|operand| operand.view)
                 .collect::<Vec<_>>();
             if architecture == Architecture::Aarch64 {
-                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
-                    isa_aarch64::encode_aarch64_selected_linux_write_byte_form
+                let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
+                {
+                    isa_aarch64::encode_aarch64_selected_hosted_write_byte_form(
+                        target,
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        address.displacement,
+                    )
                 } else {
-                    isa_aarch64::encode_aarch64_selected_memory_form
-                };
-                let encoded = encode(physical, kind, alternative, &views, address.displacement)
-                    .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+                    isa_aarch64::encode_aarch64_selected_memory_form(
+                        physical,
+                        kind,
+                        alternative,
+                        &views,
+                        address.displacement,
+                    )
+                }
+                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
                 let footprint = encoded.footprint();
                 validate_operand_footprint(
                     selected.id,
@@ -73,8 +86,8 @@ pub(super) fn encode_row(
                     }),
                 }
             } else {
-                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
-                    isa_x86_64::encode_x86_64_selected_linux_write_byte_form
+                let encode = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. }) {
+                    isa_x86_64::encode_x86_64_selected_hosted_write_byte_form
                 } else {
                     isa_x86_64::encode_x86_64_selected_memory_form
                 };

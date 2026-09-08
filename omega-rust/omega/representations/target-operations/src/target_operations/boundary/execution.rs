@@ -37,7 +37,7 @@ pub struct ProviderExecutionBinding {
 pub enum CompilerBuiltinExecution {
     LinuxExitGroupI32,
     LinuxReadByte,
-    LinuxWriteByteI32,
+    HostedWriteByteI32,
 }
 
 /// Closed execution roles for a realized Terminal boundary.

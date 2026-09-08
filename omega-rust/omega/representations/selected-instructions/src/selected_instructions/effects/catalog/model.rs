@@ -46,7 +46,7 @@ pub enum MachineSemanticKind {
     FrameAddress,
     CallUnit,
     ByteViewAddress,
-    LinuxWriteByteI32,
+    HostedWriteByteI32,
     Store,
     AddressOffset,
 }
@@ -76,7 +76,7 @@ impl MachineSemanticKind {
         Self::FrameAddress,
         Self::CallUnit,
         Self::ByteViewAddress,
-        Self::LinuxWriteByteI32,
+        Self::HostedWriteByteI32,
         Self::Store,
         Self::AddressOffset,
     ];
@@ -107,7 +107,7 @@ pub enum MachineAlternativeFamily {
     FrameAddress,
     CallUnit,
     ByteViewAddress,
-    LinuxWriteByteI32,
+    HostedWriteByteI32,
     Store,
     AddressOffset,
 }
@@ -115,7 +115,7 @@ pub enum MachineAlternativeFamily {
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
-            MachineSemanticKind::LinuxWriteByteI32 => Self::LinuxWriteByteI32,
+            MachineSemanticKind::HostedWriteByteI32 => Self::HostedWriteByteI32,
             MachineSemanticKind::Store => Self::Store,
             MachineSemanticKind::AddressOffset => Self::AddressOffset,
             MachineSemanticKind::ByteViewAddress => Self::ByteViewAddress,
@@ -185,7 +185,7 @@ pub enum MachineAlternativeApplicability {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
     /// Private-byte initialization and kernel read, with an observable stdout write.
-    LinuxWriteByteV1,
+    HostedWriteByteV1,
     WritePointerV1,
     NoneV1,
     ReadPointerV1,
@@ -194,7 +194,7 @@ pub enum MachineMemoryEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineTrapBehavior {
-    LinuxWriteFailureV1,
+    HostedWriteFailureV1,
     NeverV1,
     MayArchitecturalFaultV1,
 }
@@ -273,8 +273,8 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
-    /// Write one frame byte, then let Linux read that byte for stdout.
-    LinuxWriteByteV1 {
+    /// Write one frame byte, then let the selected host kernel read it for stdout.
+    HostedWriteByteV1 {
         stack_pointer: RegisterViewId,
     },
     /// Exact footprint is the receiving-validated Store instruction byte size.
@@ -321,14 +321,14 @@ pub enum MachineEncodedStackEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedTrapBehavior {
     /// Architectural faults remain possible; a nonpositive syscall result traps.
-    LinuxWriteFailureV1,
+    HostedWriteFailureV1,
     NeverV1,
     MayArchitecturalFaultV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedControlEffect {
-    LinuxWriteReturnOrTrapV1,
+    HostedWriteReturnOrTrapV1,
     FallThroughV1,
     ConditionalRelativeBranchV1,
     ReturnFromActivationStackV1,

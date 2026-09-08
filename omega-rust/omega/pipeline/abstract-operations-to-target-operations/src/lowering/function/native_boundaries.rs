@@ -47,7 +47,7 @@ pub(super) fn unsupported_scalar_call(
                     .map(|binding| &binding.realization),
                 Some(target_operations::BoundarySettlementRealization::Builtin(
                     BoundaryRealization::LinuxExitGroupI32(_)
-                        | BoundaryRealization::LinuxWriteByteI32(_)
+                        | BoundaryRealization::HostedWriteByteI32(_)
                 )) | Some(
                     target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
                 )

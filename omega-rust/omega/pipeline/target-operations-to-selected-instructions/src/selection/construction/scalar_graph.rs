@@ -366,7 +366,7 @@ pub(super) fn build(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::LinuxWriteByteI32 { .. }
+                LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)

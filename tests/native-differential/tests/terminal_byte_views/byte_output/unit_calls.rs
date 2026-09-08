@@ -46,9 +46,13 @@ pub(super) fn unit_byte_output_calls_module() -> TerminalModule {
 }
 
 #[test]
-fn scalar_only_unit_byte_calls_publish_on_linux_targets() {
+fn scalar_only_unit_byte_calls_publish_on_supported_hosted_targets() {
     let module = unit_byte_output_calls_module();
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let placed = stage_byte_output_module(target, &module);
         let calls = &placed.text_section().resolved_internal_machine_calls;
         assert_eq!(
@@ -101,7 +105,11 @@ fn scalar_only_unit_byte_calls_publish_on_linux_targets() {
 #[test]
 fn scalar_only_unit_byte_calls_reject_changed_publication_custody() {
     let module = unit_byte_output_calls_module();
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let source = std::sync::Arc::new(
             object_file::stage_optimized_relocation_free_object_container(
                 stage_byte_output_module(target, &module),
@@ -195,7 +203,11 @@ fn mutate_selected_argument(call: &mut machine_code::InternalUnitCallRecord, mut
 #[test]
 fn scalar_only_unit_byte_calls_installation_requires_the_admitted_image() {
     let module = unit_byte_output_calls_module();
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let source = std::sync::Arc::new(
             object_file::stage_optimized_relocation_free_object_container(
                 stage_byte_output_module(target, &module),

@@ -32,10 +32,22 @@ pub struct LinuxExitGroupI32Realization;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LinuxReadByteRealization;
 
-/// Import-free Linux single-byte standard-output write through the kernel's
-/// `write(2)` ABI. Syscall coordinates are target facts and remain closed.
+/// Import-free hosted single-byte standard-output write through the selected
+/// kernel's `write(2)` ABI. Syscall coordinates remain exact target facts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct LinuxWriteByteI32Realization;
+pub struct HostedWriteByteI32Realization;
+
+impl HostedWriteByteI32Realization {
+    /// Only complete canonical target profiles select this closed realization.
+    pub fn supports_target(target: target::NativeTarget) -> bool {
+        [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ]
+        .contains(&target)
+    }
+}
 
 /// Import-free Linux standard-output realization through the kernel's
 /// `write(2)` ABI. The emitted loop consumes the complete immutable payload
@@ -98,7 +110,7 @@ builtin_settlement_conversion!(DirectPortReadU8Realization);
 builtin_settlement_conversion!(LinuxWriteLineRealization);
 builtin_settlement_conversion!(LinuxExitGroupI32Realization);
 builtin_settlement_conversion!(LinuxReadByteRealization);
-builtin_settlement_conversion!(LinuxWriteByteI32Realization);
+builtin_settlement_conversion!(HostedWriteByteI32Realization);
 builtin_settlement_conversion!(ClaimCompletionOnlyRealization);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,7 +120,7 @@ pub enum BoundaryRealization {
     LinuxWriteLine(LinuxWriteLineRealization),
     LinuxExitGroupI32(LinuxExitGroupI32Realization),
     LinuxReadByte(LinuxReadByteRealization),
-    LinuxWriteByteI32(LinuxWriteByteI32Realization),
+    HostedWriteByteI32(HostedWriteByteI32Realization),
     ClaimCompletionOnly(ClaimCompletionOnlyRealization),
 }
 
@@ -136,9 +148,9 @@ impl From<LinuxReadByteRealization> for BoundaryRealization {
     }
 }
 
-impl From<LinuxWriteByteI32Realization> for BoundaryRealization {
-    fn from(realization: LinuxWriteByteI32Realization) -> Self {
-        Self::LinuxWriteByteI32(realization)
+impl From<HostedWriteByteI32Realization> for BoundaryRealization {
+    fn from(realization: HostedWriteByteI32Realization) -> Self {
+        Self::HostedWriteByteI32(realization)
     }
 }
 

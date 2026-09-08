@@ -34,7 +34,7 @@ pub(crate) fn validate(
         kind @ (SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Load64 { .. }
-        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
+        | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
@@ -45,19 +45,27 @@ pub(crate) fn validate(
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             };
             let decoded = if architecture == Architecture::Aarch64 {
-                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
-                    isa_aarch64::validate_aarch64_selected_linux_write_byte_form
+                let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
+                {
+                    isa_aarch64::validate_aarch64_selected_hosted_write_byte_form(
+                        target,
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        address.displacement,
+                        bytes,
+                    )
                 } else {
-                    isa_aarch64::validate_aarch64_selected_memory_form
-                };
-                let encoded = encode(
-                    physical,
-                    kind,
-                    machine.alternative.key,
-                    &operand_views(machine),
-                    address.displacement,
-                    bytes,
-                )
+                    isa_aarch64::validate_aarch64_selected_memory_form(
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        address.displacement,
+                        bytes,
+                    )
+                }
                 .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
                 decoded_footprint(
                     &encoded.footprint().register_reads,
@@ -65,8 +73,8 @@ pub(crate) fn validate(
                     &encoded.footprint().encoded,
                 )
             } else {
-                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
-                    isa_x86_64::validate_x86_64_selected_linux_write_byte_form
+                let encode = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. }) {
+                    isa_x86_64::validate_x86_64_selected_hosted_write_byte_form
                 } else {
                     isa_x86_64::validate_x86_64_selected_memory_form
                 };

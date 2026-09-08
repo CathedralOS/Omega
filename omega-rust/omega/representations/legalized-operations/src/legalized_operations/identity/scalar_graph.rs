@@ -85,7 +85,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_scalar_type(bytes, value.scalar_type);
                     bytes.push(*byte_size);
                 }
-                LegalizedScalarInstructionKind::LinuxWriteByteI32 { boundary, source } => {
+                LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } => {
                     bytes.push(11);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());
                     bytes.extend_from_slice(&source.get().to_le_bytes());
