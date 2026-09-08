@@ -285,9 +285,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   and fuel suspension. Interpreter forwarding retains a frame-owned mutable
   field binding; source correspondence rejoins an exact authored `&mut [u8]`
   parameter reborrow without granting ordinary inline-storage conversion.
-  Implement the checked line adapter
-  over the settled native byte leaves; each target's `console_impl.omg` currently
-  declares bodyless `read_line` instead.
+  The checked line adapter and its native mutable-buffer presentation are
+  **OWNER-BLOCKED** on `BOUNDED-BYTE-OUTPUT-SURFACE` in
+  [owner questions](OWNER_QUESTIONS.md): ordinary `&mut [u8]` supplies neither
+  spare-capacity observation nor owner live-length replacement. Do not invent
+  those operations from interpreter-only backing metadata. Each target's
+  `console_impl.omg` currently declares bodyless `read_line`; native byte leaves
+  and independently motivated field operations are not blocked by this question.
   Native byte input still needs matching Linux runtime evidence and a Windows
   realization. Retain the shared hosted read leaf and connected case-selection
   path as the regression floor:
