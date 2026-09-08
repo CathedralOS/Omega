@@ -21,5 +21,8 @@ Acceptance updates the specification; this directory does not define current rul
   candidate typed visitation shared by inspectors and serializers, optional policy
   plans, runtime adapters, and owner-validated construction; preserves Layout/Placed
   boundaries without new keywords and does not define current rules.
+- [Lambdas and captured environments through ordinary machines](anonymous_machines.md):
+  unapproved anonymous bodies, explicit captures, shared/mutable/consuming calls,
+  generic walkers, and task-submission adapters over existing lifecycle contracts.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).

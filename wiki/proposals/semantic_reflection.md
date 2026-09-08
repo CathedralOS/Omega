@@ -37,6 +37,14 @@ adding a compiler opcode for each library format. Moving a feature behind a
 function call does not make its semantics free. Direct visitation may avoid a
 whole-plan carrier for simple clients; its implementation cost remains unmeasured.
 
+The named-callback examples below are comparators, not a permanent restriction
+on reflection's authoring tools. Evaluate the companion
+[lambda and captured-environment proposal](anonymous_machines.md) alongside typed
+visitation, including generic callback families and per-visit lifetimes. A missing
+implementation does not by itself justify excluding a useful general language
+facility, and proposed lambda support does not make the remaining typed-access
+contract disappear.
+
 ## Existing boundaries
 
 | Owner | Reuse | Not implied |
@@ -199,6 +207,42 @@ that staged connection while the callback stays ordinary code. No user AST,
 source-string generation, expansion keyword, or closed inspector bytecode is
 introduced by this proposal.
 
+## Anonymous callbacks as a candidate
+
+A general lambda facility could bind a runtime context directly, avoiding a
+separately named callback and explicit output parameter at every visit:
+
+```omega
+let show_field = machine<Value> [output = &mut output](
+    field: FieldInfo,
+    value: &Value
+)
+where Value == u32 || Value == f32;
+{
+    transition {
+        Value == u32 -> output.show_u32(field.name, value)
+        Value == f32 -> output.show_f32(field.name, value)
+    }
+};
+
+reflect::visit_fields<Player>(player, &mut show_field);
+```
+
+This is candidate syntax from the [anonymous-machine RFC](anonymous_machines.md),
+not a second approved overload. Its intended elaboration calls one statically
+known generic body at each field type while reborrowing the same captured output
+environment. The runtime player and output are not inspected during compilation.
+Capturing output does not capture or copy the player, and a callback cannot retain
+a field loan beyond its proven lifetime.
+
+Compare this route with named callbacks, explicit stateful visitors, and library
+plans before choosing the public API. The generic callable-family contract, exact
+conformance selection, receiver mode, and lifetime/effect forwarding need joint
+design. Ordinary callbacks can return pruning or early-stop results for library
+walkers; an anonymous body need not introduce reflection-specific control flow.
+Noncapturing lambdas alone are not sufficient evidence for the stateful walker,
+and generic lambdas alone do not supply checked member projection.
+
 ## The compiler contribution is explicit
 
 Three pieces are new, even though they are exposed as calls and data:
@@ -227,22 +271,31 @@ policy do not become compiler semantics.
 
 Field types do not decide whether an application saves, edits, displays, or
 replicates a property. Associate ordinary authored policy with exact member keys.
-For example, with key construction and the record carrier still to be specified:
+The following symbolic member-selection spelling is provisional, as is the
+policy carrier:
 
 ```text
 health_policy = PropertyPolicy {
-    member: exact health member key,
+    member: reflect::member<Player::health>(),
     label: "Health",
     editable: true,
     saved: true
 }
 speed_policy = PropertyPolicy {
-    member: exact speed member key,
+    member: reflect::member<Player::speed>(),
     label: "Speed",
     editable: false,
     saved: true
 }
 ```
+
+A member key identifies the compiler-resolved declaration and exact owning
+application; authors do not assign an integer, offset, or name hash. Enumeration
+already supplies these references in FieldInfo. Explicit selection should resolve
+the same declaration as ordinary field access, reject nonexistent members, and
+obey visibility. Admitting a field declaration as the argument above requires a
+new binding contract; existing type/value/machine arguments do not imply it.
+Canonical retained identity and access authority remain distinct.
 
 An ordinary property_policy machine can filter and organize these records.
 Separate editing, save, and replication policies may refer to the same member;
@@ -250,6 +303,22 @@ there need not be one universal flag record. No new annotation syntax or
 compiler-known SaveGame/Editable behavior is proposed. Labels and format names
 are data, not durable member identity. An editable flag grants no write authority,
 and a UI clamp is not evidence that a domain predicate holds.
+
+These entries illustrate exceptions, not required repetition of the schema. A
+policy machine can derive labels and default read-only exposure, then override
+selected members. An editor may display speed read-only rather than hide it;
+saved is relevant to a different consumer. Owners still authorize exposure and
+operations independently of those presentation choices.
+
+String lookup is an ordinary algorithm over names and member references, not
+another presumed compiler primitive. An eligible find_member(schema, name)
+invocation can run during compilation and return a member or a handled lookup
+failure. For runtime names, ordinary compile-time code can instead build fixed
+entry arrays and name bytes for a linear, sorted, or generated-hash lookup table.
+Runtime lookup returns an entry for an already-retained checked operation, not a
+new type argument. Temporary storage belongs to evaluation; retained table data
+uses ordinary constant materialization. Runtime filtering can further narrow
+display or operation choices but cannot create unavailable access authority.
 
 Logical properties can expose an owner-authored getter or setter rather than a
 storage field. Selecting a description performs no getter, attribute constructor,
@@ -470,9 +539,11 @@ No experiment has run. These cases would discriminate the proposed mechanism:
 | Case | Expected result |
 | --- | --- |
 | Player inspector and serializer | Both specialize ordinary callbacks through the same mechanism, with no format-specific compiler operations, record copy, or mandatory object header. |
+| Captured generic lambda | Reborrow one environment across differently typed visits; compare with named callbacks without relaxing field-lifetime or effect checks. |
 | Added unsupported field | Diagnose the member and unmet callback constraint; an explicit policy omission cannot masquerade as full coverage. |
 | User-defined field type | Use its explicitly selected conformance without adding a compiler opcode. |
 | Forged member/type pairing | Consumer rejects before generating an unsafe projection. |
+| Explicit member name and string lookup | Symbolic binding rejects nonexistent members; ordinary lookup handles failure and runtime tables invoke only retained adapters. |
 | Runtime metadata used for static member selection | Reject; use a retained runtime adapter rather than converting a type key into a generic argument. |
 | Schema or member reference outlives evaluator storage | Retain canonical symbolic identity, not a dangling host pointer. |
 | Ordinary metadata filtering | Traverse ordinary arrays/slices or eligible collections without a required proof-sequence conversion. |
@@ -497,6 +568,9 @@ Compare these alternatives without adding syntax prematurely:
 
 - Plain hand-authored visitors: least compiler machinery, but duplicate member
   selection. Keep them as the semantic and performance comparator.
+- Anonymous generic machines with captured context: evaluate the general callable
+    proposal jointly with reflection, not as an excluded future convenience or an
+    assumed implemented feature.
 - Compiler-mediated typed visitor as a core machine: the first candidate. Specify
     per-member generic instantiation, projections, and conformance selection. Compare
     its source and generated behavior with both handwritten customers.
@@ -516,6 +590,10 @@ contracts, and staged callback signature. Resolve how generic machine parameters
 bind per-member types and explicit conformances, how context and subloans are
 threaded, and how complete callback effects and failures compose. Direct visitation
 is the recommended first candidate, not a ratified extension to generic calling.
+Include anonymous generic callbacks and ordinary captured environments in that
+comparison. The [lambda proposal's open contracts](anonymous_machines.md#decisions-before-implementation)
+identify related binding, receiver, lifetime, and storage decisions; current
+named-only implementation limits are not the acceptance criteria.
 
 The proposed first experiment pairs the public numeric inspector with the record
 serializer above, compared with handwritten code. Both must reuse the same typed
