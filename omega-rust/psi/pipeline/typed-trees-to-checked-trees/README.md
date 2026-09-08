@@ -126,8 +126,15 @@ or reinterpret anonymous rational arithmetic. The [field-held limit](../../../..
 also checks endpoint preservation across record reconstruction. The
 [computed field limit](../../../../tests/omega/pass/termination/measure_field_computed_limit/README.md)
 uses the field's declared bounds to form an exclusive endpoint before relational
-normalization and pinning. Flow-dependent formation, non-polynomial field endpoint
-substitution, named-state transport, broader projections and constrained measure
+normalization and pinning. The declared-bounds tier also checks
+[quotient/remainder field endpoints](../../../../tests/omega/pass/termination/measure_field_remainder_limit/README.md)
+by preserving each exact input across every self-edge, including direct field
+copies into the same nominal constructor. It checks complete prefix/operand
+write frames on each input field rather than requiring unrelated fields to stay
+unchanged. Arithmetic formation remains with the shared bounds owner; this
+pinning rule does not interpret division or remainder as a polynomial.
+Flow-dependent formation, algebraic replacement of non-polynomial endpoint
+inputs, named-state transport, broader projections and constrained measure
 parameters still need their own evidence.
 
 Entry backedges re-establish machine `requires`; internal named-state transfers
