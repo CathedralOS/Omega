@@ -467,13 +467,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &locals,
                                 exact_integer_casts,
                             )
-                            .or_else(|| {
-                                lower_closed_integer_literal_guard(
-                                    program,
-                                    operators,
-                                    authored_guard,
-                                )
-                            })
                         {
                             source_bindings.append(CheckedScalarExpressionBindings {
                                 destination: symbols::SymbolHandle::invalid(),
@@ -729,10 +722,9 @@ fn lower_closed_integer_literal_guard(
     operators: &CheckedOperatorFacts,
     mut expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    // Const substitution can leave a comparison of two anonymous literals:
-    // there is deliberately no runtime carrier to land. Preserve its exact
-    // mathematical result as a checked Boolean constant instead of guessing
-    // an integer width downstream.
+    // Successful checking has already established literal landing and selected
+    // comparison meaning. Comparing these immutable payloads needs no runtime
+    // arithmetic, whether the literals are anonymous or have declared carriers.
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
         && binary.operator == BinaryOperator::Equal
         && operator_is_builtin(operators, expression)
@@ -3307,6 +3299,9 @@ fn lower_boolean_guard(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
+    if let Some(value) = lower_closed_integer_literal_guard(program, operators, expression) {
+        return Some(value);
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return lower_boolean_expression(
             program,
@@ -3549,6 +3544,55 @@ fn checked_integer_binary_kind(
 mod tests {
     use super::*;
     use arena::Arena;
+
+    #[test]
+    fn landed_literal_guards_fold_both_polarities_only_with_builtin_meaning() {
+        for (right_value, expected) in [(64, true), (65, false)] {
+            let mut program = TypedTrees::default();
+            let left = program.expression_table.insert(ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(64).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U32,
+                    domain: ArithmeticDomain::Exact,
+                }),
+            ));
+            let right = program.expression_table.insert(ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(right_value),
+            ));
+            let expression = program.expression_table.insert(ExpressionNode::Binary(
+                typed_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Equal,
+                    right,
+                },
+            ));
+            for status in [
+                CheckedOperatorResolutionStatus::BuiltinFallback,
+                CheckedOperatorResolutionStatus::Resolved,
+                CheckedOperatorResolutionStatus::Missing,
+                CheckedOperatorResolutionStatus::Ambiguous,
+            ] {
+                let mut uses = Arena::new();
+                uses.append(checked_trees::CheckedOperatorUseFact {
+                    expression,
+                    status,
+                    ..Default::default()
+                });
+                let operators = CheckedOperatorFacts::with_roots(uses, Arena::new(), Arena::new());
+                let lowered =
+                    lower_boolean_guard(&program, &operators, expression, &[], &[], &[], &[], &[]);
+                if status == CheckedOperatorResolutionStatus::BuiltinFallback {
+                    assert!(
+                        matches!(lowered, Some(CheckedBooleanExpression::Constant(value)) if value == expected)
+                    );
+                } else {
+                    assert!(
+                        lowered.is_none(),
+                        "{status:?} cannot acquire builtin comparison meaning"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn boolean_guard_selection_preserves_both_polarities_and_operator_meaning() {

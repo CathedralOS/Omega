@@ -1,0 +1,6 @@
+module combat;
+const SIZE: u64 = 2;
+data Packet {
+    same: Buffer<SIZE + 0>;
+    next: Buffer<SIZE + 1>;
+}

@@ -325,7 +325,7 @@ fn qualified_module_constants_cannot_fold_through_same_spelled_type_scopes() {
         assert!(
             syntax
                 .type_references
-                .const_argument_origin(argument)
+                .const_argument_normalization(argument)
                 .is_none()
         );
         assert!(!syntax.root_items().any(|item| matches!(item,

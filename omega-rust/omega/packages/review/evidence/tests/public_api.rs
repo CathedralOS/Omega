@@ -108,4 +108,20 @@ fn module_constant_index_enters_canonical_public_data_artifact() {
         root_shape(&original).members(),
         root_shape(&changed).members()
     );
+
+    let compound = project(&original_package, 2, "combat::SIZE + 1");
+    let relocated_compound = project(&relocated_package, 2, "combat::SIZE + 1");
+    assert_eq!(
+        compound.canonical_review_bytes().unwrap(),
+        relocated_compound.canonical_review_bytes().unwrap()
+    );
+    assert_eq!(data_rows(&compound), data_rows(&relocated_compound));
+    let compound_literal = project(&TempPackage::new(), 2, "3");
+    assert_eq!(payloads(&compound), payloads(&compound_literal));
+    let equivalent_compound = project(&TempPackage::new(), 2, "combat::SIZE + combat::SIZE - 1");
+    assert_eq!(payloads(&compound), payloads(&equivalent_compound));
+    let changed_compound = project(&TempPackage::new(), 3, "combat::SIZE + 1");
+    let changed_literal = project(&TempPackage::new(), 3, "4");
+    assert_eq!(payloads(&changed_compound), payloads(&changed_literal));
+    assert_ne!(payloads(&compound), payloads(&changed_compound));
 }

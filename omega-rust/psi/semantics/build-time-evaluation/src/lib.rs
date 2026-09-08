@@ -7,6 +7,7 @@ mod admission;
 mod build_machines;
 mod const_domain_facts;
 mod const_generic_calls;
+mod const_generic_expressions;
 mod const_lengths;
 mod layout_plans;
 mod placed_views;
@@ -276,6 +277,12 @@ fn evaluate_pre_resolution_with_optional_sources(
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 ) -> Result<PreResolutionEvaluation, Vec<diagnostics::Diagnostic>> {
+    let syntax_trees = const_generic_expressions::evaluate(
+        syntax_trees,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+        selection_authority.as_deref(),
+    )?;
     let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls_with_optional_sources(
         syntax_trees,
         sources.clone(),

@@ -16,16 +16,20 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
-    if let Some(origin) = syntax_trees
+    if let Some(normalization) = syntax_trees
         .type_references
-        .const_argument_origin(type_reference)
+        .const_argument_normalization(type_reference)
     {
         crate::constant::validate_normalized_const_argument(
             syntax_trees.type_references.type_reference(type_reference),
-            origin,
+            normalization,
         )?;
-        if !lowerer.derived_const_argument_origins.contains(origin) {
-            lowerer.pending_const_argument_selections.push(
+        for origin in syntax_trees
+            .type_references
+            .const_argument_origins(normalization.selections)
+        {
+            if !lowerer.derived_const_argument_origins.contains(origin) {
+                lowerer.pending_const_argument_selections.push(
             crate::lowerer::PendingConstArgumentSelection {
                 origin: origin.clone(),
                 exposure: lowerer.current_authored_expression_exposure.unwrap_or(
@@ -33,6 +37,53 @@ pub(crate) fn lower_type_reference_handle(
                 ),
             },
             );
+            }
+        }
+        for reference in syntax_trees
+            .type_references
+            .const_argument_builtin_operators(normalization.builtin_operators)
+        {
+            if lowerer
+                .derived_const_argument_builtin_operators
+                .contains(reference)
+            {
+                continue;
+            }
+            use language_semantics::declaration_selection::{
+                AuthoredDeclarationSelectionExposure as Exposure,
+                AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+                AuthoredDeclarationSelectionKind as Kind,
+                AuthoredDeclarationSelectionLateBinding as LateBinding,
+            };
+            let occurrence = lowerer
+                .symbol_resolved_trees
+                .record_late_bound_authored_declaration_selection(
+                    *reference,
+                    lowerer
+                        .current_authored_expression_exposure
+                        .unwrap_or(Exposure::PrivateImplementation),
+                    Kind::Operator,
+                    LateBinding::CheckedOperator,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "failed to retain normalized builtin operator: {error:?}"
+                    ))
+                    .with_source_span(*reference)
+                })?;
+            lowerer
+                .symbol_resolved_trees
+                .finalize_intrinsic_authored_declaration_selection(
+                    occurrence,
+                    LateBinding::CheckedOperator,
+                    Intrinsic::BuiltinOperator,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "failed to finalize normalized builtin operator: {error:?}"
+                    ))
+                    .with_source_span(*reference)
+                })?;
         }
     }
     let lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;

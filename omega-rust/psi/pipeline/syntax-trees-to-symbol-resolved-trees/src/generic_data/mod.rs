@@ -47,6 +47,61 @@ use substitution::*;
 use synthesis::desugar_generic_data_instances;
 use uses::*;
 
+/// Constant-expression arguments in concrete data fields and their parameter types.
+/// Open templates and machine lexical scopes cannot borrow a standalone probe.
+/// These handles borrow the input syntax; no provisional program escapes.
+/// Each tuple retains the argument, parameter type, and real owner's public exposure.
+pub fn closed_data_const_argument_expressions(
+    syntax: &SyntaxTrees,
+) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
+    let mut pending = Vec::new();
+    let public_positions = collect_data_type_reference_positions(syntax, true);
+    for position in collect_data_type_reference_positions(syntax, false) {
+        let TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } = syntax.type_references.type_reference(position)
+        else {
+            continue;
+        };
+        let mut definitions = syntax.root_items().filter_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == base_name.as_str() => {
+                Some(definition)
+            }
+            _ => None,
+        });
+        let Some(definition) = definitions.next() else {
+            continue;
+        };
+        // Ambiguous template selection is not resolved by visitation order.
+        if definitions.next().is_some() {
+            continue;
+        }
+        let parameters = syntax.items.type_parameters(definition.type_parameters);
+        let arguments = syntax.type_references.type_reference_handles(*arguments);
+        if parameters.len() != arguments.len() {
+            continue;
+        }
+        for (parameter, argument) in parameters.iter().zip(arguments) {
+            if let TypeParameterKind::Const { type_reference } = parameter.kind
+                && matches!(
+                    syntax.type_references.type_reference(*argument),
+                    TypeReferenceNode::ConstExpression(_)
+                )
+                && !pending.iter().any(|(existing, _, _)| existing == argument)
+            {
+                pending.push((
+                    *argument,
+                    type_reference,
+                    public_positions.contains(argument),
+                ));
+            }
+        }
+    }
+    pending
+}
+
 /// Canonicalize one source const declaration against its own declared type.
 ///
 /// This is the narrow handoff used by declaration/API retention. The returned

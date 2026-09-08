@@ -213,6 +213,21 @@ pub(in crate::generic_data) fn normalize_template_type_reference(
 pub(in crate::generic_data) fn collect_type_reference_positions(
     syntax: &SyntaxTrees,
 ) -> Vec<TypeReferenceHandle> {
+    collect_owned_type_reference_positions(syntax, true, false)
+}
+
+pub(in crate::generic_data) fn collect_data_type_reference_positions(
+    syntax: &SyntaxTrees,
+    public_only: bool,
+) -> Vec<TypeReferenceHandle> {
+    collect_owned_type_reference_positions(syntax, false, public_only)
+}
+
+fn collect_owned_type_reference_positions(
+    syntax: &SyntaxTrees,
+    include_machines: bool,
+    public_only: bool,
+) -> Vec<TypeReferenceHandle> {
     fn collect(
         syntax: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
@@ -254,7 +269,10 @@ pub(in crate::generic_data) fn collect_type_reference_positions(
             // synthesize a bogus `Box<T>` record and corrupt the template. Only
             // concrete records (incl. synthesized instances) and non-generic
             // machine bodies hold real `Box<i32>` spellings.
-            Item::Data(definition) if definition.type_parameters.is_empty() => {
+            Item::Data(definition)
+                if definition.type_parameters.is_empty()
+                    && (!public_only || definition.is_public) =>
+            {
                 for member in syntax.tables.items.data_members(definition.members) {
                     match member {
                         DataMember::Field(field) => {
@@ -269,7 +287,7 @@ pub(in crate::generic_data) fn collect_type_reference_positions(
                     }
                 }
             }
-            Item::Machine(machine) if machine.type_parameters.is_empty() => {
+            Item::Machine(machine) if include_machines && machine.type_parameters.is_empty() => {
                 // Conformance arguments participate in the same concrete
                 // generic-data identity as the machine signature. Rewriting
                 // `-> Algebra<Unit>` while leaving
@@ -315,6 +333,9 @@ pub(in crate::generic_data) fn collect_type_reference_positions(
     // Generic node gives downstream representation validation two identities
     // for the same synthesized instance. Walk only expressions reachable from
     // non-generic machines; generic template bodies remain deliberately open.
+    if !include_machines {
+        return positions;
+    }
     let concrete_expressions = super::concrete_machine_expression_handles(syntax);
     for (handle, expression) in syntax.expressions.iter_expressions() {
         if concrete_expressions.contains(&handle.arena_index())

@@ -121,15 +121,21 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                         ) => value.to_string(),
                         _ => value.atom(),
                     };
-                    syntax.tables.type_references.retain_const_argument_origin(
-                        *argument,
-                        syntax_trees::types::ConstArgumentOrigin {
-                            reference: name.source_span(),
-                            declaration: definition.name.source_span(),
-                            initializer: syntax.expressions.source_span(definition.value),
-                            canonical_value_encoding: value.encoding,
-                        },
-                    );
+                    syntax
+                        .tables
+                        .type_references
+                        .retain_const_argument_normalization(
+                            *argument,
+                            name.source_span(),
+                            value.encoding.clone(),
+                            [syntax_trees::types::ConstArgumentOrigin {
+                                reference: name.source_span(),
+                                declaration: definition.name.source_span(),
+                                initializer: syntax.expressions.source_span(definition.value),
+                                canonical_value_encoding: value.encoding,
+                            }],
+                            [],
+                        );
                     syntax.tables.type_references.replace_type_reference(
                         *argument,
                         TypeReferenceNode::Named(Identifier::generated(replacement)),
