@@ -292,12 +292,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   runtime_console_byte_read_return_catalog_replays_both_linux_targets
   --no-fail-fast --no-tests fail` passes cross-emission and native artifact replay
   on macOS ARM64 at `95d162cd33`; it does not execute Linux code.
-  At checkpoint `5077aa628b`, the same command with
+  At checkpoint `756b5b3d72`, the same command with
   `runtime_console_byte_inspection_replays_validated_cross_target_artifacts`
-  reaches abstract validation but fails `MissingTerminator` for machine 1,
-  block 1. `optimization-unit-semantics/src/unit_validation/derived_metadata/
-  control_flow.rs::is_terminator` omits the emitted `StructuralCase`;
-  retain its successor/payload custody before extending native case selection.
+  passes abstract validation, including case payloads and owned-result cleanup,
+  then fails `Selection(Legalization(UnsupportedSourceShape { function: 0 }))`.
+  Extend the existing `target-operations-to-selected-instructions/src/legalization/
+  scalar_graph_input/` and `selection/read_result_input.rs` one-block input rosters
+  into case-aware graph selection. Reuse retained closed-sum tag/layout and
+  structural result homes; materialize edge payloads before cleanup and transfer.
+  The same checkpoint's macOS `cli_mvp` probe above still stops at `read_line`.
   `runtime_console_byte_sources_retain_checked_unit_plans_and_terminal_artifacts`
   is the source-to-Terminal replay floor for literal output and byte inspection;
   `runtime_console_byte_literal_linux_catalog_replays_both_targets` also passes.
