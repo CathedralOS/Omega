@@ -66,17 +66,22 @@ A proved machine's contract can be used in another proof, or to justify an
 operation in systems code. See
 [compile-time proofs](wiki/language_guide/chapter_10_compile_time_proofs.md).
 
-## What the checks are for
+## Failures Omega addresses
 
-| You express | Checking establishes | Still explicit |
-| --- | --- | --- |
-| Ownership and borrows | Legal access, transfer, and cleanup | Storage supply and external lifetime contracts |
-| Preconditions, bounds, and guarantees | Operations are valid under established facts | Any admitted assumptions |
-| States and transitions | Valid successor inputs and ownership transfers | A termination promise when one is needed |
-| Boundary calls and capabilities | Declared effects and required authority | Provider trust and deployment policy |
+| Failure | What Omega does about it |
+| --- | --- |
+| Use-after-free, double-free, dangling references | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
+| Out-of-bounds reads and writes | Array and slice access requires proof that the index or range is valid. |
+| Stack overflow | Tail recursion becomes iteration. Worst-case stack demand, including compiler spills, must fit provisioned storage before execution. |
+| Accidental integer overflow and division by zero | Exact arithmetic requires proof that the operation is valid. Wrapping, saturation, and runtime trapping are explicit choices. |
+| Data races | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
+| Deadlocks and indefinite waits | Protocol proofs can rule out wait cycles and missing wakeups for a checked composition. Ownership alone does not promise progress. |
+| Unintended infinite loops | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
+| Hidden filesystem or process authority | Boundary effects propagate through calls; a build cannot silently grant authority its receiving policy disallows. |
 
-The aim is systems code whose assumptions can be inspected—not a claim that
-the compiler proves every property of the surrounding operating system.
+These guarantees rely on the contracts of external code and hardware. A foreign
+function that lies about its memory access, or an OS that violates its contract,
+is not made safe by calling it from Omega.
 
 ## Building
 
