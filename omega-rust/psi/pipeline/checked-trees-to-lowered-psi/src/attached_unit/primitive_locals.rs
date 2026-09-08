@@ -3,7 +3,7 @@
 use super::*;
 use checked_trees::statement::{StatementNode, TableLocalData};
 
-mod borrows;
+pub(crate) mod borrows;
 
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,

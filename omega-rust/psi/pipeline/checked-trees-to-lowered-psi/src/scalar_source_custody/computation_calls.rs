@@ -3,6 +3,13 @@
 use super::*;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
+use crate::attached_unit::primitive_locals::borrows as borrow_rows;
+mod mixed_arguments;
+mod operand_scopes;
+mod primitive_arguments;
+
+pub(crate) use mixed_arguments::{RejoinedComputationArgument, rejoin_computation_call_arguments};
+
 pub(crate) fn validate_computation_calls(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -32,10 +39,10 @@ pub(crate) fn validate_computation_calls(
         .ok_or(LoweringError::Unsupported(
             "computed invocation has an invalid source call span",
         ))?;
-    let mut pending = vec![(root, false)];
+    let mut pending = vec![(root, false, authored_root)];
     let mut active = Vec::new();
     let mut calls = Vec::new();
-    while let Some((handle, exiting)) = pending.pop() {
+    while let Some((handle, exiting, authored_scope)) = pending.pop() {
         if exiting {
             active.pop();
             continue;
@@ -44,19 +51,41 @@ pub(crate) fn validate_computation_calls(
             return unsupported("computed invocation has an invalid or cyclic computation");
         }
         active.push(handle);
-        pending.push((handle, true));
+        pending.push((handle, true, authored_scope));
         let node = plans.nodes.get(handle);
         match &node.kind {
-            CheckedScalarComputationKind::Value(_) => {}
+            CheckedScalarComputationKind::Value(value) => {
+                crate::scalar_source_custody::validate_storage_read_expression(
+                    checked,
+                    state,
+                    statement,
+                    authored_scope,
+                    value,
+                )?;
+            }
             CheckedScalarComputationKind::Select {
                 condition,
                 when_true,
                 when_false,
             } => {
+                let (condition_scope, selected_scope, evaluate_when) =
+                    operand_scopes::selection(checked, authored_scope)?;
+                let (selected, skipped) = if evaluate_when {
+                    (*when_true, *when_false)
+                } else {
+                    (*when_false, *when_true)
+                };
+                if !plans.nodes.is_valid(skipped)
+                    || !matches!(&plans.nodes.get(skipped).kind,
+                        CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(value))
+                        if matches!(value.as_ref(), CheckedBooleanExpression::Constant(value)
+                            if *value == !evaluate_when))
+                {
+                    return unsupported("computed selection substituted its skipped value");
+                }
                 pending.extend([
-                    (*when_false, false),
-                    (*when_true, false),
-                    (*condition, false),
+                    (selected, false, selected_scope),
+                    (*condition, false, condition_scope),
                 ]);
             }
             CheckedScalarComputationKind::Apply { operands, .. } => {
@@ -66,19 +95,26 @@ pub(crate) fn validate_computation_calls(
                     .ok_or(LoweringError::Unsupported(
                         "computed invocation has an invalid operand span",
                     ))?;
-                pending.extend(operands.iter().rev().map(|operand| (*operand, false)));
+                let scopes = operand_scopes::application(checked, authored_scope, operands.len())?;
+                pending.extend(
+                    operands
+                        .iter()
+                        .zip(scopes)
+                        .rev()
+                        .map(|(operand, scope)| (*operand, false, scope)),
+                );
             }
             CheckedScalarComputationKind::Call {
                 source_call,
-                target_machine,
                 target_state,
                 call_ordinal,
-                arguments,
+                ..
             } => {
                 if !control.calls.is_valid(*source_call) {
                     return unsupported("computed invocation has no live checked source call");
                 }
                 let source = control.calls.get(*source_call);
+                let scoped_expressions = authored_expressions(checked, authored_scope)?;
                 let matching = source_calls
                     .iter()
                     .filter(|candidate| {
@@ -90,6 +126,7 @@ pub(crate) fn validate_computation_calls(
                     || !std::ptr::eq(matching[0], source)
                     || source.target_symbol != *target_state
                     || !expressions.contains(&source.authored_expression)
+                    || !scoped_expressions.contains(&source.authored_expression)
                     || calls.contains(&source.authored_expression)
                 {
                     return unsupported(
@@ -97,67 +134,25 @@ pub(crate) fn validate_computation_calls(
                     );
                 }
                 calls.push(source.authored_expression);
-                let ExpressionNode::Call(call) = checked
-                    .expression_table
-                    .expression(source.authored_expression)
-                else {
-                    return unsupported("computed invocation source is not an authored call");
-                };
-                let (owner, target) = authored_state(checked, *target_state)?;
-                let parameters = checked.state_parameters(target);
-                let authored_arguments =
-                    checked.expression_table.expression_handles(call.arguments);
                 let arguments =
-                    plans
-                        .operands
-                        .span(*arguments)
-                        .ok_or(LoweringError::Unsupported(
-                            "computed invocation has an invalid argument span",
-                        ))?;
-                if owner.symbol != *target_machine
-                    || call.target_symbol != *target_state
-                    || !checked.call_has_no_runtime_receiver(call, owner, target)
-                    || source.has_receiver != call.receiver.is_valid()
-                    || source.receiver_symbol
-                        != if call.receiver.is_valid() {
-                            owner.attached_data_symbol
-                        } else {
-                            symbols::SymbolHandle::invalid()
+                    rejoin_computation_call_arguments(checked, machine, state, statement, handle)?;
+                for argument in arguments.into_iter().rev() {
+                    match argument {
+                        RejoinedComputationArgument::Scalar {
+                            expression,
+                            computation,
+                        } => {
+                            pending.push((computation, false, expression));
                         }
-                    || !call.machine_arguments.is_empty()
-                    || !call.evidence_arguments.is_empty()
-                    || call.static_requirement_dispatch.is_some()
-                    || call.quotient_operation.is_some()
-                    || call.private_layout_operation.is_some()
-                    || checked.primitive_type_reference(target.return_type)
-                        != Some(node.primitive_type)
-                    || authored_arguments.len() != call.arguments.count() as usize
-                    || authored_arguments.len() != parameters.len()
-                    || authored_arguments.len() != arguments.len()
-                    || parameters.iter().any(|parameter| {
-                        parameter.is_self
-                            || parameter.is_const
-                            || (parameter.is_mutable
-                                && !checked
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some_and(super::supported_mutable_parameter))
-                    })
-                    || parameters
-                        .iter()
-                        .zip(arguments)
-                        .zip(authored_arguments)
-                        .any(|((parameter, argument), authored_argument)| {
-                            !plans.nodes.is_valid(*argument)
-                                || plans.nodes.get(*argument).authored_root != *authored_argument
-                                || checked.primitive_type_reference(parameter.type_reference)
-                                    != Some(plans.nodes.get(*argument).primitive_type)
-                        })
-                {
-                    return unsupported(
-                        "computed invocation disagrees with its authored signature",
-                    );
+                        RejoinedComputationArgument::Structural { expression } => {
+                            if !scoped_expressions.contains(&expression) {
+                                return unsupported(
+                                    "computed borrow escaped its authored argument scope",
+                                );
+                            }
+                        }
+                    }
                 }
-                pending.extend(arguments.iter().rev().map(|argument| (*argument, false)));
             }
         }
     }

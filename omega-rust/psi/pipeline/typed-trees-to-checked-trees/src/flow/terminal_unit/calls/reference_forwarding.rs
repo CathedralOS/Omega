@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) fn preserves_mutable_referent(
     program: &TypedTrees,
-    facts: &CheckFacts,
+    borrow: &checked_trees::BorrowFacts,
     borrow_state: &checked_trees::StateBorrowFact,
     borrow_call: &checked_trees::BorrowCallFact,
     call: &checked_trees::FlowCallFact,
@@ -12,7 +12,7 @@ pub(super) fn preserves_mutable_referent(
 ) -> bool {
     exact_mutable_referent(
         program,
-        facts,
+        borrow,
         borrow_state,
         borrow_call,
         call,
@@ -23,7 +23,7 @@ pub(super) fn preserves_mutable_referent(
 
 fn exact_mutable_referent(
     program: &TypedTrees,
-    facts: &CheckFacts,
+    borrow: &checked_trees::BorrowFacts,
     borrow_state: &checked_trees::StateBorrowFact,
     borrow_call: &checked_trees::BorrowCallFact,
     call: &checked_trees::FlowCallFact,
@@ -52,7 +52,7 @@ fn exact_mutable_referent(
     // access. That bit is not evidence that the carrier was rebound. Rejoin
     // actual preceding writes instead; unknown or overlapping storage changes
     // stay outside this direct entry-parameter forwarding path.
-    prefix_preserves_parameter(program, facts, borrow_state, call, source_symbol)?;
+    prefix_preserves_parameter(program, borrow, borrow_state, call, source_symbol)?;
     let site = crate::find_call_site(
         program,
         borrow_state.machine_symbol,
@@ -107,15 +107,14 @@ fn exact_mutable_referent(
     // The existing borrow call owns the exact occurrence and all argument
     // observations. A second observation of this root may overlap the mutable
     // referent, even when it names a projected field rather than the carrier.
-    let mut accesses = facts
-        .borrow
+    let mut accesses = borrow
         .argument_accesses
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| access.root_symbol == source_symbol);
     let access = accesses.next()?;
     if accesses.next().is_some()
-        || !facts.borrow.access_segments(access).is_empty()
+        || !borrow.access_segments(access).is_empty()
         || access.kind != checked_trees::BorrowAccessKind::Read
     {
         return None;
@@ -123,8 +122,7 @@ fn exact_mutable_referent(
     // No restoration is inferred from the carrier type. Live descendant loans
     // still require the existing exact restoration certificates; those paths
     // are handled separately by the call-plan owner.
-    if facts
-        .borrow
+    if borrow
         .loans
         .span_or_empty(borrow_state.loans)
         .iter()
@@ -143,7 +141,7 @@ fn exact_mutable_referent(
 
 fn prefix_preserves_parameter(
     program: &TypedTrees,
-    facts: &CheckFacts,
+    borrow: &checked_trees::BorrowFacts,
     borrow_state: &checked_trees::StateBorrowFact,
     call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
@@ -170,7 +168,7 @@ fn prefix_preserves_parameter(
         }
     }
     let summaries = crate::flow::StateMutationSummaryCache::default();
-    for preceding in facts.borrow.calls.span_or_empty(borrow_state.calls) {
+    for preceding in borrow.calls.span_or_empty(borrow_state.calls) {
         if preceding.statement_index > call.statement_index
             || (preceding.statement_index == call.statement_index
                 && preceding.call_ordinal == call.call_ordinal)
@@ -183,7 +181,7 @@ fn prefix_preserves_parameter(
             program,
             borrow_state.machine_symbol,
             borrow_state.state_symbol,
-            &facts.borrow,
+            borrow,
             preceding,
             &summaries,
         )?;

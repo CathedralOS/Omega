@@ -20,8 +20,8 @@ impl<'checked> CheckedScalarCallee<'checked> {
         Ok(callee)
     }
 
-    /// Unit operations retain an explicit structural transfer lane. Scalar
-    /// computation edges must continue to use the scalar-only `find` entry.
+    /// Select a body whose caller retains an explicit structural transfer lane.
+    /// Scalar-only edges must continue to use the narrower `find` entry.
     pub(crate) fn find_for_unit_call(
         checked: &'checked CheckedTrees,
         source: symbols::SymbolHandle,

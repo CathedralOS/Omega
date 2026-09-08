@@ -58,6 +58,73 @@ impl ScalarBindings {
         self
     }
 
+    /// Resolve an already source-validated whole primitive borrow without
+    /// materializing its contents as an immutable scalar argument.
+    pub(super) fn primitive_borrow(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        scalar_type: ScalarType,
+    ) -> Result<StructuralArgument, LoweringError> {
+        let access = match argument.access {
+            checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+            checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                StructuralAccess::MutableBorrow
+            }
+            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                StructuralAccess::WriteOnlyBorrow
+            }
+            checked_trees::CheckedStructuralAccess::Owned => {
+                return unsupported("computed primitive argument cannot transfer ownership");
+            }
+        };
+        if !argument.path.is_empty() {
+            return unsupported("computed primitive argument requires a whole referent");
+        }
+        let place = match argument.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
+                primitive_storage_place(&self.primitive_storage, symbol, scalar_type)?
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                let (_, parameter) = self
+                    .structural_parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed primitive borrow has no enclosing parameter",
+                    ))?;
+                if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || !matches!(
+                        (parameter.access, access),
+                        (
+                            StructuralAccess::SharedBorrow,
+                            StructuralAccess::SharedBorrow
+                        ) | (
+                            StructuralAccess::MutableBorrow,
+                            StructuralAccess::SharedBorrow
+                                | StructuralAccess::MutableBorrow
+                                | StructuralAccess::WriteOnlyBorrow
+                        ) | (
+                            StructuralAccess::WriteOnlyBorrow,
+                            StructuralAccess::WriteOnlyBorrow
+                        )
+                    )
+                {
+                    return unsupported("computed primitive borrow widens parameter custody");
+                }
+                parameter.place
+            }
+            _ => return unsupported("computed primitive borrow has no supported source place"),
+        };
+        Ok(StructuralArgument {
+            place,
+            path: Vec::new(),
+            access,
+        })
+    }
+
     pub(super) fn initialize_parameter(
         &mut self,
         symbol: symbols::SymbolHandle,

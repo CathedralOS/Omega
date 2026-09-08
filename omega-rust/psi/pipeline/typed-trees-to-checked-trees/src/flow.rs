@@ -34,6 +34,7 @@ mod terminal_cleanup;
 mod terminal_debug;
 mod terminal_scalar;
 mod terminal_unit;
+pub(crate) use terminal_unit::primitive_computation_argument;
 #[cfg(test)]
 pub(crate) use terminal_unit::shared_convergence::affine::exact_affine_cast_affine_runtime_parameter_positions_for_test;
 #[cfg(test)]

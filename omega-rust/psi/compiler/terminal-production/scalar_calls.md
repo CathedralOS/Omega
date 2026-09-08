@@ -98,9 +98,13 @@ This establishes the body of an operand callee such as
 `machine reset(value: &mut u64) -> u64 { value = 0; 0 }`.
 Ordinary Unit callers retain these bodies in their existing shared scalar-callee
 catalog and invoke them with `CallStructuralScalar`. Independent primitive-store
-bodies are discovered before Unit closure; nominal-cleanup-dependent return bodies
+bodies and effect-free primitive-reference scalar returns are discovered before
+Unit closure; nominal-cleanup-dependent return bodies
 remain in the later discovery phase. Exact authored structural actuals and dense
 scalar positions survive the call, including a result binding after scalar inputs.
+Effect-free bodies may take several plain primitive borrows interleaved with
+scalar parameters. They retain an empty effect prefix, not a fabricated store;
+the authored statement roster still rejects deletion of a real assignment.
 The selected callee's type closure is validated in the shared allocated namespace;
 unrelated retained bodies do not add types or machines to that artifact.
 [`borrowed_scalar_call_source.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_scalar_call_source.rs)
@@ -117,8 +121,18 @@ retains declaration, initializer, destination, borrow occurrence, and read ident
 The interpreter uses fresh activation-local identities and preserves them across
 fuel suspension. Primitive-local establishment and reads still require native
 realization; unsupported native lowering rejects explicitly.
-Mixed scalar/structural computation nodes still need borrowed operand staging and
-the same call-closure integration before the guarded customer below can close.
+Checked computation calls retain whole primitive borrows alongside dense scalar
+operands and use the same shared callee closure. Nested calls in ordinary Unit
+operands preserve earlier scalar snapshots, later reads of mutated locals, and
+short-circuit selection. Shared aliases retain distinct formal occurrences in
+the ordered borrow observations; exclusive aliases remain invalid. Source replay
+rejoins mutable reads inside computation operands as well as direct arguments.
+The source-to-artifact regressions in
+[`borrowed_computation_arguments.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_computation_arguments.rs)
+reload and independently verify the artifact, then execute with one-unit fuel
+pauses. This does not yet supply scalar-result roots with structural signatures,
+borrowable primitive-local storage, or ranked cyclic publication for the guarded
+customer below.
 
 ## One complete call closure
 
@@ -184,9 +198,11 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 ```
 
 The existing argument hoist splits the edge into a rank-preserving hop and a
-decrement without its co-located guard. Integrate the ordinary primitive-store call route
-with checked structural operand computations and their shared Terminal closure,
-then retire the hoist for the supported route independently of ranking annotations.
+decrement without its co-located guard. Extend scalar-result roots to structural
+signatures and borrowable primitive-local storage, then publish their cyclic
+control with exact structural forwarding and natural-descent evidence. Reuse the
+computed borrowed calls already supported in ordinary Unit operands, then retire
+the hoist for the supported route independently of ranking annotations.
 Keep the original guard, mutable local, and exact `limits` forwarding. Adding
 provenance around generated states or suppressing normalization without executing
 the checked computations does not close this customer. After source checking,

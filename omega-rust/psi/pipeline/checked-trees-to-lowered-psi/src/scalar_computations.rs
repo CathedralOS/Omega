@@ -10,6 +10,7 @@ use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
 mod source_custody;
+mod structural_arguments;
 
 type Computation = Handle<CheckedScalarComputation>;
 
@@ -474,6 +475,7 @@ impl<'a> Expansion<'a> {
                 target_state,
                 call_ordinal,
                 arguments,
+                structural_arguments,
             } => {
                 let control = &self.checked.facts.flow.control;
                 if !control.calls.is_valid(source_call) {
@@ -501,6 +503,19 @@ impl<'a> Expansion<'a> {
                 {
                     return unsupported("scalar computation invocation coordinate disagrees");
                 }
+                let structural_arguments = plans
+                    .structural_arguments
+                    .span(structural_arguments)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed borrow arguments have a stale span",
+                    ))?;
+                let structural_arguments = structural_arguments::lower(
+                    self.checked,
+                    target_machine,
+                    target_state,
+                    structural_arguments,
+                    site.bindings,
+                )?;
                 let arguments = plans
                     .operands
                     .span(arguments)
@@ -529,6 +544,7 @@ impl<'a> Expansion<'a> {
                         .into_iter()
                         .skip(input_types.len())
                         .collect(),
+                    structural_arguments,
                     ScalarCallCrashScope::Arguments,
                 )?;
                 if self.calls.contains(&call.source_coordinate) {
@@ -604,6 +620,23 @@ pub(super) fn call_targets(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
+    collect_call_targets(checked, machine, false)
+}
+
+/// Discovery only: source replay and each call's signature independently
+/// validate the structural lane before any invocation is published.
+pub(super) fn structural_call_targets(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
+    collect_call_targets(checked, machine, true)
+}
+
+fn collect_call_targets(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    structural_only: bool,
+) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut pending = plans
         .roots
@@ -630,9 +663,18 @@ pub(super) fn call_targets(
             CheckedScalarComputationKind::Call {
                 target_machine,
                 arguments,
+                structural_arguments,
                 ..
             } => {
-                targets.push(*target_machine);
+                let structural_arguments = plans
+                    .structural_arguments
+                    .span(*structural_arguments)
+                    .ok_or(LoweringError::Unsupported(
+                    "scalar computation closure has invalid structural arguments",
+                ))?;
+                if !structural_only || !structural_arguments.is_empty() {
+                    targets.push(*target_machine);
+                }
                 pending.extend(plans.operands.span(*arguments).ok_or(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);

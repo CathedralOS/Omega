@@ -312,10 +312,27 @@ impl ExitScalars<'_, '_> {
             if self.facts.flow.control.calls.get(*source_call) != call {
                 continue;
             }
+            let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
+            let source_position = usize::try_from(position).ok()?;
+            if self
+                .program
+                .primitive_type_reference(parameters.get(source_position)?.type_reference)?
+                != expected_type
+            {
+                return None;
+            }
+            let scalar_position = parameters[..source_position]
+                .iter()
+                .filter(|parameter| {
+                    self.program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+                })
+                .count();
             let operand = computations
                 .operands
                 .span_or_empty(*arguments)
-                .get(usize::try_from(position).ok()?)?;
+                .get(scalar_position)?;
             let CheckedScalarComputationKind::Value(value) = &computations.nodes.get(*operand).kind
             else {
                 return None;
