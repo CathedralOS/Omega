@@ -42,7 +42,31 @@ pub(super) fn expected_trivial_affine_discards(
     function: &PsiOptimizationFunction,
     frontier: &CurrentOwnership,
 ) -> Vec<PlaceId> {
-    let mut output = function
+    // Match Terminal's cleanup schedule: completed affine results precede
+    // named locals and parameters, each in reverse establishment order.
+    let mut operation_results = function
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. }
+                if frontier.owned_places.get(&place.id)
+                    == Some(&StructuralMultiplicity::Affine)
+                    && !frontier
+                        .claims
+                        .values()
+                        .any(|claim| claim.input == Some(place.id)) =>
+            {
+                Some((producer, place.id))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    operation_results.sort_by_key(|(producer, _)| std::cmp::Reverse(*producer));
+    let mut output = operation_results
+        .into_iter()
+        .map(|(_, place)| place)
+        .collect::<Vec<_>>();
+    let mut locals = function
         .structural_places
         .iter()
         .filter_map(|place| match place.kind {
@@ -55,11 +79,8 @@ pub(super) fn expected_trivial_affine_discards(
             _ => None,
         })
         .collect::<Vec<_>>();
-    output.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
-    let mut output = output
-        .into_iter()
-        .map(|(_, place)| place)
-        .collect::<Vec<_>>();
+    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
+    output.extend(locals.into_iter().map(|(_, place)| place));
     output.extend(
         function
             .structural_parameters

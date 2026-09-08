@@ -50,18 +50,21 @@ pub(super) fn place_structural_type(
         })
 }
 
+/// Call only after the discard roster has been checked against the live frontier.
 pub(super) fn has_live_owned_operation_result(
     function: &PsiOptimizationFunction,
     frontier: &CurrentOwnership,
+    validated_discards: &[PlaceId],
 ) -> bool {
     function.structural_places.iter().any(|place| {
         matches!(
             place.kind,
             semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
-        ) && frontier
-            .owned_places
-            .get(&place.id)
-            .is_some_and(|multiplicity| *multiplicity != StructuralMultiplicity::Unrestricted)
+        ) && !validated_discards.contains(&place.id)
+            && frontier
+                .owned_places
+                .get(&place.id)
+                .is_some_and(|multiplicity| *multiplicity != StructuralMultiplicity::Unrestricted)
     })
 }
 

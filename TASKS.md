@@ -248,9 +248,23 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   have different layouts. Use the source-produced `boundary_byte_buffers`
   regressions in `checked-trees-to-lowered-psi/src/tests/` as the writeback
   oracle for field/array destinations; checked provider-body dispatch of
-  mutable byte views still needs forwarding. Add an admitted `read_line`
-  realization through native emission and installation replay; each target's
-  `console_impl.omg` declares a bodyless intrinsic.
+  mutable byte views still needs forwarding. Implement the checked line adapter
+  over the settled native byte leaves; each target's `console_impl.omg` currently
+  declares bodyless `read_line` instead.
+  Native byte input first needs its structural result connected through
+  `target-operations-to-selected-instructions`: its legalization currently admits
+  only Unit boundary results, and the existing read-byte encoders and replay
+  records have no selected-instruction producer. The Linux probe
+  `cargo nextest run -p compiler --test canary_suite
+  runtime_console_byte_read_return_catalog_replays_both_linux_targets
+  --no-fail-fast --no-tests fail` on macOS ARM64 reaches
+  `Selection(Legalization(UnsupportedSourceShape { function: 0 }))` after the
+  affine-result cleanup fix based on `955b524935`. Retain the exact
+  `TargetStructuralHomeRequirement` through genuine structural local storage,
+  then emit and replay `BoundaryStructuralResultRecord`; the byte-inspection
+  canary additionally needs sum-tag branching and payload transfer. macOS still
+  needs an admitted target-specific read-byte realization. Close those paths
+  with actual byte/EOF execution, not catalog or encoder tests alone.
   Close this slice with the existing carrier round-trip and sequential-read
   native canaries, preserving capacity, overwrite, access, and alias checks.
 
