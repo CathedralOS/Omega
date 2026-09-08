@@ -35,6 +35,17 @@ reuse their attached occurrence. Compiler-generated calls have no authored
 location. Retaining spans earlier is the repair for missing late-stage custody,
 not reparsing source text during projection.
 
+Occurrence identity is the authored token plus declaration-owned exposure and
+selection kind. Compiler-derived copies share it; an exact target supersedes an
+unresolved provisional copy, while two different resolved targets reject. Ranking
+custody retains typed expression roots separately from rendered witnesses.
+Nominal static-machine contracts retain the complete exact trait/requirement path,
+including nested contracts. Requirement-local satisfies edges retain their exact
+trait/application or operator overload before supply-policy admission; a rejected
+association cannot substitute another selected declaration. Domain establishment
+paths likewise retain each authored occurrence after unique subject-authorized
+signature-free resolution, even when equal semantic routes deduplicate.
+
 ## Structural identity
 
 [Semantic capture](src/capture/semantics) joins authored nominals through exact

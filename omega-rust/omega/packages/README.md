@@ -75,7 +75,8 @@ rejects during candidate checking.
 
 Design and acquisition references:
 
-- [Build And Package Model](../../../wiki/pre_migration/design_briefs/build_and_package_model.md)
+- [Build declarations](../../../wiki/spec/build/declarations.md) and
+  [package acceptance](../../../wiki/spec/packages/acceptance.md)
 - [Package workflow](../../../wiki/language_guide/packages.md)
 - [Acceptance contract](../../../wiki/spec/packages/acceptance.md)
 - [Source Resolver Security](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)

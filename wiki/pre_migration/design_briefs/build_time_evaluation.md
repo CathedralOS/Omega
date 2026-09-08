@@ -6,7 +6,7 @@
 Omega uses hermetic **semantic evaluation** for constants, proofs, plans, and
 trait generators. It has no `comptime`, macro, or `#run` keyword.
 
-Do not confuse this facility with [`build.omg`](build_and_package_model.md).
+Do not confuse this facility with [build execution](../../spec/build/execution.md).
 `build.omg` is build orchestration in a build-host world with explicitly
 injected capabilities. Semantic evaluation is the compiler's target-semantic,
 hermetic evaluator. They happen before runtime for different reasons and

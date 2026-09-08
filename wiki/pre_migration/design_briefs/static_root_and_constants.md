@@ -7,7 +7,7 @@
 > immutable compile-time values and long-lived program state without ambient
 > mutable names or a magical `main` receiver. **Depends on:**
 > [`build_time_evaluation.md`](build_time_evaluation.md),
-> [`build_and_package_model.md`](build_and_package_model.md), and
+> [build declarations](../../spec/build/declarations.md), and
 > [`freestanding_boot_and_hardware_facts.md`](freestanding_boot_and_hardware_facts.md).
 
 ## Bottom line

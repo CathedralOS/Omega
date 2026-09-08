@@ -327,5 +327,6 @@ Return to the [package subsystem map](../README.md), or consult:
 
 - [Package workflow](../../../../wiki/language_guide/packages.md)
 - [Build declarations and identity](../../../../wiki/spec/build/declarations.md)
-- [`build_and_package_model.md`](../../../../wiki/pre_migration/design_briefs/build_and_package_model.md)
+- [Package acceptance](../../../../wiki/spec/packages/acceptance.md)
+- [Ordinary libraries and semantic bindings](../../../../wiki/spec/packages/toolchain.md)
 - [`TASKS.md`](../../../../TASKS.md)

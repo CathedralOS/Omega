@@ -3,6 +3,8 @@
 The lock is retained project intent, not a certificate of package safety.
 [Acceptance](acceptance.md) owns review and decision authority;
 [source selection](sources.md) owns resolution and immutable graph construction.
+Standalone compiler-policy file handling belongs to
+[trust-ledger](../../../omega-rust/omega/build/trust-ledger/README.md), not this lock.
 
 ## Retained state
 

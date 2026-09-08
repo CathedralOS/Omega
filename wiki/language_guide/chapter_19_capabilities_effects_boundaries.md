@@ -1525,7 +1525,7 @@ belongs to requirement identity;
 `boundary(<Plan>)` is retired because it fused trust treatment with deployment
 policy. The selected target profile supplies the freestanding fact and empty
 host-provider baseline (see
-`../design_briefs/build_and_package_model.md`). The machine-state
+[build configuration](../spec/build/configuration.md)). The machine-state
 guarantees are normalized provider/entry-plan facts surfaced by the build
 artifact and checked or accepted through the ordinary admission spine.
 

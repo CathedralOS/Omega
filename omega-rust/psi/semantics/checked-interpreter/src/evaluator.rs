@@ -360,7 +360,7 @@ fn run_build_time_machine_entry_with_operation_receipts(
     })
 }
 
-/// The AUGMENTING-MACHINE build-time entry (build_and_package_model.md):
+/// Build execution entry (wiki/spec/build/execution.md):
 /// evaluate `machine_name` with the given arguments and read back the FINAL
 /// argument values -- the `machine build(b: &mut Build)` shape, where the
 /// machine augments a passed-in value and returns nothing. The terminal value

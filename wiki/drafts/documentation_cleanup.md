@@ -57,8 +57,7 @@ transcripts. Rejected designs normally leave the tree. Git retains them.
 
 ### 1. Consolidate the large mixed references
 
-Continue with [build/package behavior](../pre_migration/design_briefs/build_and_package_model.md),
-[calling plans](../pre_migration/design_briefs/calling_plans.md), and the
+Continue with [calling plans](../pre_migration/design_briefs/calling_plans.md) and the
 [typed-to-checked stage](../pre_migration/architecture/pipeline/stages/typed_trees_to_checked_trees.md).
 
 For each coherent subject:
@@ -116,7 +115,7 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: consolidate build/package behavior. Terminal's subject contracts now have
-specification owners; complete byte-level tables remain explicit PSIIR work, not
-an implied achievement of the prose migration. The remaining documents in
-pre_migration still need review, not automatic promotion into the specification.
+Next: consolidate calling plans and the typed-to-checked reference. Complete
+byte-level Terminal tables remain explicit PSIIR work, not an implied achievement
+of prose migration. The remaining documents in pre_migration still need review,
+not automatic promotion into the specification.

@@ -87,3 +87,26 @@ and dependency handoff.
 
 [Configuration and target selection](configuration.md) defines exact-target
 admissibility, activation-local state, and identity-preserving staged fan-out.
+
+## Workspaces
+
+A workspace is a path-declared catalog of locatable members, not a combined
+dependency graph or a node with its own package key. Each application/package
+remains an independently selected closure root; building one does not include
+unrelated members. Shared pins and ceilings may be passed into member Build
+values, and members may only narrow them. Source code never searches parent
+directories for imports; only tooling discovers the enclosing build/workspace.
+
+Remote selection uses the member's declared name, not its path. Paths remain
+navigation and the base for relative requests; relocation does not rename the
+package. Reject undeclared/escaping members, absent/duplicate names, and recursive
+search for undeclared build files. Source kinds are extensible; Git is not the
+semantic definition of a source. There is no independent package version field:
+the exact resolved source supplies instance identity.
+
+The workspace owns its lock; dependency locks do not pin the consumer's graph.
+Membership does not merge acceptance across roots. The current
+[lock codec](../../../omega-rust/omega/packages/manager/src/lock/README.md)
+retains one selected source closure with target sections, not a complete
+multi-root workspace lock. Multi-root storage remains implementation work;
+neither catalog membership nor another root's acceptance can fill missing state.

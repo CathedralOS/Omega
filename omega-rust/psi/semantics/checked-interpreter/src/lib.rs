@@ -6472,7 +6472,7 @@ pub fn evaluate_build_time_machine_with_operation_receipts(
     evaluator::run_build_time_machine_with_operation_receipts(program, machine_name, arguments)
 }
 
-/// The AUGMENTING-MACHINE build-time entry (build_and_package_model.md): run
+/// Build execution entry (wiki/spec/build/execution.md): run
 /// the effect-free machine and read back the FINAL argument values -- the
 /// `machine build(b: &mut Build)` shape, where the machine's output IS its
 /// augmented arguments. A unit terminal is accepted. The caller owns the
