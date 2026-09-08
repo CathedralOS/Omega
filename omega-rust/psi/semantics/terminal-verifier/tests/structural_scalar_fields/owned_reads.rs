@@ -1,6 +1,9 @@
 use super::*;
 use terminal_psi::TerminalAffineCleanupAction;
 
+#[path = "owned_reads/block_parameters.rs"]
+mod block_parameters;
+
 fn owned_reader(multiplicity: StructuralMultiplicity, scalar_type: ScalarType) -> TerminalModule {
     let mut module = structural_scalar_field_module();
     module.machines.remove(0);

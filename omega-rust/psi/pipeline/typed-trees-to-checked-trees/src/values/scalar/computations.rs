@@ -308,7 +308,12 @@ pub(crate) fn build_checked_scalar_computation_plans(
                         continue;
                     }
                     let Some(target_state) =
-                        states.iter().find(|state| state.symbol == path.symbol)
+                        crate::checks::termination::named_transition_target_state_index(
+                            program,
+                            machine,
+                            path.symbol,
+                        )
+                        .and_then(|target_index| states.get(target_index))
                     else {
                         continue;
                     };

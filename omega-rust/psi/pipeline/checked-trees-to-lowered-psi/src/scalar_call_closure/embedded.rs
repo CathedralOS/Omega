@@ -77,6 +77,7 @@ impl EmbeddedScalarCalls {
                 identity_base,
                 &self.machine_ids,
                 &self.requirement_counts,
+                machine.loop_plan.as_ref(),
             )?;
             lowered
                 .semantic_module

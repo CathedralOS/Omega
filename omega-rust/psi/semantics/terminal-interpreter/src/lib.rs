@@ -3377,6 +3377,11 @@ impl TerminalExecution {
                     }
                     let bindings =
                         self.prepare_block_bindings(*target, arguments, structural_arguments)?;
+                    bindings.validate_discards(
+                        self,
+                        trivial_affine_discards,
+                        residual_affine_discards,
+                    )?;
                     for discard in residual_affine_discards {
                         self.live_affine_frontier.remove(discard);
                     }
@@ -3419,6 +3424,7 @@ impl TerminalExecution {
                         &successor.arguments,
                         &successor.structural_arguments,
                     )?;
+                    bindings.validate_discards(self, &successor.trivial_affine_discards, &[])?;
                     for place in &successor.trivial_affine_discards {
                         if self.structural_values.remove(place).is_none() {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -3459,10 +3465,21 @@ impl TerminalExecution {
                         .get(value)
                         .copied()
                         .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
-                    for parameter in machine.structural_parameters.iter().filter(|parameter| {
-                        parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                            || (parameter.is_self && parameter.access != StructuralAccess::Owned)
-                    }) {
+                    for parameter in machine
+                        .structural_parameters
+                        .iter()
+                        .chain(
+                            machine
+                                .blocks
+                                .values()
+                                .flat_map(|block| &block.structural_parameters),
+                        )
+                        .filter(|parameter| {
+                            parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                || (parameter.is_self
+                                    && parameter.access != StructuralAccess::Owned)
+                        })
+                    {
                         self.structural_values.remove(&parameter.place);
                     }
                     // Frame-local byte views and loans end here and carry

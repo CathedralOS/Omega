@@ -8,6 +8,93 @@ fn resolved(source: &str) -> SymbolResolvedTrees {
     lower_syntax_trees(&syntax).unwrap()
 }
 
+#[test]
+fn owned_countdown_arguments_keep_the_authored_state_and_local_with_or_without_a_rank() {
+    for witness in [
+        "",
+        "terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor + 6);",
+    ] {
+        let program = resolved(&format!(
+            "machine reset(value: &mut u64) -> u64 {{ value = 0; 0 }}
+             data Limits {{ limit: u64; divisor: u64 [3..=5]; }}
+             machine walk(remaining: u64 [0..=5], limits: Limits, marker: u64)
+             {witness} -> u64 {{
+                 let mut scratch: u64 = 0;
+                 transition remaining > 0 {{
+                     true -> walk(remaining - 1, limits, reset(&mut scratch))
+                     false -> remaining
+                 }}
+             }}"
+        ));
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == "walk")
+            .unwrap();
+        let [entry] = program.machine_state_handles(machine.states) else {
+            panic!("no synthesized argument state: {witness}");
+        };
+        let state = program.machine_state(*entry);
+        let statements = program
+            .tables
+            .bodies
+            .statements
+            .statements(state.statement_nodes);
+        assert_eq!(statements.len(), 3, "only the authored local and two arms");
+        let StatementNode::LocalData(local) = &statements[0] else {
+            panic!("scratch")
+        };
+        assert_eq!(local.name.as_str(), "scratch");
+        assert!(local.is_mutable);
+        let StatementNode::Transition(transition) = &statements[1] else {
+            panic!("selected backedge")
+        };
+        assert!(matches!(transition.guard, TransitionGuardNode::When(_)));
+        let TransitionTargetNode::Named {
+            path, arguments, ..
+        } = program
+            .tables
+            .bodies
+            .statements
+            .transition_target(transition.target)
+        else {
+            panic!("authored state transfer");
+        };
+        assert_eq!(path.symbol, machine.symbol);
+        let arguments = program
+            .tables
+            .bodies
+            .statements
+            .expression_handles(*arguments);
+        assert_eq!(arguments.len(), 3);
+        let expressions = &program.tables.bodies.expressions;
+        assert!(matches!(
+            expressions.expression(arguments[0]),
+            ExpressionNode::Binary(_)
+        ));
+        assert!(matches!(
+            expressions.expression(arguments[1]),
+            ExpressionNode::Name(_)
+        ));
+        let ExpressionNode::Call(call) = expressions.expression(arguments[2]) else {
+            panic!("selected reset")
+        };
+        assert_eq!(call.target.as_str(), "reset");
+        let [borrow] = expressions.expression_handles(call.arguments) else {
+            panic!("one borrow")
+        };
+        let ExpressionNode::Borrow(borrow) = expressions.expression(*borrow) else {
+            panic!("borrow scratch")
+        };
+        assert_eq!(borrow.access, language_semantics::ReferenceAccess::Mutable);
+        let ExpressionNode::Name(name) = expressions.expression(borrow.target) else {
+            panic!("original local")
+        };
+        assert!(local.symbol.is_valid());
+        assert_eq!(name.symbol, local.symbol);
+    }
+}
+
 fn value_statements(program: &SymbolResolvedTrees) -> &[StatementNode] {
     let machine = program
         .machines

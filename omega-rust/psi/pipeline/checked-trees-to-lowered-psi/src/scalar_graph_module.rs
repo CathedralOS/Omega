@@ -3,6 +3,7 @@
 use super::*;
 
 mod owned_parameters;
+mod ranking;
 pub(crate) mod result_contract;
 
 #[allow(clippy::too_many_arguments)]
@@ -17,6 +18,7 @@ pub(super) fn build_scalar_graph_module(
     identity_base: u64,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
+    loop_plan: Option<&crate::scalar_graph_lowering::cycles::ScalarLoopPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
     build_scalar_graph_module_in_namespace(
         states,
@@ -30,6 +32,7 @@ pub(super) fn build_scalar_graph_module(
         machine_ids,
         requirement_counts,
         &[],
+        loop_plan,
     )
 }
 
@@ -46,6 +49,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
     structural_parameters: &[StructuralParameterDeclaration],
+    loop_plan: Option<&crate::scalar_graph_lowering::cycles::ScalarLoopPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
     let parameters = states[0]
         .parameter_types
@@ -73,8 +77,11 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .checked_add(1)
         .expect("generated identities follow parameter identities");
     let mut state_parameters = Vec::with_capacity(states.len());
-    state_parameters.push(parameters.clone());
-    for state in &states[1..] {
+    for (position, state) in states.iter().enumerate() {
+        if position == 0 && loop_plan.is_none() {
+            state_parameters.push(parameters.clone());
+            continue;
+        }
         state_parameters.push(
             state
                 .parameter_types
@@ -126,7 +133,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 .checked_add(1)
                 .expect("block identity is nonzero"),
         );
-        let source_block_parameters = if index == 0 {
+        let source_block_parameters = if index == 0 && loop_plan.is_none() {
             Vec::new()
         } else {
             current_parameters.clone()
@@ -324,7 +331,12 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 inlined_blocks.extend(children);
                 continue;
             }
-            if let LoweredScalarBranchTerminator::Jump { target, arguments } = &continuation_plan
+            if let LoweredScalarBranchTerminator::Jump {
+                target,
+                arguments,
+                structural_arguments,
+            } = &continuation_plan
+                && structural_arguments.is_empty()
                 && let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
                 && contains_short_circuit(expression)
             {
@@ -495,7 +507,20 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         },
                     }
                 }
-                LoweredScalarBranchTerminator::Jump { target, arguments } => {
+                LoweredScalarBranchTerminator::Jump {
+                    target,
+                    arguments,
+                    structural_arguments,
+                } => {
+                    if !structural_arguments.is_empty()
+                        && arguments
+                            .iter()
+                            .any(direct_expression_contains_short_circuit)
+                    {
+                        return unsupported(
+                            "structural state transfer requires completed scalar operands",
+                        );
+                    }
                     let edge = edge_id(next_edge_identity);
                     next_edge_identity = next_edge_identity
                         .checked_add(1)
@@ -515,7 +540,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                             identity_base,
                         );
                         Terminator::Jump {
-                            structural_arguments: Vec::new(),
+                            structural_arguments: structural_arguments.clone(),
                             edge,
                             target: target.block,
                             arguments: target.arguments,
@@ -535,7 +560,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                             })
                             .collect();
                         Terminator::Jump {
-                            structural_arguments: Vec::new(),
+                            structural_arguments,
                             edge,
                             target: scalar_source_block(identity_base, target),
                             arguments,
@@ -582,7 +607,20 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         }
         let terminator_operation_start = all_operations.len();
         let terminator = match &state.terminator {
-            LoweredScalarBranchTerminator::Jump { target, arguments } => {
+            LoweredScalarBranchTerminator::Jump {
+                target,
+                arguments,
+                structural_arguments,
+            } => {
+                if !structural_arguments.is_empty()
+                    && arguments
+                        .iter()
+                        .any(direct_expression_contains_short_circuit)
+                {
+                    return unsupported(
+                        "structural state transfer requires completed scalar operands",
+                    );
+                }
                 if let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
                     && contains_short_circuit(expression)
                 {
@@ -660,7 +698,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         .checked_add(1)
                         .expect("scalar graph jump edge identities advance");
                     Terminator::Jump {
-                        structural_arguments: Vec::new(),
+                        structural_arguments: structural_arguments.clone(),
                         edge,
                         target: scalar_source_block(identity_base, *target),
                         arguments,
@@ -1011,8 +1049,16 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     blocks.sort_by_key(|block| block.id);
     // parameter_storage -> owned::validate must establish source no-code
     // eligibility before assembly; this pass only completes runtime custody.
+    let graph_entry = scalar_source_block(identity_base, 0);
+    if let Some(plan) = loop_plan {
+        blocks
+            .iter_mut()
+            .find(|block| block.id == graph_entry)
+            .ok_or(LoweringError::Unsupported("scalar loop header is absent"))?
+            .structural_parameters = plan.parameters.clone();
+    }
     owned_parameters::complete(
-        structural_parameters,
+        loop_plan.map_or(structural_parameters, |plan| plan.parameters.as_slice()),
         scalar_source_block(identity_base, 0),
         &mut blocks,
     )?;
@@ -1139,6 +1185,45 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             },
         )?;
     }
+    let entry = if let Some(plan) = loop_plan {
+        for parameter in &plan.parameters {
+            merge_content_place_declaration(
+                &mut structural_places,
+                StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: graph_entry,
+                        position: parameter.position,
+                    },
+                },
+            )?;
+        }
+        let entry = block_id(next_block_identity);
+        blocks.push(Block {
+            id: entry,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Jump {
+                edge: edge_id(next_edge_identity),
+                target: graph_entry,
+                arguments: parameters.iter().map(|parameter| parameter.id).collect(),
+                structural_arguments: structural_parameters
+                    .iter()
+                    .map(|parameter| StructuralArgument {
+                        place: parameter.place,
+                        path: Vec::new(),
+                        access: parameter.access,
+                    })
+                    .collect(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            },
+        });
+        entry
+    } else {
+        graph_entry
+    };
     for operation in blocks.iter().flat_map(|block| &block.operations) {
         if matches!(
             operation.kind,
@@ -1159,7 +1244,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             )?;
         }
     }
-    Ok(LoweredPsi {
+    let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,
@@ -1202,11 +1287,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 content_entry_claims: identity_reshuffles.entry_claims,
                 content_identity_reshuffles: identity_reshuffles.reshuffles,
                 content_partition_compositions: resolved_partition_compositions,
-                entry: block_id(
-                    identity_base
-                        .checked_add(1)
-                        .expect("machine entry block identity is one-based"),
-                ),
+                entry,
                 blocks,
                 contract: MachineContract {
                     id: contract_id(terminal_machine.get()),
@@ -1226,5 +1307,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         debug_map: None,
         source_call_occurrences: all_operations.source_calls,
         selected_ieee_float_fma_occurrences: all_operations.selected_ieee_float_fmas,
-    })
+    };
+    if let Some(plan) = loop_plan {
+        ranking::retain(&mut lowered.semantic_module.machines[0], graph_entry, plan)?;
+    }
+    Ok(lowered)
 }

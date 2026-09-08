@@ -1,5 +1,7 @@
 use super::*;
 
+pub(crate) use crate::semantic_calls::call_target_parameters;
+
 /// Resolve the owned `self` place bound through a method-form call receiver.
 ///
 /// Static spelling includes `self` in the positional argument span, while
@@ -191,29 +193,6 @@ fn affine_call_result_type(
     ) && program.type_multiplicity(result) == language_semantics::Multiplicity::Affine
         && !crate::checks::type_carries_linear_obligation(program, result))
     .then_some(result)
-}
-
-/// Parameters of any callable target retained by typed trees. Boundary-trait
-/// requirements and compile-time machine parameters have signatures but no
-/// state body; their owned by-value arguments still transfer exactly as an
-/// ordinary state call's arguments do.
-pub(crate) fn call_target_parameters(
-    program: &typed_trees::TypedTrees,
-    target_symbol: SymbolHandle,
-) -> Option<&[typed_trees::signature::StateParameter]> {
-    if let Some(state) = find_state(program, target_symbol) {
-        return Some(program.state_parameters(state));
-    }
-    if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
-        return Some(program.state_signature_parameters(signature));
-    }
-    program.traits().iter().find_map(|trait_definition| {
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == target_symbol)
-            .map(|signature| program.state_signature_parameters(signature))
-    })
 }
 
 /// Canonical caller places transferred into owned by-value call operands.

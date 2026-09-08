@@ -1246,6 +1246,7 @@ fn assemble_unit_closure(
                 &parameters.1,
                 &parameters.2,
                 &structural_types,
+                &mut next_place,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -3563,6 +3564,7 @@ fn assemble_unit_closure(
             &machine_ids,
             &scalar_requirement_counts,
             &graph_parameters.1,
+            machine.loop_plan.as_ref(),
         )?;
         let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
             unreachable!("one prepared selected scalar graph emits one terminal machine")

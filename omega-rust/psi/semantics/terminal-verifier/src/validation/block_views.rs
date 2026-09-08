@@ -1,4 +1,4 @@
-//! Exact block-local immutable view declarations and simultaneous edge bindings.
+//! Exact block-local parameter declarations and simultaneous edge bindings.
 
 use super::*;
 
@@ -35,8 +35,16 @@ pub(super) fn validate_declarations(
         for (position, declaration) in block.structural_parameters.iter().enumerate() {
             if u32::try_from(position).ok() != Some(declaration.position)
                 || parameter(machine, declaration.place) != Some(declaration)
-                || declaration.access != StructuralAccess::SharedBorrow
-                || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+                || !matches!(
+                    (declaration.access, declaration.multiplicity),
+                    (
+                        StructuralAccess::SharedBorrow,
+                        StructuralMultiplicity::Unrestricted
+                    ) | (
+                        StructuralAccess::Owned,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
+                )
                 || !declaration.qualifications.is_empty()
                 || !declaration.projected_qualifications.is_empty()
                 || !machine.structural_places.iter().any(|place| {
@@ -49,12 +57,13 @@ pub(super) fn validate_declarations(
                 })
                 || !module.structural_types.iter().any(|row| {
                     row.id == declaration.structural_type
-                        && matches!(
-                            row.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView
-                            )
-                        )
+                        && (declaration.access == StructuralAccess::Owned
+                            || matches!(
+                                row.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView
+                                )
+                            ))
                 })
                 || machine
                     .entry_claims
@@ -114,14 +123,13 @@ pub(super) fn validate_successor(
                 && source.qualifications == expected.qualifications
                 && source.projected_qualifications == expected.projected_qualifications
         } else {
-            available.contains(&argument.place)
+            expected.access == StructuralAccess::SharedBorrow
+                && expected.multiplicity == StructuralMultiplicity::Unrestricted
+                && available.contains(&argument.place)
                 && super::byte_sequence_subslice::borrowed_result(machine, argument.place)
                     .is_some_and(|source| source.structural_type == expected.structural_type)
         };
-        if !argument.path.is_empty()
-            || argument.access != StructuralAccess::SharedBorrow
-            || !exact_source
-        {
+        if !argument.path.is_empty() || argument.access != expected.access || !exact_source {
             return Err(ModuleError::InvalidStructuralSuccessorArgument {
                 edge,
                 place: argument.place,

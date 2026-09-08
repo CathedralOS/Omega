@@ -494,8 +494,9 @@ Owners include
   private countdown, or second interpreter is needed.
 
   Extend `terminal-verifier/src/validation/control_flow.rs` beyond the
-  claim-free mutable-receiver and immutable-byte-view slices to owned custody,
-  projected claims, and required effectful call families.
+  claim-free mutable-receiver, immutable-byte-view, and whole plain-owned input
+  slices to qualified/partial owned custody, structural results, projected claims,
+  and required effectful call families.
   Reuse full-graph dominance, exact successor transfers, and ownership-frontier
   replay. Current-iteration guards are reconstructed after resetting incoming
   facts at every proof-scheduling cut target; general cyclic proposition
@@ -984,15 +985,17 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  publish cyclic scalar control with exact structural
-  forwarding and natural-descent evidence. Reuse the computed borrowed-call
-  closure and primitive-local storage shared by scalar roots and ordinary Unit
-  operands. Realize owned integer-field reads, native storage, and borrowed-call
-  observations without substituting snapshots. Preserve the authored
-  guard and structural payload; the linked command still rejects the rank range
-  on macOS at `19f690ad11` because of the generated hop. Next acceptance is
-  ranked cyclic publication with exact owned state transfers; do not suppress
-  the hoist by ranking annotation.
+  realize owned integer-field reads, native primitive-local storage, and borrowed-call
+  observations without substituting snapshots. Preserve the authored guard,
+  structural payload, selected call order, and Natural descent through native
+  lowering. The source-to-Terminal acceptance lives in `owned_scalar_cycles`.
+  The macOS `omega inspect-terminal --machine walk --target macos_arm64 main.omg`
+  probe now reaches `NotRankedCountdown`: `omega/src/command/inspect_terminal.rs`
+  incorrectly selects legacy fixed-fuel derivation for every ranked module.
+  Let inspection report verified Natural control without inventing a fixed-work
+  bound, retaining supported work certificates and genuine verification failures.
+  Generalize mixed state signatures and borrowed loop formals through their exact
+  ownership and arrival contracts rather than source-state duplication.
   Align compile-known numeric conditions between flow call capture and scalar
   computation folding: `((1u64 > 2u64) && enabled) && stamp(&mut slot, number)`
   retains a flow call that computation folding removes (`omega inspect-terminal

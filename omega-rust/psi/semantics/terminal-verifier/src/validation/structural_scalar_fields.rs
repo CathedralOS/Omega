@@ -51,21 +51,23 @@ fn direct_relevant_scalar_field(
 }
 
 fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bool {
-    machine
-        .structural_parameters
+    readable_parameter_for(machine, place).is_some_and(|parameter| {
+        parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
+    }) && machine
+        .entry_claims
         .iter()
-        .find(|parameter| parameter.place == place)
-        .is_some_and(|parameter| {
-            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
-        })
-        && machine
-            .entry_claims
-            .iter()
-            .all(|claim| claim.input != place)
+        .all(|claim| claim.input != place)
         && machine
             .content_entry_claims
             .iter()
             .all(|claim| claim.input.root != place)
+}
+
+fn readable_parameter_for(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<&StructuralParameterDeclaration> {
+    parameter_for(machine, place).or_else(|| super::block_views::parameter(machine, place))
 }
 
 fn has_readable_structural_access(access: StructuralAccess) -> bool {
@@ -119,7 +121,7 @@ pub(super) fn validate_integer_structural_field(
         source,
         field,
     };
-    let parameter = parameter_for(machine, source).ok_or_else(invalid)?;
+    let parameter = readable_parameter_for(machine, source).ok_or_else(invalid)?;
     if !matches!(
         parameter.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -151,7 +153,7 @@ pub(super) fn validate_boolean_structural_field(
         source,
         field,
     };
-    let parameter = parameter_for(machine, source).ok_or_else(invalid)?;
+    let parameter = readable_parameter_for(machine, source).ok_or_else(invalid)?;
     if parameter.access == StructuralAccess::WriteOnlyBorrow {
         return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
     }

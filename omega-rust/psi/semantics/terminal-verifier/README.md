@@ -93,8 +93,16 @@ a previous iteration's literal cannot authorize a call before its producer.
 The receiver remains a machine parameter; it is not a structural block parameter
 or an owned transfer. Mutable-field entry requirements remain outside this slice:
 the unversioned field vocabulary does not establish a loop-entry snapshot.
-It does not admit general owned cyclic custody, structural results,
-projected claims, or arbitrary operation families. Eligibility is not dominance,
+Plain whole Owned Affine/Unrestricted inputs may transfer into exact structural
+block parameters. Integer/Boolean field reads and ordinary Unit/structural-scalar
+calls observe those current bindings; affine reads after consumption reject.
+Successor binding consumes all affine sources before establishing destinations,
+allowing swaps and self-loops without duplication or overwriting a live owner.
+Every arrival, including a backedge, must establish the same structural frontier.
+Disposal follows establishment dominance and parameter order, not serialized
+block IDs. Owned byte descriptors do not gain immutable-view read authority.
+Qualified or partial owned cyclic custody, structural results, projected claims,
+and arbitrary operation families remain unsupported. Eligibility is not dominance,
 frontier, or proof authority; all subsequent checks still run.
 
 Mutable-field entry requirements enter the validity-scoped observation set,

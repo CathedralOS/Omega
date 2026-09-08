@@ -1234,7 +1234,17 @@ fn is_scalar_computation_state(lowerer: &Lowerer) -> bool {
         && lowerer
             .current_state_parameters
             .iter()
-            .all(|(_, type_reference, is_mutable)| !is_mutable && scalar_type(type_reference))
+            .all(|(_, type_reference, is_mutable)| {
+                !is_mutable
+                    && (scalar_type(type_reference)
+                        // Retain owned named inputs for checked mixed computation
+                        // admission. This syntax boundary grants no ownership,
+                        // qualification, cleanup, or termination authority.
+                        || (matches!(type_reference, TypeReference::Named { .. })
+                            && type_reference.primitive_type().is_none())
+                        || matches!(type_reference, TypeReference::Reference(reference)
+                            if scalar_type(lowerer.symbol_resolved_trees.child_type_reference(reference.referee))))
+            })
 }
 
 fn is_scalar_return_computation(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
