@@ -115,7 +115,8 @@ pub(super) fn entry(
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
         let used = source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
-            LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. } => destination.place == place,
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
+            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
@@ -265,6 +266,7 @@ pub(super) fn operation(
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
     ) {
         scalar_store::emit(source, row, builder)?;
         return Ok(true);

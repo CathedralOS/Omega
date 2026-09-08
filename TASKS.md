@@ -589,9 +589,13 @@ Owners include
   implementation owners are `image-emission/src/function_fragments/structural.rs`
   and `installation/borrowed_structural.rs`; keep copied referents distinct from
   pointer identity while extending their bounded Unit admission. Extend caller
-  observations to broader scalar call arguments and stores outside the
-  currently supported ordinary integer/Boolean field-store path. Preserve exact
-  write widths, untouched bytes, and independent receiving replay; frame-slot
+  observations to IEEE scalar call arguments and stores beyond the ordinary
+  fixed-integer/Boolean primitive- and field-store paths. The same source-backed
+  probe's `primitive_stores::` group checks whole primitive replacement,
+  signed runtime inputs, both Boolean values, literal stores with unused inputs,
+  and stack-passed primitive roots across three calls through publication.
+  Preserve exact write widths, untouched bytes, and independent receiving
+  replay; frame-slot
   stores or copied referents are not writeback.
   Extend Terminal receiver production beyond nonescaping direct-root local
   alias erasure to nested/escaping carriers and dynamic indexes; checked

@@ -54,6 +54,7 @@ pub(super) fn validate(
                         if arguments.contains(&result))
                         || matches!(&consumer.operation,
                             AbstractOperation::StructuralScalarFieldStore { value, .. }
+                            | AbstractOperation::WriteOnlyPrimitiveStore { value, .. }
                             if value.value == result && value.scalar_type == ScalarType::Boolean)
                 })
             {

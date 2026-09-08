@@ -55,6 +55,35 @@ pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     }
 }
 
+/// Reconstruct a whole primitive write without inventing a carrier record or field.
+pub(crate) fn primitive_store(
+    destination: &terminal_psi::StructuralParameterDeclaration,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<u8> {
+    if destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !matches!(
+            destination.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        )
+        || !destination.qualifications.is_empty()
+        || !destination.projected_qualifications.is_empty()
+        || matches!(scalar, ScalarType::Integer(integer) if integer.is_address())
+    {
+        return None;
+    }
+    let mut matches = declarations
+        .iter()
+        .filter(|declaration| declaration.id == destination.structural_type);
+    let declaration = matches.next()?;
+    if matches.next().is_some() || declaration.shape != StructuralTypeShape::PrimitiveScalar(scalar)
+    {
+        return None;
+    }
+    u8::try_from(scalar_shape(scalar)?.byte_size).ok()
+}
+
 pub(crate) fn shape(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],

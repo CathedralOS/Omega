@@ -368,6 +368,7 @@ pub(super) fn build(
                 }
                 LegalizedScalarInstructionKind::LinuxWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {

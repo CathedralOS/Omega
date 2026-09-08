@@ -17,23 +17,34 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
         for (bytes, scalar_type) in
             [(1_u8, ScalarType::Boolean)]
                 .into_iter()
-                .chain([1_u8, 2, 4, 8].into_iter().map(|bytes| {
-                    (
-                        bytes,
-                        ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, u16::from(bytes) * 8).unwrap(),
-                        ),
-                    )
+                .chain([1_u8, 2, 4, 8].into_iter().flat_map(|bytes| {
+                    [IntegerSign::Signed, IntegerSign::Unsigned]
+                        .into_iter()
+                        .map(move |sign| {
+                            (
+                                bytes,
+                                ScalarType::Integer(
+                                    IntegerType::new(sign, u16::from(bytes) * 8).unwrap(),
+                                ),
+                            )
+                        })
                 }))
         {
-            for access in [
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::WriteOnlyBorrow,
-            ] {
+            for (primitive, access) in [false, true].into_iter().flat_map(|primitive| {
+                [
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::WriteOnlyBorrow,
+                ]
+                .into_iter()
+                .map(move |access| (primitive, access))
+            }) {
                 let environment =
                     register_environment::baseline_target_register_environment(target).unwrap();
                 let mut source = fixture(target, 0);
                 let structural_type = source.attachment.unwrap();
+                if primitive {
+                    source.attachment = None;
+                }
                 let place = semantic_vocabulary::PlaceId::new(1).unwrap();
                 let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
                 source.call_plan = evaluate_call_plan(
@@ -50,7 +61,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                 let destination = StructuralParameterDeclaration {
                     place,
                     position: 0,
-                    is_self: true,
+                    is_self: !primitive,
                     structural_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access,
@@ -61,13 +72,17 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     structural_types: vec![StructuralTypeDeclaration {
                         id: structural_type,
                         identity: "Record".into(),
-                        shape: StructuralTypeShape::Record {
-                            fields: vec![StructuralFieldDeclaration {
-                                id: field,
-                                identity: "value".into(),
-                                relevance: terminal_psi::BindingRelevance::Relevant,
-                                field_type: StructuralFieldType::Scalar(scalar_type),
-                            }],
+                        shape: if primitive {
+                            StructuralTypeShape::PrimitiveScalar(scalar_type)
+                        } else {
+                            StructuralTypeShape::Record {
+                                fields: vec![StructuralFieldDeclaration {
+                                    id: field,
+                                    identity: "value".into(),
+                                    relevance: terminal_psi::BindingRelevance::Relevant,
+                                    field_type: StructuralFieldType::Scalar(scalar_type),
+                                }],
+                            }
                         },
                     }],
                     parameters: vec![legalized_operations::LegalizedCallUnitParameter {
@@ -86,7 +101,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                         id: place,
                         kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
                             position: 0,
-                            is_self: true,
+                            is_self: !primitive,
                         },
                     }],
                     entry_claims: Vec::new(),
@@ -100,7 +115,16 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     .unwrap()
                     .scalar_type = scalar_type;
                 source.blocks[0].instructions[1].result = None;
-                source.blocks[0].instructions[1].kind =
+                source.blocks[0].instructions[1].kind = if primitive {
+                    LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                        destination,
+                        value: abstract_operations::AbstractResult {
+                            value: ValueId::new(1).unwrap(),
+                            scalar_type,
+                        },
+                        byte_size: bytes,
+                    }
+                } else {
                     LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                         destination,
                         path: Vec::new(),
@@ -111,7 +135,8 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                         },
                         byte_offset: 0,
                         byte_size: bytes,
-                    };
+                    }
+                };
                 let constraints = SelectedSelectionConstraints {
                     keys: environment.selected_keys(),
                     projected_structural_call: None,
@@ -138,12 +163,67 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     )
                 };
                 validate(&selected).unwrap();
+                if primitive {
+                    for source_mutation in 0..4 {
+                        let mut changed = source.clone();
+                        let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                            destination,
+                            value,
+                            byte_size,
+                        } = &mut changed.blocks[0].instructions[1].kind
+                        else {
+                            panic!("primitive store");
+                        };
+                        match source_mutation {
+                            0 => destination.access = StructuralAccess::SharedBorrow,
+                            1 => *byte_size = if bytes == 8 { 4 } else { 8 },
+                            2 => {
+                                value.scalar_type = if scalar_type == ScalarType::Boolean {
+                                    ScalarType::Integer(
+                                        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                                    )
+                                } else {
+                                    ScalarType::Boolean
+                                }
+                            }
+                            _ => {
+                                changed.structural.as_mut().unwrap().structural_types[0].shape =
+                                    StructuralTypeShape::Record { fields: Vec::new() }
+                            }
+                        }
+                        assert!(
+                            build(
+                                0,
+                                &changed,
+                                target,
+                                &constraints,
+                                environment.physical(),
+                                environment.constraints()
+                            )
+                            .is_err(),
+                            "source mutation {source_mutation}"
+                        );
+                        assert!(
+                            crate::selection::validation::scalar_graph::validate(
+                                0,
+                                &changed,
+                                &selected,
+                                target,
+                                &constraints,
+                                environment.physical(),
+                                environment.constraints()
+                            )
+                            .is_err(),
+                            "replay source mutation {source_mutation}"
+                        );
+                    }
+                }
                 assert_eq!(selected.memory_accesses.len(), 1);
                 assert_eq!(
                     selected.memory_accesses[0].role,
                     SelectedMemoryAccessRole::WritePlace
                 );
-                for mutation in 0..5 {
+                for mutation in 0..6 {
                     let mut candidate = selected.clone();
                     let instruction = candidate.blocks[0]
                         .instructions
@@ -169,11 +249,17 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                         3 => {
                             candidate.memory_accesses[0].role = SelectedMemoryAccessRole::ReadPlace
                         }
-                        _ => instruction.operands.swap(0, 1),
+                        4 => instruction.operands.swap(0, 1),
+                        _ => {
+                            let pointer = instruction.operands[0].virtual_register;
+                            let value = instruction.operands[1].virtual_register;
+                            let origin = candidate.virtual_registers[value.0 as usize].origin;
+                            candidate.virtual_registers[pointer.0 as usize].origin = origin;
+                        }
                     }
                     assert!(
                         validate(&candidate).is_err(),
-                        "mutation {mutation}, width {bytes}"
+                        "mutation {mutation}, width {bytes}, primitive {primitive}"
                     );
                 }
             }

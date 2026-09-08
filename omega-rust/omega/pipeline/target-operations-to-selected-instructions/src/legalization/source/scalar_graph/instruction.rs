@@ -24,6 +24,21 @@ pub(super) fn project(
                 source: *source,
             }
         }
+        AbstractOperation::WriteOnlyPrimitiveStore {
+            destination, value, ..
+        } => {
+            let byte_size = crate::structural_reference_input::primitive_store(
+                destination,
+                value.scalar_type,
+                &unit.structural_types,
+            )
+            .ok_or(Error::SourceCustodyMismatch)?;
+            LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                destination: destination.clone(),
+                value: *value,
+                byte_size,
+            }
+        }
         AbstractOperation::StructuralScalarFieldStore {
             destination,
             path,

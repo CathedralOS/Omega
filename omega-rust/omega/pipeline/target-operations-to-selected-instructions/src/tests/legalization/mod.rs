@@ -4,6 +4,7 @@ mod byte_output;
 mod claim_completion;
 mod installed_provider;
 mod plain_unit;
+mod primitive_stores;
 mod projected_structural_call_return;
 mod replay_corruption;
 mod scalar_call_unit;

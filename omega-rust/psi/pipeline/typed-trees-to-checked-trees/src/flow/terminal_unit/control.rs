@@ -2387,9 +2387,7 @@ fn build_write_only_primitive_store(
             )
             && scalar_parameters.is_empty()
     );
-    if !(direct_literal && scalar_parameters.is_empty()
-        || direct_parameter_is_exact
-        || direct_result_is_exact)
+    if !(direct_literal || direct_parameter_is_exact || direct_result_is_exact)
         || crate::values::scalar_expression_type(value) != Some(*destination_type)
     {
         return None;

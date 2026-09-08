@@ -4,6 +4,8 @@ use super::shared::*;
 
 #[cfg(test)]
 mod block_parameter_tests;
+#[cfg(test)]
+mod parameter_tests;
 
 pub(super) fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
@@ -22,6 +24,7 @@ pub(super) fn encode_structural_parameter(
             .iter()
             .map(|qualification| qualification.get()),
     );
+    encode_projected_qualifications(bytes, &parameter.projected_qualifications);
 }
 
 pub(super) fn encode_target_structural_parameter(
@@ -34,6 +37,18 @@ pub(super) fn encode_target_structural_parameter(
     encode_access(bytes, parameter.access);
     encode_shape(bytes, parameter.shape);
     encode_placement(bytes, &parameter.placement);
+    encode_projected_qualifications(bytes, &parameter.projected_qualifications);
+}
+
+pub(super) fn encode_projected_qualifications(
+    bytes: &mut Vec<u8>,
+    rows: &[terminal_psi::StructuralPathQualification],
+) {
+    encode_len(bytes, rows.len());
+    for row in rows {
+        encode_structural_path(bytes, &row.path);
+        bytes.extend_from_slice(&row.domain.get().to_le_bytes());
+    }
 }
 
 pub(super) fn encode_structural_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {

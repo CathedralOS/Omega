@@ -44,7 +44,8 @@ pub(super) fn folded_zero<'a>(
                 LegalizedScalarInstructionKind::LinuxWriteByteI32 { source, .. } => {
                     *source == definition.value
                 }
-                LegalizedScalarInstructionKind::StructuralScalarFieldStore { value, .. } => {
+                LegalizedScalarInstructionKind::StructuralScalarFieldStore { value, .. }
+                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value, .. } => {
                     value.value == definition.value
                 }
                 LegalizedScalarInstructionKind::ByteSequenceSubslice {

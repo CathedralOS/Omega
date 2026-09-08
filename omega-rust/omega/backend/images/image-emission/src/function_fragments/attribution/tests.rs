@@ -96,6 +96,24 @@ fn fixture() -> (FunctionFragment, AbstractFunction) {
 }
 
 #[test]
+fn boolean_constant_attribution_requires_its_exact_operation_ordinal() {
+    let (fragment, mut source) = fixture();
+    source.operations[0] = AbstractOperation::BooleanConstant {
+        psi_operation: OperationId::new(1).unwrap(),
+        result: ValueId::new(1).unwrap(),
+        value: true,
+    };
+    let rows = produce(&fragment, &source).unwrap();
+    assert_eq!(rows[0].operation_ordinal, 0);
+    validate(&fragment, &source, &rows).unwrap();
+    let mut substituted = rows.clone();
+    substituted[0].operation_ordinal = 1;
+    assert!(validate(&fragment, &source, &substituted).is_err());
+    source.operations.swap(0, 1);
+    assert!(validate(&fragment, &source, &rows).is_err());
+}
+
+#[test]
 fn contiguous_spans_coalesce_without_absorbing_neighboring_operations() {
     let (fragment, source) = fixture();
     let rows = produce(&fragment, &source).unwrap();

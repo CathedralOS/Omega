@@ -158,7 +158,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
-                AbstractOperation::IntegerConstant { .. } => true,
+                AbstractOperation::IntegerConstant { .. }
+                | AbstractOperation::BooleanConstant { .. } => true,
                 AbstractOperation::ByteSequenceLength { .. }
                 | AbstractOperation::ByteSequenceRead { .. }
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),

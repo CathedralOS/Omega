@@ -380,6 +380,7 @@ pub(in crate::selection) fn validate(
                 }
                 LegalizedScalarInstructionKind::LinuxWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
