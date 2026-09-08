@@ -56,6 +56,7 @@ pub(crate) fn expected_provenance(
         | O::BooleanConstant { psi_operation, .. }
         | O::BooleanStructuralField { psi_operation, .. }
         | O::ByteSequenceRead { psi_operation, .. }
+        | O::ByteSequenceSubslice { psi_operation, .. }
         | O::ByteSequenceLength { psi_operation, .. }
         | O::IntegerStructuralField { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }

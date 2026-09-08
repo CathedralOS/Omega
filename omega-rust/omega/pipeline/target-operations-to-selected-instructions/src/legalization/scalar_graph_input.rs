@@ -181,6 +181,11 @@ pub(super) fn match_input(
             psi_operation,
             obligation,
             ..
+        }
+        | AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            obligation,
+            ..
         } = &node.operation
             && (!unit.accepted_obligation_facts.iter().any(|fact|
                 fact.machine == optimized.machine && fact.operation == *psi_operation && fact.obligation == *obligation)

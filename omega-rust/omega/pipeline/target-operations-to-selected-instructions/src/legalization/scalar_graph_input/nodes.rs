@@ -4,7 +4,14 @@ use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
 pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
-) -> Option<(OperationId, ValueId)> {
+) -> Option<(OperationId, Option<ValueId>)> {
+    if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. } = &node.operation {
+        Some((*psi_operation, None))
+    } else {
+        scalar_instruction(node).map(|(operation, result)| (operation, Some(result)))
+    }
+}
+fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)> {
     match &node.operation {
         AbstractOperation::CallStructuralScalar {
             psi_operation,
@@ -131,22 +138,44 @@ pub(super) fn validate(
     }
     for (position, node) in body.iter().enumerate() {
         let (operation, result) = instruction(node).ok_or(invalid.clone())?;
-        let [definition] = node.definitions.as_slice() else {
-            return Err(invalid);
-        };
-        if definition.value != result
-            || definition.site
-                != (ValueDefinitionSite::Node {
-                    block: block.id,
-                    node: position as u32,
-                })
-            || !node.successors.is_empty()
+        if !node.successors.is_empty()
             || node.provenance != [PsiProvenance::Operation(operation)]
             || node.fuel.is_empty()
             || node
                 .fuel
                 .iter()
                 .any(|fuel| fuel.site != PsiProvenance::Operation(operation))
+        {
+            return Err(invalid);
+        }
+        if let AbstractOperation::ByteSequenceSubslice {
+            source,
+            start,
+            end,
+            length,
+            ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !super::byte_views::contains_view(optimized, *source)
+                || [start, end, length].iter().any(|value| {
+                    value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
+                })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        let [definition] = node.definitions.as_slice() else {
+            return Err(invalid);
+        };
+        if Some(definition.value) != result
+            || definition.site
+                != (ValueDefinitionSite::Node {
+                    block: block.id,
+                    node: position as u32,
+                })
         {
             return Err(invalid);
         }
@@ -158,10 +187,7 @@ pub(super) fn validate(
                 length,
                 ..
             } => {
-                if !optimized
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == *source)
+                if !super::byte_views::contains_view(optimized, *source)
                     || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                     || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 {
@@ -170,11 +196,7 @@ pub(super) fn validate(
                 ScalarType::Integer(u8_type())
             }
             AbstractOperation::ByteSequenceLength { source, .. } => {
-                if !optimized
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == *source)
-                {
+                if !super::byte_views::contains_view(optimized, *source) {
                     return Err(invalid);
                 }
                 ScalarType::Integer(u64_type())

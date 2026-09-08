@@ -6,6 +6,7 @@ use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::VocabularyMarker;
 
 mod byte_reads;
+mod byte_subslices;
 
 #[test]
 fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {

@@ -75,6 +75,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::BooleanStructuralField { .. }
         | AbstractOperation::ByteSequenceRead { .. }
+        | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanNot { .. }

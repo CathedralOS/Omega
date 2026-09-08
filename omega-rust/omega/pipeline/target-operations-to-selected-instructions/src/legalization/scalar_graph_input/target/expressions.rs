@@ -9,19 +9,17 @@ impl Checker<'_> {
     ) -> bool {
         let resolved = resolve(value, aliases);
         match expression {
-            Expression::ByteSequenceRead { psi_operation, source_value, source, source_placement, index, length, obligation } => {
-                let Some(abi) = &self.function.mixed_structural_scalar_abi else { return false; };
+            Expression::ByteSequenceRead { psi_operation, source_value, source, view, index, length, obligation } => {
                 *source_value == resolved
-                    && abi.structural_parameters.iter().any(|parameter| parameter.place == *source && parameter.placement == *source_placement)
+                    && self.byte_view(view, *source, aliases)
                     && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation }
                         if operation == psi_operation && result.value == resolved && expected == source
                         && length == expected_length && obligation == expected_obligation && self.expression(index, *expected_index, aliases)))
             }
-            Expression::ByteSequenceLength { psi_operation, source_value, source, source_placement, length_byte_offset } => {
-                let Some(abi) = &self.function.mixed_structural_scalar_abi else { return false; };
+            Expression::ByteSequenceLength { psi_operation, source_value, source, view, length_byte_offset } => {
                 *length_byte_offset == 8 && *source_value == resolved
-                    && abi.structural_parameters.iter().any(|parameter| parameter.place == *source && parameter.placement == *source_placement)
+                    && self.byte_view(view, *source, aliases)
                     && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))

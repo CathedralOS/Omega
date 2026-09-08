@@ -19,7 +19,7 @@ pub(super) fn validate_surviving_frontiers(
         .map(|fact| (fact.obligation, fact))
         .collect::<BTreeMap<_, _>>();
     for function in &unit.functions {
-        validate_surviving_byte_reads(context.module(), function)?;
+        validate_surviving_byte_operations(context.module(), function)?;
         let Some(frontiers) = context.structural_frontiers().machine(function.machine) else {
             return Err(
                 OptimizationUnitValidationError::MissingStructuralFrontierMachine(function.machine),
@@ -83,7 +83,7 @@ pub(super) fn validate_surviving_frontiers(
     Ok(())
 }
 
-fn validate_surviving_byte_reads(
+fn validate_surviving_byte_operations(
     module: &terminal_psi::TerminalModule,
     function: &PsiOptimizationFunction,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -93,16 +93,19 @@ fn validate_surviving_byte_reads(
         .flat_map(|block| &block.nodes)
         .map(|node| &node.operation)
     {
-        let O::ByteSequenceRead {
-            psi_operation,
-            result,
-            source,
-            index,
-            length,
-            obligation,
-        } = operation
-        else {
-            continue;
+        let (psi_operation, obligation) = match operation {
+            O::ByteSequenceRead {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ByteSequenceSubslice {
+                psi_operation,
+                obligation,
+                ..
+            } => (*psi_operation, Some(*obligation)),
+            O::ByteSequenceLength { psi_operation, .. } => (*psi_operation, None),
+            _ => continue,
         };
         let original = module
             .machines
@@ -113,26 +116,70 @@ fn validate_surviving_byte_reads(
                     .blocks
                     .iter()
                     .flat_map(|block| &block.operations)
-                    .find(|operation| operation.id == *psi_operation)
+                    .find(|operation| operation.id == psi_operation)
             });
         let matches = original.is_some_and(|original| {
-            original.result.scalar().is_some_and(|original_result| {
-                original_result.id == result.value
-                    && original_result.scalar_type == result.scalar_type
-            }) && matches!(original.kind, terminal_psi::OperationKind::ByteSequenceRead {
-                    source: original_source, index: original_index, length: original_length,
-                    obligation: original_obligation,
-                } if original_source == *source && original_index == *index
-                    && original_length == *length && original_obligation == *obligation)
+            let (result, kind) = match operation {
+                O::ByteSequenceSubslice {
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Structural(result.clone()),
+                    terminal_psi::OperationKind::ByteSequenceSubslice {
+                        source: *source,
+                        start: *start,
+                        end: *end,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
+                O::ByteSequenceRead {
+                    result,
+                    source,
+                    index,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::ByteSequenceRead {
+                        source: *source,
+                        index: *index,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
+                O::ByteSequenceLength { result, source, .. } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::ByteSequenceLength { source: *source },
+                ),
+                _ => return false,
+            };
+            original.result == result && original.kind == kind
         });
         if !matches {
-            return Err(
+            return Err(if let Some(obligation) = obligation {
                 OptimizationUnitValidationError::OperationObligationOwnerMismatch {
                     machine: function.machine,
-                    operation: *psi_operation,
-                    obligation: *obligation,
-                },
-            );
+                    operation: psi_operation,
+                    obligation,
+                }
+            } else {
+                OptimizationUnitValidationError::StructuralCatalogMismatch {
+                    machine: Some(function.machine),
+                }
+            });
         }
     }
     Ok(())

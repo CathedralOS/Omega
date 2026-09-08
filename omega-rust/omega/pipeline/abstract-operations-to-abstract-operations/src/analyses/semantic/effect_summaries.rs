@@ -382,6 +382,7 @@ fn operation_effect(
         | O::EstablishAffineScalarRecord { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),

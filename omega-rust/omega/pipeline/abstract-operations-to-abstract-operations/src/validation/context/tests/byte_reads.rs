@@ -7,7 +7,7 @@ use terminal_psi::{
 
 #[test]
 fn surviving_byte_read_cannot_reuse_bounds_after_operand_drift() {
-    let verified = verified_byte_read();
+    let verified = verified_byte_operation(false);
     validate_verified_psi_optimization_unit(&verified).unwrap();
     let (input, baseline) = verified.into_parts();
     for mutation in 0..7 {
@@ -64,7 +64,7 @@ fn surviving_byte_read_cannot_reuse_bounds_after_operand_drift() {
     refresh_identity(&mut substituted_view);
     assert!(matches!(
         validate_transformed_psi_optimization_unit(&input, &substituted_view),
-        Err(OptimizationUnitValidationError::OperationObligationOwnerMismatch { .. })
+        Err(OptimizationUnitValidationError::StructuralCatalogMismatch { .. })
     ));
 
     let mut missing_fact = baseline.clone();
@@ -73,7 +73,9 @@ fn surviving_byte_read_cannot_reuse_bounds_after_operand_drift() {
     assert!(validate_transformed_psi_optimization_unit(&input, &missing_fact).is_err());
 }
 
-fn verified_byte_read() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
+pub(super) fn verified_byte_operation(
+    subslice: bool,
+) -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     let initial = verified_unit();
     let mut module = initial.input().context().module().clone();
     let byte_type = id(1, StructuralTypeId::new);
@@ -196,6 +198,41 @@ fn verified_byte_read() -> terminal_psi_to_abstract_operations::VerifiedPsiOptim
             },
         },
     ];
+    if subslice {
+        let result = terminal_psi::StructuralOperationResult {
+            place: id(3, PlaceId::new),
+            structural_type: byte_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        };
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: result.place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(3, OperationId::new),
+                structural_type: byte_type,
+            },
+        });
+        machine.blocks[1].operations[0].result = OperationResult::Structural(result);
+        machine.blocks[1].operations[0].kind = OperationKind::ByteSequenceSubslice {
+            source: id(1, PlaceId::new),
+            start: value(1),
+            end: value(2),
+            length: value(2),
+            obligation: id(1, ObligationId::new),
+        };
+        machine.blocks[1].operations.push(Operation {
+            id: id(4, OperationId::new),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value(6),
+                scalar_type: count_type,
+            }),
+            kind: OperationKind::ByteSequenceLength {
+                source: id(3, PlaceId::new),
+            },
+        });
+    }
     let questions = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
     let [question] = questions.obligations() else {
         panic!("one read obligation")
@@ -203,8 +240,46 @@ fn verified_byte_read() -> terminal_psi_to_abstract_operations::VerifiedPsiOptim
     let axiom = question
         .semantic_axioms
         .iter()
-        .position(|proposition| proposition == &question.obligation.proposition)
+        .position(|proposition| {
+            proposition
+                == &semantic_vocabulary::Proposition::LessThan(
+                    semantic_vocabulary::ScalarTerm::value(value(1), count_type),
+                    semantic_vocabulary::ScalarTerm::value(value(2), count_type),
+                )
+        })
         .unwrap();
+    let rule = if subslice {
+        use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
+        use semantic_vocabulary::{Proposition, ScalarTerm};
+        let Proposition::Conjunction(legs) = &question.obligation.proposition else {
+            panic!("two range legs")
+        };
+        ProofRule::ConjunctionIntroduction(vec![
+            ProofNode {
+                conclusion: legs[0].clone(),
+                rule: ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(ProofNode {
+                        conclusion: question.semantic_axioms[axiom].clone(),
+                        rule: ProofRule::SemanticAxiom { index: axiom },
+                    }),
+                },
+            },
+            ProofNode {
+                conclusion: legs[1].clone(),
+                rule: ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(ProofNode {
+                        conclusion: Proposition::Equal(
+                            ScalarTerm::value(value(2), count_type),
+                            ScalarTerm::value(value(2), count_type),
+                        ),
+                        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                    }),
+                },
+            },
+        ])
+    } else {
+        proof_admission::ProofRule::SemanticAxiom { index: axiom }
+    };
     let proof = terminal_verifier::ProofBundle {
         evidence: vec![terminal_verifier::ObligationEvidence {
             obligation: question.obligation.id,
@@ -214,7 +289,7 @@ fn verified_byte_read() -> terminal_psi_to_abstract_operations::VerifiedPsiOptim
                     proof_system_marker: proof_admission::ProofSystemMarker::CURRENT,
                     proof: proof_admission::ProofNode {
                         conclusion: question.obligation.proposition.clone(),
-                        rule: proof_admission::ProofRule::SemanticAxiom { index: axiom },
+                        rule,
                     },
                 },
             ),

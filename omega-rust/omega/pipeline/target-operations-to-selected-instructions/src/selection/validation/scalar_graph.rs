@@ -366,7 +366,10 @@ pub(in crate::selection) fn validate(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::BoundarySettlement(_) => return Err(invalid()),
+                LegalizedScalarInstructionKind::BoundarySettlement(_)
+                | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
+                    return Err(invalid());
+                }
                 LegalizedScalarInstructionKind::Call(_) => {
                     scalar_call::validate(source, operation, &mut replay, &environment, catalog)?
                 }

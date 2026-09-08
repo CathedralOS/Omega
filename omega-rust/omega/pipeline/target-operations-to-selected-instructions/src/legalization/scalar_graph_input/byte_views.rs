@@ -61,10 +61,10 @@ pub(super) fn validate(
         || !abstracted.published_service_ceiling.is_empty()
         || !optimized.published_service_ceiling.is_empty()
         || optimized.declared_places
-            != abstracted
-                .structural_parameters
+            != optimized
+                .structural_places
                 .iter()
-                .map(|parameter| parameter.place)
+                .map(|place| place.id)
                 .collect()
         || !crate::structural_unit_input::accepts_borrowed_view(
             &abi.call_plan,
@@ -75,7 +75,24 @@ pub(super) fn validate(
         return Err(invalid);
     }
     let parameter = &abstracted.structural_parameters[0];
-    if optimized.structural_places.len() != 1
+    let subslices = optimized
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| {
+            if let AbstractOperation::ByteSequenceSubslice {
+                psi_operation,
+                result,
+                ..
+            } = &node.operation
+            {
+                Some((*psi_operation, result))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    if optimized.structural_places.len() != 1 + subslices.len()
         || optimized.structural_places[0].id != parameter.place
         || optimized.structural_places[0].kind
             != (semantic_vocabulary::StructuralPlaceKind::Parameter {
@@ -85,5 +102,33 @@ pub(super) fn validate(
     {
         return Err(invalid);
     }
+    for place in &optimized.structural_places[1..] {
+        if !subslices.iter().any(|(operation, result)| {
+            place.id == result.place
+                && result.structural_type == parameter.structural_type
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && place.kind
+                    == (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: *operation,
+                        structural_type: result.structural_type,
+                    })
+        }) {
+            return Err(invalid);
+        }
+    }
     Ok(abi.call_plan.clone())
+}
+
+// Whole-unit validation checks the exact producer and dominance. This predicate
+// restricts the native route to parameters and derived immutable byte views.
+pub(super) fn contains_view(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> bool {
+    function.structural_parameters.iter().any(|parameter| parameter.place == place)
+        || function.blocks.iter().flat_map(|block| &block.nodes).any(|node|
+            matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))
 }

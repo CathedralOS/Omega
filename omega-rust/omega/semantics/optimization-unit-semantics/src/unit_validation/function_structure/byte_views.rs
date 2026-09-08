@@ -22,7 +22,10 @@ pub(super) fn validate_immutable_byte_view_source(
 ) -> Result<(), OptimizationUnitValidationError> {
     let (source, length) = match operation {
         AbstractOperation::ByteSequenceLength { source, .. } => (*source, None),
-        AbstractOperation::ByteSequenceRead { source, length, .. } => (*source, Some(*length)),
+        AbstractOperation::ByteSequenceRead { source, length, .. }
+        | AbstractOperation::ByteSequenceSubslice { source, length, .. } => {
+            (*source, Some(*length))
+        }
         _ => return Ok(()),
     };
     let structural_type = match source_kind {
@@ -40,6 +43,30 @@ pub(super) fn validate_immutable_byte_view_source(
         Some(StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         }) => Some(*structural_type),
+        Some(StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        }) => function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .find_map(|node| match &node.operation {
+                AbstractOperation::ByteSequenceSubslice {
+                    psi_operation,
+                    result,
+                    ..
+                } if psi_operation == producer
+                    && result.place == source
+                    && result.structural_type == *structural_type
+                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty() =>
+                {
+                    Some(result.structural_type)
+                }
+                _ => None,
+            }),
         _ => None,
     };
     let valid = structural_type
@@ -69,22 +96,62 @@ pub(super) fn validate_immutable_byte_view_source(
             } if *measured == source && result.value == length)
             })
     });
+    let valid_result = match operation {
+        AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            ..
+        } => {
+            result.place != source
+                && Some(result.structural_type) == structural_type
+                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && function.structural_places.iter().any(|place| {
+                    place.id == result.place
+                        && place.kind
+                            == StructuralPlaceKind::OperationResult {
+                                producer: *psi_operation,
+                                structural_type: result.structural_type,
+                            }
+                })
+                && function
+                    .entry_claim_declarations
+                    .iter()
+                    .all(|claim| claim.input != result.place)
+                && function
+                    .content_entry_claims
+                    .iter()
+                    .all(|claim| claim.input.root != result.place)
+        }
+        _ => true,
+    };
     // Scalar-use validation independently requires the exact length definition
-    // to dominate this read. Equal integers and incoming aliases are not witnesses.
-    if !valid || !exact_length {
-        return Err(if length.is_some() {
-            OptimizationUnitValidationError::InvalidByteSequenceRead {
-                machine: function.machine,
-                block,
-                node,
-            }
-        } else {
-            OptimizationUnitValidationError::InvalidByteSequenceLength {
-                machine: function.machine,
-                block,
-                node,
-            }
-        });
+    // and endpoints to dominate the operation. Structural availability checks
+    // require a subslice producer to dominate every descriptor use.
+    if !valid || !exact_length || !valid_result {
+        return Err(
+            if matches!(operation, AbstractOperation::ByteSequenceSubslice { .. }) {
+                OptimizationUnitValidationError::InvalidByteSequenceSubslice {
+                    machine: function.machine,
+                    block,
+                    node,
+                }
+            } else if length.is_some() {
+                OptimizationUnitValidationError::InvalidByteSequenceRead {
+                    machine: function.machine,
+                    block,
+                    node,
+                }
+            } else {
+                OptimizationUnitValidationError::InvalidByteSequenceLength {
+                    machine: function.machine,
+                    block,
+                    node,
+                }
+            },
+        );
     }
     Ok(())
 }

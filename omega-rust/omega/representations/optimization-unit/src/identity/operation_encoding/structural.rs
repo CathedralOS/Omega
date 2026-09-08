@@ -5,6 +5,24 @@ use super::*;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } => {
+            bytes.u8(64);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.id(*source);
+            bytes.id(*start);
+            bytes.id(*end);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
         O::WriteOnlyPrimitiveStore {
             psi_operation,
             destination,

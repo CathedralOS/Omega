@@ -15,7 +15,8 @@ mod structural;
 pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
-        O::WriteOnlyPrimitiveStore { .. }
+        O::ByteSequenceSubslice { .. }
+        | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }

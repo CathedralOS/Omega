@@ -5,6 +5,8 @@
 
 mod structural;
 pub use structural::*;
+mod byte_view;
+pub use byte_view::*;
 mod scalar;
 pub use scalar::*;
 mod boolean;

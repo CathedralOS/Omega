@@ -1,4 +1,4 @@
-//! Verified immutable byte-operation retention and unsupported subslice coverage.
+//! Verified immutable byte-operation retention and proof custody.
 
 use super::*;
 
@@ -138,6 +138,16 @@ pub(super) fn byte_operation_fence(subslice: bool) {
             length: value(2),
             obligation: ObligationId::new(1).unwrap(),
         };
+        machine.blocks[0].operations.push(Operation {
+            id: operation_id(4),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value(5),
+                scalar_type: count_type,
+            }),
+            kind: OperationKind::ByteSequenceLength {
+                source: place_id(3),
+            },
+        });
     }
     let questions = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
     let [site] = questions.obligations() else {
@@ -206,15 +216,117 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         validate_retained_read(&semantic, &proof);
         return;
     }
-    let error =
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()).unwrap_err();
-    match error {
-        terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
-            terminal_psi_to_abstract_operations::LoweringError::UnsupportedByteSequenceSubslice(
-                operation,
-            ),
-        ) if subslice => assert_eq!(operation, operation_id(3)),
-        other => panic!("wrong native fence: {other:?}"),
+    validate_retained_subslice(&semantic, &proof);
+}
+
+fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
+    use semantic_vocabulary::{FuelScheduleIdentity, ObligationId, ValueId};
+    use terminal_psi_to_abstract_operations::{
+        ProviderInstallationError, admit_provider_installation,
+        build_verified_psi_optimization_unit, lower_artifact_sections_for_optimization,
+    };
+    let profile = AdmissionProfile::default();
+    let input = lower_artifact_sections_for_optimization(semantic, proof, &profile).unwrap();
+    let verified =
+        build_verified_psi_optimization_unit(input, FuelScheduleIdentity::new(1).unwrap()).unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
+    let plan = lower_artifact_sections(semantic, proof, &profile).unwrap();
+    let position = plan.functions[0]
+        .operations
+        .iter()
+        .position(|operation| matches!(operation, AbstractOperation::ByteSequenceSubslice { .. }))
+        .unwrap();
+    let operation = &plan.functions[0].operations[position];
+    assert_eq!(
+        operation,
+        &AbstractOperation::ByteSequenceSubslice {
+            psi_operation: operation_id(3),
+            result: terminal_psi::StructuralOperationResult {
+                place: place_id(3),
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            source: place_id(1),
+            start: ValueId::new(1).unwrap(),
+            end: ValueId::new(2).unwrap(),
+            length: ValueId::new(2).unwrap(),
+            obligation: ObligationId::new(1).unwrap(),
+        }
+    );
+    let node = verified.unit().functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find(|node| &node.operation == operation)
+        .unwrap();
+    assert!(node.definitions.is_empty());
+    assert!(node.ownership.is_empty());
+    assert_eq!(
+        node.uses
+            .iter()
+            .map(|usage| usage.value)
+            .collect::<Vec<_>>(),
+        vec![
+            ValueId::new(1).unwrap(),
+            ValueId::new(2).unwrap(),
+            ValueId::new(2).unwrap()
+        ]
+    );
+    assert_eq!(node.fuel.len(), 1);
+    assert_eq!(node.fuel[0].units, 1);
+    assert_eq!(
+        node.fuel[0].site,
+        optimization_unit::PsiProvenance::Operation(operation_id(3))
+    );
+    let [fact] = verified.unit().accepted_obligation_facts.as_slice() else {
+        panic!("subslice retains one two-leg obligation")
+    };
+    assert_eq!(fact.operation, operation_id(3));
+    assert_eq!(fact.obligation, ObligationId::new(1).unwrap());
+    for mutation in 0..10 {
+        let mut changed = plan.clone();
+        let AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } = &mut changed.functions[0].operations[position]
+        else {
+            panic!("subslice")
+        };
+        match mutation {
+            0 => *psi_operation = operation_id(9),
+            1 => *source = place_id(9),
+            2 => *start = ValueId::new(2).unwrap(),
+            3 => *end = ValueId::new(1).unwrap(),
+            4 => *length = ValueId::new(1).unwrap(),
+            5 => *obligation = ObligationId::new(9).unwrap(),
+            6 => result.place = place_id(9),
+            7 => result.structural_type = StructuralTypeId::new(9).unwrap(),
+            8 => result.multiplicity = StructuralMultiplicity::Affine,
+            9 => result
+                .qualifications
+                .push(semantic_vocabulary::StructuralDomainId::new(9).unwrap()),
+            _ => panic!("bounded mutations"),
+        }
+        assert!(matches!(
+            admit_provider_installation(&changed, semantic, proof, &profile, &[]),
+            Err(ProviderInstallationError::PlanReplayMismatch)
+        ));
+        let seed = |plan: &abstract_operations::AbstractOperationPlan| {
+            optimization_unit::reconstruct_psi_optimization_unit_seed(
+                plan,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap()
+        };
+        assert_ne!(seed(&plan).identity, seed(&changed).identity);
     }
 }
 

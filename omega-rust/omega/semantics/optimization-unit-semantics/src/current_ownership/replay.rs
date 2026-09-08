@@ -281,6 +281,9 @@ pub(super) fn validate_current_ownership_cfg(
             }
 
             let structural_result = match &node.operation {
+                // A subslice establishes a borrowed descriptor, never an owned
+                // result or a new cleanup/claim frontier.
+                O::ByteSequenceSubslice { .. } => None,
                 O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }

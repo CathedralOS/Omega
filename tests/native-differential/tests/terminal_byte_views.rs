@@ -1,5 +1,5 @@
 //! Native byte observations start from encoded, independently verified Terminal.
-//! Source writer closure and byte subslices remain outside these fixtures.
+//! The complete source writer closure remains outside these fixtures.
 
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
@@ -20,6 +20,10 @@ mod fixtures;
 use fixtures::{byte_view_length_module, byte_view_read_module, byte_view_read_proof};
 #[path = "terminal_byte_views/helper_admission.rs"]
 mod helper_admission;
+#[path = "terminal_byte_views/subslice.rs"]
+mod subslice;
+#[path = "terminal_byte_views/subslice_admission.rs"]
+mod subslice_admission;
 
 #[test]
 fn byte_view_length_helper_cross_lowers_on_hosted_targets() {

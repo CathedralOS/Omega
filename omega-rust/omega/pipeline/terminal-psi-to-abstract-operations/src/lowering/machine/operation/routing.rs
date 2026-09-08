@@ -55,8 +55,26 @@ pub(super) fn lower(
                 obligation: *obligation,
             })
         }
-        OperationKind::ByteSequenceSubslice { .. } => {
-            Err(crate::lowering::LoweringError::UnsupportedByteSequenceSubslice(operation.id))
+        OperationKind::ByteSequenceSubslice {
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } => {
+            let result = operation
+                .result
+                .structural()
+                .ok_or(LoweringError::InvalidByteSequenceSubslice(operation.id))?;
+            Ok(AbstractOperation::ByteSequenceSubslice {
+                psi_operation: operation.id,
+                result: result.clone(),
+                source: *source,
+                start: *start,
+                end: *end,
+                length: *length,
+                obligation: *obligation,
+            })
         }
         OperationKind::ByteSequenceLength { source } => {
             let result = operation

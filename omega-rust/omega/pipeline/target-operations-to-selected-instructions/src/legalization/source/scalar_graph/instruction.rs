@@ -9,6 +9,34 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } => {
+            let fact = unit
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == *psi_operation
+                        && fact.obligation == *obligation
+                })
+                .ok_or(Error::SourceCustodyMismatch)?;
+            LegalizedScalarInstructionKind::ByteSequenceSubslice {
+                result: result.clone(),
+                source: *source,
+                start: *start,
+                end: *end,
+                length: *length,
+                obligation: *obligation,
+                accepted_fact: fact.identity,
+            }
+        }
         AbstractOperation::CallStructuralScalar {
             callee,
             structural_arguments,
@@ -185,8 +213,8 @@ pub(super) fn project(
     };
     Ok(LegalizedScalarInstruction {
         operation,
-        result: Some(LegalizedValueDefinition {
-            value: result,
+        result: result.map(|value| LegalizedValueDefinition {
+            value,
             scalar_type: node.definitions[0].scalar_type,
             definition_site: node.definitions[0].site,
         }),

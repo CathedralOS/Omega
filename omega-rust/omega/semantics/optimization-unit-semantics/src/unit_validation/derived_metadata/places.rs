@@ -36,7 +36,8 @@ pub(crate) fn reconstruct_declared_places(
                 | O::EstablishTrivialAffineLocal { place, .. } => {
                     known_places.insert(place.id);
                 }
-                O::EstablishPayloadlessCase { result, .. }
+                O::ByteSequenceSubslice { result, .. }
+                | O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
@@ -129,7 +130,8 @@ pub(crate) fn validate_operation_places(
                 }
             }
         }
-        O::ByteSequenceRead { source, .. }
+        O::ByteSequenceSubslice { source, .. }
+        | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {

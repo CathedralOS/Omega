@@ -70,6 +70,28 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::ByteSequenceSubslice {
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(9);
+                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    for identity in [
+                        source.get(),
+                        start.get(),
+                        end.get(),
+                        length.get(),
+                        obligation.get(),
+                    ] {
+                        bytes.extend_from_slice(&identity.to_le_bytes());
+                    }
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::ByteSequenceRead {
                     source,
                     index,

@@ -28,7 +28,12 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
         .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
     {
         match operation {
-            O::ByteSequenceRead {
+            O::ByteSequenceSubslice {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ByteSequenceRead {
                 psi_operation,
                 obligation,
                 ..
