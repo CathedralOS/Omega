@@ -61,15 +61,6 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     {
         return Some(Vec::new());
     }
-    let [destination] = structural_parameters else {
-        return None;
-    };
-    let parameter = program.state_parameters(state).first()?;
-    let mutation_root = if destination.is_self {
-        "self".to_owned()
-    } else {
-        format!("$P{}", destination.position)
-    };
     let frame = &facts
         .mutation
         .for_machine(machine.symbol)?
@@ -77,15 +68,7 @@ pub(super) fn build_structural_scalar_field_store_sequence(
         .iter()
         .find(|frame| frame.state == state.symbol)?
         .frame;
-    if !frame::matches(
-        program,
-        machine,
-        state,
-        parameter.symbol,
-        destination.is_self,
-        &mutation_root,
-        frame,
-    ) {
+    if !frame::matches(program, machine, state, frame) {
         return None;
     }
     statements
@@ -385,65 +368,6 @@ fn build_structural_scalar_field_store_at(
         primitive_type,
         value: value.clone(),
     })
-}
-
-/// Reconcile the complete state frame with its authored assignment destinations.
-/// Calls remain separate ordered operations; an opaque or additional write is
-/// not justified by the presence of an assignment elsewhere in the state.
-fn assignment_frame_matches(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    parameter: SymbolHandle,
-    mutation_root: &str,
-    frame: &facts::NormalizedWriteFrame,
-    call_paths: &[String],
-) -> bool {
-    let Some(paths) = frame.complete_paths() else {
-        return false;
-    };
-    let mut expected = call_paths.to_vec();
-    expected.sort();
-    expected.dedup();
-    for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-    {
-        let StatementNode::Assignment(assignment) = statement else {
-            continue;
-        };
-        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            assignment.target,
-        ) else {
-            return false;
-        };
-        if place.root != facts::PlaceRoot::Symbol(parameter) || place.segments.is_empty() {
-            return false;
-        }
-        let segments = place
-            .segments
-            .iter()
-            .position(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
-            .map_or(place.segments.as_slice(), |position| {
-                &place.segments[..position]
-            });
-        let root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
-        let label = crate::labels::canonical_place_label_from_parts(program, place.root, segments);
-        let Some(suffix) = label.strip_prefix(&root) else {
-            return false;
-        };
-        let path = format!("{mutation_root}{suffix}");
-        if !expected.contains(&path) {
-            expected.push(path);
-        }
-    }
-    !expected.is_empty()
-        && paths.len() == expected.len()
-        && paths.iter().all(|path| expected.contains(path))
 }
 
 fn authored_scalar_position(dense_position: usize) -> Option<u32> {

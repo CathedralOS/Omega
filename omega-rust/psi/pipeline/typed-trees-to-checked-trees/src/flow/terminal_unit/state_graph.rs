@@ -211,8 +211,8 @@ pub(super) fn build(
             terminator,
         });
     }
-    // Receiver-backed provider slots retain their specialized owner path. This
-    // graph path uses direct calls, not implicit attachment field authority.
+    // Retain only this machine's direct provider-field calls. Each ordinary
+    // callee owns its own attachment requirements, even through a receiver loan.
     let provider_attachment_requirements = if let Some(identity) = &attachment {
         let flows = states
             .iter()
@@ -232,9 +232,6 @@ pub(super) fn build(
     } else {
         Vec::new()
     };
-    if !provider_attachment_requirements.is_empty() {
-        return None;
-    }
     let mut plan = composed_control::finish_state_graph(
         facts,
         machine,

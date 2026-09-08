@@ -511,6 +511,13 @@ fn assemble_unit_closure(
         crate::structural_scalar_store_source::validate(checked, machine)?;
         crate::call_source_custody::validate_store_sequence_calls(checked, machine)?;
         for (operation_index, operation) in machine.operations.iter().enumerate() {
+            provider_attachments::validate_call_source(
+                checked,
+                machine.machine,
+                machine.state,
+                operation,
+                &machine.provider_attachment_requirements,
+            )?;
             crate::call_source_custody::validate_operation(
                 checked,
                 machine.machine,

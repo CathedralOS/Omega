@@ -411,6 +411,17 @@ pub(super) fn admit_call_targets<'a>(
         })
         .collect::<Vec<_>>();
     if let Some(attachment) = attachment {
+        for state in call_states {
+            for operation in &state.operations {
+                super::super::provider_attachments::validate_call_source(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    provider_attachment_requirements,
+                )?;
+            }
+        }
         super::super::provider_attachments::validate_provider_attachment_requirements(
             attachment,
             provider_attachment_requirements,

@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod source;
+pub(super) use source::validate_call_source;
+
 pub(super) fn validate_provider_attachment_requirements(
     attachment: &CheckedUnitStructuralTypePlan,
     requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],

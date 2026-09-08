@@ -129,7 +129,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-domain field
   obligations must be proved, not bypassed to restore sample acceptance.
 
-  Resume native `print_squares` with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
+  Work from the unchanged `print_squares` [outer command](samples/cli/basics/print_squares/README.md).
+  Resume its native compiler-library probe with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
   At code checkpoint `6e0afc54a4` on Windows x64, this still exits 100 before
   execution:
@@ -142,8 +143,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   validation yet.
   The ordinary Unit planner in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
-  authored state. Shared unranked graphs retain scalar prefixes and calls, but
-  aggregate construction and interleaved writes still need shared body lowering.
+  authored state. Shared unranked graphs retain scalar prefixes, field writes,
+  and provider-field calls; byte/aggregate construction and runtime-indexed
+  writes still need shared body lowering.
   Producer widening alone cannot close this: general owned cyclic validation
   and native execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
@@ -446,7 +448,8 @@ Owners include
   plans in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`; replace graph-shape routing
   as the shared path closes, rather than adding another recognized topology.
-  Generalize beyond direct scalar receiver fields to the projected Console calls,
+  Generalize beyond direct scalar receiver fields and provider-field calls to
+  ordinary projected helpers, the Console's structural operands,
   indexed/aggregate writes, and computed results in the unchanged customer.
   Preserve observable order, caller-visible writes, test-fuel suspension/resumption,
   and rejection of stale successor bindings, inconsistent ownership, and
