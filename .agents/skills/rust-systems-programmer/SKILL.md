@@ -9,7 +9,7 @@ Use this skill to choose where decisions happen, who owns working state, and wha
 
 ## Start from Omega
 
-Read [AGENTS.md](../../../AGENTS.md) and the authoritative [README conventions](../../../README.md#readonly-coding-conventions), then the owning design or task contract. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Use the repository toolchain and APIs. Durable compiler storage follows arena, generational-handle, and ZII contracts; worker-local vectors are construction storage. Source text beyond resolution is limited to the payload roles named in README, not semantic identity.
+Read [AGENTS.md](../../../AGENTS.md), including its authoritative [repository conventions](../../../AGENTS.md#repository-conventions), then the owning design or task contract. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Use the repository toolchain and APIs. Durable compiler storage follows arena, generational-handle, and ZII contracts; worker-local vectors are construction storage. Source text beyond resolution is limited to the payload roles named in those conventions, not semantic identity.
 
 Use this exact repository skill when invoked by path. A delegated evaluation should report the absolute path it read. Do not create a framework or refactor unrelated code just to demonstrate the skill.
 

@@ -99,30 +99,6 @@ Imports beginning with `omega::` resolve beneath [source/library/](source/librar
 as either `name.omg` or `name/mod.omg`. `OMEGA_LIBRARY_ROOT` selects an
 alternate bundled library root for toolchain-layout testing.
 
-## [READONLY] Coding Conventions
-
-- Use real words in code. Prefer `character`, `statement`, `expression`, and `arguments` over `ch`, `stmt`, `expr`, and `args`.
-- Avoid names that only make sense to compiler insiders. `pipeline` is better than `driver`; `expression` is better than `expr`.
-- Keep compiler stages honest. Parse syntax, lower representation, validate semantics, plan native execution, then emit bytes.
-- Keep sample coverage out of the shipped CLI. Tests and dev harnesses may discover `samples/`, but user-facing compiler behavior stays generic.
-- Prefer small checkpoint commits after working improvements.
-- Samples should reveal language pressure, not hide it in giant `main` files.
-- Prefer arena-backed compiler data. Contiguous storage and small handles beat a pile of tiny heap allocations.
-- Lowered representations should prefer `Handle<T>` and `HandleSpan<T>` over owned `Vec<T>` fields for repeated child lists.
-- `Vec<T>` is fine for parser output, temporary builders, and local scratch data. It should not become the default long-lived representation shape.
-- Prefer arena/vector-backed symbol tables over local hash maps. Dense lookups should collapse toward ids/handles as phases mature; hash maps need a specific sparsity or boundary reason.
-- Prefer parent-owned `HandleSpan` child ranges for symbol lookup. Linear sibling scans over `HierarchyArena` child ranges are the default because real scopes are usually small and cache-friendly; global hash maps are an optimization for measured pathological scopes, not the baseline design.
-- Use paged arenas for shared or eventually-parallel compiler data where growth should not move existing pages or require locking one giant `Vec`.
-- Paged arenas use generational handles so reclaimed page storage cannot resurrect stale references.
-- Do not use `RefCell` as an ownership escape hatch. Runtime borrow checking is not a substitute for clear compiler-phase ownership.
-- Prefer ZII (Zero-is-initialization). Null handles (index 0) resolve to dummy arena entries instead of optionals and literal nulls.
-- Do not wrap handles in `Optional` just to model absence. The zero handle is the absence state; `Optional<Handle<T>>` needs a semantic reason beyond “maybe missing.”
-- Arena handles must be generational. Freed or stale handles resolve to dummy entries, not reused storage.
-- Symbols are handle-first. String names are debug/export/import metadata, not durable identity inside semantic or native compiler layers.
-- Source text is source-loading, diagnostic, and debug payload. Beyond resolution, source-backed names are technical debt unless they are literal program strings, diagnostics/debug metadata, or final-image import/export payload.
-- Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
-- Comments should explain non-obvious intent. Do not add “doing X unlike Rust” commentary unless the contrast changes implementation.
-
 ## Useful Commands
 
 [AGENTS.md](AGENTS.md#driving-the-compiler) documents the CLI and
