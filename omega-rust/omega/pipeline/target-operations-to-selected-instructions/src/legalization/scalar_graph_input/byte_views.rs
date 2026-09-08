@@ -19,7 +19,7 @@ pub(super) fn validate(
         {
             (&body.call_plan, &body.scalar_parameters, &body.parameters)
         }
-        (AbstractFunctionResult::Unit, TargetOperation::UnitGraph(graph), None)
+        (AbstractFunctionResult::Unit, TargetOperation::ControlGraph(graph), None)
             if graph.call_plan.result.is_none() =>
         {
             (
@@ -53,7 +53,7 @@ pub(super) fn validate(
         || target.attachment != abstracted.attachment
         || target.attachment != optimized.attachment
         || target.scalar_abi.is_some()
-        || (matches!(target.operation, TargetOperation::UnitGraph(_))
+        || (matches!(target.operation, TargetOperation::ControlGraph(_))
             && !crate::structural_unit_input::accepts_borrowed_view(
                 call_plan,
                 &parameters,

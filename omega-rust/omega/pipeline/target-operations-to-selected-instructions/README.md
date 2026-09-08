@@ -46,7 +46,7 @@ edge and its fuel retained once; the final implementation jump carries lineage,
 not a second semantic transition. No source block or operation is fabricated.
 
 Target-input correspondence also checks `StructuralCase` terminators in
-`TargetUnitGraph` against the validated abstract graph: the exact dominating
+`TargetControlGraph` against the validated abstract graph: the exact dominating
 result home, declared case order/tag, relevant field offset, destination
 block/value/type, and edge cleanup must agree. The admitted two-case Linux byte
 result lowers through ordinary frame-address, tag-load, compare and branch
@@ -66,14 +66,23 @@ admission limits; no new ISA case opcode or physical route is introduced.
 Computed Boolean comparisons remain branch predicates until value materialization
 is implemented.
 
-Natural-ranked Unit writers use this ordinary graph, including cyclic descriptor
-arrivals, hosted byte output and caller continuation. Legalization borrows the
+Natural-ranked Unit writers and integer-result loops use this ordinary graph,
+including cyclic descriptor arrivals, hosted byte output, selected scalar calls,
+and scalar returns. Unranked loops use the same route. Legalization borrows the
 verified artifact from the validated abstract stage and replays its exact current
-components. The optimizer freezes the complete natural-ranked function, including
-rank-producing prefixes and exits, against the verified source; it produces no
+components. The optimizer freezes the complete Natural or unranked cyclic function,
+including prefixes and exits, against the verified source; it produces no
 countdown certificate or fixed-work bound. Raw cyclic units cannot replace that
 custody. Block layout uses reverse postorder when backedges prevent topological
 scheduling; layout itself grants no termination authority.
+
+Physical scalar demand begins at retained instruction operands, branch conditions,
+and return values, then follows incoming edge bindings. Closed cycles of unused
+bindings require no registers or copies. This omits no instruction, call,
+semantic binding, or fuel charge. Construction prepares demand once with a backward
+worklist; independent replay follows each declared value forward to an observer.
+Explicit expected-set tests cover unused cycles, live multi-edge chains, swaps,
+and retained instructions whose results are unused.
 
 Whole, unqualified, unrestricted shared byte views use the same edge bridges.
 Each block parameter owns a 16-byte activation-local descriptor slot. Its address

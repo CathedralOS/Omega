@@ -393,7 +393,10 @@ pub(in crate::lowering) enum KnownInteger {
 }
 
 impl KnownInteger {
-    pub(super) fn into_expression(self, source_value: ValueId) -> TargetIntegerExpression {
+    pub(in crate::lowering) fn into_expression(
+        self,
+        source_value: ValueId,
+    ) -> TargetIntegerExpression {
         match self {
             Self::Immediate(value) => TargetIntegerExpression::Immediate {
                 source_value,

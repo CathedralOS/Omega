@@ -93,8 +93,6 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             NativeTarget::linux_x64(),
             std::slice::from_ref(&settlement),
         ),
-        Err(LoweringError::UnsupportedOperationInUnitFunction(
-            multi_block.entry
-        )),
+        Err(LoweringError::UnsupportedControlFlow(multi_block.entry)),
     );
 }

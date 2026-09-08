@@ -19,7 +19,7 @@ pub(super) fn reject_attached_unit_structural_scalar(
         };
         let operation = match &function.operation {
             TargetOperation::UnitBody(body) => body.operations.iter().find_map(forbidden),
-            TargetOperation::UnitGraph(graph) => graph
+            TargetOperation::ControlGraph(graph) => graph
                 .blocks
                 .iter()
                 .flat_map(|block| &block.operations)

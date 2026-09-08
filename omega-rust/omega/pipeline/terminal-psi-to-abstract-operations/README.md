@@ -107,6 +107,12 @@ retains the canonical Terminal module and proof bundle. Native artifact admissio
 alone does not establish downstream optimization, target lowering, or publication
 support for these cycles.
 
+Unranked modules take the same ordinary verification and abstract route without
+a progress claim. Scalar cycles proceed through the shared
+[target control graph](../abstract-operations-to-target-operations/README.md)
+and native physical pipeline. Exact verified-source custody, not the presence
+of ranking metadata, authorizes downstream cyclic safety checking.
+
 Only the legacy unsigned-countdown carrier selects
 [ranked_native.rs](src/artifact/ranked_native.rs). This specialized entrance admits
 the entry machine's exact unsigned countdown and ceiling. Native and fixed-fuel

@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Ranked-cycle topology, identity, and immutable-body coordination.
+//! Optimizer module role: executable entrance. Verified-cycle topology, identity, and immutable-body coordination.
 
 use super::super::*;
 
@@ -7,7 +7,7 @@ mod countdown_ranking;
 mod freeze;
 mod graph;
 mod model;
-mod natural;
+mod ordinary;
 mod replay;
 mod topology;
 

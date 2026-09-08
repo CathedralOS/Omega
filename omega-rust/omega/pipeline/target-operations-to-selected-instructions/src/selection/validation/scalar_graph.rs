@@ -54,6 +54,7 @@ pub(in crate::selection) fn validate(
         return Err(invalid());
     };
     let mut replay = Replay {
+        required_values: super::value_transport::required_values(source),
         function,
         selected,
         block,
@@ -76,7 +77,7 @@ pub(in crate::selection) fn validate(
             .find(|source| source.id == block.source_block())
             .ok_or_else(invalid)?;
         for (parameter_index, parameter) in source_block.parameters.iter().enumerate() {
-            if !source.references_value(parameter.value) {
+            if !replay.required_values.contains(&parameter.value) {
                 continue;
             }
             let id = replay.check_register(
@@ -371,6 +372,7 @@ pub(in crate::selection) fn validate(
 }
 
 struct Replay<'a> {
+    required_values: std::collections::BTreeSet<ValueId>,
     transport: structural::Transport,
     function: usize,
     selected: &'a SelectedFunction,

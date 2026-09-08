@@ -59,7 +59,7 @@ pub(in crate::legalization) fn hosted_execution(
                 inspect(row)?;
             }
         }
-        TargetOperation::UnitGraph(graph) => {
+        TargetOperation::ControlGraph(graph) => {
             for block in &graph.blocks {
                 for row in &block.operations {
                     inspect(row)?;

@@ -47,7 +47,7 @@ pub(super) fn entry(
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     for (parameter_index, parameter) in source.parameters.iter().enumerate() {
-        if !source.references_value(parameter.value) {
+        if !builder.required_values.contains(&parameter.value) {
             continue;
         }
         let Some((abi_stack_byte_offset, byte_size, _)) =

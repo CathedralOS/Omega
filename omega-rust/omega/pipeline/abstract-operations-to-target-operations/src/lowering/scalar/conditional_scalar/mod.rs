@@ -4,7 +4,7 @@ mod integer_binary;
 mod integer_operation;
 mod shift;
 use super::*;
-pub(super) use integer_binary::{IntegerBinaryKind, lower_conditional_integer_binary};
+pub(in crate::lowering) use integer_binary::{IntegerBinaryKind, lower_conditional_integer_binary};
 pub(super) use shift::{
     WrappingShiftKind, lower_exact_shift_left, lower_exact_shift_right, lower_wrapping_shift,
 };

@@ -13,17 +13,12 @@ pub(super) fn rederive_exact_components(
         .iter()
         .filter_map(|machine| machine.ranked_scc.as_ref().map(|row| (machine, row)))
         .collect::<Vec<_>>();
-    if ranked
-        .iter()
-        .any(|(_, rank)| matches!(rank, terminal_psi::TerminalRankedScc::Natural(_)))
+    if ranked.is_empty()
+        || ranked
+            .iter()
+            .any(|(_, rank)| matches!(rank, terminal_psi::TerminalRankedScc::Natural(_)))
     {
-        return super::natural::rederive_components(module, unit, terminal_psi);
-    }
-    if ranked.is_empty() {
-        return Ok(OptimizerCycleComponentSnapshot {
-            terminal_psi,
-            components: Vec::new(),
-        });
+        return super::ordinary::rederive_components(module, unit, terminal_psi);
     }
     let [(machine, ranked)] = ranked.as_slice() else {
         return Err(topology_mismatch(module.entry));

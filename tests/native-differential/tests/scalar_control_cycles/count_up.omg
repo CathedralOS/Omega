@@ -1,0 +1,8 @@
+machine identity(value: u64) -> u64 { value }
+
+machine count_up(current: u64 [0..=5], marker: u64) -> u64 {
+    transition current < 5 {
+        true -> count_up(current + 1, identity(current))
+        false -> marker
+    }
+}

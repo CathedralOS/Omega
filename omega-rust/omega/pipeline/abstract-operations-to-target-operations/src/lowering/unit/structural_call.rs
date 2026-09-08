@@ -9,14 +9,14 @@ use super::super::structural_layout::{
 use super::super::structural_signature::StructuralCallSignature;
 
 #[derive(Debug, Clone)]
-pub(super) struct StructuralCallLocalSource {
-    pub(super) structural_type: StructuralTypeId,
-    pub(super) shape: ValueShape,
-    pub(super) placement: ValuePlacement,
+pub(in crate::lowering) struct StructuralCallLocalSource {
+    pub(in crate::lowering) structural_type: StructuralTypeId,
+    pub(in crate::lowering) shape: ValueShape,
+    pub(in crate::lowering) placement: ValuePlacement,
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_structural_unit_call(
+pub(in crate::lowering) fn lower_structural_unit_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,

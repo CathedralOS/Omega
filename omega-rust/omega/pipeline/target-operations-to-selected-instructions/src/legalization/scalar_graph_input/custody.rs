@@ -1,5 +1,7 @@
-//! Admit control cycles only after exact independent ranked source replay.
+//! Admit control cycles only after exact independent verified-source replay.
 use super::*;
+#[cfg(test)]
+mod tests;
 pub(in crate::legalization) fn validate_unit_custody(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
@@ -16,10 +18,12 @@ pub(in crate::legalization) fn validate_unit_custody(
                 machine.id == component.id.machine
                     && matches!(
                         machine.ranked_scc,
-                        Some(terminal_psi::TerminalRankedScc::Natural(_))
+                        None | Some(terminal_psi::TerminalRankedScc::Natural(_))
                     )
             }) && !admitted.contains(&component.id.machine)
             {
+                // The checked component binds the exact verified source graph.
+                // An unranked source supplies safety custody, not a rank or work bound.
                 admitted.push(component.id.machine);
             }
         }

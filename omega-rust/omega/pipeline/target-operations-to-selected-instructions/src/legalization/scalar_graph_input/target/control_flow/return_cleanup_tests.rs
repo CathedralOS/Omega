@@ -249,10 +249,10 @@ fn target_return_replay_rejects_missing_sibling_duplicate_consumed_order_and_edg
         "edge",
     ] {
         let mut changed = target.clone();
-        let TargetOperation::UnitGraph(graph) = &mut changed.functions[0].operation else {
+        let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
             panic!("graph");
         };
-        let TargetUnitTerminator::Return {
+        let TargetControlTerminator::Return {
             psi_edge,
             cleanup_actions,
         } = &mut graph.blocks[1].terminator

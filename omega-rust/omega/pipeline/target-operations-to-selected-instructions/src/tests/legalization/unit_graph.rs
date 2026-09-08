@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     OperationId, ScalarType, ValueId,
 };
 use target::NativeTarget;
-use target_operations::{TargetOperation, TargetUnitOperation, TargetUnitTerminator};
+use target_operations::{TargetControlTerminator, TargetOperation, TargetUnitOperation};
 
 fn targets() -> [NativeTarget; 4] {
     [
@@ -140,7 +140,7 @@ fn unit_graph_calls_branch_and_rejoin_on_all_hosted_targets() {
         let (source, target, unit) = fixture(native);
         assert!(matches!(
             target.functions[0].operation,
-            TargetOperation::UnitGraph(_)
+            TargetOperation::ControlGraph(_)
         ));
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
@@ -214,7 +214,7 @@ fn unit_graph_replay_rejects_cfg_and_source_substitution() {
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         for mutation in 0..12 {
             let mut changed = target.clone();
-            let TargetOperation::UnitGraph(graph) = &mut changed.functions[0].operation else {
+            let TargetOperation::ControlGraph(graph) = &mut changed.functions[0].operation else {
                 panic!("graph");
             };
             match mutation {
@@ -246,7 +246,7 @@ fn unit_graph_replay_rejects_cfg_and_source_substitution() {
                     scalar_arguments[0].source = branch_source;
                 }
                 _ => {
-                    let TargetUnitTerminator::Conditional {
+                    let TargetControlTerminator::Conditional {
                         condition_source,
                         condition,
                         when_true,

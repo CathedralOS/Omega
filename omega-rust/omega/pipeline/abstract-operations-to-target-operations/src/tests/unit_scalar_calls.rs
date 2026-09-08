@@ -278,15 +278,21 @@ fn attached_unit_calls_retain_ordered_register_and_stack_arguments() {
 }
 
 #[test]
-fn unit_scalar_calls_require_an_attachment_and_service_free_scalar_callee() {
+fn unit_scalar_calls_preserve_free_callers_and_require_service_free_scalar_callees() {
     let mut unattached = attached_unit_scalar_call_plan();
     unattached.functions[0].attachment = None;
+    let lowered = lower_to_target_operations(&unattached, NativeTarget::linux_x64())
+        .expect("a free caller does not need a fabricated attachment");
+    assert_eq!(lowered.functions[0].attachment, None);
+    let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+        panic!("ordinary effect body");
+    };
     assert_eq!(
-        lower_to_target_operations(&unattached, NativeTarget::linux_x64()),
-        Err(LoweringError::UnitScalarCallRequiresAttachedMachine {
-            machine: MachineId::new(1).unwrap(),
-            operation: OperationId::new(11).unwrap(),
-        })
+        body.operations
+            .iter()
+            .filter(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
+            .count(),
+        2
     );
 
     let mut serviceful = attached_unit_scalar_call_plan();

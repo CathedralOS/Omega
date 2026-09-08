@@ -1,9 +1,9 @@
 //! Sum inspection retains declared order, layout, and edge-produced parameters.
-use super::super::super::shared::*;
+use super::super::shared::*;
 use super::LiveDefinitions;
 use target_operations::{
-    TargetScalarBlockValue, TargetUnitGraphCasePayload, TargetUnitGraphCaseSuccessor,
-    TargetUnitTerminator,
+    TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
+    TargetScalarBlockValue,
 };
 
 pub(super) fn lower(
@@ -12,8 +12,8 @@ pub(super) fn lower(
     live: &LiveDefinitions,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     provenance: &mut TerminalPsiProvenance,
-) -> Result<TargetUnitTerminator, LoweringError> {
-    let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
+) -> Result<TargetControlTerminator, LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::StructuralCase { source, cases } = operation else {
         return Err(invalid());
     };
@@ -86,7 +86,7 @@ pub(super) fn lower(
             {
                 return Err(invalid());
             }
-            payloads.push(TargetUnitGraphCasePayload {
+            payloads.push(TargetControlCasePayload {
                 field: payload.field,
                 field_byte_offset: u32::from(field_layout.byte_offset),
                 parameter: TargetScalarBlockValue {
@@ -96,7 +96,7 @@ pub(super) fn lower(
                 },
             });
         }
-        lowered.push(TargetUnitGraphCaseSuccessor {
+        lowered.push(TargetControlCaseSuccessor {
             psi_edge: case.psi_edge,
             case: case.case,
             case_tag: i32::try_from(case_ordinal).map_err(|_| invalid())?,
@@ -108,7 +108,7 @@ pub(super) fn lower(
     provenance
         .edges
         .extend(cases.iter().map(|case| case.psi_edge));
-    Ok(TargetUnitTerminator::StructuralCase {
+    Ok(TargetControlTerminator::StructuralCase {
         source: home.clone(),
         cases: lowered,
     })

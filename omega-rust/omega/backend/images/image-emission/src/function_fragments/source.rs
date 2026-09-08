@@ -317,7 +317,7 @@ fn byte_operation_retained(
         TargetByteView, TargetIntegerExpression, TargetOperation, TargetScalarExpression,
         TargetUnitOperation,
     };
-    let TargetOperation::UnitGraph(graph) = &target.operation else {
+    let TargetOperation::ControlGraph(graph) = &target.operation else {
         return false;
     };
     graph
@@ -402,8 +402,8 @@ pub(super) fn unit_scalar_abi(
         {
             Some((&body.call_plan, &body.scalar_parameters, &body.parameters))
         }
-        target_operations::TargetOperation::UnitGraph(graph)
-            if !graph.scalar_parameters.is_empty() =>
+        target_operations::TargetOperation::ControlGraph(graph)
+            if graph.call_plan.result.is_none() && !graph.scalar_parameters.is_empty() =>
         {
             Some((
                 &graph.call_plan,

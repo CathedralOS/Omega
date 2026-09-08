@@ -1,7 +1,7 @@
 //! Integer binary-operation kinds, folding, and target-expression construction.
 use super::*;
 #[derive(Clone, Copy)]
-pub(in crate::lowering::scalar) enum IntegerBinaryKind {
+pub(in crate::lowering) enum IntegerBinaryKind {
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
@@ -21,7 +21,7 @@ pub(in crate::lowering::scalar) enum IntegerBinaryKind {
     SaturatingDivide(semantic_vocabulary::ObligationId),
     SaturatingRemainder(semantic_vocabulary::ObligationId),
 }
-pub(in crate::lowering::scalar) fn lower_conditional_integer_binary(
+pub(in crate::lowering) fn lower_conditional_integer_binary(
     values: &BTreeMap<ValueId, KnownScalar>,
     result: ValueId,
     scalar_type: IntegerType,

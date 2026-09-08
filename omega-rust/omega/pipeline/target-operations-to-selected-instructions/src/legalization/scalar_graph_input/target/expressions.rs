@@ -22,7 +22,7 @@ impl Checker<'_> {
         } else {
             match &self.function.operation {
                 TargetOperation::UnitBody(body) => &body.scalar_parameters,
-                TargetOperation::UnitGraph(graph) => &graph.scalar_parameters,
+                TargetOperation::ControlGraph(graph) => &graph.scalar_parameters,
                 _ => &[],
             }
         }

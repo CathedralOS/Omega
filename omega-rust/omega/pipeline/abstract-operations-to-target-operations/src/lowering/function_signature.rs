@@ -1,9 +1,9 @@
-//! ABI planning and structural-parameter preparation for an attached Unit body.
+//! Shared call signature and incoming parameter placement for ordinary graphs.
 
-use super::super::scalar_abi::fixed_native_integer_shape;
-use super::super::shared::*;
-use super::super::structural_signature::StructuralCallSignature;
-use super::scalar_call::KnownUnitInteger;
+use super::scalar_abi::fixed_native_integer_shape;
+use super::shared::*;
+use super::structural_signature::StructuralCallSignature;
+use super::unit::scalar_call::KnownUnitInteger;
 
 pub(super) fn integer_parameters(
     machine: MachineId,
@@ -31,7 +31,7 @@ pub(super) fn integer_parameters(
         .collect()
 }
 
-pub(super) struct PreparedUnitFunction {
+pub(super) struct PreparedFunctionSignature {
     pub(super) call_plan: CallPlan,
     pub(super) scalar_parameters: Vec<ScalarAbiValue>,
     pub(super) parameters: Vec<TargetStructuralParameter>,
@@ -46,11 +46,11 @@ pub(super) fn parameters_by_place(
         .collect()
 }
 
-pub(super) fn prepare_unit_function(
+pub(super) fn prepare_function_signature(
     function: &AbstractFunction,
     target: NativeTarget,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<PreparedUnitFunction, LoweringError> {
+) -> Result<PreparedFunctionSignature, LoweringError> {
     let scalar_parameter_shapes = function
         .parameters
         .iter()
@@ -70,7 +70,11 @@ pub(super) fn prepare_unit_function(
     let signature = StructuralCallSignature::derive(
         &scalar_parameter_shapes,
         &function.structural_parameters,
-        None,
+        function
+            .result
+            .scalar()
+            .map(|result| super::scalar::scalar_shape(result.value, result.scalar_type, false))
+            .transpose()?,
         structural_types,
         &mut shape_cache,
         &mut active,
@@ -120,7 +124,7 @@ pub(super) fn prepare_unit_function(
         )
         .collect();
 
-    Ok(PreparedUnitFunction {
+    Ok(PreparedFunctionSignature {
         call_plan,
         scalar_parameters,
         parameters,

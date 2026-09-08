@@ -41,11 +41,12 @@ pub(super) fn validate_initial_roots(
         .scalar_functions
         .iter()
         .map(|source| {
+            let required = super::value_transport::required_values(source);
             source
                 .parameters
                 .iter()
                 .filter(|parameter| {
-                    source.references_value(parameter.value)
+                    required.contains(&parameter.value)
                         && matches!(
                             parameter.placement.locations.as_slice(),
                             [calling_conventions::ValueLocation::Register { .. }]

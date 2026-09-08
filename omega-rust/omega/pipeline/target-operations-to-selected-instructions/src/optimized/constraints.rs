@@ -11,8 +11,9 @@ pub fn selection_constraints(
 ) -> SelectedSelectionConstraints {
     let mut fixed_inputs = Vec::new();
     for function in &legalized.plan().scalar_functions {
+        let required = crate::selection::value_transport::required_values(function);
         for (index, parameter) in function.parameters.iter().enumerate() {
-            if !function.references_value(parameter.value) {
+            if !required.contains(&parameter.value) {
                 continue;
             }
             if let [

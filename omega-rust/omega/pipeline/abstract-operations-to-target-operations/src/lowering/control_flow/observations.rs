@@ -11,12 +11,12 @@ pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    prepared: &super::super::setup::PreparedUnitFunction,
+    prepared: &super::super::function_signature::PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let mut values = scalar_values(live, &prepared.scalar_parameters)?;
     match operation {
         AbstractOperation::ByteSequenceLength { source, .. }
@@ -75,6 +75,48 @@ pub(super) fn lower(
         return Ok(());
     }
     let (psi_operation, result, scalar_type, expression) = match operation {
+        AbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            use crate::lowering::scalar::{IntegerBinaryKind, lower_conditional_integer_binary};
+            let kind = if matches!(operation, AbstractOperation::ExactIntegerAdd { .. }) {
+                IntegerBinaryKind::ExactAdd(*obligation)
+            } else {
+                IntegerBinaryKind::ExactSubtract(*obligation)
+            };
+            let known = lower_conditional_integer_binary(
+                &values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                kind,
+                *psi_operation,
+            )?;
+            provenance.operations.push(*psi_operation);
+            (
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                TargetScalarExpression::Integer {
+                    scalar_type: *scalar_type,
+                    expression: known.into_expression(*result),
+                },
+            )
+        }
         AbstractOperation::ByteSequenceLength {
             psi_operation,
             result,
@@ -183,7 +225,7 @@ pub(super) fn lower(
     Ok(())
 }
 
-fn scalar_values(
+pub(super) fn scalar_values(
     live: &LiveDefinitions,
     parameters: &[ScalarAbiValue],
 ) -> Result<BTreeMap<ValueId, KnownScalar>, LoweringError> {

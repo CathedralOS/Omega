@@ -155,6 +155,7 @@ pub enum LoweringError {
     },
     InvalidHostedExitProcessShape(MachineId),
     UnsupportedOperationInScalarFunction(MachineId),
+    UnsupportedControlFlow(MachineId),
     UnsupportedOperationInUnitFunction(MachineId),
     DuplicateIeeeFloatFmaSettlement(OperationId),
     UnknownIeeeFloatFmaSettlement(OperationId),
@@ -181,10 +182,6 @@ pub enum LoweringError {
     },
     UnsupportedStructuralReturnPlacement(MachineId),
     UnitCallTargetKindMismatch(MachineId),
-    UnitScalarCallRequiresAttachedMachine {
-        machine: MachineId,
-        operation: OperationId,
-    },
     UnitScalarCallTargetShapeUnsupported(MachineId),
     UnitScalarCallTargetPublishesServices(MachineId),
     UnitScalarCallIntegerTypeUnsupported(ValueId),

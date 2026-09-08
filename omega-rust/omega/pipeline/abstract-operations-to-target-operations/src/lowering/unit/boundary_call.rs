@@ -16,7 +16,7 @@ use normalized_foreign::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_boundary_call(
+pub(in crate::lowering) fn lower_boundary_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,

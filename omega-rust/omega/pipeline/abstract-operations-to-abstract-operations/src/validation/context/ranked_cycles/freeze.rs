@@ -34,8 +34,9 @@ pub(super) fn validate_frozen_component_blocks(
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
                 machine,
             ))?;
-        if super::natural::is_natural(input.context().module(), machine) {
-            // Rank-producing prefix definitions and exit observations matter too.
+        if !super::countdown_ranking::is_unsigned_countdown(input.context().module(), machine) {
+            // Prefix definitions and exit observations matter for unranked and
+            // Natural cycles alike.
             // Topology equality or frozen SCC members alone cannot preserve them.
             // Immutable signature/contract and accepted-fact custody are checked
             // separately by the enclosing context validator. The bare seed has

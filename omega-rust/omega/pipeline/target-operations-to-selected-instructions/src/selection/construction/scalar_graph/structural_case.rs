@@ -190,7 +190,7 @@ fn successor(
         .ok_or_else(invalid)?;
     let mut payloads = Vec::with_capacity(case.payloads.len());
     for payload in &case.payloads {
-        let transport = if source.references_value(payload.parameter.value) {
+        let transport = if builder.required_values.contains(&payload.parameter.value) {
             let (_, parameter, site, scalar_type) = builder
                 .resolve(payload.parameter.value)
                 .ok_or_else(invalid)?;

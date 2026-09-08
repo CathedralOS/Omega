@@ -1057,10 +1057,24 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  realize owned integer-field reads, native primitive-local storage, and borrowed-call
-  observations without substituting snapshots. Preserve the authored guard,
+  realize owned structural block arrivals, native primitive-local storage, and
+  primitive stores in scalar-returning borrowed callees without substituting
+  snapshots. The native entrance rejects `UnsupportedStructuralBlockParameters`
+  for this source (macOS, `d2960bdb1d`); its ranking-only field reads are erased,
+  not a runtime load dependency. Preserve the authored guard,
   structural payload, selected call order, and Natural descent through native
   lowering. The source-to-Terminal acceptance lives in `owned_scalar_cycles`.
+  Carry invocation range bounds onto current loop values only through checked
+  invariant establishment and preservation. The unchanged
+  [range-only addition](tests/native-differential/tests/scalar_control_cycles/selected_call_exact_add.omg)
+  rejects at Terminal production with `OperationProofUnavailable(6)`
+  (macOS; source-production inputs unchanged from `195dfb6086`).
+  Acceptance: `scalar_control_cycles` publishes and
+  natively executes that source without an added per-iteration upper-bound guard;
+  zero iterations return the supplied marker and positive counts return `2`;
+  substituted establishment/backedge evidence rejects. Natural descent alone
+  does not supply that invariant. Owning paths: Terminal verifier
+  `verification/reconstruction.rs` and checked-to-lowered operation proofs.
   Generalize mixed state signatures and borrowed loop formals through their exact
   ownership and arrival contracts rather than source-state duplication.
   Align compile-known numeric conditions between flow call capture and scalar

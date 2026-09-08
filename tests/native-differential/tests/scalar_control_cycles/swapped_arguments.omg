@@ -1,0 +1,10 @@
+machine identity(value: u64) -> u64 { value }
+
+machine countdown(remaining: u64 [0..=5], first: u64, second: u64)
+terminates by remaining -> Nat::Descending in 0..6;
+-> u64 {
+    transition remaining > 0 {
+        true -> countdown(remaining - 1, second, identity(first))
+        false -> first
+    }
+}

@@ -3,7 +3,7 @@
 use super::super::shared::*;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 
-pub(super) fn lower_integer_widen(
+pub(in crate::lowering) fn lower_integer_widen(
     operation: &AbstractOperation,
     machine: MachineId,
     parameters: &[ScalarAbiValue],
@@ -116,7 +116,7 @@ pub(super) fn lower_integer_widen(
     Ok(())
 }
 
-pub(super) fn validate_unit_scalar_definitions(
+pub(in crate::lowering) fn validate_unit_scalar_definitions(
     function: &AbstractFunction,
 ) -> Result<(), LoweringError> {
     let has_ieee_float_fma = function.operations.iter().any(|operation| {
@@ -145,7 +145,7 @@ pub(super) fn validate_unit_scalar_definitions(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_integer_constant(
+pub(in crate::lowering) fn lower_integer_constant(
     machine: MachineId,
     psi_operation: OperationId,
     result: ValueId,
@@ -188,7 +188,7 @@ pub(super) fn lower_integer_constant(
     Ok(())
 }
 
-pub(super) fn lower_boolean_constant(
+pub(in crate::lowering) fn lower_boolean_constant(
     machine: MachineId,
     psi_operation: OperationId,
     result: ValueId,
@@ -215,7 +215,7 @@ pub(super) fn lower_boolean_constant(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_ieee_float_constant(
+pub(in crate::lowering) fn lower_ieee_float_constant(
     psi_operation: OperationId,
     result: ValueId,
     value: semantic_vocabulary::IeeeFloatValue,
@@ -244,7 +244,7 @@ pub(super) fn lower_ieee_float_constant(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_ieee_float_fma(
+pub(in crate::lowering) fn lower_ieee_float_fma(
     machine: MachineId,
     psi_operation: OperationId,
     result: ValueId,

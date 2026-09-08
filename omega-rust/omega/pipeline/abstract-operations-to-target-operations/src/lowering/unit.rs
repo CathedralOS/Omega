@@ -1,32 +1,31 @@
-//! Attached Unit lowering entrance: preflight, prepare, lower, and assemble.
+//! Unit lowering entrance: preflight, prepare, lower, and assemble.
 
 mod body;
-mod boundary_call;
+pub(super) mod boundary_call;
 mod conditional_exit;
 pub(crate) mod continuation;
 mod dynamic;
 mod dynamic_join;
 mod dynamic_parameter;
 mod forwarded_dynamic_parameter;
-mod graph;
 mod preflight;
 mod projected_argument;
 mod projected_result;
 mod return_unit;
 mod scalar_bindings;
-mod scalar_call;
-mod scalar_definitions;
-mod setup;
-mod structural_call;
+pub(super) mod scalar_call;
+pub(super) mod scalar_definitions;
+pub(super) mod structural_call;
 mod structural_result;
 mod structural_scalar;
 mod write_only_primitive_store;
 
+use super::function_signature as setup;
 use super::shared::*;
 use body::lower_unit_body;
 use preflight::validate_unit_function_shape;
 use scalar_definitions::validate_unit_scalar_definitions;
-use setup::prepare_unit_function;
+use setup::prepare_function_signature;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_unit_function(
@@ -67,7 +66,7 @@ pub(super) fn lower_unit_function(
             super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
         }) || !continuation::has_shape(function))
     {
-        return graph::lower(
+        return super::control_flow::lower(
             function,
             target,
             functions,
@@ -75,6 +74,7 @@ pub(super) fn lower_unit_function(
             boundary_machines,
             settlements,
             installed_calls,
+            scalar_abis,
             native_callbacks,
         );
     }
@@ -85,7 +85,7 @@ pub(super) fn lower_unit_function(
         validate_unit_scalar_definitions(function)?;
     }
 
-    let prepared = prepare_unit_function(function, target, structural_types)?;
+    let prepared = prepare_function_signature(function, target, structural_types)?;
     let lowered = if dynamic_descriptor_join {
         dynamic_join::lower(
             function,

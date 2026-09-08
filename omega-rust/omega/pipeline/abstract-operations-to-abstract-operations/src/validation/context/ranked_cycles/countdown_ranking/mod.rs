@@ -24,14 +24,15 @@ pub(super) fn rederive_exact_certificates(
     unit: &PsiOptimizationUnit,
     components: &OptimizerCycleComponentSnapshot,
 ) -> Result<OptimizerRankingCertificateSnapshot, OptimizationUnitValidationError> {
-    // Natural components retain the original grouped proof and frozen body.
-    // They supply no unsigned-countdown analysis certificate or fixed-work bound.
+    // Only legacy unsigned countdowns supply these analysis certificates.
+    // Natural and unranked components retain their verified source and frozen
+    // body without acquiring a countdown certificate or fixed-work bound.
     let countdown = OptimizerCycleComponentSnapshot {
         terminal_psi: components.terminal_psi,
         components: components
             .components
             .iter()
-            .filter(|component| !super::natural::is_natural(module, component.id.machine))
+            .filter(|component| is_unsigned_countdown(module, component.id.machine))
             .cloned()
             .collect(),
     };
@@ -49,5 +50,18 @@ pub(super) fn rederive_exact_certificates(
     Ok(OptimizerRankingCertificateSnapshot {
         terminal_psi: components.terminal_psi,
         certificates: current,
+    })
+}
+
+pub(super) fn is_unsigned_countdown(
+    module: &::terminal_psi::TerminalModule,
+    machine: MachineId,
+) -> bool {
+    module.machines.iter().any(|candidate| {
+        candidate.id == machine
+            && candidate
+                .ranked_scc
+                .as_ref()
+                .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
     })
 }

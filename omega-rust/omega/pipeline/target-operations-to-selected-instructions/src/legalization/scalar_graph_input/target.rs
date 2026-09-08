@@ -6,12 +6,12 @@ use target_operations::{
     TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
 mod byte_view;
+mod control_flow;
 mod expressions;
 mod hosted_scalar;
 mod scalar_definitions;
 mod structural_call;
 mod unit;
-mod unit_graph;
 pub(super) fn validate_target(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -67,8 +67,8 @@ pub(super) fn validate_target(
         }
         return unit::validate(target, body, abstracted, optimized, native, plan, unit);
     }
-    if let TargetOperation::UnitGraph(graph) = &target.operation {
-        return unit_graph::validate(target, graph, optimized, native, plan, unit);
+    if let TargetOperation::ControlGraph(graph) = &target.operation {
+        return control_flow::validate(target, graph, abstracted, optimized, native, plan, unit);
     }
     let (scalar_type, control) = match &target.operation {
         TargetOperation::ReturnIntegerImmediate {

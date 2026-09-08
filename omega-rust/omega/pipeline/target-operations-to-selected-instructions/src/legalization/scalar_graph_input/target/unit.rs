@@ -128,7 +128,9 @@ pub(super) fn validate_operation(
             | AbstractOperation::ByteSequenceRead { .. }
             | AbstractOperation::IntegerEqual { .. }
             | AbstractOperation::IntegerLessThan { .. }
-            | AbstractOperation::IntegerLessOrEqual { .. },
+            | AbstractOperation::IntegerLessOrEqual { .. }
+            | AbstractOperation::ExactIntegerAdd { .. }
+            | AbstractOperation::ExactIntegerSubtract { .. },
         ) => {
             super::scalar_definitions::observation(target, abstracted, &checker)?;
             sources.push((result_home.source_value, Source::Home(*result_home)));

@@ -95,7 +95,7 @@ pub(super) fn function_abi(
                 TargetOperation::UnitBody(body) => {
                     (&body.parameters, &body.scalar_parameters, &body.call_plan)
                 }
-                TargetOperation::UnitGraph(graph) => (
+                TargetOperation::ControlGraph(graph) => (
                     &graph.parameters,
                     &graph.scalar_parameters,
                     &graph.call_plan,

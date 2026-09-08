@@ -67,7 +67,7 @@ pub(super) fn validate_successors(
         |target: BlockId,
          bindings: &[ValueBinding],
          structural: &[abstract_operations::AbstractStructuralBinding]| {
-            let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
+            let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
             let block = function
                 .block_entries
                 .iter()
@@ -164,9 +164,9 @@ pub(super) fn validate_successors(
                 &when_false.structural_bindings,
             )
         }
-        AbstractOperation::ReturnUnit { .. } | AbstractOperation::StructuralCase { .. } => Ok(()),
-        _ => Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        )),
+        AbstractOperation::Return { .. }
+        | AbstractOperation::ReturnUnit { .. }
+        | AbstractOperation::StructuralCase { .. } => Ok(()),
+        _ => Err(LoweringError::UnsupportedControlFlow(function.machine)),
     }
 }

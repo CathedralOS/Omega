@@ -304,7 +304,6 @@ pub(super) fn lower_unit_body(
             AbstractOperation::Call { .. } => {
                 lower_scalar_call(
                     operation,
-                    function,
                     target,
                     functions,
                     scalar_abis,

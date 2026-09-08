@@ -41,12 +41,17 @@ FMA target records retain occurrence, selected plan and admission without choosi
 XMM homes. An available target record does not imply that the common downstream
 selection/emission path supports it.
 
-Ordinary acyclic Unit control uses target-owned blocks and explicit
-`Jump`, `Conditional`, `StructuralCase`, and `Return` terminators in `TargetUnitGraph`.
+Ordinary Unit control and cyclic integer-result functions use target-owned blocks
+and explicit `Jump`, `Conditional`, `StructuralCase`, `Return`, and
+`ReturnScalar` terminators in `TargetControlGraph`.
 Nonterminal definitions and calls reuse the ordered Unit operation vocabulary;
 branch targets are block identities, not nonreturning-arm layout ordinals.
-Lowering intersects predecessor definitions at joins and retains authored block
-order independently of its topological traversal. The common target-to-selected
+Start at [control_flow.rs](src/lowering/control_flow.rs): signature preparation,
+dominance, operations, terminators, and edge bindings have separate owners.
+Lowering retains dominating definitions and authored block order independently
+of traversal. Actual topology selects the cyclic scalar route, not a ranking
+annotation; acyclic scalar functions retain their existing expression lowering.
+The common target-to-selected
 reader independently checks this graph against source before constructing the
 existing legalized/selected graph. The target-only family receipt does not claim
 this coverage; its legacy continuation check still rejects linear graph sources
@@ -55,17 +60,20 @@ block, value identity and type, independently of function ABI parameters and
 operation-result homes. Each edge preserves the complete ordered bindings;
 joins introduce destination-owned values rather than substituting one arrival's
 expression. The existing selected graph retains these as parallel transfers.
-Native allocation currently realizes only transfers whose argument/destination
-groups can share one legal register home; interfering groups reject rather than
-lose an arrival. General edge-copy realization remains a downstream dependency.
+Selected edge bridges snapshot arguments before destination replacement.
+Ordinary allocation realizes those copies even when incoming and destination
+values cannot share a home, including simultaneous backedge swaps.
 Structural byte-view block parameters and ordered bindings retain their exact
 declarations through target and legalized graphs. Destination views have their
 own block/place identity, not an inherited producer operation or length value.
 The selected consumer must realize their descriptor transfers; this upper
 projection alone grants no native transport or cyclic admission.
-The node set includes scalar constants, integer widening, immutable byte length
-and read observations, integer comparisons, subslice establishments and ordinary
-Unit calls. Views must be exact shared parameters or dominating establishments;
+The node set includes scalar constants, integer widening, exact integer add and
+subtract, immutable byte length and read observations, integer comparisons,
+subslice establishments, scalar calls and ordinary Unit calls. Arithmetic retains
+its exact safety obligation; scalar calls retain their callee ABI and result home
+without requiring a fabricated caller attachment.
+Views must be exact shared parameters or dominating establishments;
 their length-observation identity is retained separately from scalar residence.
 Comparisons define Boolean homes for conditions rather than repeating their
 producer at the edge. Boolean parameters and constants can cross block edges;
@@ -75,6 +83,15 @@ Abstract lowering preserves entry parameter metadata that exactly repeats the
 function parameters, but this is not native admission: optimization-unit
 validation still requires empty entry block parameters.
 Legacy cleanup/provider templates are not reinterpreted as ordinary graph edges.
+
+Natural-ranked and unranked scalar cycles use the same native physical sequence.
+Verified source custody preserves their exact graph; unranked execution acquires
+no termination certificate or fixed-work bound. The
+[source-produced scalar cycles](../../../../tests/native-differential/tests/scalar_control_cycles.rs)
+exercise selected calls, scalar returns, and simultaneous backedge swaps through
+object/image/installation replay on four hosted targets and execution on supported
+hosts. Owned structural arrivals, primitive locals, scalar-body primitive stores,
+and scalar return cleanup remain separate native dependencies.
 
 Closed-sum inspection of an admitted boundary result uses this same graph,
 without a fixed block count, arm order, or exit-only body template. Each case

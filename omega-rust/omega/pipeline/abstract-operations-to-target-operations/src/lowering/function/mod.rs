@@ -68,6 +68,19 @@ pub(super) fn lower_function(
         );
     };
 
+    if super::control_flow::has_cycle(function)? {
+        return super::control_flow::lower(
+            function,
+            target,
+            functions,
+            structural_types,
+            boundary_machines,
+            settlements,
+            installed_calls,
+            scalar_abis,
+            native_callbacks,
+        );
+    }
     super::scalar::lower_scalar_function(
         function,
         function_result,
