@@ -32,6 +32,7 @@ fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
         identity_base,
         &[],
         &[],
+        None,
     )
     .expect("a nonentry machine should lower in its disjoint identity range");
 
@@ -69,6 +70,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
                 parameter_types: vec![ScalarType::Boolean],
                 bindings: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Jump {
+                    structural_arguments: Vec::new(),
                     target: 1,
                     arguments: vec![parameter_expression()],
                 },
@@ -98,6 +100,7 @@ fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
         identity_base,
         &[],
         &[],
+        None,
     )
     .expect("primitive scalar jump should lower");
 
@@ -163,6 +166,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
         identity_base,
         &[],
         &[],
+        None,
     )
     .expect("primitive scalar conditional should lower");
 

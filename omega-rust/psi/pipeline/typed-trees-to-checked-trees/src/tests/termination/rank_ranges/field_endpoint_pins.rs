@@ -253,7 +253,7 @@ fn disjoint_prefix_writes_preserve_endpoint_fields() {
 }
 
 #[test]
-fn hoisted_operand_calls_still_need_named_state_endpoint_transport() {
+fn selected_operand_calls_preserve_single_state_endpoint_evidence() {
     let source = FORWARDED
         .replace("limits: Limits)", "limits: Limits, marker: u64)")
         .replace(
@@ -271,11 +271,18 @@ fn hoisted_operand_calls_still_need_named_state_endpoint_transport() {
         .iter()
         .find(|machine| machine.name.as_str() == "walk")
         .unwrap();
-    assert!(
-        program.machine_states(machine).len() > 1,
-        "the operand call introduces a state arrival even without authored named states"
+    assert_eq!(
+        program.machine_states(machine).len(),
+        1,
+        "the selected operand call stays in the authored state"
     );
-    // This valid language use exceeds the single-state endpoint proof tier.
-    // A disjoint write frame cannot replace the missing arrival mapping.
-    rejects_range(&source);
+    lower_typed_trees(program).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    // Preserving the operand's position does not authorize invalid endpoint
+    // formation or erase its intermediate arithmetic obligations.
+    for endpoint in [
+        "limits.limit % 0 + 6",
+        "(limits.limit + 1) % limits.divisor + 6",
+    ] {
+        rejects_range(&source.replace(FORWARDED_ENDPOINT, endpoint));
+    }
 }

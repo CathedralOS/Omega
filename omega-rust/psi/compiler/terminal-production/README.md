@@ -153,7 +153,9 @@ The source publication/reload regression is
 It checks computed guards, effectful helper calls, provider-field attachment
 requirements, caller-visible updates, and every fuel suspension point without
 a termination claim. Canonical interpreter
-tests additionally cover projected receiver calls. General owned cyclic custody,
+tests additionally cover projected receiver calls. Whole plain-owned scalar loops
+use the [scalar graph route](scalar_calls.md#guarded-primitive-reference-operand).
+General owned cyclic custody,
 ordinary projected source helpers, indexed/aggregate mutation, guarded crashes, and native
 realization remain separate dependencies; this does not make `print_squares`
 an executable native product.

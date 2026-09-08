@@ -67,6 +67,8 @@ pub struct CheckedTerminalStateDebugPlan {
 pub struct CheckedScalarGraphPlans {
     pub machines: Vec<CheckedScalarMachineGraph>,
     pub parameter_storage: arena::Arena<CheckedScalarParameterStorage>,
+    pub structural_transfers: arena::Arena<CheckedStructuralControlTransferPlan>,
+    pub scalar_arguments: arena::Arena<CheckedStructuralScalarArgumentPlan>,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
 }
 
@@ -99,6 +101,9 @@ impl CheckedScalarGraphPlans {
 pub struct CheckedScalarMachineGraph {
     pub machine: SymbolHandle,
     pub states: Vec<CheckedScalarStateGraph>,
+    /// Exact source Nat countdown judgment, before private evaluation blocks
+    /// are introduced. Absence does not authorize a termination guarantee.
+    pub ranked_scc: Option<CheckedStructuralRankedSccPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,7 +203,10 @@ pub struct CheckedScalarSuccessor {
     pub statement_ordinal: u32,
     pub is_continuation: bool,
     pub target: SymbolHandle,
+    /// Complete authored arity, before partitioning the target namespaces.
     pub argument_count: u32,
+    pub structural_transfers: arena::HandleSpan<CheckedStructuralControlTransferPlan>,
+    pub scalar_arguments: arena::HandleSpan<CheckedStructuralScalarArgumentPlan>,
 }
 
 /// Source-handle-free no-code cleanup evidence for ordinary structural
@@ -422,6 +430,17 @@ pub struct CheckedStructuralScalarArgumentPlan {
     pub primitive_type: PrimitiveType,
 }
 
+impl Default for CheckedStructuralScalarArgumentPlan {
+    fn default() -> Self {
+        Self {
+            argument_ordinal: 0,
+            source: CheckedStructuralScalarArgumentSourcePlan::Expression,
+            target_scalar_parameter_index: 0,
+            primitive_type: PrimitiveType::Bool,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedStructuralScalarArgumentSourcePlan {
     /// Exact source scalar parameter, including its source-name binding checks.
@@ -435,6 +454,15 @@ pub enum CheckedStructuralScalarArgumentSourcePlan {
 pub struct CheckedStructuralControlTransferPlan {
     pub source: CheckedStructuralControlTransferSourcePlan,
     pub target_parameter_index: u32,
+}
+
+impl Default for CheckedStructuralControlTransferPlan {
+    fn default() -> Self {
+        Self {
+            source: CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
+            target_parameter_index: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

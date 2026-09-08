@@ -175,8 +175,20 @@ this graph route. Affine permission alone never licenses erasing selected cleanu
 checks canonical publication, source-custody rejection, selected transfers, and
 integer/Boolean field execution under one-unit fuel pauses. The interpreter accepts
 explicit typed scalar-field inputs; it never invents missing field contents.
-Ranked cyclic publication remains required for the guarded customer below.
-Owned integer-field native lowering and primitive-local native storage are also
+Single-state scalar loops carry whole plain-owned inputs through exact block
+parameters, separately from one-shot invocation inputs. The body reads the current
+binding and reestablishes primitive locals on each entry. Selected scalar operands
+finish before owned successor transfers commit. The source's existing Nat judgment
+projects onto the ordinary Natural certificate: private evaluation steps preserve
+the header rank and each authored backedge strictly decreases it. Equality
+substitution cites the actual SSA bindings; an earlier iteration supplies no fact.
+Unannotated loops use the same source normalization and ownership path without
+inventing a termination guarantee. Borrowed loop formals and multiple mixed state
+signatures remain outside this producer route.
+[`owned_scalar_cycles.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/owned_scalar_cycles.rs)
+checks the guarded customer below, canonical reload, independent verification,
+selected calls, exact owned arrivals, ranking mutations, and fuel-paused execution.
+Owned integer-field native lowering and primitive-local native storage remain
 unfinished; successful Terminal interpretation does not establish either.
 
 Empty standalone scalar contracts must also agree with the authored normal-clause
@@ -226,8 +238,8 @@ computation plans; do not describe a source classifier as finished execution.
 
 ## Guarded primitive-reference operand
 
-This continuation customer still fails source checking at its rank range. Save
-it as `main.omg` and run `omega --check --target macos_arm64 main.omg`:
+This customer passes source checking and publishes a ranked Terminal artifact.
+Save it as `main.omg` and run `omega --check --target macos_arm64 main.omg`:
 
 ```omega
 machine reset(value: &mut u64) -> u64 { value = 0; 0 }
@@ -248,13 +260,18 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 }
 ```
 
-The existing argument hoist splits the edge into a rank-preserving hop and a
-decrement without its co-located guard. Publish scalar-result cyclic control
-with exact structural
-forwarding and natural-descent evidence. Reuse the
-computed borrowed calls already supported in ordinary Unit operands, then retire
-the hoist for the supported route independently of ranking annotations.
-Keep the original guard, mutable local, and exact `limits` forwarding. Adding
-provenance around generated states or suppressing normalization without executing
-the checked computations does not close this customer. After source checking,
-verify call selection, operand order, mutations, and descent through Terminal.
+The selected computation remains in the original guarded state, independently
+of the ranking annotation. `remaining - 1` completes before the selected `reset`
+call, and the exact `limits` owner transfers only after operand evaluation.
+The source-to-artifact/runtime regression is:
+
+```sh
+cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_cycles --no-fail-fast
+```
+
+`omega inspect-terminal --machine walk --target macos_arm64 main.omg` reaches
+its separate fixed-fuel reporting limitation: it selects the legacy countdown
+deriver for every ranked module and reports `NotRankedCountdown`. Inspection
+must distinguish verified Natural control from optional fixed-work evidence;
+termination alone cannot supply a work ceiling. Native owned integer-field reads
+and primitive-local storage are still required before native execution.

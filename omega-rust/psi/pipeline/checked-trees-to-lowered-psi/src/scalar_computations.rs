@@ -123,8 +123,21 @@ impl<'a> Expansion<'a> {
         source_types: &[ScalarType],
         target: usize,
         target_types: &[PrimitiveType],
+        structural_arguments: &[StructuralArgument],
     ) -> Result<Option<usize>, LoweringError> {
-        let roles = (0..successor.argument_count)
+        let scalar_arguments = self
+            .checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .scalar_arguments
+            .span(successor.scalar_arguments)
+            .ok_or(LoweringError::Unsupported(
+                "scalar successor arguments have a stale span",
+            ))?;
+        let roles = scalar_arguments
+            .iter()
+            .map(|argument| argument.argument_ordinal)
             .map(|argument_ordinal| {
                 if successor.is_continuation {
                     CheckedScalarExpressionRole::TransitionContinuationArgument { argument_ordinal }
@@ -144,6 +157,7 @@ impl<'a> Expansion<'a> {
             &roles,
             source_types,
             target,
+            structural_arguments,
         )
     }
 
@@ -167,6 +181,7 @@ impl<'a> Expansion<'a> {
             &[(role, result_type)],
             source_types,
             target,
+            &[],
         )
     }
 
@@ -241,13 +256,16 @@ impl<'a> Expansion<'a> {
         roles: &[(CheckedScalarExpressionRole, ScalarType)],
         source_types: &[ScalarType],
         target: usize,
+        structural_arguments: &[StructuralArgument],
     ) -> Result<Option<usize>, LoweringError> {
         let plans = &self.checked.facts.values.scalar_computations;
-        if !plans.roots.iter().any(|(_, root)| {
-            root.state == site.state
-                && root.statement_ordinal == site.statement
-                && roles.iter().any(|(role, _)| *role == root.role)
-        }) {
+        if structural_arguments.is_empty()
+            && !plans.roots.iter().any(|(_, root)| {
+                root.state == site.state
+                    && root.statement_ordinal == site.statement
+                    && roles.iter().any(|(role, _)| *role == root.role)
+            })
+        {
             return Ok(None);
         }
         if self
@@ -309,6 +327,7 @@ impl<'a> Expansion<'a> {
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
                 target,
+                structural_arguments: structural_arguments.to_vec(),
                 arguments: parameters(&completed_types)
                     .into_iter()
                     .skip(source_types.len())
@@ -376,7 +395,11 @@ impl<'a> Expansion<'a> {
         self.push(LoweredScalarBranchState {
             parameter_types: input_types.to_vec(),
             bindings: vec![binding],
-            terminator: LoweredScalarBranchTerminator::Jump { target, arguments },
+            terminator: LoweredScalarBranchTerminator::Jump {
+                target,
+                arguments,
+                structural_arguments: Vec::new(),
+            },
         })
     }
 

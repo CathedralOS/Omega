@@ -289,6 +289,7 @@ impl Prepared {
                         destination,
                     }],
                     terminator: LoweredScalarBranchTerminator::Jump {
+                        structural_arguments: Vec::new(),
                         target,
                         arguments: computations::parameters(&completed_types),
                     },
@@ -312,6 +313,7 @@ impl Prepared {
                         parameter_types: prefix.value_types.clone(),
                         bindings: vec![LoweredScalarBinding::Expression(expression)],
                         terminator: LoweredScalarBranchTerminator::Jump {
+                            structural_arguments: Vec::new(),
                             target,
                             arguments: computations::parameters(&completed_types),
                         },
@@ -322,6 +324,7 @@ impl Prepared {
                 parameter_types: prefix.parameter_types,
                 bindings: prefix.bindings,
                 terminator: LoweredScalarBranchTerminator::Jump {
+                    structural_arguments: Vec::new(),
                     target,
                     arguments: computations::parameters(&prefix.value_types),
                 },

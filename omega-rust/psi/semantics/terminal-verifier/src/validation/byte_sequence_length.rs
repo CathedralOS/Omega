@@ -61,9 +61,15 @@ pub(super) fn validate_source(
             parameter.structural_type
         }
         StructuralPlaceKind::BlockParameter { .. } => {
-            super::block_views::parameter(machine, source)
-                .ok_or_else(&invalid)?
-                .structural_type
+            let parameter = super::block_views::parameter(machine, source).ok_or_else(&invalid)?;
+            if parameter.access != StructuralAccess::SharedBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+            parameter.structural_type
         }
         StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..

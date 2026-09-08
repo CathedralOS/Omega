@@ -76,6 +76,7 @@ pub(super) fn lower(
         target,
     )?;
     Ok(LoweredScalarBranchTerminator::Jump {
+        structural_arguments: Vec::new(),
         target,
         arguments: computations::parameters(source_types),
     })

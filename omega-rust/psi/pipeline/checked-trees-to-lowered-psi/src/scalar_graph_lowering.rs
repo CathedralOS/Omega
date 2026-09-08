@@ -4,6 +4,7 @@ use super::*;
 
 mod bindings;
 mod branch_destinations;
+pub(crate) mod cycles;
 use crate::scalar_computations as computations;
 mod guards;
 pub(crate) mod primitive_locals;
@@ -105,7 +106,9 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
                 .collect::<Vec<_>>()
         };
         match &states[state_index].terminator {
-            LoweredScalarBranchTerminator::Jump { target, arguments } => {
+            LoweredScalarBranchTerminator::Jump {
+                target, arguments, ..
+            } => {
                 merge_known_parameters(
                     &mut known_parameters[*target],
                     evaluate_arguments(arguments),
@@ -173,6 +176,7 @@ pub(super) fn lower_scalar_graph_machine(
         0,
         &machine_ids,
         &requirement_counts,
+        prepared.loop_plan.as_ref(),
     )?;
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
@@ -200,6 +204,7 @@ pub(super) fn lower_selected_scalar_graph_machine(
         0,
         &machine_ids,
         &requirement_counts,
+        prepared.loop_plan.as_ref(),
     )?;
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
@@ -218,6 +223,7 @@ pub(super) fn prepare_scalar_graph_machine(
         &[],
         &[],
         &[],
+        &mut 1,
     )
 }
 
@@ -234,6 +240,7 @@ fn prepare_standalone_scalar_graph_machine(
         &[],
         &[],
         &[],
+        &mut 1,
     )
 }
 
@@ -254,6 +261,7 @@ pub(super) fn prepare_embedded_scalar_graph_machine(
         &[],
         &[],
         &[],
+        &mut 1,
     )
 }
 
@@ -264,6 +272,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
     parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
 ) -> Result<PreparedScalarMachine, LoweringError> {
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
@@ -277,6 +286,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
         parameters,
         primitive_locals,
         structural_types,
+        next_place,
     )
 }
 
@@ -295,6 +305,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     structural_parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
+    next_place: &mut u64,
 ) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
@@ -314,6 +325,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             "scalar graph requires its exact structural entry namespace; structural state forwarding remains unsupported",
         );
     }
+    let loop_plan = cycles::prepare(checked, graph, structural_parameters, next_place)?;
+    let structural_parameters = loop_plan
+        .as_ref()
+        .map_or(structural_parameters, |plan| plan.parameters.as_slice());
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state.state)?;
     let return_sink = states
@@ -385,6 +400,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     LoweredScalarBranchTerminator::Jump {
                         target,
                         arguments: computations::parameters(value_types),
+                        structural_arguments: Vec::new(),
                     }
                 } else {
                     let expression = scalar_bindings.expression_at(
@@ -476,7 +492,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     scalar_bindings,
                     &mut computations,
                 )?;
-                LoweredScalarBranchTerminator::Jump { target, arguments }
+                LoweredScalarBranchTerminator::Jump {
+                    target,
+                    arguments,
+                    structural_arguments: Vec::new(),
+                }
             }
         };
         lowered_states.push(prepared.finish(state.state, terminator, &mut computations)?);
@@ -518,14 +538,20 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         };
         *degree += 1;
     }
-    if indegree[0] != 0 || indegree[1..].contains(&0) {
+    if (indegree[0] != 0 && loop_plan.is_none()) || indegree[1..].contains(&0) {
         return unsupported(
             "scalar graph control must be rooted at the machine entry and reach every state",
         );
     }
     let mut visited = vec![false; lowered_states.len()];
     let mut active = vec![false; lowered_states.len()];
-    validate_scalar_graph(0, &successors, &mut visited, &mut active)?;
+    validate_scalar_graph(
+        0,
+        &successors,
+        &mut visited,
+        &mut active,
+        loop_plan.is_some(),
+    )?;
     if visited.iter().any(|visited| !*visited) {
         return unsupported("scalar graph control contains an unreachable state");
     }
@@ -543,7 +569,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             LoweredScalarBranchTerminator::Return { .. }
         )
     });
-    let expected_value = evaluate_known_scalar_graph(&lowered_states);
+    let expected_value = if loop_plan.is_some() {
+        None
+    } else {
+        evaluate_known_scalar_graph(&lowered_states)
+    };
     let plan = closed_scalar_contract_plan(checked, machine)?;
     let has_predicates = plan
         .requires()
@@ -618,6 +648,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         crash_routes: lower_checked_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
+        loop_plan,
     })
 }
 
@@ -815,11 +846,50 @@ fn lower_scalar_graph_successor(
             "scalar graph successor must belong to the selected machine",
         ))?;
     let target_parameter_types = &states[target].parameter_types;
-    if usize::try_from(successor.argument_count).ok() != Some(target_parameter_types.len()) {
+    let plans = &checked.facts.flow.terminal_scalar_graphs;
+    let scalar_arguments = plans
+        .scalar_arguments
+        .span(successor.scalar_arguments)
+        .ok_or(LoweringError::Unsupported(
+            "scalar successor argument span is stale",
+        ))?;
+    if scalar_arguments.len() != target_parameter_types.len() {
         return unsupported(
             "scalar graph successor bindings must match the target parameter count",
         );
     }
+    let source = states
+        .iter()
+        .find(|state| state.state == source_state)
+        .ok_or(LoweringError::Unsupported(
+            "scalar successor lost its source state",
+        ))?;
+    let structural_arguments = plans
+        .structural_transfers
+        .span(successor.structural_transfers)
+        .ok_or(LoweringError::Unsupported(
+            "scalar successor transfer span is stale",
+        ))?
+        .iter()
+        .map(|transfer| {
+            let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } =
+                transfer.source
+            else {
+                return unsupported("scalar successor requires a whole owned parameter transfer");
+            };
+            let parameter = source.structural_parameters.get(index as usize).ok_or(
+                LoweringError::Unsupported("scalar successor transfer parameter is absent"),
+            )?;
+            scalar_bindings.owned_argument(&checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: index,
+                },
+                path: Vec::new(),
+                type_identity: parameter.type_identity.clone(),
+                access: parameter.access,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     if let Some(entry) = computations.successor(
         source_state,
         successor,
@@ -827,10 +897,13 @@ fn lower_scalar_graph_successor(
         source_value_types,
         target,
         target_parameter_types,
+        &structural_arguments,
     )? {
         return Ok((entry, computations::parameters(source_value_types)));
     }
-    let arguments = (0..successor.argument_count)
+    let arguments = scalar_arguments
+        .iter()
+        .map(|argument| argument.argument_ordinal)
         .zip(target_parameter_types)
         .map(|(argument_ordinal, target_type)| {
             let target_type = terminal_scalar_type(*target_type)?;
@@ -1405,16 +1478,21 @@ fn validate_scalar_graph(
     successors: &[Vec<usize>],
     visited: &mut [bool],
     active: &mut [bool],
+    allow_cycle: bool,
 ) -> Result<(), LoweringError> {
     if active[state] {
-        return unsupported("scalar graph control must be acyclic");
+        return if allow_cycle {
+            Ok(())
+        } else {
+            unsupported("scalar graph control must be acyclic")
+        };
     }
     if visited[state] {
         return Ok(());
     }
     active[state] = true;
     for successor in &successors[state] {
-        validate_scalar_graph(*successor, successors, visited, active)?;
+        validate_scalar_graph(*successor, successors, visited, active, allow_cycle)?;
     }
     active[state] = false;
     visited[state] = true;

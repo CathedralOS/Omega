@@ -49,7 +49,8 @@ fn affine_graph_rejoins_discard_eligibility_and_whole_transfers() {
                 &checked.facts.values.scalar_computations,
                 machine.symbol,
                 state,
-                &graph.states[0].structural_parameters
+                &graph.states[0].structural_parameters,
+                &[],
             )
             .is_some()
         );

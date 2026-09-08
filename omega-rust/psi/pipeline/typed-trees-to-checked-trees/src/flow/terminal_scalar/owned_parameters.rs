@@ -21,6 +21,7 @@ pub(super) fn validate(
     machine: SymbolHandle,
     state: &State,
     parameters: &[CheckedUnitStructuralParameterPlan],
+    transition_transfers: &[(PermissionEventSource, facts::PlaceRoot)],
 ) -> Option<()> {
     if !parameters
         .iter()
@@ -105,6 +106,12 @@ pub(super) fn validate(
                 }
             }
         }
+    }
+    for transfer in transition_transfers {
+        if expected_transfers.contains(transfer) {
+            return None;
+        }
+        expected_transfers.push(*transfer);
     }
     // Multiplicity records each transition arm against a clone of the live
     // prefix. StateExit disposal consequently excludes prefix moves only;

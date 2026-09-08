@@ -10,6 +10,7 @@ mod computation_calls;
 pub(super) mod direct_calls;
 mod parameters;
 mod storage_reads;
+pub(crate) mod successors;
 pub(crate) use computation_calls::validate_computation_calls;
 pub(super) use parameters::parameter_storage;
 pub(crate) use storage_reads::validate_expression as validate_storage_read_expression;
@@ -100,7 +101,11 @@ pub(super) fn locate(
                 } => program
                     .machine_states(machine)
                     .iter()
-                    .find(|target| target.symbol == path.symbol)
+                    .find(|target| {
+                        successors::normalize_machine_state_target(checked, machine, path.symbol)
+                            .ok()
+                            == Some(target.symbol)
+                    })
                     .and_then(|target| {
                         let parameters = program.state_parameters(target);
                         let arguments = program.statement_table.expression_handles(*arguments);
@@ -363,7 +368,11 @@ pub(super) fn locate(
                 ) => program
                     .machine_states(machine)
                     .iter()
-                    .find(|target| target.symbol == path.symbol)
+                    .find(|target| {
+                        successors::normalize_machine_state_target(checked, machine, path.symbol)
+                            .ok()
+                            == Some(target.symbol)
+                    })
                     .and_then(|target| {
                         let parameters = program.state_parameters(target);
                         let parameter = parameters.get(argument_ordinal as usize)?;
@@ -502,40 +511,5 @@ pub(super) fn validate_successor(
     source_state: symbols::SymbolHandle,
     successor: &CheckedScalarSuccessor,
 ) -> Result<(), LoweringError> {
-    let program = &checked.typed;
-    let (machine, state) = authored_state(checked, source_state)?;
-    let Some(StatementNode::Transition(transition)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(successor.statement_ordinal as usize)
-    else {
-        return unsupported("scalar successor has no authored transition");
-    };
-    let target = if successor.is_continuation {
-        transition.continuation
-    } else {
-        transition.target
-    };
-    if transition.exit != TransitionExit::Ordinary
-        || !program.statement_table.transition_target_is_valid(target)
-    {
-        return unsupported("scalar successor has no live ordinary transition target");
-    }
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program.statement_table.transition_target(target)
-    else {
-        return unsupported("scalar successor is not an authored state transfer");
-    };
-    if path.symbol != successor.target
-        || !program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == successor.target)
-        || program.statement_table.expression_handles(*arguments).len()
-            != successor.argument_count as usize
-    {
-        return unsupported("scalar successor target disagrees with its authored state transfer");
-    }
-    Ok(())
+    successors::validate(checked, source_state, successor)
 }

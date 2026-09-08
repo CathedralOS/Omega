@@ -1,4 +1,4 @@
-//! Eligibility for cyclic scalar work, primitive locals, views, and receivers.
+//! Eligibility for cyclic scalar work, owned inputs, locals, views, and receivers.
 
 use super::super::{block_views, byte_sequence_subslice, primitive_storage};
 use super::*;
@@ -27,20 +27,21 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             )
         })
         || machine.structural_parameters.iter().any(|parameter| {
-            parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || !(persistent_receiver(module, parameter)
-                    || (parameter.access == StructuralAccess::SharedBorrow
-                        && module.structural_types.iter().any(|declaration| {
-                            declaration.id == parameter.structural_type
-                                && matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView
+            !plain_owned(parameter)
+                && (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || !(persistent_receiver(module, parameter)
+                        || (parameter.access == StructuralAccess::SharedBorrow
+                            && module.structural_types.iter().any(|declaration| {
+                                declaration.id == parameter.structural_type
+                                    && matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                                        )
                                     )
-                                )
-                        })))
+                            }))))
         })
         || machine.structural_places.iter().any(|place| {
             !matches!(
@@ -102,9 +103,10 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                         && !structural_arguments.is_empty()
                         && structural_arguments.iter().all(|argument| {
                             argument.path.is_empty()
-                                && argument.access != StructuralAccess::Owned
-                                && primitive_storage::local_result(machine, argument.place)
-                                    .is_some()
+                                && ((argument.access != StructuralAccess::Owned
+                                    && primitive_storage::local_result(machine, argument.place)
+                                        .is_some())
+                                    || owned_argument(machine, argument))
                         })
                         && claim_transfers.is_empty()
                         && requirement_obligations.is_empty()
@@ -171,7 +173,8 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                                                 source: argument.place,
                                             },
                                         )
-                                        .is_ok()))
+                                        .is_ok())
+                                    || owned_argument(machine, argument))
                         })
                         && claim_transfers.is_empty()
                         && requirement_obligations.is_empty()
@@ -199,6 +202,28 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                 kind => operation.result.scalar().is_some() && pure_scalar(kind),
             })
     })
+}
+
+fn plain_owned(parameter: &StructuralParameterDeclaration) -> bool {
+    !parameter.is_self
+        && parameter.access == StructuralAccess::Owned
+        && matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        )
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+}
+
+fn owned_argument(machine: &TerminalMachine, argument: &StructuralArgument) -> bool {
+    argument.access == StructuralAccess::Owned
+        && argument.path.is_empty()
+        && machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == argument.place)
+            .or_else(|| block_views::parameter(machine, argument.place))
+            .is_some_and(plain_owned)
 }
 
 fn persistent_receiver(

@@ -3,6 +3,7 @@ use super::affine_cleanup::{
 };
 use super::*;
 
+mod block_parameters;
 mod traversal;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -224,6 +225,7 @@ pub(super) fn validate_structural_frontier(
         partial_custody_paths: BTreeMap::new(),
     };
 
+    let parameter_order = block_parameters::disposal_order(machine);
     let order = traversal::block_order(machine.entry, blocks, representation_backedges);
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
@@ -476,6 +478,7 @@ pub(super) fn validate_structural_frontier(
             Terminator::Jump {
                 edge,
                 target,
+                structural_arguments,
                 trivial_affine_discards,
                 residual_affine_discards,
                 ..
@@ -489,10 +492,12 @@ pub(super) fn validate_structural_frontier(
                 )?;
                 apply_edge_trivial_affine_discards(
                     machine,
+                    &parameter_order,
                     &mut frontier,
                     *edge,
                     trivial_affine_discards,
                 )?;
+                block_parameters::bind(&mut frontier, *edge, blocks[target], structural_arguments)?;
                 snapshots.edge_exits.insert(*edge, frontier.snapshot());
                 if !representation_backedges.contains(edge) {
                     incoming.entry(*target).or_default().push(frontier);
@@ -506,9 +511,16 @@ pub(super) fn validate_structural_frontier(
                 let mut true_frontier = frontier.clone();
                 apply_edge_trivial_affine_discards(
                     machine,
+                    &parameter_order,
                     &mut true_frontier,
                     when_true.edge,
                     &when_true.trivial_affine_discards,
+                )?;
+                block_parameters::bind(
+                    &mut true_frontier,
+                    when_true.edge,
+                    blocks[&when_true.target],
+                    &when_true.structural_arguments,
                 )?;
                 snapshots
                     .edge_exits
@@ -521,9 +533,16 @@ pub(super) fn validate_structural_frontier(
                 }
                 apply_edge_trivial_affine_discards(
                     machine,
+                    &parameter_order,
                     &mut frontier,
                     when_false.edge,
                     &when_false.trivial_affine_discards,
+                )?;
+                block_parameters::bind(
+                    &mut frontier,
+                    when_false.edge,
+                    blocks[&when_false.target],
+                    &when_false.structural_arguments,
                 )?;
                 snapshots
                     .edge_exits
@@ -540,6 +559,7 @@ pub(super) fn validate_structural_frontier(
                     let mut case_frontier = frontier.clone();
                     apply_edge_trivial_affine_discards(
                         machine,
+                        &parameter_order,
                         &mut case_frontier,
                         case.edge,
                         &case.trivial_affine_discards,
@@ -563,7 +583,8 @@ pub(super) fn validate_structural_frontier(
                         place: *place,
                     });
                 }
-                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
+                let expected_affine_discards =
+                    expected_trivial_affine_discards(machine, &parameter_order, &frontier);
                 if *trivial_affine_discards != expected_affine_discards {
                     return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
                         machine: machine.id,
@@ -636,7 +657,8 @@ pub(super) fn validate_structural_frontier(
                         block: block.id,
                     });
                 }
-                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
+                let expected_affine_discards =
+                    expected_trivial_affine_discards(machine, &parameter_order, &frontier);
                 if *trivial_affine_discards != expected_affine_discards {
                     return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
                         machine: machine.id,
@@ -703,6 +725,7 @@ pub(super) fn validate_structural_frontier(
                 validate_scalar_cleanup_actions(
                     module,
                     machine,
+                    &parameter_order,
                     machines,
                     block.id,
                     &frontier,
@@ -851,7 +874,8 @@ pub(super) fn validate_structural_frontier(
                 for claim in returned_claims {
                     frontier.claims.remove(claim);
                 }
-                let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
+                let expected_affine_discards =
+                    expected_trivial_affine_discards(machine, &parameter_order, &frontier);
                 if *trivial_affine_discards != expected_affine_discards {
                     return Err(ModuleError::StructuralReturnAffineDiscardsMismatch {
                         machine: machine.id,
@@ -963,11 +987,20 @@ fn validate_owned_reads(
                         declaration.kind,
                         StructuralPlaceKind::OperationResult { .. }
                     )
-            }) || machine.structural_parameters.iter().any(|parameter| {
-                parameter.place == *place
-                    && parameter.access == StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Affine
-            }))
+            }) || machine
+                .structural_parameters
+                .iter()
+                .chain(
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.structural_parameters),
+                )
+                .any(|parameter| {
+                    parameter.place == *place
+                        && parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                }))
     }) {
         if frontier.owned_places.get(&place) != Some(&StructuralMultiplicity::Affine) {
             return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
@@ -1065,6 +1098,7 @@ fn projected_root_is_fully_consumed(
 fn validate_scalar_cleanup_actions(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    parameter_order: &[&StructuralParameterDeclaration],
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     block: BlockId,
     frontier: &StructuralOwnershipFrontier,
@@ -1099,7 +1133,7 @@ fn validate_scalar_cleanup_actions(
         frontier.owned_places.remove(&place);
     }
 
-    for parameter in machine.structural_parameters.iter().rev() {
+    for parameter in parameter_order.iter().rev() {
         if !frontier.owned_places.contains_key(&parameter.place) {
             continue;
         }
@@ -1193,6 +1227,7 @@ fn valid_scalar_nominal_cleanup(
 
 fn expected_trivial_affine_discards(
     machine: &TerminalMachine,
+    parameter_order: &[&StructuralParameterDeclaration],
     frontier: &StructuralOwnershipFrontier,
 ) -> Vec<PlaceId> {
     let mut operation_results = machine
@@ -1233,8 +1268,7 @@ fn expected_trivial_affine_discards(
     locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
     output.extend(locals.into_iter().map(|(_, place)| place));
     output.extend(
-        machine
-            .structural_parameters
+        parameter_order
             .iter()
             .rev()
             .filter_map(|parameter| {
@@ -1257,6 +1291,7 @@ fn expected_trivial_affine_discards(
 
 fn apply_edge_trivial_affine_discards(
     machine: &TerminalMachine,
+    parameter_order: &[&StructuralParameterDeclaration],
     frontier: &mut StructuralOwnershipFrontier,
     edge: EdgeId,
     discards: &[PlaceId],
@@ -1267,7 +1302,7 @@ fn apply_edge_trivial_affine_discards(
     {
         return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
     }
-    let eligible = expected_trivial_affine_discards(machine, frontier);
+    let eligible = expected_trivial_affine_discards(machine, parameter_order, frontier);
     let mut next = 0;
     for eligible_place in eligible {
         if discards.get(next) == Some(&eligible_place) {

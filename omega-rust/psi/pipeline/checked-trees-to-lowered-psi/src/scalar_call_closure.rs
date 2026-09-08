@@ -327,6 +327,7 @@ pub(super) fn lower_scalar_call_closure(
             identity_base,
             &machine_ids,
             &requirement_counts,
+            machine.loop_plan.as_ref(),
         )?;
         let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
             unreachable!("one prepared scalar graph emits one terminal machine")

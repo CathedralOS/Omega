@@ -1,5 +1,6 @@
 use super::*;
 
+mod cyclic_owned;
 mod primitive_locals;
 
 fn crash_source(cause: &str, guard: &str, prefix: &str) -> checked_trees::CheckedTrees {
@@ -126,7 +127,7 @@ fn scalar_crash_destinations_reject_combined_or_nonterminal_exits() {
             }
         };
         assert_eq!(
-            checked_branch_destination(&checked, states, 1, &changed, is_continuation),
+            checked_branch_destination(&checked, machine, 1, &changed, is_continuation),
             None,
             "mutation {mutation}"
         );

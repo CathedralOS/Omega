@@ -5,6 +5,7 @@
 //! a history of the validation passes that established them.
 
 pub use typed_trees::byte_predicates;
+pub use typed_trees::ranking;
 pub use typed_trees::typed_trees::ClosedConformanceConstArgument;
 pub use typed_trees::{
     data, domain, expression, identity, machine, name, proof_only, proposition, signature, state,

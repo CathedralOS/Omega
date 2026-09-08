@@ -106,6 +106,17 @@ pub(super) fn structural_scalar_graph_signature(
     Vec<CheckedUnitStructuralTypePlan>,
 )> {
     if program.state_parameters(state).iter().any(|parameter| {
+        // Numeric constraints retain their separate scalar contract owner;
+        // they do not qualify an owned structural carrier.
+        if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            return !validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                parameter.type_reference,
+            );
+        }
         let reference = match program
             .type_reference_table
             .type_reference(parameter.type_reference)

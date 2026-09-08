@@ -5,6 +5,9 @@ use terminal_psi::{
     StructuralOperationResult,
 };
 
+#[path = "unranked_views/byte_source_access.rs"]
+mod byte_source_access;
+
 fn view_argument(place: u64) -> StructuralArgument {
     StructuralArgument {
         place: id(place, PlaceId::new),

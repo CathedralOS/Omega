@@ -411,6 +411,7 @@ enum LoweredScalarBranchTerminator {
     Jump {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
+        structural_arguments: Vec<StructuralArgument>,
     },
     Conditional {
         condition: LoweredBooleanReturnExpression,
@@ -493,6 +494,7 @@ struct PreparedScalarMachine {
     crash_routes: Vec<checked_trees::CrashRouteBucket>,
     identity_reshuffles: LoweredContentIdentityReshuffles,
     partition_compositions: LoweredContentPartitionCompositions,
+    loop_plan: Option<scalar_graph_lowering::cycles::ScalarLoopPlan>,
 }
 
 enum PreparedScalarContract {

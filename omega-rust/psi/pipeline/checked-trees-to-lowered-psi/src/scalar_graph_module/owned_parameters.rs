@@ -36,10 +36,14 @@ pub(super) fn complete(
         return unsupported("scalar graph affine parameters have duplicate places");
     }
     let entry_position = block_position(blocks, entry)?;
+    let reentered = !blocks[entry_position].structural_parameters.is_empty();
+    if reentered && blocks[entry_position].structural_parameters != parameters {
+        return unsupported("owned loop entry differs from its allocated parameter frontier");
+    }
     let mut incoming = vec![Vec::new(); blocks.len()];
     let mut successors = vec![Vec::new(); blocks.len()];
     for (position, block) in blocks.iter().enumerate() {
-        if !block.structural_parameters.is_empty() {
+        if !block.structural_parameters.is_empty() && (position != entry_position || !reentered) {
             return unsupported(
                 "scalar graph owned block parameters require exact forwarding custody",
             );
@@ -52,12 +56,17 @@ pub(super) fn complete(
                 trivial_affine_discards,
                 ..
             } => {
-                if !structural_arguments.is_empty()
+                if (!structural_arguments.is_empty() && !(reentered && *target == entry))
                     || !residual_affine_discards.is_empty()
                     || !trivial_affine_discards.is_empty()
                 {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing edge custody",
+                    );
+                }
+                if reentered && *target == entry && structural_arguments.len() != parameters.len() {
+                    return unsupported(
+                        "owned backedge lost its complete structural argument roster",
                     );
                 }
                 vec![*target]
@@ -70,6 +79,7 @@ pub(super) fn complete(
                 if [when_true, when_false].iter().any(|edge| {
                     !edge.structural_arguments.is_empty()
                         || !edge.trivial_affine_discards.is_empty()
+                        || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing branch custody",
@@ -89,7 +99,9 @@ pub(super) fn complete(
         };
         for target in targets {
             let target_position = block_position(blocks, target)?;
-            incoming[target_position].push(position);
+            if !(reentered && target == entry) {
+                incoming[target_position].push(position);
+            }
             successors[position].push(target_position);
         }
     }
@@ -153,6 +165,9 @@ pub(super) fn complete(
         }
         exits[position] = live;
         for successor in &successors[position] {
+            if reentered && *successor == entry_position {
+                continue;
+            }
             remaining[*successor] -= 1;
             if remaining[*successor] == 0 {
                 ready.push_back(*successor);
@@ -178,10 +193,38 @@ pub(super) fn complete(
         };
         match &mut block.terminator {
             Terminator::Jump {
+                target,
+                structural_arguments,
                 trivial_affine_discards,
                 ..
             } => {
-                *trivial_affine_discards = discards(successors[position][0]);
+                if reentered && *target == entry {
+                    // Cutting the backedge is only a construction schedule.
+                    // Reconstruct its complete transfer from the live exit;
+                    // every affine header owner must be reestablished exactly
+                    // once before this edge can close the ownership fixed point.
+                    let mut remaining = exits[position].clone();
+                    for (parameter, argument) in parameters.iter().zip(structural_arguments) {
+                        if argument.access != parameter.access || !argument.path.is_empty() {
+                            return unsupported(
+                                "owned backedge changes access or projects a whole owner",
+                            );
+                        }
+                        if parameter.multiplicity == StructuralMultiplicity::Affine {
+                            let Some(position) =
+                                remaining.iter().position(|place| *place == argument.place)
+                            else {
+                                return unsupported(
+                                    "owned backedge transfers a missing or already consumed owner",
+                                );
+                            };
+                            remaining.remove(position);
+                        }
+                    }
+                    *trivial_affine_discards = remaining;
+                } else {
+                    *trivial_affine_discards = discards(successors[position][0]);
+                }
             }
             Terminator::Conditional {
                 when_true,

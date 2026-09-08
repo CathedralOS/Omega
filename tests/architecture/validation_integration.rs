@@ -530,10 +530,7 @@ fn measured_entry_back_edge_retains_its_checked_termination_summary() {
     );
 }
 
-#[test]
-fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
-    let typed = typed_program_from_source(
-        r#"
+const MEASURED_PROGRESS_COUNTDOWN: &str = r#"
         data SchedulerHandle {}
         domain SchedulerHandle::WeakFair
         satisfies ProgressProfile
@@ -542,7 +539,7 @@ fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
             machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
         }
         boundary trait SchedulerRuntime {
-            machine wait(scheduler: SchedulerHandle)
+            machine wait(scheduler: &SchedulerHandle)
             requires scheduler in WeakFair
             terminates;
         }
@@ -554,14 +551,17 @@ fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
         requires scheduler in WeakFair
         terminates by remaining;
         {
-            runtime.wait(scheduler);
+            runtime.wait(&scheduler);
             transition remaining > 0 {
                 true -> countdown(runtime, scheduler, remaining - 1)
                 false -> 0
             }
         }
-        "#,
-    );
+        "#;
+
+#[test]
+fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
+    let typed = typed_program_from_source(MEASURED_PROGRESS_COUNTDOWN);
 
     let countdown = typed
         .machines()
@@ -608,6 +608,27 @@ fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
     assert_eq!(premise.profile, weak_fair);
     assert_eq!(premise.subject.root, scheduler_symbol);
     assert!(premise.subject.projections.is_empty());
+}
+
+#[test]
+fn measured_entry_back_edge_rejects_a_scheduler_consumed_by_the_wait_call() {
+    let source = MEASURED_PROGRESS_COUNTDOWN
+        .replace(
+            "machine wait(scheduler: &SchedulerHandle)",
+            "machine wait(scheduler: SchedulerHandle)",
+        )
+        .replace("runtime.wait(&scheduler);", "runtime.wait(scheduler);");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed_program_from_source(
+        &source,
+    ))
+    .expect_err(
+        "a consuming wait cannot leave the affine scheduler available to the machine backedge",
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message
+            == "affine value `scheduler` was already transferred or consumed; it cannot be moved here"),
+        "{diagnostics:#?}"
+    );
 }
 
 #[test]

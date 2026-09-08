@@ -551,9 +551,13 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             else {
                                 continue;
                             };
-                            let Some(target_state) = states
-                                .iter()
-                                .find(|candidate| candidate.symbol == path.symbol)
+                            let Some(target_state) =
+                                crate::checks::termination::named_transition_target_state_index(
+                                    program,
+                                    machine,
+                                    path.symbol,
+                                )
+                                .and_then(|target_index| states.get(target_index))
                             else {
                                 continue;
                             };

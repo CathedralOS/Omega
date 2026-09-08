@@ -129,6 +129,8 @@ pub(super) fn validate_uses(
     };
     match &operation.kind {
         OperationKind::ByteSequenceLength { source }
+        | OperationKind::IntegerStructuralField { source, .. }
+        | OperationKind::BooleanStructuralField { source, .. }
         | OperationKind::ByteSequenceRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldStore { source, .. }
         | OperationKind::ByteSequenceSubslice { source, .. } => require(*source),

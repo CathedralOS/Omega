@@ -18,6 +18,7 @@ fn guarded_division_obligation_retains_its_selected_arm_facts() {
         0,
         &[(graph.machine, machine_id(1))],
         &[(graph.machine, 1)],
+        prepared.loop_plan.as_ref(),
     )
     .expect("module");
     let validated = terminal_verifier::validate_module(&lowered.semantic_module).expect("validate");

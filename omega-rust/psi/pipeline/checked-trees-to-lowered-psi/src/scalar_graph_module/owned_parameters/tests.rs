@@ -90,6 +90,194 @@ fn cleanup(block: &Block) -> &[TerminalAffineCleanupAction] {
     cleanup_actions
 }
 
+fn owned_backedge(identity: u64, parameters: &[StructuralParameterDeclaration]) -> Block {
+    let mut backedge = jump(identity, 10);
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut backedge.terminator
+    else {
+        panic!("jump")
+    };
+    *structural_arguments = parameters
+        .iter()
+        .map(|parameter| StructuralArgument {
+            place: parameter.place,
+            path: Vec::new(),
+            access: parameter.access,
+        })
+        .collect();
+    backedge
+}
+
+fn owned_loop(parameters: &[StructuralParameterDeclaration]) -> Vec<Block> {
+    let mut header = block(
+        10,
+        Terminator::Conditional {
+            condition: value_id(1),
+            when_true: successor(10, 20),
+            when_false: successor(11, 90),
+        },
+    );
+    header.structural_parameters = parameters.to_vec();
+    // Storage order must not decide traversal or disposal order.
+    vec![returning(90), owned_backedge(20, parameters), header]
+}
+
+#[test]
+fn cut_header_loop_transfers_each_affine_owner_and_disposes_only_on_return() {
+    let parameters = [parameter(91, 0), parameter(13, 1)];
+    let mut blocks = owned_loop(&parameters);
+    complete(&parameters, block_id(10), &mut blocks).expect("whole affine loop");
+    assert_eq!(
+        cleanup(&blocks[0]),
+        [
+            TerminalAffineCleanupAction::DiscardRoot(parameters[1].place),
+            TerminalAffineCleanupAction::DiscardRoot(parameters[0].place),
+        ]
+    );
+    let Terminator::Jump {
+        structural_arguments,
+        trivial_affine_discards,
+        ..
+    } = &blocks[1].terminator
+    else {
+        panic!("backedge")
+    };
+    assert_eq!(
+        structural_arguments
+            .iter()
+            .map(|argument| argument.place)
+            .collect::<Vec<_>>(),
+        parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        trivial_affine_discards.is_empty(),
+        "closing the loop is not disposal"
+    );
+}
+
+#[test]
+fn cut_header_loop_rejects_duplicate_affine_backedge_actuals() {
+    let parameters = [parameter(91, 0), parameter(13, 1)];
+    let mut blocks = owned_loop(&parameters);
+    complete(&parameters, block_id(10), &mut blocks.clone()).expect("valid control");
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut blocks[1].terminator
+    else {
+        panic!("backedge")
+    };
+    structural_arguments[1].place = structural_arguments[0].place;
+    let error =
+        complete(&parameters, block_id(10), &mut blocks).expect_err("duplicate affine actual");
+    assert!(matches!(error, LoweringError::Unsupported(message)
+        if message == "owned backedge transfers a missing or already consumed owner"));
+}
+
+#[test]
+fn cut_header_loop_rejects_missing_affine_backedge_actuals() {
+    let parameters = [parameter(91, 0), parameter(13, 1)];
+    let mut blocks = owned_loop(&parameters);
+    complete(&parameters, block_id(10), &mut blocks.clone()).expect("valid control");
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut blocks[1].terminator
+    else {
+        panic!("backedge")
+    };
+    structural_arguments.pop();
+    let error =
+        complete(&parameters, block_id(10), &mut blocks).expect_err("missing affine actual");
+    assert!(matches!(error, LoweringError::Unsupported(message)
+        if message == "owned backedge lost its complete structural argument roster"));
+}
+
+#[test]
+fn cut_header_loop_rejects_an_owner_consumed_before_its_backedge() {
+    let parameters = [parameter(91, 0), parameter(13, 1)];
+    // Cover consumption in the iteration prefix and in the selected arm.
+    for consuming_block in [10, 20] {
+        let mut blocks = owned_loop(&parameters);
+        complete(&parameters, block_id(10), &mut blocks.clone()).expect("valid control");
+        blocks
+            .iter_mut()
+            .find(|block| block.id == block_id(consuming_block))
+            .unwrap()
+            .operations
+            .push(transfer(parameters[0].place));
+        let error =
+            complete(&parameters, block_id(10), &mut blocks).expect_err("consumed backedge owner");
+        assert!(
+            matches!(error, LoweringError::Unsupported(message)
+            if message == "owned backedge transfers a missing or already consumed owner"),
+            "consuming block {consuming_block}"
+        );
+    }
+}
+
+#[test]
+fn cut_header_loop_join_cannot_restore_an_owner_consumed_on_one_branch() {
+    let parameters = [parameter(91, 0), parameter(13, 1)];
+    let mut blocks = owned_loop(&parameters);
+    blocks[1] = block(
+        20,
+        Terminator::Conditional {
+            condition: value_id(1),
+            when_true: successor(20, 30),
+            when_false: successor(21, 40),
+        },
+    );
+    blocks.extend([jump(30, 50), jump(40, 50), owned_backedge(50, &parameters)]);
+    complete(&parameters, block_id(10), &mut blocks.clone())
+        .expect("both branches preserve the loop frontier");
+    // The untouched branch still owns both roots. Their join must retain only
+    // the intersection, not the header's initial complete frontier.
+    blocks
+        .iter_mut()
+        .find(|block| block.id == block_id(30))
+        .unwrap()
+        .operations
+        .push(transfer(parameters[0].place));
+    let error =
+        complete(&parameters, block_id(10), &mut blocks).expect_err("join cannot revive ownership");
+    assert!(matches!(error, LoweringError::Unsupported(message)
+        if message == "owned backedge transfers a missing or already consumed owner"));
+}
+
+#[test]
+fn cut_header_loop_does_not_hide_a_nonheader_cycle() {
+    let parameters = [parameter(91, 0), parameter(13, 1)];
+    let mut blocks = owned_loop(&parameters);
+    let Terminator::Conditional { when_true, .. } = &mut blocks[2].terminator else {
+        panic!("header")
+    };
+    when_true.target = block_id(40);
+    blocks.push(block(
+        40,
+        Terminator::Conditional {
+            condition: value_id(1),
+            when_true: successor(40, 20),
+            when_false: successor(41, 20),
+        },
+    ));
+    complete(&parameters, block_id(10), &mut blocks.clone())
+        .expect("acyclic body with parallel arrivals");
+    let Terminator::Conditional { when_false, .. } = &mut blocks[3].terminator else {
+        panic!("inner branch")
+    };
+    when_false.target = block_id(40);
+    let error =
+        complete(&parameters, block_id(10), &mut blocks).expect_err("only header edges may be cut");
+    assert!(matches!(error, LoweringError::Unsupported(message)
+        if message == "owned scalar graph has unreachable or cyclic custody requiring structural forwarding evidence"));
+}
+
 #[test]
 fn return_disposes_only_surviving_affine_parameters_in_reverse_declaration_order() {
     let first = parameter(91, 0);

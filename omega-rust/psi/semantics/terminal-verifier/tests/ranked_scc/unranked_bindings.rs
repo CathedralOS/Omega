@@ -194,13 +194,43 @@ fn cyclic_scalar_eligibility_does_not_waive_arithmetic_proofs() {
 }
 
 #[test]
-fn unranked_scalar_cycle_cannot_acquire_owned_custody() {
+fn unranked_scalar_cycle_preserves_plain_owned_custody_but_not_linear_inputs() {
     let mut module = scalar_cycle();
-    add_loop_preserved_affine_parameter(&mut module);
+    let owned_place = add_loop_preserved_affine_parameter(&mut module);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("plain affine input stays live around the loop and disposes on return");
+
+    let mut missing_disposal = module.clone();
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut missing_disposal.machines[0].blocks[3].terminator
+    else {
+        panic!("normal return")
+    };
+    trivial_affine_discards.clear();
     assert!(matches!(
-        validate_module_representation(&module),
-        Err(ModuleError::ControlCycle(_))
+        validate_module(&missing_disposal),
+        Err(ModuleError::UnitReturnAffineDiscardsMismatch { .. })
     ));
+
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+    module.machines[0]
+        .entry_claims
+        .push(terminal_psi::EntryClaim {
+            claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+            input: owned_place,
+            path: Vec::new(),
+        });
+    let result = validate_module_representation(&module);
+    assert!(
+        matches!(result, Err(ModuleError::ControlCycle(_))),
+        "linear input: {result:?}"
+    );
 }
 
 #[test]

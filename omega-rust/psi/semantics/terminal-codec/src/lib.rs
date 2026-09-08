@@ -1287,19 +1287,50 @@ fn validate_operation_foundation(
                 return malformed("structural scalar field store value type does not match field");
             }
         }
-        OperationKind::IntegerStructuralField { source, field } => {
+        OperationKind::IntegerStructuralField { source, field }
+        | OperationKind::BooleanStructuralField { source, field } => {
             let Some(result) = operation.result.scalar_ref() else {
-                return malformed("integer structural field has no scalar result");
+                return malformed("scalar structural field has no scalar result");
             };
-            if !matches!(result.scalar_type, ScalarType::Integer(_)) {
-                return malformed("integer structural field has a non-integer result");
+            if !matches!(
+                (&operation.kind, result.scalar_type),
+                (
+                    OperationKind::IntegerStructuralField { .. },
+                    ScalarType::Integer(_)
+                ) | (
+                    OperationKind::BooleanStructuralField { .. },
+                    ScalarType::Boolean
+                )
+            ) {
+                return malformed("scalar structural field has an invalid result type");
             }
             let Some(parameter) = machine
                 .structural_parameters
                 .iter()
                 .find(|parameter| parameter.place == *source)
+                .or_else(|| {
+                    let declaration = machine
+                        .structural_places
+                        .iter()
+                        .find(|place| place.id == *source)?;
+                    let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind
+                    else {
+                        return None;
+                    };
+                    machine
+                        .blocks
+                        .iter()
+                        .find(|candidate| candidate.id == block)?
+                        .structural_parameters
+                        .get(position as usize)
+                        .filter(|parameter| {
+                            parameter.place == *source
+                                && parameter.position == position
+                                && !parameter.is_self
+                        })
+                })
             else {
-                return malformed("integer structural field source is not a parameter");
+                return malformed("scalar structural field source is not a parameter");
             };
             let matching = module
                 .structural_types
@@ -1334,7 +1365,7 @@ fn validate_operation_foundation(
                     .any(|claim| claim.input.root == *source)
                 || matching.is_none()
             {
-                return malformed("integer structural field has invalid source custody");
+                return malformed("scalar structural field has invalid source custody");
             }
         }
         OperationKind::EstablishPayloadlessCase { result_case } => {

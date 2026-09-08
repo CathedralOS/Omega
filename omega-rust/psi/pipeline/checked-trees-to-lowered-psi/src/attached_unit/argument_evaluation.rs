@@ -561,8 +561,9 @@ fn emit_state(
         LoweredScalarBranchTerminator::Jump {
             target,
             arguments: outgoing,
+            structural_arguments,
         } => Terminator::Jump {
-            structural_arguments: Vec::new(),
+            structural_arguments: structural_arguments.clone(),
             edge: edge_id(allocate_dense(next_edge)?),
             target: *targets.get(*target).ok_or(LoweringError::Unsupported(
                 "call computation target is absent",

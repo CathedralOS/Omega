@@ -1199,7 +1199,8 @@ pub(super) fn validate_structural_arguments(
                         }
                         StructuralPlaceKind::BlockParameter { .. }
                             if argument.path.is_empty()
-                                && argument.access == StructuralAccess::SharedBorrow
+                                && (argument.access == StructuralAccess::SharedBorrow
+                                    || (ordinary_call && argument.access == StructuralAccess::Owned))
                                 && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                                     || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
                         {

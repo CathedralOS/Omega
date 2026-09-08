@@ -6,14 +6,22 @@ and [structural ownership](../../../../wiki/spec/terminal-psi/ownership.md).
 
 ## Cyclic execution
 
-Ordinary interpretation accepts verified natural-ranked scalar, immutable-view,
-receiver, and primitive-local
+Ordinary interpretation accepts verified natural-ranked scalar, plain-owned-input,
+immutable-view, receiver, and primitive-local
 graphs under the [control contract](../../../../wiki/spec/terminal-psi/control_flow.md).
 The legacy one-machine structural Unit countdown uses its own verifier entrance:
 it reconstructs `0 < remaining` as the unsigned `1 <= remaining` premise and
 checks exact subtraction before creating resumable state. This interpreter
 acceptance grants no native, fixed-fuel, provider-installation, or mixed-work
 authority.
+
+[block_bindings.rs](src/block_bindings.rs) captures all selected operands before
+cleanup and simultaneous successor installation. Affine inputs move once;
+Unrestricted descriptors remain reusable. Rebinding changes the descriptor place,
+not its referent or field backing. Missing/duplicate owners and transfer/discard
+overlap reject before mutation. Fuel suspension preserves the uncommitted edge.
+This whole plain-owned route does not admit partial/qualified owners or mutable
+borrowed block parameters.
 
 ## Calls and work
 

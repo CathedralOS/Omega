@@ -23,7 +23,9 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     || !machine.satisfies.is_empty()
                     || (machine.termination_plan.implementation_witness.is_some()
                         && crate::checks::termination::proven_slice_length_ranks(program, machine)
-                            .is_none())
+                            .is_none()
+                        && crate::checks::termination::proven_nat_countdown_sccs(program, machine)
+                            .is_none_or(|components| components.is_empty()))
                     || machine.suspends
                     || machine.blocks
                     || !machine.supply_mode.is_checked_body()
@@ -60,6 +62,8 @@ use typed_trees::{
 mod guards;
 mod owned_parameters;
 pub(super) mod primitive_locals;
+mod ranking;
+mod successors;
 
 #[cfg(test)]
 mod tests;
@@ -71,7 +75,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
 ) -> CheckedScalarGraphPlans {
     let mut parameter_storage = arena::Arena::default();
     let mut structural_types = std::collections::BTreeMap::new();
-    let machines = program
+    let mut machines: Vec<_> = program
         .machines()
         .iter()
         .filter_map(|machine| {
@@ -85,9 +89,26 @@ pub(crate) fn build_checked_scalar_graph_plans(
             )
         })
         .collect();
+    let mut structural_transfers = arena::Arena::default();
+    let mut scalar_arguments = arena::Arena::default();
+    machines.retain_mut(|graph| {
+        let Some(ranked_scc) = ranking::plan(program, graph) else {
+            return false;
+        };
+        graph.ranked_scc = ranked_scc;
+        successors::retain(
+            program,
+            graph,
+            &mut structural_transfers,
+            &mut scalar_arguments,
+        )
+        .is_some()
+    });
     CheckedScalarGraphPlans {
         machines,
         parameter_storage,
+        structural_transfers,
+        scalar_arguments,
         structural_types: structural_types.into_values().collect(),
     }
 }
@@ -100,6 +121,19 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
     plans: &mut CheckedScalarGraphPlans,
 ) {
     plans.machines.retain(|graph| {
+        if ranking::plan(program, graph) != Some(graph.ranked_scc.clone()) {
+            return false;
+        }
+        if successors::validate(
+            program,
+            graph,
+            &plans.structural_transfers,
+            &plans.scalar_arguments,
+        )
+        .is_none()
+        {
+            return false;
+        }
         let Some(machine) = program
             .machines()
             .iter()
@@ -115,6 +149,15 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
             else {
                 return false;
             };
+            let Some(transfers) = successors::owned_transfers(
+                program,
+                graph.machine,
+                state,
+                retained,
+                &plans.structural_transfers,
+            ) else {
+                return false;
+            };
             owned_parameters::validate(
                 program,
                 ownership,
@@ -122,6 +165,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
                 graph.machine,
                 state,
                 &retained.structural_parameters,
+                &transfers,
             )
             .is_some()
         })
@@ -171,8 +215,8 @@ fn build_machine_graph(
                     .is_none()
             });
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed {
-                // Structural state forwarding and cyclic custody are a later
-                // extension of this graph, not implicit scalar parameter slots.
+                // Whole structural forwarding is bounded to the same authored
+                // state; additional state signatures remain a separate slice.
                 if source_states.len() != 1 || machine.attached_data.is_some() {
                     return None;
                 }
@@ -244,7 +288,6 @@ fn build_machine_graph(
                 computations,
                 &bindings,
             )?;
-            let has_places = mixed || !primitive_locals.is_empty();
             if !primitive_locals.is_empty()
                 && (source_states.len() != 1 || machine.attached_data.is_some())
             {
@@ -318,14 +361,14 @@ fn build_machine_graph(
                         guard_statement_ordinal: terminator_ordinal,
                         when_true: checked_branch_destination(
                             program,
-                            source_states,
+                            machine,
                             terminator_ordinal,
                             when_true,
                             false,
                         )?,
                         when_false: checked_branch_destination(
                             program,
-                            source_states,
+                            machine,
                             terminator_ordinal.checked_add(1)?,
                             when_false,
                             false,
@@ -340,14 +383,14 @@ fn build_machine_graph(
                         guard_statement_ordinal: terminator_ordinal,
                         when_true: checked_branch_destination(
                             program,
-                            source_states,
+                            machine,
                             terminator_ordinal,
                             transition,
                             false,
                         )?,
                         when_false: checked_branch_destination(
                             program,
-                            source_states,
+                            machine,
                             terminator_ordinal,
                             transition,
                             true,
@@ -364,7 +407,7 @@ fn build_machine_graph(
                         guard_statement_ordinal: terminator_ordinal,
                         when_true: checked_branch_destination(
                             program,
-                            source_states,
+                            machine,
                             terminator_ordinal,
                             transition,
                             false,
@@ -381,7 +424,7 @@ fn build_machine_graph(
                 {
                     CheckedScalarStateTerminator::Jump(checked_successor(
                         program,
-                        source_states,
+                        machine,
                         terminator_ordinal,
                         transition,
                         false,
@@ -389,22 +432,6 @@ fn build_machine_graph(
                 }
                 _ => return None,
             };
-            if has_places
-                && match &terminator {
-                    CheckedScalarStateTerminator::Jump(_) => true,
-                    CheckedScalarStateTerminator::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => {
-                        matches!(when_true, CheckedScalarBranchDestination::Jump(_))
-                            || matches!(when_false, CheckedScalarBranchDestination::Jump(_))
-                    }
-                    _ => false,
-                }
-            {
-                return None;
-            }
             Some((
                 CheckedScalarStateGraph {
                     state: state.symbol,
@@ -424,6 +451,7 @@ fn build_machine_graph(
         .collect::<Option<Vec<_>>>()?;
     Some(CheckedScalarMachineGraph {
         machine: machine.symbol,
+        ranked_scc: None,
         // Commit storage rows only after the complete machine shape succeeds.
         states: states
             .into_iter()
@@ -606,7 +634,7 @@ fn checked_binding_value(
 
 fn checked_successor(
     program: &TypedTrees,
-    states: &[typed_trees::state::State],
+    machine: &typed_trees::machine::Machine,
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,
     is_continuation: bool,
@@ -626,22 +654,28 @@ fn checked_successor(
     else {
         return None;
     };
-    states
-        .iter()
-        .any(|candidate| candidate.symbol == path.symbol)
-        .then_some(())?;
+    // An authored machine-name backedge denotes its entry child. Reuse the
+    // same identity normalization as ranking and structural state forwarding.
+    let target_index = crate::checks::termination::named_transition_target_state_index(
+        program,
+        machine,
+        path.symbol,
+    )?;
+    let target = program.machine_states(machine).get(target_index)?.symbol;
     Some(CheckedScalarSuccessor {
         statement_ordinal,
         is_continuation,
-        target: path.symbol,
+        target,
         argument_count: u32::try_from(program.statement_table.expression_handles(*arguments).len())
             .ok()?,
+        structural_transfers: arena::HandleSpan::empty(),
+        scalar_arguments: arena::HandleSpan::empty(),
     })
 }
 
 fn checked_branch_destination(
     program: &TypedTrees,
-    states: &[typed_trees::state::State],
+    machine: &typed_trees::machine::Machine,
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,
     is_continuation: bool,
@@ -674,7 +708,7 @@ fn checked_branch_destination(
         }
         TransitionTargetNode::Named { .. } => checked_successor(
             program,
-            states,
+            machine,
             statement_ordinal,
             transition,
             is_continuation,
