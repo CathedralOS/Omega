@@ -243,7 +243,7 @@ the complete assumption set is consistent.
 Runtime-decidable boundary claims require oracle-tripwire instrumentation: a
 witnessed violation must trap and identify the offending claim. The activation,
 coverage, and failure-reporting protocol for the former guide term "proof builds"
-remains [undetermined](../../../OWNER_QUESTIONS.md#q3--runtime-checking-of-admitted-claims);
+remains [undetermined](../../../OWNER_QUESTIONS.md#q2--runtime-checking-of-admitted-claims);
 this is a required capability, not a claim of implemented
 or universal runtime instrumentation.
 

@@ -28,8 +28,10 @@ guarantee may establish a proposition after its successful call.
 Each comma-separated `established by` requirement is an alternative authorized
 origin, not an invocation. Predicates alone establish predicate-only membership.
 A routed domain additionally needs exact authorized provenance, even when all
-its predicates are proved. An empty declaration is obligation-free: a bare
-`i32` may be explicitly qualified as `Km` without an owner grant.
+its predicates are proved. A predicate-free domain with establishment routes
+still requires that provenance. A declaration with neither predicates nor routes
+adds no membership obligation: a valid bare `i32` may be explicitly qualified as
+`Km` without an owner grant. Predicate-free does not mean uninhabited.
 
 [Authority establishment](../resources/authority.md#establishment-routes) owns
 exact requirement resolution, result and installed-parameter subjects, checked
@@ -60,17 +62,56 @@ addition may therefore break an existing extension.
 
 The exact foreign-domain import-gate spelling, optional owner/orphan restrictions,
 and authority/reporting presentation remain
-[undetermined](../../../OWNER_QUESTIONS.md#q2--foreign-domain-import-and-applicability).
+[undetermined](../../../OWNER_QUESTIONS.md#q1--foreign-domain-import-and-applicability).
 These open details do
 not authorize ambient extension discovery or priority-based collision resolution.
 
 ## Refinement and executable membership
 
 Domains classify values within the carrier's ordinary validity. A domain cannot
-license observing a value outside its default domain. Whether an inconsistent
-domain declaration is rejected or denotes an uninhabited domain remains
-[undetermined](../../../OWNER_QUESTIONS.md#q1--empty-domains-and-contradictory-declarations);
-no member can be established without proving all obligations.
+license observing a value outside its default domain. Establishing membership
+requires all carrier, predicate, and provenance obligations; the target
+qualification cannot be assumed to prove itself.
+
+### Uninhabited domains
+
+Well-formed domain declarations need not establish nonemptiness. Contradictory
+predicates and uninhabited generic specializations are permitted, even when the
+compiler can trivially prove that no value satisfies them:
+
+```omega
+domain i32::Impossible
+    requires self > 0 && self < 0;
+```
+
+This defines a classification with no members, not a logical paradox or an
+inconsistent axiom. Existing predicate formation, name resolution, cycle, and
+semantic-role compatibility checks still apply. A declaration neither asserts
+that a member exists nor makes its predicates ambient assumptions.
+
+Mentioning an uninhabited domain or declaring a machine parameter qualified by
+it is legal. The body reasons under its hypothetical entry contract; each caller
+must establish that contract for its actual arguments. Conclusions proved under
+an impossible premise remain conditional and cannot manufacture an inhabitant
+or discharge that premise at a reachable call. Predicate-free authority domains
+retain their independent establishment-route rules.
+
+Nonemptiness is required only where an operation's contract actually needs it,
+using ordinary witnesses or premises. An index classification for a zero-length
+collection may have no members without invalidating the generic definition.
+Construction, qualification, argument supply, and default-domain establishment
+must still prove the obligations they require. Zero initialization and invariant
+windows provide no exemption.
+
+No general satisfiability decision or witness search is required. Proved
+uninhabitedness may support a warning or explain a failed use, but is not itself
+a declaration error. An unproved membership obligation rejects that attempted
+establishment; it need not diagnose whether the domain is uninhabited or the
+proof automation is insufficient. Failure of one candidate or of proof search
+does not prove that every candidate fails. Stronger proof automation must not
+make a well-formed declaration illegal merely by discovering a contradiction.
+
+### Refinement and tests
 
 `A::B::C` is a single-parent refinement of `A::B`: its predicate requirements
 include the parent's requirements. Multiple-parent predicate reuse is explicit,
@@ -113,13 +154,13 @@ explicitly selected operators, never ambient conversion discovery.
 | Use | Obligation |
 | --- | --- |
 | Predicate qualification | Prove the target predicates. |
-| Empty-domain qualification | None beyond carrier compatibility. |
+| Predicate-free, route-free qualification | None beyond carrier compatibility. |
 | Routed qualification | Retain exact existing or authorized evidence; `as` cannot mint it. |
 | Exact carrier conversion | Prove representability and unchanged denotation. |
 | Explicit semantic erasure | Name a target omitting the non-owning meaning. |
 
 Unit conversion remains a library operation. `5 as i32::Km` can introduce the
-empty semantic domain, but `distance as i32::Degrees` cannot infer a relation
+predicate-free semantic tag, but `distance as i32::Degrees` cannot infer a relation
 from kilometres to degrees. `distance as i32 as i32::Degrees` visibly erases
 and then introduces meaning. Changing arithmetic policy similarly changes future
 operations, not the interpretation of earlier work or the stored payload.

@@ -459,8 +459,31 @@ subsets inside that valid space. A domain may include another domain with
 duplicating them.
 
 Membership never licenses a value outside its carrier's ordinary validity.
-Whether an inconsistent domain declaration is rejected or denotes an empty
-domain remains [undetermined](../spec/language/domains.md#refinement-and-executable-membership).
+Well-formed domains may have no satisfying values, even when the contradiction
+is obvious to the compiler:
+
+```omega
+domain i32::Impossible
+    requires self > 0 && self < 0;
+```
+
+This is a legal uninhabited domain, not a paradox or an assertion that an
+impossible integer exists. A generic specialization may likewise have no members;
+declaring the classification does not require a nonemptiness proof.
+
+A signature may mention this domain. A machine taking such a qualified argument
+reasons under a hypothetical entry contract, but a caller must prove membership
+for its actual argument. The target qualification cannot prove itself. A failed
+establishment may report only that membership could not be proved; the compiler
+need not solve satisfiability or diagnose every contradiction. Proved
+uninhabitedness may inform diagnostics, not invalidate the declaration.
+
+Do not confuse uninhabited domains with predicate-free domains. A predicate-free
+domain with authorized establishment routes certifies provenance; one without
+routes permits explicit qualification of any compatible valid carrier value.
+Neither rule changes. See [uninhabited domains](../spec/language/domains.md#uninhabited-domains)
+for the declaration and proof rules.
+
 An invariant window does not establish membership; actual contents remain
 available to ordinary flow reasoning, but consumption requiring the domain
 must wait until its obligations hold again.
