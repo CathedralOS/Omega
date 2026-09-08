@@ -1,4 +1,4 @@
-//! Source and target joins for whole borrowed arguments in scalar helper calls.
+//! Source and target joins for borrowed arguments in ordinary helper calls.
 use crate::LegalizationError;
 use abstract_operations::{AbstractFunction, AbstractOperation, AbstractOperationPlan};
 use calling_conventions::{CallPlan, ValueShape};
@@ -8,6 +8,8 @@ use target_operations::{
     TargetFunction, TargetOperation, TargetOperationPlan, TargetStructuralArgument,
 };
 use terminal_psi::{StructuralAccess, StructuralArgument};
+
+mod exclusive;
 
 pub(in crate::legalization) fn validate_argument(
     argument: &StructuralArgument,
@@ -48,6 +50,20 @@ pub(in crate::legalization) fn argument(
     let [destination_parameter] = called.structural_parameters.as_slice() else {
         return Err(invalid);
     };
+    if matches!(
+        semantic.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) {
+        return exclusive::argument(
+            semantic,
+            caller,
+            destination_parameter,
+            &call,
+            called.parameters.len(),
+            native,
+            plan,
+        );
+    }
     if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
         return Err(invalid);
     }

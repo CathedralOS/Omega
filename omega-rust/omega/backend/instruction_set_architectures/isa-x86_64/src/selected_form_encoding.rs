@@ -496,6 +496,8 @@ fn family_and_operand_count(
         }
         SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store { .. }
+        | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
@@ -722,6 +724,8 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store { .. }
+        | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
@@ -1077,6 +1081,8 @@ fn validate_decoded(
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store { .. }
+        | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
@@ -1124,6 +1130,8 @@ fn footprint(
         | SelectedInstructionKind::Jump
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Store { .. }
+        | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }

@@ -97,6 +97,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
                 slot.encode_identity(bytes);
             }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
+            SelectedMemoryAccessRole::WritePlace => bytes.push(6),
             SelectedMemoryAccessRole::WriteOutgoing { slot } => {
                 bytes.push(1);
                 encode_slot(bytes, slot);
@@ -173,6 +174,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
                 }
             }
             0 => SelectedMemoryAccessRole::ReadPlace,
+            6 => SelectedMemoryAccessRole::WritePlace,
             1 => SelectedMemoryAccessRole::WriteOutgoing {
                 slot: decode_slot(cursor)?,
             },

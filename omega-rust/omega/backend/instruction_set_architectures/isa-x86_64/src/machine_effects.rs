@@ -64,6 +64,8 @@ pub fn x86_64_machine_effect_catalog(
                 if matches!(
                     semantic,
                     MachineSemanticKind::Load64
+                        | MachineSemanticKind::Store
+                        | MachineSemanticKind::AddressOffset
                         | MachineSemanticKind::Load8Indexed
                         | MachineSemanticKind::Store64
                         | MachineSemanticKind::FrameAddress
@@ -121,6 +123,8 @@ fn selected_keys(
             .then_some(crate::X86_64_LINUX_WRITE_BYTE_I32),
         load64: Some(crate::X86_64_LOAD64),
         load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
+        store: Some(crate::X86_64_STORE),
+        address_offset: Some(crate::X86_64_ADDRESS_OFFSET),
         store64: Some(crate::X86_64_STORE64),
         frame_address: Some(crate::X86_64_FRAME_ADDRESS),
         call_unit: if target.object_format == ObjectFormat::Elf {
@@ -298,6 +302,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallI64
         | MachineSemanticKind::Load64
+        | MachineSemanticKind::Store
+        | MachineSemanticKind::AddressOffset
         | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
@@ -436,6 +442,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         }
         MachineSemanticKind::CallI64
         | MachineSemanticKind::Load64
+        | MachineSemanticKind::Store
+        | MachineSemanticKind::AddressOffset
         | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress

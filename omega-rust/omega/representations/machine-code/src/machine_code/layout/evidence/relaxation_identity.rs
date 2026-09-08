@@ -17,7 +17,7 @@ use super::{
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
 
-const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v6";
+const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v7";
 const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v3";
 
 #[derive(Clone, Copy)]
@@ -183,6 +183,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Store => 24,
+        MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::LinuxWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
@@ -214,6 +216,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
         MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
             hasher.update([6]);
             hasher.update(stack_pointer.0.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
+            hasher.update([7]);
+            hasher.update(pointer_operand.to_le_bytes());
         }
         MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
         MachineEncodedMemoryEffect::ReadPointerV1 {

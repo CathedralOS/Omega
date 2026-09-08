@@ -1,4 +1,4 @@
-//! Exact immutable descriptor input for scalar byte observations.
+//! Exact borrowed structural headers for observations, writes and calls.
 use super::*;
 
 pub(super) fn validate(
@@ -41,9 +41,8 @@ pub(super) fn validate(
         .collect::<Vec<_>>();
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
-        || target.attachment.is_some()
-        || abstracted.attachment.is_some()
-        || optimized.attachment.is_some()
+        || target.attachment != abstracted.attachment
+        || target.attachment != optimized.attachment
         || target.scalar_abi.is_some()
         || abstracted.parameters.len() != optimized.parameters.len()
         || scalar_parameters.len() != abstracted.parameters.len()
@@ -56,8 +55,7 @@ pub(super) fn validate(
             .enumerate()
             .any(|(position, (((actual, declared), optimized), placement))| {
                 actual.value != declared.value
-                    || ![ScalarType::Integer(u64_type()), ScalarType::Boolean]
-                        .contains(&actual.scalar_type)
+                    || scalar_shape(actual.scalar_type).is_none()
                     || declared.scalar_type != actual.scalar_type
                     || optimized.value != declared.value
                     || optimized.scalar_type != declared.scalar_type
@@ -82,15 +80,22 @@ pub(super) fn validate(
                 .iter()
                 .map(|place| place.id)
                 .collect()
-        || !crate::structural_unit_input::accepts_borrowed_view(
+        || !(crate::structural_unit_input::accepts_borrowed_view(
             call_plan,
             &parameters,
             &plan.structural_types,
-        )
+        ) || crate::structural_unit_input::accepts_write_borrow(
+            call_plan,
+            &parameters,
+            &plan.structural_types,
+        ))
     {
         return Err(invalid);
     }
     let parameter = &abstracted.structural_parameters[0];
+    if parameter.is_self && target.attachment != Some(parameter.structural_type) {
+        return Err(invalid);
+    }
     let subslices = optimized
         .blocks
         .iter()
@@ -113,7 +118,7 @@ pub(super) fn validate(
         || optimized.structural_places[0].kind
             != (semantic_vocabulary::StructuralPlaceKind::Parameter {
                 position: 0,
-                is_self: false,
+                is_self: parameter.is_self,
             })
     {
         return Err(invalid);

@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v15";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v16";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -72,6 +72,24 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                     let mut identity = Vec::new();
                     slot.encode_identity(&mut identity);
                     hasher.update(identity);
+                }
+                Address::Store {
+                    base_operand,
+                    byte_offset,
+                    byte_size,
+                } => {
+                    hasher.update([6]);
+                    hasher.update(base_operand.to_le_bytes());
+                    hasher.update(byte_offset.to_le_bytes());
+                    hasher.update([byte_size]);
+                }
+                Address::AddressOffset {
+                    base_operand,
+                    byte_offset,
+                } => {
+                    hasher.update([7]);
+                    hasher.update(base_operand.to_le_bytes());
+                    hasher.update(byte_offset.to_le_bytes());
                 }
                 Address::Load8Indexed {
                     base_operand,
@@ -237,6 +255,10 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update([6]);
             hasher.update(stack_pointer.0.to_le_bytes());
         }
+        Memory::WritePointerV1 { pointer_operand } => {
+            hasher.update([7]);
+            hasher.update(pointer_operand.to_le_bytes());
+        }
         Memory::NoneV1 => hasher.update([0]),
         Memory::ReadPointerV1 {
             pointer_operand,
@@ -328,6 +350,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Store => 24,
+        MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::LinuxWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,

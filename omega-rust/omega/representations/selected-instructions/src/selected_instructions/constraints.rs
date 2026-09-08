@@ -7,6 +7,8 @@ use target_operations::MachineRegister;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstraintKeys {
     pub linux_write_byte_i32: Option<RegisterConstraintKey>,
+    pub store: Option<RegisterConstraintKey>,
+    pub address_offset: Option<RegisterConstraintKey>,
     pub load64: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,

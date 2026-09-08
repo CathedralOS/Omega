@@ -32,6 +32,7 @@ impl LegalizedScalarFunction {
                 .iter()
                 .any(|instruction| match &instruction.kind {
                     LegalizedScalarInstructionKind::LinuxWriteByteI32 { source, .. } => *source == value,
+                    LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
@@ -96,6 +97,14 @@ pub enum LegalizedScalarInstructionKind {
     LinuxWriteByteI32 {
         boundary: semantic_vocabulary::BoundaryMachineId,
         source: ValueId,
+    },
+    StructuralScalarFieldStore {
+        destination: terminal_psi::StructuralParameterDeclaration,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        value: abstract_operations::AbstractResult,
+        byte_offset: u32,
+        byte_size: u8,
     },
     EstablishByteSequenceLiteral {
         destination: terminal_psi::StructuralPlaceDeclaration,

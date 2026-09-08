@@ -80,6 +80,8 @@ pub(super) fn decode_instruction(
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
+        SelectedInstructionKind::Store { .. } => 24,
+        SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::LinuxWriteByteI32 { .. } => 23,
         SelectedInstructionKind::ByteViewAddress => 22,
@@ -107,6 +109,16 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     };
     bytes.push(tag);
     match kind {
+        SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.push(byte_size);
+        }
+        SelectedInstructionKind::AddressOffset { byte_offset } => {
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         SelectedInstructionKind::Load64 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }
@@ -180,6 +192,13 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
+        24 => SelectedInstructionKind::Store {
+            byte_offset: cursor.u32()?,
+            byte_size: cursor.byte()?,
+        },
+        25 => SelectedInstructionKind::AddressOffset {
+            byte_offset: cursor.u32()?,
+        },
         16 => SelectedInstructionKind::Load64 {
             byte_offset: cursor.u32()?,
         },
@@ -325,6 +344,28 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         argument_index: 1,
     };
     for kind in [
+        SelectedInstructionKind::LinuxWriteByteI32 {
+            slot: selected_instructions::LocalStorageSlotId::Boundary {
+                operation: slot.operation,
+            },
+        },
+        SelectedInstructionKind::Store {
+            byte_offset: 13,
+            byte_size: 1,
+        },
+        SelectedInstructionKind::Store {
+            byte_offset: 26,
+            byte_size: 2,
+        },
+        SelectedInstructionKind::Store {
+            byte_offset: 52,
+            byte_size: 4,
+        },
+        SelectedInstructionKind::Store {
+            byte_offset: 104,
+            byte_size: 8,
+        },
+        SelectedInstructionKind::AddressOffset { byte_offset: 26 },
         SelectedInstructionKind::Load64 { byte_offset: 8 },
         SelectedInstructionKind::Store64 {
             slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),

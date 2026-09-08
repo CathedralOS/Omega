@@ -566,20 +566,20 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Restore literal indexed write-only receiver caller-observation coverage on
-  both Linux hosts, retaining original referent identity and exclusive access
-  through register- and stack-passed pointers. The shared
-  `target-operations-to-selected-instructions/src/legalization/` route currently
-  rejects structural field stores in `admission.rs` and projected structural
-  calls in `source/structural/call.rs` and `replay/structural/call.rs`; native
-  coverage needs those engineering dependencies, not the retired emitter.
+  Run literal indexed write-only receiver caller observations on both Linux
+  hosts and extend ordinary graph transport to stack-passed borrowed pointers.
+  Keep original referent identity and exclusive access through incoming homes,
+  projected calls, callee frames and caller continuation. The owning path is
+  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`
+  and ordinary selection construction/replay, not the retired emitter.
   The source-backed probe is `cargo nextest run -p omega-native-differential-test
   --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail`.
-  On macOS ARM64 its indexed-alias program reaches
-  `AttachedUnitStructuralScalarNotYetSelectable` for Linux x86-64, Linux AArch64,
-  and macOS AArch64 plans. Replace that exact rejection oracle with native
-  caller-owned byte observations after implementing ordinary base-pointer stores
-  and projected borrowed-pointer calls; frame-slot stores are not writeback.
+  Its register-pointer caller observations execute on macOS ARM64; four-target
+  cross-emission is not Linux runtime coverage. Extend those observations to
+  stack-passed pointers, broader scalar call arguments, and stores outside the
+  currently supported ordinary integer/Boolean field-store path. Preserve exact
+  write widths, untouched bytes, and independent receiving replay; frame-slot
+  stores or copied referents are not writeback.
   Extend Terminal receiver production beyond nonescaping direct-root local
   alias erasure to nested/escaping carriers and dynamic indexes; checked
   admission alone does not supply their portable address and lifetime evidence.

@@ -109,6 +109,8 @@ fn terminal_selected_keys(
         linux_write_byte_i32: keys.linux_write_byte_i32,
         load64: keys.load64,
         load8_indexed: keys.load8_indexed,
+        store: keys.store,
+        address_offset: keys.address_offset,
         store64: keys.store64,
         frame_address: keys.frame_address,
         call_unit: keys.call_unit.clone(),
@@ -133,6 +135,12 @@ fn compute_instruction(
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<InstructionMachineEffects, MachineEffectError> {
+    if matches!(instruction.kind, SelectedInstructionKind::Store { byte_size, .. } if !matches!(byte_size, 1 | 2 | 4 | 8))
+    {
+        return Err(MachineEffectError::ConstraintEffectMismatch {
+            instruction: instruction.id,
+        });
+    }
     let constraint = constraints
         .catalog()
         .constraints
@@ -223,6 +231,8 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
         SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
         SelectedInstructionKind::Load8Indexed => MachineSemanticKind::Load8Indexed,
+        SelectedInstructionKind::Store { .. } => MachineSemanticKind::Store,
+        SelectedInstructionKind::AddressOffset { .. } => MachineSemanticKind::AddressOffset,
         SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
         SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
         SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,

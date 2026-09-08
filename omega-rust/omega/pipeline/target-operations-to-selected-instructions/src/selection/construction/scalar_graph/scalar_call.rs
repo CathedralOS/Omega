@@ -33,12 +33,14 @@ pub(super) fn emit(
     )?;
     let mut operands = Vec::new();
     for argument in &call.arguments {
-        if let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } = argument
+        if let legalized_operations::LegalizedScalarArgument::Structural { semantic, target } =
+            argument
         {
             operands.push(structural::call_pointer(
                 builder,
                 operation,
                 semantic.place,
+                target.source_byte_offset,
             )?);
             continue;
         }

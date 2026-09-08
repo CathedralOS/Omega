@@ -219,3 +219,51 @@ fn local_address_replay_rejects_displacement_source_and_extent_substitution() {
     assert!(resolve(&duplicate, Some(&frame), &instruction).is_err());
     assert!(validate_address(&duplicate, Some(&frame), &instruction, resolved).is_err());
 }
+
+#[test]
+fn pointer_address_replay_binds_base_offset_and_store_width_without_a_frame() {
+    let (function, _, mut instruction) = fixture();
+    for symbolic in [
+        Address::Store {
+            base_operand: 0,
+            byte_offset: 2,
+            byte_size: 2,
+        },
+        Address::AddressOffset {
+            base_operand: 0,
+            byte_offset: 2,
+        },
+    ] {
+        instruction.address = Some(symbolic);
+        let resolved = resolve(&function, None, &instruction).unwrap();
+        validate_address(&function, None, &instruction, resolved).unwrap();
+        let mut changed = resolved.unwrap();
+        changed.displacement += 1;
+        assert!(validate_address(&function, None, &instruction, Some(changed)).is_err());
+        changed.displacement = 2;
+        changed.symbolic = Address::Store {
+            base_operand: 1,
+            byte_offset: 2,
+            byte_size: 2,
+        };
+        assert!(validate_address(&function, None, &instruction, Some(changed)).is_err());
+    }
+    instruction.address = Some(Address::Store {
+        base_operand: 0,
+        byte_offset: 2,
+        byte_size: 3,
+    });
+    assert!(resolve(&function, None, &instruction).is_err());
+    assert!(
+        validate_address(
+            &function,
+            None,
+            &instruction,
+            Some(ResolvedPhysicalAddress {
+                symbolic: instruction.address.unwrap(),
+                displacement: 2,
+            })
+        )
+        .is_err()
+    );
+}

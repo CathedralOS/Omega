@@ -35,8 +35,13 @@ pub(super) fn validate(
     )?;
     let mut operands = Vec::new();
     for argument in &call.arguments {
-        if let LegalizedScalarArgument::Structural { semantic, .. } = argument {
-            operands.push(structural::call_pointer(replay, operation, semantic.place)?);
+        if let LegalizedScalarArgument::Structural { semantic, target } = argument {
+            operands.push(structural::call_pointer(
+                replay,
+                operation,
+                semantic.place,
+                target.source_byte_offset,
+            )?);
             continue;
         }
         let (_, input, site, argument_type) = replay

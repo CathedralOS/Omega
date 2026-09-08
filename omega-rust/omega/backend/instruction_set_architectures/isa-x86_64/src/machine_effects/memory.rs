@@ -25,6 +25,28 @@ pub(super) fn declaration(
         .expect("canonical stack pointer")
         .id;
     let (memory, trap, reads, writes, encoded_memory, size) = match semantic {
+        MachineSemanticKind::Store => (
+            MachineMemoryEffect::WritePointerV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1],
+            vec![],
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 7,
+                maximum_bytes: Some(9),
+            },
+        ),
+        MachineSemanticKind::AddressOffset => (
+            MachineMemoryEffect::NoneV1,
+            MachineTrapBehavior::NeverV1,
+            vec![0],
+            vec![1],
+            MachineEncodedMemoryEffect::NoneV1,
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 7,
+                maximum_bytes: Some(8),
+            },
+        ),
         MachineSemanticKind::Load8Indexed => (
             MachineMemoryEffect::ReadPointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
@@ -125,7 +147,10 @@ pub(super) fn declaration(
                 } else {
                     MachineEncodedStackEffect::UnchangedV1
                 },
-                trap: if semantic == MachineSemanticKind::FrameAddress {
+                trap: if matches!(
+                    semantic,
+                    MachineSemanticKind::FrameAddress | MachineSemanticKind::AddressOffset
+                ) {
                     MachineEncodedTrapBehavior::NeverV1
                 } else {
                     MachineEncodedTrapBehavior::MayArchitecturalFaultV1

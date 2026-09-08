@@ -47,10 +47,12 @@ pub enum MachineSemanticKind {
     CallUnit,
     ByteViewAddress,
     LinuxWriteByteI32,
+    Store,
+    AddressOffset,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 26] = [
         Self::Load8Indexed,
         Self::CompareI64Zero,
         Self::MaterializeI64,
@@ -75,6 +77,8 @@ impl MachineSemanticKind {
         Self::CallUnit,
         Self::ByteViewAddress,
         Self::LinuxWriteByteI32,
+        Self::Store,
+        Self::AddressOffset,
     ];
 }
 
@@ -104,12 +108,16 @@ pub enum MachineAlternativeFamily {
     CallUnit,
     ByteViewAddress,
     LinuxWriteByteI32,
+    Store,
+    AddressOffset,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
             MachineSemanticKind::LinuxWriteByteI32 => Self::LinuxWriteByteI32,
+            MachineSemanticKind::Store => Self::Store,
+            MachineSemanticKind::AddressOffset => Self::AddressOffset,
             MachineSemanticKind::ByteViewAddress => Self::ByteViewAddress,
             MachineSemanticKind::Load8Indexed => Self::Load8Indexed,
             MachineSemanticKind::CompareI64Zero => Self::CompareI64Zero,
@@ -178,6 +186,7 @@ pub enum MachineAlternativeApplicability {
 pub enum MachineMemoryEffect {
     /// Private-byte initialization and kernel read, with an observable stdout write.
     LinuxWriteByteV1,
+    WritePointerV1,
     NoneV1,
     ReadPointerV1,
     WriteFrameStorageV1,
@@ -267,6 +276,10 @@ pub enum MachineEncodedMemoryEffect {
     /// Write one frame byte, then let Linux read that byte for stdout.
     LinuxWriteByteV1 {
         stack_pointer: RegisterViewId,
+    },
+    /// Exact footprint is the receiving-validated Store instruction byte size.
+    WritePointerV1 {
+        pointer_operand: u16,
     },
     ReadIndexedPointerV1 {
         pointer_operand: u16,

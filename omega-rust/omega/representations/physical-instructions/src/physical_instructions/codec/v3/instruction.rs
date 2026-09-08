@@ -38,6 +38,23 @@ pub(super) fn decode_instruction(
         5 => Some(crate::PhysicalAddressOperation::LinuxWriteByteI32 {
             slot: effect_codec::decode_local_storage_slot(cursor).map_err(map_field_error)?,
         }),
+        6 => {
+            let base_operand = u16_field(cursor)?;
+            let byte_offset = u32_field(cursor)?;
+            let byte_size = byte(cursor)?;
+            if !matches!(byte_size, 1 | 2 | 4 | 8) {
+                return Err(PostAllocationMachineDecodeError::InvalidField);
+            }
+            Some(crate::PhysicalAddressOperation::Store {
+                base_operand,
+                byte_offset,
+                byte_size,
+            })
+        }
+        7 => Some(crate::PhysicalAddressOperation::AddressOffset {
+            base_operand: u16_field(cursor)?,
+            byte_offset: u32_field(cursor)?,
+        }),
         0 => None,
         4 => Some(crate::PhysicalAddressOperation::Load8Indexed {
             base_operand: u16_field(cursor)?,

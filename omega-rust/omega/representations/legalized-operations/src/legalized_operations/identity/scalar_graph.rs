@@ -75,6 +75,23 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    byte_offset,
+                    byte_size,
+                } => {
+                    bytes.push(12);
+                    super::structural_types::encode_structural_parameter(bytes, destination);
+                    super::structural_types::encode_structural_path(bytes, path);
+                    bytes.extend_from_slice(&field.get().to_le_bytes());
+                    bytes.extend_from_slice(&value.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, value.scalar_type);
+                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                    bytes.push(*byte_size);
+                }
                 LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
                     destination,
                     structural_type,

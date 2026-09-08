@@ -187,7 +187,19 @@ pub(super) fn resolve(
             u32::try_from(start).map_err(|_| Error::ArtifactMismatch)?
         }
         Address::Load8Indexed { .. } => 0,
-        Address::Load64 { byte_offset, .. } => byte_offset,
+        Address::Load64 { byte_offset, .. } | Address::AddressOffset { byte_offset, .. } => {
+            byte_offset
+        }
+        Address::Store {
+            byte_offset,
+            byte_size,
+            ..
+        } => {
+            if !matches!(byte_size, 1 | 2 | 4 | 8) {
+                return Err(Error::ArtifactMismatch);
+            }
+            byte_offset
+        }
         Address::Store64 { slot, byte_offset } | Address::FrameAddress { slot, byte_offset } => {
             let geometry = function_geometry(function, frame)?;
             let (start, size, limit, local) = slot_region(function, geometry, slot)?;
@@ -264,6 +276,15 @@ pub(super) fn validate_address(
             }
             Ok(())
         }
+        Address::Store {
+            base_operand: 0,
+            byte_offset,
+            byte_size,
+        } if matches!(byte_size, 1 | 2 | 4 | 8) && candidate.displacement == byte_offset => Ok(()),
+        Address::AddressOffset {
+            base_operand: 0,
+            byte_offset,
+        } if candidate.displacement == byte_offset => Ok(()),
         Address::Load8Indexed {
             base_operand: 0,
             index_operand: 1,

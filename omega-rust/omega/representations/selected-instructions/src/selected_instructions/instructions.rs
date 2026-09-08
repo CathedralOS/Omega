@@ -22,6 +22,15 @@ pub enum SelectedInstructionKind {
     LinuxWriteByteI32 {
         slot: super::LocalStorageSlotId,
     },
+    /// Store the low exact-width bits through the original referent pointer.
+    Store {
+        byte_offset: u32,
+        byte_size: u8,
+    },
+    /// Form a projected referent address without observing its contents.
+    AddressOffset {
+        byte_offset: u32,
+    },
     /// Private 64-bit byte-view descriptor address: (backing + offset) modulo 2^64.
     /// Valid backing and subslice bounds restrict wrap to an exclusive-bound empty
     /// view, whose zero pointer is a valid empty carrier. No memory is accessed,

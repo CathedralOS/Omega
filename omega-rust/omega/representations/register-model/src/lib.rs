@@ -194,6 +194,8 @@ pub struct RegisterConstraintKey {
 pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load64: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
+    pub store: Option<RegisterConstraintKey>,
+    pub address_offset: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
     pub linux_write_byte_i32: Option<RegisterConstraintKey>,
@@ -1612,6 +1614,8 @@ mod tests {
         let keys = TargetRegisterEnvironmentConstraintKeys {
             load64: Some(instruction_key(30)),
             load8_indexed: None,
+            store: Some(instruction_key(34)),
+            address_offset: Some(instruction_key(35)),
             store64: Some(instruction_key(31)),
             frame_address: Some(instruction_key(32)),
             linux_write_byte_i32: None,
@@ -1685,6 +1689,14 @@ mod tests {
         }
 
         for changed_keys in [
+            TargetRegisterEnvironmentConstraintKeys {
+                store: None,
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                address_offset: None,
+                ..keys.clone()
+            },
             TargetRegisterEnvironmentConstraintKeys {
                 call_unit: Vec::new(),
                 ..keys.clone()

@@ -1,4 +1,4 @@
-//! Boolean results remain a sole-use suffix consumed by the current branch.
+//! Boolean predicates form branch suffixes; literals also feed calls and stores.
 use super::*;
 use optimization_unit::OptimizationBlock;
 
@@ -52,6 +52,9 @@ pub(super) fn validate(
                     AbstractOperation::CallUnit { arguments, .. }
                         | AbstractOperation::CallStructuralScalar { arguments, .. }
                         if arguments.contains(&result))
+                        || matches!(&consumer.operation,
+                            AbstractOperation::StructuralScalarFieldStore { value, .. }
+                            if value.value == result && value.scalar_type == ScalarType::Boolean)
                 })
             {
                 return Err(invalid);

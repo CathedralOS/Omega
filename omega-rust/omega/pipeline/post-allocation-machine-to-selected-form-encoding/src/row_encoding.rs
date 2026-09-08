@@ -29,7 +29,9 @@ pub(super) fn encode_row(
     let architecture = target.architecture;
     let alternative = machine.alternative.key;
     let state = match selected.kind {
-        kind @ (SelectedInstructionKind::Load64 { .. }
+        kind @ (SelectedInstructionKind::Store { .. }
+        | SelectedInstructionKind::AddressOffset { .. }
+        | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }

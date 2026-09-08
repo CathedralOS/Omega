@@ -13,6 +13,61 @@ pub(crate) struct Parameter<'a> {
     pub target: &'a target_operations::TargetStructuralParameter,
 }
 
+pub(crate) fn accepts_write_borrow(
+    call_plan: &CallPlan,
+    parameters: &[Parameter<'_>],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    let [parameter] = parameters else {
+        return false;
+    };
+    let Some(scalar_count) = call_plan.parameters.len().checked_sub(1) else {
+        return false;
+    };
+    let semantic = parameter.semantic;
+    let Some(referent) =
+        crate::structural_reference_input::shape(semantic.structural_type, structural_types)
+    else {
+        return false;
+    };
+    let shape =
+        calling_conventions::ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+    let mut shapes = call_plan.parameters[..scalar_count]
+        .iter()
+        .map(|placement| placement.shape)
+        .collect::<Vec<_>>();
+    if shapes.iter().any(|shape| {
+        ![1, 2, 4, 8].contains(&shape.byte_size)
+            || *shape != calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+    }) {
+        return false;
+    }
+    shapes.push(shape);
+    calling_conventions::evaluate_call_plan(
+        call_plan.policy,
+        &calling_conventions::CallSignature {
+            parameters: shapes,
+            result: None,
+        },
+    )
+    .is_ok_and(|expected| expected == *call_plan)
+        && semantic.position == 0
+        && matches!(
+            semantic.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        )
+        && semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && semantic.qualifications.is_empty()
+        && semantic.projected_qualifications.is_empty()
+        && parameter.target.place == semantic.place
+        && parameter.target.structural_type == semantic.structural_type
+        && parameter.target.access == semantic.access
+        && parameter.target.multiplicity == semantic.multiplicity
+        && parameter.target.projected_qualifications.is_empty()
+        && parameter.target.shape == shape
+        && parameter.target.placement == call_plan.parameters[scalar_count]
+}
+
 /// An immutable byte descriptor is borrowed through one native pointer.
 pub(crate) fn accepts_borrowed_view(
     call_plan: &CallPlan,

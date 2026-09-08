@@ -43,9 +43,10 @@ roots. Indexing requires a material root and primitive/record leaf; an existing
 reference ABI does not grant readable access. Empty-selection publication retains
 the complete abstract plan, not just a matching entry signature. The
 [source-produced indexed receiver probe](../tests/native-differential/tests/terminal_psi_indexed_receivers.rs)
-checks this admission and names the next native-store rejection. It is not native
-caller-observation coverage; `WRITE-ONLY-BORROW` in [TASKS.md](../TASKS.md) retains
-that acceptance command and the remaining transport work.
+checks this admission and executes native caller-owned writes through ordinary
+projected references on supported hosts. `WRITE-ONLY-BORROW` in
+[TASKS.md](../TASKS.md) retains the acceptance command and remaining stack-pointer
+transport and platform coverage.
 
 Abstract publication owns the immutable current plan independently of the
 receipt and retained replay inputs. Replay checks the exact schedule, candidate

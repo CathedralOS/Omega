@@ -216,6 +216,35 @@ pub(in crate::exit_contract) fn validate_non_return(
                 && effects.trap == MachineEncodedTrapBehavior::LinuxWriteFailureV1
         }
         (
+            SelectedInstructionKind::Store {
+                byte_offset,
+                byte_size,
+            },
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            Some(address),
+        ) => {
+            matches!(byte_size, 1 | 2 | 4 | 8)
+                && address.displacement == byte_offset
+                && address.symbolic
+                    == physical_instructions::PhysicalAddressOperation::Store {
+                        base_operand: 0,
+                        byte_offset,
+                        byte_size,
+                    }
+        }
+        (
+            SelectedInstructionKind::AddressOffset { byte_offset },
+            MachineEncodedMemoryEffect::NoneV1,
+            Some(address),
+        ) => {
+            address.displacement == byte_offset
+                && address.symbolic
+                    == physical_instructions::PhysicalAddressOperation::AddressOffset {
+                        base_operand: 0,
+                        byte_offset,
+                    }
+        }
+        (
             SelectedInstructionKind::Load8Indexed,
             MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
                 pointer_operand: 0,

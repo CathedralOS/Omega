@@ -14,9 +14,6 @@ pub(super) fn reject_attached_unit_structural_scalar(
             .operations
             .iter()
             .find_map(|operation| match operation {
-                TargetUnitOperation::StructuralScalarFieldStore { psi_operation, .. } => {
-                    Some(*psi_operation)
-                }
                 // Free shared-view calls are reconstructed by ordinary graph
                 // admission. Attachment projections remain unsupported here.
                 TargetUnitOperation::StructuralScalarCall { psi_operation, .. }

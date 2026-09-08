@@ -7,6 +7,8 @@ impl SelectedConstraintKeys {
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         [
             self.linux_write_byte_i32,
+            self.store,
+            self.address_offset,
             self.load64,
             self.load8_indexed,
             self.store64,
@@ -39,6 +41,8 @@ impl SelectedConstraintKeys {
     ) -> Option<RegisterConstraintKey> {
         Some(match semantic {
             MachineSemanticKind::LinuxWriteByteI32 => return self.linux_write_byte_i32,
+            MachineSemanticKind::Store => return self.store,
+            MachineSemanticKind::AddressOffset => return self.address_offset,
             MachineSemanticKind::Load8Indexed => return self.load8_indexed,
             MachineSemanticKind::Load64 => return self.load64,
             MachineSemanticKind::Store64 => return self.store64,
