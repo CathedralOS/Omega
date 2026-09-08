@@ -149,6 +149,14 @@ fn lower_typed_trees_with_policy(
     }
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
+    // Finalize the discovered graph shapes against completed ownership facts.
+    crate::flow::finalize_checked_scalar_graph_plans(
+        &program,
+        &facts.flow.ownership,
+        &facts.values.scalar_computations,
+        &mut facts.flow.terminal_scalar_graphs,
+    );
+
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
     // structural/Unit terminal slice.

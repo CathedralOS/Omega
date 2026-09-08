@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod owned_parameters;
 pub(crate) mod result_contract;
 
 #[allow(clippy::too_many_arguments)]
@@ -1008,6 +1009,13 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         }
     }
     blocks.sort_by_key(|block| block.id);
+    // parameter_storage -> owned::validate must establish source no-code
+    // eligibility before assembly; this pass only completes runtime custody.
+    owned_parameters::complete(
+        structural_parameters,
+        scalar_source_block(identity_base, 0),
+        &mut blocks,
+    )?;
     let result = ValueDeclaration {
         id: value_id(next_value_identity),
         scalar_type: result_type,

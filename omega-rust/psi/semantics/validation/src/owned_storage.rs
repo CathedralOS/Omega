@@ -6,6 +6,9 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod tests;
+
 /// Temporary closed type arguments keep nested instantiations in their lexical
 /// environment. Reusing a declaration's parameter symbol must not capture an
 /// outer instantiation's argument or turn a stored reference into owned data.
@@ -35,15 +38,41 @@ pub fn has_plain_owned_contents_with_substitutions(
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    check_owned_contents(program, reference, substitutions, false)
+}
+
+/// Classify no-code owned storage while allowing primitive numeric restrictions.
+/// Callers still owe exact source type and value-constraint correspondence. This
+/// does not extend structural-return or construction routes that erase them.
+pub fn has_plain_owned_contents_with_numeric_constraints(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    check_owned_contents(program, reference, &[], true)
+}
+
+fn check_owned_contents(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    allow_numeric_constraints: bool,
+) -> bool {
     let mut arguments = Vec::new();
     for (symbol, argument) in substitutions {
-        let Some(argument) = resolve(program, *argument, &arguments) else {
+        let Some(argument) = resolve(program, *argument, &arguments, allow_numeric_constraints)
+        else {
             return false;
         };
         arguments.push((*symbol, argument));
     }
-    resolve(program, reference, &arguments).is_some_and(|resolved| {
-        check_contents(program, &resolved, &mut Vec::new(), &mut Vec::new())
+    resolve(program, reference, &arguments, allow_numeric_constraints).is_some_and(|resolved| {
+        check_contents(
+            program,
+            &resolved,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            allow_numeric_constraints,
+        )
     })
 }
 
@@ -51,6 +80,7 @@ fn resolve(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     arguments: &[(SymbolHandle, OwnedType)],
+    allow_numeric_constraints: bool,
 ) -> Option<OwnedType> {
     if !reference.is_valid() {
         return None;
@@ -92,7 +122,7 @@ fn resolve(
             }
             let resolved = source_arguments
                 .iter()
-                .map(|reference| resolve(program, *reference, arguments))
+                .map(|reference| resolve(program, *reference, arguments, allow_numeric_constraints))
                 .collect::<Option<Vec<_>>>()?;
             Some(OwnedType::Data(*base_symbol, resolved))
         }
@@ -100,13 +130,41 @@ fn resolve(
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length @ 1..),
         } => Some(OwnedType::Array(
-            Box::new(resolve(program, *element_type, arguments)?),
+            Box::new(resolve(
+                program,
+                *element_type,
+                arguments,
+                allow_numeric_constraints,
+            )?),
             *length,
         )),
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let rows = program.type_reference_table.constraints(*constraints);
+            if !allow_numeric_constraints
+                || rows.len() != constraints.count() as usize
+                || rows.is_empty()
+                || rows.iter().any(|constraint| {
+                    !matches!(
+                        constraint,
+                        typed_trees::types::TypeConstraintNode::Range { .. }
+                            | typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)
+                    )
+                })
+            {
+                return None;
+            }
+            // Numeric restrictions change valid values, not storage ownership.
+            // Loans, domains, atomic qualifiers, and constrained aggregates keep
+            // their separate custody; this is not general constraint erasure.
+            let scalar = resolve(program, *base_type, arguments, allow_numeric_constraints)?;
+            matches!(scalar, OwnedType::Scalar(_)).then_some(scalar)
+        }
         // These require retained loans, qualifications, or a different carrier.
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::Constrained { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::ConstExpression(_)
@@ -134,6 +192,7 @@ fn check_contents(
     resolved: &OwnedType,
     active: &mut Vec<OwnedType>,
     complete: &mut Vec<OwnedType>,
+    allow_numeric_constraints: bool,
 ) -> bool {
     if complete.contains(resolved) {
         return true;
@@ -141,7 +200,13 @@ fn check_contents(
     let OwnedType::Data(symbol, arguments) = resolved else {
         return match resolved {
             OwnedType::Scalar(_) => true,
-            OwnedType::Array(element, _) => check_contents(program, element, active, complete),
+            OwnedType::Array(element, _) => check_contents(
+                program,
+                element,
+                active,
+                complete,
+                allow_numeric_constraints,
+            ),
             OwnedType::Data(..) => unreachable!(),
         };
     };
@@ -174,8 +239,15 @@ fn check_contents(
     active.push(resolved.clone());
     let mut check_field = |field: &typed_trees::data::DataField| {
         !field.relevance.is_erased()
-            && resolve(program, field.type_reference, &substitutions)
-                .is_some_and(|field| check_contents(program, &field, active, complete))
+            && resolve(
+                program,
+                field.type_reference,
+                &substitutions,
+                allow_numeric_constraints,
+            )
+            .is_some_and(|field| {
+                check_contents(program, &field, active, complete, allow_numeric_constraints)
+            })
     };
     let supported = program
         .data_members(data)

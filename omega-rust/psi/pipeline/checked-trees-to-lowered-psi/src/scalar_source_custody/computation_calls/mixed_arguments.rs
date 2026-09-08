@@ -7,7 +7,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-use super::{authored_state, borrow_rows, primitive_arguments};
+use super::{authored_state, borrow_rows, owned_arguments, primitive_arguments};
 use crate::{LoweringError, unsupported};
 
 mod access_occurrences;
@@ -162,10 +162,13 @@ pub(crate) fn rejoin_computation_call_arguments(
         }
         Some(borrow_call)
     };
-    let access_positions = if structural
-        .iter()
-        .any(|argument| argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
-    {
+    let access_positions = if structural.iter().any(|argument| {
+        matches!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::Owned
+        )
+    }) {
         Some(access_occurrences::rejoin(
             checked,
             borrow_call.ok_or(LoweringError::Unsupported(
@@ -216,18 +219,35 @@ pub(crate) fn rejoin_computation_call_arguments(
             let borrow_call = borrow_call.ok_or(LoweringError::Unsupported(
                 "computed invocation has no exact borrow call",
             ))?;
-            let position = primitive_arguments::validate(
-                checked,
-                caller_state,
-                statement,
-                parameter.type_reference,
-                expression,
-                argument,
-                borrow_call,
-                access_positions
-                    .as_ref()
-                    .map(|positions| positions[formal_position]),
-            )?;
+            let position = if argument.access == checked_trees::CheckedStructuralAccess::Owned {
+                owned_arguments::validate(
+                    checked,
+                    caller_state,
+                    parameter.type_reference,
+                    expression,
+                    argument,
+                    borrow_call,
+                    access_positions
+                        .as_ref()
+                        .map(|positions| positions[formal_position])
+                        .ok_or(LoweringError::Unsupported(
+                            "computed owned argument has no positional source observation",
+                        ))?,
+                )?
+            } else {
+                primitive_arguments::validate(
+                    checked,
+                    caller_state,
+                    statement,
+                    parameter.type_reference,
+                    expression,
+                    argument,
+                    borrow_call,
+                    access_positions
+                        .as_ref()
+                        .map(|positions| positions[formal_position]),
+                )?
+            };
             if previous_access.is_some_and(|previous| previous >= position) {
                 return unsupported(
                     "computed invocation duplicates or reorders structural access rows",

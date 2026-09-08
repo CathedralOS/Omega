@@ -35,6 +35,7 @@ pub(super) fn prepare(
     parameter_types: Vec<ScalarType>,
     structural_parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Prepared, LoweringError> {
     let (source_machine, source_state) = source_custody::authored_state(checked, state.state)?;
     let authored_prefix = checked
@@ -74,7 +75,8 @@ pub(super) fn prepare(
         .map(|(source, emitted)| (source.position, emitted.clone()))
         .collect::<Vec<_>>();
     let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len())
-        .with_structural_parameters(&structural_namespace);
+        .with_structural_parameters(&structural_namespace)
+        .with_structural_fields(structural_types);
     for parameter in source_custody::parameter_storage(checked, machine, state)? {
         scalar_bindings.initialize_parameter(
             parameter.symbol,

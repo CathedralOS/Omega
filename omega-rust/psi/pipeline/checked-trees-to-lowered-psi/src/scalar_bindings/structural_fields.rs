@@ -39,7 +39,9 @@ impl StructuralScalarFieldBinding {
         for (position, parameter) in parameters {
             if !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                StructuralAccess::Owned
+                    | StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
             ) {
                 continue;
             }

@@ -119,7 +119,7 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
         .unwrap();
     let state = graph.states[0].state;
     assert!(
-        registered_primitive_graph_target(
+        registered_structural_graph_target(
             &checked.typed,
             &checked.facts,
             enter,
@@ -152,7 +152,7 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
             _ => unreachable!(),
         }
         assert!(
-            registered_primitive_graph_target(
+            registered_structural_graph_target(
                 &checked.typed,
                 &facts,
                 enter,
@@ -166,8 +166,14 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
     let mut facts = checked.facts.clone();
     facts.flow.terminal_scalar_graphs.structural_types.clear();
     assert!(
-        registered_primitive_graph_target(&checked.typed, &facts, enter, state, PrimitiveType::U64)
-            .is_none()
+        registered_structural_graph_target(
+            &checked.typed,
+            &facts,
+            enter,
+            state,
+            PrimitiveType::U64
+        )
+        .is_none()
     );
     let mut facts = checked.facts.clone();
     facts
@@ -176,8 +182,14 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
         .machines
         .push(graph.clone());
     assert!(
-        registered_primitive_graph_target(&checked.typed, &facts, enter, state, PrimitiveType::U64)
-            .is_none()
+        registered_structural_graph_target(
+            &checked.typed,
+            &facts,
+            enter,
+            state,
+            PrimitiveType::U64
+        )
+        .is_none()
     );
 }
 

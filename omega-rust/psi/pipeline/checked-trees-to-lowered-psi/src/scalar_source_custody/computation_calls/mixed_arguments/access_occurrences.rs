@@ -49,6 +49,7 @@ pub(super) fn rejoin(
                     },
                 ),
                 ExpressionNode::Name(_) => (Some(expression), BorrowAccessKind::Read),
+                ExpressionNode::Member(_) => (Some(expression), BorrowAccessKind::Read),
                 // This follows borrow/accesses/read.rs: a nested call's own
                 // borrow formation has a separate call row. Here its actuals
                 // contribute reads to the enclosing argument's observation.
@@ -100,7 +101,27 @@ pub(super) fn rejoin(
                 if !table.expression_is_valid(named) {
                     return unsupported("computed shared borrow has a stale named observation");
                 }
-                let ExpressionNode::Name(name) = table.expression(named) else {
+                let mut receiver = named;
+                let mut segments = Vec::new();
+                let mut receivers = Vec::new();
+                while let ExpressionNode::Member(member) = table.expression(receiver) {
+                    if !member.member_symbol.is_valid()
+                        || member.case_variant.is_some()
+                        || !table.expression_is_valid(member.receiver)
+                        || receivers.contains(&receiver)
+                    {
+                        return unsupported(
+                            "computed argument has a stale or unsupported field observation",
+                        );
+                    }
+                    receivers.push(receiver);
+                    segments.push(facts::PlaceSegment::Field {
+                        symbol: member.member_symbol,
+                    });
+                    receiver = member.receiver;
+                }
+                segments.reverse();
+                let ExpressionNode::Name(name) = table.expression(receiver) else {
                     return unsupported("computed shared borrow requires a whole named referent");
                 };
                 let row = rows.get(position).ok_or(LoweringError::Unsupported(
@@ -112,11 +133,10 @@ pub(super) fn rejoin(
                     || table.name_path_members(name.members).len() != 1
                     || row.root_symbol != name.symbol
                     || row.kind != kind
-                    || !row.segments.is_empty()
                     || borrow
                         .access_segments
                         .span(row.segments)
-                        .is_none_or(|path| !path.is_empty())
+                        .is_none_or(|path| path != segments)
                 {
                     return unsupported(
                         "computed shared borrow substituted or reordered an observation",

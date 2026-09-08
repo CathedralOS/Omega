@@ -15,6 +15,8 @@ use terminal_codec::{
 
 #[path = "canonical/contract_fields.rs"]
 mod contract_fields;
+#[path = "canonical/owned_integer_fields.rs"]
+mod owned_integer_fields;
 use terminal_psi::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,

@@ -261,7 +261,7 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
-            validate_shared_owned_reads(machine, operation, &frontier)?;
+            validate_owned_reads(machine, operation, &frontier)?;
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
                 && frontier
                     .owned_places
@@ -912,10 +912,11 @@ pub(super) fn validate_structural_frontier(
 }
 
 /// Borrowed parameters are supplied by the caller. A shared view of an owned
-/// parameter or result, however, requires this frame to still own that value.
+/// parameter or result, or a direct scalar-field observation, requires this
+/// frame to still own that value.
 /// Check every read before committing any outgoing move; repeated shared
 /// arguments do not alter the frontier.
-fn validate_shared_owned_reads(
+fn validate_owned_reads(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
@@ -940,33 +941,45 @@ fn validate_shared_owned_reads(
         | OperationKind::BoundaryCall {
             structural_arguments,
             ..
-        } => structural_arguments,
-        _ => return Ok(()),
+        } => structural_arguments.as_slice(),
+        _ => &[],
     };
-    for argument in arguments.iter().filter(|argument| {
-        argument.access == StructuralAccess::SharedBorrow
-            && super::byte_sequence_subslice::borrowed_result(machine, argument.place).is_none()
-            && super::primitive_storage::local_result(machine, argument.place).is_none()
-            && (machine.structural_places.iter().any(|place| {
-                place.id == argument.place
-                    && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+    let observation = match operation.kind {
+        OperationKind::IntegerStructuralField { source, .. }
+        | OperationKind::BooleanStructuralField { source, .. } => Some(source),
+        _ => None,
+    };
+    let reads = arguments
+        .iter()
+        .filter(|argument| argument.access == StructuralAccess::SharedBorrow)
+        .map(|argument| argument.place)
+        .chain(observation);
+    for place in reads.filter(|place| {
+        super::byte_sequence_subslice::borrowed_result(machine, *place).is_none()
+            && super::primitive_storage::local_result(machine, *place).is_none()
+            && (machine.structural_places.iter().any(|declaration| {
+                declaration.id == *place
+                    && matches!(
+                        declaration.kind,
+                        StructuralPlaceKind::OperationResult { .. }
+                    )
             }) || machine.structural_parameters.iter().any(|parameter| {
-                parameter.place == argument.place
+                parameter.place == *place
                     && parameter.access == StructuralAccess::Owned
                     && parameter.multiplicity == StructuralMultiplicity::Affine
             }))
     }) {
-        if frontier.owned_places.get(&argument.place) != Some(&StructuralMultiplicity::Affine) {
+        if frontier.owned_places.get(&place) != Some(&StructuralMultiplicity::Affine) {
             return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                 operation: operation.id,
-                place: argument.place,
+                place,
             });
         }
-        if frontier.partial_custody_paths.contains_key(&argument.place) {
+        if frontier.partial_custody_paths.contains_key(&place) {
             return Err(
                 ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
                     operation: operation.id,
-                    place: argument.place,
+                    place,
                 },
             );
         }

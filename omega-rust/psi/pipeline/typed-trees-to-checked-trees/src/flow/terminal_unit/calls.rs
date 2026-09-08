@@ -3,12 +3,12 @@
 use super::*;
 
 pub(super) mod byte_subslice;
-mod primitive_arguments;
+mod computation_arguments;
 mod reference_forwarding;
 mod result_arguments;
 mod service_forward;
 
-pub(crate) use primitive_arguments::primitive_computation_argument;
+pub(crate) use computation_arguments::structural_computation_argument;
 
 #[cfg(test)]
 mod scalar_argument_tests;
@@ -1143,7 +1143,7 @@ pub(super) fn build_call_operation(
                 facts, target_machine.symbol, target_state.symbol, result)
                 || scalar_targets::registered_primitive_store_target(
                     program, facts, target_machine.symbol, target_state.symbol, result).is_some()
-                || scalar_targets::registered_primitive_graph_target(
+                || scalar_targets::registered_structural_graph_target(
                     program, facts, target_machine.symbol, target_state.symbol, result).is_some())
     {
         None
@@ -2022,7 +2022,7 @@ pub(super) fn structural_call_arguments(
             if restored_alias.is_some() {
                 return None;
             }
-            output.push(primitive_arguments::primitive_local_argument(
+            output.push(computation_arguments::primitive_local_argument(
                 program,
                 &facts.borrow,
                 caller_machine.symbol,

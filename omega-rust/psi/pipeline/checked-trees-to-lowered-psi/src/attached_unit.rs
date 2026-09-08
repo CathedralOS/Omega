@@ -1245,6 +1245,7 @@ fn assemble_unit_closure(
                 scalar_roots.contains(&source) && !(scalar_entry && source == entry),
                 &parameters.1,
                 &parameters.2,
+                &structural_types,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

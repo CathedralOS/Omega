@@ -73,7 +73,7 @@ mod state_graph;
 mod structural_scalar_store;
 pub(super) mod types;
 
-pub(crate) use calls::primitive_computation_argument;
+pub(crate) use calls::structural_computation_argument;
 use calls::*;
 use cleanup::*;
 use composed_control::*;
@@ -96,8 +96,8 @@ pub(super) fn cleanup_type_is_unit(
     is_unit(program, type_reference)
 }
 
-/// Reuse ordinary signature and shape ownership for scalar graph borrow inputs.
-pub(super) fn primitive_scalar_graph_signature(
+/// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
+pub(super) fn structural_scalar_graph_signature(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<(
@@ -105,15 +105,50 @@ pub(super) fn primitive_scalar_graph_signature(
     Vec<CheckedStructuralScalarParameterPlan>,
     Vec<CheckedUnitStructuralTypePlan>,
 )> {
-    if !returns::primitive_effects::has_plain_primitive_borrows(program, state) {
+    if program.state_parameters(state).iter().any(|parameter| {
+        let reference = match program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            TypeReferenceNode::Reference { referee, .. } => {
+                if program.primitive_type_reference(*referee).is_none() {
+                    return true;
+                }
+                *referee
+            }
+            _ => {
+                if parameter.is_mutable
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+                {
+                    return true;
+                }
+                if !validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    parameter.type_reference,
+                ) {
+                    return true;
+                }
+                parameter.type_reference
+            }
+        };
+        !matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        )
+    }) {
         return None;
     }
     let mut shapes = ShapeCollector::new(program);
     let (structural, scalar) = free_structural_scalar_signature(program, &mut shapes, state, &[])?;
     if structural.iter().any(|parameter| {
         parameter.is_self
-            || parameter.multiplicity != Multiplicity::Unrestricted
-            || parameter.access == CheckedStructuralAccess::Owned
+            || !matches!(
+                (parameter.access, parameter.multiplicity),
+                (_, Multiplicity::Unrestricted)
+                    | (CheckedStructuralAccess::Owned, Multiplicity::Affine)
+            )
             || !parameter.qualifications.is_empty()
     }) {
         return None;

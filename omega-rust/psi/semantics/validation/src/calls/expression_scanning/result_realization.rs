@@ -14,6 +14,9 @@ use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetNod
 
 mod boundary_return;
 
+#[cfg(test)]
+mod tests;
+
 /// Result operations own the outer call while their operands use the shared
 /// scalar evaluator. Each caller family retains its existing source topology.
 pub fn result_initializer_call_is_supported(
@@ -439,7 +442,7 @@ fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
             });
-            // Mixed scalar roots now retain actual primitive parameter places.
+            // Mixed scalar roots retain primitive borrows and whole owned inputs.
             // Structural state forwarding remains outside this graph slice;
             // exact computation and borrow custody are still checked downstream.
             if mixed && states.len() != 1 {
@@ -476,7 +479,16 @@ fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {
                                 program.type_reference_table.type_reference(reference),
                                 typed_trees::types::TypeReferenceNode::Named { .. }
                             ))
-                        && program.primitive_type_reference(reference).is_some()
+                        && (program.primitive_type_reference(reference).is_some()
+                            || (reference == parameter.type_reference
+                                && matches!(
+                                    program.type_multiplicity(reference),
+                                    language_semantics::Multiplicity::Affine
+                                        | language_semantics::Multiplicity::Unrestricted
+                                )
+                                && crate::has_plain_owned_contents_with_numeric_constraints(
+                                    program, reference,
+                                )))
                 })
         })
 }

@@ -58,6 +58,7 @@ use typed_trees::{
 };
 
 mod guards;
+mod owned_parameters;
 pub(super) mod primitive_locals;
 
 #[cfg(test)]
@@ -89,6 +90,42 @@ pub(crate) fn build_checked_scalar_graph_plans(
         parameter_storage,
         structural_types: structural_types.into_values().collect(),
     }
+}
+
+/// Finalize discovered bodies only after ownership checking supplies the ledger.
+pub(crate) fn finalize_checked_scalar_graph_plans(
+    program: &TypedTrees,
+    ownership: &checked_trees::FlowOwnershipFacts,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    plans: &mut CheckedScalarGraphPlans,
+) {
+    plans.machines.retain(|graph| {
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == graph.machine)
+        else {
+            return false;
+        };
+        graph.states.iter().all(|retained| {
+            let Some(state) = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == retained.state)
+            else {
+                return false;
+            };
+            owned_parameters::validate(
+                program,
+                ownership,
+                computations,
+                graph.machine,
+                state,
+                &retained.structural_parameters,
+            )
+            .is_some()
+        })
+    });
 }
 
 fn build_machine_graph(
@@ -139,7 +176,7 @@ fn build_machine_graph(
                 if source_states.len() != 1 || machine.attached_data.is_some() {
                     return None;
                 }
-                super::terminal_unit::primitive_scalar_graph_signature(program, state)?
+                super::terminal_unit::structural_scalar_graph_signature(program, state)?
             } else {
                 (
                     Vec::new(),
@@ -188,6 +225,9 @@ fn build_machine_graph(
             // Call-free primitive-reference leaves retain their existing
             // structural scalar-return owner, including its admission fences.
             if mixed
+                && structural_parameters.iter().all(|parameter| {
+                    parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                })
                 && matches!(statements, [StatementNode::Expression(_)])
                 && !computations
                     .roots
