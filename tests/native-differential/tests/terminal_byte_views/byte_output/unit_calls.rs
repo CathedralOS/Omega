@@ -2,7 +2,7 @@
 use super::*;
 use semantic_vocabulary::{BlockId, ContractId, MachineId};
 
-fn unit_byte_output_calls_module() -> TerminalModule {
+pub(super) fn unit_byte_output_calls_module() -> TerminalModule {
     let mut module = widening::widened_byte_output_module();
     let mut caller = module.machines[0].clone();
     caller.id = MachineId::new(100).unwrap();

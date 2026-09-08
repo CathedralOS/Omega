@@ -88,15 +88,22 @@ pub(super) fn function_abi(
             }
         }
         AbstractFunctionResult::Unit => {
-            let TargetOperation::UnitBody(body) = &target.operation else {
-                return Err(invalid);
+            let (parameters, scalar_parameters, call_plan) = match &target.operation {
+                TargetOperation::UnitBody(body) => {
+                    (&body.parameters, &body.scalar_parameters, &body.call_plan)
+                }
+                TargetOperation::UnitGraph(graph) => (
+                    &graph.parameters,
+                    &graph.scalar_parameters,
+                    &graph.call_plan,
+                ),
+                _ => return Err(invalid),
             };
             if target.scalar_abi.is_some()
-                || !body.parameters.is_empty()
-                || body.call_plan != expected
-                || body.scalar_parameters.len() != abstracted.parameters.len()
-                || body
-                    .scalar_parameters
+                || !parameters.is_empty()
+                || *call_plan != expected
+                || scalar_parameters.len() != abstracted.parameters.len()
+                || scalar_parameters
                     .iter()
                     .zip(&abstracted.parameters)
                     .zip(&expected.parameters)

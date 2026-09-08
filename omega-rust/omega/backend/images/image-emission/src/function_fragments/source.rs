@@ -118,18 +118,18 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             ));
         }
         if unit && !abstracted.parameters.is_empty() && ranked.is_none() {
-            let body = unit_scalar_body(targeted).ok_or(Error::Mismatch(
+            let (call_plan, scalar_parameters, structural_parameters) = unit_scalar_abi(targeted)
+                .ok_or(Error::Mismatch(
                 "parameterized Unit function has no retained scalar ABI",
             ))?;
-            if body.scalar_parameters.len() != abstracted.parameters.len()
-                || body.call_plan.parameters.len() != abstracted.parameters.len()
-                || body.call_plan.result.is_some()
-                || !body.parameters.is_empty()
-                || body
-                    .scalar_parameters
+            if scalar_parameters.len() != abstracted.parameters.len()
+                || call_plan.parameters.len() != abstracted.parameters.len()
+                || call_plan.result.is_some()
+                || !structural_parameters.is_empty()
+                || scalar_parameters
                     .iter()
                     .zip(&abstracted.parameters)
-                    .zip(&body.call_plan.parameters)
+                    .zip(&call_plan.parameters)
                     .any(|((row, declaration), placement)| {
                         row.value != declaration.value
                             || row.scalar_type != declaration.scalar_type
@@ -140,7 +140,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     "Unit scalar ABI differs from current source",
                 ));
             }
-        } else if unit_scalar_body(targeted).is_some() {
+        } else if unit_scalar_abi(targeted).is_some() {
             return Err(Error::Mismatch("unexpected Unit scalar ABI"));
         }
         for operation in &abstracted.operations {
@@ -223,14 +223,27 @@ pub(super) fn ranked_record(
 }
 
 /// Borrow already validated target ABI facts; this does not construct an ABI plan.
-pub(super) fn unit_scalar_body(
+pub(super) fn unit_scalar_abi(
     function: &target_operations::TargetFunction,
-) -> Option<&target_operations::TargetUnitBody> {
+) -> Option<(
+    &calling_conventions::CallPlan,
+    &[target_operations::ScalarAbiValue],
+    &[target_operations::TargetStructuralParameter],
+)> {
     match &function.operation {
         target_operations::TargetOperation::UnitBody(body)
             if !body.scalar_parameters.is_empty() =>
         {
-            Some(body)
+            Some((&body.call_plan, &body.scalar_parameters, &body.parameters))
+        }
+        target_operations::TargetOperation::UnitGraph(graph)
+            if !graph.scalar_parameters.is_empty() =>
+        {
+            Some((
+                &graph.call_plan,
+                &graph.scalar_parameters,
+                &graph.parameters,
+            ))
         }
         _ => None,
     }

@@ -8,3 +8,4 @@ mod linux_write_and_exit;
 mod returning_byte_parameter;
 mod scalar_call_and_exit;
 mod scalar_definitions;
+mod unit_graph;

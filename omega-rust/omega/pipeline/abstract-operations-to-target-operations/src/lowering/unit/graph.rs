@@ -1,0 +1,398 @@
+//! Ordinary acyclic Unit control; live definitions are intersected at joins.
+use super::super::shared::*;
+use super::scalar_call::KnownUnitInteger;
+use target_operations::{
+    TargetScalarBlockParameter, TargetUnitBlock, TargetUnitGraph, TargetUnitSuccessor,
+    TargetUnitTerminator,
+};
+
+#[derive(Clone)]
+struct LiveScalars {
+    integers: BTreeMap<ValueId, KnownUnitInteger>,
+    booleans: BTreeMap<ValueId, (OperationId, bool)>,
+}
+
+impl LiveScalars {
+    fn intersect(&mut self, other: &Self) {
+        self.integers
+            .retain(|value, definition| other.integers.get(value) == Some(definition));
+        self.booleans
+            .retain(|value, definition| other.booleans.get(value) == Some(definition));
+    }
+}
+
+pub(super) fn lower(
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<TargetFunction, LoweringError> {
+    let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
+    if function.result != AbstractFunctionResult::Unit
+        || function.attachment.is_some()
+        || !function.structural_parameters.is_empty()
+        || !function.entry_claims.is_empty()
+        || !function.published_service_ceiling.is_empty()
+    {
+        return Err(invalid());
+    }
+    let prepared = super::setup::prepare_unit_function(function, target, structural_types)?;
+    let mut definitions = BTreeSet::new();
+    for parameter in &function.parameters {
+        if !definitions.insert(parameter.value) {
+            return Err(LoweringError::DuplicateValue(parameter.value));
+        }
+    }
+    for operation in &function.operations {
+        let result = match operation {
+            AbstractOperation::IntegerConstant { result, .. }
+            | AbstractOperation::BooleanConstant { result, .. }
+            | AbstractOperation::IntegerWiden { result, .. } => Some(*result),
+            _ => None,
+        };
+        if let Some(result) = result
+            && !definitions.insert(result)
+        {
+            return Err(LoweringError::DuplicateValue(result));
+        }
+    }
+    let entries = &function.block_entries;
+    if entries.is_empty()
+        || entries[0].operation_offset != 0
+        || entries.iter().any(|entry| {
+            !entry.parameters.is_empty()
+                && (entry.block != function.entry || entry.parameters != function.parameters)
+        })
+    {
+        return Err(invalid());
+    }
+    let mut ranges = Vec::new();
+    let mut incoming = vec![Vec::new(); entries.len()];
+    let mut outgoing = vec![Vec::new(); entries.len()];
+    let mut entry_position = None;
+    for (position, entry) in entries.iter().enumerate() {
+        if entries[..position]
+            .iter()
+            .any(|earlier| earlier.block == entry.block)
+        {
+            return Err(invalid());
+        }
+        if entry.block == function.entry {
+            entry_position = Some(position);
+        }
+        let end = entries
+            .get(position + 1)
+            .map_or(function.operations.len(), |next| next.operation_offset);
+        if entry.operation_offset >= end || end > function.operations.len() {
+            return Err(invalid());
+        }
+        ranges.push(entry.operation_offset..end);
+        let targets = match &function.operations[end - 1] {
+            AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } if cleanup_actions.is_empty() => Vec::new(),
+            AbstractOperation::Jump {
+                target,
+                bindings,
+                trivial_affine_discards,
+                residual_affine_discards,
+                ..
+            } if bindings.is_empty()
+                && trivial_affine_discards.is_empty()
+                && residual_affine_discards.is_empty() =>
+            {
+                vec![*target]
+            }
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } if when_true.bindings.is_empty()
+                && when_false.bindings.is_empty()
+                && when_true.trivial_affine_discards.is_empty()
+                && when_false.trivial_affine_discards.is_empty() =>
+            {
+                vec![when_true.target, when_false.target]
+            }
+            _ => return Err(invalid()),
+        };
+        for target_block in targets {
+            let target_position = entries
+                .iter()
+                .position(|candidate| candidate.block == target_block)
+                .ok_or_else(invalid)?;
+            if !outgoing[position].contains(&target_position) {
+                outgoing[position].push(target_position);
+                incoming[target_position].push(position);
+            }
+        }
+    }
+    let entry_position = entry_position.ok_or_else(invalid)?;
+    if !incoming[entry_position].is_empty() {
+        return Err(invalid());
+    }
+    let mut remaining = incoming.iter().map(Vec::len).collect::<Vec<_>>();
+    let mut pending = vec![entry_position];
+    let mut live_exits: Vec<Option<LiveScalars>> = vec![None; entries.len()];
+    let mut lowered = vec![None; entries.len()];
+    let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
+    let initial = LiveScalars {
+        integers: super::setup::integer_parameters(function.machine, &prepared.scalar_parameters)?,
+        booleans: BTreeMap::new(),
+    };
+    while let Some(position) = pending.pop() {
+        let mut live = if position == entry_position {
+            initial.clone()
+        } else {
+            let first = *incoming[position].first().ok_or_else(invalid)?;
+            let mut live = live_exits[first].as_ref().ok_or_else(invalid)?.clone();
+            for predecessor in incoming[position].iter().skip(1) {
+                live.intersect(live_exits[*predecessor].as_ref().ok_or_else(invalid)?);
+            }
+            live
+        };
+        let range = ranges[position].clone();
+        let mut operations = Vec::new();
+        let provenance = &mut block_provenance[position];
+        for operation in &function.operations[range.start..range.end - 1] {
+            lower_operation(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &prepared,
+                &mut live,
+                &mut operations,
+                provenance,
+            )?;
+        }
+        let terminator = terminator(
+            &function.operations[range.end - 1],
+            function,
+            &prepared,
+            &live,
+            provenance,
+        )?;
+        lowered[position] = Some(TargetUnitBlock {
+            block: entries[position].block,
+            parameters: entries[position]
+                .parameters
+                .iter()
+                .map(|parameter| TargetScalarBlockParameter {
+                    value: parameter.value,
+                    scalar_type: parameter.scalar_type,
+                })
+                .collect(),
+            operations,
+            terminator,
+        });
+        live_exits[position] = Some(live);
+        for successor in &outgoing[position] {
+            remaining[*successor] = remaining[*successor].checked_sub(1).ok_or_else(invalid)?;
+            if remaining[*successor] == 0 {
+                pending.push(*successor);
+            }
+        }
+    }
+    let blocks = lowered
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(invalid)?;
+    let mut provenance = TerminalPsiProvenance::default();
+    for block in block_provenance {
+        provenance.operations.extend(block.operations);
+        provenance.edges.extend(block.edges);
+    }
+    Ok(TargetFunction {
+        machine: function.machine,
+        attachment: function.attachment,
+        scalar_abi: None,
+        mixed_structural_scalar_abi: None,
+        provenance,
+        operation: TargetOperation::UnitGraph(TargetUnitGraph {
+            structural_types: structural_types
+                .values()
+                .map(|declaration| (*declaration).clone())
+                .collect(),
+            call_plan: prepared.call_plan,
+            scalar_parameters: prepared.scalar_parameters,
+            parameters: prepared.parameters,
+            entry: function.entry,
+            blocks,
+        }),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_operation(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    prepared: &super::setup::PreparedUnitFunction,
+    live: &mut LiveScalars,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    match operation {
+        AbstractOperation::IntegerConstant {
+            psi_operation,
+            result,
+            scalar_type: ScalarType::Integer(scalar_type),
+            value,
+        } => super::scalar_definitions::lower_integer_constant(
+            function.machine,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *value,
+            false,
+            &mut BTreeMap::new(),
+            &mut live.integers,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::BooleanConstant {
+            psi_operation,
+            result,
+            value,
+        } => super::scalar_definitions::lower_boolean_constant(
+            function.machine,
+            *psi_operation,
+            *result,
+            *value,
+            false,
+            &mut live.booleans,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::IntegerWiden { .. } => super::scalar_definitions::lower_integer_widen(
+            operation,
+            function.machine,
+            &prepared.scalar_parameters,
+            false,
+            &mut live.integers,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } if structural_arguments.is_empty()
+            && claim_transfers.is_empty()
+            && requirement_obligations.is_empty()
+            && crash_continuations.is_empty() =>
+        {
+            super::structural_call::lower_structural_unit_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &live.integers,
+                &BTreeMap::new(),
+                &live.booleans,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                operations,
+                provenance,
+            )
+        }
+        _ => Err(LoweringError::UnsupportedOperationInUnitFunction(
+            function.machine,
+        )),
+    }
+}
+
+fn terminator(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    prepared: &super::setup::PreparedUnitFunction,
+    live: &LiveScalars,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<TargetUnitTerminator, LoweringError> {
+    let invalid = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
+    let successor = |edge: &abstract_operations::AbstractSuccessor| TargetUnitSuccessor {
+        psi_edge: edge.psi_edge,
+        target: edge.target,
+        bindings: edge.bindings.clone(),
+        cleanup_actions: Vec::new(),
+    };
+    match operation {
+        AbstractOperation::ReturnUnit {
+            psi_edge,
+            cleanup_actions,
+        } => {
+            provenance.edges.push(*psi_edge);
+            Ok(TargetUnitTerminator::Return {
+                psi_edge: *psi_edge,
+                cleanup_actions: cleanup_actions.clone(),
+            })
+        }
+        AbstractOperation::Jump {
+            psi_edge,
+            target,
+            bindings,
+            ..
+        } => {
+            provenance.edges.push(*psi_edge);
+            Ok(TargetUnitTerminator::Jump {
+                successor: TargetUnitSuccessor {
+                    psi_edge: *psi_edge,
+                    target: *target,
+                    bindings: bindings.clone(),
+                    cleanup_actions: Vec::new(),
+                },
+            })
+        }
+        AbstractOperation::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let expression = if let Some((position, parameter)) = prepared
+                .scalar_parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| {
+                    parameter.value == *condition && parameter.scalar_type == ScalarType::Boolean
+                }) {
+                TargetBooleanExpression::Parameter {
+                    source_value: *condition,
+                    parameter_index: position,
+                    location: super::super::scalar::scalar_parameter_location(
+                        &AbstractParameter {
+                            value: *condition,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        &parameter.placement,
+                    )?,
+                }
+            } else if let Some((_, value)) = live.booleans.get(condition) {
+                TargetBooleanExpression::Immediate {
+                    source_value: *condition,
+                    value: *value,
+                }
+            } else {
+                return Err(invalid());
+            };
+            provenance
+                .edges
+                .extend([when_true.psi_edge, when_false.psi_edge]);
+            Ok(TargetUnitTerminator::Conditional {
+                condition_source: *condition,
+                condition: expression,
+                when_true: successor(when_true),
+                when_false: successor(when_false),
+            })
+        }
+        _ => Err(invalid()),
+    }
+}

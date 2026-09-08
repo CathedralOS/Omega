@@ -184,15 +184,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   They measure and read one shared parameter with runtime `u64` indices guarded
   by the exact view's length, observe checked subslices, and preserve the original
   descriptor and `u64`/Boolean inputs across repeated scalar-result and genuine
-  Unit helper calls. Complete derived-view Unit calls, block transfers and Unit
-  control before joining natural-ranked writer execution. Void-call return
+  Unit helper calls. Complete derived-view Unit calls, block argument transfers
+  and byte-dependent Unit control before joining natural-ranked writer execution. Void-call return
   and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
   and source-place evidence when joining these dependencies.
-  Derived-view Unit calls still need the upper ordered graph: in
-  `abstract-operations-to-target-operations/src/lowering/`, Unit preflight
-  requires one block, `unit/body.rs` rejects byte observations/subslices, and
-  `scalar/straight_line/operation.rs` rejects `CallUnit`. Unit argument
+  Extend `abstract-operations-to-target-operations/src/lowering/unit/graph.rs`
+  from scalar-only acyclic calls and Boolean branches to derived-view Unit
+  calls and byte observations/subslices; `unit/body.rs` also rejects those
+  producers, and `scalar/straight_line/operation.rs` rejects `CallUnit`. Unit argument
   sourcing also lacks established-view producers. Join the ordinary call route
   to the activation-local homes in
   `target-operations-to-selected-instructions/src/selection/`, retaining
@@ -202,8 +202,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   resultless call or synthetic incoming descriptor.
   Use `terminal_byte_views/byte_output.rs` for the Linux `i32` byte leaf's
   selected/frame/object/image custody; Linux execution requires a Linux host.
-  While joining derived views and Unit control, retain the byte widening and
-  scalar-only call regression floor in `terminal_byte_views/byte_output/`.
+  While joining derived views and byte-dependent control, retain the byte widening,
+  scalar-only calls and branch/join regression floor in `terminal_byte_views/byte_output/`.
   Preserve the defining operation, normalized byte ABI inputs, exact selected
   call evidence, output order and visible caller continuation; do not fabricate
   a descriptor or scalar return.

@@ -7,23 +7,26 @@ pub(super) fn reject_attached_unit_structural_scalar(
     target: &TargetOperationPlan,
 ) -> Result<(), LegalizationError> {
     for function in &target.functions {
-        let TargetOperation::UnitBody(body) = &function.operation else {
-            continue;
+        let forbidden = |operation: &TargetUnitOperation| match operation {
+            // Free shared-view calls are reconstructed by ordinary graph
+            // admission. Attachment projections remain unsupported here.
+            TargetUnitOperation::StructuralScalarCall { psi_operation, .. }
+                if function.attachment.is_some() =>
+            {
+                Some(*psi_operation)
+            }
+            _ => None,
         };
-        if let Some(operation) = body
-            .operations
-            .iter()
-            .find_map(|operation| match operation {
-                // Free shared-view calls are reconstructed by ordinary graph
-                // admission. Attachment projections remain unsupported here.
-                TargetUnitOperation::StructuralScalarCall { psi_operation, .. }
-                    if function.attachment.is_some() =>
-                {
-                    Some(*psi_operation)
-                }
-                _ => None,
-            })
-        {
+        let operation = match &function.operation {
+            TargetOperation::UnitBody(body) => body.operations.iter().find_map(forbidden),
+            TargetOperation::UnitGraph(graph) => graph
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(forbidden),
+            _ => None,
+        };
+        if let Some(operation) = operation {
             return Err(
                 LegalizationError::AttachedUnitStructuralScalarNotYetSelectable {
                     machine: function.machine,

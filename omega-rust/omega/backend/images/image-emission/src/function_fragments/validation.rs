@@ -88,13 +88,11 @@ pub fn validate_function_fragment_object_artifact(
         } else {
             format!("omega_terminal_machine_{}", placed.machine.get())
         };
-        let unit_abi_matches = match (
-            &function.unit_scalar_abi,
-            source::unit_scalar_body(targeted),
-        ) {
+        let unit_abi_matches = match (&function.unit_scalar_abi, source::unit_scalar_abi(targeted))
+        {
             (None, None) => true,
-            (Some(actual), Some(body)) => {
-                actual.call_plan == body.call_plan && actual.parameters == body.scalar_parameters
+            (Some(actual), Some((call_plan, parameters, _))) => {
+                actual.call_plan == *call_plan && actual.parameters == parameters
             }
             _ => false,
         };
