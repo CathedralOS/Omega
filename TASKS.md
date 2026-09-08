@@ -144,14 +144,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   actionable.
 
   Measure remaining package latency with an already-built release CLI, separately
-  from Cargo build time. At `976cb89c40` on macOS ARM64, the command above
-  (`--build-dir build/cli-mvp-frames`) exits 1 at missing package acceptance
-  in 17.62–17.73 seconds with unchanged complete findings. Next inspect repeated
-  mutation-summary preparation across flow's value-input passes in
-  `omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/`, and exact-prefix
-  write-path inference in `omega-rust/psi/semantics/validation/src/calls/write_frames/`.
-  Confirm improvements through this outer command, not isolated query timings.
-  Local symbol-name grouping did not improve whole-route latency.
+  from Cargo build time. At `ef78ef665d` on macOS ARM64, the command above
+  (`--build-dir build/cli-mvp-summaries`) exits 1 at missing package acceptance
+  in 17.25–17.40 seconds with unchanged complete findings. Next trace repeated
+  machine/state lookup through
+  `omega-rust/psi/representations/typed-trees/src/typed_trees.rs` and the existing
+  `omega-rust/psi/semantics/validation/src/symbols/` owners. These accessors
+  revalidate arena spans; inspect opportunities to borrow validated views within
+  an immutable pass before adding another cache. Select work from self cost,
+  not inflated recursive stack counts. Name grouping and accessor inlining did
+  not establish a whole-route gain. Confirm improvements through this outer
+  command, not isolated query timings.
   Std itself changes semantic bindings between discovery and final checking, so
   retaining unaffected dependencies would not eliminate its second compilation.
   Preserve distinct source/selection inputs, conservative unknown-write handling,
