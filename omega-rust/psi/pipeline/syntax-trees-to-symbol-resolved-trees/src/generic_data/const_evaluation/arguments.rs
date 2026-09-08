@@ -95,6 +95,18 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                     );
                     continue;
                 }
+                if const_values.contains_key(name.as_str())
+                    || const_definitions.contains_key(name.as_str())
+                {
+                    crate::generic_data::module_constants::reject_module_constant_selection(
+                        syntax,
+                        name.as_str(),
+                        name.source_span(),
+                    )
+                    .map_err(|reason| {
+                        Diagnostic::error(reason).with_source_span(name.source_span())
+                    })?;
+                }
                 if let Some(value) = const_values.get(name.as_str()) {
                     syntax.tables.type_references.replace_type_reference(
                         *argument,
@@ -258,22 +270,30 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
                 "integer operand must fit the signed/unsigned 64-bit envelope".to_string()
             }),
         ExpressionNode::Name(path) => {
-            let name = syntax
-                .expressions
-                .identifier_path_members(*path)
+            let members = syntax.expressions.identifier_path_members(*path);
+            let name = members
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
-            if let Some(value) = parameter_values
-                .get(&name)
-                .or_else(|| const_values.get(&name))
-            {
+            if let Some(value) = parameter_values.get(&name) {
                 Ok(EvaluatedConst::Concrete(*value))
             } else if symbolic_parameters.contains(&name) {
                 Ok(EvaluatedConst::Symbolic(name))
             } else {
-                Err(format!("`{name}` is not a scoped integer const"))
+                crate::generic_data::module_constants::reject_module_constant_selection(
+                    syntax,
+                    &name,
+                    members
+                        .first()
+                        .map(|member| member.source_span())
+                        .unwrap_or_default(),
+                )?;
+                const_values
+                    .get(&name)
+                    .copied()
+                    .map(EvaluatedConst::Concrete)
+                    .ok_or_else(|| format!("`{name}` is not a scoped integer const"))
             }
         }
         ExpressionNode::Binary(binary) => {

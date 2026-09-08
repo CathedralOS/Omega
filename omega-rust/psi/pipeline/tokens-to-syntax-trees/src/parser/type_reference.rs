@@ -592,11 +592,19 @@ pub(super) fn parse_domain_argument_handles<'tokens, 'source>(
         let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
         input = rest;
         let argument = match syntax_trees.expressions.expression(expression) {
-            ExpressionNode::Name(_) => {
+            ExpressionNode::Name(path) => {
                 let name = syntax_trees.expressions.display_name(expression);
+                let members = syntax_trees.expressions.identifier_path_members(*path);
+                let Some(first) = members.first() else {
+                    return Err(input.error_here("domain index name requires a path member"));
+                };
+                let mut source_span = first.source_span();
+                if let Some(last) = members.last() {
+                    source_span.span.end = last.source_span().span.end;
+                }
                 syntax_trees
                     .type_references
-                    .insert_named(Identifier::generated(name))
+                    .insert_named(Identifier::new(name, source_span))
             }
             _ if const_expression_contains_name(syntax_trees, expression)
                 || const_expression_requires_semantic_admission(syntax_trees, expression) =>

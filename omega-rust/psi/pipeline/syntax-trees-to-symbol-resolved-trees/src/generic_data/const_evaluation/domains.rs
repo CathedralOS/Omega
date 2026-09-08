@@ -262,6 +262,18 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                     }
                     continue;
                 }
+                if const_values.contains_key(name.as_str())
+                    || const_definitions.contains_key(name.as_str())
+                {
+                    crate::generic_data::module_constants::reject_module_constant_selection(
+                        syntax,
+                        name.as_str(),
+                        name.source_span(),
+                    )
+                    .map_err(|reason| {
+                        Diagnostic::error(reason).with_source_span(name.source_span())
+                    })?;
+                }
                 if let Some(value) = const_values.get(name.as_str()) {
                     syntax.tables.type_references.replace_type_reference(
                         argument,

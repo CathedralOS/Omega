@@ -1,0 +1,8 @@
+module rooms;
+
+const DAMAGE: u32 = 9;
+
+machine damage() -> u32
+requires 9u32 == 9u32
+ensures 9u32 == 9u32
+{ DAMAGE }

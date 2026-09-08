@@ -24,6 +24,7 @@ mod arguments;
 mod const_evaluation;
 mod discovery;
 mod eligibility;
+mod module_constants;
 mod substitution;
 mod synthesis;
 mod uses;
@@ -32,6 +33,8 @@ mod uses;
 mod division_tests;
 #[cfg(test)]
 mod fact_division_tests;
+#[cfg(test)]
+mod module_constant_tests;
 #[cfg(test)]
 mod remainder_tests;
 

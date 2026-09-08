@@ -59,16 +59,25 @@ logical paths to the exact loaded source. Package aliases do not rename nominal
 identities or grant transitive selection authority. Static namespace calls retain
 the authored `::` distinction from value-member `.` calls through parsing.
 
-Nominal data references and scalar free-machine calls have namespace coverage,
-including qualified Terminal selection and canonical nominal review rows. This
-is not completion of the [module/name contract](../../../wiki/spec/language/modules.md):
-constant/template normalization, trait defaults, operator homes, qualified
-constructors, and the remaining declaration forms still need exact
-namespace-aware resolution. Module-owned constants, generic templates, traits,
-conformances, domains, and operators currently reject before their bare-name
-transforms; so do generic carrier/argument collisions across module scopes.
-Import loading still uses source-path
-candidates, including enclosing prefixes for a module's declarations; it does
+Nominal data references, scalar free-machine calls, and primitive literal
+constants used in bodies have namespace coverage, including qualified Terminal
+selection and independently executable constant artifacts. Constant substitution
+uses exact module/package selection after lexical name assignment and retains
+the selected declaration at the original use. This is not completion of the
+[module/name contract](../../../wiki/spec/language/modules.md):
+aggregate/type-scoped constant and template normalization, trait defaults,
+operator homes, qualified constructors, and the remaining declaration forms
+still need exact namespace-aware resolution. Module-owned aggregate/type-scoped
+constants, generic templates, traits, conformances, domains, and operators
+currently reject before their bare-name transforms; so do generic
+carrier/argument collisions across module scopes.
+Generic/domain constant folding rejects potential module selections until that
+pre-symbol transform can consume exact resolved declarations. Unrelated root
+constants and literal or binder-only applications remain available. Later
+syntax extensions cannot yet consume a retained base constant whose initializer
+was discarded at the previous resolution boundary.
+Import loading still uses source-path candidates, including enclosing prefixes
+for a module's declarations; it does
 not scan or parse a package-wide source inventory to discover arbitrary files.
 
 The focused source/Terminal probes run from the repository root:
@@ -76,6 +85,8 @@ The focused source/Terminal probes run from the repository root:
 ```sh
 cargo run -p omega -- --check tests/omega/pass/modules/qualified_declarations/main.omg
 cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_declarations/main.omg
+cargo run -p omega -- --check tests/omega/pass/modules/qualified_constants/main.omg
+cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_constants/main.omg
 ```
 
 [Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration

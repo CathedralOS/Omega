@@ -782,12 +782,15 @@ Owners include
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
-  constants/templates, trait defaults, operator homes, qualified constructors,
-  and remaining declaration forms. The explicit temporary fences live in
+  constant indices, aggregate/type-scoped constants, templates, trait defaults,
+  operator homes, qualified constructors, and remaining declaration forms.
+  Later syntax extensions also need retained base constant initializers; they
+  currently retain only declaration identity. The explicit temporary fences live in
   `syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs`; replace
   them with exact namespace-aware normalization, not bare-name fallback.
-  Source-prefix imports and nominal/free-machine namespaces have focused
-  coverage in `tests/omega/pass/modules/qualified_declarations` and the owning
+  Source-prefix imports, nominal/free-machine namespaces and scalar body
+  constants have focused coverage in `tests/omega/pass/modules/qualified_declarations`,
+  `tests/omega/pass/modules/qualified_constants` and the owning
   [source pipeline probes](omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization).
   Acceptance: remaining forms preserve exact module/package identity through
   canonical artifacts; same-leaf ambiguity rejects; private and transitive-only

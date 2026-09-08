@@ -24,6 +24,8 @@ static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 mod fixtures;
 #[path = "package_compilation_inputs/generic_visibility.rs"]
 mod generic_visibility;
+#[path = "package_compilation_inputs/module_constants.rs"]
+mod module_constants;
 #[path = "package_compilation_inputs/module_namespaces.rs"]
 mod module_namespaces;
 

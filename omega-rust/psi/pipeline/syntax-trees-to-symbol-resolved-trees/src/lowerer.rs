@@ -118,6 +118,11 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
     let mut syntax_trees = extension_syntax.clone();
     crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(Some(sources), additional_source_scoped_top_level_bindings);
+    lowerer.defer_const_substitution = crate::constant::has_module_owned_constants(&syntax_trees)
+        || base
+            .const_declarations
+            .iter()
+            .any(|declaration| base.symbols.symbol_module(declaration.symbol).is_valid());
     lowerer.seed_resolved_base(base);
 
     for item in syntax_trees.root_items() {
@@ -220,6 +225,7 @@ fn lower_syntax_trees_with_optional_sources(
     let mut syntax_trees = syntax_trees.clone();
     crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
+    lowerer.defer_const_substitution = crate::constant::has_module_owned_constants(&syntax_trees);
 
     for item in syntax_trees.root_items() {
         lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
@@ -254,6 +260,9 @@ pub(crate) struct Lowerer {
     /// must remain available to package-selection admission.
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
+    /// Scalar initializer handles retained only until namespace-aware substitution.
+    pub(crate) pending_const_values: Vec<(usize, ExpressionHandle)>,
+    pub(crate) defer_const_substitution: bool,
     /// Outcome paths are validated against the declared result sum during
     /// lowering, then stamped with exact declaration symbols after the shared
     /// symbol-assignment pass has minted those handles.
@@ -412,6 +421,8 @@ impl Lowerer {
             pending_authored_proof_memberships: Vec::new(),
             pending_const_declarations: Vec::new(),
             pending_const_selections: Vec::new(),
+            pending_const_values: Vec::new(),
+            defer_const_substitution: false,
             pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
             current_compiler_selection_partition: None,
@@ -598,6 +609,20 @@ impl Lowerer {
             &self.pending_const_declarations,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
+        if self.defer_const_substitution {
+            let retained_const_count = match &finish_mode {
+                FinishMode::Complete => 0,
+                FinishMode::Seeded { roots, .. } => roots.const_declarations,
+            };
+            crate::constant::substitute_resolved_constants(
+                &mut self.symbol_resolved_trees,
+                &self.pending_const_values,
+                &self.pending_authored_expressions,
+                &mut self.pending_const_selections,
+                retained_const_count,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+        }
         crate::constant::finalize_const_selections(
             &mut self.symbol_resolved_trees,
             &self.pending_const_selections,

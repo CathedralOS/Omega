@@ -27,16 +27,25 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
             }),
         ExpressionNode::Boolean(value) => Ok(Some(ConstFactValue::Boolean(*value))),
         ExpressionNode::Name(path) => {
-            let name = syntax
-                .expressions
-                .identifier_path_members(*path)
+            let members = syntax.expressions.identifier_path_members(*path);
+            let name = members
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
-            Ok(parameter_values
+            if let Some(value) = parameter_values.get(&name) {
+                return Ok(Some(ConstFactValue::Integer(*value)));
+            }
+            crate::generic_data::module_constants::reject_module_constant_selection(
+                syntax,
+                &name,
+                members
+                    .first()
+                    .map(|member| member.source_span())
+                    .unwrap_or_default(),
+            )?;
+            Ok(const_values
                 .get(&name)
-                .or_else(|| const_values.get(&name))
                 .copied()
                 .map(ConstFactValue::Integer))
         }
