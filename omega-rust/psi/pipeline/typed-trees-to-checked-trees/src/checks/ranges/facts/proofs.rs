@@ -227,8 +227,8 @@ impl RangeFacts<'_> {
 
     /// Records an exact-length fact: `collection` provably has exactly
     /// `length` elements (e.g. the subslice `a..b` over constant bounds has
-    /// length `b - a`). A zero/negative length carries no useful obligation
-    /// vocabulary, so it is dropped.
+    /// length `b - a`). Zero represents an empty live prefix; negative lengths
+    /// are not valid collection extents.
     pub(in crate::checks::ranges) fn prove_exact_length(
         &mut self,
         collection: String,
@@ -238,14 +238,16 @@ impl RangeFacts<'_> {
             return;
         }
 
-        if let Some((_, known_length)) = self
+        if let Some(position) = self
             .exact_lengths
-            .iter_mut()
-            .find(|(known_collection, _)| known_collection == &collection)
+            .iter()
+            .position(|(known_collection, _)| known_collection == &collection)
         {
-            // An exact length should be stable; if a second derivation disagrees
-            // keep the tighter (smaller) value so proofs stay sound.
-            *known_length = (*known_length).min(length);
+            // A smaller lower bound is not an exact equality. Conflicting
+            // derivations cannot supply an extent to value evaluation.
+            if self.exact_lengths[position].1 != length {
+                self.exact_lengths.remove(position);
+            }
             return;
         }
 

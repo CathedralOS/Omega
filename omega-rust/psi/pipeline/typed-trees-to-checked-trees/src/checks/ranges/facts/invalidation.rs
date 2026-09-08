@@ -30,8 +30,11 @@ impl RangeFacts<'_> {
             .flatten();
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
+        let affected = self.affected_expression_labels(program, machine, state, writes.as_deref());
         self.invalidate_relational_bounds(|name| {
-            !preserved.iter().any(|label| label == name) && write_affects_bound(name, &target)
+            affected.iter().any(|label| label == name)
+                || (!preserved.iter().any(|label| label == name)
+                    && write_affects_bound(name, &target))
         });
         // A saved Boolean expression is not a persistent proof of its old
         // operands after a direct assignment any more than after a call.
@@ -71,10 +74,13 @@ impl RangeFacts<'_> {
         });
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
+        let affected = self.affected_expression_labels(program, machine, state, writes.as_deref());
         let overlaps = |name: &str| {
-            !preserved.iter().any(|label| label == name)
-                && paths
-                    .is_none_or(|paths| paths.iter().any(|path| write_affects_bound(name, path)))
+            affected.iter().any(|label| label == name)
+                || (!preserved.iter().any(|label| label == name)
+                    && paths.is_none_or(|paths| {
+                        paths.iter().any(|path| write_affects_bound(name, path))
+                    }))
         };
         // Field constants currently retain a leaf name and declaration symbol,
         // not the instance's full storage path. A write to `self.cell.value`

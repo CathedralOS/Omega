@@ -165,6 +165,7 @@ use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
 pub(crate) use mutation::close_storage_places_over_aliases;
+pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_write_accesses,
     canonical_receiver_place_for_call_site, frame_storage_writes, statement_mutated_place,

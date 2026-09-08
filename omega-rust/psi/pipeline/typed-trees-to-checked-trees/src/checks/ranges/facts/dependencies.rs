@@ -23,7 +23,151 @@ pub(super) struct ExpressionDependencies {
     reads: Option<Vec<CanonicalPlace>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::checks::ranges) struct ReceiverLength {
+    expression: ExpressionHandle,
+    label: String,
+    place: CanonicalPlace,
+    length: i64,
+}
+
+impl ReceiverLength {
+    pub(in crate::checks::ranges) fn same_extent(&self, other: &Self) -> bool {
+        self.place == other.place && self.length == other.length
+    }
+}
+
 impl RangeFacts<'_> {
+    pub(in crate::checks::ranges) fn forget_collection_expression(&mut self, label: &str) {
+        self.forget_collection_facts(label);
+        // A later state or binding can reuse the display label for different
+        // storage. New extent evidence must not attach to its old typed reads.
+        self.expression_dependencies
+            .retain(|row| row.label != label);
+    }
+
+    pub(in crate::checks::ranges) fn expression_exact_length(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Option<i64> {
+        if self.exact_lengths.is_empty() {
+            return None;
+        }
+        let mut reads = Vec::new();
+        if !collect_reads(
+            program,
+            machine,
+            state,
+            self.statement_index,
+            expression,
+            &mut reads,
+            0,
+        ) || reads.len() != 1
+        {
+            return None;
+        }
+        reads[0] = crate::flow::rebase_exact_local_place(
+            program,
+            state.symbol,
+            self.statement_index,
+            reads[0].clone(),
+        )?;
+        let mut length = None;
+        for row in &self.expression_dependencies {
+            if row.machine != machine.symbol || row.state != state.symbol {
+                continue;
+            }
+            let Some(candidate) = self.exact_length(&row.label) else {
+                continue;
+            };
+            let row_reads = row.reads.as_ref().and_then(|row_reads| {
+                let [place] = row_reads.as_slice() else {
+                    return None;
+                };
+                crate::flow::rebase_exact_local_place(
+                    program,
+                    state.symbol,
+                    self.statement_index,
+                    place.clone(),
+                )
+                .map(|place| vec![place])
+            });
+            if row.machine == machine.symbol
+                && row.state == state.symbol
+                && same_reads(program, row_reads.as_deref(), Some(&reads))
+            {
+                if length.is_some_and(|known| known != candidate) {
+                    return None;
+                }
+                length = Some(candidate);
+            }
+        }
+        length
+    }
+
+    pub(in crate::checks::ranges) fn receiver_lengths(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+    ) -> Vec<ReceiverLength> {
+        self.expression_dependencies
+            .iter()
+            .filter_map(|row| {
+                let [place] = row.reads.as_deref()? else {
+                    return None;
+                };
+                let place = crate::flow::rebase_exact_local_place(
+                    program,
+                    state.symbol,
+                    self.statement_index,
+                    place.clone(),
+                )?;
+                (row.machine == machine.symbol
+                    && row.state == state.symbol
+                    && crate::flow::normalized_event_place_root(program, place.root)
+                        == facts::PlaceRoot::Symbol(machine.symbol)
+                    && !place.segments.is_empty()
+                    && place
+                        .segments
+                        .iter()
+                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
+                .then(|| {
+                    Some(ReceiverLength {
+                        expression: row.expression,
+                        label: row.label.clone(),
+                        place: CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(machine.symbol),
+                            segments: place.segments.clone(),
+                        },
+                        length: self.exact_length(&row.label)?,
+                    })
+                })?
+            })
+            .collect()
+    }
+
+    pub(in crate::checks::ranges) fn seed_receiver_lengths(
+        &mut self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        lengths: &[ReceiverLength],
+    ) {
+        for length in lengths {
+            self.prove_exact_length(length.label.clone(), length.length);
+            self.expression_dependencies.push(ExpressionDependencies {
+                expression: length.expression,
+                label: length.label.clone(),
+                machine,
+                state,
+                reads: Some(vec![length.place.clone()]),
+            });
+        }
+    }
+
     pub(in crate::checks::ranges) fn record_expression_dependencies(
         &mut self,
         program: &TypedTrees,
@@ -144,6 +288,37 @@ impl RangeFacts<'_> {
         }
         preserved
     }
+
+    pub(super) fn affected_expression_labels(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        writes: Option<&[CanonicalPlace]>,
+    ) -> Vec<String> {
+        let preserved = self.preserved_expression_labels(program, machine, state, writes);
+        self.expression_dependencies
+            .iter()
+            .filter(|row| {
+                row.machine == machine.symbol
+                    && row.state == state.symbol
+                    && !preserved.contains(&row.label)
+            })
+            .map(|row| row.label.clone())
+            .collect()
+    }
+
+    pub(in crate::checks::ranges) fn expression_is_disjoint_from_writes(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        writes: Option<&[CanonicalPlace]>,
+    ) -> bool {
+        self.preserved_expression_labels(program, machine, state, writes)
+            .contains(&program.expression_table.display_name(expression))
+    }
 }
 
 fn places_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
@@ -165,7 +340,8 @@ fn same_reads(
         return false;
     };
     let equal = |left: &CanonicalPlace, right: &CanonicalPlace| {
-        left.root == right.root
+        crate::flow::normalized_event_place_root(program, left.root)
+            == crate::flow::normalized_event_place_root(program, right.root)
             && left.segments.len() == right.segments.len()
             && left
                 .segments

@@ -15,6 +15,7 @@ pub(super) fn collect_state_argument_facts_for_call(
     facts: &RangeFacts<'_>,
     target_symbol: SymbolHandle,
     arguments: &[ExpressionHandle],
+    receiver_transition: bool,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
     let Some(target_state) = program
@@ -33,6 +34,7 @@ pub(super) fn collect_state_argument_facts_for_call(
     } else {
         collected.push(StateArgumentFacts {
             state: target_state.symbol,
+            machine: machine.symbol,
             parameters: program
                 .state_parameters(target_state)
                 .iter()
@@ -47,11 +49,29 @@ pub(super) fn collect_state_argument_facts_for_call(
                 })
                 .collect(),
             index_proofs: Default::default(),
+            receiver_lengths: None,
         });
         collected
             .last_mut()
             .expect("state argument facts were just inserted")
     };
+
+    // An ordinary invocation starts with its declared receiver obligations;
+    // only a state transition hands off the same receiver's live storage.
+    let incoming_lengths = if receiver_transition {
+        facts.receiver_lengths(program, machine, state)
+    } else {
+        Vec::new()
+    };
+    if let Some(existing) = &mut entry.receiver_lengths {
+        existing.retain(|length| {
+            incoming_lengths
+                .iter()
+                .any(|incoming| length.same_extent(incoming))
+        });
+    } else {
+        entry.receiver_lengths = Some(incoming_lengths);
+    }
 
     let parameter_arguments: Vec<(usize, ExpressionHandle)> = entry
         .parameters

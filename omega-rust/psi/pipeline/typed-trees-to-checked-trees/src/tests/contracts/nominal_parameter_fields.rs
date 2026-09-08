@@ -63,6 +63,7 @@ fn nominal_self_edge_rechecks_attached_default_fields() {
                 r#"{DEFINITIONS}
                 data Main {{ bytes: [u8; 4] in Utf8; packet: Packet; }}
                 machine Main::run(&mut self) {{
+                    {field} = "okay";
                     {field}[0] = 255;
                     {repair}
                     transition {{ _ -> self }}
@@ -83,6 +84,7 @@ fn nominal_self_edge_rechecks_named_state_attached_fields() {
             machine Main::run(&mut self) {{
                 transition {{ _ -> visit() }}
                 state visit(&mut self) {{
+                    self.packet.payload.bytes = "okay";
                     self.packet.payload.bytes[0] = 255;
                     {repair}
                     transition {{ _ -> self }}
@@ -100,6 +102,7 @@ fn nominal_self_edge_rechecks_raw_parameter_default_fields() {
         let source = format!(
             r#"{DEFINITIONS}
             machine run(packet: &mut Packet) {{
+                packet.payload.bytes = "okay";
                 packet.payload.bytes[0] = 255;
                 {repair}
                 transition {{ _ -> self }}

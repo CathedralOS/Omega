@@ -16,7 +16,12 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
         return None;
     }
 
+    if let Some(length) = facts.expression_exact_length(program, machine, state, expression) {
+        return usize::try_from(length).ok();
+    }
+
     match program.expression_table.expression(expression) {
+        ExpressionNode::String(bytes) => Some(bytes.len()),
         ExpressionNode::Call(call)
             if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
         {

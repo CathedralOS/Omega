@@ -23,6 +23,9 @@ pub(in crate::checks) fn fixed_array_type_length(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
+    if bounded_byte_type_capacity(program, type_reference).is_some() {
+        return None;
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::FixedArray { length, .. } => match length {
             FixedArrayLength::Literal(length) => Some(*length),
@@ -41,5 +44,17 @@ pub(in crate::checks) fn fixed_array_type_length(
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => None,
+    }
+}
+
+pub(super) fn bounded_byte_type_capacity(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            bounded_byte_type_capacity(program, *referee)
+        }
+        _ => validation::bounded_byte_buffer_capacity(program, type_reference),
     }
 }

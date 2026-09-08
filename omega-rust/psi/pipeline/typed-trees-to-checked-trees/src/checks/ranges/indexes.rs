@@ -6,6 +6,7 @@ use typed_trees::state::State;
 mod validation;
 
 use self::validation::check_indexed_access;
+pub(super) use self::validation::is_builtin_scalar_index;
 use super::facts::RangeFacts;
 
 pub(super) fn check_expression<'program>(

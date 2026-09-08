@@ -47,6 +47,7 @@ mod opaque_properties;
 mod operators;
 mod proof_embedding_totality;
 mod proof_embeddings;
+mod range_byte_live_lengths;
 mod range_call_invalidation;
 mod range_entry_contracts;
 mod range_expression_dependencies;

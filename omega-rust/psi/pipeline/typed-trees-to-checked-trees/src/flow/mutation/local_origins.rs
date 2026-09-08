@@ -179,6 +179,62 @@ fn place_requires_local_write_origin(
         .is_none_or(|resolver| resolver.local_requires_write_origin(local.type_reference))
 }
 
+/// Equality evidence needs one complete origin, not the conservative union
+/// used to retire facts after a possible write.
+pub(crate) fn rebase_exact_local_place(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: CanonicalPlace,
+) -> Option<CanonicalPlace> {
+    if !place_requires_local_write_origin(program, state_symbol, statement_index, &place) {
+        return Some(place);
+    }
+    let facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let state = find_state(program, state_symbol)?;
+    let machine = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == state_symbol)
+    })?;
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let resolver = validation::CallFrameResolver::new(program)?;
+    let origins = resolver.local_write_origins_before_statement(machine, statement)?;
+    let mut candidates = origins.iter().filter(|origin| {
+        origin.local_symbol == root
+            && canonical_place_segments_may_overlap(
+                program,
+                &place.segments,
+                &origin.local_segments,
+            )
+    });
+    let origin = candidates.next()?;
+    if candidates.next().is_some()
+        || place.segments.len() < origin.local_segments.len()
+        || !place
+            .segments
+            .iter()
+            .zip(&origin.local_segments)
+            .all(|(left, right)| canonical_place_segments_equal(*left, *right))
+    {
+        return None;
+    }
+    let (mut canonical, exact) = origin_place(program, state, statement_index, origin)?;
+    if !exact {
+        return None;
+    }
+    canonical
+        .segments
+        .extend_from_slice(&place.segments[origin.local_segments.len()..]);
+    Some(canonical)
+}
+
 pub(super) fn rebase_local_write_places(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
