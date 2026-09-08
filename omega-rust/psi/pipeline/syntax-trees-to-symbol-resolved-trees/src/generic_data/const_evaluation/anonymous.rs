@@ -149,6 +149,22 @@ impl AnonymousNumericValue {
     }
 }
 
+/// Keep authored operator applications intact until declaration selection.
+pub(super) fn requires_const_operator_selection(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            !has_builtin_const_operator(syntax, binary.operator)
+                || requires_const_operator_selection(syntax, binary.left)
+                || requires_const_operator_selection(syntax, binary.right)
+        }
+        ExpressionNode::Unary(unary) => requires_const_operator_selection(syntax, unary.operand),
+        _ => false,
+    }
+}
+
 pub(super) fn has_builtin_const_operator(syntax: &SyntaxTrees, operator: BinaryOperator) -> bool {
     let spelling = match operator {
         BinaryOperator::Add => OperatorSpelling::Add,

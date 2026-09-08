@@ -949,7 +949,10 @@ expression safe, nor does it override wrapping or saturating overflow cases.
 
 An exact anonymous rational quotient is not the `q` in that integer law.
 Proofs and algebra contracts must retain the operand kinds and the associated
-operator semantics. The source library's constructed `IntPair` is distinct
+operator semantics. An early const-argument normalizer must retain an application
+whose operator selection is unresolved, rather than fold it using the token's
+builtin meaning. Retention does not establish that later const evaluation is
+supported. The source library's constructed `IntPair` is distinct
 from builtin `Int`; this decision does not add operators to that nominal type
 or bypass proof-only runtime-consumption restrictions.
 

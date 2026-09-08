@@ -158,3 +158,94 @@ fn authored_const_operator_spelling_does_not_trigger_builtin_remainder_rejection
         });
     }
 }
+
+#[test]
+fn authored_const_operator_arguments_retain_selection_before_folding() {
+    let syntax = normalize(
+        "operator % u64::remainder(left: u64, right: u64) -> u64;
+         data Buffer<const N: u64> { values: [u8; N]; }
+         data Main { value: Buffer<7u64 % 2>; }",
+    )
+    .expect("unselected argument remains available for typing");
+    assert!(
+        !syntax.root_items().any(|item| matches!(item,
+            Item::Data(definition) if definition.name.as_str() == "Buffer<1>"
+        )),
+        "authored remainder was replaced with builtin arithmetic"
+    );
+}
+
+#[test]
+fn nested_authored_const_arguments_preserve_the_whole_application() {
+    let syntax = normalize(
+        "operator % u64::remainder(left: u64, right: u64) -> u64;
+         data Buffer<const First: u64, const Second: u64> { values: [u8; First]; }
+         data Main { value: Buffer<7 / 2 * 2, 1 + (7u64 % 2)>; }",
+    )
+    .expect("defer the application before rewriting arguments");
+    let definition = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Main" => Some(definition),
+            _ => None,
+        })
+        .expect("Main remains");
+    let [DataMember::Field(field)] = syntax.tables.items.data_members(definition.members) else {
+        panic!("one field");
+    };
+    let TypeReferenceNode::Generic { arguments, .. } = syntax
+        .tables
+        .type_references
+        .type_reference(field.type_reference)
+    else {
+        panic!("generic application remains");
+    };
+    for argument in syntax
+        .tables
+        .type_references
+        .type_reference_handles(*arguments)
+    {
+        assert!(matches!(
+            syntax.tables.type_references.type_reference(*argument),
+            TypeReferenceNode::ConstExpression(_)
+        ));
+    }
+}
+
+#[test]
+fn unrelated_operator_spelling_does_not_block_builtin_const_arguments() {
+    let syntax = normalize(
+        "operator + u64::add(left: u64, right: u64) -> u64;
+         data Buffer<const N: u64> { values: [u8; N]; }
+         data Main { value: Buffer<7u64 % 2>; }",
+    )
+    .expect("builtin remainder still folds");
+    assert!(syntax.root_items().any(|item| matches!(item,
+        Item::Data(definition) if definition.name.as_str() == "Buffer<1>"
+    )));
+}
+
+#[test]
+fn authored_const_domain_indices_retain_operator_selection() {
+    let syntax = normalize(
+        "operator % u64::remainder(left: u64, right: u64) -> u64;
+         domain<T, const N: u64> T::Indexed<N>;
+         data Main { value: u64 in Indexed<7u64 % 2>; }",
+    )
+    .expect("domain index remains for typing");
+    let domains = syntax.tables.type_references.domain_constraints();
+    let [domain] = domains.as_slice() else {
+        panic!("one domain");
+    };
+    let [argument] = syntax
+        .tables
+        .type_references
+        .type_reference_handles(domain.arguments)
+    else {
+        panic!("one argument");
+    };
+    assert!(matches!(
+        syntax.tables.type_references.type_reference(*argument),
+        TypeReferenceNode::ConstExpression(_)
+    ));
+}

@@ -40,6 +40,19 @@ pub(in crate::generic_data) fn consider_generic_spelling(
     if argument_handles.len() != base_info.parameter_names.len() {
         return Ok(());
     }
+    if base_info
+        .const_parameter_types
+        .iter()
+        .zip(&argument_handles)
+        .any(|(parameter_type, argument)| {
+            parameter_type.is_some()
+                && matches!(syntax.tables.type_references.type_reference(*argument),
+                    TypeReferenceNode::ConstExpression(expression)
+                        if super::anonymous::requires_const_operator_selection(syntax, *expression))
+        })
+    {
+        return Ok(());
+    }
     for ((parameter_name, parameter_type), argument) in base_info
         .parameter_names
         .iter()
@@ -264,6 +277,9 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
             }
         }
         ExpressionNode::Binary(binary) => {
+            if !super::anonymous::has_builtin_const_operator(syntax, binary.operator) {
+                return Err("const operator application requires declaration selection".to_owned());
+            }
             validate_anonymous_remainder(syntax, binary)?;
             let left = evaluate_const_argument_expression(
                 syntax,
