@@ -797,7 +797,16 @@ fn build_object_artifact_with_x86_feature_profile(
                 matches!(
                     home.location,
                     machine_code::StructuralSourceLocation::IncomingIndirectPointer { .. }
+                        | machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
                 )
+            })
+            || function.internal_unit_calls.iter().any(|call| {
+                call.arguments.iter().any(|argument| {
+                    matches!(
+                        argument.source_location,
+                        machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
+                    )
+                })
             })
         {
             return Err(ObjectError::InvalidInternalUnitCallEvidence(

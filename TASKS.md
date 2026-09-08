@@ -572,7 +572,7 @@ Owners include
   unwind/return behavior, and both Linux targets.
 
   Run indexed write-only receiver caller observations on both Linux hosts and
-  carry borrowed register/stack pointers through ordinary object publication.
+  extend ordinary borrowed publication to the remaining control/lifecycle forms.
   Keep original referent identity and exclusive access through incoming homes,
   projected calls, callee frames and caller continuation. The owning path is
   `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`
@@ -582,11 +582,13 @@ Owners include
   Its register/stack-pointer caller observations execute on macOS ARM64,
   including runtime scalar values and a retained root across three calls;
   four-target cross-emission is not Linux runtime coverage. The publication
-  consumer in `image-emission/src/function_fragments/structural.rs` still assumes
-  incoming indirect registers and owned copies and rejects mixed scalar Unit
-  arguments. Extend its records and independent replay without substituting
-  copied referents for pointer identity. Extend caller observations to broader
-  scalar call arguments and stores outside the
+  probe `--test terminal_psi_indexed_receivers -E 'test(publication::)'` additionally
+  checks ordinary object/image/installation records, mixed scalar/borrowed Unit
+  calls, exact installed-image custody and spill-inclusive stack demand. Its
+  implementation owners are `image-emission/src/function_fragments/structural.rs`
+  and `installation/borrowed_structural.rs`; keep copied referents distinct from
+  pointer identity while extending their bounded Unit admission. Extend caller
+  observations to broader scalar call arguments and stores outside the
   currently supported ordinary integer/Boolean field-store path. Preserve exact
   write widths, untouched bytes, and independent receiving replay; frame-slot
   stores or copied referents are not writeback.

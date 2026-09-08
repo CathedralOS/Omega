@@ -123,9 +123,22 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 "parameterized Unit function has no retained scalar ABI",
             ))?;
             if scalar_parameters.len() != abstracted.parameters.len()
-                || call_plan.parameters.len() != abstracted.parameters.len()
+                || call_plan.parameters.len()
+                    != abstracted.parameters.len() + abstracted.structural_parameters.len()
                 || call_plan.result.is_some()
-                || !structural_parameters.is_empty()
+                || structural_parameters.len() != abstracted.structural_parameters.len()
+                || structural.is_some_and(|contract| {
+                    contract.parameters.len() != structural_parameters.len()
+                        || contract
+                            .parameters
+                            .iter()
+                            .zip(structural_parameters)
+                            .any(|(selected, target)| selected.target != *target)
+                })
+                || structural_parameters
+                    .iter()
+                    .zip(&call_plan.parameters[scalar_parameters.len()..])
+                    .any(|(parameter, placement)| parameter.placement != *placement)
                 || scalar_parameters
                     .iter()
                     .zip(&abstracted.parameters)
@@ -182,6 +195,14 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerWiden { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. } => true,
+                AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }
+                | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {
+                    selected.memory_accesses.iter().any(|access| {
+                        access.operation == *psi_operation
+                            && access.place == destination.place
+                            && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
+                    })
+                }
                 AbstractOperation::Jump {
                     trivial_affine_discards,
                     ..

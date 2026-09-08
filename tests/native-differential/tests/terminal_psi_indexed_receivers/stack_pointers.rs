@@ -1,4 +1,6 @@
 use super::*;
+#[path = "stack_pointers/publication.rs"]
+mod publication;
 
 fn register_prefix(target: NativeTarget) -> usize {
     if target == NativeTarget::windows_x64() {

@@ -206,5 +206,14 @@ operation and fuel custody. The
 [source-produced receiver tests](../../../../tests/native-differential/tests/terminal_psi_indexed_receivers.rs)
 observe caller bytes, padding, interleaved projections and repeated calls on
 supported hosts, and cross-emit the indexed alias for four hosted targets.
-Stack-passed borrowed pointers, broader scalar call arguments, primitive-store
-operations and general control/cleanup remain separate native dependencies.
+The same probe covers incoming/outgoing stack pointers and a retained root with
+runtime scalar arguments across three calls. Its `publication::` group carries
+that program through ordinary object/image/installation records, executes final
+published text on the matching supported host, and rejoins spill-inclusive frame
+demand. Borrowed argument records name the actual call instruction; retained
+physical replay establishes pointer projection and transport without a referent
+copy. Installation shape checks alone do not establish semantic path identity.
+Run it with `cargo nextest run -p omega-native-differential-test --test
+terminal_psi_indexed_receivers --no-fail-fast --no-tests fail`. Cross-publication
+does not replace Linux native caller observations. Broader scalar call arguments,
+primitive-store operations and general control/cleanup remain native dependencies.
