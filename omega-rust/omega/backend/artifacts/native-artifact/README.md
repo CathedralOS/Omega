@@ -17,8 +17,9 @@ not grant publication, installation, provider, or runtime authority.
 
 The current physical lane is deliberately narrow: an unoptimized handoff or a
 verified Psi-phase survivor projection, exact D29 custody for supported
-compiler-intrinsic and checked-body operator applications, supported Linux ELF
-compiler-builtin settlements on x86-64 or AArch64, and admitted-provider D41
+compiler-intrinsic and checked-body operator applications, supported hosted byte
+output and process-exit settlements on Linux x86-64/AArch64 and macOS AArch64,
+Linux-only byte-input settlements, and admitted-provider D41
 custody for supported normalized foreign calls. Each surviving physical
 occurrence has one replayable child bound to its D29 or D41 parent, and that
 scope is bound into artifact identity. Unsupported D29/D41 roles and later

@@ -683,13 +683,14 @@ fn derive_write_byte_child(
 ) -> Result<NativePhysicalChild, &'static str> {
     let settlement = &installed.settlement;
     let [scalar_argument] = settlement.runtime_scalar_arguments.as_slice() else {
-        return Err("Linux write-byte physical child requires one runtime scalar argument");
+        return Err("hosted write-byte physical child requires one runtime scalar argument");
     };
-    if target.object_format != ObjectFormat::Elf
-        || !matches!(
-            target.architecture,
-            Architecture::X86_64 | Architecture::Aarch64
-        )
+    if ![
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ]
+    .contains(&target)
         || !settlement.scalar_arguments.is_empty()
         || !settlement.arguments.is_empty()
         || !settlement.byte_sequence_arguments.is_empty()
@@ -698,19 +699,19 @@ fn derive_write_byte_child(
         || !settlement.completion_provider_custody.is_empty()
         || !settlement.native_result.is_unit()
     {
-        return Err("Linux write-byte D41 settlement custody is incomplete or substituted");
+        return Err("hosted write-byte D41 settlement custody is incomplete or substituted");
     }
     let function = object
         .functions()
         .iter()
         .find(|function| function.machine == occurrence.machine())
-        .ok_or("Linux write-byte physical child names an absent object function")?;
+        .ok_or("hosted write-byte physical child names an absent object function")?;
     let expected_object_offset = function
         .text_offset
         .checked_add(settlement.code_offset)
-        .ok_or("Linux write-byte physical child object span overflow")?;
+        .ok_or("hosted write-byte physical child object span overflow")?;
     if installed.text_offset != expected_object_offset {
-        return Err("Linux write-byte physical child object span is detached");
+        return Err("hosted write-byte physical child object span is detached");
     }
     let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
     let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
@@ -719,12 +720,12 @@ fn derive_write_byte_child(
     let object_bytes = span(object.text_bytes(), object_span)?;
     let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
     if machine_bytes != object_bytes || object_bytes != final_image_bytes {
-        return Err("Linux write-byte physical child bytes changed across physical custody");
+        return Err("hosted write-byte physical child bytes changed across physical custody");
     }
     let object_end = installed
         .text_offset
         .checked_add(settlement.byte_count)
-        .ok_or("Linux write-byte physical child relocation span overflow")?;
+        .ok_or("hosted write-byte physical child relocation span overflow")?;
     if object.relocations().records().any(|(_, relocation)| {
         relocation.section == SectionKind::Text
             && ranges_overlap(
@@ -734,7 +735,7 @@ fn derive_write_byte_child(
                 relocation.offset.saturating_add(relocation.byte_width),
             )
     }) {
-        return Err("Linux write-byte physical child unexpectedly contains a relocation");
+        return Err("hosted write-byte physical child unexpectedly contains a relocation");
     }
     let role = BoundaryTraitSettlementRole::CompilerBuiltinRuntimeScalar {
         catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,

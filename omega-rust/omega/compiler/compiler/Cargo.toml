@@ -82,7 +82,7 @@ terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 
 terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
 bounded-process = { path = "../../tooling/bounded-process" }
-image-emission = { path = "../../backend/images/image-emission" }
+image-emission = { path = "../../backend/images/image-emission", features = ["test-support"] }
 machine-code = { path = "../../representations/machine-code" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
 executable-installation = { path = "../../backend/runtime/executable-installation" }
