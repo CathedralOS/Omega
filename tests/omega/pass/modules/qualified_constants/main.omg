@@ -1,0 +1,9 @@
+use combat::DAMAGE;
+use rooms;
+
+machine imported_damage() -> u32 { DAMAGE }
+machine qualified_damage() -> u32 { combat::DAMAGE }
+machine room_damage() -> u32 { rooms::DAMAGE }
+
+data Main {}
+machine Main::main(&mut self) {}

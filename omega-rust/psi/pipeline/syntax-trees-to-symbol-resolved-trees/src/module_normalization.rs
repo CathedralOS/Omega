@@ -55,11 +55,12 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
                     .map(|name| (name, "module-owned operators require namespace-aware operator home normalization"))
             }
             Item::Const(constant)
-                if module_sources.contains(&constant.name.source_span().source_id) =>
+                if module_sources.contains(&constant.name.source_span().source_id)
+                    && !module_scalar_constant(syntax, constant) =>
             {
                 Some((
                     &constant.name,
-                    "module-owned constants require namespace-aware constant substitution",
+                    "module-owned type-scoped or aggregate constants require namespace-aware initializer normalization",
                 ))
             }
             Item::Data(data)
@@ -138,6 +139,27 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
     Ok(())
 }
 
+fn module_scalar_constant(
+    syntax: &SyntaxTrees,
+    constant: &syntax_trees::item::ConstDefinition,
+) -> bool {
+    use syntax_trees::expression::ExpressionNode;
+    constant.scope.as_str().is_empty()
+        && matches!(
+            syntax.expressions.expression(constant.value),
+            ExpressionNode::Boolean(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::String(_)
+        )
+        && matches!(
+            syntax.type_references.type_reference(constant.type_reference),
+            TypeReferenceNode::Named(name)
+                if matches!(name.as_str(), "bool" | "i8" | "i16" | "i32" | "i64"
+                    | "u8" | "u16" | "u32" | "u64" | "addr" | "f32" | "f64" | "string")
+        )
+}
+
 fn nominal_argument_has_module_collision(
     syntax: &SyntaxTrees,
     module_sources: &[SourceId],
@@ -177,18 +199,26 @@ mod tests {
     }
 
     #[test]
-    fn module_constants_reject_before_substitution() {
+    fn module_scalar_constants_survive_pre_symbol_normalization() {
         let syntax = parse(&[
             "module first; const VALUE: u64 = 1;",
             "module second; const VALUE: u64 = 2;",
         ]);
+        crate::normalize_generic_data(syntax.clone()).expect("body substitution follows symbols");
+        crate::lower_syntax_trees(&syntax).expect("exact module constant identities");
+    }
+
+    #[test]
+    fn module_aggregate_constants_reject_before_initializer_normalization() {
+        let syntax = parse(&[
+            "module first; data Value { value: u64; } const VALUE: Value = Value { value: 1 };",
+        ]);
         assert!(
-            crate::normalize_generic_data(syntax.clone())
-                .expect_err("constant identities are not ready")[0]
+            crate::normalize_generic_data(syntax)
+                .expect_err("nominal initializer identities are not ready")[0]
                 .message
-                .contains("constant substitution")
+                .contains("initializer normalization")
         );
-        assert!(crate::lower_syntax_trees(&syntax).is_err());
     }
 
     #[test]

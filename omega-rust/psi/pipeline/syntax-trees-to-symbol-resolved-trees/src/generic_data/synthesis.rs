@@ -165,6 +165,9 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
             let Item::Const(definition) = item else {
                 return None;
             };
+            if super::module_constants::is_module_constant(syntax, definition) {
+                return None;
+            }
             Some((qualified_const_name(definition), definition.clone()))
         })
         .collect();
@@ -174,6 +177,9 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
             let Item::Const(definition) = item else {
                 return None;
             };
+            if super::module_constants::is_module_constant(syntax, definition) {
+                return None;
+            }
             let ExpressionNode::Integer(value) = syntax.expressions.expression(definition.value)
             else {
                 return None;
