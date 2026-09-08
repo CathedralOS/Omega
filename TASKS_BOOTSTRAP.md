@@ -69,6 +69,33 @@ prerequisite to every lower-rung milestone.
 
 ## Next decision - measured complexity follow-through
 
+- **EPSILON-RUNTIME-FIELD-IDENTITY.** Finish complete-D time and allocation
+  validation of compact field projections in
+  `bootstrap/4_epsilon/execution/storage/fields.delta`. Run the unchanged
+  customer with `sh tests/bootstrap/omega-parser/run.sh` on macOS arm64.
+  The source closure is `4a9d1e2fd1719705763057080b163506e92c2b2355327938f82235740185ec47`;
+  its execution receipt is pinned by that gate. The
+  [paired D lexer comparison](tests/epsilon/interpreted-omega-experiment/README.md)
+  observed 136.905 to 126.065 seconds, not a complete-parser speedup. The full
+  parser rerun has started but has no completed observation yet. Compact keys
+  add three payload pairs per new projection; preserve the selected provision
+  and check the actual complete customer's fit, not just small-control success.
+  Acceptance: exact full-parser observation and measured time/allocation on
+  unchanged D source; compare retaining this representation with simplification
+  if its added allocation is not justified. No index, native engine, language,
+  or permanent profiling tool. Keep final evaluator/proof closure separate.
+- **GAMMA-RUNTIME-SCANNING-REVIEW.** After EPSILON-RUNTIME-FIELD-IDENTITY closes, reassess
+  repeated expression scanning in `bootstrap/2_gamma/gamma_evaluator.beta`
+  against the same D customer. At `844e450838`, two short D-runtime windows
+  found expression skipping in 37/160 stacks; an independent OS sample placed 6077/6907 native PCs in
+  Alpha dispatch. These overlap interpreter layers, not additive costs or a
+  promised speedup. Prefer OS sampling and disposable diagnostics; retain no
+  profiling subsystem. Acceptance: decide whether measured remaining cost
+  justifies a bounded simplification after counting evaluator, seed, proof,
+  storage, and validation costs together. Leaving the run-once chain slow is
+  acceptable. Jets and native replacement evaluators are not authorized by
+  this task; any compelling replacement-rung case goes to OWNER_QUESTIONS.md.
+
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
   [measured cost review](wiki/drafts/bootstrap_cost_review.md) before
   expanding infrastructure. Owners remain Delta normalization,
@@ -199,8 +226,9 @@ prerequisite to every lower-rung milestone.
   120.518 seconds without a new index or profile. Run
   `sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D lexer'`.
   Next acceptance is the complete-D parser command
-  `sh tests/bootstrap/omega-parser/run.sh` with the current receipt; that
-  combination has not yet run. Its earlier complete-source pass is not evidence
+  `sh tests/bootstrap/omega-parser/run.sh` with the current receipt; the
+  field-identity task above owns its pending time/allocation comparison.
+  Its earlier complete-source pass is not evidence
   of current whole-D timing or final evaluator completion.
   Final acceptance depends on complete D: that exact source executes through
   the selected lower chain and refines `RunEpsilon`, with no Epsilon-owned

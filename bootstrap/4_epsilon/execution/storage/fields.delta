@@ -1,38 +1,25 @@
 
-(def epsilon_evaluator_field_identity_equal ((leftOwner EpsilonDeclaration)
-  (leftMember EpsilonDataMember) (rightOwner EpsilonDeclaration)
-  (rightMember EpsilonDataMember)) Int
-  (if (epsilon_data_declarations_same_identity leftOwner rightOwner)
-    (if (eq (epsilon_data_member_start leftMember)
-            (epsilon_data_member_start rightMember))
-      (eq (epsilon_data_member_end leftMember)
-        (epsilon_data_member_end rightMember))
-      0)
-    0))
-
 (def epsilon_runtime_projections_equal ((left EpsilonRuntimeProjection)
   (right EpsilonRuntimeProjection)) Int
   (match left
-    ((EpsilonRuntimeField owner memberValue)
+    ((EpsilonRuntimeField ownerStart ownerEnd memberStart memberEnd typeValue)
       (match right
-        ((EpsilonRuntimeField otherOwner otherMember)
-          (epsilon_evaluator_field_identity_equal owner memberValue
-            otherOwner otherMember))
+        ((EpsilonRuntimeField otherOwnerStart otherOwnerEnd otherStart otherEnd
+          otherType)
+          (if (eq memberStart otherStart)
+            (if (eq memberEnd otherEnd)
+              (if (eq ownerStart otherOwnerStart) (eq ownerEnd otherOwnerEnd) 0)
+              0)
+            0))
         ((EpsilonRuntimeIndex index) 0)))
     ((EpsilonRuntimeIndex index)
       (match right
-        ((EpsilonRuntimeField owner memberValue) 0)
+        ((EpsilonRuntimeField ownerStart ownerEnd memberStart memberEnd typeValue) 0)
         ((EpsilonRuntimeIndex otherIndex) (eq index otherIndex))))))
 
 ; The checked field ledger supplies owner/member custody. No source spelling
-; lookup occurs here, and sum cases are not record-field projections.
-(def epsilon_runtime_field_default ((memberValue EpsilonDataMember))
-  EpsilonRuntimeValueLookup
-  (match memberValue
-    ((EpsilonFieldMember start end name typeValue)
-      (SomeEpsilonRuntimeValue (epsilon_runtime_zero_value typeValue)))
-    ((EpsilonCaseMember start end name payload) NoEpsilonRuntimeValue)))
-
+; lookup or declaration unpacking occurs during child comparison. Sum cases
+; cannot enter this representation through the checked projection entrance.
 (def epsilon_runtime_find_field_child ((projection EpsilonRuntimeProjection)
   (children EpsilonRuntimeFieldChildren)) EpsilonRuntimeValueLookup
   (match children

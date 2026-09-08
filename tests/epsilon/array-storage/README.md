@@ -29,12 +29,12 @@ both controls in one invocation.
 The fixed source identity is 654 bytes,
 `365534cde66cb10a61eee9b52956a4f69d9fd69edacc82d7798319ef36756467`.
 
-The current receipt identity is 712070 bytes,
-`c657884fde474a63c8ffafd628959c8c47e6a7440172d3a4d449991d1dab148f`.
-The private invariant driver is 8736 bytes,
-`9d658973aba81c16b1da2e723ca1fe598132804fe9f0344ab859ce5cd70fe341`, and its
-compiled receipt is 714142 bytes,
-`ee06d8ef25d58983dd409e377e4ae18094a72f0990ed7d317c406d68de9491f9`.
+The current receipt identity is 713259 bytes,
+`de5ed0d307a218a6b99f0618f722eaeafa0d51a88b1aacadbdc51e3458a16c9a`.
+The private invariant driver is 8415 bytes,
+`2bc73c60572ddac4ebbfe9b36d4d0d5f44268b56fc0cbafc14dd2a127f947144`, and its
+compiled receipt is 715059 bytes,
+`8e5d151c045946b71ac66f7bbeb9b30e0cef1e1377a8a16b9fb8a7781a79fb7d`.
 The same V4 evaluator and unchanged fixture measured 570.692 seconds with the
 prior 702903-byte receipt
 (`3bc739535e467378a4c82d03358bcbe2ae91ba7447139c20ef202d1313585f92`)

@@ -4,10 +4,10 @@
 (def epsilon_runtime_projection_default ((typeValue EpsilonType)
   (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
   (match projection
-    ((EpsilonRuntimeField owner memberValue)
+    ((EpsilonRuntimeField ownerStart ownerEnd memberStart memberEnd fieldType)
       (match typeValue
         ((EpsilonNamedType start end name)
-          (epsilon_runtime_field_default memberValue))
+          (SomeEpsilonRuntimeValue (epsilon_runtime_zero_value fieldType)))
         ((EpsilonI32Type start end) NoEpsilonRuntimeValue)
         ((EpsilonU8Type start end) NoEpsilonRuntimeValue)
         ((EpsilonNeverType start end) NoEpsilonRuntimeValue)
@@ -27,7 +27,7 @@
         (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
         ((SomeEpsilonRuntimeValue defaultValue)
           (match projection
-            ((EpsilonRuntimeField owner memberValue)
+            ((EpsilonRuntimeField ownerStart ownerEnd memberStart memberEnd fieldType)
               (epsilon_runtime_read_field_child projection children defaultValue))
             ((EpsilonRuntimeIndex index)
               (epsilon_runtime_read_array_child typeValue index children defaultValue))))))))
@@ -44,7 +44,7 @@
         (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
         ((SomeEpsilonRuntimeValue defaultValue)
           (match projection
-            ((EpsilonRuntimeField owner memberValue)
+            ((EpsilonRuntimeField ownerStart ownerEnd memberStart memberEnd fieldType)
               (epsilon_runtime_write_field_child typeValue projection value children))
             ((EpsilonRuntimeIndex index)
               (epsilon_runtime_write_array_child typeValue index value children))))))))

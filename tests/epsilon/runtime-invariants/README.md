@@ -15,6 +15,12 @@ not establish source-language conformance.
   aggregate view storage (`Internal` at type starts 17 and 29), an absent
   ordinary field fact (`Internal` at expression start 41), and valid array/view
   lengths, reads, and bounds traps.
+  Fourteen additional field controls isolate owner/member start and end
+  coordinates, field/index separation, index equality, and type-independent
+  identity. The production projection entrance admits a data-owned field's
+  zero default and rejects synthetic boundary owners, machine owners, and sum
+  members at offset 4. These do not assert that a fabricated internal ledger
+  is valid source evidence.
 - [`control.delta`](control.delta): thirteen outcomes cover all twelve reachable
   non-call core variants plus a valid resultless return. Nested grouping must
   retain core offset 67. Binary and projection children would trap if wrongly
@@ -36,9 +42,9 @@ All integers encoded here are nonnegative and little-endian. Internal failures
 carry no output. These are helper-outcome observations,
 not a test of the production final observation adapter or a RunEpsilon envelope.
 
-[`expected.hex`](expected.hex) independently specifies 152 bytes for the 31
+[`expected.hex`](expected.hex) independently specifies 183 bytes for the 45
 outcomes, in source order. The exact test source membership is recorded in
 [`runtime_invariants.delta.sources`](runtime_invariants.delta.sources).
-[`receipt.tsv`](receipt.tsv) binds the measured 717,449-byte Gamma receipt;
+[`receipt.tsv`](receipt.tsv) binds the measured 721,800-byte Gamma receipt;
 reconstruction must match its exact length and digest before execution.
 Generated source and receipts remain outside the repository.

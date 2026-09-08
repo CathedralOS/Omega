@@ -32,3 +32,74 @@
               (bytes_concat (invariant_length (invariant_view))
                 (bytes_concat (invariant_index (invariant_view) 0)
                   (invariant_index (invariant_view) 1))))))))))
+
+; Synthetic coordinates isolate every part of identity, including endpoints
+; that cannot vary independently in a checked source. Types are not identity.
+(def invariant_field ((ownerStart Int) (ownerEnd Int) (start Int) (end Int))
+  EpsilonRuntimeProjection
+  (EpsilonRuntimeField ownerStart ownerEnd start end (EpsilonI32Type 8 9)))
+
+(def invariant_field_equal ((other EpsilonRuntimeProjection)) Bytes
+  (bytes_single
+    (epsilon_runtime_projections_equal (invariant_field 1 20 4 7) other)))
+
+(def invariant_field_identities () Bytes
+  (bytes_concat (invariant_field_equal (invariant_field 1 20 4 7))
+    (bytes_concat (invariant_field_equal (invariant_field 2 20 4 7))
+      (bytes_concat (invariant_field_equal (invariant_field 1 21 4 7))
+        (bytes_concat (invariant_field_equal (invariant_field 1 20 5 7))
+          (bytes_concat (invariant_field_equal (invariant_field 1 20 4 8))
+            (bytes_concat (invariant_field_equal (EpsilonRuntimeIndex 4))
+              (bytes_concat
+                (bytes_single (epsilon_runtime_projections_equal
+                  (EpsilonRuntimeIndex 4) (invariant_field 1 20 4 7)))
+                (bytes_concat
+                  (bytes_single (epsilon_runtime_projections_equal
+                    (EpsilonRuntimeIndex 4) (EpsilonRuntimeIndex 4)))
+                  (bytes_concat
+                    (bytes_single (epsilon_runtime_projections_equal
+                      (EpsilonRuntimeIndex 4) (EpsilonRuntimeIndex 5)))
+                    (invariant_field_equal
+                      (EpsilonRuntimeField 1 20 4 7 (EpsilonU8Type 8 9)))))))))))))
+
+; A compact projection is only made for a data-owned field, never a boundary,
+; machine, or sum case supplied through a malformed internal reference ledger.
+(def invariant_field_entrance ((owner EpsilonDeclaration)
+  (memberValue EpsilonDataMember)) Bytes
+  (match (invariant_context)
+    ((EpsilonEvaluatorInvocationContext source machineValue references receiver floor)
+      (let expressionValue EpsilonExpression
+        (EpsilonFieldExpression 41 44 (EpsilonTrueExpression 41 42) (EpsilonNameSpan 0 1))
+        (let context EpsilonEvaluatorInvocation
+          (EpsilonEvaluatorInvocationContext source machineValue
+            (LinearEpsilonRuntimeReferences
+              (EpsilonRuntimeReferenceBucketAt NoEpsilonResolvedLocalReferences
+                (MoreEpsilonResolvedFieldReferences
+                  (EpsilonResolvedFieldReferenceSyntax expressionValue owner memberValue)
+                  NoEpsilonResolvedFieldReferences)
+                NoEpsilonResolvedCallableReferences
+                (EpsilonRuntimeControlBucketAt NoEpsilonStateApplicationReferences
+                  NoEpsilonTransitionSubjectReferences NoEpsilonTransitionPatternReferences)))
+            receiver floor)
+          (invariant_observe
+            (epsilon_evaluator_field_value context expressionValue (EpsilonNameSpan 0 1)
+              (EpsilonRuntimeAggregate (EpsilonNamedType 45 46 (EpsilonNameSpan 0 1))
+                NoEpsilonRuntimeChildren)
+              NoEpsilonRuntimePlace (invariant_store) (invariant_output))))))))
+
+(def invariant_field_admission () Bytes
+  (let fieldValue EpsilonDataMember
+    (EpsilonFieldMember 4 7 (EpsilonNameSpan 0 1) (EpsilonI32Type 8 9))
+    (let owner EpsilonDeclaration
+      (EpsilonDataDeclaration 1 20 (EpsilonNameSpan 0 1) NoEpsilonDataMembers)
+      (bytes_concat (invariant_field_entrance owner fieldValue)
+        (bytes_concat
+          (invariant_field_entrance owner
+            (EpsilonCaseMember 4 7 (EpsilonNameSpan 0 1) NoEpsilonPayload))
+          (bytes_concat
+            (invariant_field_entrance
+              (EpsilonBoundaryDeclaration 1 20 (EpsilonNameSpan 0 1)
+                NoEpsilonBoundaryMachines) fieldValue)
+            (match (invariant_context)
+              ((EpsilonEvaluatorInvocationContext source machineValue references receiver floor)
+                (invariant_field_entrance machineValue fieldValue)))))))))

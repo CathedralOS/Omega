@@ -76,8 +76,16 @@
           ((OneEpsilonResolvedFieldReference owner fieldValue)
             (match fieldValue
               ((EpsilonFieldMember start end name typeValue)
-                (epsilon_evaluator_project_value value place
-                  (EpsilonRuntimeField owner fieldValue) typeValue store output))
+                (match owner
+                  ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
+                    (epsilon_evaluator_project_value value place
+                      (EpsilonRuntimeField ownerStart ownerEnd start end typeValue)
+                      typeValue store output))
+                  ((EpsilonBoundaryDeclaration ownerStart ownerEnd ownerName machines)
+                    (EpsilonEvaluatorInternal start))
+                  ((EpsilonMachineDeclaration ownerStart ownerEnd ownerName inputs
+                    returnType body)
+                    (EpsilonEvaluatorInternal start))))
               ((EpsilonCaseMember start end name payload)
                 (EpsilonEvaluatorInternal start)))))))))
 

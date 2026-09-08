@@ -93,8 +93,8 @@ the same start. Grouped receiver calls still accept; field and local value heads
 unknown ordinary calls, arity errors before unknown arguments, and independent
 argument errors retain their authored diagnostic coordinates.
 
-`receipt.tsv` records the measured 708,456-byte checker receipt with SHA-256
-`60136690095d1d11419086910e6d97a4df784ac5143a27793e0368bea5f837af`.
+`receipt.tsv` records the measured 709,645-byte checker receipt with SHA-256
+`16bfdf8fcf1ea3776e5696c8a2002312c4409c14cc36d32e25e36c06adf733f3`.
 Every gate run reconstructs this exact receipt before comparing the 70 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.
