@@ -41,6 +41,9 @@ pub(super) fn folded_zero<'a>(
                 continue;
             }
             let uses = match &instruction.kind {
+                LegalizedScalarInstructionKind::LinuxWriteByteI32 { source, .. } => {
+                    *source == definition.value
+                }
                 LegalizedScalarInstructionKind::ByteSequenceSubslice {
                     start, end, length, ..
                 } => {

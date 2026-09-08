@@ -106,6 +106,7 @@ fn terminal_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        linux_write_byte_i32: keys.linux_write_byte_i32,
         load64: keys.load64,
         load8_indexed: keys.load8_indexed,
         store64: keys.store64,
@@ -197,6 +198,7 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
         SelectedInstructionKind::ZeroExtendU8 => MachineSemanticKind::ZeroExtendU8,
         SelectedInstructionKind::ZeroExtendU32 => MachineSemanticKind::ZeroExtendU32,
+        SelectedInstructionKind::LinuxWriteByteI32 { .. } => MachineSemanticKind::LinuxWriteByteI32,
         SelectedInstructionKind::ByteViewAddress => MachineSemanticKind::ByteViewAddress,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {

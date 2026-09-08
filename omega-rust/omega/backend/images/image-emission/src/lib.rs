@@ -3934,7 +3934,8 @@ fn validate_foreign_scalar_source(
         }),
     };
     let exact_sources = match argument.source {
-        machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
             return Err(invalid());
         }
         machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
@@ -3997,7 +3998,8 @@ fn expected_foreign_scalar_argument_bytes(
     };
     let mut bytes = Vec::new();
     match argument.source {
-        machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
             return None;
         }
         machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {

@@ -59,7 +59,12 @@ fn claim_completion_settlement_is_ordered_metadata_without_instruction_ids() {
         selected_caller
             .boundary_settlements
             .iter()
-            .map(|row| &row.settlement)
+            .map(|row| match &row.settlement {
+                selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                    settlement,
+                ) => settlement,
+                _ => panic!("claim completion fixture"),
+            })
             .collect::<Vec<_>>(),
         settlements
     );
@@ -73,16 +78,20 @@ fn claim_completion_settlement_is_ordered_metadata_without_instruction_ids() {
 
     let selected_identity = selected.receipt().identity();
     let mut corrupted = selected.plan().clone();
-    corrupted.functions[0].boundary_settlements[0]
-        .settlement
-        .provider_execution = target_operations::ProviderExecutionBinding::from_execution_record(
-        target_operations::ProviderPlanReportIdentity::new(23).unwrap(),
-        29,
-        31,
-        37,
-        41,
-    )
-    .unwrap();
+    let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(settlement) =
+        &mut corrupted.functions[0].boundary_settlements[0].settlement
+    else {
+        panic!("claim completion fixture");
+    };
+    settlement.provider_execution =
+        target_operations::ProviderExecutionBinding::from_execution_record(
+            target_operations::ProviderPlanReportIdentity::new(23).unwrap(),
+            29,
+            31,
+            37,
+            41,
+        )
+        .unwrap();
     assert_ne!(
         selected_instruction_plan_identity(&corrupted),
         selected_identity

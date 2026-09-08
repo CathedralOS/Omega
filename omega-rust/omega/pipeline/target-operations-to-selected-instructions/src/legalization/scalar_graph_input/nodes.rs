@@ -10,6 +10,21 @@ pub(in crate::legalization) fn instruction(
     | AbstractOperation::CallUnit { psi_operation, .. } = &node.operation
     {
         Some((*psi_operation, None))
+    } else if let AbstractOperation::BoundaryCall {
+        psi_operation,
+        result: abstract_operations::AbstractBoundaryResult::Unit,
+        arguments,
+        structural_arguments,
+        completion_claim_sources,
+        completion_receipts,
+        ..
+    } = &node.operation
+    {
+        (arguments.len() == 1
+            && structural_arguments.is_empty()
+            && completion_claim_sources.is_empty()
+            && completion_receipts.is_empty())
+        .then_some((*psi_operation, None))
     } else {
         scalar_instruction(node).map(|(operation, result)| (operation, Some(result)))
     }
@@ -121,7 +136,8 @@ fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -
             if (integer == u64_type() && value <= u128::from(u64::MAX)) || (integer == u8_type() && value <= u128::from(u8::MAX)) || (integer == u32_type() && value <= u128::from(u32::MAX)))
         || matches!((scalar,value),
             (ScalarType::Integer(integer),semantic_vocabulary::IntegerValue::Signed(value))
-                if integer == i64_type() && i64::try_from(value).is_ok())
+                if (integer == i64_type() && i64::try_from(value).is_ok())
+                    || (integer == i32_type() && i32::try_from(value).is_ok()))
 }
 pub(super) fn validate(
     block: &OptimizationBlock,
@@ -196,6 +212,16 @@ pub(super) fn validate(
                 || !claim_transfers.is_empty()
                 || !requirement_obligations.is_empty()
                 || !crash_continuations.is_empty()
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        if let AbstractOperation::BoundaryCall { arguments, .. } = &node.operation {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || arguments.len() != 1
+                || value_type(optimized, arguments[0]) != Some(ScalarType::Integer(i32_type()))
             {
                 return Err(invalid);
             }

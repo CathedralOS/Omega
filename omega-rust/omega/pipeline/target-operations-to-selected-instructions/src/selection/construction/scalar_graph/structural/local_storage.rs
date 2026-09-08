@@ -12,7 +12,7 @@ pub(super) fn store(
     memory(
         builder,
         row,
-        slot.place,
+        slot.structural_place().ok_or_else(invalid)?,
         offset,
         8,
         SelectedMemoryAccessRole::WriteLocal { slot },
@@ -36,11 +36,15 @@ pub(super) fn address(
     byte_count: u32,
     settles_fuel: bool,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let register = transport_register(builder, slot.place, offset)?;
+    let register = transport_register(
+        builder,
+        slot.structural_place().ok_or_else(invalid)?,
+        offset,
+    )?;
     memory(
         builder,
         row,
-        slot.place,
+        slot.structural_place().ok_or_else(invalid)?,
         offset,
         byte_count,
         SelectedMemoryAccessRole::AddressLocal { slot },

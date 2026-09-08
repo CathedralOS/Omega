@@ -202,6 +202,53 @@ fn plan() -> PreAllocationMachineEffectPlan {
 }
 
 #[test]
+fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
+    let mut source = plan();
+    let row = &mut source.functions[0].blocks[0].instructions[0];
+    let slot = crate::LocalStorageSlotId::Boundary {
+        operation: OperationId::new(313).unwrap(),
+    };
+    row.kind = SelectedInstructionKind::LinuxWriteByteI32 { slot };
+    row.memory = MachineMemoryEffect::LinuxWriteByteV1;
+    row.trap = MachineTrapBehavior::LinuxWriteFailureV1;
+    row.barrier = MachineBarrier::ExternalEffect;
+    row.alternatives.truncate(1);
+    let alternative = &mut row.alternatives[0];
+    alternative.key.family = MachineAlternativeFamily::LinuxWriteByteI32;
+    alternative.encoded.memory = MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+        stack_pointer: register_model::RegisterViewId(7),
+    };
+    alternative.encoded.trap = MachineEncodedTrapBehavior::LinuxWriteFailureV1;
+    alternative.encoded.control = MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
+        source
+    );
+    for mutation in 0..4 {
+        let mut changed = source.clone();
+        let row = &mut changed.functions[0].blocks[0].instructions[0];
+        match mutation {
+            0 => {
+                row.kind = SelectedInstructionKind::LinuxWriteByteI32 {
+                    slot: crate::LocalStorageSlotId::Boundary {
+                        operation: OperationId::new(317).unwrap(),
+                    },
+                }
+            }
+            1 => row.memory = MachineMemoryEffect::NoneV1,
+            2 => row.trap = MachineTrapBehavior::NeverV1,
+            _ => row.barrier = MachineBarrier::None,
+        }
+        assert_ne!(
+            pre_allocation_machine_effect_identity(&changed),
+            source.identity
+        );
+        assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+    }
+}
+
+#[test]
 fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
     let mut source = plan();
     let row = &mut source.functions[0].blocks[0].instructions[0];
@@ -252,7 +299,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &15_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &16_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source

@@ -131,7 +131,7 @@ mod tests {
         let physical =
             register_model::validate_physical_register_model(aarch64_physical_register_model())
                 .unwrap();
-        let slot = FrameStorageSlotId::Local(LocalStorageSlotId {
+        let slot = FrameStorageSlotId::Local(LocalStorageSlotId::Structural {
             operation: OperationId::new(104).unwrap(),
             place: PlaceId::new(102).unwrap(),
         });

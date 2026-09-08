@@ -233,7 +233,10 @@ pub(super) fn operation(
                     .block_cursor
                     .try_into()
                     .map_err(|_| replay.invalid())?,
-                settlement: settlement.clone(),
+                settlement:
+                    selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                        settlement.clone(),
+                    ),
             });
         return Ok(true);
     }

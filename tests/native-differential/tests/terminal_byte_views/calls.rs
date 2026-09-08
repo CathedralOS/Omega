@@ -25,6 +25,15 @@ pub(super) fn stage_call_text_with_proof(
     module: &TerminalModule,
     proof: &terminal_verifier::ProofBundle,
 ) -> StagedOptimizedFixedFrameTextSection {
+    stage_call_text_with_settlements(target, module, proof, &[])
+}
+
+pub(super) fn stage_call_text_with_settlements(
+    target: NativeTarget,
+    module: &TerminalModule,
+    proof: &terminal_verifier::ProofBundle,
+    settlements: &[abstract_operations_to_target_operations::AdmittedBoundarySettlement<'_>],
+) -> StagedOptimizedFixedFrameTextSection {
     let semantic = terminal_codec::encode_module(module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
@@ -39,7 +48,7 @@ pub(super) fn stage_call_text_with_proof(
         native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized,
             target,
-            &[],
+            settlements,
         )
         .expect("mixed byte-view calls reach the complete physical pipeline");
     let fragments = machine_emission::stage_optimized_function_fragment_emission(

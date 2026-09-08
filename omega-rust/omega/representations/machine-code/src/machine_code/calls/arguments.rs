@@ -8,9 +8,10 @@ use semantic_vocabulary::{
 use terminal_psi::StructuralPathSegment;
 
 /// Exact occurrence-specific source and ABI custody for one evaluated foreign-
-/// call scalar value. The byte interval names only its register
-/// materialization; the unresolved call field remains owned by
-/// [`crate::ForeignCallRelocation::offset`].
+/// call scalar value. For ordinary calls the byte interval names register
+/// materialization; the unresolved call field belongs to
+/// [`crate::ForeignCallRelocation::offset`]. A selected boundary source instead
+/// names the complete independently decoded builtin instruction sequence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForeignCallScalarArgumentRecord {
     pub parameter_index: u32,
@@ -44,6 +45,15 @@ pub struct InternalUnitCallArgumentRecord {
 /// Exact semantic and physical source of one attached-Unit scalar argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InternalUnitScalarArgumentSourceRecord {
+    /// One selected boundary pseudo consumes this SSA value from the recorded
+    /// physical register. Its argument span is the whole pseudo, not a legacy
+    /// materialization prefix; scratch is an operation-owned frame byte.
+    SelectedBoundary {
+        source_value: ValueId,
+        scalar_type: ScalarType,
+        instruction: selected_instructions::SelectedInstructionId,
+        scratch_byte_offset: u64,
+    },
     Parameter {
         parameter_index: u32,
         source_value: ValueId,
@@ -68,6 +78,7 @@ pub enum InternalUnitScalarArgumentSourceRecord {
 impl InternalUnitScalarArgumentSourceRecord {
     pub const fn source_value(self) -> ValueId {
         match self {
+            Self::SelectedBoundary { source_value, .. } => source_value,
             Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
             Self::BooleanImmediate { source_value, .. } => source_value,
@@ -77,6 +88,7 @@ impl InternalUnitScalarArgumentSourceRecord {
 
     pub const fn scalar_type(self) -> ScalarType {
         match self {
+            Self::SelectedBoundary { scalar_type, .. } => scalar_type,
             Self::Parameter { scalar_type, .. } => scalar_type,
             Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::BooleanImmediate { .. } => ScalarType::Boolean,

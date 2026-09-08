@@ -118,7 +118,7 @@ pub(super) fn create(
         root_length,
     });
     if crate::selection::established_view_input::called(function, view.place) {
-        let slot = selected_instructions::LocalStorageSlotId {
+        let slot = selected_instructions::LocalStorageSlotId::Structural {
             operation: row.operation,
             place: view.place,
         };

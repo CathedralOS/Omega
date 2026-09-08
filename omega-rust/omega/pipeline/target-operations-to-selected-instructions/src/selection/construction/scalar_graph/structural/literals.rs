@@ -32,7 +32,7 @@ pub(super) fn establish(
     let length = u32::try_from(bytes.len()).map_err(|_| invalid())?;
     let padded = length.checked_add(7).ok_or_else(invalid)? & !7;
     let byte_size = padded.checked_add(16).ok_or_else(invalid)?;
-    let slot = LocalStorageSlotId {
+    let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: destination.id,
     };

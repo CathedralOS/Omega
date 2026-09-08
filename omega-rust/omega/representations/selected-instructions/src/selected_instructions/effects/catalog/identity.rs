@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v16\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v17\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -39,15 +39,18 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
+            crate::MachineMemoryEffect::LinuxWriteByteV1 => 3,
             crate::MachineMemoryEffect::WriteFrameStorageV1 => 2,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::NeverV1 => 0,
+            crate::MachineTrapBehavior::LinuxWriteFailureV1 => 2,
             crate::MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
         });
         bytes.push(match declaration.barrier {
             MachineBarrier::None => 0,
             MachineBarrier::ControlFlow => 1,
+            MachineBarrier::ExternalEffect => 3,
             MachineBarrier::Call => 2,
         });
         match declaration.call {
@@ -150,6 +153,10 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
+        MachineEncodedMemoryEffect::LinuxWriteByteV1 { stack_pointer } => {
+            bytes.push(6);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
         MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand,
@@ -215,9 +222,11 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     }
     bytes.push(match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
+        MachineEncodedTrapBehavior::LinuxWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     match effects.control {
+        MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1 => bytes.push(6),
         MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
         MachineEncodedControlEffect::ReturnFromActivationStackV1 => bytes.push(2),
@@ -285,6 +294,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ZeroExtendU8 => 15,
         MachineSemanticKind::ZeroExtendU32 => 20,
         MachineSemanticKind::Load64 => 16,
+        MachineSemanticKind::LinuxWriteByteI32 => 23,
         MachineSemanticKind::ByteViewAddress => 22,
         MachineSemanticKind::Load8Indexed => 21,
         MachineSemanticKind::Store64 => 17,
@@ -313,6 +323,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ZeroExtendU8 => 15,
         MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::LinuxWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
@@ -364,6 +375,7 @@ mod tests {
 
     fn keys() -> SelectedConstraintKeys {
         SelectedConstraintKeys {
+            linux_write_byte_i32: Some(instruction(24)),
             load64: Some(instruction(20)),
             load8_indexed: Some(instruction(23)),
             store64: Some(instruction(21)),
@@ -412,9 +424,19 @@ mod tests {
         MachineEffectDeclaration {
             semantic,
             constraint,
-            memory: MachineMemoryEffect::NoneV1,
-            trap: MachineTrapBehavior::NeverV1,
-            barrier: if matches!(
+            memory: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                MachineMemoryEffect::LinuxWriteByteV1
+            } else {
+                MachineMemoryEffect::NoneV1
+            },
+            trap: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                MachineTrapBehavior::LinuxWriteFailureV1
+            } else {
+                MachineTrapBehavior::NeverV1
+            },
+            barrier: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                MachineBarrier::ExternalEffect
+            } else if matches!(
                 semantic,
                 MachineSemanticKind::ConditionalBranchNonZero
                     | MachineSemanticKind::ConditionalBranchU64LessThan
@@ -450,7 +472,17 @@ mod tests {
                 applicability: MachineAlternativeApplicability::Always,
                 size: MachineSizeKnowledge::ExactBytes(4),
                 latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-                encoded: MachineEncodedEffects::fallthrough_v1(vec![], vec![]),
+                encoded: if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                    let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![]);
+                    encoded.memory = MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+                        stack_pointer: register_model::RegisterViewId(7),
+                    };
+                    encoded.trap = MachineEncodedTrapBehavior::LinuxWriteFailureV1;
+                    encoded.control = MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1;
+                    encoded
+                } else {
+                    MachineEncodedEffects::fallthrough_v1(vec![], vec![])
+                },
             }],
         }
     }

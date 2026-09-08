@@ -109,7 +109,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
             validate(&source, &selected).unwrap();
             let operation = source.blocks[0].instructions[0].operation;
             let place = source.structural.as_ref().unwrap().structural_places[0].id;
-            let slot = LocalStorageSlotId { operation, place };
+            let slot = LocalStorageSlotId::Structural { operation, place };
             assert_eq!(selected.local_storage_slots.len(), 1);
             assert_eq!(selected.local_storage_slots[0].id, slot);
             assert_eq!(
@@ -149,9 +149,22 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                 let mut changed = selected.clone();
                 match mutation {
                     0 => {
-                        changed.local_storage_slots[0].id.operation = OperationId::new(99).unwrap()
+                        changed.local_storage_slots[0].id =
+                            selected_instructions::LocalStorageSlotId::Structural {
+                                operation: OperationId::new(99).unwrap(),
+                                place: changed.local_storage_slots[0]
+                                    .id
+                                    .structural_place()
+                                    .unwrap(),
+                            }
                     }
-                    1 => changed.local_storage_slots[0].id.place = PlaceId::new(99).unwrap(),
+                    1 => {
+                        changed.local_storage_slots[0].id =
+                            selected_instructions::LocalStorageSlotId::Structural {
+                                operation: changed.local_storage_slots[0].id.operation(),
+                                place: PlaceId::new(99).unwrap(),
+                            }
+                    }
                     2 => changed.local_storage_slots[0].byte_size += 8,
                     3 => changed.local_storage_slots[0].alignment = 16,
                     4 => {

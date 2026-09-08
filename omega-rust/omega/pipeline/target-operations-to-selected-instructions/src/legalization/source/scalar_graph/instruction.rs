@@ -10,6 +10,20 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::BoundaryCall {
+            boundary,
+            arguments,
+            ..
+        } => {
+            let [source] = arguments.as_slice() else {
+                return Err(Error::SourceCustodyMismatch);
+            };
+            // Input admission has independently joined the exact target builtin.
+            LegalizedScalarInstructionKind::LinuxWriteByteI32 {
+                boundary: *boundary,
+                source: *source,
+            }
+        }
         AbstractOperation::EstablishByteSequenceLiteral {
             place,
             structural_type,

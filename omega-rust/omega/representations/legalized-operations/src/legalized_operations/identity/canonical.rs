@@ -5,7 +5,7 @@ use super::shared::*;
 
 pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v33\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v34\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -17,7 +17,7 @@ pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanI
         encode_projected_structural_call_return(&mut bytes, closure);
     }
     {
-        bytes.extend_from_slice(b"ordinary-scalar-graph.v6\0");
+        bytes.extend_from_slice(b"ordinary-scalar-graph.v7\0");
         encode_len(&mut bytes, plan.scalar_functions.len());
         for function in &plan.scalar_functions {
             super::scalar_graph::encode(&mut bytes, function);

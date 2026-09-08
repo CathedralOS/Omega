@@ -57,6 +57,7 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
 };
+pub use register_model::X86_64_LINUX_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_register_call_keys;
 pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
@@ -73,6 +74,7 @@ pub use register_model::{
 pub use register_model::{
     x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,
 };
+pub use selected_form_encoding::linux_write_byte::decode_x86_64_selected_linux_write_byte_i32;
 pub use selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedScalarCallTemplate,
     X86_64_SCALAR_CALL_OPCODE_OFFSET, X86_64_SCALAR_CALL_PATCH_OFFSET,
@@ -89,6 +91,9 @@ pub use selected_form_encoding::{
     validate_x86_64_selected_scalar_call_template,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
+};
+pub use selected_form_encoding::{
+    encode_x86_64_selected_linux_write_byte_form, validate_x86_64_selected_linux_write_byte_form,
 };
 pub use semantic_unit_wrapper_encoding::{
     ValidatedX86_64ResolvedSemanticUnitWrapper, ValidatedX86_64SemanticUnitWrapperTemplate,

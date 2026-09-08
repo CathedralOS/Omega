@@ -141,6 +141,9 @@ pub(in crate::exit_contract) fn validate_non_return(
     layout: &machine_code::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
+        SelectedInstructionKind::LinuxWriteByteI32 { .. } => {
+            MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1
+        }
         SelectedInstructionKind::Jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
@@ -149,7 +152,11 @@ pub(in crate::exit_contract) fn validate_non_return(
         }
         _ => MachineEncodedControlEffect::FallThroughV1,
     };
-    let branch_terminator = expected_control != MachineEncodedControlEffect::FallThroughV1;
+    let branch_terminator = matches!(
+        expected_control,
+        MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
+    );
     let effects = match &encoding.state {
         SelectedFormEncodingState::Encoded { footprint, bytes }
         | SelectedFormEncodingState::UnresolvedInternalMachineCall {
@@ -196,6 +203,18 @@ pub(in crate::exit_contract) fn validate_non_return(
         ));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
+        (
+            SelectedInstructionKind::LinuxWriteByteI32 { slot },
+            MachineEncodedMemoryEffect::LinuxWriteByteV1 { .. },
+            Some(address),
+        ) => {
+            matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Boundary { .. }
+            ) && address.symbolic
+                == physical_instructions::PhysicalAddressOperation::LinuxWriteByteI32 { slot }
+                && effects.trap == MachineEncodedTrapBehavior::LinuxWriteFailureV1
+        }
         (
             SelectedInstructionKind::Load8Indexed,
             MachineEncodedMemoryEffect::ReadIndexedPointerV1 {

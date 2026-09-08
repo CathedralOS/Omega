@@ -56,6 +56,11 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                    return crate::selected_form_encoding::linux_write_byte::declaration(
+                        constraint,
+                    );
+                }
                 if matches!(
                     semantic,
                     MachineSemanticKind::Load64
@@ -112,6 +117,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        linux_write_byte_i32: (target.object_format == ObjectFormat::Elf)
+            .then_some(crate::X86_64_LINUX_WRITE_BYTE_I32),
         load64: Some(crate::X86_64_LOAD64),
         load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
         store64: Some(crate::X86_64_STORE64),
@@ -294,6 +301,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::LinuxWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
         }
@@ -431,6 +439,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
+        | MachineSemanticKind::LinuxWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
         }
@@ -569,6 +578,8 @@ mod tests {
                         MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
                     ) {
                         MachineBarrier::Call
+                    } else if row.semantic == MachineSemanticKind::LinuxWriteByteI32 {
+                        MachineBarrier::ExternalEffect
                     } else {
                         MachineBarrier::None
                     }

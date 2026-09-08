@@ -227,6 +227,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `terminal_byte_views/subslice_calls.rs` for descriptor custody; Unit
   acceptance needs observable effects and caller continuation, not merely a
   resultless call or synthetic incoming descriptor.
+  Use `terminal_byte_views/byte_output.rs` for the Linux `i32` byte leaf's
+  selected/frame/object/image custody; Linux execution requires a Linux host.
+  The writer still needs exact `u8`-to-`i32` widening and ordinary Unit-call
+  composition with that leaf. macOS/Windows byte-output providers remain separate
+  native realization dependencies; do not substitute Linux or interpreter output.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.

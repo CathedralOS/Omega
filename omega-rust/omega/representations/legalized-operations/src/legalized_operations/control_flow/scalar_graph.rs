@@ -31,6 +31,7 @@ impl LegalizedScalarFunction {
                 .instructions
                 .iter()
                 .any(|instruction| match &instruction.kind {
+                    LegalizedScalarInstructionKind::LinuxWriteByteI32 { source, .. } => *source == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
@@ -90,6 +91,12 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// Exact admitted Linux byte-output boundary, with its original i32 SSA input.
+    /// The receiving target catalog owns syscall realization and failure behavior.
+    LinuxWriteByteI32 {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        source: ValueId,
+    },
     EstablishByteSequenceLiteral {
         destination: terminal_psi::StructuralPlaceDeclaration,
         structural_type: terminal_psi::StructuralTypeDeclaration,

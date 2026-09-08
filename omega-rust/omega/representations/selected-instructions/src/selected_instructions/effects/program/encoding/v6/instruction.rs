@@ -15,15 +15,18 @@ pub(super) fn decode_instruction(
     let memory = match cursor.byte()? {
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
+        3 => MachineMemoryEffect::LinuxWriteByteV1,
         2 => MachineMemoryEffect::WriteFrameStorageV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
+        2 => MachineTrapBehavior::LinuxWriteFailureV1,
         0 => MachineTrapBehavior::NeverV1,
         1 if allow_scalar_call => MachineTrapBehavior::MayArchitecturalFaultV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let barrier = match cursor.byte()? {
+        3 => MachineBarrier::ExternalEffect,
         0 => MachineBarrier::None,
         1 => MachineBarrier::ControlFlow,
         2 if allow_scalar_call => MachineBarrier::Call,
@@ -81,6 +84,9 @@ fn decode_kind(
         2 => SelectedInstructionKind::CopyI64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
+        23 => SelectedInstructionKind::LinuxWriteByteI32 {
+            slot: decode_local_storage_slot(cursor)?,
+        },
         22 => SelectedInstructionKind::ByteViewAddress,
         21 => SelectedInstructionKind::Load8Indexed,
         16 => SelectedInstructionKind::Load64 {
@@ -93,12 +99,7 @@ fn decode_kind(
                         .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                     argument_index: cursor.u32()?,
                 }),
-                1 => crate::FrameStorageSlotId::Local(crate::LocalStorageSlotId {
-                    operation: OperationId::new(cursor.u64()?)
-                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-                    place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
-                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-                }),
+                1 => crate::FrameStorageSlotId::Local(decode_local_storage_slot(cursor)?),
                 _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
             };
             let byte_offset = cursor.u32()?;
@@ -151,6 +152,23 @@ fn decode_integer(
     match cursor.byte()? {
         0 => Ok(IntegerValue::Signed(i128::from_le_bytes(cursor.array()?))),
         1 => Ok(IntegerValue::Unsigned(u128::from_le_bytes(cursor.array()?))),
+        _ => Err(PreAllocationMachineEffectDecodeError::InvalidField),
+    }
+}
+
+pub fn decode_local_storage_slot(
+    cursor: &mut Cursor<'_>,
+) -> Result<crate::LocalStorageSlotId, PreAllocationMachineEffectDecodeError> {
+    let tag = cursor.byte()?;
+    let operation = OperationId::new(cursor.u64()?)
+        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
+    match tag {
+        0 => Ok(crate::LocalStorageSlotId::Structural {
+            operation,
+            place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        }),
+        1 => Ok(crate::LocalStorageSlotId::Boundary { operation }),
         _ => Err(PreAllocationMachineEffectDecodeError::InvalidField),
     }
 }
@@ -226,6 +244,7 @@ fn decode_alternative_for_version(
         2 => MachineAlternativeFamily::CopyI64,
         15 => MachineAlternativeFamily::ZeroExtendU8,
         20 => MachineAlternativeFamily::ZeroExtendU32,
+        23 => MachineAlternativeFamily::LinuxWriteByteI32,
         22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
         16 => MachineAlternativeFamily::Load64,
@@ -318,6 +337,9 @@ fn decode_encoded_effects(
     let implicit_unit_defs = decode_units(cursor)?;
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
+        6 => MachineEncodedMemoryEffect::LinuxWriteByteV1 {
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
         0 => MachineEncodedMemoryEffect::NoneV1,
         5 => MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
             pointer_operand: cursor.u16()?,
@@ -357,11 +379,13 @@ fn decode_encoded_effects(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
+        2 => MachineEncodedTrapBehavior::LinuxWriteFailureV1,
         0 => MachineEncodedTrapBehavior::NeverV1,
         1 => MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let control = match cursor.byte()? {
+        6 => MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1,
         0 => MachineEncodedControlEffect::FallThroughV1,
         1 => MachineEncodedControlEffect::ConditionalRelativeBranchV1,
         2 => MachineEncodedControlEffect::ReturnFromActivationStackV1,

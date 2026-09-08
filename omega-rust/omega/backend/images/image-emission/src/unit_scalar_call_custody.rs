@@ -460,6 +460,7 @@ pub(super) fn validate_source(
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
     match source {
+        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => return Err(invalid()),
         InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,
@@ -841,6 +842,7 @@ pub(super) fn expected_argument_bytes(
             }
             let mut value_register = register;
             match argument.source {
+                InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => return None,
                 InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
                     match location {
                         machine_code::UnitScalarParameterLocationRecord::Register(source) => {
@@ -913,6 +915,7 @@ pub(super) fn expected_argument_bytes(
             }
             let mut value_register = register;
             match argument.source {
+                InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => return None,
                 InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
                     match location {
                         machine_code::UnitScalarParameterLocationRecord::Register(source) => {

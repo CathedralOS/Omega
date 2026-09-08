@@ -12,6 +12,10 @@ use semantic_vocabulary::IntegerValue;
 use crate::aarch64_physical_register_model;
 
 mod jump;
+pub(crate) mod linux_write_byte;
+pub use linux_write_byte::{
+    encode_aarch64_selected_linux_write_byte_form, validate_aarch64_selected_linux_write_byte_form,
+};
 mod memory;
 pub use memory::*;
 mod scalar_call;
@@ -570,6 +574,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
@@ -705,6 +710,7 @@ fn encode_unchecked(
         SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => {
@@ -1031,6 +1037,7 @@ fn validate_decoded(
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => false,
@@ -1161,6 +1168,7 @@ fn footprint(
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
+        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),

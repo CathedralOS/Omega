@@ -162,7 +162,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..10_u32 {
+    for version in 0..11_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -319,9 +319,57 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
 }
 
 #[test]
+fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
+    let mut source = plan();
+    let slot = selected_instructions::LocalStorageSlotId::Boundary {
+        operation: OperationId::new(137).unwrap(),
+    };
+    source.functions[0]
+        .local_storage_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 1,
+            alignment: 1,
+        });
+    source.functions[0].blocks[0].instructions[0].address =
+        Some(PhysicalAddressOperation::LinuxWriteByteI32 { slot });
+    source.identity = post_allocation_machine_identity(&source);
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    for mutation in 0..4 {
+        let mut changed = source.clone();
+        match mutation {
+            0 => {
+                changed.functions[0].local_storage_slots[0].id =
+                    selected_instructions::LocalStorageSlotId::Structural {
+                        operation: slot.operation(),
+                        place: semantic_vocabulary::PlaceId::new(139).unwrap(),
+                    }
+            }
+            1 => changed.functions[0].local_storage_slots[0].byte_size = 2,
+            2 => changed.functions[0].local_storage_slots[0].alignment = 2,
+            _ => {
+                changed.functions[0].blocks[0].instructions[0].address =
+                    Some(PhysicalAddressOperation::LinuxWriteByteI32 {
+                        slot: selected_instructions::LocalStorageSlotId::Boundary {
+                            operation: OperationId::new(149).unwrap(),
+                        },
+                    })
+            }
+        }
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&changed.encode()),
+            Err(PostAllocationMachineDecodeError::InvalidIdentity)
+        );
+    }
+}
+
+#[test]
 fn physical_codec_binds_activation_local_geometry_and_source_identity() {
     let mut source = plan();
-    let slot = selected_instructions::LocalStorageSlotId {
+    let slot = selected_instructions::LocalStorageSlotId::Structural {
         operation: OperationId::new(137).unwrap(),
         place: semantic_vocabulary::PlaceId::new(139).unwrap(),
     };
@@ -352,8 +400,18 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
             let mut changed = source.clone();
             let local = &mut changed.functions[0].local_storage_slots[0];
             match field {
-                0 => local.id.operation = OperationId::new(149).unwrap(),
-                1 => local.id.place = semantic_vocabulary::PlaceId::new(151).unwrap(),
+                0 => {
+                    local.id = selected_instructions::LocalStorageSlotId::Structural {
+                        operation: OperationId::new(149).unwrap(),
+                        place: local.id.structural_place().unwrap(),
+                    }
+                }
+                1 => {
+                    local.id = selected_instructions::LocalStorageSlotId::Structural {
+                        operation: local.id.operation(),
+                        place: semantic_vocabulary::PlaceId::new(151).unwrap(),
+                    }
+                }
                 2 => local.byte_size += 8,
                 _ => local.alignment = 4,
             }

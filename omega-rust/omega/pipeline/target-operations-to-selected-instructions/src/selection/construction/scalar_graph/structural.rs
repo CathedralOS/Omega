@@ -239,7 +239,10 @@ pub(super) fn operation(
             .push(SelectedBoundarySettlement {
                 block,
                 instruction_index: instruction_index.try_into().map_err(|_| invalid())?,
-                settlement: settlement.clone(),
+                settlement:
+                    selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                        settlement.clone(),
+                    ),
             });
         return Ok(true);
     }

@@ -1,5 +1,8 @@
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 
+#[cfg(test)]
+mod tests;
+
 use super::{
     MachineAlternativeApplicability, MachineBarrier, MachineEffectCatalogValidationError,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -11,7 +14,9 @@ pub(super) fn validate_declaration(
     declaration: &MachineEffectDeclaration,
 ) -> Result<(), MachineEffectCatalogValidationError> {
     let semantic = declaration.semantic;
-    let expected_barrier = if matches!(
+    let expected_barrier = if semantic == MachineSemanticKind::LinuxWriteByteI32 {
+        MachineBarrier::ExternalEffect
+    } else if matches!(
         semantic,
         MachineSemanticKind::ConditionalBranchNonZero
             | MachineSemanticKind::Jump
@@ -162,6 +167,19 @@ fn validate_encoded_effects(
     {
         return Err(());
     }
+    if declaration.semantic == MachineSemanticKind::LinuxWriteByteI32
+        && (declaration.memory != crate::MachineMemoryEffect::LinuxWriteByteV1
+            || declaration.trap != crate::MachineTrapBehavior::LinuxWriteFailureV1
+            || !matches!(
+                encoded.memory,
+                MachineEncodedMemoryEffect::LinuxWriteByteV1 { .. }
+            )
+            || encoded.trap != MachineEncodedTrapBehavior::LinuxWriteFailureV1
+            || encoded.stack != MachineEncodedStackEffect::UnchangedV1
+            || encoded.control != MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1)
+    {
+        return Err(());
+    }
     if declaration.semantic == MachineSemanticKind::CallI64 {
         let (result, arguments) = constraint.operands.split_last().ok_or(())?;
         if result.access != RegisterOperandAccess::Def
@@ -202,6 +220,7 @@ fn validate_encoded_effects(
         return Err(());
     }
     let expected_barrier = match encoded.control {
+        MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::ConditionalRelativeBranchV1
@@ -215,6 +234,21 @@ fn validate_encoded_effects(
         return Err(());
     }
     match (encoded.memory, encoded.stack, encoded.trap) {
+        (
+            MachineEncodedMemoryEffect::LinuxWriteByteV1 { .. },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::LinuxWriteFailureV1,
+        ) if declaration.semantic == MachineSemanticKind::LinuxWriteByteI32
+            && declaration.memory == crate::MachineMemoryEffect::LinuxWriteByteV1
+            && declaration.trap == crate::MachineTrapBehavior::LinuxWriteFailureV1
+            && encoded.control == MachineEncodedControlEffect::LinuxWriteReturnOrTrapV1
+            && encoded.external_operand_reads == [0]
+            && encoded.external_operand_writes.is_empty()
+            && constraint.operands.len() == 1
+            && constraint.operands[0].access == RegisterOperandAccess::Use
+            && encoded.implicit_unit_uses == constraint.implicit_uses
+            && encoded.implicit_unit_defs == constraint.implicit_defs
+            && encoded.implicit_unit_clobbers == constraint.clobbers => {}
         (
             MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
                 pointer_operand,

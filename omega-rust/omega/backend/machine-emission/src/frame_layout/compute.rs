@@ -312,7 +312,7 @@ mod tests {
 
     #[test]
     fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
-        let id = selected_instructions::LocalStorageSlotId {
+        let id = selected_instructions::LocalStorageSlotId::Structural {
             operation: semantic_vocabulary::OperationId::new(7).unwrap(),
             place: semantic_vocabulary::PlaceId::new(11).unwrap(),
         };

@@ -101,7 +101,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 85;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 86;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1685,6 +1685,7 @@ fn installed_scalar_source_is_exact(
     source: machine_code::InternalUnitScalarArgumentSourceRecord,
 ) -> bool {
     match source {
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => false,
         machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,
@@ -4077,38 +4078,60 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && exact_nominal_tail
             }
             BoundaryRealization::LinuxWriteByteI32(_) => {
-                let machine_settlements = record
-                    .boundary_settlements
+                if installed
+                    .settlement
+                    .runtime_scalar_arguments
                     .iter()
-                    .filter(|candidate| candidate.machine == installed.machine)
-                    .map(|candidate| candidate.settlement.clone())
-                    .collect::<Vec<_>>();
-                linux_write_byte_custody_is_exact(
-                    record.target,
-                    &installed.settlement,
-                    &machine_settlements,
-                    &function.unit_integer_constants,
-                    &function.unit_scalar_homes,
-                    |home, consumer_ordinal, consumer_offset| {
-                        record
-                            .internal_unit_scalar_calls
-                            .iter()
-                            .filter(|producer| {
-                                producer.machine == installed.machine
-                                    && producer.custody.result.home == home
-                                    && producer.custody.operation_ordinal < consumer_ordinal
-                                    && producer
-                                        .custody
-                                        .result
-                                        .code_offset
-                                        .checked_add(producer.custody.result.byte_count)
-                                        .is_some_and(|end| end <= consumer_offset)
-                            })
-                            .count()
-                    },
-                    None,
-                ) && function.unit_body
-                    && function.scalar_stack.is_none()
+                    .any(|argument| {
+                        matches!(
+                    argument.source,
+                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+                )
+                    })
+                {
+                    crate::runtime_scalar_custody::selected_byte_output_shape_is_exact(
+                        record.target,
+                        &installed.settlement,
+                    ) && function
+                        .unit_scalar_abi
+                        .as_ref()
+                        .is_some_and(|abi| abi.call_plan.result.is_none())
+                        && function.unit_stack.is_some()
+                        && function.scalar_stack.is_none()
+                } else {
+                    let machine_settlements = record
+                        .boundary_settlements
+                        .iter()
+                        .filter(|candidate| candidate.machine == installed.machine)
+                        .map(|candidate| candidate.settlement.clone())
+                        .collect::<Vec<_>>();
+                    linux_write_byte_custody_is_exact(
+                        record.target,
+                        &installed.settlement,
+                        &machine_settlements,
+                        &function.unit_integer_constants,
+                        &function.unit_scalar_homes,
+                        |home, consumer_ordinal, consumer_offset| {
+                            record
+                                .internal_unit_scalar_calls
+                                .iter()
+                                .filter(|producer| {
+                                    producer.machine == installed.machine
+                                        && producer.custody.result.home == home
+                                        && producer.custody.operation_ordinal < consumer_ordinal
+                                        && producer
+                                            .custody
+                                            .result
+                                            .code_offset
+                                            .checked_add(producer.custody.result.byte_count)
+                                            .is_some_and(|end| end <= consumer_offset)
+                                })
+                                .count()
+                        },
+                        None,
+                    ) && function.unit_body
+                        && function.scalar_stack.is_none()
+                }
             }
             BoundaryRealization::LinuxReadByte(_) => {
                 installed.settlement.scalar_arguments.is_empty()

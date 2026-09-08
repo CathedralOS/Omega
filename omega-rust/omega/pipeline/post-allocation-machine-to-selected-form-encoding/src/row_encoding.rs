@@ -30,6 +30,7 @@ pub(super) fn encode_row(
     let alternative = machine.alternative.key;
     let state = match selected.kind {
         kind @ (SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::LinuxWriteByteI32 { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
@@ -53,14 +54,13 @@ pub(super) fn encode_row(
                 .map(|operand| operand.view)
                 .collect::<Vec<_>>();
             if architecture == Architecture::Aarch64 {
-                let encoded = isa_aarch64::encode_aarch64_selected_memory_form(
-                    physical,
-                    kind,
-                    alternative,
-                    &views,
-                    address.displacement,
-                )
-                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
+                    isa_aarch64::encode_aarch64_selected_linux_write_byte_form
+                } else {
+                    isa_aarch64::encode_aarch64_selected_memory_form
+                };
+                let encoded = encode(physical, kind, alternative, &views, address.displacement)
+                    .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
                 let footprint = encoded.footprint();
                 validate_operand_footprint(
                     selected.id,
@@ -84,14 +84,13 @@ pub(super) fn encode_row(
                     }),
                 }
             } else {
-                let encoded = isa_x86_64::encode_x86_64_selected_memory_form(
-                    physical,
-                    kind,
-                    alternative,
-                    &views,
-                    address.displacement,
-                )
-                .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+                let encode = if matches!(kind, SelectedInstructionKind::LinuxWriteByteI32 { .. }) {
+                    isa_x86_64::encode_x86_64_selected_linux_write_byte_form
+                } else {
+                    isa_x86_64::encode_x86_64_selected_memory_form
+                };
+                let encoded = encode(physical, kind, alternative, &views, address.displacement)
+                    .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
                 let footprint = encoded.footprint();
                 validate_operand_footprint(
                     selected.id,

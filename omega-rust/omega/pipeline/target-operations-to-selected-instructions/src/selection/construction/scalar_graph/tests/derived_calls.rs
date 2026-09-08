@@ -212,7 +212,7 @@ fn derived_call_descriptor_replay_rejects_storage_address_and_fuel_substitution(
                 )
             };
             validate(&source, &selected).unwrap();
-            let slot = LocalStorageSlotId {
+            let slot = LocalStorageSlotId::Structural {
                 operation: OperationId::new(3).unwrap(),
                 place: PlaceId::new(2).unwrap(),
             };
@@ -236,9 +236,22 @@ fn derived_call_descriptor_replay_rejects_storage_address_and_fuel_substitution(
                         }
                     }
                     3 => {
-                        changed.local_storage_slots[0].id.operation = OperationId::new(99).unwrap()
+                        changed.local_storage_slots[0].id =
+                            selected_instructions::LocalStorageSlotId::Structural {
+                                operation: OperationId::new(99).unwrap(),
+                                place: changed.local_storage_slots[0]
+                                    .id
+                                    .structural_place()
+                                    .unwrap(),
+                            }
                     }
-                    4 => changed.local_storage_slots[0].id.place = PlaceId::new(99).unwrap(),
+                    4 => {
+                        changed.local_storage_slots[0].id =
+                            selected_instructions::LocalStorageSlotId::Structural {
+                                operation: changed.local_storage_slots[0].id.operation(),
+                                place: PlaceId::new(99).unwrap(),
+                            }
+                    }
                     5 => {
                         let row = changed.blocks[0]
                             .instructions
