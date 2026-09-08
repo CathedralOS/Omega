@@ -6,11 +6,17 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
 mod calls;
+mod field_coordinates;
 mod fields;
 mod lengths;
 mod meanings;
 mod projections;
+mod requirements;
 mod state_aliases;
+
+pub use requirements::{
+    arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
+};
 
 pub(crate) use calls::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress,
@@ -177,14 +183,16 @@ fn prove_edge(
 ) -> Option<RankingRangeEdgeProof> {
     let states = program.machine_states(machine);
     let root = states.first()?;
-    let field_rank = match measure {
+    let mut field_rank = match measure {
         RankingRangeMeasure::Field { subject, field } => {
             // Field arrival mappings are not scalar aliases. Only exact root
             // self-edges currently supply the record reconstruction evidence.
             if states.len() != 1 || !matches!(context, EdgeContext::Root) {
                 return None;
             }
-            Some(fields::FieldRank::resolve(program, root, subject, field)?)
+            Some(field_coordinates::FieldCoordinates::new(
+                fields::FieldCoordinate::resolve(program, root, subject, field)?,
+            ))
         }
         _ => None,
     };
@@ -370,7 +378,7 @@ fn prove_edge(
             &mut engine,
             &expressions,
         )?;
-        if let Some(field) = &field_rank {
+        if let Some(field) = &mut field_rank {
             field.install(program, state, &mut engine, &expressions)?;
         }
     }
@@ -400,7 +408,7 @@ fn prove_edge(
     let ceiling = engine.normalize(range.end)?;
     let rank = match measure {
         RankingRangeMeasure::Single(subject) => engine.normalize(subject)?,
-        RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value(),
+        RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
         RankingRangeMeasure::SliceLength(subject) => {
             let parameter = lengths::parameter(program, root, subject)?;
             let (_, identity) = length_bindings
@@ -470,12 +478,15 @@ fn prove_edge(
             destination.entry_parameters[position]
         });
         if let Some(field) = &field_rank
-            && source_symbol == field.parameter.symbol
+            && field.substitute(
+                program,
+                state,
+                &mut engine,
+                source_symbol,
+                *argument,
+                &mut substitutions,
+            )?
         {
-            substitutions.insert(
-                field.identity.clone(),
-                field.actual(program, state, &mut engine, *argument)?,
-            );
             continue;
         }
         if destination.is_some_and(|destination| {

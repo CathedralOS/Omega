@@ -204,6 +204,7 @@ pub use contract_entailment::transparent_proposition_application_entailed;
 pub use contract_entailment::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub use contract_entailment::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
+    arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
     prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
 };
 pub use contract_entailment::{

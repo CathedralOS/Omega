@@ -8,6 +8,15 @@ use typed_trees::machine::Machine;
 mod endpoints;
 mod relational;
 
+pub(super) fn proves_entry_requirements(
+    program: &TypedTrees,
+    machine: &Machine,
+    order: &RankingOrder,
+    measure: DecreaseMeasure,
+) -> bool {
+    relational::prove_with_entry_requirements(program, machine, measure, order, true)
+}
+
 pub(super) struct RangeProof {
     /// Only the relational tier also checks strict decrease on every exact
     /// self-edge. Static membership must still pass the existing descent owner.

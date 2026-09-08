@@ -1,6 +1,9 @@
 use super::*;
 use crate::lookup::machine_state_count;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn build_contract_call_facts(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
@@ -48,6 +51,13 @@ pub(crate) fn build_contract_call_facts(
                     target_state_symbol,
                     contract_machine_symbol: contract_target.0,
                     contract_state_symbol: contract_target.1,
+                    targets_machine_entry: program.machines().iter().any(|machine| {
+                        machine.symbol == target_machine_symbol
+                            && program
+                                .machine_states(machine)
+                                .first()
+                                .is_some_and(|entry| entry.symbol == target_state_symbol)
+                    }),
                     // Only an internal jump keeps the current invocation's
                     // machine contract package. A named tail call to another
                     // machine still owes that callee's entry requirements.
@@ -71,6 +81,7 @@ struct ContractCallSite {
     target_state_symbol: SymbolHandle,
     contract_machine_symbol: SymbolHandle,
     contract_state_symbol: SymbolHandle,
+    targets_machine_entry: bool,
     is_state_transfer: bool,
 }
 
@@ -87,7 +98,9 @@ fn append_contract_call(
         site.contract_machine_symbol,
         Some(site.contract_state_symbol),
         ContractProofFactKind::Requires,
-        !site.is_state_transfer,
+        // Entry backedges renew machine preconditions even though they do not
+        // return and cannot import the machine's postconditions.
+        !site.is_state_transfer || site.targets_machine_entry,
     );
     // A jump does not return to its source or establish the machine's
     // postconditions. Those remain obligations at the eventual normal exit.

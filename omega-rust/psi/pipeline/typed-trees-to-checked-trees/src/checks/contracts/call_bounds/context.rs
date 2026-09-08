@@ -101,10 +101,52 @@ fn prove(
                 .is_some_and(|state| state.symbol == call.target_symbol)
     })?;
     let parameters = program.state_parameters(program.machine_states(callee).first()?);
+    if caller.machine_symbol == callee.symbol
+        && matches!(site, crate::CallSite::TransitionNamed { .. })
+        && crate::checks::termination::proves_ranked_entry_requirement(program, callee, goal)
+    {
+        return Some(true);
+    }
     let arguments = crate::call_site_argument_expressions(program, &site);
     let explicit_parameters = parameters.iter().filter(|parameter| !parameter.is_self);
     if explicit_parameters.clone().count() != arguments.len() {
         return None;
+    }
+    let arithmetic_hypotheses = contexts
+        .iter()
+        .flat_map(|context| {
+            facts
+                .semantic
+                .context_view(facts.semantic.contexts.get(*context))
+                .facts()
+        })
+        .filter(|fact| {
+            !matches!(
+                fact.origin,
+                facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
+            )
+        })
+        .filter_map(|fact| match fact.payload {
+            facts::FactPayload::ContractBooleanExpression {
+                kind: facts::ContractFactKind::Requires,
+                expression,
+                instantiated,
+                ..
+            } if !instantiated.is_valid() => Some((expression, true)),
+            facts::FactPayload::BooleanValue { expression, value } => Some((expression, value)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if validation::prove_arithmetic_call_requirement(
+        program,
+        caller_machine,
+        caller_state,
+        callee,
+        &arithmetic_hypotheses,
+        goal,
+        arguments,
+    ) {
+        return Some(true);
     }
     let caller_parameters = program.state_parameters(caller_state);
     let frames = caller_parameters

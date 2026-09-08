@@ -79,15 +79,29 @@ occurrence. No parallel edge may supply an unclassified call's certificate.
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
 scalar ranks, slice lengths, and exact direct-field coordinates. `fields.rs`
 binds an immutable owned parameter's selected builtin `u64` field, not its whole
-record or another same-named projection. Reconstruction retains the nominal
-owner and declared field identity. The shared judgment proves simultaneous
+record or another same-named projection. `field_coordinates.rs` binds additional
+authored direct `u64` projections as independent coordinates, including fields
+of a second owned parameter. Reconstruction retains the nominal owner and
+declared field identity, substituting every demanded field simultaneously.
+The shared judgment proves simultaneous
 endpoint pinning, next-rank membership, and strict descent; an entry-only
 requirement is not silently renewed. `projections.rs` collects the expression
 roots for metadata binding without constructing source expressions. Direct-field
-transport currently covers root self-edges and scalar endpoints whose arithmetic
-has independent formation evidence; other fields, references, and named-state
-field mappings remain unbound. This is source automation, not a Terminal
-custom-view certificate.
+transport currently covers root self-edges, direct field endpoints, and scalar
+endpoints whose arithmetic has independent formation evidence. Mere membership
+in a changed endpoint does not prove pinning. References, nested projections,
+and named-state field mappings remain unbound. This is source automation, not
+a Terminal custom-view certificate.
+
+The shared `ranking_range/requirements.rs` adapter also proves ordinary call
+requirements with no ranking assumptions. Separate caller and goal engines
+preserve their namespaces on self-calls; the goal receives one simultaneous
+map of scalar, field, and slice-length actuals. Only surviving caller contexts
+and store-enforced bounds become hypotheses. Calls and unknown operand effects
+do not enter this immutable arithmetic adapter. Exact arithmetic formation
+remains independently required. Its graph-coverage query recognizes only
+completely readable authored scalar/length requirements, not opaque Boolean
+or nominal facts ignored by the arithmetic graph proof.
 
 ## Write frames and reference origins
 

@@ -2,6 +2,8 @@ use super::*;
 use checked_trees::CheckedTrees;
 use language_semantics::{MachineTerminationPlan, TerminationGuarantee, TerminationInterface};
 
+mod qualifications;
+
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
     let tokens = Lexer::new(&source)
@@ -363,23 +365,58 @@ fn demanded_identity_forwarding_retains_the_single_entry_subject() {
 fn demanded_growing_projection_has_no_private_checked_guarantee() {
     // A valid ranking alone cannot cover node.next.scheduler, then
     // node.next.next.scheduler, with the entry node.scheduler premise.
-    // Private inference reports NoGuarantee; it must not reject valid source
-    // merely because the machine has no published completion promise.
-    let program = checked(&node_cycle(false, true));
+    // Progress inference reports NoGuarantee independently of ordinary source
+    // validity. This fixture also fails to renew the root's live qualification.
+    let program = typed(&node_cycle(false, true));
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "walk")
         .expect("walk machine");
     assert!(
-        crate::checks::termination::infer_machine_checked_summary(&program.typed, machine)
+        crate::checks::termination::infer_machine_checked_summary(&program, machine)
             .promises_termination(),
         "the independent local ranking must succeed"
     );
-    let plan = plan(&program, "walk");
+    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let borrow = crate::build_borrow_facts(&program);
+    let proof = crate::build_proof_facts(&program, &proof_plan, &borrow);
+    let mut semantic = crate::build_semantic_facts(&program, &proof);
+    let domains = crate::build_domain_facts(&program, &semantic);
+    let operations = validation::infer_operational_may(&program);
+    let flow = crate::build_flow_facts(
+        &program,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
+    let summaries =
+        crate::checks::termination::analyze_checked_progress(&program, &flow, &semantic)
+            .expect("private missing progress coverage is not a published-contract error");
+    let summary = summaries
+        .iter()
+        .find(|summary| summary.machine == machine.symbol)
+        .expect("walk progress summary");
+    let plan = crate::checks::termination::build_checked_termination_plan_with_summary(
+        &program,
+        machine,
+        summary.guarantee.clone(),
+    );
     assert_eq!(plan.interface, TerminationInterface::InternalDerived);
     assert!(plan.implementation_witness.is_some());
     assert_eq!(plan.checked_summary, TerminationGuarantee::NoGuarantee);
+
+    let Err(diagnostics) = lower_typed_trees(program) else {
+        panic!("NoGuarantee cannot excuse the missing root-entry qualification");
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires contract for call walk")),
+        "{diagnostics:#?}"
+    );
 }
 
 #[test]

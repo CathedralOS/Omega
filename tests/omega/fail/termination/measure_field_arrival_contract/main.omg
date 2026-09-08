@@ -1,0 +1,21 @@
+data Countdown {
+    remaining: u64 [0..=5];
+    limit: u64 [0..=5];
+    spare: u64 [0..=5];
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+
+machine walk(countdown: Countdown)
+requires countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit;
+terminates by countdown -> Countdown::Remaining in 0..=countdown.limit;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> walk(Countdown {
+            remaining: countdown.remaining - 1,
+            limit: countdown.limit,
+            spare: 0
+        })
+        false -> countdown.remaining
+    }
+}

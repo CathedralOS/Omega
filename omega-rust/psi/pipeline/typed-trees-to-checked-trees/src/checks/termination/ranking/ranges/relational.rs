@@ -11,6 +11,16 @@ pub(super) fn prove(
     measure: DecreaseMeasure,
     order: &RankingOrder,
 ) -> bool {
+    prove_with_entry_requirements(program, machine, measure, order, false)
+}
+
+pub(super) fn prove_with_entry_requirements(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    measure: DecreaseMeasure,
+    order: &RankingOrder,
+    require_entry_invariant: bool,
+) -> bool {
     let Some(range) = program
         .ranking_expression_custody_for(machine.symbol)
         .and_then(|custody| custody.rank_range)
@@ -74,6 +84,10 @@ pub(super) fn prove(
         validation::RankingRangePremises::EntryInvariant,
     ]
     .into_iter()
+    .filter(|premises| {
+        !require_entry_invariant
+            || matches!(premises, validation::RankingRangePremises::EntryInvariant)
+    })
     .any(|premises| prove_edges(program, machine, range, measure, frames.as_ref(), premises))
 }
 
