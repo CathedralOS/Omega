@@ -97,6 +97,13 @@ data/entry materialization. Each consumer checks its own applicability without
 reauthoring geometry. Validation/materialization rejects incomplete or invalid
 values before mutating the destination.
 
+By-value ABI classification uses each integer field's physical stored width
+and alignment, not its wider semantic carrier. Named scalar materialization
+checks signed or unsigned fit before changing destination bytes. An unresolved
+narrowed symbolic value rejects unless an admitted post-handoff writer retains
+the exact fit constraint and checks the resolved value before writing or
+publishing its context. Resolution does not license truncation.
+
 Erased bindings remain required semantic terms and part of type identity but
 have no physical field key, access decision, or initialization bytes. A
 complete erased-only value can therefore materialize zeroed plan storage

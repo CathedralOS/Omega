@@ -52,7 +52,22 @@ The resolved mapping remains in semantic identity. Lifetime constants, higher-ra
 applications, outlives bounds, variance, and subtyping are not current facilities;
 introducing them requires revisiting this matching rule.
 
+The telescope participates in every concrete application's identity. Adding,
+removing, or reordering type, const, or static-machine binders breaks existing
+applications; changing lifetime binders may also make elision ambiguous.
+Published compatibility reporting identifies the declaration change and its
+affected applications. A selected runtime-bearing row creates an exact static
+realization dependency under [component publication](../build/component_publication.md);
+proof-only evidence retains its proof dependency without pinning runtime code.
+
 ## Complete row identity
+
+Body composition `requires Parent;` and header composition `: Parent` normalize
+to the same inherited requirement edge; headers also carry generic applications.
+The referenced trait determines the edge's role. Boundary parents contribute
+service reach; ordinary parents contribute contracts without service identity.
+An ordinary trait cannot inherit a boundary parent: the child must also be a
+boundary trait. Expansion preserves each inherited declaration's identity.
 
 Each inherited requirement overload contributes one key:
 
@@ -103,6 +118,60 @@ conformance search. Meaning comes from operand types, declared qualification,
 an exact proof-static selection, carried evidence, or a sealed language route.
 [Domains](domains.md) own result-domain overload selection; selecting a law
 conformance cannot itself establish a routed qualification.
+
+## Transparent refinements
+
+```omega
+pub trait LocalLogger = Logger {
+    machine *
+        reaches;
+        suspends false;
+        blocks false;
+        terminates;
+}
+```
+
+A refinement names a structural bound on an existing base conformance, not a
+new nominal satisfaction target. A machine cannot `satisfies LocalLogger`;
+a static evidence binder may require it and receive an explicitly selected
+`Logger` conformance whose complete contract fits.
+
+`machine *` applies to every present and future base requirement. A targeted
+clause names one exact requirement. Unmentioned requirements and contract axes
+inherit the base. Refinements may narrow obligations or strengthen guarantees,
+never widen the permitted behavior. Multiple refinements combine by an
+order-independent meet and expand before normalization and fingerprinting.
+
+Omission here means inheritance, unlike the omission rules of an ordinary
+machine contract. `suspends false` and `blocks false` explicitly remove those
+possibilities; crash refinement may disprove inherited route predicates.
+`reaches;` is empty. `reaches _;` introduces an independent abstract row for that
+requirement bounded by the inherited row; it does not correlate different
+requirements. This refinement-local bound is not an installation requirement's
+`reaches <= Bound` row and grants no unresolved ordinary exported row variable.
+
+## Core equality acquisition
+
+Compiler-synthesized core conformances emit ordinary checked machine bodies.
+An explicit member or exact reference row overrides synthesis. User traits do
+not acquire compiler synthesis privilege through a name or empty block.
+
+`Equatable` is a sealed type-owned operator route. Each structural type may
+publish at most one operator-facing conformance; `==` and `!=` select it from
+the operand type, not visibility. Other mathematical relations use separately
+named contracts and conformances without competing for operator syntax.
+
+Primitives and payload-less sums acquire equality implicitly. Records and
+payload-bearing sums require an explicit named conformance. Adding a payload
+case removes a sum's implicit route; existing equality uses then need that
+declaration. Domain membership uses its own tag/domain rules, not `Equatable`.
+
+Structural synthesis compares record fields, or sum tags followed by the selected
+case's payload. Every field must be a scalar primitive, payload-less sum, text
+compared by byte content, or independently Equatable-conforming. Recursive
+structural synthesis rejects. Operators and the callable equality wrapper share
+the selected member meaning. General member-reflection generators remain
+unspecified; this contract does not authorize their syntax or implementation.
 
 See the [trait guide](../../language_guide/chapter_14_traits.md) for static bounds,
 reference-row syntax, and dynamic coercion examples. [Relations and quotients](../proofs/quotients.md)

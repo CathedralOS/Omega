@@ -1,11 +1,9 @@
 # Appendix: Open Questions
 
 This appendix lists unresolved language-design areas only. Settled behavior
-belongs in the relevant chapter or frozen design brief, not here. Immediate
+belongs in the specification and its teaching chapter, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
-
-Last pruned: 2026-09-07.
 
 ## Reach, resources, and progress
 
@@ -41,7 +39,7 @@ Last pruned: 2026-09-07.
 
 - Settle the source spelling for one joint ranking across a
   mutually cyclic SCC whose participants expose differently shaped subjects.
-  The every-cyclic-edge-decreases semantics and private-witness identity are
+  The joint every-cycle descent rule and private-witness identity are
   already fixed.
 - Decide how much predicate/domain inference to attempt beyond executable
   predicate bodies, explicit evidence, and flow narrowing.
@@ -92,6 +90,9 @@ before proposing it. The migration task is separate from this candidate.
   alternative.
 ## Tooling and build-time execution
 
+- Specify member reflection and checked expansion for trait generators if that
+  surface is adopted. Compiler-synthesized core conformances do not establish
+  general `Self::fields` or field-splicing syntax.
 - Decide which contextual words, if any, must become globally reserved. The
   default remains to avoid new reserved words.
 - Design an in-language test item/discovery surface; canaries remain external.

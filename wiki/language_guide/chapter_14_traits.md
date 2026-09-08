@@ -1,6 +1,8 @@
 # Chapter 14: Traits And Erased Dispatch
 
-Omega traits should describe required machine surfaces.
+Traits name required machine surfaces. This chapter teaches their use; the
+[named-conformance specification](../spec/language/conformances.md) owns the
+complete declaration and selection rules.
 
 The core pieces are:
 
@@ -46,6 +48,9 @@ a free or attached machine; inside a trait it declares a requirement; inside a
 conformance block it declares the satisfier for that block's corresponding
 requirement. The lexically visible enclosure carries that distinction.
 
+<a id="satisfaction"></a>
+<a id="conformance-blocks"></a>
+
 ### Named conformances
 
 A type may satisfy one trait in several coherent ways. Each named conformance
@@ -53,6 +58,13 @@ is one implementation block binding the complete trait surface; Omega never
 assembles one conformance by searching ambient machines.
 
 ```omega
+data Card { power: u32; cost: u32; }
+
+trait Ranked {
+    machine before(&self, other: &Self) -> bool;
+    machine rank_value(&self) -> u32;
+}
+
 pub PowerOrder:
     Card satisfies Ranked
 {
@@ -78,123 +90,86 @@ CostOrder:
 }
 ```
 
-A complete conformance is an independently nameable declaration. It is
-package-private unless marked `pub`; it inherits visibility from neither its
-subject nor its trait. `PowerOrder` above may be selected by a direct dependent,
-while `CostOrder` is available only inside its declaring package. Publishing a
-conformance does not publish private realization machines: consumers select the
-closed conformance surface, and its implementation rows remain private.
+The `pub` on `PowerOrder` makes that conformance available to direct dependent
+packages. `CostOrder` stays package-private even if `Card` and `Ranked` are public.
+Consumers may select a public conformance without naming its private realization
+machines. Receiving a dynamic value carrying private evidence does not grant
+permission to name or reselect that evidence.
 
-Cross-package authored selection and every public-interface occurrence naming
-a conformance require `pub`. Merely carrying a value whose dynamic descriptor
-contains private conformance evidence does not select or publish that evidence.
-The receiver may use the already-packaged trait interface but cannot name that
-private conformance for another coercion, bound, or specialization.
+Each requirement overload, including inherited requirements, has one exact row.
+A member body, explicit machine reference, default body, or authorized synthesis
+fills that row. Missing rows reject; similarly named ambient machines do not
+fill them. The [complete-row contract](../spec/language/conformances.md#complete-row-identity)
+defines overload identity and default instantiation.
 
-Every complete requirement overload in the normalized inherited trait closure
-has one trait-qualified row. The row identity includes the declaring trait,
-normalized parameter signature, and dispatch-bearing result-domain set. A
-member written in the block fills the one row matching its complete callable
-shape. An uncovered row uses that exact overload's default when one exists;
-otherwise the conformance is incomplete and rejects. The compiler never fills
-a row from a uniquely visible or similarly named machine. A default is
-instantiated separately for each overload in this conformance, so calls it
-makes to other requirements resolve through this same block.
-
-A conformance owns its static telescope. Generic carrier conformances bind
-their parameters on the declared conformance name rather than inheriting them
-from the carrier:
+A generic conformance owns its binder telescope on its declared name:
 
 ```omega
-Structural<Element>:
-    Vec<Element> satisfies Relator
+SequenceEncoding<Element, Message>:
+    Vec<Element> satisfies WireEncodable<Message>
 {
-    ...
-}
-```
-
-The declaration name is a package-scoped static evidence identity. Its binder
-telescope, optional subject, instantiated trait application, and complete
-normalized row map are fingerprinted. The colon has its ordinary binding
-meaning: `PowerOrder` is evidence that `Card satisfies Ranked`.
-
-This admits repeated parameters such as `Pair<Element, Element>`, concrete
-specializations such as `Vec<u8>`, and parameters used only by the trait
-application. A carrierless evidence implementation uses the same form with the
-subject omitted:
-
-```omega
-ConcreteEvidence:
-    satisfies Evidence
-{
-    machine witness(value: i32) {
-        // proof-only implementation
+    machine to_wire(&self, out: &mut Message) {
+        // ...
     }
 }
 ```
 
-`ConcreteEvidence` is a package-scoped conformance identity. The block owns
-the same complete normalized row map as a carrier-owned block, but it has no
-data subject, no attached realization machines, and no eligibility for nominal
-data or runtime dynamic-conformance selection. Its trait arguments do not
-implicitly nominate a carrier. Generic carrierless evidence binds its complete
-telescope on the name:
+A conformance targeting a lifetime-parameterized trait writes that complete
+trait application explicitly:
 
 ```omega
-TogetherEvidence<machine Left, machine Right>:
-    satisfies ConvergenceEvidence<Left, Right>
-where machine Left(index: Nat) -> Rat;
-where machine Right(index: Nat) -> Rat;
+pub trait Reads<'view, Item> {
+    machine read(value: &'view Item);
+}
+
+pub BufferReads<'scope, Item>:
+    Buffer satisfies Reads<'scope, Item>
 {
-    ...
+    // ...
 }
 ```
 
-One existing machine may be shared deliberately by referencing it from
-several blocks. A reference row uses `=` to bind the conformance slot to that
-machine; it does not declare transparent machine identity:
+The declaration supplies every trait lifetime explicitly from its own binders;
+renaming a binder preserves identity, while choosing a different binder changes
+it. This mapping also specializes inherited requirements.
+
+One concrete family member is selected by applying that name inside the
+enclosing machine's static telescope:
 
 ```omega
-machine Card::stable_rank_value(&self) -> u32 {
-    self.power + self.cost
-}
-
-PowerOrder:
-    Card satisfies Ranked
-{
-    machine before(&self, other: &Card) -> bool {
-        self.power < other.power
-    }
-
-    Ranked::rank_value = Card::stable_rank_value;
-}
+send_all<
+    u8,
+    PlayerMessage,
+    SequenceEncoding<u8, PlayerMessage>
+>(&items);
 ```
 
-The normalized row key is always `(declaring trait, complete requirement
-overload identity)`, including inherited requirements whose short names collide
-and same-named overloads whose result-domain selections differ. Private
-satisfier machines may back an externally selected conformance: callers name
-the authorized conformance surface, not its private realization. Two semantic
-rows remain
-distinct even when a later lowering safely shares their physical code.
+The inner angle brackets apply the conformance's own static parameters. Supply
+every type, const, and static-machine argument explicitly; the expected trait
+checks the application but does not infer it. Only lifetime arguments may be
+elided at a later application, and only when borrow constraints determine one
+unique complete mapping. Declaration-site lifetime arguments are never elided.
+See [declaration and selection](../spec/language/conformances.md#declaration-and-selection)
+for exact lifetime identity and compatibility rules.
 
-A requirement path used without a call signature must resolve to exactly one
-of those rows. This rule applies uniformly to domain establishment routes,
-nominal static-machine binders, and every other signature-free requirement
-reference. A short path that names several overloads rejects; visibility or a
-unique currently selected satisfier never chooses one. On an exact machine
-edge, `satisfies Trait::requirement as Name` labels a coherent satisfier set for
-requirement-local and shape-licensed mechanisms; it does not declare a
-standalone whole-trait conformance. In a conformance-selection position, such
-as a quotient `where` clause, `as Name` instead selects an already-declared
-complete conformance. Neither spelling is an overload selector. No general
-source spelling for signature-free overloaded references is currently
-provided; authors give requirements used in those positions distinct names.
+A carrierless proof conformance omits the data subject. It still owns a complete
+named map, but does not describe a runtime instance. See
+[proof projection](#proof-projection-and-carrierless-evidence) below.
 
-Consequently, adding an overload to an existing requirement name is a breaking
-change for every signature-free reference to that name, including references
-in other packages. Compatibility reporting must surface that consequence at
-the trait declaration as well as at each newly ambiguous use.
+To reuse an existing machine, fill a row by reference rather than repeat its
+body. Inside the block:
+
+```omega
+Ranked::rank_value = Card::stable_rank_value;
+```
+
+This binds the requirement to an already-declared machine; it is not a
+transparent alias of machine identity.
+
+The qualified reference identifies an exact requirement overload. If a path
+without a signature names several overloads, it is ambiguous; give requirements
+used in those positions distinct names. Sharing an implementation machine does
+not merge its semantic requirement rows.
 
 Selection happens where concrete code meets an abstract requirement. Every
 whole-trait implementation has a package-scoped name, and every use passes that
@@ -221,34 +196,10 @@ Overlapping blanket and specialized conformances may coexist because neither
 competes to be chosen. Naming and passing one conformance selects its coherent
 set of requirements and every law relating those requirements.
 
-For package authority, the subject parameter and evidence binder in a generic
-bound are lexical names. The right-hand `Ranked` in
-`Order: Element satisfies Ranked` selects the exact trait declaration. A
-qualified bound such as `Element satisfies Card::PowerOrder` selects both the
-`Card` carrier and the package-scoped `PowerOrder` conformance. Those authored
-selections require their owners as direct dependencies; merely receiving a
-value with a foreign inferred type does not grant this authority.
-
-The package declaring a conformance owns its closed membership. Another package
-may declare a separately named conformance over the same type and trait, but it
-cannot add, replace, or duplicate rows in an existing one. Named third-party
-conformances therefore need no orphan or global overlap rule: additions cannot
-change existing program meaning because uses already name their evidence.
-Ordinary package visibility and name-collision rules still apply.
-
-Dedicated syntax has no position in which to select conformance evidence.
-Operators, indexing, cleanup, and similar forms therefore never initiate
-ambient conformance lookup. They resolve from their operand types and declared
-domains, from one exact conformance already selected by a proof-static binder,
-from evidence already encoded in those types, or from a sealed language route.
-
-Build-time policy data may likewise cite one exact named conformance
-explicitly. For example, a native layout plan may select
-`WndClassWindowProcedureSlot`, where that name is evidence that
-`WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call>`. The
-declaration alone changes no plan; the explicit plan citation creates the
-typed private demand. This remains ordinary named-evidence selection rather
-than enumeration of conformances attached to the layout type.
+Operators, indexing, and cleanup have no place to pass another conformance.
+They cannot search ambient implementations; their meaning must already follow
+from the operand type, qualification, an explicit static selection, or a sealed
+language route.
 
 A trait may declare free-machine requirements:
 
@@ -258,41 +209,10 @@ trait Additive {
 }
 ```
 
-A requirement may carry contracts such as `ensures`; every whole conformance
-proves them member by member. Independent provider, operator, route, and proof
-realizations may instead implement one exact requirement without claiming a
-whole trait:
-
-```omega
-machine hardware_acquire(...)
-    satisfies DeviceProvider::acquire
-{
-    // Checked realization of this exact requirement only.
-}
-```
-
-This bare exact-requirement edge participates in provider selection and other
-requirement-local mechanisms. It never creates a whole conformance, satisfies a
-whole-trait bound, or licenses `dyn`. Clause order is signature, exact
-`satisfies Trait<...>::requirement`, `terminates [by ...]`, ordinary contracts,
-then the checked body. An irreducible external realization uses `via
-<Binding>;` instead of a body. A target trait with lifetime parameters requires
-the complete explicit lifetime application here; runtime erasure never licenses
-omission.
-
-An optional `as Name` on those exact edges groups related rows without making
-`Name` independently selectable. A generic algorithm requiring
-`T: CommutativeSemiring`, a `dyn CommutativeSemiring` coercion, or an authored
-whole-conformance argument still requires an explicit name-first conformance
-declaration. Individual algebra-law edges remain sufficient for proof engines
-that deliberately license transformations by normalized law shape.
-
-A target slot declares which tier it accepts. An `ExactRequirement` slot binds
-one exact satisfier and exposes only that requirement's normalized contract; no
-conformance exists from which a consumer could cite trait laws. A
-`CompleteConformance` slot binds one named closed conformance and exposes its
-requirements and laws together. Binding shape is part of the slot identity and
-is not inferred from the trait's current requirement count.
+A whole conformance proves its requirements' contracts member by member.
+An independent machine may instead satisfy just one requirement, as described
+under [exact realization](#exact-requirement-realization). That narrower claim
+cannot supply a whole-trait bound or a dynamic value.
 
 ### Domain establishment requirements
 
@@ -313,15 +233,11 @@ remains a caller precondition. It must also prove every predicate in the
 domain's `requires` clause. A look-alike trait establishes nothing because the
 domain does not name it.
 
-Trait visibility controls who may conform, and machine visibility controls
-who may invoke a conformer. A boundary requirement additionally needs selected
-provider admission. Domain owners receive no ambient exception to these rules.
-
-A satisfying implementation inherits the requirement's authored contracts,
-including `requires`, `ensures`, service-reach ceiling, `suspends`/`blocks`
-ceilings, guarded `crashes` buckets, and bare `terminates` guarantee. A cyclic implementation may add
-`terminates by ...` as private ranking evidence; it does not restate or alter
-the requirement contract.
+Trait visibility governs who may implement the route, machine visibility who
+may invoke it, and boundary routes additionally require provider admission.
+The domain owner has no special minting privilege. The
+[establishment contract](../spec/resources/authority.md#establishment-routes)
+owns these distinctions.
 
 ## Exact Requirement Realization
 
@@ -345,89 +261,24 @@ This keeps machine identity clean:
 - The compiler checks that the params, return type, service reach, direct
   synchronous invocation ceiling, and obligations match the trait requirement.
 
-A lifetime-parameterized target trait uses the same lifetimes-first angle list
-as a whole conformance:
+A lifetime-parameterized target names every trait lifetime explicitly from the
+realizing machine's binders, for example `satisfies Reads<'scope, Item>::read`.
+The mapping substitutes through the inherited signature and contracts. See
+[exact-edge identity](../spec/build/foreign_bindings.md) for its distinction
+from the public conformance telescope.
 
-```omega
-pub trait Reads<'view, Item> {
-    machine read(value: &'view Item) -> &'view [u8];
-}
-
-boundary machine read_external<'scope, Item>(
-    value: &'scope Item
-) -> &'scope [u8]
-    satisfies Reads<'scope, Item>::read
-    via DriverBindings::read();
-```
-
-Every target-trait lifetime argument is present and names an in-scope lifetime
-binder of the realizing machine. The checked edge retains the raw ordinal into
-that machine telescope so requirement signatures and contracts can substitute
-the actual binder. Repetition is valid: `Pair<'x, 'x>` deliberately maps two
-trait lifetimes to one realizer lifetime.
-
-The public requirement-edge identity does not expose the realizing machine's
-binder numbering. It first-occurrence-normalizes the raw vector in trait-
-parameter order: raw `[1,1]` becomes `[0,0]`, raw `[1,0]` becomes `[0,1]`, and
-raw `[4,2,4]` becomes `[0,1,0]`. This records which trait lifetimes coincide
-while remaining stable under implementation binder renaming, reordering, and
-unused-binder insertion. A public machine's own callable telescope remains its
-direct-call identity; that is separate from the normalized `satisfies` edge.
-
-Checked and external exact realizations use the same edge identity. A foreign
-binding remains opaque implementation supply, not proof that its code honors
-the retained borrow contract. Application identity is never inferred from
-signature occurrences. Omega currently has no lifetime constant such as
-`'static`; each lifetime argument must name an active binder. A future lifetime
-constant would still be supplied explicitly for every declared trait lifetime
-slot, while a lifetime fixed directly inside a trait requirement and absent
-from its telescope supplies no argument.
-
-Post-signature clauses should compose with the rest of Omega's contract surface.
-
-```omega
-machine Player::draw(
-    &self,
-    canvas: &mut Canvas
-)
-satisfies Drawable::draw
-requires
-    self.health > 0
-reaches
-    draw_io
-{
-    canvas.draw_sprite(self.sprite);
-}
-```
-
-Clause ordering is signature, exact `satisfies`, `terminates [by ...]`, ordinary
-contracts and service/operational ceilings, then body. Requirement binding
-belongs with the machine contract, not inside the machine name, and does not
-manufacture a whole conformance. An irreducible external implementation instead
-ends with `via <Binding>;`; it inherits the requirement contract and cannot also
-carry a body or repeat those ceilings.
+The `satisfies` clause follows the signature and precedes termination, contracts,
+and the checked body. An irreducible external implementation instead uses
+`via <Binding>;` and inherits the requirement's contract; the binding payload is
+not evidence that foreign code honors it. Neither form creates a whole
+conformance.
 
 ## Individual Machine Requirements
 
-Some sites do not need a named bundle. They only need one machine.
-
-Sketch:
-
-```omega
-machine Runner::tick<T>(
-    subject: &mut T
-)
-where
-    machine T::increment(&mut self)
-{
-    subject.increment();
-}
-```
-
-The exact generic syntax is open. The important capability is direct: code can
-require a specific machine signature without inventing a trait name.
-
-This is useful when the requirement is local and obvious.
+A local generic requirement may need only one exact machine signature rather
+than a reusable trait name. The general source spelling for that direct
+requirement remains open. Static machine parameters and their constraints are
+covered in [compile-time proofs](chapter_10_compile_time_proofs.md).
 
 ## Operator Requirements
 
@@ -564,34 +415,14 @@ parent contributes service reach, while an ordinary parent such as
 ordinary trait therefore cannot inherit a boundary parent; the child must also
 be a `boundary trait`.
 
-`Calling<C, Policy>` is not compiler recognition of a friendly type name.
-`Policy` names the exact conformance of `C` to `CallingPolicy`; its compile-time
-`plan` machine evaluates the normalized
-boundary signature to `Accepted(BoundaryEntryPlan)` or a structured `Rejected`
-reason. The compiler validates and canonicalizes accepted plans; their evaluated
-identity, not the policy symbol or machine body, becomes part of the boundary
-contract. A rejected result has no boundary-plan identity and its structured
-reason is reported at the `Calling<C, Policy>` relationship. Policy authorship is open,
-but the plan vocabulary and validator are closed compiler interfaces. See the
-[calling-plan contract](../spec/build/calling_plans.md) for the complete rule and
-its linked implementation-status note.
+`Policy` explicitly selects the conformance whose build-time `plan` machine
+checks the boundary signature. It returns an accepted plan or a structured
+rejection, such as an incompatible interrupt-frame shape. The compiler validates
+and canonicalizes accepted plans. The evaluated promise, not a friendly policy
+name or helper body, determines the boundary contract.
 
-For a hardware-dictated convention, rejection is a normal use of the policy:
-the policy rejects an incompatible frame, result, or control-return shape at the
-relationship site rather than encoding an invalid plan for a later phase to
-discover.
-
-The policy is a named conformance parameter, not a workaround for unavailable
-machine parameters. Static machine parameters select and directly invoke one
-authored machine. `Calling<C, Policy>` selects a relationship that may use several
-ordinary machines and whose canonical result, rather than any helper symbol,
-defines the boundary promise. Neither form reifies a machine as a runtime value,
-code address, or relocation source.
-
-The canonical plan is contract identity because the counterparty observes its
-placement and state promises. A provider's emitted register/state footprint is
-separate realization evidence: the validator checks that it refines the plan,
-but a legal evidence-only change does not change the requirement identity.
+See [calling plans](../spec/build/calling_plans.md) for the closed plan vocabulary,
+validation, and the separate evidence that emitted code honors the plan.
 
 This avoids making traits magic. They are named requirement sets.
 
@@ -704,203 +535,16 @@ call. This changes only lowering. A dynamic value that is passed onward,
 rebound, stored, joined with another selection, or otherwise escapes that
 closed use retains the two-word representation above.
 
-The first implemented join records exactly two within-artifact predecessor
-calls into one bare dynamic state parameter. Checking preserves one complete
-path per alternative: the original named conformance selection, its source
-place, and every descriptor-carrying call edge through the join. It never
-chooses one incoming selection as representative. The Terminal semantic model
-requires no special joined descriptor: two calls supply their distinct
-selection-sourced descriptor arguments to one callee descriptor parameter.
-Checking groups the first three-state Boolean form into one plan with the exact
-guard, successors, branch-local calls, and both selection-sourced transfers;
-it does not leave two whole-machine candidates for lowering to choose between.
-Checked-to-Terminal lowering independently replays that plan as a three-block
-caller whose branches invoke one shared helper, and retains both closed
-applications and realization machines. Verification, canonical encoding, and
-interpretation preserve the selected referent and private table on both
-branches. Target-neutral lowering and optimizer reconstruction retain that same
-conditional, both descriptor-bearing calls, their distinct selection sources,
-and the shared parameter dispatch without adding a joined table. An acyclic
-chain of transparent parameter-to-parameter forwarding calls may follow the
-join while retaining both complete predecessor paths; Terminal and native
-lowering express it as ordinary helpers before the final parameter dispatch.
-Three-way joins, a second join over an already-joined descriptor, aggregate
-storage beyond the bounded single-field local form below, returns, and
-component crossings remain rejected.
+Forwarding, rebinding, joins, and local storage must preserve the actual referent
+and its selected conformance. A join carries each predecessor's descriptor; it
+cannot choose one predecessor as representative or construct a mixed table.
+These operations preserve ordinary borrow access: a shared descriptor cannot
+become mutable.
 
-Only a closed conformance block licenses local dynamic dispatch. A bodyless
-whole-trait conformance remains useful for static checking, but has no complete
-row map from which a descriptor table could be built. A bare exact-requirement
-satisfier likewise supplies no whole-trait dynamic surface.
-
-The checked implementation retains the first selection rung for a direct place
-coercion bound to a borrowed local. A concrete-to-dynamic coercion names the
-complete conformance, such as `&card as &dyn PowerOrder`; bare
-`&T as &dyn Trait` never searches visible conformances. The exact conformance
-target retains its package-scoped symbol through parsing, resolved and typed
-identity, derives the dynamic trait from the declaration, and selects its
-closed normalized rows. Unknown names and conformances belonging to a
-different source carrier reject. Omega owns a distinct target ABI view
-for the two-word `{ instance, selected-conformance table }` carrier and retains
-the trait plus authored named selection in physical layout descriptors; it no
-longer models the second word as a slice length. Direct nonescaping local calls
-now consume the retained row and original source place for whole-artifact
-devirtualization. Every dynamic call occurrence in a machine body retains the
-exact declaring-trait requirement symbol, including calls to inherited slots;
-same-spelled inherited requirements reject as ambiguous. Checked rows and
-backend dispatch match that symbol only. A bare dynamic parameter such as
-`&dyn Ranked` accepts an already-selected dynamic value; the concrete call site
-must first coerce through an exact target such as `&dyn PowerOrder`. No
-candidate set or unique-visible search survives into checking. The first
-address-free private-table rung now validates the exact selected conformance
-again during target-data planning, sorts runtime slots by normalized
-requirement identity, and emits one deduplicated pointer-aligned data object.
-Each slot begins as one zero-filled pointer word paired in the plan with its
-exact private realization target. Object planning publishes that object's
-private data symbol. Relocation planning revalidates the table's zero bytes,
-alignment, strict requirement order, and object-symbol shape, then resolves
-each retained realization state to exactly one private function symbol and
-publishes a data-section absolute-pointer relocation. Both supported native
-architectures apply that relocation to initialized data. Missing, duplicate,
-or shape-incoherent targets reject before final-image construction. The first
-pass-through adapter
-preserves each row's complete normalized requirement-overload and selected
-realization-callable identities through checked facts, state graph, control
-flow, and state-call
-argument planning. Checked-to-state validation independently reconstructs both
-identities and rejects drift rather than trusting copied handles or short
-spellings. The abstract-data handoff preserves the exact trait and conformance
-symbols, normalized row identities, and private table object. Transitional
-instruction selection can therefore bind one unique table object without
-rediscovering a conformance from names; missing, duplicate, or non-table
-bindings fail closed. A direct-place pass-through now constructs the exact
-runtime pair at the target parameter: the instance word receives the retained
-source-place address, and the table word receives the private data-object
-address through a distinct single-word operation. Both native encoders and
-their final relocation replay keep those words separate. Instruction selection
-reconstructs the checked row map again and emits one standalone private
-function for each unique exact realization `StateKey`; that function contains
-the retained control-flow state body rather than an alias or empty placeholder.
-An exact repeated realization deduplicates, an entry-state realization reuses
-the existing entry identity, and identity, state, or one-to-one demand drift
-rejects before machine bytes. The full native pass-through image can therefore
-link every table slot on both supported architectures. An immutable bare
-dynamic parameter can now call one admitted requirement through that physical
-slot. The descriptor must be the exact symbol-bound parameter and two-word ABI
-carrier; every retained candidate must place the exact normalized requirement
-in one common slot and expose a realization with the same structural calling
-plan. The plan owns receiver, explicit arguments, and result exactly once.
-Private dynamic calls carry a closed validation identity rather than pretending
-to be authored foreign table calls, so they do not acquire a foreign floating-
-control save/restore envelope. Private function spans still contribute their
-complete prologue, body, result, and return mechanics to the one root footprint
-certificate. A distinct-instance native canary proves that the relocated table
-slot, rather than a static fallback or a same-type decoy, executes under ASLR.
-One mutable local may now be rebound before scalar dispatch or pass-through
-when both its initializer and assignment are exact direct-place casts naming
-the same carrier and dynamic-trait interface. The named conformances may
-differ, but their telescope, borrow access, and normalized ordered requirement
-roster must remain exact. The compiler retains one selection and independently
-committed application per statement, replays the assignment against its
-earlier version, selects the latest version at the call, and overwrites both
-the instance and table words in the existing local slot. The initializer's
-application remains semantic evidence but does not cause an unused runtime
-table to be emitted. The compiler refuses malformed, colliding, or
-interface-changing versions without devirtualizing them; the latest application
-alone supplies the private indirect slot call. This is equally valid for a
-result-less Unit requirement; no scalar carrier is introduced. Non-cast
-assignments, joins, and wider escapes remain open. The first within-artifact
-aggregate-storage shape reaches verified Terminal Psi: an immutable
-borrow-carrying local record
-may initialize one `&dyn Trait` field directly from an earlier exact local
-selection. Checking retains the original selected row map, the source binding,
-and the exact destination local, field identity, and member path as storage
-lineage; it does not misclassify the move as a fresh conformance selection.
-Terminal retains a distinct descriptor-establishment row naming the aggregate,
-field, and prior selection, then reloads the same descriptor ordinal for the
-later call. Independent validation requires that establishment to dominate the
-call, canonical encoding preserves the custody, and target-neutral interpretation
-executes the selected realization through the stored field. Terminal-to-Abstract
-lowering retains distinct store and reload operations with the same selection,
-aggregate/field identity, closed application, and selected callable. Optimizer
-identity and independent validation preserve the unique earlier same-block store
-join. Target lowering derives the selected realization call ABI and instance
-projection for both operations. Physical assignment allocates one aligned
-16-byte descriptor home at establishment and requires the call to reload that
-same home before giving its scalar result a distinct home. Machine emission
-writes the selected instance and private-table address at establishment, then
-reloads both descriptor words for the later x86-64 or AArch64 indirect call. It
-retains the exact shared home, selected table slot, relocation fields, call and
-result intervals, and stack evidence. Object and final-image replay regenerate
-the target bytes, bind the symbolic table address to the complete private table,
-and compose exact stack demand. Installation format 68 retains the exact
-establishment and call operations, descriptor and selection ordinals,
-application commitment, source place, shared home, selected slot, realization,
-and both text intervals. Decoding and image-binding replay reject malformed,
-reordered, table-substituted, source-substituted, or interval-drifted rows. The
-image/installation replay covers all four native targets. The returned scalar
-may feed the bounded immediate equality/effect diamond. Checked custody names
-the descriptor-owning affine local's exact no-code state-exit drop rather than
-treating a missing generic edge-cleanup row as permission to forget it. Target
-lowering admits the store/call pair as the diamond's prefix, and physical
-assignment rejoins later scalar uses to the stored call's durable result home.
-A rooted native canary carries that path through both native architectures; on
-a matching Linux host the result selects the expected exit arm.
-Those consumers use the same complete normalized maps.
-Replaceable-component crossing is not another descriptor rung: it is forbidden
-below, and uses a boundary requirement or a consumer-owned local proxy instead.
-
-The bounded pass-through lane accepts either `&dyn Trait` or `&mut dyn Trait`
-when the initializer, rebound source, descriptor parameter, and requirement
-receiver all retain the same exact borrow access. A mutable descriptor must
-come from a mutable caller subloan; it cannot be reconstructed from a shared
-selection. The current scalar-returning lane gives the forwarded result a
-durable attached-Unit frame home, so later bounded control flow reads the exact
-normalized result rather than relying on a transient ABI register. Target
-assignment and object/image replay independently rejoin that home to the
-operation, value, scalar type, shape, result placement, and emitted store
-bytes on x86-64 and AArch64. Installation format 63 retains the same semantic
-result and physical result/home carrier, and independently rejoins the
-producer to the generic Unit-home roster, ABI result placement, and exact
-local result interval.
-
-A bare dynamic parameter may also be passed onward unchanged to a bare
-parameter of the same trait. Checked custody distinguishes a descriptor made
-from an owner-local selection from one sourced from an incoming parameter and
-retains the original exact selection through a complete unambiguous chain of
-such call edges. Terminal and native lowering preserve every helper rather than
-collapsing the chain. A parameter state with multiple inbound call sites is a
-real descriptor join and does not acquire parameter-forwarding custody merely
-because the incoming interfaces have the same spelling.
-
-A first mutation-bearing realization body is admitted
-through checked and Terminal form when `&mut self` receives one, two, or three
-distinct ordered primitive-field literal stores, either directly or below exact finite
-paths of relevant named record fields, and then returns an exact scalar self
-field. The callable row retains every write separately from the return, and
-Terminal emits the stores before the read. Direct Boolean and signed or unsigned
-8-, 16-, 32-, or 64-bit integer literal stores also reach native execution:
-`&mut self` is one
-no-copy pointer to caller storage,
-the erased-data adapter rejoins the structural-only scalar-result ABI, and
-machine/object/image evidence replays the exact store/read/return bytes on
-x86-64 and AArch64. Store path, accumulated byte offset, and return field are
-identified independently; assignment rejects disagreement between path, offset,
-or order. Canonical installation format 68 retains the ordered store vector. The
-first Boolean store returns an independent `i32` field through the existing
-fixed-integer result-home lane. A Boolean-returning forwarded call instead
-uses an exact one-byte Boolean home and branches directly on that value after
-the indirect call. Indexed/case projections, address and IEEE-float literals,
-computed values, repeated destinations, and a fourth store remain outside this
-bounded rung. An operation-free, argument-free Unit-returning requirement may
-be retained for a terminal direct or once-rebound local descriptor call and
-through a finite transparent forwarding chain. Every helper accepts the
-descriptor as its only parameter; intermediate helpers pass it onward, and only
-the final helper performs the dynamic Unit call. Every coordinate is retained,
-and the plan deliberately has no result carrier. Direct, rebound, and forwarded
-forms reach target assignment, native machine emission, table relocation,
-object/final-image replay, and installation on all four native targets. They
-publish no scalar home.
+A bodyless declaration without a complete row map and a bare exact-requirement
+satisfier cannot supply a dynamic table. Current source/native support is bounded;
+see the [implementation owner](../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/README.md#dynamic-dispatch)
+for supported shapes, rather than treating them as language restrictions.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
@@ -913,9 +557,8 @@ type.
 
 The runtime dynamic form described here is borrowed. An owned erased runtime
 value additionally needs a storage owner, size/alignment metadata, and checked
-cleanup. Those compose with the same selected-conformance table after the
-general owned-storage and cleanup contracts land; they do not change local
-dispatch or make the value component-safe.
+cleanup. Those requirements do not change local dispatch or make the value
+component-safe; a borrowed descriptor alone does not provide them.
 
 There is one exact by-value case that needs none of that machinery. When the
 entire normalized dynamic value has no runtime carrier — no instance and no
@@ -925,29 +568,15 @@ may still have unknown size and cleanup.
 
 ### Dynamic surface
 
-A requirement is available through `dyn Trait` when all of these hold:
+Eligibility is per requirement, not all-or-nothing for a trait. For example,
+`machine clone(&self) -> Self` cannot return a concrete `Self` through an erased
+interface, but its presence does not hide an unrelated `write(&self, ...)`.
+There is no `Self: Sized` workaround.
 
-- its receiver is `&self` or `&mut self`;
-- `Self` appears nowhere else, including nested runtime contracts;
-- it has no requirement-local generic parameters;
-- parameter and result representations are concrete after trait parameters
-  are bound;
-- it is not a boundary-machine requirement;
-- every returned borrow lifetime is expressible from the inputs;
-- its public contract names no satisfier-private identity; and
-- its operational contract normalizes into the requirement's dynamic
-  envelope.
-
-Eligibility is per requirement. An ineligible
-`machine clone(&self) -> Self` is absent from the dynamic surface; it does not
-make unrelated requirements unavailable through `dyn`. Calling it on a
-dynamic value reports why that requirement cannot be dispatched. There is no
-`Self: Sized` escape hatch: exclusion follows from the signature the compiler
-already sees.
-
-One conformance supplies the complete dynamic surface. A table never mixes
-requirements from different conformances, because contracts may relate
-several requirements within one conformance.
+The [dynamic surface contract](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes)
+checks receiver access, generic parameters, concrete representations, returned
+borrow lifetimes, and public operational contracts. One selected conformance
+supplies the entire eligible surface, so laws relating its members remain valid.
 
 ### Proof projection and carrierless evidence
 
@@ -967,39 +596,21 @@ values remain to be specified. A Boolean accessor is appropriate for a
 decidable property but cannot replace an arbitrary mathematical predicate.
 See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles)
 and the [mathematical proof contract](../spec/proofs/contracts.md).
-The migration must demonstrate these bundles through calls, serialization,
-and independent replay; this section does not claim full implementation.
+General bundle implementation remains tracked by `PROOF-CONTRACT-MIGRATION`
+on the [execution board](../../TASKS.md); these rules do not claim full support.
 
 ### Operational envelopes
 
-Erasing implementation identity must not erase the static facts needed to
-check the caller. Each eligible requirement therefore retains a compile-time
-operational envelope: the operational projection of its normalized machine
-contract. It includes service reach, direct synchronous invocation, the
-inferred or signature-derived mutation summary, capability requirements,
-suspension, blocking, failure, termination, and quantitative resource ceilings.
-Guarded crash routes retain their causes and predicates as a separate may-axis.
-Carry remains a property of the dynamic value rather than of an individual
-requirement.
+A dynamic value retains each requirement's operational contract in static type
+information, with no extra runtime words. For example, a known non-suspending
+logger needs no `suspend` marker even when the base interface permits suspension.
+If two such values join, callers must allow either alternative's demands and
+may rely only on guarantees common to both.
 
-The envelope adds no runtime words. A concrete coercion records the selected
-conformance's exact envelope in static type information. At control-flow joins,
-obligations combine permissively by union or maximum; guarantees combine
-conservatively by conjunction or intersection. In particular, carry
-permissions intersect and termination survives only when every alternative
-guarantees it.
-
-A dynamic call's `suspend` and `block` acknowledgements are checked against
-this retained per-requirement envelope, not merely against the widest base-trait
-declaration. A narrowed dynamic value therefore keeps the narrower call surface
-without adding runtime metadata.
-
-An unannotated dynamic parameter is implicitly polymorphic over fitting
-envelopes. Only requirements reachable through the machine's call graph
-contribute to its inferred contract. Passing the value onward contributes
-requirements called transitively; storing it instead requires the storage
-type's declared bound. Envelope polymorphism changes contract checking, not
-runtime representation, and does not require machine-code monomorphization.
+A bare dynamic parameter accepts fitting envelopes; its inferred contract
+accounts for requirements called directly or through helpers. Storing a dynamic
+value instead requires the storage type's declared bound. This polymorphism is
+contract checking, not a runtime dictionary or required code duplication.
 
 ### Transparent trait refinements
 
@@ -1036,63 +647,23 @@ machine record<L, Logging: L satisfies LocalLogger>(logger: &L)
 }
 ```
 
-The caller passes the exact base conformance whose contract fits the
-refinement. No refinement or base conformance is selected by visibility:
+The caller passes an exact base conformance whose contract fits the refinement.
+For `LocalLogger`, that means no reach, suspension, or blocking and a termination
+guarantee. The suspending component proxy below does not fit this bound.
+Visibility selects neither a refinement nor a base conformance.
 
-```omega
-record<LoggingProxy, ComponentLogger>(&proxy);
-```
+`machine *` narrows every present and future base requirement; a qualified clause
+narrows just that requirement. Omitted axes inherit the base, so use
+`suspends false` or `blocks false` to remove a possibility explicitly.
+`reaches;` means empty; `reaches _;` means an independent row bounded by the
+base. Refinements can narrow obligations or strengthen guarantees, not widen
+the contract. See [transparent refinements](../spec/language/conformances.md#transparent-refinements)
+for composition and normalization.
 
-`machine *` applies to every present and future requirement in the base trait;
-a targeted clause names one requirement. Unmentioned requirements and axes
-inherit the base contract. A refinement may narrow obligations or strengthen
-guarantees, never widen them. Multiple refinements combine by an
-order-independent meet, and expansion happens before normalization and
-fingerprinting.
-
-Within a machine contract, an omitted `suspends` or `blocks` clause means
-false, and an omitted crash cause is forbidden. Within a refinement, omission
-means inherit; `suspends false` and `blocks false` explicitly narrow, while
-crash refinement may disprove inherited route predicates. `reaches;` means an
-empty row, while `reaches _;` introduces an independent abstract reach row for
-that requirement, bounded by the inherited base row. Correlating several
-requirements with one named row is a later extension.
-
-An installation-bound provider requirement may instead introduce one fresh
-bounded abstract row directly:
-
-```omega
-pub boundary requirement InterruptAcknowledgement::complete(self)
-reaches <= MachineControl + PortIo
-requires
-    self in InterruptAcknowledgement::Pending;
-```
-
-The explicit normalized requirement path supplies the row identity. `<=` means that
-the selected realization publishes the exact row and that this row must be a
-subset of the written `+`-separated bound. It does not mean Boolean choice,
-exclusive-or, a lower bound, or authority acquisition; the empty row remains a
-legal realization. A fixed `reaches MachineControl + PortIo` instead makes that
-whole row the caller-visible ceiling before selection.
-
-Such an unresolved row may propagate through inferred internal call-graph
-metadata only inside the installation closure that owns the requirement. It
-cannot appear in an ordinary callable package or component contract. That
-boundary must first bind the provider, or publish a fixed conservative row.
-The installation manifest exposes the unresolved row and its bound, selection
-records the exact provider and operation row, and final admission rejects any
-remaining unresolved row. Distinct operations always introduce distinct rows;
-provider coherence is established by the installed binding and lineage, never
-by equal reach rows.
-
-The `satisfies` token consequently has three related grammatical uses. The
-right side of a name-first block declares one complete nominal edge; a machine
-clause realizes one exact requirement without creating that edge; and a static
-evidence binder states the complete conformance shape its argument must have.
-On the machine clause, optional `as Name` labels a requirement-local satisfier
-set without introducing a complete conformance. In an authored complete-
-conformance selection, `as Name` references an already-declared name-first
-item. Neither use creates a whole conformance implicitly.
+Installation-bound provider requirements use a different form,
+`reaches <= Bound`, whose selected row must close before installation admission.
+See [installation rows](../spec/language/effects.md#published-identity-and-installation-rows).
+It grants neither authority nor ordinary exported row polymorphism.
 
 ### Components are a different crossing
 
@@ -1101,47 +672,6 @@ Its table uses within-artifact calling semantics, and freely copied
 descriptors cannot be enumerated for unload or migration. A component exposes
 a boundary requirement whose calls use the selected `CallPlan` and
 `StatePlan`.
-
-Within one artifact, the portable descriptor is exactly two target-neutral
-words: a data address and a table address. Passing it to another Psi machine
-does not freeze a concrete target ABI into Psi. Native lowering selects the
-two-word function-entry ABI and an erased one-pointer slot ABI, then generates
-one source-free adapter for each closed conformance row. The caller addresses
-the table, the table addresses the adapter, and the adapter calls the concrete
-realization using its ordinary native ABI. Direct local dynamic tables remain
-a distinct role and may address concrete realizations directly. Object,
-final-image, and installation replay preserve these roles and all three joins;
-matching symbol names or identical bytes never substitute for that evidence.
-
-The current bounded implementation also retains an unambiguous chain of
-scalar helpers that pass one descriptor parameter unchanged. Checked flow
-records the original selection and every parameter-sourced forwarding edge;
-Terminal Psi independently reconstructs the path and represents every hop as
-an explicit helper call. It does not collapse the chain into a direct dispatch.
-A state with multiple inbound call sites is deliberately not treated as such a
-chain because the incoming descriptor would require an explicit join rule.
-Canonical Terminal artifacts preserve this distinction. Native target lowering
-and physical assignment now preserve longer scalar chains in a distinct direct-
-helper carrier, including the unchanged incoming and outgoing two-word ABI.
-Machine emission encodes the next helper as an ordinary direct call and retains
-the parameter origin, unchanged registers, relocation, call-stack facts, and
-return attribution in a separate evidence row. Object and final-image replay
-independently rederive the helper chain, interface and call-plan custody,
-unchanged register handoff, direct-call relocation and opcode shape, and
-semantic attribution. Installation format 68 retains the compact source,
-callee, scalar, parameter-ordinal, and exact text-span projection and rejects
-codec or projection drift. A scalar caller may consume the final result in its
-checked conditional/effect continuation; the complete helper chain remains
-explicit, and a Linux native canary observes the selected realization through
-process exit status. Result-less Unit chains use the same explicit structure:
-each intermediate helper calls the next with the incoming descriptor parameter,
-only the final helper dispatches through the requirement slot, and no helper
-acquires a scalar result or value identity. Target and assigned forms retain a
-distinct result-neutral helper call, exact source/target interfaces, both
-no-result two-word call plans, and an unchanged descriptor-register handoff.
-Machine emission uses an explicit Unit stack/link carrier; object, final-image, and
-format-68 installation replay preserve the helper chain while requiring source
-value and scalar type to remain jointly absent.
 
 Code that wants a local dynamic interface over a component owns a local proxy:
 
@@ -1169,43 +699,6 @@ The descriptor points to the proxy in the current artifact. The proxy crosses
 the boundary through the ordinary binding, concentrating ABI, replacement,
 effect, and resource costs at one named seam.
 
-## Satisfaction
-
-Conformance is nominal. A matching set of machines does not silently make a
-type satisfy a trait. One conformance block declares the edge, owns its complete
-member map, and gives the compiler a stable place to check it.
-
-```omega
-trait Incrementable {
-    machine Self::increment(&mut self);
-}
-
-data Counter {
-    value: i32;
-}
-
-StandardIncrement:
-    Counter satisfies Incrementable
-{
-    machine increment(&mut self) {
-        self.value = self.value + 1;
-    }
-}
-
-machine Scheduler::step<T, Increment: T satisfies Incrementable>(
-    subject: &mut T
-)
-{
-    Increment::increment(subject);
-}
-```
-
-A machine may realize a requirement directly with
-`satisfies Incrementable::increment`; that edge never implies the whole
-conformance above. Structural checks still answer whether the declared
-conformance fits a transparent refinement, but they never create its nominal
-edge.
-
 ## Contracts And Reach
 
 A trait can require more than machine names. Its requirements publish the facts
@@ -1226,12 +719,6 @@ path. It may expose stronger facts to direct callers but cannot weaken the
 requirement used by static or dynamic dispatch. Witness bundles preserve their
 declared laws, exact substitutions, validity scopes, and admitted assumptions.
 Implementation-private proofs cannot introduce undeclared public guarantees.
-
-Every referenced subject must be bound in the logical or ordinary contract
-scope. A bundle cannot keep a borrowed occurrence valid after its lifetime or
-hide invalidation by a write. Calls import facts only where the relevant
-outcome has been established. These requirements remain unchanged by the
-contract/bundle migration in `PROOF-CONTRACT-MIGRATION`.
 
 Value-wide facts belong to the carrier's default domain: field constraints and
 the data signature's `where` facts. Algebraic laws remain resultless theorem
@@ -1254,25 +741,6 @@ envelope with `suspend` and `block`. A concrete or transparent refinement that
 statically removes one possibility removes only that call-site marker; it does
 not rewrite the base trait's published contract.
 
-For hot swapping and driver-like code, trait reach may be part of replacement
-safety:
-
-```omega
-trait QuiescentMigratable<Old, New> {
-    machine New::from(
-        old: Old,
-        out: &mut New,
-        heap: &mut HeapBudget
-    )
-        requires exclusive(old)
-        requires heap.remaining >= migration_space(old)
-        ensures New::invariants(out);
-}
-```
-
-Traits may therefore publish reach and explicit proof obligations in addition
-to machine signatures without acquiring a second fact surface.
-
 ## Trait Parameters And Related Types
 
 Some traits need to mention a related type.
@@ -1280,7 +748,7 @@ Some traits need to mention a related type.
 Example: a runtime value can be transformed into a matching wire message. A
 `Player` maps to `PlayerMessage`; an `Enemy` maps to `EnemyMessage`.
 
-The first implementation should prefer explicit trait parameters.
+Use explicit trait parameters to name that relationship.
 
 ```omega
 trait WireEncodable<Message> {
@@ -1319,29 +787,9 @@ machine Network::send<
 This is more explicit than an associated type slot. It also keeps `data`
 declarations as data shape instead of making them declare behavioral contracts.
 
-An associated type-like slot may become useful later, but it is not part of the
-first-pass design.
-
-```omega
-trait SnapshotSource {
-    data Snapshot;
-
-    machine Self::snapshot(&self, out: &mut Self::Snapshot);
-}
-```
-
-But this should be deferred. It introduces a type slot namespace like
-`Self::Snapshot`, which is more type-system machinery than Omega needs for the
-first trait pass.
-
-Working guideline:
-
-- Use trait parameters first.
-- Bind concrete trait parameters on the complete named conformance block, for
-  example `PlayerWireEncoding: Player satisfies
-  WireEncodable<PlayerMessage> { ... }`.
-- Do not add associated constants, higher-kinded types, or type families until
-  the language has a real need.
+Use explicit trait parameters for related types. Associated type slots,
+associated constants, higher-kinded types, and type families are not part of
+this trait surface.
 
 ## Trait Machine Bodies
 
@@ -1378,143 +826,13 @@ machine CounterDefaults::reset<T, Setter: T satisfies SettableCounter>(
 ```
 
 Prefer ordinary library machines when behavior is reusable without access to
-trait-member generation or `Self`-specific conformance. Trait bodies exist for
-the conformance story below.
-
-## Conformance Blocks
-
-Nothing trait-shaped appears on a `data` declaration. A conformance block
-declares and implements one named nominal satisfaction relationship. Most have
-a data subject; proof evidence may omit it:
-
-```omega
-StructuralEquality:
-    Point satisfies Equatable
-{
-    machine equals(&self, other: &Point) -> bool {
-        self.x == other.x && self.y == other.y
-    }
-}
-```
-
-A generic conformance owns its binder telescope on its declared name:
-
-```omega
-SequenceEncoding<Element, Message>:
-    Vec<Element> satisfies WireEncodable<Message>
-{
-    machine encode(&self, out: &mut WireBuffer) {
-        // ...
-    }
-}
-```
-
-A conformance targeting a lifetime-parameterized trait writes that complete
-trait application explicitly:
-
-```omega
-pub trait Reads<'view, Item> {
-    machine read(value: &'view Item);
-}
-
-pub BufferReads<'scope, Item>:
-    Buffer satisfies Reads<'scope, Item>
-{
-    // ...
-}
-```
-
-Every target-trait lifetime argument must be present, must name an in-scope
-conformance lifetime binder, and must match the trait's lifetime telescope in
-declaration order. There is no declaration-site elision. Semantic identity
-stores each selected binder as its alpha-normalized declaration-order ordinal:
-renaming `'scope` is stable, while selecting another binder changes the
-conformance. The same mapping substitutes through direct and inherited
-requirements and survives package review even though lifetimes erase at
-runtime.
-
-One concrete family member is selected by applying that name inside the
-enclosing machine's static telescope:
-
-```omega
-send_all<
-    u8,
-    PlayerMessage,
-    SequenceEncoding<u8, PlayerMessage>
->(&items);
-```
-
-This is a nested static-symbol application, not a runtime dictionary and not a
-Prop argument in the `;` lane. Its own angle brackets delimit the conformance's
-telescope from the enclosing machine's arguments. Type, `const`, and
-static-machine arguments are complete and explicit even when the expected
-subject and trait application could reconstruct them. The expected shape only
-checks the resulting closed conformance. Ordinary lifetime elision remains
-available at a later conformance application only when ordinary call-site borrow
-constraints produce one unique complete lifetime mapping. The resolved mapping
-is retained in semantic identity; zero candidates and conflicting candidates
-reject, and an explicit mapping must agree with the constraints. A bare name
-denotes a conformance argument only when it is already closed, including a
-forwarded evidence binder.
-
-Today a lifetime argument can only name a binder in the active telescope. Omega
-has no lifetime constant such as `'static`, higher-ranked lifetime application,
-authored outlives bound, variance, or lifetime subtyping. Exact binder-ordinal
-equality is therefore both conformance identity and selection. Adding any of
-those facilities must revisit this target-application and matching rule.
-
-The conformance telescope is semantic identity for every concrete application.
-Adding, removing, or reordering a type, `const`, or static-machine binder breaks
-every such application. A lifetime-telescope change likewise changes semantic
-identity and may turn a formerly valid elision ambiguous; if the conformance is
-published under the eventual package-visibility rule, compatibility reporting
-must surface both consequences at the declaration.
-
-Those arguments specialize authored default signatures and bodies. They also
-compose through header parents, so a non-generic `trait IntSink: Sink<i32>`
-passes `i32` into defaults inherited from `Sink<T>`.
-
-The declared implementation is discharged member by member:
-
-- a machine written inside the block is checked against its exact requirement,
-- an explicit reference row selects one already-declared exact machine,
-- a missing member whose trait declares a machine body gets that
-  body instantiated for this conformance,
-- a missing member of a SYNTHESIZABLE core trait is generated by the compiler
-  (below),
-- anything else is a loud conformance error at the block.
-
-Writing a member in the block flips that row from synthesize/default to check;
-partial override needs no extra syntax. Default bodies call other requirements
-through the same block's normalized map.
-
-Foreign-type conformance (`LocalName: ForeignType satisfies MyTrait { ... }`
-declared in your package) owns a closed member set and cannot extend another
-package's conformance. Two third parties may declare differently named
-conformances over the same foreign type and trait without an orphan exception
-or global overlap conflict because every use passes one exact name. The exact
-cross-package publication spelling is ordinary
-`pub LocalName: ForeignType satisfies MyTrait { ... }`; an unmarked declaration
-remains package-private. This coherence property does not depend on making every
-named conformance public.
-
-Publishing conformance evidence does not create a mediated or replaceable
-runtime crossing. A consumer that selects an executable, layout, cleanup, or
-other runtime-bearing row from a public conformance acquires an exact static
-dependency on that realization. If the consumer is meant to sit in a different
-replacement cohort, the behavior must instead cross an independently selected
-boundary requirement. Proof-only erased evidence retains its theorem and
-certificate dependency without pinning runtime code.
-
-The item remains identifier-led and `satisfies` stays a contextual keyword.
+trait-member generation or `Self`-specific conformance. Default instantiation
+always uses the selected conformance's member map.
 
 ## Synthesized Core Traits
 
-A small CLOSED set of core traits is synthesizable: the compiler walks the
-type's members and emits the implementing machine as ordinary typed-tree code,
-exactly as if the author had written it. For `Equatable` on a record this is
-the field-by-field comparison; on a sum it is the tag compare plus the
-matching case's payload fields.
+A closed set of core traits supports compiler synthesis. An empty named
+`Equatable` conformance requests structural equality:
 
 ```omega
 trait Equatable {
@@ -1526,102 +844,30 @@ StructuralEquality:
     Point satisfies Equatable { }   // compiler emits this block's equals row
 ```
 
-This follows the established core pattern (operator declarations backed by
-registered primitives, implicit case-domains): a BROWSABLE core declaration
-whose implementation is compiler-owned. Synthesis is a compiler privilege --
- user traits cannot iterate a type's fields. User traits get machine
-bodies and composition over the synthesized core set.
+Synthesis is a compiler privilege over a closed core set. User-written trait
+bodies do not acquire arbitrary field reflection. Future generator syntax is
+unsettled; [semantic evaluation](../spec/language/evaluation.md#trait-bodies-and-generators)
+owns its admission and reflection boundaries.
 
-There is NO macro system, now or planned -- and no `#run`-style directive
-either. Compile-time execution, when it lands, is never a keyword you
-sprinkle; it is what two existing surfaces MEAN, both evaluated by the
-reference interpreter and both gated by the effect system:
+Primitives and payload-less sums acquire equality implicitly. Records and
+payload-bearing sums need an explicit named conformance. Adding a payload case
+therefore makes existing equality uses require that declaration. Domain
+membership (`in`) remains separate and never requires `Equatable`.
 
-- CONST EVALUATION: a build-time-admissible machine called in a constant position
-  (a fixed-array length or a lookup table initializer) simply
-  evaluates at compile time. The position makes it build-time; the effect
-  system makes it legal. No new syntax.
-- TRAIT GENERATORS: a trait machine body that uses member reflection is
-  expanded per conforming type at the conformance site. Sketch:
-
-```omega
-trait Hashable {
-    machine hash(&self) -> u64 {
-        let mut h: u64 = 14695981039346656037;
-        for field in Self::fields {          // build-time: unrolled per type
-            h = (h ^ field_hash(self.[field])) * 1099511628211;
-        }
-        h
-    }
-}
-
-StructuralHash:
-    Point satisfies Hashable { } // expands this block's hash row for Point's fields
-```
-
-  Generated build-time code runs only where the trait declarer wrote the
-  default; an empty row in the conformance block selects that instantiation.
-  A block may instead provide an ordinary checked override. Generator bodies
-  must carry empty reach. One auditable generator site per trait, no IO at
-  build time, ever.
-
-Once trait generators exist, the synthesized core set above stops being
-special: `Equatable` becomes an ordinary core trait written this way, and the
-compiler privilege dissolves into the same mechanism.[^build-time-open]
-
-Equatable acquisition is implicit for primitives and payload-less sums—tag
-identity is the only thing equality could mean there, and match desugaring
-depends on it—and declared
-through an explicitly named synthesis block for records and payload-bearing
-sums. This is
-deliberately looser than Rust's universal derive: whole-program compilation
-removes the accidental-public-API pressure that motivates Rust's opt-in.
-The boundary is load-bearing: adding a payload case to a payload-less sum
-flips the type implicit -> declared, erroring every existing `==` site until
-the conformance line is written. `in` (domain membership) never requires
-Equatable -- the tag test is domain algebra, not equality
-([chapter 1](chapter_1_data_values_literals.md)).
-
-Equatable synthesis is implemented for records and payload-bearing sums. A
-declared named Equatable synthesis block makes `==`/`!=` legal; the compiler
-expands the compare INLINE at lowering into field-by-field compares (for
-sums: a disjunction over cases, each arm tag compares first, then that
-case's payload fields), riding the existing comparison machinery. A callable
-compiler-owned `Type::equals` wrapper carries that same expansion; direct
-calls lower it in the caller's storage scope, so ordinary method calls and
-operators share the implementation. An `equals` member written in the block,
-or an explicit row referencing an existing exact machine, wins over synthesis;
-`==` lowers to that selected row. Prerequisites for synthesis are enforced at
-the conformance block: every field must be
-a scalar primitive, a payload-less sum, text (a byte-slice view or bounded byte carrier,
-compared by content), or itself Equatable-conforming; recursive types are
-rejected (inline expansion would not terminate).
+An authored `equals` body or explicit reference row overrides synthesis.
+Synthesized equality compares record fields, or a sum's tag and selected
+payload fields. Prerequisites are checked at the conformance: each field must
+be a primitive, a payload-less sum, text compared by content, or another
+Equatable-conforming type. Recursive expansion rejects.
 
 `Equatable` is a sealed, type-owned core operator route: each structural type
 may publish at most one operator-facing Equatable conformance, and `==` resolves
 that route from the operand type rather than searching visible conformances.
-Other mathematical equivalence relations remain ordinary named propositions
-and conformances and do not compete for operator syntax.
-
-Closed implementations use the name-first declaration above. Bodyless carrier
-declarations remain static-only and cannot license local dynamic dispatch.
-Generic name-owned telescopes, package-scoped conformance symbols, and explicit
-evidence-binder declarations are retained by typed Psi. A concrete binder
-argument selects exactly one named closed map. Nested conformance application
-supplies every non-lifetime argument, ordinary lifetime elision resolves and
-retains the exact region, and specialization validates the subject and
-instantiated trait arguments rather than inferring the application from them.
-Direct and inherited requirement rows are substituted and the resulting map is
-retained in semantic identity. Implementation remains tracked in `TASKS.md`;
-synthesis and its eligibility rules are independent of declaration syntax.
-Without a conformance, `==` on a structural type stays a compile error
-suggesting the one-line conformance; payload-less sums keep `==` as the
-tag compare (which IS their total equality).
-
-[^build-time-open]: Sketch-grade, not implemented: the member-reflection
-surface (`Self::fields`, the field splice `self.[field]`, what reflection
-over sums/cases/payloads looks like), constant-position rules for const
-evaluation, and how the proof system sees expanded bodies are all open.
+Other mathematical equivalence relations use ordinary contracts and selected
+conformances and do not compete for operator syntax.
+See [core equality acquisition](../spec/language/conformances.md#core-equality-acquisition)
+for the complete rule, and [quotients](../spec/proofs/quotients.md) for selecting
+mathematical relations and representative-independent operations.
 
 ## What Traits Are Not
 

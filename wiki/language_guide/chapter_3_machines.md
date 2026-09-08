@@ -133,62 +133,17 @@ The machine name is not special. The build binding chooses the machine, its
 source signature states whether it needs a receiver or visible arguments, and
 the target schema states how the launch environment supplies those needs.
 
-The schema keeps physical and semantic arrival separate. A UEFI physical entry,
-for example, receives `ImageHandle` and `SystemTable` and returns `EfiStatus`;
-the build-bound semantic continuation may instead receive only
-`image: Extent in Granted` and `initial_storage: Extent in Granted`. A generated
-ABI shell calls the exact target-authored bootstrap adapter, and the installed
-semantic edge introduces those root occurrences after provider validation.
-Neither firmware input is silently reinterpreted as an `Extent`, and no hidden
-platform parameter is appended to the source machine.
+Physical arrival and the source signature are separate. For example, a UEFI
+bridge can receive firmware handles while the source machine receives only
+validated image and initial-storage extents. Target-authored checked code
+establishes those values; a raw platform handle is not secretly an Omega extent.
+The bridge also defines platform return mapping and accounts for its storage.
 
-The bootstrap adapter is checked code over narrowly admitted physical-arrival
-and firmware-service postconditions. It resolves the image through the selected
-Loaded Image provider and obtains initial storage independently; the live
-provider-selected entry stack is never handed to source as that storage. Its
-shell, live frames, nested program/provider WCSU, and explicit reserve must fit
-the symbolic selected-target entry-stack guarantee, unless a checked private
-stack switch is used. Normal Unit return maps to the target success status,
-recoverable bootstrap failures use the declared status map, and a crash does
-not return a status.
-
-> **Implementation gate:** explicit `Build` root binding, exact source-entry
-> selection, target-owned `ProgramEntry` profile/schema metadata, hosted
-> free/receiver source-shape checks, exact UEFI visible-root type/arity checks
-> against `ProgramStorageEntry::enter`, receiver ZII checks, and the current
-> semantic UEFI source-calling-plan retention, validation, and inbound lowering
-> are live. The compile report also retains the exact target root slot, checked
-> semantic arrival requirement, calling-plan fingerprint, and generated captures for
-> both storage positions; the machine-readable program-storage artifact renders
-> their semantic roles, normalized ABI placements, frame capture ranges, strict
-> carry, and the pending two-grant installation rule. Physical bridge/grant
-> installation is generically modeled with all-or-nothing predicate validation
-> and a non-authoritative geometry/address-space/rights/provenance/era/lineage/root-origin
-> record. Provider-issued roots also bind their admitted issuance, backing,
-> provider, live-issuance, custody, alias, correspondence, and trust identities
-> to one selected provider plan/invocation, establishment route, capacity
-> account, and qualification through that record. A canonical
-> non-authoritative completed-installation JSON renderer and atomic artifact
-> writer cover both provider-issued and installed program-local origins. The
-> installation handoff releases roots only after that record is emitted and
-> seals them for retry across a write failure; ordinary compilation removes
-> stale copies and never claims completion. Receiver-bound entries now retain
-> their checked layout, reject insufficient or misaligned storage before grant
-> consumption, conserve every reservation remainder, and audit the exact
-> placement. The recorded installation handoff now rejects unchecked release
-> of receiver-bound roots, validates the exact mapped backing, zeroes it, and
-> retains its exclusive borrow through one activation before returning the
-> conserved roots. Installed program-local roots additionally remain joined to
-> their non-copyable account registry through activation failures, exact
-> activation and finish, receiver-free continuation binding and recovery,
-> emitted-wrapper checks, logical and operand realization, and outgoing-frame
-> planning. The former passive-origin installer is gone; only checked
-> installation establishment may create this custody carrier. Binding this
-> handoff and portable evidence to the selected
-> target-fixed physical requirement, authored bootstrap adapter and result map,
-> physical provider, and generated native shell, plus corpus migration and
-> removal of transitional entry-name discovery, remain under
-> `ENTRY-CONTENT-ROOTS` in `TASKS.md`.
+See [program-entry rules](../spec/build/entry_roots.md) and
+[UEFI arrival](../spec/build/uefi_entry.md) for the full contract.
+End-to-end physical entry support remains incomplete under
+[ENTRY-CONTENT-ROOTS](../../TASKS.md); selecting and checking an entry does not
+claim that its native bridge has been installed.
 
 ## Parameters And Returns
 
@@ -239,24 +194,13 @@ semantic match participates. A caller asking for `i32 in Saturating & Km`
 therefore needs an overload returning both selections or must compose two
 explicit operations.
 
-Dispatch-bearing status is derived from the normalized domain theory. A domain
-that contributes a semantic role, authorizes an establishment route, or is an
-empty explicit tag participates. A domain carrying only predicate obligations
-does not; its predicates are proved after the machine has been selected. A
-mixed domain participates once by identity and still contributes all of its
-predicate obligations afterward. Aliases are expanded before this partition.
+A domain's theory determines whether it participates in dispatch. Predicate-only
+refinements are checked after selection; they do not choose another overload.
+Two declarations differing only by such predicates are therefore duplicates.
 
-For one path and normalized parameter signature, result dispatch sets must be
-pairwise distinct. Two declarations differing only by predicate refinements
-are therefore a declaration-site duplicate; publish the stronger result once
-or state the difference through `ensures`. The normalized result dispatch set
-is part of requirement identity, artifact identity, and emitted-symbol
-distinction. This makes result selection a lookup rather than a search. Other
-ordinary parameter or generic ambiguities remain possible and reject normally.
-
-Fixed operator spellings remain operand-directed. Their return type does not
-select an operator meaning; this result-domain rule is for explicit named
-machine and requirement calls.
+Fixed operators remain operand-directed: an expected return type cannot change
+the meaning of `+` or `/`. This rule concerns explicit named calls. See
+[domain selection](../spec/language/domains.md) for classification and identity.
 
 ## Supply Forms
 
@@ -299,48 +243,31 @@ boundary machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteR
     via WindowsBindings::write_file();
 ```
 
-When present, the value after `via` must be compile-time evaluable to the closed `Binding`
-vocabulary. The compiler normalizes and validates it, derives the provider
-plan from explicit conformances, and assigns any trust expenditure only when
-the provider is admitted. `satisfies` supplies the requirement contract and
-public service/suspension/blocking and guarded-crash ceilings; the
-binding/provider behavior must refine each one. A boundary realization does not
-repeat those clauses. When the declaring trait has a lifetime telescope, the
-`satisfies` path supplies every target-trait lifetime explicitly. The compiler
-uses raw realizing-machine binder ordinals for checking and publishes the
-first-occurrence-normalized equality partition as requirement-edge identity;
-implementation binder order is not part of that edge.
+The expression after `via` is a typed compile-time binding value. It names the
+physical import, while `satisfies` selects the exact requirement and inherits
+its full contract. The provider must refine that contract; the import bytes
+and a matching value signature are not permission to execute it.
 
-Binding operands are ordinary typed compile-time values. A DLL locator is one
-object-format-specific sum case, so its library/export, library/ordinal, or
-object/symbol/version coordinates cannot be independently paired. Its textual
-bytes are physical target data, not Omega names or provider-selection keys. The
-satisfied requirement's `Calling<C, Policy>` relationship separately evaluates
-the ABI `CallPlan`; the binding cannot select a second one. A compiler intrinsic
-has no binding value: its exact realization-machine symbol, normalized
-signature, and target select the sealed lowering catalog entry.
+If the trait has lifetime parameters, the satisfaction path supplies them
+explicitly. [Foreign bindings](../spec/build/foreign_bindings.md) defines exact
+application identity, target-specific locators, calling plans, and admission.
+A compiler intrinsic has no binding payload: its declaration, normalized
+signature, and target identify the sealed implementation.
 
-Compiler-owned fact-position terms are not a sixth machine supply form.
-`embed(value)`, `old(&place)`, and similar canonical term formers are accepted
-only in their specified proof positions and do not acquire fake bodyless
-boundary declarations merely to enter name resolution.
-A claim-free bodyless free machine is likewise not an abstract requirement or
-proof symbol. It rejects unless it is one of the temporary core declarations
-named for migration to a real category.
+Composite adaptation belongs in checked code. For example, a
+`Console::write_line` implementation may call bound `get_stdout` and
+`write_file` operations, cache a handle, or merge writes. Those choices belong
+in its body, not in authored provider-plan rows.
 
-The compiler fingerprints the complete evaluated binding, its producer closure,
-and selected target. Changing a raw foreign spelling therefore changes every
-dependent final artifact and requires relink plus fresh admission. `build.omg`
-may select a target/provider declaration but cannot rewrite a binding value.
-
-Composite adaptation is ordinary checked code. For example, an implementation
-of `Console::write_line` may call separately bound `get_stdout` and
-`write_file` machines, cache a handle, or merge writes. Those decisions belong
-in its brace body rather than a call-shape DSL or authored plan row.
+Proof-position terms such as `embed(value)` and `old(&place)` are not extra
+machine supply modes. Nor does an arbitrary bodyless declaration create a
+proof symbol. [Machine supply](../spec/language/machines.md#supply) defines the
+closed alternatives.
 
 ## Calls
 
-Ordinary call syntax enters a machine and creates a call frame.
+Ordinary call syntax enters another machine contract. Its realization may need a
+call frame; a transition stays within the current activation.
 
 ```omega
 let command: Command = self.parser.resolve(&self.line);
@@ -357,27 +284,12 @@ concurrency consequences.
 
 ## Termination And Ranked Cycles
 
-A loop operating on a fixed field does not need receiver rebinding. An ordinary
-projected call, such as `compiler.parser.scan(...)`, borrows the field at the
-call; inside `scan`, that parser is the whole receiver and remains the same
-referent across iterations. Conflicting parent access rejects while the loan
-is live, and writes affect the original field after return. Changing cursors
-can be ordinary loop-carried reference parameters; no new `self`-rebinding
-surface is planned. The [ranked-callee ruling](../spec/language/termination.md#ranked-callees-on-projected-receivers)
-records the semantics and acceptance. The current native whole-entry countdown
-route does not yet compose an ordinary caller with such a ranked callee; this
-requires call/return, borrow, ranking, and resource implementation, not new
-source semantics.
+`ensures` describes a return if one occurs. `terminates` additionally promises
+that a terminal outcome is eventually reached under the machine's progress
+premises. A private checked acyclic body derives a local termination summary;
+an exported or required promise is explicit or inherited from its requirement.
 
-A machine may promise termination with `terminates`: every invocation reaches
-a terminal outcome under its declared progress premises. Checked acyclic bodies
-derive that guarantee without annotation. Every cycle in a terminating machine
-instead needs an authored, checker-verified ranking witness written with
-`terminates by` (chapter 9):
-
-A machine may call itself, directly or through a mutual cycle, when every
-cycle through the call graph strictly decreases a well-founded rank and
-each recursive call is the last thing its arm does:
+A terminating cycle needs an authored ranking witness:
 
 ```omega
 machine Gauss::sum(n: u64, acc: u64) -> u64
@@ -385,92 +297,63 @@ terminates by n -> Nat::Descending;
 {
     transition n {
         0 -> acc
-        _ -> Gauss::sum(n - 1, acc + n)   // tail: the call IS the arm's result
+        _ -> Gauss::sum(n - 1, acc + n)
     }
 }
 ```
 
-The same rule covers explicit state/transition loops and recursive call
-cycles. A productive machine may deliberately run forever; a loop that makes
-no termination promise owes no ranking.
+The recursive call is the arm's final operation. The rank decreases toward its
+floor; arithmetic safety remains a separate proof or crash-contract obligation.
 
-Working rules:
+Two questions must stay separate:
 
-- **Legality is the ranking, not the position.** Every terminating runtime
-  cycle needs both: `terminates by` proves progress; tail position gives a
-  recursive call cycle a lowering.
-  Spelling encodes intent: a transition arrow says "process — may run
-  forever, constant space, no proof owed"; a recursive call says
-  "terminating walk — measured, or it does not compile."
-- **Every runtime cycle lowers to the loop machinery.** A tail recursive
-  call compiles to the same back-edge a transition loop-back uses: zero
-  stack growth, no frame accumulation, ever. Classification is strict and
-  never silent: `-> 3 * Gauss::sum(...)` is not tail (the multiply runs
-  after the call returns), and the error names why.
-- **Terminal Psi retains that backedge.** Ordinary jumps and conditionals form
-  the cyclic graph; block parameters and successor arguments carry values and
-  custody between iterations. The Terminal verifier derives each strongly
-  connected component and checks one converged ownership frontier. It does not
-  infer progress from reducibility or loop shape. A terminating machine's
-  authored measure becomes checked well-founded-decrease evidence on every
-  in-component edge; a productive unranked cycle remains legal without a
-  finite-work guarantee.
-- **Non-tail recursion does not compile in runtime code.** A measured cycle
-  whose call returns into more work (`1 + max(depth(l), depth(r))`) is
-  rejected with the classification error. Depth belongs in data: iterate
-  with explicit storage the machine declares and sizes, such as a fixed-capacity
-  field or an allocator-backed collection. Activation frames are storage the
-  author never sees or sizes; depth does not hide there.
-- **The range is a termination fact, never a size.** `terminates by cursor ->
-  Cursor::TowardStart in lo..=hi` constrains the rank produced by the view;
-  the floor is the well-foundedness
-  bound (any start, not only zero, so a cursor walking `hi` down to `lo`
-  needs no re-zeroed distance measure). Dependent endpoints are legal —
-  pinned witnesses, re-proven at every back-edge, the same fact the loop
-  spelling declares as a parameter range. Nothing is ever allocated from a
-  range.
-- **Lexicographic measures compose freely.** The measure gates legality and
-  sizes nothing, so dictionary orders need no special case; bounded
-  components may still flatten to a single linear measure (`m*B + n`).
-- **Mutual cycles share a joint ranking** (lexicographic when needed); every
-  cycle through the call graph must decrease it, and at runtime every call
-  along the cycle must be tail.
-- **The admitted artifact's worst-case stack is a static constant.** After
-  lowering, its runtime call graph is acyclic, so the maximum live activation
-  storage along any call chain is computable at build time. External roots and
-  opaque providers remain responsible for their pinned stack domains. Their
-  complete admissible arrival contexts, per-domain entry epochs, declared
-  nesting, and checked or admitted demands compose through the external-root
-  ledger. The resulting bound appears in the layout report.
-  It includes the final physical frames' spill storage; see
-  [compiler-owned stack storage and spill accesses](chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
-  Register allocation changes that bound, not recursive frame growth or the
-  source machine's crash ceiling.
+- **Does it terminate?** A well-founded ranking proves that a cycle cannot
+  continue forever. Productive transition loops without a termination promise
+  may run forever and owe no ranking.
+- **Can runtime code execute it without growing the stack?** Runtime recursive
+  calls must be tail calls. They lower to iteration with no accumulating frames.
+  `3 * Gauss::sum(...)` is not tail: multiplication remains after the return.
+  Non-tail runtime recursion rejects; use explicit work storage when an
+  algorithm needs pending work.
 
-Proof-stratum machines (chapter 10) use the same clause and legality rule with
-no tail restriction: non-tail shapes — `1 + max(Tree::depth(node.left),
-Tree::depth(node.right))`, induction over a tree — are legal there, because
-fact-only machines evaluate in the compiler's hermetic semantic evaluator and
-never lower. Their ordinary termination proof is mandatory; deterministic work
-metering supports progress, warnings, and optional root policy without creating
-a second notion of termination. No runtime frame ever materializes.
+Proof and compile-time evaluation permit well-founded non-tail recursion.
+Those contexts use the same machine and termination contract, not a second
+language. A recursive proof citation still needs strict descent on that exact
+edge before importing the callee's guarantee as an induction hypothesis.
 
-An erased theorem citation remains a call edge for this judgment. Importing a
-recursive callee's `ensures` as an induction hypothesis requires a strict
-decrease certificate on that exact edge, whether the citation is resultless,
-discarded, or nested in a value expression.
+### Ranking views
 
-The ranking witness is implementation evidence, not public contract identity.
-Changing a valid witness revalidates the implementation without changing what
-callers or external requirement bindings see. Declared measures are always
-package-private; the parser rejects `pub measure`, and another package cannot
-name one directly. A public machine may use its package's private measure in
-`terminates by` because that clause remains implementation, while `terminates`
-is the published guarantee. Cross-package operational recursion remains
-unsupported until a compositional termination interface is designed; any such
-interface must close from published termination evidence and must neither
-expose nor inspect private measures. See
-[termination and progress](../spec/language/termination.md).
+`terminates by subject -> View` selects how progress is measured. Descending
+naturals, a bounded increasing cursor, proper subtrees, and lexicographic
+products can all supply well-founded views. An optional `in lo..=hi` bounds the
+rank; it allocates no storage.
+
+Mutually recursive machines share a joint ranking. Every complete cycle must
+decrease, and every runtime recursive edge must be tail. A valid private ranking
+witness may change without changing the public termination promise.
+The [termination specification](../spec/language/termination.md) owns exact
+edge checks, progress-profile premises, and the remaining mutual-call syntax
+question.
+
+### Receiver subplaces
+
+For `compiler.parser.scan(...)`, the ordinary call borrows the parser field.
+Inside `scan`, that field is the whole receiver and remains the same referent
+across backedges and return. Writes affect the original field; conflicting
+parent access is unavailable while the loan is live. A changing traversal
+cursor can instead be an ordinary loop-carried reference parameter.
+
+This needs no receiver-rebinding syntax. General ranked-callee native composition
+remains an [implementation gap](../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/README.md#ranked-native-admission),
+not permission to copy the referent or omit the callee's ranking check.
+
+### Stack demand
+
+Once recursive cycles lower to backedges, ordinary runtime calls form an acyclic
+graph. Build-time WCSU composition accounts for maximum live frames, final spill
+storage, and admitted external/provider demands before activation. Register
+allocation may change that resource bound, not the machine's `crashes` contract.
+See [compiler-owned stack storage](chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
 
 ## Contracts
 
@@ -498,8 +381,8 @@ A proof machine may consume mathematical witnesses and their laws through
 ordinary named trait/conformance bundles. Contract facts still follow from
 checked bodies and instantiated assumptions, not from a bundle's name.
 Projection and forwarding preserve the witness's identity and validity.
-See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles);
-the general bundle migration remains incomplete.
+See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles)
+for the evidence model and its implementation limits.
 
 A result-case group makes postconditions conditional on one exact nominal case
 of the declared result sum:
@@ -539,6 +422,6 @@ Working rules:
   declared return type.
 - Transition dispatch arms add proof assumptions for the target edge.
 
-> **Implementation gate:** the current Rust trees do not yet carry the
-> normalized complete machine contract or explicit supply mode. See
-> [semantic representation ownership](../../omega-rust/psi/representations/README.md).
+The [machine specification](../spec/language/machines.md) defines the complete
+contract. [Semantic representation notes](../../omega-rust/psi/representations/README.md)
+describe its compiler owners; this guide is not an implementation coverage report.
