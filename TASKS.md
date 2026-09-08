@@ -949,13 +949,22 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Continue the [countdown operand-call customer](omega-rust/psi/compiler/terminal-production/scalar_calls.md#guarded-primitive-reference-operand):
-  extend scalar-result roots to structural signatures and borrowable primitive
-  local storage, then publish cyclic scalar control with exact structural
+  extend scalar-result roots to owned structural signatures and borrowable
+  primitive local storage, then publish cyclic scalar control with exact structural
   forwarding and natural-descent evidence. Reuse the computed borrowed-call
-  closure supported in ordinary Unit operands. Realize native storage and
+  closure shared by primitive-reference scalar roots and ordinary Unit operands.
+  Realize native storage and
   borrowed-call observations without substituting snapshots. Preserve the authored
   guard and structural payload; the linked command still rejects the rank range
-  on macOS with primitive-local checkpoint `80ebfee112` because of the generated hop.
+  on macOS at `b1cff595a4` because of the generated hop.
+  Align compile-known numeric conditions between flow call capture and scalar
+  computation folding: `((1u64 > 2u64) && enabled) && stamp(&mut slot, number)`
+  retains a flow call that computation folding removes (`omega inspect-terminal
+  --machine enter --target macos_arm64 main.omg`, macOS `b1cff595a4` rejects with
+  `computed invocation omitted an authored source call`). Acceptance:
+  the source publishes with complete call correspondence and never invokes the
+  skipped mutator. Owning paths: `flow/expression.rs` and
+  `values/scalar/computations.rs` in `typed-trees-to-checked-trees`.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
   calls and boundary calls, plus the remaining
