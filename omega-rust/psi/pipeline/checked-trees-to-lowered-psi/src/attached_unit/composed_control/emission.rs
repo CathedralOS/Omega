@@ -331,6 +331,45 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     for operation in &state.operations {
+        if let CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) = operation {
+            let bindings =
+                evaluation
+                    .scalar_bindings
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "byte-view write has no scalar namespace",
+                    ))?;
+            let index = bindings.expression_at(
+                checked,
+                state.state,
+                write.statement_index,
+                CheckedScalarExpressionRole::AssignmentIndex,
+            )?;
+            let value = bindings.expression_at(
+                checked,
+                state.state,
+                write.statement_index,
+                CheckedScalarExpressionRole::AssignmentValue,
+            )?;
+            let kind = crate::byte_sequence_write::emit(
+                write,
+                parameters,
+                &catalogs.structural_types,
+                &index,
+                &value,
+                values,
+                next_value,
+                &mut catalogs.scalar_calls.next_call_obligation,
+                operations,
+            )?;
+            let id = operations.allocate();
+            operations.push(Operation {
+                id,
+                result: OperationResult::Unit,
+                kind,
+            });
+            continue;
+        }
         if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
             operation
         {

@@ -31,6 +31,48 @@ pub(super) fn validate(
         let statement_index = u32::try_from(statement_index).map_err(|_| {
             LoweringError::Unsupported("structural scalar store statement ordinal exceeds u32")
         })?;
+        let writes = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write)
+                    if write.statement_index == statement_index =>
+                {
+                    Some(write)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let [write] = writes.as_slice() {
+            if plan.operations.iter().any(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    statement_index: ordinal,
+                    ..
+                } => *ordinal == statement_index,
+                _ => false,
+            }) {
+                return unsupported("byte-view assignment has conflicting store custody");
+            }
+            crate::byte_sequence_write::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                write,
+            )?;
+            continue;
+        } else if !writes.is_empty() {
+            return unsupported("byte-view assignment has duplicate store custody");
+        }
         let indexed_stores = plan
             .operations
             .iter()
@@ -204,6 +246,21 @@ pub(super) fn validate(
     }
     let mut has_indexed_stores = false;
     for operation in &plan.operations {
+        if let CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) = operation {
+            has_indexed_stores = true;
+            let Some(StatementNode::Assignment(assignment)) =
+                statements.get(write.statement_index as usize)
+            else {
+                return unsupported("byte-view write has no authored assignment");
+            };
+            crate::byte_sequence_write::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                write,
+            )?;
+        }
         if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
             operation
         {

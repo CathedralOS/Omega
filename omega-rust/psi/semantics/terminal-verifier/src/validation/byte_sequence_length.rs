@@ -19,6 +19,23 @@ pub(super) fn validate(
             operation.id,
         ));
     }
+    if machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .any(|parameter| {
+            parameter.place == source && parameter.access == StructuralAccess::MutableBorrow
+        })
+    {
+        return super::byte_sequence_write::validate_destination(
+            module, machine, operation, source,
+        );
+    }
     validate_source(module, machine, operation, source, || {
         ModuleError::InvalidByteSequenceLengthSource {
             operation: operation.id,

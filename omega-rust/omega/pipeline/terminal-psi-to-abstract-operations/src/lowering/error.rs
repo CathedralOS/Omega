@@ -29,6 +29,8 @@ pub enum LoweringError {
     UnsupportedStructuralByteSequenceFieldLength(semantic_vocabulary::OperationId),
     /// Indexed bounded byte-field writes have no native storage realization yet.
     UnsupportedStructuralByteSequenceFieldByteStore(semantic_vocabulary::OperationId),
+    /// Mutable byte-view writes require native referent and indexed-store realization.
+    UnsupportedByteSequenceWrite(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),

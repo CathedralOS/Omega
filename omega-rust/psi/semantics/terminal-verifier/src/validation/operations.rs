@@ -61,6 +61,24 @@ pub(super) fn validate_operation_operands(
         }
         return Ok(());
     }
+    if let OperationKind::ByteSequenceWrite {
+        index,
+        value,
+        length,
+        ..
+    } = operation.kind
+    {
+        for (operand, bits) in [(index, 64), (length, 64), (value, 8)] {
+            require_defined(operand, value_types, defined)?;
+            let expected = ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, bits).expect("valid byte operand width"),
+            );
+            if value_types[&operand] != expected {
+                return Err(ModuleError::InvalidByteSequenceWrite(operation.id));
+            }
+        }
+        return Ok(());
+    }
     if let OperationKind::ByteSequenceRead { index, length, .. } = operation.kind {
         let expected =
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
@@ -641,6 +659,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }
+        | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }

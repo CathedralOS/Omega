@@ -4,6 +4,7 @@ use super::*;
 
 mod freshness;
 pub(crate) use freshness::replacement_length_equation;
+pub(crate) use freshness::view_length_is_current;
 
 pub(super) fn validate(
     module: &TerminalModule,

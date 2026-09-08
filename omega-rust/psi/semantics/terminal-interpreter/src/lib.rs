@@ -11,6 +11,7 @@ mod byte_sequence_binding;
 mod byte_sequence_subslice;
 use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
+mod byte_sequence_write;
 mod effect_results;
 mod primitive_storage;
 mod structural_byte_sequence_index_store;
@@ -2531,6 +2532,9 @@ impl TerminalExecution {
                     OperationKind::ByteSequenceSubslice { .. } => {
                         self.execute_byte_sequence_subslice(&operation)?;
                     }
+                    OperationKind::ByteSequenceWrite { .. } => {
+                        self.execute_byte_sequence_write(&operation)?;
+                    }
                     OperationKind::ByteSequenceRead {
                         source,
                         index,
@@ -2601,15 +2605,7 @@ impl TerminalExecution {
                         if result.scalar_type != ScalarType::Integer(integer_type) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                        let bytes = self
-                            .byte_sequence_values
-                            .get(&source)
-                            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                                source,
-                            ))?
-                            .immutable()?;
-                        let length = u64::try_from(bytes.len())
-                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let length = self.byte_sequence_length(source)?;
                         self.values.insert(
                             result.id,
                             TerminalScalarValue::Integer {

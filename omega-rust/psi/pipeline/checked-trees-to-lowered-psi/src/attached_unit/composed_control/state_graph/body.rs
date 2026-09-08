@@ -22,6 +22,21 @@ pub(super) fn validate(
         let ordinal = prefix + ordinal;
         match (operation, &statements[ordinal]) {
             (
+                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write),
+                StatementNode::Assignment(assignment),
+            ) => {
+                if write.statement_index as usize != ordinal {
+                    return unsupported("Unit graph reordered a byte-view write");
+                }
+                crate::byte_sequence_write::validate_assignment(
+                    checked,
+                    machine,
+                    state.state,
+                    assignment,
+                    write,
+                )?;
+            }
+            (
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store),
                 StatementNode::Assignment(assignment),
             ) => {

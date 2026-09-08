@@ -1776,7 +1776,7 @@ pub(super) fn structural_crash_route_argument_prefix(
             "structural crash route argument has no caller structural source",
         ))?;
     let mut prefix = Vec::with_capacity(argument.path.len());
-    for segment in &argument.path {
+    for (position, segment) in argument.path.iter().enumerate() {
         let declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)
@@ -1801,11 +1801,22 @@ pub(super) fn structural_crash_route_argument_prefix(
                     .ok_or(LoweringError::Unsupported(
                         "structural crash route argument field is absent or erased",
                     ))?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return unsupported("structural crash route argument field is not structural");
-                };
                 prefix.push(CanonicalStructuralPathSegment::Field(field.id));
-                structural_type = next;
+                match field.field_type {
+                    StructuralFieldType::Structural(next) => structural_type = next,
+                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                        ..
+                    }) if position + 1 == argument.path.len()
+                        && argument.access == StructuralAccess::MutableBorrow =>
+                    {
+                        return Ok(prefix);
+                    }
+                    _ => {
+                        return unsupported(
+                            "structural crash route argument field is not structural",
+                        );
+                    }
+                }
             }
             StructuralPathSegment::FixedIndex(index) => {
                 let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {

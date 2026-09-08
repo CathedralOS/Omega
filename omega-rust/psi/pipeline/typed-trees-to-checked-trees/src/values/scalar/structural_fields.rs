@@ -33,7 +33,7 @@ pub(super) fn whole_byte_view_length(
         .position(|parameter| parameter.symbol == symbol)?;
     let TypeReferenceNode::Reference {
         referee,
-        access: language_core::ReferenceAccess::Shared,
+        access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
         ..
     } = program
         .type_reference_table

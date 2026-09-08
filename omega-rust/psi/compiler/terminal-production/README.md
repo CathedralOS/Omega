@@ -143,8 +143,20 @@ establish each literal at its authored argument position on the selected path;
 mixed scalar operands retain their original bindings across short-circuit blocks.
 Source replay checks each literal's bytes, type, access, and call coordinate.
 Backedges reexecute the same establishment, and neither an earlier iteration nor
-a sibling branch authorizes premature use. Projected byte-field operands,
-mutable byte views, and owned argument transfers need separate producer support.
+a sibling branch authorizes premature use. Projected byte-field operands and
+owned argument transfers need separate producer support on this literal path.
+
+Guarded Unit bodies can write `out[index] = byte` through an exact unrestricted
+mutable byte-view parameter. Explicit state arguments transfer that view; they
+do not implicitly capture an entry parameter or preserve a second exclusive
+name. Terminal retains a fresh same-view length and an independently checked
+bounds obligation. Artifact interpretation changes the caller's original
+field-backed bytes without resizing the field or changing untouched bytes.
+Ordinary field-to-view calls currently admit field-only paths from an
+unrestricted mutable record parameter; indexed owner paths remain fenced.
+Raw fixed-array introduction, mutable write loops and multi-arrival extent
+proofs, and native `ByteSequenceWrite` realization remain separate dependencies;
+this primitive does not establish the shared line-reader contract.
 
 Provider-field calls retain the same exact attachment requirement roots as
 ordinary Unit bodies, including across backedges and interleaved field writes.

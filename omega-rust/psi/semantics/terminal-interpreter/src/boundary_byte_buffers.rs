@@ -1,4 +1,4 @@
-//! Boundary-only presentation of initialized inline storage as a mutable view.
+//! Exact field-loan presentation and separately staged external byte replacement.
 
 use super::*;
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
@@ -287,7 +287,7 @@ impl TerminalExecution {
         };
 
         let parent_type = parent.structural_type;
-        // Present the boundary parameter type, retaining the original
+        // Present the callee parameter type, retaining the original
         // referent and full field path for alias/custody checks.
         parent.structural_type = parameter.structural_type;
         parent.qualifications.clear();

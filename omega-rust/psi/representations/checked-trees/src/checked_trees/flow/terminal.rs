@@ -1574,6 +1574,15 @@ pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub value: CheckedScalarExpression,
 }
 
+/// Exact authored operands of a write through a whole mutable byte view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedByteSequenceWritePlan {
+    pub statement_index: u32,
+    pub destination_parameter_position: u32,
+    pub index: CheckedScalarExpression,
+    pub value: CheckedScalarExpression,
+}
+
 /// Primitive store custody stays separate from immutable scalar bindings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedPrimitiveStoreDestination {
@@ -1809,6 +1818,7 @@ pub enum CheckedUnitEffectOperationPlan {
     StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
+    ByteSequenceWrite(CheckedByteSequenceWritePlan),
     ReturnUnit {
         statement_index: u32,
         /// Exact local declaration coordinates cleaned before parameters, in

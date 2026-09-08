@@ -240,21 +240,93 @@ fn boundary_buffer_does_not_infer_view_qualifications() {
 }
 
 #[test]
-fn boundary_buffer_presentation_does_not_widen_ordinary_calls() {
+fn byte_field_presentation_does_not_widen_scalar_result_calls() {
+    let mut module = ordinary_buffer_module();
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let structural_arguments = structural_arguments.clone();
+    let result = ValueDeclaration {
+        id: value_id(101),
+        scalar_type: ScalarType::Boolean,
+    };
+    module.machines[0].blocks[0].operations[0].result = OperationResult::Scalar(result);
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
+        callee: machine_id(2),
+        arguments: Vec::new(),
+        structural_arguments,
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let callee = &mut module.machines[1];
+    callee.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(102),
+        scalar_type: ScalarType::Boolean,
+    });
+    callee.blocks[0].operations = vec![Operation {
+        id: operation_id(100),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: value_id(100),
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::BooleanConstant { value: true },
+    }];
+    callee.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(2),
+        value: value_id(100),
+        cleanup_actions: Vec::new(),
+    };
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::InvalidStructuralArgumentPath { .. })
+    ));
+}
+
+fn ordinary_buffer_module() -> TerminalModule {
     let mut module = buffer_module();
+    let structural_arguments = arguments(&mut module).clone();
     let mut callee = module.machines[0].clone();
     callee.id = machine_id(2);
-    callee.entry = block_id(2);
-    callee.contract = empty_contract(contract_id(2));
+    callee.parameters.clear();
     callee.structural_parameters = module.boundary_machines[0].structural_parameters.clone();
-    callee.structural_parameters[0].place = place_id(1);
+    callee.structural_places = callee
+        .structural_parameters
+        .iter()
+        .map(|parameter| StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+            },
+        })
+        .collect();
+    callee.contract = MachineContract {
+        id: contract_id(2),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        crash_routes: Vec::new(),
+        outcome_specific_ensures: Vec::new(),
+    };
+    callee.entry_claims.clear();
+    callee.content_entry_claims.clear();
+    callee.entry = block_id(2);
     callee.blocks[0].id = block_id(2);
     callee.blocks[0].operations.clear();
     callee.blocks[0].terminator = Terminator::ReturnUnit {
         edge: edge_id(2),
         trivial_affine_discards: Vec::new(),
     };
-    let structural_arguments = arguments(&mut module).clone();
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
         callee: callee.id,
         arguments: Vec::new(),
@@ -263,10 +335,75 @@ fn boundary_buffer_presentation_does_not_widen_ordinary_calls() {
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
     };
-    module.boundary_machines.clear();
     module.machines.push(callee);
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::InvalidStructuralArgumentPath { .. })
-    ));
+    module.boundary_machines.clear();
+    module
+}
+
+#[test]
+fn ordinary_unit_byte_subloan_keeps_exact_inline_field_and_capacity() {
+    for capacity in [0, 1, 256, u64::MAX] {
+        let mut module = ordinary_buffer_module();
+        buffer_field(&mut module).field_type =
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity });
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &module.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            structural_arguments[0].path,
+            vec![StructuralPathSegment::Field("left".into())]
+        );
+    }
+}
+
+#[test]
+fn ordinary_unit_byte_subloan_rejects_wrong_leaf_type_access_and_path() {
+    for mutation in 0..6 {
+        let mut module = ordinary_buffer_module();
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+        match mutation {
+            0 => {
+                buffer_field(&mut module).field_type =
+                    StructuralFieldType::Scalar(ScalarType::Boolean)
+            }
+            1 => {
+                buffer_field(&mut module).field_type =
+                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView)
+            }
+            2 => buffer_field(&mut module).relevance = terminal_psi::BindingRelevance::Erased,
+            3 => {
+                module.structural_types[0].shape =
+                    StructuralTypeShape::Record { fields: Vec::new() }
+            }
+            4 => {
+                module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow
+            }
+            _ => {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &mut module.machines[0].blocks[0].operations[0].kind
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].path = vec![StructuralPathSegment::Field("missing".into())];
+            }
+        }
+        assert!(validate_module(&module).is_err(), "mutation {mutation}");
+    }
 }

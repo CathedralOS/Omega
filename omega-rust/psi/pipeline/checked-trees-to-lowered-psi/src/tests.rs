@@ -31,6 +31,7 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 mod attached_unit_cases;
 mod boundary_byte_buffers;
 mod byte_extent;
+mod byte_sequence_write;
 mod composed_operand_catalogs;
 mod composed_unit_claims;
 mod composed_unit_internal_calls;

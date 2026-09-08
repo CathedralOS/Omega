@@ -376,6 +376,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     CheckedUnitEffectOperationPlan::PortWrite { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                     | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
@@ -408,6 +409,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                             ..
                         } => boundary_symbols.contains(target_machine),
                         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                         | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => true,
                         _ => false,

@@ -185,6 +185,9 @@ pub(super) fn validate_unit_operation_static(
                 *field,
             )?;
         }
+        OperationKind::ByteSequenceWrite { .. } => {
+            super::byte_sequence_write::validate(module, machine, operation)?;
+        }
         OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
             super::structural_byte_sequence_fields::validate(module, machine, operation)?;
         }
@@ -1200,7 +1203,10 @@ pub(super) fn validate_structural_arguments(
                         StructuralPlaceKind::BlockParameter { .. }
                             if argument.path.is_empty()
                                 && (argument.access == StructuralAccess::SharedBorrow
-                                    || (ordinary_call && argument.access == StructuralAccess::Owned))
+                                    || (ordinary_call && argument.access == StructuralAccess::Owned)
+                                    || (ordinary_call && argument.access == StructuralAccess::MutableBorrow
+                                        && super::block_views::parameter(caller, argument.place)
+                                            .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)))
                                 && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                                     || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
                         {
@@ -1326,10 +1332,12 @@ pub(super) fn validate_structural_arguments(
             });
         }
         let root_type = actual_type;
-        // Boundary buffer presentation retains the inline owner and its capacity;
-        // it does not resolve that owner to the borrowed-view parameter's type.
-        let buffer_presentation = source_policy
+        // Inline byte fields retain their owner/path instead of acquiring a
+        // fictitious structural type identity. Ordinary Unit calls admit only
+        // an exact mutable field subloan; this grants no extent replacement.
+        let buffer_presentation = (source_policy
             == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+            || (unit_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
             && terminal_semantics::boundary_buffer_capacity(module, root_type, argument, expected)
                 .is_some();
         if !buffer_presentation {
@@ -2063,7 +2071,7 @@ pub(crate) fn structural_argument_canonical_prefix(
                 })
         })?;
     let mut prefix = Vec::with_capacity(argument.path.len());
-    for segment in &argument.path {
+    for (position, segment) in argument.path.iter().enumerate() {
         match segment {
             StructuralPathSegment::Field(identity) => {
                 let field = module
@@ -2082,11 +2090,18 @@ pub(crate) fn structural_argument_canonical_prefix(
                         | StructuralTypeShape::FixedArray { .. }
                         | StructuralTypeShape::Sum { .. } => None,
                     })?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
                 prefix.push(CanonicalStructuralPathSegment::Field(field.id));
-                structural_type = next;
+                match field.field_type {
+                    StructuralFieldType::Structural(next) => structural_type = next,
+                    StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ) if argument.access == StructuralAccess::MutableBorrow
+                        && position + 1 == argument.path.len() =>
+                    {
+                        return Some(prefix);
+                    }
+                    _ => return None,
+                }
             }
             StructuralPathSegment::FixedIndex(index) => {
                 let element = module

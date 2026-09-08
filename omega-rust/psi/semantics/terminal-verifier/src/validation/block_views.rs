@@ -38,7 +38,7 @@ pub(super) fn validate_declarations(
                 || !matches!(
                     (declaration.access, declaration.multiplicity),
                     (
-                        StructuralAccess::SharedBorrow,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
                         StructuralMultiplicity::Unrestricted
                     ) | (
                         StructuralAccess::Owned,
@@ -108,7 +108,16 @@ pub(super) fn validate_successor(
             actual: arguments.len(),
         });
     }
+    let mut exclusive = BTreeSet::new();
     for (argument, expected) in arguments.iter().zip(&target.structural_parameters) {
+        if expected.access == StructuralAccess::MutableBorrow
+            && (!available.contains(&argument.place) || !exclusive.insert(argument.place))
+        {
+            return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: argument.place,
+            });
+        }
         let source = machine
             .structural_parameters
             .iter()
@@ -137,6 +146,134 @@ pub(super) fn validate_successor(
         }
     }
     Ok(())
+}
+
+/// Mutable view names transfer at an edge; ordinary calls only reborrow them.
+/// Intersect all actual arrivals, including backedges, so an old source name
+/// cannot supply a second exclusive alias after a differently named transfer.
+pub(super) fn mutable_availability(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> BTreeMap<BlockId, BTreeSet<PlaceId>> {
+    let mutable_view = |parameter: &StructuralParameterDeclaration| {
+        parameter.access == StructuralAccess::MutableBorrow
+            && module.structural_types.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && declaration.shape
+                        == StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                        )
+            })
+    };
+    let universe = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .filter(|parameter| mutable_view(parameter))
+        .map(|parameter| parameter.place)
+        .collect::<BTreeSet<_>>();
+    if universe.is_empty() {
+        return BTreeMap::new();
+    }
+    let initial = machine
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .filter(|place| universe.contains(place))
+        .collect::<BTreeSet<_>>();
+    let edges = machine
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            let successors: Vec<(BlockId, &[StructuralArgument])> = match &block.terminator {
+                Terminator::Jump {
+                    target,
+                    structural_arguments,
+                    ..
+                } => vec![(*target, structural_arguments)],
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![
+                    (when_true.target, &when_true.structural_arguments),
+                    (when_false.target, &when_false.structural_arguments),
+                ],
+                Terminator::StructuralCase { cases, .. } => {
+                    cases.iter().map(|case| (case.target, &[][..])).collect()
+                }
+                _ => Vec::new(),
+            };
+            successors
+                .into_iter()
+                .map(move |(target, arguments)| (block.id, target, arguments))
+        })
+        .collect::<Vec<_>>();
+    let mut available = machine
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.id,
+                if block.id == machine.entry {
+                    initial.clone()
+                } else {
+                    universe.clone()
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let mut changed = false;
+        for block in &machine.blocks {
+            let mut common = if block.id == machine.entry {
+                initial.clone()
+            } else {
+                universe.clone()
+            };
+            for (source, _, arguments) in edges.iter().filter(|(_, target, _)| *target == block.id)
+            {
+                let mut incoming = available[source].clone();
+                let transfers = arguments
+                    .iter()
+                    .zip(&block.structural_parameters)
+                    .filter(|(_, parameter)| universe.contains(&parameter.place))
+                    .map(|(argument, parameter)| (argument.place, parameter.place))
+                    .collect::<Vec<_>>();
+                for (source, _) in &transfers {
+                    incoming.remove(source);
+                }
+                for (source_place, destination) in transfers {
+                    if available[source].contains(&source_place) {
+                        incoming.insert(destination);
+                    }
+                }
+                common.retain(|place| incoming.contains(place));
+            }
+            if available[&block.id] != common {
+                available.insert(block.id, common);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    available
+}
+
+pub(super) fn is_mutable_parameter(machine: &TerminalMachine, place: PlaceId) -> bool {
+    machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+        .or_else(|| parameter(machine, place))
+        .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)
 }
 
 /// Ranked countdown authorities still exclude descriptor successor bindings.

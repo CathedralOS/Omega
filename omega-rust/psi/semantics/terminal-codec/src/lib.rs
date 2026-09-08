@@ -122,7 +122,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 82;
+const FORMAT_MARKER: u16 = 83;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1087,6 +1087,11 @@ fn validate_operation_foundation(
                 return malformed("byte-sequence subslice requires its exact immutable borrowed result place");
             }
         }
+        OperationKind::ByteSequenceWrite { .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("byte-sequence write requires a Unit result");
+            }
+        }
         OperationKind::ByteSequenceRead { .. } => {
             let expected = ScalarType::Integer(
                 semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 8)
@@ -1463,7 +1468,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
-                false,
+                StructuralArgumentPresentation::MutableUnitView,
             )?;
             validate_claim_indices(
                 machine,
@@ -1502,7 +1507,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
-                false,
+                StructuralArgumentPresentation::Ordinary,
             )?;
             validate_claim_indices(
                 machine,
@@ -1576,7 +1581,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
-                false,
+                StructuralArgumentPresentation::Ordinary,
             )?;
         }
         OperationKind::CallStructural {
@@ -1755,7 +1760,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
-                false,
+                StructuralArgumentPresentation::Ordinary,
             )?;
             validate_claim_indices(
                 machine,
@@ -1811,7 +1816,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &boundary.structural_parameters,
-                true,
+                StructuralArgumentPresentation::Boundary,
             )?;
             validate_claim_indices(
                 machine,
@@ -2038,18 +2043,42 @@ fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
             })
 }
 
+#[derive(Clone, Copy)]
+enum StructuralArgumentPresentation {
+    Ordinary,
+    MutableUnitView,
+    Boundary,
+}
+
 fn validate_structural_arguments(
     module: &TerminalModule,
     machine: &TerminalMachine,
     arguments: &[StructuralArgument],
     expected: &[StructuralParameterDeclaration],
-    boundary_presentation: bool,
+    presentation: StructuralArgumentPresentation,
 ) -> Result<(), CodecError> {
     for (argument, expected) in arguments.iter().zip(expected) {
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };
-        if boundary_presentation
+        let inline_byte_view = match presentation {
+            StructuralArgumentPresentation::Ordinary => false,
+            StructuralArgumentPresentation::Boundary => true,
+            StructuralArgumentPresentation::MutableUnitView => {
+                expected.multiplicity == StructuralMultiplicity::Unrestricted
+                    && !argument.path.is_empty()
+                    && argument
+                        .path
+                        .iter()
+                        .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+                    && machine.structural_parameters.iter().any(|parameter| {
+                        parameter.place == argument.place
+                            && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    })
+            }
+        };
+        if inline_byte_view
             && terminal_semantics::boundary_buffer_capacity(module, actual_type, argument, expected)
                 .is_some()
         {

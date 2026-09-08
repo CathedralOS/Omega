@@ -37,6 +37,7 @@ pub enum SuspensionCallPlanError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    InvalidByteSequenceWrite(OperationId),
     InvalidStructuralByteSequenceFieldStore(OperationId),
     InvalidStructuralByteSequenceFieldAccess(OperationId),
     InvalidByteSequenceSubslice(OperationId),

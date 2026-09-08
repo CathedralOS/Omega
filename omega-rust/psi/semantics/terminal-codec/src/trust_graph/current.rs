@@ -11,8 +11,8 @@ use super::{
 
 use super::{
     BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE, BYTE_READ_VALIDATION_SOURCE,
-    BYTE_VIEW_VALIDATION_SOURCE, CODEC_SOURCE, CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE,
-    MACHINE_RECONSTRUCTION_CONTEXT_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
+    BYTE_VIEW_VALIDATION_SOURCE, BYTE_WRITE_VALIDATION_SOURCE, CODEC_SOURCE, CURRENT_ENTRY,
+    EVIDENCE_PROVENANCE_SOURCE, MACHINE_RECONSTRUCTION_CONTEXT_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
     OBLIGATION_LEDGER_CODEC_SOURCE, OPERATION_FACTS_SOURCE, PREDICATE_DENOTATION_BUDGET_SOURCE,
     PREDICATE_DENOTATION_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
     PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
@@ -45,7 +45,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-82-vocabulary-88"
+    "root:canonical-terminal-bytes-format-83-vocabulary-89"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -464,6 +464,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 ));
             }
             if matches!(row.tag(), terminal_semantics::OperationSemanticTag::ByteSequenceRead
+                | terminal_semantics::OperationSemanticTag::ByteSequenceWrite
                 | terminal_semantics::OperationSemanticTag::ByteSequenceLength
                 | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice
                 | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore
@@ -482,6 +483,8 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ("terminal-verifier/validation/frontier/traversal.rs", BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE),
                     ("terminal-verifier/validation/structural_operations.rs", BYTE_VIEW_ARGUMENTS_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_read.rs", BYTE_READ_VALIDATION_SOURCE),
+                    ("terminal-verifier/validation/byte_sequence_write.rs", BYTE_WRITE_VALIDATION_SOURCE),
+                    ("terminal-verifier/validation/structural_byte_sequence_fields/freshness.rs", BYTE_FIELD_FRESHNESS_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_length.rs", BYTE_VIEW_VALIDATION_SOURCE),
                     ("terminal-verifier/verification/reconstruction/operation_facts.rs", OPERATION_FACTS_SOURCE),
                     ("terminal-verifier/verification/reconstruction/machine_context.rs", MACHINE_RECONSTRUCTION_CONTEXT_SOURCE),

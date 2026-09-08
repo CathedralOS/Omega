@@ -329,7 +329,7 @@ fn source_projection_is_deterministic_and_perturbations_fail_closed() {
         "source projection must be deterministic without a frozen checkpoint"
     );
     assert_eq!(&canonical[..8], b"PSITERM\0");
-    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 77);
+    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 83);
     assert_eq!(
         u16::from_le_bytes([canonical[10], canonical[11]]),
         terminal_psi::VocabularyMarker::CURRENT.get()

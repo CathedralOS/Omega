@@ -145,7 +145,9 @@ impl TerminalExecution {
             let value = self.structural_values.get(&argument.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
             )?;
-            if !value.qualifications.is_empty() || !value.path.is_empty() {
+            if !value.qualifications.is_empty()
+                || (parameter.access != StructuralAccess::MutableBorrow && !value.path.is_empty())
+            {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
             match parameter.access {
@@ -200,7 +202,7 @@ impl TerminalExecution {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
                 }
-                StructuralAccess::SharedBorrow => {
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
                             if declaration.shape == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView))
@@ -209,6 +211,9 @@ impl TerminalExecution {
                         })
                     {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    if parameter.access == StructuralAccess::MutableBorrow {
+                        self.mutable_byte_sequence_field(argument.place)?;
                     }
                 }
                 _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),

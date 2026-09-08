@@ -212,6 +212,7 @@ pub(super) fn validate_machine(
                     | OperationKind::StructuralScalarFieldStore { .. }
                     | OperationKind::StructuralByteSequenceFieldStore { .. }
                     | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+                    | OperationKind::ByteSequenceWrite { .. }
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
@@ -222,8 +223,8 @@ pub(super) fn validate_machine(
                 }
                 validate_unit_operation_static(module, machine, machines, operation)?;
                 if let OperationKind::StructuralByteSequenceFieldStore { obligation, .. }
-                | OperationKind::StructuralByteSequenceFieldByteStore { obligation, .. } =
-                    &operation.kind
+                | OperationKind::StructuralByteSequenceFieldByteStore { obligation, .. }
+                | OperationKind::ByteSequenceWrite { obligation, .. } = &operation.kind
                 {
                     insert_unique(
                         &mut registry.obligations,
@@ -355,6 +356,7 @@ pub(super) fn validate_machine(
                 | OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::StructuralByteSequenceFieldStore { .. }
                 | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+                | OperationKind::ByteSequenceWrite { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallDynamicScalar { .. }
                 | OperationKind::CallDynamicParameterScalar { .. }

@@ -305,7 +305,12 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         structural_arguments.push(StructuralArgument {
                             place,
                             path: Vec::new(),
-                            access: StructuralAccess::SharedBorrow,
+                            access: match target_parameter.access {
+                                checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                                    StructuralAccess::MutableBorrow
+                                }
+                                _ => StructuralAccess::SharedBorrow,
+                            },
                         });
                         continue;
                     }

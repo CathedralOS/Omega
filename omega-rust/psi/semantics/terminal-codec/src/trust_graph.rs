@@ -115,6 +115,8 @@ const BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/frontier/traversal.rs");
 const BYTE_VIEW_ARGUMENTS_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/structural_operations.rs");
+const BYTE_WRITE_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/byte_sequence_write.rs");
 const BYTE_READ_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/byte_sequence_read.rs");
 const BYTE_VIEW_VALIDATION_SOURCE: &[u8] =
@@ -569,7 +571,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            17
+            18
         );
         assert_eq!(
             graph
@@ -579,7 +581,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 62);
+        assert_eq!(OperationSemanticRow::ALL.len(), 63);
         for (tag, identity) in [
             (
                 OperationSemanticTag::EstablishPrimitiveLocal,
@@ -633,7 +635,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            52
+            53
         );
         assert_eq!(
             OperationSemanticRow::ALL

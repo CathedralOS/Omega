@@ -874,6 +874,7 @@ fn assemble_unit_closure(
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
@@ -3228,6 +3229,35 @@ fn assemble_unit_closure(
                     )?;
                     crate::structural_byte_sequence_index_store::emit(
                         store,
+                        parameters,
+                        &structural_types,
+                        &index,
+                        &value,
+                        &scalar_result_values,
+                        &mut next_value_identity,
+                        &mut next_call_obligation,
+                        &mut operations,
+                    )?
+                }
+                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
+                    let bindings =
+                        crate::scalar_bindings::ScalarBindings::new(scalar_result_values.len())
+                            .with_primitive_storage(&evaluation.primitive_storage)
+                            .with_structural_parameters(&evaluation.structural_parameters);
+                    let index = bindings.expression_at(
+                        checked,
+                        plan.state,
+                        write.statement_index,
+                        CheckedScalarExpressionRole::AssignmentIndex,
+                    )?;
+                    let value = bindings.expression_at(
+                        checked,
+                        plan.state,
+                        write.statement_index,
+                        CheckedScalarExpressionRole::AssignmentValue,
+                    )?;
+                    crate::byte_sequence_write::emit(
+                        write,
                         parameters,
                         &structural_types,
                         &index,

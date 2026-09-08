@@ -166,7 +166,9 @@ pub(super) fn append_operation(
         if let Some(equation) = observation.local_equation() {
             axioms.push(equation.clone());
         }
-        if let Some(equation) = byte_extent::length_equation(machine, &observation)? {
+        if let Some(equation) =
+            byte_extent::length_equation(module, machine, operation, &observation)?
+        {
             axioms.push(equation);
         }
         return Ok(());
@@ -242,6 +244,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }
+        | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
