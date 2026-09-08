@@ -154,6 +154,35 @@ by themselves establish executable publication.
 
 ## Operator applications and physical children
 
+Generic demand is not coverage. A symbolic row binds the producer package,
+callable, exact operator coordinate, requirement, and declared-binder mapping.
+Only final closed substitution can yield coverage. Const identity is evaluated
+value in its declared carrier, not spelling. Type/const applications are the
+initial supported categories; unsupported lifetime/machine categories reject.
+
+Within a compilation, ordinary machine and selected-provider specialization
+reach a fixed point over immutable authored templates. Saved ordinary calls
+rejoin by exact callee template and complete canonical tuple; another direct
+instantiation cannot donate call choices. Specialized concrete uses receive
+the same checks as direct uses, while open template occurrences remain symbolic.
+This is not cross-artifact completeness evidence.
+
+Specialization rechecks substituted semantics, target, admission, selected plan,
+and realization. Bodyless/external supply remains exact-only; bootstrap lowering
+cannot publish authoritative coverage.
+
+A cross-artifact substitution must independently join producer and operator-owner
+reviews, complete producer specialization, and the consumer's reviewed closed
+selected plan. Every producer binder appears exactly once and every substitution
+is used by the reviewed mapping. Rejoin requirement, coordinate, application,
+selected artifact, and nonzero strong plan identity; retain original mapping and
+specialization for replay. Deduplication follows that join. Checking supplied
+requests does not prove they exhaust reachable specializations or establish
+realization, admission, Terminal/native, or installation authority. Complete-set
+composition remains an independent obligation, not an install/update prerequisite.
+
+### Closed application and physical occurrence
+
 A boundary operator's checked application must be closed after specialization.
 The source-free demand retains exact occurrence, requirement coordinate, and
 ordered tagged type/constant application. The strong selected-plan identity,
