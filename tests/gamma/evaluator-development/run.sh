@@ -67,6 +67,9 @@ for number, line in enumerate(beta_lines, 1):
 
 def run(source, sealed_input=b"", timeout=20):
     request = struct.pack("<I", len(source)) + source + sealed_input
+    return run_request(request, timeout)
+
+def run_request(request, timeout=20):
     process = subprocess.Popen(
         [os.environ["EVALUATOR"]], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
@@ -83,6 +86,10 @@ def run(source, sealed_input=b"", timeout=20):
 
 positive = {
     "literal": (b"(def main () Int 42)\n", b"", b"*"),
+    "comments": (b"; before\n(def main () Int ; body\n42) ; after", b"", b"*"),
+    "false branch": (b"(def main () Int (if 0 (/ 1 0) 42))\n", b"", b"*"),
+    "signed comparison": (b"(def main () Int (lt -1 0))\n", b"", b"\x01"),
+    "signed division": (b"(def main () Int (+ 5 (/ -7 2)))\n", b"", b"\x02"),
     "character": (b"(def main () Int 'A')\n", b"", b"A"),
     "character punctuation": (b"(def main () Int (write '('))\n", b"", b"(("),
     "character newline": (b"(def main () Int (write '\\n'))\n", b"", b"\n\n"),
@@ -148,6 +155,7 @@ for name, (source, expected) in application_results.items():
         raise SystemExit(f"{name} did not publish as expected")
 
 negative = {
+    "forbidden source byte": (b"(def main () Int 0)\n\x00", 1),
     "missing main": (b"(def other () Int 0)\n", 1),
     "duplicate function": (
         b"(def main () Int 0)\n(def main () Int 1)\n", 1,
@@ -226,6 +234,10 @@ negative = {
 for name, (source, status) in negative.items():
     if run(source) != (status, b""):
         raise SystemExit(f"{name} did not reject quietly with status {status}")
+
+for request in (b"", b"\x01\x00\x00", struct.pack("<I", 30) + b"(def main () Int 0)"):
+    if run_request(request) != (1, b""):
+        raise SystemExit("malformed source framing did not reject quietly")
 
 def countdown(depth):
     return (

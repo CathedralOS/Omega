@@ -38,8 +38,6 @@ for required in \
   "$OMEGA_PATH_BETA_COMPILER" \
   "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_GAMMA_EVALUATOR" \
-  "$OMEGA_PATH_CONCATENATIVE_GAMMA" \
-  "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER" \
   "$OMEGA_PATH_DELTA" \
   "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_EPSILON" \
@@ -61,12 +59,6 @@ done
   fail "Beta-written Gamma evaluator source is absent"
 [ -f "$OMEGA_PATH_GAMMA_EVALUATOR_TAPE" ] ||
   fail "Gamma evaluator tape is absent"
-[ -f "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_SOURCE" ] ||
-  fail "downgraded concatenative Gamma compiler source is absent"
-[ -f "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_RECEIPT" ] ||
-  fail "downgraded concatenative Gamma compiler receipt is absent"
-[ -f "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_TAPE" ] ||
-  fail "downgraded concatenative Gamma compiler tape is absent"
 [ -f "$OMEGA_PATH_DELTA_COMPILER_SOURCE" ] ||
   fail "Gamma-authored staged Delta compiler entry is absent"
 [ -f "$OMEGA_PATH_DELTA_COMPILER_SOURCES" ] ||
@@ -180,8 +172,6 @@ for bootstrap_source in \
   "$OMEGA_PATH_GAMMA/LANGUAGE.md" \
   "$OMEGA_PATH_GAMMA/COMPOSED_ARTIFACT.md" \
   "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
-  "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_SOURCE" \
-  "$OMEGA_PATH_CONCATENATIVE_GAMMA_COMPILER_RECEIPT" \
   "$OMEGA_PATH_DELTA/LANGUAGE.md" \
   "$OMEGA_PATH_DELTA_COMPILER_SOURCE" \
   "$OMEGA_PATH_DELTA_COMPILER_COMPOSED"

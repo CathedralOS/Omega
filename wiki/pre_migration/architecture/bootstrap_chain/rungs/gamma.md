@@ -36,6 +36,6 @@ application-marker ownership are unchanged; the evaluator still retains no AST.
 Proper tail execution, static validation of unreachable bodies, private
 pair-reference provenance, and profile-owned arithmetic traps are complete.
 Its exact resource outcomes are closed. Beta-root audit and the Gamma derivation
-checker remain separate admission obligations. The former
-concatenative Gamma implementation is retained only under
-`bootstrap/2_gamma/bootstrap/concatenative/`.
+checker remain separate admission obligations. The former concatenative Gamma
+implementation is [retired](../../../design_briefs/legacy_bootstrap_retirement.md);
+its comparison findings remain historical evidence, not selected authority.

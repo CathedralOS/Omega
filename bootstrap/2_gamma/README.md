@@ -17,9 +17,9 @@ The first executable customer is the test-owned 85-line `const` augmenter under
 source, produces an exact richer-language receipt, and evaluates the expanded
 program to byte 42.
 
-The former concatenative Gamma evaluator/compiler is preserved under
-[`bootstrap/concatenative/`](bootstrap/concatenative). It is bootstrap
-comparison evidence, not the selected Gamma language.
+The former concatenative Gamma evaluator/compiler is retired. Its
+[comparison findings and coverage mapping](../../wiki/pre_migration/design_briefs/legacy_bootstrap_retirement.md)
+remain documented; it supplies no selected-chain authority.
 
 The selected evaluator is complete for the current Gamma contract. Proper-tail
 execution, whole-program static validation, provenance-tagged immutable pairs,
@@ -38,4 +38,3 @@ chain obligations.
 | `evaluator/gamma_evaluator_bytecode.tape` | Platform-independent executable derived from the Beta source. | Regenerate atomically when the evaluator source changes. |
 | `derivation_checker/` | Ordinary-Gamma ground-equality checker: conservative formation, explicit rules, and owner-root checking under one resource ledger. The full Beta encoding certificate and artifact admission remain open. | Replace only while retaining bounded input custody, checked premises, and independently owned subjects. |
 | `beta_encoding/` | Source-owned artifact-specific Beta definitions: byte classifiers, nibble conversion, fixed-width word serialization, checked counter increment, and unsigned ordering. | Replace only with a faithful complete Beta theory and independently reconstructed encoding root. |
-| `bootstrap/concatenative/` | Downgraded former Gamma implementation and receipts. | Delete after the new Gamma-to-Delta bootstrap edge supersedes its remaining evidence. |

@@ -16,7 +16,6 @@ bootstrap/
     evaluator/
       gamma_evaluator.beta       selected direct Beta evaluator
       gamma_evaluator_bytecode.tape derived Alpha implementation
-    bootstrap/concatenative/     downgraded former Gamma implementation
   3_delta/                       typed pure functional language
     compiler/
       delta_compiler.gamma       selected staged recursive-ADT/match compiler
@@ -56,9 +55,10 @@ tests/
 ```
 
 The Gamma evaluator belongs under `bootstrap/2_gamma/evaluator/` because it
-implements Gamma meaning and is written in Beta. Downgraded implementations
-remain nested beneath the bootstrap language whose transition they document.
-The selected Delta compiler path remains open.
+implements Gamma meaning and is written in Beta. The former concatenative
+implementations are [retired](../../design_briefs/legacy_bootstrap_retirement.md),
+with comparison findings preserved in documentation and Git history.
+The selected Delta compiler's complete proof edge remains open.
 
 ## Naming
 
@@ -78,6 +78,5 @@ its source suffix names the language implementing it:
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
 There is no intermediate self-host owner.
-Language-owned bootstrap subdirectories are explicitly nonselected and excluded
-from edge inventories. Cross-owner paths are checked by
+Cross-owner paths are checked by
 `tools/bootstrap/check-chain-hygiene.sh`.

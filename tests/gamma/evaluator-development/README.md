@@ -28,7 +28,8 @@ pins the Beta and tape hashes and executes the retained tape. No symbolic-label
 resolver participates in this route; the test-owned resolver was removed with
 its last experimental consumer.
 
-For comparison, the current Gamma route above the common Beta compiler contains:
+For historical comparison, the retired concatenative route above the common
+Beta compiler contained:
 
 ```text
 753-line Beta Gamma evaluator
@@ -75,7 +76,10 @@ source-byte bound and row/index containment argument. No synthetic count is
 injected to manufacture an unreachable physical refusal.
 The 21 lookup/census controls pin row payloads and
 failure ownership independently of this implementation. The complete gate
-runs 84 evaluator invocations, including the augmentation and capacity pairs.
+runs 92 evaluator invocations, including the augmentation and capacity pairs.
+Explicit controls also cover comments, an unexecuted trapping true branch,
+negative signed comparison, signed division truncation, a forbidden source byte,
+and empty, truncated-header, and truncated-source request framing.
 `OMEGA_GAMMA_FUNCTION_UPPER_SECONDS` optionally changes only the upper-census
 host watchdog (default 20 seconds, positive integer); a timeout is not a
 language judgment.
@@ -110,7 +114,8 @@ behind a generic stack-machine expansion.
 
 ## Finding
 
-The former concatenative Gamma is not earned as a permanent bootstrap rung.
+The former concatenative Gamma is not earned as a permanent bootstrap rung and
+is [retired](../../../wiki/pre_migration/design_briefs/legacy_bootstrap_retirement.md).
 Direct Beta already executes the high-level Gamma-authored augmentation workflow
 with 1,632 authored Beta lines rather than 2,337 across the former route.
 Proper-tail execution, whole-program static

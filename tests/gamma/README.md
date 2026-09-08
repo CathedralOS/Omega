@@ -1,7 +1,9 @@
 # Gamma tests
 
-This directory owns executable gates for typed scalar/effect Gamma and retained
-bootstrap evidence for the downgraded concatenative language.
+This directory owns executable gates for selected typed scalar/effect Gamma.
+The unselected concatenative route is retired; its
+[coverage and findings](../../wiki/pre_migration/design_briefs/legacy_bootstrap_retirement.md)
+remain documented without an alternate implementation.
 
 | Retained child | Role | Deletion condition |
 | --- | --- | --- |
@@ -15,6 +17,3 @@ bootstrap evidence for the downgraded concatenative language.
 | `derivation-comparison/` | Compares validated term syntax with completed-pair memoization, explicit depth handling, and cumulative session exhaustion; does not check proof rules. | Replace only with a complete checker gate retaining structural, session, sharing, and resource controls. |
 | `self-augmentation-experiment/` | Executes a Gamma-authored `const` augmenter, checks its exact richer Gamma receipt, and evaluates the result to byte 42. | Replace when a meaningful staged Delta augmenter subsumes this mechanism proof. |
 | `composed-artifact.sh` | Checks the staged Delta compiler's exact evaluator/source pair and atomic nonpublication after a late trap. | Replace only with a stronger executable-composition gate. |
-| `evaluator-slice.sh`, `evaluator-reconstruction.sh`, `evaluator_reconstructor.gamma` | Retained conformance and reconstruction evidence for downgraded concatenative Gamma. | Delete after the new Gamma-to-Delta edge supersedes this evidence. |
-| `compiler-fixed-point.sh`, `gamma-to-beta-experiment/` | Retained compiler/fixed-point evidence for downgraded concatenative Gamma. | Delete after the new Gamma-to-Delta edge supersedes this evidence. |
-| `gamma1-augmentation-experiment/`, `state-machine-customer.sh`, `fixtures/` | Historical customer experiments for the downgraded concatenative design. | Delete after their architecture findings are captured by selected gates. |
