@@ -144,19 +144,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   actionable.
 
   Measure remaining package latency with an already-built release CLI, separately
-  from Cargo build time. At `a63284e305` on macOS ARM64, the command above
-  (`--build-dir build/cli-mvp-release-final`) exits 1 at missing package acceptance
-  in 20.01 seconds with unchanged findings. Temporary release probes on
-  `875ab15102` put std's four preliminary/settled checks at about three seconds each and
-  post-compilation review at about 2.6 seconds per std pass. Next distinguish
-  checker costs in `compiler/src/pipeline/` from projection, policy, and obligation
-  reconstruction in `packages/manager/src/review/candidate/`, using release
-  measurements before choosing another optimization. Std itself changes semantic
-  bindings between discovery and final checking, so retaining unaffected dependencies
-  would not eliminate its second compilation. Preserve those distinct inputs,
+  from Cargo build time. At `e82bff8675` on macOS ARM64, the command above
+  (`--build-dir build/cli-mvp-cost-final`) exits 1 at missing package acceptance
+  in 17.35 seconds with unchanged complete findings. Next investigate repeated
+  call-frame preparation and write-path inference in
+  `omega-rust/psi/semantics/validation/src/calls/write_frames/`, reached by several checking
+  passes; confirm improvements through this outer command, not isolated query
+  timings. Local symbol-name grouping did not improve whole-route latency.
+  Std itself changes semantic bindings between discovery and final checking, so
+  retaining unaffected dependencies would not eliminate its second compilation.
+  Preserve distinct source/selection inputs, conservative unknown-write handling,
   complete findings, and admission checks. Acceptance remains prompt whole-route
-  diagnosis with comparable timings and unchanged findings; Windows timing is
-  unverified. This work does not block the native operand work below.
+  diagnosis with comparable timings and unchanged findings. Windows timing is
+  unverified; this work does not block the native operand work below.
 
   The downstream native `cli_mvp` probe with production checkpoint `6b72df6c49`
   passes Terminal production but remains red. On macOS ARM64,
