@@ -55,6 +55,7 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
         .collect::<BTreeSet<_>>();
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
+    let unobserved_owned = crate::lowering::unobserved_owned::accepts(function, structural_types);
     function
         .structural_parameters
         .iter()
@@ -103,7 +104,8 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
                     && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
                     || carries_boundary_custody);
             if usize::try_from(parameter.position) != Ok(position)
-                || (!direct_borrowed_self
+                || (!unobserved_owned
+                    && !direct_borrowed_self
                     && !custody_bearing_parameter
                     && !shared_byte_view
                     && !(crate::lowering::function_signature::is_primitive_write_parameter(

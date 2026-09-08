@@ -203,6 +203,8 @@ fn check(
     )
 }
 
+mod unobserved_owned;
+
 #[test]
 fn scalar_cycle_returns_replay_arithmetic_calls_and_result_abi() {
     for native in [

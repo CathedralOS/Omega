@@ -23,7 +23,7 @@ pub(super) fn validate(
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
                     )])
-            || (ranked
+            || ((ranked || super::unobserved_owned::body(function))
                 && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
@@ -43,7 +43,12 @@ pub(super) fn validate(
         ) if *result == declared.value
             && *scalar_type == declared.scalar_type
             && value_type(function, *value) == Some(*scalar_type)
-            && cleanup_actions.is_empty() =>
+            && (cleanup_actions.is_empty()
+                || (super::unobserved_owned::body(function)
+                    && node.ownership
+                        == [optimization_unit::OwnershipEvent::Cleanup(
+                            cleanup_actions.clone(),
+                        )])) =>
         {
             return_edge(node, *psi_edge)
         }

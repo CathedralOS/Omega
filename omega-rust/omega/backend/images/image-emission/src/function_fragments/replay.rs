@@ -36,6 +36,24 @@ pub(crate) fn has_free_unit_entry(
 }
 
 pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnostics::Diagnostic> {
+    if artifact.fragment_replay.is_none()
+        && artifact.functions().iter().any(|function| {
+            function.unit_parameters.len() != function.unit_parameter_homes.len()
+                || function.scalar_structural_parameters.len()
+                    != function.scalar_structural_parameter_homes.len()
+                || function
+                    .mixed_structural_scalar_abi
+                    .as_ref()
+                    .is_some_and(|abi| {
+                        abi.structural_parameters.len()
+                            != function.scalar_structural_parameter_homes.len()
+                    })
+        })
+    {
+        return Err(diagnostics::Diagnostic::error(
+            "structural parameters without homes require common-pipeline replay evidence",
+        ));
+    }
     let missing_borrowed_replay = artifact.fragment_replay.is_none()
         && artifact.functions().iter().any(|function| {
             function

@@ -22,6 +22,7 @@ mod header;
 mod hosted_scalar;
 pub(super) mod read_byte;
 pub(super) mod structural_case;
+mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_execution;
 mod literals;
 mod ranked;

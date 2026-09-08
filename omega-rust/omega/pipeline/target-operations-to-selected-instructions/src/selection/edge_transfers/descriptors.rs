@@ -19,7 +19,7 @@ pub(super) fn snapshot(
     let mut snapshots = Vec::new();
     for binding in bindings {
         let SelectedStructuralTransport::Descriptor { argument, .. } = binding.transport else {
-            return Err(invalid(function_index));
+            continue;
         };
         let input = registers
             .get(argument.0 as usize)
@@ -88,7 +88,16 @@ pub(super) fn store(
     constraints: &SelectedSelectionConstraints,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    for (binding, words) in bindings.iter().zip(snapshots) {
+    for (binding, words) in bindings
+        .iter()
+        .filter(|binding| {
+            matches!(
+                binding.transport,
+                SelectedStructuralTransport::Descriptor { .. }
+            )
+        })
+        .zip(snapshots)
+    {
         let SelectedStructuralTransport::Descriptor { destination, .. } = binding.transport else {
             return Err(invalid(function_index));
         };

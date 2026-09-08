@@ -68,6 +68,9 @@ pub(super) fn entry(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
+    if crate::unobserved_owned_input::accepts(source) {
+        return Ok(());
+    }
     block_views::entry(source, builder)?;
     let Some(signature) = &source.structural else {
         return Ok(());

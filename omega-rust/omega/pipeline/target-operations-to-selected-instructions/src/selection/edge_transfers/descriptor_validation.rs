@@ -21,10 +21,27 @@ pub(super) fn check(
     let mut writes = Vec::new();
     let descriptor_words = continuation
         .structural_bindings
-        .len()
+        .iter()
+        .filter(|binding| {
+            matches!(
+                binding.transport,
+                SelectedStructuralTransport::Descriptor { .. }
+            )
+        })
+        .count()
         .checked_mul(2)
         .ok_or_else(error)?;
-    for (position, binding) in continuation.structural_bindings.iter().enumerate() {
+    for (position, binding) in continuation
+        .structural_bindings
+        .iter()
+        .filter(|binding| {
+            matches!(
+                binding.transport,
+                SelectedStructuralTransport::Descriptor { .. }
+            )
+        })
+        .enumerate()
+    {
         let SelectedStructuralTransport::Descriptor {
             argument,
             destination,

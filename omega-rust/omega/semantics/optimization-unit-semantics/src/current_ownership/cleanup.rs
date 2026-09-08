@@ -180,7 +180,7 @@ pub(super) fn validate_scalar_cleanup_actions(
         remaining.owned_places.remove(&place);
     }
 
-    for parameter in function.structural_parameters.iter().rev() {
+    for parameter in parameter_establishment_order(function).into_iter().rev() {
         if !remaining.owned_places.contains_key(&parameter.place) {
             continue;
         }

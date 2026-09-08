@@ -271,6 +271,12 @@ fn successor(
             .structural_bindings
             .iter()
             .map(|semantic| {
+                if crate::unobserved_owned_input::accepts(source) {
+                    return Ok(selected_instructions::SelectedStructuralBinding {
+                        semantic: semantic.clone(),
+                        transport: selected_instructions::SelectedStructuralTransport::Unused,
+                    });
+                }
                 let argument = builder
                     .transport
                     .pointers

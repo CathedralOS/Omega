@@ -11,6 +11,7 @@ use crate::structural_reference_input::stack_pointer_offset;
 /// Other result-bearing structural signatures retain their current admission.
 pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) -> bool {
     source.call_plan.result.is_none()
+        || crate::unobserved_owned_input::accepts(source)
         || source.structural.as_ref().is_some_and(|signature| {
             let parameters = signature
                 .parameters

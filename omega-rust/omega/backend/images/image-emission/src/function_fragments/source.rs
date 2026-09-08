@@ -6,6 +6,8 @@ use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
 mod structural_case;
+mod unobserved_owned;
+pub(super) use unobserved_owned::{arrivals as unobserved_owned_arrivals, scalar_cleanup_retained};
 #[cfg(test)]
 mod tests;
 
@@ -237,7 +239,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     cleanup_actions, ..
                 } => match ranked {
                     Some(ranked) => cleanup_actions == &ranked.cleanup_actions,
-                    None => cleanup_actions.is_empty(),
+                    None => cleanup_actions.is_empty()
+                        || (unobserved_owned_arrivals(abstracted, targeted, selected)
+                            && scalar_cleanup_retained(operation, targeted)),
                 },
                 AbstractOperation::ReturnUnit {
                     cleanup_actions, ..

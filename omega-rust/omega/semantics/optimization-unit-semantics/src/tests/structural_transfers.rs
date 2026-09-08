@@ -7,6 +7,9 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+mod owned;
+mod owned_authority;
+
 fn transfer_unit() -> PsiOptimizationUnit {
     let machine = id(1, MachineId::new);
     let entry = id(2, BlockId::new);

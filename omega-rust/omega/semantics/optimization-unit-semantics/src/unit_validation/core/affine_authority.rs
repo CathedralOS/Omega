@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod block_bindings;
+
 pub(super) fn validate_retained_ownership_authority(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -66,13 +68,18 @@ pub(super) fn validate_retained_ownership_authority(
                         } else {
                             &[]
                         };
-                        if !valid_edge_partial_affine_transition(
+                        if !block_bindings::valid_transition(
                             function,
                             &structural_types,
                             entry,
                             exit,
                             discards,
                             residuals,
+                            if source_index == 0 {
+                                &edge.structural_bindings
+                            } else {
+                                &[]
+                            },
                         ) {
                             return Err(
                                 OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
@@ -236,9 +243,8 @@ pub(crate) fn valid_edge_affine_transition(
         .chain(locals.into_iter().map(|(_, place)| place))
         .collect::<Vec<_>>();
     eligible.extend(
-        function
-            .structural_parameters
-            .iter()
+        crate::current_ownership::parameter_establishment_order(function)
+            .into_iter()
             .rev()
             .filter_map(|parameter| {
                 (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine

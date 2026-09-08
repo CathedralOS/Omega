@@ -69,6 +69,7 @@ pub(super) fn lower_function(
     };
 
     if super::control_flow::has_cycle(function)?
+        || super::unobserved_owned::has_block_arrivals(function, structural_types)
         || function
             .operations
             .iter()

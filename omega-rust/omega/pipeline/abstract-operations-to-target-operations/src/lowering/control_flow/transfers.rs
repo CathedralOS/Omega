@@ -92,8 +92,7 @@ pub(super) fn validate_successors(
                             .map(|(_, structural_type)| *structural_type)
                     })
                     .or_else(|| {
-                        live.block_views
-                            .contains(&place)
+                        (live.block_views.contains(&place) || live.owned_arrivals.contains(&place))
                             .then(|| {
                                 function
                                     .block_entries
@@ -107,7 +106,12 @@ pub(super) fn validate_successors(
                 if binding.parameter != parameter.place
                     || source_type != Some(parameter.structural_type)
                     || !binding.argument.path.is_empty()
-                    || binding.argument.access != terminal_psi::StructuralAccess::SharedBorrow
+                    || binding.argument.access != parameter.access
+                    || !matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::Owned
+                    )
                 {
                     return Err(invalid());
                 }

@@ -4,7 +4,7 @@ use abstract_operations::ValueBinding;
 use legalized_operations::{LegalizedScalarComparison as Comparison, LegalizedScalarSuccessor};
 use optimization_unit::ValueDefinition;
 
-fn graph(
+pub(super) fn graph(
     target: target::NativeTarget,
     predicate: Comparison,
     signed: bool,

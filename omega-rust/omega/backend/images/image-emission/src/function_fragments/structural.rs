@@ -239,6 +239,8 @@ pub(super) fn populate(
 ) -> Result<(), Error> {
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
+    let (abstracted, targeted) = source::function(source, function.machine)?;
+    let unused_owned = source::unobserved_owned_arrivals(abstracted, targeted, selected);
     if let Some(contract) = &selected.structural
         && selected.ranked.is_none()
     {
@@ -262,6 +264,9 @@ pub(super) fn populate(
                 access: target.access,
                 shape: target.shape,
             });
+            if unused_owned {
+                continue;
+            }
             homes.push(UnitParameterHomeRecord {
                 place: target.place,
                 structural_type: target.structural_type,

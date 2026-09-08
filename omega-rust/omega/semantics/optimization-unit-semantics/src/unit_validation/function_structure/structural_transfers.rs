@@ -1,4 +1,4 @@
-//! Exact whole shared-view telescopes; this adds no ownership or bounds evidence.
+//! Exact whole shared-view and plain owned telescopes; ownership replays separately.
 use super::*;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -26,10 +26,13 @@ pub(super) fn validate(
                 || !types
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
-                        )
+                        parameter.access == StructuralAccess::Owned
+                            || matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    ByteSequenceCarrier::BorrowedView
+                                )
+                            )
                     })
                 || !function.structural_places.iter().any(|place| {
                     place.id == parameter.place
@@ -73,9 +76,13 @@ pub(super) fn validate(
             {
                 if binding.parameter != parameter.place
                     || !binding.argument.path.is_empty()
-                    || binding.argument.access != StructuralAccess::SharedBorrow
-                    || source_type(function, binding.argument.place)
-                        != Some(parameter.structural_type)
+                    || binding.argument.access != parameter.access
+                    || source_contract(function, binding.argument.place)
+                        != Some((
+                            parameter.structural_type,
+                            parameter.access,
+                            parameter.multiplicity,
+                        ))
                     || function
                         .entry_claim_declarations
                         .iter()
@@ -95,13 +102,24 @@ pub(super) fn validate(
 
 fn plain(parameter: &StructuralParameterDeclaration) -> bool {
     !parameter.is_self
-        && parameter.access == StructuralAccess::SharedBorrow
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && match parameter.access {
+            StructuralAccess::SharedBorrow => {
+                parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            }
+            StructuralAccess::Owned => matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ),
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => false,
+        }
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
 }
 
-fn source_type(function: &PsiOptimizationFunction, place: PlaceId) -> Option<StructuralTypeId> {
+fn source_contract(
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<(StructuralTypeId, StructuralAccess, StructuralMultiplicity)> {
     if let Some(parameter) = function
         .structural_parameters
         .iter()
@@ -113,7 +131,11 @@ fn source_type(function: &PsiOptimizationFunction, place: PlaceId) -> Option<Str
         )
         .find(|parameter| parameter.place == place)
     {
-        return plain(parameter).then_some(parameter.structural_type);
+        return plain(parameter).then_some((
+            parameter.structural_type,
+            parameter.access,
+            parameter.multiplicity,
+        ));
     }
     function
         .blocks
@@ -125,7 +147,11 @@ fn source_type(function: &PsiOptimizationFunction, place: PlaceId) -> Option<Str
             } if declaration.id == place => match declaration.kind {
                 StructuralPlaceKind::ByteSequenceLiteral {
                     structural_type, ..
-                } => Some(structural_type),
+                } => Some((
+                    structural_type,
+                    StructuralAccess::SharedBorrow,
+                    StructuralMultiplicity::Unrestricted,
+                )),
                 _ => None,
             },
             O::ByteSequenceSubslice { result, .. }
@@ -135,7 +161,11 @@ fn source_type(function: &PsiOptimizationFunction, place: PlaceId) -> Option<Str
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty() =>
             {
-                Some(result.structural_type)
+                Some((
+                    result.structural_type,
+                    StructuralAccess::SharedBorrow,
+                    StructuralMultiplicity::Unrestricted,
+                ))
             }
             _ => None,
         })

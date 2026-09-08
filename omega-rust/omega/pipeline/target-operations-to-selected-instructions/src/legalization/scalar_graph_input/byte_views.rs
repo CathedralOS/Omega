@@ -8,6 +8,13 @@ pub(super) fn validate(
     native: ::target::NativeTarget,
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
+    if abstracted
+        .structural_parameters
+        .iter()
+        .any(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
+    {
+        return super::unobserved_owned::validate(target, abstracted, optimized, native, plan);
+    }
     let invalid = LegalizationError::SourceCustodyMismatch;
     let (call_plan, scalar_parameters, structural_parameters) = match (
         &abstracted.result,

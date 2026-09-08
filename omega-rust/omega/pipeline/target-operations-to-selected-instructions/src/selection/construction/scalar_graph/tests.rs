@@ -14,6 +14,7 @@ mod scalar_stores;
 mod stack_borrows;
 mod structural_case;
 mod subslices;
+mod unobserved_owned;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{
     LegalizedCallUnitSource, LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall,

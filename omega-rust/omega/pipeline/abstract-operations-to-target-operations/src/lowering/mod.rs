@@ -17,12 +17,12 @@ mod structural;
 pub(super) mod structural_layout;
 pub(crate) mod structural_signature;
 mod unit;
+mod unobserved_owned;
 
 use abstract_operations::AbstractOperationPlan;
 use installation_evidence::ProviderInstallationEvidence;
 use target::NativeTarget;
-use target_operations::TargetOperationPlan;
-use target_operations::TargetOperationPlanWithNativeCallbacks;
+use target_operations::{TargetOperationPlan, TargetOperationPlanWithNativeCallbacks};
 
 use crate::{AdmittedBoundarySettlement, LoweringError};
 use coordination::{

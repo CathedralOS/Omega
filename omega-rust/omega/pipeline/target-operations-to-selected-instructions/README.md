@@ -45,6 +45,21 @@ checks the expansion and contracts it back to the source graph, with the authore
 edge and its fuel retained once; the final implementation jump carries lineage,
 not a second semantic transition. No source block or operation is fabricated.
 
+Whole plain-owned arrivals with no runtime structural observer retain
+`SelectedStructuralTransport::Unused`. Their complete semantic bindings and
+owned value ABI survive; selection emits no payload pointer, descriptor slot,
+memory access, or edge copy. The bounded input gate independently rejects
+structural observations, structural call actuals, projections, escapes, and
+executable cleanup. Exact no-code return discards remain in the retained source
+ownership, whose current frontier is checked before selection. Scalar-only
+calls and simultaneous scalar transfers continue through the ordinary graph.
+Edge preparation and independent replay count only active transports, including
+when unused owned bindings accompany scalar copies. Object/image publication
+must separately retain this custody and validate omitted physical homes.
+The [owned control-cycle regressions](../../../../tests/native-differential/tests/owned_control_cycles.rs)
+exercise this full continuation; local projection tests also reject invented
+descriptor homes and changed binding transports.
+
 Target-input correspondence also checks `StructuralCase` terminators in
 `TargetControlGraph` against the validated abstract graph: the exact dominating
 result home, declared case order/tag, relevant field offset, destination

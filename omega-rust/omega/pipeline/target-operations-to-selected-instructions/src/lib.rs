@@ -10,6 +10,7 @@ mod optimized;
 mod selection;
 mod structural_reference_input;
 mod structural_unit_input;
+mod unobserved_owned_input;
 
 pub use legalization::{
     LegalizationError, LegalizationSource, LegalizationValidationReceipt,
