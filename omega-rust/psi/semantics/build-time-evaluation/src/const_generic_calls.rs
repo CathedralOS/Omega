@@ -15,12 +15,13 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::types::TypeReferenceNode;
 
 pub fn evaluate_const_generic_calls(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    evaluate_const_generic_calls_with_optional_sources(syntax, None, None)
+    evaluate_const_generic_calls_with_optional_sources(syntax, None, &[], None)
 }
 
 pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
     mut syntax: SyntaxTrees,
     sources: Option<Arc<source::SourceMap>>,
+    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = Vec::new();
@@ -47,8 +48,16 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
             TypeReferenceNode::Named(Identifier::generated("0")),
         );
     }
-    let probe = syntax_trees_to_symbol_resolved_trees::normalize_generic_data(probe)?;
-    let resolved = crate::lower_probe_with_optional_sources(&probe, sources)?;
+    let probe = crate::normalize_generic_data_with_optional_sources(
+        probe,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+    )?;
+    let resolved = crate::lower_probe_with_optional_sources(
+        &probe,
+        sources,
+        source_scoped_top_level_bindings,
+    )?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     let admission =

@@ -263,7 +263,13 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
     let owner = root.join("omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src");
     let entrance = std::fs::read_to_string(owner.join("lib.rs")).unwrap();
     assert!(entrance.contains("mod generic_data;"));
-    assert!(entrance.contains("pub use generic_data::normalize_generic_data;"));
+    assert!(entrance.contains("pub use generic_data::{"));
+    for operation in [
+        "normalize_generic_data",
+        "normalize_generic_data_with_sources_and_top_level_bindings",
+    ] {
+        assert!(entrance.contains(operation));
+    }
     let normalization = std::fs::read_to_string(owner.join("generic_data/mod.rs")).unwrap();
     assert!(normalization.contains("mut syntax: SyntaxTrees"));
     assert!(normalization.contains("Result<SyntaxTrees, Vec<Diagnostic>>"));
@@ -277,6 +283,11 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
     }
     let declarations = std::fs::read_to_string(owner.join("item.rs")).unwrap();
     assert!(declarations.contains("crate::generic_data::canonicalize_declared_const_definition"));
+    let selection =
+        std::fs::read_to_string(owner.join("generic_data/constant_selection.rs")).unwrap();
+    assert!(selection.contains("pub(super) struct ConstantSelection"));
+    assert!(selection.contains("find_top_level_by_name_and_kinds_from_source"));
+    assert!(!entrance.contains("ConstantSelection"));
 }
 
 #[test]

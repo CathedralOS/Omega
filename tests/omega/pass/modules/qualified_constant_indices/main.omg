@@ -1,0 +1,9 @@
+use combat;
+use rooms;
+
+const SIZE: u64 = 1;
+data Buffer<const N: u64> { value: [u8; N]; }
+data Root { value: Buffer<SIZE>; }
+
+data Main {}
+machine Main::main(&mut self) {}

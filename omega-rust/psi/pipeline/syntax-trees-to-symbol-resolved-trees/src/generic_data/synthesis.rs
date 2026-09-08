@@ -6,6 +6,26 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let selection = if syntax
+        .root_items()
+        .any(|item| matches!(item, Item::Module(_)))
+    {
+        Some(super::constant_selection::ConstantSelection::new(
+            syntax,
+            None,
+            Vec::new(),
+        )?)
+    } else {
+        None
+    };
+    desugar_generic_data_instances_with_selection(syntax, warnings, selection.as_ref())
+}
+
+pub(super) fn desugar_generic_data_instances_with_selection(
+    syntax: &mut SyntaxTrees,
+    warnings: &mut Vec<Diagnostic>,
+    selection: Option<&super::constant_selection::ConstantSelection>,
+) -> Result<(), Vec<Diagnostic>> {
     // Index generic data definitions by name (only those with type parameters;
     // a non-generic `Base<..>` is either plan-laid or an existing error path).
     // Generic bases that carry attached MACHINES (a generic container like
@@ -226,6 +246,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
                 &generic_data,
                 &const_definitions,
                 &const_values,
+                selection,
                 position,
                 &mut rewrites,
                 &mut instantiations,

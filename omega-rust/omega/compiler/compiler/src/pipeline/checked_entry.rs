@@ -888,15 +888,17 @@ fn lower_checked_frontend(
 ) -> Result<CheckedFrontend, Vec<Diagnostic>> {
     let evaluated = match package_inputs {
         Some(package_inputs) => {
-            build_time_evaluation::evaluate_pre_resolution_with_sources_and_authority(
+            build_time_evaluation::evaluate_pre_resolution_with_sources_top_level_bindings_and_authority(
                 syntax.syntax_trees,
                 syntax.sources.clone(),
+                syntax.source_scoped_top_level_bindings.clone(),
                 std::sync::Arc::new(package_inputs.clone()),
             )
         }
-        None => build_time_evaluation::evaluate_pre_resolution_with_sources(
+        None => build_time_evaluation::evaluate_pre_resolution_with_sources_and_top_level_bindings(
             syntax.syntax_trees,
             syntax.sources.clone(),
+            syntax.source_scoped_top_level_bindings.clone(),
         ),
     }?;
     let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
@@ -946,14 +948,15 @@ fn try_seeded_extension(
     for unit in extension_units {
         let evaluated = match package_inputs {
             Some(package_inputs) => {
-                build_time_evaluation::evaluate_pre_resolution_with_sources_and_authority(
+                build_time_evaluation::evaluate_pre_resolution_with_sources_top_level_bindings_and_authority(
                     unit,
                     sources.clone(),
+                    Vec::new(),
                     Arc::new(package_inputs.clone()),
                 )
             }
             None => {
-                build_time_evaluation::evaluate_pre_resolution_with_sources(unit, sources.clone())
+                build_time_evaluation::evaluate_pre_resolution_with_sources_and_top_level_bindings(unit, sources.clone(), Vec::new())
             }
         }?;
         let (unit, pre_check) = evaluated.into_syntax_and_pre_check();

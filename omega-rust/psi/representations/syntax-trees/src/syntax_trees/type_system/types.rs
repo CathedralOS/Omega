@@ -10,6 +10,24 @@ pub struct TypeReferenceTable {
     type_reference_handles: Arena<TypeReferenceHandle>,
     constraints: Arena<TypeConstraintNode>,
     generic_application_origins: Arena<GenericApplicationOrigin>,
+    const_argument_origins: Arena<RetainedConstArgumentOrigin>,
+}
+
+/// Exact source custody captured by resolution before a named constant index
+/// becomes a canonical value. These coordinates join to the retained declaration;
+/// they are not exported semantic identity.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ConstArgumentOrigin {
+    pub reference: source::SourceSpan,
+    pub declaration: source::SourceSpan,
+    pub initializer: source::SourceSpan,
+    pub canonical_value_encoding: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct RetainedConstArgumentOrigin {
+    argument: TypeReferenceHandle,
+    origin: ConstArgumentOrigin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -25,11 +43,32 @@ impl TypeReferenceTable {
             type_reference_handles: Arena::new(),
             constraints: Arena::new(),
             generic_application_origins: Arena::new(),
+            const_argument_origins: Arena::new(),
         }
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
+    }
+
+    pub fn const_argument_origin(
+        &self,
+        argument: TypeReferenceHandle,
+    ) -> Option<&ConstArgumentOrigin> {
+        self.const_argument_origins
+            .iter()
+            .find_map(|(_, retained)| (retained.argument == argument).then_some(&retained.origin))
+    }
+
+    pub fn retain_const_argument_origin(
+        &mut self,
+        argument: TypeReferenceHandle,
+        origin: ConstArgumentOrigin,
+    ) {
+        assert!(argument.is_valid());
+        assert!(self.const_argument_origin(argument).is_none());
+        self.const_argument_origins
+            .insert(RetainedConstArgumentOrigin { argument, origin });
     }
 
     /// The authored application replaced at this exact occurrence. Its child

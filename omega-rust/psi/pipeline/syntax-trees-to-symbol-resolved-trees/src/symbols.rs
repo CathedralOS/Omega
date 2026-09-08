@@ -230,7 +230,9 @@ impl NamespaceDeclarations {
         Ok(())
     }
 
-    fn install(
+    /// Register namespace custody before all nonconstant headers are available.
+    /// Import-target validation still runs when the complete table is installed.
+    pub(crate) fn register(
         &self,
         symbols: &mut symbols::SymbolTable,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -261,6 +263,24 @@ impl NamespaceDeclarations {
                 .collect::<Vec<_>>()
                 .join("::");
             symbols.register_source_import(first.source_span().source_id, &name);
+        }
+        Ok(())
+    }
+
+    fn install(
+        &self,
+        symbols: &mut symbols::SymbolTable,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        self.register(symbols)?;
+        for path in &self.imports {
+            let Some(first) = path.first() else {
+                continue;
+            };
+            let name = path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
             symbols
                 .validate_source_module_import(first.source_span().source_id, &name)
                 .map_err(|message| {

@@ -15,6 +15,118 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 
 #[test]
+fn constant_argument_origin_survives_deep_copy_and_root_extension() {
+    let span = |source_id, start| {
+        source::SourceSpan::new(
+            source::SourceId(source_id),
+            source::Span::new(start, start + 4),
+        )
+    };
+    let origin = crate::types::ConstArgumentOrigin {
+        reference: span(1, 40),
+        declaration: span(2, 12),
+        initializer: span(2, 24),
+        canonical_value_encoding: "integer3:u641:2".to_owned(),
+    };
+    let mut source = SyntaxTrees::new(Default::default());
+    let argument = source
+        .type_references
+        .insert_named(Identifier::generated("2"));
+    source
+        .type_references
+        .retain_const_argument_origin(argument, origin.clone());
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([argument]);
+    let application = source
+        .type_references
+        .insert_generic(Identifier::generated("Buffer"), arguments);
+    let instance = source
+        .type_references
+        .insert_named(Identifier::generated("Buffer<2>"));
+    source
+        .type_references
+        .retain_generic_application_origin(instance, application);
+
+    let mut destination = SyntaxTrees::new(Default::default());
+    for _ in 0..16 {
+        destination.type_references.insert_unit();
+    }
+    let copied = destination.copy_type_reference_handle(&source, instance);
+    let copied_application = destination
+        .type_references
+        .generic_application_origin(copied);
+    let TypeReferenceNode::Generic { arguments, .. } = destination
+        .type_references
+        .type_reference(copied_application)
+    else {
+        panic!("copied application");
+    };
+    let copied_argument = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    assert_ne!(copied_argument, argument);
+    assert_eq!(
+        destination
+            .type_references
+            .const_argument_origin(copied_argument),
+        Some(&origin)
+    );
+
+    source.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("Buffer<2>"),
+        is_public: false,
+        supply_mode: language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        generic_instance: Some(application),
+        properties: Default::default(),
+        quotient: None,
+        where_facts: HandleSpan::empty(),
+        members: HandleSpan::empty(),
+    }));
+    destination.extend_from(&source);
+    let Item::Data(data) = destination.root_items().next().expect("extended data") else {
+        panic!("extended data");
+    };
+    let TypeReferenceNode::Generic { arguments, .. } = destination
+        .type_references
+        .type_reference(data.generic_instance.expect("instance application"))
+    else {
+        panic!("extended application");
+    };
+    let extended_argument = destination
+        .type_references
+        .type_reference_handles(*arguments)[0];
+    assert_ne!(extended_argument, copied_argument);
+    assert_eq!(
+        destination
+            .type_references
+            .const_argument_origin(extended_argument),
+        Some(&origin)
+    );
+    assert_eq!(
+        source.type_references.const_argument_origin(argument),
+        Some(&origin)
+    );
+}
+
+#[test]
+#[should_panic]
+fn duplicate_constant_argument_origin_cannot_overwrite_custody() {
+    let mut syntax = SyntaxTrees::new(Default::default());
+    let argument = syntax
+        .type_references
+        .insert_named(Identifier::generated("2"));
+    syntax
+        .type_references
+        .retain_const_argument_origin(argument, Default::default());
+    syntax
+        .type_references
+        .retain_const_argument_origin(argument, Default::default());
+}
+
+#[test]
 fn copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens() {
     let token = |name: &str, start| {
         Identifier::new(

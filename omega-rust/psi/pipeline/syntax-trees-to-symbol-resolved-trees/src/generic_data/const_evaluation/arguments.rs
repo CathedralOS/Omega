@@ -13,6 +13,7 @@ pub(in crate::generic_data) fn consider_generic_spelling(
     generic_data: &HashMap<String, GenericData>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
+    selection: Option<&crate::generic_data::constant_selection::ConstantSelection>,
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
@@ -80,6 +81,9 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                 if CanonicalConstValue::from_atom(name.as_str()).is_some() {
                     continue;
                 }
+                if name.as_str().parse::<i128>().is_ok() {
+                    continue;
+                }
                 if matches!(
                     syntax
                         .tables
@@ -92,6 +96,43 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                     syntax.tables.type_references.replace_type_reference(
                         *argument,
                         TypeReferenceNode::Named(Identifier::generated(value.atom())),
+                    );
+                    continue;
+                }
+                if let Some(selection) = selection {
+                    // These positions belong only to concrete owners; open
+                    // generic binders are excluded by the owner traversal.
+                    // An unresolved selection must not use the lexical map.
+                    let Some(definition) = selection.select(syntax, &name)? else {
+                        continue;
+                    };
+                    let value = canonicalize_const_definition(syntax, &definition, parameter_type)
+                        .map_err(|reason| {
+                            Diagnostic::error(format!(
+                                "const argument for `{base}::{parameter_name}` is invalid at this index site: {reason}"
+                            )).with_source_span(name.source_span())
+                        })?;
+                    let replacement = match value.decode_encoding() {
+                        Some(
+                            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                                value,
+                                ..
+                            },
+                        ) => value.to_string(),
+                        _ => value.atom(),
+                    };
+                    syntax.tables.type_references.retain_const_argument_origin(
+                        *argument,
+                        syntax_trees::types::ConstArgumentOrigin {
+                            reference: name.source_span(),
+                            declaration: definition.name.source_span(),
+                            initializer: syntax.expressions.source_span(definition.value),
+                            canonical_value_encoding: value.encoding,
+                        },
+                    );
+                    syntax.tables.type_references.replace_type_reference(
+                        *argument,
+                        TypeReferenceNode::Named(Identifier::generated(replacement)),
                     );
                     continue;
                 }

@@ -71,9 +71,15 @@ still need exact namespace-aware resolution. Module-owned aggregate/type-scoped
 constants, generic templates, traits, conformances, domains, and operators
 currently reject before their bare-name transforms; so do generic
 carrier/argument collisions across module scopes.
-Generic/domain constant folding rejects potential module selections until that
-pre-symbol transform can consume exact resolved declarations. Unrelated root
-constants and literal or binder-only applications remain available. Later
+Closed data applications select named constant indices through the shared
+source-aware resolver before folding. Loader import bindings reach evaluation
+probes too. The normalizer checks the declared carrier, retains exact declaration
+and initializer custody at each argument, and rejoins its canonical value to the
+final symbol. Shared instance derivations do not inherit a caller's occurrence
+exposure; equal values may deduplicate without losing distinct selections.
+Compound generic expressions and domain constant indices still retain their
+existing selection fences. Unrelated root constants and literal or binder-only
+applications remain available. Later
 syntax extensions cannot yet consume a retained base constant whose initializer
 was discarded at the previous resolution boundary.
 Import loading still uses source-path candidates, including enclosing prefixes
@@ -87,6 +93,7 @@ cargo run -p omega -- --check tests/omega/pass/modules/qualified_declarations/ma
 cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_declarations/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/qualified_constants/main.omg
 cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_constants/main.omg
+cargo run -p omega -- --check tests/omega/pass/modules/qualified_constant_indices/main.omg
 ```
 
 [Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
