@@ -240,7 +240,11 @@ fn disjoint_same_site_spans_are_not_widened_over_another_operation() {
     let instructions = &mut fragment.blocks[0].instructions;
     instructions[1].provenance.operations = vec![OperationId::new(2).unwrap()];
     instructions[2].provenance.operations = vec![OperationId::new(1).unwrap()];
-    assert!(produce(&fragment, &source).is_err());
+    let rows = produce(&fragment, &source).unwrap();
+    validate(&fragment, &source, &rows).unwrap();
+    assert_eq!(rows.len(), 4);
+    assert_eq!((rows[0].code_offset, rows[0].byte_count), (0, 2));
+    assert_eq!((rows[1].code_offset, rows[1].byte_count), (5, 2));
     let forged = vec![
         SemanticCodeAttribution {
             site: SemanticCodeSite::Operation(OperationId::new(1).unwrap()),
@@ -262,4 +266,48 @@ fn disjoint_same_site_spans_are_not_widened_over_another_operation() {
         },
     ];
     assert!(validate(&fragment, &source, &forged).is_err());
+}
+
+#[test]
+fn compiler_spill_gaps_remain_unattributed_and_every_site_interval_is_required() {
+    let (mut fragment, source) = fixture();
+    let instructions = &mut fragment.blocks[0].instructions;
+    instructions[1].provenance = Default::default();
+    instructions[2].provenance.operations = vec![OperationId::new(1).unwrap()];
+    let rows = produce(&fragment, &source).unwrap();
+    validate(&fragment, &source, &rows).unwrap();
+    assert_eq!(rows.len(), 3);
+    assert_eq!((rows[0].code_offset, rows[0].byte_count), (0, 2));
+    assert_eq!((rows[1].code_offset, rows[1].byte_count), (5, 2));
+    for missing in [0, 1] {
+        let mut omitted = rows.clone();
+        omitted.remove(missing);
+        assert!(validate(&fragment, &source, &omitted).is_err());
+    }
+    let mut widened = rows.clone();
+    widened[0].byte_count = 7;
+    widened.remove(1);
+    assert!(validate(&fragment, &source, &widened).is_err());
+    let mut duplicate = rows.clone();
+    duplicate.insert(1, rows[0]);
+    assert!(validate(&fragment, &source, &duplicate).is_err());
+    let mut reordered = rows.clone();
+    reordered.swap(0, 1);
+    assert!(validate(&fragment, &source, &reordered).is_err());
+    let mut shifted = rows.clone();
+    shifted[1].code_offset += 1;
+    shifted[1].byte_count -= 1;
+    assert!(validate(&fragment, &source, &shifted).is_err());
+}
+
+#[test]
+fn contiguous_membership_cannot_be_forged_as_nonmaximal_intervals() {
+    let (fragment, source) = fixture();
+    let mut rows = produce(&fragment, &source).unwrap();
+    let mut second = rows[0];
+    rows[0].byte_count = 2;
+    second.code_offset = 2;
+    second.byte_count = 3;
+    rows.insert(1, second);
+    assert!(validate(&fragment, &source, &rows).is_err());
 }

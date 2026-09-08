@@ -285,28 +285,15 @@ pub(super) fn call_is_exact(
     {
         return false;
     }
-    let mut attributions = record.semantic_code_attribution.iter().filter(|row| {
-        row.machine == function.machine
-            && row.attribution.site == machine_code::SemanticCodeSite::Operation(operation)
-    });
-    let Some(attribution) = attributions.next() else {
-        return false;
-    };
-    if attributions.next().is_some()
-        || attribution.attribution.operation_ordinal != call.operation_ordinal
-        || attribution.attribution.code_offset > call.code_offset
-        || attribution
-            .attribution
-            .code_offset
-            .checked_add(attribution.attribution.byte_count)
-            .is_none_or(|span_end| {
-                span_end > function.byte_count
-                    || call
-                        .code_offset
-                        .checked_add(call.byte_count)
-                        .is_none_or(|call_end| call_end > span_end)
-            })
-    {
+    if !super::semantic_code_attribution::contains_call(
+        &record.semantic_code_attribution,
+        function.machine,
+        operation,
+        call.operation_ordinal,
+        call.code_offset,
+        call.byte_count,
+        function.byte_count,
+    ) {
         return false;
     }
     let Some(stack) = function

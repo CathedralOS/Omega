@@ -82,3 +82,10 @@ semantic fallthrough attribution is not an additional selected instruction.
 Mechanical image APIs without retained compiler source cannot manufacture that
 compiler-function report. Reports never replace source, provider, boundary,
 entry, physical, or publication validation.
+
+Ordinary fragment publication retains separate maximal byte intervals when one
+operation's implementation is interrupted by unattributed spill instructions.
+Image and installation replay check every interval and the unique interval
+containing each borrowed Unit call; they do not widen attribution across gaps.
+This source map is not additional logical charging. Specialized boundary
+realization profiles retain their own stricter span requirements.
