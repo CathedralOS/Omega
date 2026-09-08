@@ -268,13 +268,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   runtime_console_byte_read_return_catalog_replays_both_linux_targets
   --no-fail-fast --no-tests fail` passes cross-emission and native artifact replay
   on macOS ARM64 at `95d162cd33`; it does not execute Linux code.
-  The next source probe, the same command with
-  `runtime_console_byte_inspection_replays_validated_cross_target_artifacts`,
-  currently stops earlier at `InvalidUnitMachinePlan`: its attached Unit closure
-  lacks a checked transitive machine plan. Inspect Psi's
-  `checked-trees-to-lowered-psi/src/attached_unit/{call_closure,bodies}.rs`
-  before extending native case selection. The byte-literal output canaries hit
-  this same unchanged upstream gap. Preserve exact operation/result identity,
+  At checkpoint `5077aa628b`, the same command with
+  `runtime_console_byte_inspection_replays_validated_cross_target_artifacts`
+  reaches abstract validation but fails `MissingTerminator` for machine 1,
+  block 1. `optimization-unit-semantics/src/unit_validation/derived_metadata/
+  control_flow.rs::is_terminator` omits the emitted `StructuralCase`;
+  retain its successor/payload custody before extending native case selection.
+  `runtime_console_byte_sources_retain_checked_unit_plans_and_terminal_artifacts`
+  is the source-to-Terminal replay floor for literal output and byte inspection;
+  `runtime_console_byte_literal_linux_catalog_replays_both_targets` also passes.
+  On macOS ARM64, `runtime_console_byte_literal_exit_canary_runs` instead reaches
+  `native-artifact/src/physical/derivation.rs::derive_write_byte_child`, which
+  requires ELF and rejects Mach-O with the Linux D41 settlement diagnostic.
+  These probes were run with the same scoped command on macOS ARM64; they do
+  not establish native execution. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
   results or replace the structural home with boundary scratch.
