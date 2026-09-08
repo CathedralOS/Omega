@@ -144,9 +144,22 @@ consumers use the same graph body and `CallStructuralScalar`; there is no Unit
 wrapper. Existing call-free reference leaves retain their scalar-return owner.
 [`borrowed_scalar_root.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_scalar_root.rs)
 checks returned snapshots, ordered mutations, selected calls, fuel suspension,
-and source-custody rejection. Borrowable primitive-local storage in scalar roots,
-owned structural signatures, and ranked cyclic publication remain required for
-the guarded customer below.
+and source-custody rejection.
+
+Single-state scalar-result graphs also establish initialized primitive locals
+borrowed by retained computations. Unborrowed mutable locals keep scalar storage.
+The shared assembler allocates local referents alongside borrowed parameters;
+initialization and assignment finish their RHS before establishment or a Unit
+store commits. Later reads observe current storage, while immutable snapshots
+retain their completed values. The full authored binding prefix must precede
+the terminator; deleting a trailing write cannot silently change the result.
+Scalar-only callers of helpers with local storage use the same closure and
+`CallStructuralScalar`, even when the helper has no structural formals.
+[`scalar_local_borrows.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_local_borrows.rs)
+checks canonical reload, independent verification, local identity, ordered
+mutations, snapshots, and one-unit fuel suspension without replay.
+Owned structural signatures and ranked cyclic publication remain required for
+the guarded customer below; primitive-local native realization is still separate.
 Empty standalone scalar contracts must also agree with the authored normal-clause
 and parameter-range roster; a missing checked row cannot erase either. Crash
 routes retain their separate publication. The source-to-artifact regressions in
@@ -217,8 +230,8 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 ```
 
 The existing argument hoist splits the edge into a rank-preserving hop and a
-decrement without its co-located guard. Extend scalar-result roots to structural
-signatures and borrowable primitive-local storage, then publish their cyclic
+decrement without its co-located guard. Extend scalar-result roots to owned structural
+signatures, then publish their cyclic
 control with exact structural forwarding and natural-descent evidence. Reuse the
 computed borrowed calls already supported in ordinary Unit operands, then retire
 the hoist for the supported route independently of ranking annotations.

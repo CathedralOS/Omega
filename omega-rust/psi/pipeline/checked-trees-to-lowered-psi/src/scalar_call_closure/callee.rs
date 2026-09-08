@@ -85,6 +85,11 @@ impl<'checked> CheckedScalarCallee<'checked> {
         }
     }
 
+    pub(crate) fn requires_structural_frame(&self) -> bool {
+        !self.structural_parameters().is_empty()
+            || matches!(self, Self::Graph(graph) if graph.states.iter().any(|state| !state.primitive_locals.is_empty()))
+    }
+
     pub(crate) fn entry_claims(&self) -> &[checked_trees::CheckedUnitEntryClaimPlan] {
         match self {
             Self::Boundary(plan) => &plan.entry_claims,
@@ -150,6 +155,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
         source: symbols::SymbolHandle,
         embedded_root: bool,
         structural_parameters: &[StructuralParameterDeclaration],
+        primitive_locals: &[crate::scalar_graph_lowering::primitive_locals::PrimitiveLocal],
     ) -> Result<PreparedScalarCallee<'checked>, LoweringError> {
         match self {
             Self::Graph(graph) => {
@@ -161,6 +167,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
                     graph,
                     embedded_root,
                     structural_parameters,
+                    primitive_locals,
                 )?;
                 if !prepared.identity_reshuffles.structural_places.is_empty()
                     || !prepared.identity_reshuffles.entry_claims.is_empty()

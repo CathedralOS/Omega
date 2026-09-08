@@ -443,6 +443,11 @@ struct LoweredScalarBranchState {
 enum LoweredScalarBinding {
     Expression(LoweredDirectExpression),
     DirectCall(LoweredDirectCallBinding),
+    /// Retain the evaluated RHS while committing its separate Unit store effect.
+    StoredValue {
+        value: LoweredDirectExpression,
+        destination: scalar_graph_lowering::primitive_locals::StoreDestination,
+    },
 }
 
 impl LoweredScalarBinding {
@@ -450,6 +455,7 @@ impl LoweredScalarBinding {
         match self {
             Self::Expression(expression) => expression.scalar_type(),
             Self::DirectCall(call) => call.result_type,
+            Self::StoredValue { value, .. } => value.scalar_type(),
         }
     }
 }
@@ -461,6 +467,7 @@ struct LoweredDirectCallBinding {
     result_type: ScalarType,
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<StructuralArgument>,
+    uses_structural_frame: bool,
     crash_continuations: Vec<checked_trees::CrashRouteBucket>,
     parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }

@@ -315,6 +315,45 @@ pub(super) fn emit_scalar_binding(
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
 ) -> Result<ValueId, LoweringError> {
+    if let LoweredScalarBinding::StoredValue { value, destination } = binding {
+        use crate::scalar_graph_lowering::primitive_locals::StoreDestination;
+        if direct_expression_contains_short_circuit(value) {
+            return unsupported("primitive store requires a completed scalar value");
+        }
+        let value = emit_direct_expression(value, parameters, next_value_identity, operations);
+        let producer = operations.allocate();
+        let (result, kind) = match *destination {
+            StoreDestination::Initialize {
+                place,
+                structural_type,
+            } => (
+                OperationResult::Structural(StructuralOperationResult {
+                    place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                OperationKind::EstablishPrimitiveLocal { value },
+            ),
+            StoreDestination::Assign { place } => (
+                OperationResult::Unit,
+                OperationKind::WriteOnlyPrimitiveStore {
+                    destination: place,
+                    value,
+                },
+            ),
+        };
+        operations.push(Operation {
+            id: producer,
+            result,
+            kind,
+        });
+        // The store produces no scalar. Its already evaluated RHS remains
+        // available to private continuation plumbing without another read.
+        return Ok(value);
+    }
     let LoweredScalarBinding::DirectCall(call) = binding else {
         let LoweredScalarBinding::Expression(expression) = binding else {
             unreachable!()
@@ -571,7 +610,7 @@ fn emit_direct_call_operation(
             id: result,
             scalar_type: call.result_type,
         }),
-        kind: if call.structural_arguments.is_empty() {
+        kind: if call.structural_arguments.is_empty() && !call.uses_structural_frame {
             OperationKind::Call {
                 callee,
                 arguments: arguments.iter().map(|argument| argument.id).collect(),

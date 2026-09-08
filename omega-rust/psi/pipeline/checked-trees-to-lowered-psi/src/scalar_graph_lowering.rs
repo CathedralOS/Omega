@@ -6,6 +6,7 @@ mod bindings;
 mod branch_destinations;
 use crate::scalar_computations as computations;
 mod guards;
+pub(crate) mod primitive_locals;
 use crate::scalar_bindings as storage;
 use crate::scalar_source_custody as source_custody;
 
@@ -91,7 +92,9 @@ fn evaluate_known_scalar_graph(states: &[LoweredScalarBranchState]) -> Option<Kn
                 LoweredScalarBinding::Expression(expression) => {
                     evaluate_direct_expression(expression, &values)
                 }
-                LoweredScalarBinding::DirectCall(_) => None,
+                LoweredScalarBinding::DirectCall(_) | LoweredScalarBinding::StoredValue { .. } => {
+                    None
+                }
             };
             values.push(value);
         }
@@ -213,6 +216,7 @@ pub(super) fn prepare_scalar_graph_machine(
         graph,
         ScalarContractMode::ClosedRuntimeValue,
         &[],
+        &[],
     )
 }
 
@@ -226,6 +230,7 @@ fn prepare_standalone_scalar_graph_machine(
         machine,
         graph,
         ScalarContractMode::StandaloneProofOnlyFloatResult,
+        &[],
         &[],
     )
 }
@@ -245,6 +250,7 @@ pub(super) fn prepare_embedded_scalar_graph_machine(
         graph,
         ScalarContractMode::EmbeddedByEnclosingCall,
         &[],
+        &[],
     )
 }
 
@@ -253,6 +259,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
     graph: &CheckedScalarMachineGraph,
     embedded: bool,
     parameters: &[StructuralParameterDeclaration],
+    primitive_locals: &[primitive_locals::PrimitiveLocal],
 ) -> Result<PreparedScalarMachine, LoweringError> {
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
@@ -264,6 +271,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
             ScalarContractMode::ClosedRuntimeValue
         },
         parameters,
+        primitive_locals,
     )
 }
 
@@ -280,6 +288,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     graph: &CheckedScalarMachineGraph,
     contract_mode: ScalarContractMode,
     structural_parameters: &[StructuralParameterDeclaration],
+    primitive_locals: &[primitive_locals::PrimitiveLocal],
 ) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
@@ -287,7 +296,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     ))?;
     let result_type = terminal_scalar_type(entry_state.result_type)?;
     if entry_state.structural_parameters.len() != structural_parameters.len()
-        || (!structural_parameters.is_empty() && states.len() != 1)
+        || ((!structural_parameters.is_empty() || !primitive_locals.is_empty())
+            && states.len() != 1)
+        || states
+            .iter()
+            .map(|state| state.primitive_locals.len())
+            .sum::<usize>()
+            != primitive_locals.len()
     {
         return unsupported(
             "scalar graph requires its exact structural entry namespace; structural state forwarding remains unsupported",
@@ -340,6 +355,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             state,
             parameter_types,
             structural_parameters,
+            primitive_locals,
         )?;
         let value_types = &prepared.value_types;
         let scalar_bindings = &prepared.scalar_bindings;
@@ -759,6 +775,17 @@ pub(super) fn lower_scalar_call(
         result_type,
         arguments,
         structural_arguments,
+        uses_structural_frame: checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(target_machine)
+            .is_some_and(|graph| {
+                graph
+                    .states
+                    .iter()
+                    .any(|state| !state.primitive_locals.is_empty())
+            }),
         crash_continuations: crash_continuations.to_vec(),
         parameter_relative_crash_routes: target_contract.crash.published().to_vec(),
     })
@@ -1425,6 +1452,9 @@ fn scalar_binding_contains_short_circuit(binding: &LoweredScalarBinding) -> bool
             .arguments
             .iter()
             .any(direct_expression_contains_short_circuit),
+        LoweredScalarBinding::StoredValue { value, .. } => {
+            direct_expression_contains_short_circuit(value)
+        }
     }
 }
 

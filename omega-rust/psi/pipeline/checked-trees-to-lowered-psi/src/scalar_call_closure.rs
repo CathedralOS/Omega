@@ -5,6 +5,54 @@ use super::*;
 pub(crate) mod callee;
 pub(crate) mod embedded;
 
+/// A scalar-only entry can still call a helper that owns real primitive places.
+/// Select the shared assembler before the scalar-only catalog rejects its leaves.
+pub(super) fn requires_place_namespace(
+    checked: &CheckedTrees,
+    entry: symbols::SymbolHandle,
+) -> Result<bool, LoweringError> {
+    let mut pending = vec![entry];
+    let mut visited = Vec::new();
+    while let Some(machine) = pending.pop() {
+        if visited.contains(&machine) {
+            continue;
+        }
+        visited.push(machine);
+        let Some(graph) = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine)
+        else {
+            continue;
+        };
+        if graph.states.iter().any(|state| {
+            !state.structural_parameters.is_empty() || !state.primitive_locals.is_empty()
+        }) {
+            return Ok(true);
+        }
+        pending.extend(
+            scalar_graph_lowering::checked_scalar_computation_call_targets(checked, machine)?,
+        );
+        pending.extend(
+            graph
+                .states
+                .iter()
+                .flat_map(|state| &state.bindings)
+                .filter_map(|binding| {
+                    if let CheckedScalarBindingValue::DirectCall { target_machine, .. } =
+                        binding.value
+                    {
+                        Some(target_machine)
+                    } else {
+                        None
+                    }
+                }),
+        );
+    }
+    Ok(false)
+}
+
 pub(super) fn checked_scalar_call_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
