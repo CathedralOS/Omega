@@ -42,8 +42,8 @@ fn direct_relevant_scalar_field(
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
                 StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
-                StructuralFieldType::IeeeFloat(_)
-                | StructuralFieldType::ByteSequence(_)
+                StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
+                StructuralFieldType::ByteSequence(_)
                 | StructuralFieldType::Structural(_)
                 | StructuralFieldType::Erased { .. } => None,
             })

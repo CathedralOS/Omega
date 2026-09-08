@@ -234,14 +234,17 @@ cargo nextest run -p omega-native-differential-test --test terminal_psi_indexed_
 
 Cross-publication is not runtime coverage on the other targets.
 
-Whole-root stores accept exactly typed literals and bounded fixed-integer/Boolean
-scalar sources. Ordinary or selected fixed-integer call results retain their
+Whole-root and plain-record field stores accept exactly typed IEEE literals and
+runtime parameters alongside bounded fixed-integer/Boolean scalar sources.
+IEEE replacement retains its format and payload without observing the destination;
+it does not authorize unselected floating computation. Ordinary or selected
+fixed-integer call results retain their
 checked call identity and durable result, including provider-plan correspondence
 for selected calls. Plain-record stores share path/type reconstruction with
 dynamic realizations. Attached Unit bodies retain ordered direct scalar-field
 store sequences and branch-free computed values, including direct integer field
 observations. Bounded projected single-store forms include one literal record-array
-index. Interleaved mutable scalar locals, delayed results, runtime IEEE sources,
+index. Interleaved mutable scalar locals, delayed results, computed IEEE sources,
 short-circuit store values, and richer indexed/aggregate forms need further
 producer support.
 

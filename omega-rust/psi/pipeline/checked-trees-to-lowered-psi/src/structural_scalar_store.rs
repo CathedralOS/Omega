@@ -69,6 +69,7 @@ pub(super) fn lower_structural_scalar_store_place(
         return unsupported("structural scalar store lost exact exclusive custody");
     }
     let scalar_type = terminal_scalar_type(store.primitive_type)?;
+    let field_type = crate::structural_types::terminal_structural_field_type(store.primitive_type)?;
     let declaration = structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)
@@ -133,7 +134,7 @@ pub(super) fn lower_structural_scalar_store_place(
         .filter(|field| {
             field.identity == store.field_identity
                 && !field.relevance.is_erased()
-                && field.field_type == StructuralFieldType::Scalar(scalar_type)
+                && field.field_type == field_type
         })
         .collect::<Vec<_>>();
     let [field] = matching.as_slice() else {
@@ -215,6 +216,9 @@ pub(super) fn checked_store_literal_matches(
     primitive_type: PrimitiveType,
 ) -> bool {
     match (value, primitive_type) {
+        (CheckedScalarExpression::IeeeFloatLiteral { value }, primitive_type) => {
+            terminal_scalar_type(primitive_type).ok() == Some(ScalarType::IeeeFloat(value.format()))
+        }
         (CheckedScalarExpression::IntegerLiteral { .. }, primitive_type) => {
             primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
         }

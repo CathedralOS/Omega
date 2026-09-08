@@ -24,6 +24,51 @@ fn indexed_write_only_receiver_reaches_canonical_terminal() {
 }
 
 #[test]
+fn indexed_ieee_write_only_receiver_retains_runtime_and_literal_stores() {
+    for primitive in ["f32", "f64"] {
+        for replacement in ["value", "1.25"] {
+            let checked = checked_from_source(&format!(
+                "data Record [copy] {{ value: {primitive}; }}
+                 machine Record::replace(&write self, value: {primitive}) {{ self.value = {replacement}; }}
+                 machine forward(records: &write [Record; 2], value: {primitive}) {{ records[1].replace(value); }}"
+            ));
+            let artifact = terminal_production::produce_terminal_artifact(&checked, "forward")
+                .expect("indexed IEEE receiver preserves canonical store custody");
+            let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+            let caller = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == module.entry)
+                .unwrap();
+            let value = if primitive == "f32" {
+                semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc0_0042)
+            } else {
+                semantic_vocabulary::IeeeFloatValue::Binary64(0x8000_0000_0000_0000)
+            };
+            let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[TerminalScalarValue::IeeeFloat(value)],
+                &[TerminalStructuralValue {
+                    opaque_identity: 73,
+                    structural_type: caller.structural_parameters[0].structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+            )
+            .expect("IEEE field receiver execution starts");
+            assert_eq!(
+                execution
+                    .resume(&mut terminal_fuel::TerminalFuelMeter::with_allowance(100))
+                    .unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+        }
+    }
+}
+
+#[test]
 fn retained_write_only_alias_preserves_the_indexed_receiver() {
     let checked = checked_from_source(
         "data Record [copy] { value: u16; }

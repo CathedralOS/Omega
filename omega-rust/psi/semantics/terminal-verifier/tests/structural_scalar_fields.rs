@@ -335,6 +335,51 @@ fn admits_indexed_scalar_stores_at_both_array_boundaries() {
 }
 
 #[test]
+fn ieee_scalar_field_stores_check_exact_format_access_and_path() {
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+    for (value, wrong_format) in [
+        (
+            IeeeFloatValue::Binary32(0x8000_0000),
+            IeeeFloatFormat::Binary64,
+        ),
+        (
+            IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042),
+            IeeeFloatFormat::Binary32,
+        ),
+    ] {
+        let mut module = indexed_scalar_field_store_module(2);
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+            unreachable!()
+        };
+        fields[0].field_type = StructuralFieldType::IeeeFloat(value.format());
+        let constant = &mut module.machines[0].blocks[0].operations[0];
+        constant.kind = OperationKind::IeeeFloatConstant { value };
+        let OperationResult::Scalar(result) = &mut constant.result else {
+            unreachable!()
+        };
+        result.scalar_type = ScalarType::IeeeFloat(value.format());
+        validate_module(&module).expect("exact IEEE indexed store verifies");
+
+        let mut wrong_type = module.clone();
+        let StructuralTypeShape::Record { fields } = &mut wrong_type.structural_types[1].shape
+        else {
+            unreachable!()
+        };
+        fields[0].field_type = StructuralFieldType::IeeeFloat(wrong_format);
+        assert!(matches!(
+            validate_module(&wrong_type),
+            Err(ModuleError::StructuralScalarFieldStoreValueTypeMismatch { .. })
+        ));
+
+        let mut shared = module.clone();
+        shared.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        assert_invalid_scalar_store(&shared);
+        *scalar_store_path(&mut module).last_mut().unwrap() = StructuralPathSegment::FixedIndex(3);
+        assert_invalid_scalar_store(&module);
+    }
+}
+
+#[test]
 fn rejects_indexed_scalar_stores_outside_array_bounds() {
     for index in [3, u64::MAX] {
         assert_invalid_scalar_store(&indexed_scalar_field_store_module(index));
