@@ -166,9 +166,9 @@ pub(super) fn match_call<'a>(
                 && target.source_byte_offset == 0
                 && target.fixed_array_length.is_none()
                 && target.element_stride.is_none()
-                && target.source == source.target.placement)
-                .then_some(super::input::Argument { semantic, target })
-                .ok_or(Error::UnsupportedSourceShape { function })
+                && target.source == source.target.placement.clone().into())
+            .then_some(super::input::Argument { semantic, target })
+            .ok_or(Error::UnsupportedSourceShape { function })
         })
         .collect::<Result<Vec<_>, _>>()?;
     validate_callee_alpha_match(

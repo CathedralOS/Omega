@@ -57,7 +57,7 @@ pub(super) fn source(
     else {
         unreachable!();
     };
-    argument.source = source.call_plan.parameters[parameter_count].clone();
+    argument.source = source.call_plan.parameters[parameter_count].clone().into();
     argument.destination = template.call_plan.parameters[scalar_count].clone();
     source.blocks[0].instructions = super::super::super::fixture(target, 1)
         .blocks

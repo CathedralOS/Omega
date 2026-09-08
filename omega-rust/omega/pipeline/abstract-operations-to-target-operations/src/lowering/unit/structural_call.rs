@@ -344,7 +344,7 @@ pub(super) fn lower_structural_unit_call(
                 source_byte_offset,
                 fixed_array_length,
                 element_stride,
-                source: source_placement.clone(),
+                source: source_placement.clone().into(),
                 destination: destination.clone(),
             })
         })

@@ -57,8 +57,29 @@ pub(super) fn lower_operation(
             }
             structural_scalar_field_stores.push(store);
         }
-        AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
-        | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {
+        AbstractOperation::EstablishByteSequenceLiteral {
+            psi_operation,
+            place,
+            structural_type,
+            ..
+        } => {
+            if function.block_entries.len() != 1
+                || structural_types.get(&structural_type.id).copied() != Some(structural_type)
+                || !matches!(
+                    structural_type.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                    )
+                )
+                || !matches!(place.kind, semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type: expected, .. } if expected == structural_type.id)
+            {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
+            provenance.operations.push(*psi_operation);
+        }
+        AbstractOperation::EstablishPayloadlessCase { psi_operation, .. } => {
             return Err(LoweringError::UnitOperationInScalarFunction {
                 machine: function.machine,
                 operation: *psi_operation,

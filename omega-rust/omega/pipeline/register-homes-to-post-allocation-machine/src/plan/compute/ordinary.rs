@@ -61,6 +61,7 @@ pub(super) fn build_functions(
             Ok(PostAllocationMachineFunction {
                 machine: function.machine,
                 outgoing_arguments: function.outgoing_arguments.clone(),
+                local_storage_slots: function.local_storage_slots.clone(),
                 blocks,
             })
         })

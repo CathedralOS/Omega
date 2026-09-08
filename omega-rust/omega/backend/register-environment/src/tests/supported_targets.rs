@@ -135,17 +135,23 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             (
                 environment.selected_keys().store64,
                 environment.allocation_constraint_keys().store64,
-                X86_64_STORE64,
+                match target.architecture {
+                    Architecture::X86_64 => X86_64_STORE64,
+                    Architecture::Aarch64 => isa_aarch64::AARCH64_STORE64,
+                },
                 1,
             ),
             (
                 environment.selected_keys().frame_address,
                 environment.allocation_constraint_keys().frame_address,
-                X86_64_FRAME_ADDRESS,
+                match target.architecture {
+                    Architecture::X86_64 => X86_64_FRAME_ADDRESS,
+                    Architecture::Aarch64 => isa_aarch64::AARCH64_FRAME_ADDRESS,
+                },
                 1,
             ),
         ] {
-            let expected = microsoft.then_some(key);
+            let expected = Some(key);
             assert_eq!(selected_key, expected);
             assert_eq!(allocation_key, expected);
             if let Some(key) = expected {

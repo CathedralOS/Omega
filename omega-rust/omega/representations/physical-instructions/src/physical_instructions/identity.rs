@@ -27,7 +27,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v8\0",
+        b"omega.terminal-postallocation-machine.v9\0",
     )
 }
 
@@ -64,6 +64,13 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        encode_len(&mut bytes, function.local_storage_slots.len());
+        for slot in &function.local_storage_slots {
+            bytes.extend_from_slice(&slot.id.operation.get().to_le_bytes());
+            bytes.extend_from_slice(&slot.id.place.get().to_le_bytes());
+            bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
+            bytes.extend_from_slice(&slot.alignment.to_le_bytes());
+        }
         encode_len(&mut bytes, function.outgoing_arguments.len());
         for slot in &function.outgoing_arguments {
             bytes.extend_from_slice(&slot.id.operation.get().to_le_bytes());
@@ -147,8 +154,18 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
                     3
                 },
             );
-            bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-            bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+            match slot {
+                selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+                }
+                selected_instructions::FrameStorageSlotId::Local(slot) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+                }
+            }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
     }
@@ -285,7 +302,7 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&index_operand.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
-        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+        MachineEncodedMemoryEffect::WriteFrameStorageV1 {
             stack_pointer,
             byte_count,
         } => {

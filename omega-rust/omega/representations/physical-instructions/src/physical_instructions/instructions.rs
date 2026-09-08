@@ -38,11 +38,11 @@ pub enum PhysicalAddressOperation {
         byte_offset: u32,
     },
     Store64 {
-        slot: selected_instructions::OutgoingArgumentSlotId,
+        slot: selected_instructions::FrameStorageSlotId,
         byte_offset: u32,
     },
     FrameAddress {
-        slot: selected_instructions::OutgoingArgumentSlotId,
+        slot: selected_instructions::FrameStorageSlotId,
         byte_offset: u32,
     },
 }

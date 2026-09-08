@@ -114,9 +114,8 @@ fn selected_keys(
     Ok(SelectedConstraintKeys {
         load64: Some(crate::X86_64_LOAD64),
         load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
-        store64: (target.object_format == ObjectFormat::Coff).then_some(crate::X86_64_STORE64),
-        frame_address: (target.object_format == ObjectFormat::Coff)
-            .then_some(crate::X86_64_FRAME_ADDRESS),
+        store64: Some(crate::X86_64_STORE64),
+        frame_address: Some(crate::X86_64_FRAME_ADDRESS),
         call_unit: if target.object_format == ObjectFormat::Elf {
             crate::x86_64_system_v_register_unit_call_keys()
         } else {
@@ -622,15 +621,11 @@ mod tests {
                 MachineSemanticKind::FrameAddress,
                 MachineSemanticKind::CallUnit,
             ] {
-                assert_eq!(
+                assert!(
                     ordinary
                         .declarations
                         .iter()
-                        .any(|row| row.semantic == semantic),
-                    matches!(
-                        semantic,
-                        MachineSemanticKind::Load64 | MachineSemanticKind::CallUnit
-                    ) || target.object_format == ObjectFormat::Coff
+                        .any(|row| row.semantic == semantic)
                 );
             }
             let load = ordinary

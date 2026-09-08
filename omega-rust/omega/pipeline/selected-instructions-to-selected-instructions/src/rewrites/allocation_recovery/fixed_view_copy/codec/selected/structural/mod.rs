@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group.
 //! Ordinary function contracts, outgoing memory, and ownership data.
+mod argument_source;
 mod call;
 mod calling;
 mod declarations;

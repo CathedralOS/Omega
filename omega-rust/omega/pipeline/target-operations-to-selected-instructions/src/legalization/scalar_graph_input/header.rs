@@ -14,12 +14,11 @@ pub(super) fn function_abi(
         || optimized.result != abstracted.result
         || !abstracted.structural_parameters.is_empty()
         || !optimized.structural_parameters.is_empty()
-        || !optimized.structural_places.is_empty()
+        || !super::literals::roster(optimized)
         || !abstracted.entry_claims.is_empty()
         || !optimized.entry_claim_declarations.is_empty()
         || !optimized.content_entry_claims.is_empty()
         || !optimized.entry_claims.is_empty()
-        || !optimized.declared_places.is_empty()
         || !abstracted.published_service_ceiling.is_empty()
         || !optimized.published_service_ceiling.is_empty()
         || abstracted.parameters.len() != optimized.parameters.len()

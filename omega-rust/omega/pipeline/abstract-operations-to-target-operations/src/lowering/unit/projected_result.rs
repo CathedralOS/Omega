@@ -126,7 +126,7 @@ pub(super) fn validate_cleanup(
         || !input.path.is_empty()
         || input.root_structural_type != parameter.structural_type
         || input.structural_type != result.structural_type
-        || input.source != parameter.placement
+        || input.source != parameter.placement.clone().into()
         || input.shape != parameter.shape
         || input.source_byte_offset != 0
         || input.fixed_array_length.is_some()
@@ -267,7 +267,7 @@ fn validate_consumers(
             || argument.root_structural_type != root_type
             || argument.structural_type != projected_type
             || argument.shape != shape
-            || argument.source != *placement
+            || argument.source != placement.clone().into()
             || argument.source_byte_offset != offset
             || (argument.fixed_array_length, argument.element_stride) != metadata
             || offset

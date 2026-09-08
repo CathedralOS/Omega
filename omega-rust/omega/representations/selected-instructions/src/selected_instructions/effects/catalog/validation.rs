@@ -263,10 +263,10 @@ fn validate_encoded_effects(
         ) if declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
             && encoded.external_operand_reads.contains(&pointer_operand) => {}
         (
-            MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 { byte_count: 8, .. },
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 { byte_count: 8, .. },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        ) if declaration.memory == crate::MachineMemoryEffect::WriteOutgoingArgumentV1 => {}
+        ) if declaration.memory == crate::MachineMemoryEffect::WriteFrameStorageV1 => {}
         (MachineEncodedMemoryEffect::NoneV1, MachineEncodedStackEffect::UnchangedV1, _)
             if declaration.memory == crate::MachineMemoryEffect::NoneV1 => {}
         _ => return Err(()),

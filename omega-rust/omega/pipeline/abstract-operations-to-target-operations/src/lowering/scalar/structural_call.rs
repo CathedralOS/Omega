@@ -129,7 +129,7 @@ pub(super) fn lower_direct_return(
                 source_byte_offset: 0,
                 fixed_array_length: None,
                 element_stride: None,
-                source: source.placement.clone(),
+                source: source.placement.clone().into(),
                 destination: destination.clone(),
             })
         })

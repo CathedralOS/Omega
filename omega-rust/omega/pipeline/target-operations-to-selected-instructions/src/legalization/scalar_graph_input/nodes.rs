@@ -6,6 +6,7 @@ pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
 ) -> Option<(OperationId, Option<ValueId>)> {
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
+    | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::CallUnit { psi_operation, .. } = &node.operation
     {
         Some((*psi_operation, None))
@@ -167,6 +168,15 @@ pub(super) fn validate(
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        if let AbstractOperation::EstablishByteSequenceLiteral { .. } = &node.operation {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !super::literals::roster(optimized)
             {
                 return Err(invalid);
             }

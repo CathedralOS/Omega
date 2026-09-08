@@ -1,5 +1,6 @@
 //! Shared descriptor calls retain the original pointer and independent replay.
 use super::*;
+mod literal_storage;
 mod mixed;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
@@ -95,7 +96,7 @@ fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunction {
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
-                    source: placement.clone(),
+                    source: placement.clone().into(),
                     destination: placement,
                 },
             }],
@@ -231,7 +232,12 @@ fn mixed_borrowed_calls_preserve_separate_scalar_and_pointer_placements() {
                         else {
                             panic!("borrow");
                         };
-                        target.destination = target.source.clone();
+                        let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                            &target.source
+                        else {
+                            panic!("borrowed placement");
+                        };
+                        target.destination = placement.clone();
                     }
                 }
                 assert!(construct(&changed).is_err(), "input mutation {mutation}");
@@ -385,7 +391,14 @@ fn borrowed_descriptor_call_forwards_pointer_and_replays_custody() {
                 7 => target.source_byte_offset = 8,
                 8 => target.fixed_array_length = Some(2),
                 9 => target.element_stride = Some(8),
-                10 => target.source.shape = ValueShape::integer(16, 8),
+                10 => {
+                    let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                        &mut target.source
+                    else {
+                        panic!("borrowed placement");
+                    };
+                    placement.shape = ValueShape::integer(16, 8);
+                }
                 11 => target.destination.shape = ValueShape::integer(16, 8),
                 _ => semantic
                     .path

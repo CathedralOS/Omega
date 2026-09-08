@@ -202,7 +202,7 @@ pub(crate) fn replay_structural_call(
             || target_argument.source_byte_offset != 0
             || target_argument.fixed_array_length.is_some()
             || target_argument.element_stride.is_some()
-            || target_argument.source != source.target.placement
+            || target_argument.source != source.target.placement.clone().into()
         {
             return Err(Error::NonCanonicalLegalizedPlan);
         }

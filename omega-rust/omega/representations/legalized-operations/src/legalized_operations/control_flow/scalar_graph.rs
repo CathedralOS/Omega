@@ -34,6 +34,7 @@ impl LegalizedScalarFunction {
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
+                    | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
                     LegalizedScalarInstructionKind::BooleanNot { operand }
@@ -89,6 +90,11 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    EstablishByteSequenceLiteral {
+        destination: terminal_psi::StructuralPlaceDeclaration,
+        structural_type: terminal_psi::StructuralTypeDeclaration,
+        bytes: Vec<u8>,
+    },
     ByteSequenceSubslice {
         result: terminal_psi::StructuralOperationResult,
         source: semantic_vocabulary::PlaceId,

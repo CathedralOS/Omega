@@ -54,6 +54,20 @@ pub(in crate::physical_instructions::codec) fn decode_content(
     for _ in 0..function_count {
         let machine = MachineId::new(u64_field(cursor)?)
             .ok_or(PostAllocationMachineDecodeError::InvalidField)?;
+        let local_count = length(cursor)?;
+        let mut local_storage_slots = Vec::with_capacity(local_count.min(cursor.remaining()));
+        for _ in 0..local_count {
+            local_storage_slots.push(selected_instructions::SelectedLocalStorageSlot {
+                id: selected_instructions::LocalStorageSlotId {
+                    operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
+                        .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                    place: semantic_vocabulary::PlaceId::new(u64_field(cursor)?)
+                        .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                },
+                byte_size: u32_field(cursor)?,
+                alignment: u16_field(cursor)?,
+            });
+        }
         let slot_count = length(cursor)?;
         let mut outgoing_arguments = Vec::with_capacity(slot_count.min(cursor.remaining()));
         for _ in 0..slot_count {
@@ -90,6 +104,7 @@ pub(in crate::physical_instructions::codec) fn decode_content(
         functions.push(PostAllocationMachineFunction {
             machine,
             outgoing_arguments,
+            local_storage_slots,
             blocks,
         });
     }

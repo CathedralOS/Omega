@@ -29,6 +29,7 @@ pub(super) fn validate(
         replay.function,
         source,
         call,
+        operation.operation,
         key,
         constraint,
         environment,

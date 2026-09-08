@@ -33,9 +33,15 @@ pub(super) fn encode_row(
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
-            if !matches!(
+            if matches!(
                 kind,
-                SelectedInstructionKind::Load64 { .. } | SelectedInstructionKind::Load8Indexed
+                SelectedInstructionKind::Store64 {
+                    slot: selected_instructions::FrameStorageSlotId::Outgoing(_),
+                    ..
+                } | SelectedInstructionKind::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Outgoing(_),
+                    ..
+                }
             ) && target != NativeTarget::windows_x64()
             {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);

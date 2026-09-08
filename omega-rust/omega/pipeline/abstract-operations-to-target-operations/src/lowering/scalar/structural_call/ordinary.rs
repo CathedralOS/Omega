@@ -93,6 +93,29 @@ pub(in crate::lowering::scalar) fn lower(
         .zip(call_plan.parameters.iter().skip(arguments.len()))
         .map(
             |(((argument, destination_parameter), shape), destination)| {
+                if let Some((producer, declaration)) = caller.operations.iter()
+                    .take_while(|operation| !matches!(operation, AbstractOperation::CallStructuralScalar { psi_operation: called, .. } if called == psi_operation))
+                    .find_map(|operation| match operation {
+                        AbstractOperation::EstablishByteSequenceLiteral { psi_operation, place, structural_type, .. }
+                            if place.id == argument.place => Some((*psi_operation, structural_type)),
+                        _ => None,
+                    }) {
+                    if caller.block_entries.len() != 1 || !argument.path.is_empty()
+                        || argument.access != terminal_psi::StructuralAccess::SharedBorrow
+                        || !shared_view(destination_parameter, structural_types)
+                        || declaration.id != destination_parameter.structural_type
+                        || declaration.shape != terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+                        || *shape != ValueShape::borrowed_reference(16, 8) {
+                        return Err(LoweringError::StructuralCallArgumentTypeMismatch { callee: *callee, place: argument.place });
+                    }
+                    return Ok(TargetStructuralArgument {
+                        place: argument.place, access: argument.access, path: Vec::new(),
+                        root_structural_type: declaration.id, structural_type: declaration.id, shape: *shape,
+                        source_byte_offset: 0, fixed_array_length: None, element_stride: None,
+                        source: target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral { psi_operation: producer },
+                        destination: destination.clone(),
+                    });
+                }
                 let source = structural_parameters
                     .iter()
                     .find(|parameter| parameter.place == argument.place)
@@ -134,7 +157,7 @@ pub(in crate::lowering::scalar) fn lower(
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
-                    source: source.placement.clone(),
+                source: source.placement.clone().into(),
                     destination: destination.clone(),
                 })
             },

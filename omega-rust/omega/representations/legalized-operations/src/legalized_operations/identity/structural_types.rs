@@ -55,7 +55,18 @@ pub(super) fn encode_target_structural_argument(
     bytes.extend_from_slice(&argument.source_byte_offset.to_le_bytes());
     encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
-    encode_placement(bytes, &argument.source);
+    match &argument.source {
+        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            bytes.push(0);
+            encode_placement(bytes, placement);
+        }
+        target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+            psi_operation,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+        }
+    }
     encode_placement(bytes, &argument.destination);
 }
 

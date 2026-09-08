@@ -137,7 +137,7 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&index_operand.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
-        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+        MachineEncodedMemoryEffect::WriteFrameStorageV1 {
             stack_pointer,
             byte_count,
         } => {

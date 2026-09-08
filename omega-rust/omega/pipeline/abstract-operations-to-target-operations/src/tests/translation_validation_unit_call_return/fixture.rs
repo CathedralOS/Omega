@@ -169,7 +169,7 @@ pub(super) fn target_structural_argument() -> TargetStructuralArgument {
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
-        source: placement.clone(),
+        source: placement.clone().into(),
         destination: placement,
     }
 }

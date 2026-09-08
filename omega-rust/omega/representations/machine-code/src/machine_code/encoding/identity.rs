@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v12";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v13";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -90,8 +90,18 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                     } else {
                         3
                     }]);
-                    hasher.update(slot.operation.get().to_le_bytes());
-                    hasher.update(slot.argument_index.to_le_bytes());
+                    match slot {
+                        selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
+                            hasher.update([0]);
+                            hasher.update(slot.operation.get().to_le_bytes());
+                            hasher.update(slot.argument_index.to_le_bytes());
+                        }
+                        selected_instructions::FrameStorageSlotId::Local(slot) => {
+                            hasher.update([1]);
+                            hasher.update(slot.operation.get().to_le_bytes());
+                            hasher.update(slot.place.get().to_le_bytes());
+                        }
+                    }
                     hasher.update(byte_offset.to_le_bytes());
                 }
             }
@@ -225,7 +235,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(pointer_operand.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }
-        Memory::WriteOutgoingArgumentV1 {
+        Memory::WriteFrameStorageV1 {
             stack_pointer,
             byte_count,
         } => {

@@ -56,6 +56,14 @@ pub struct OutgoingAbiFrameArea {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalStorageFrameSlot {
+    pub id: selected_instructions::LocalStorageSlotId,
+    pub frame_offset_bytes: u64,
+    pub size_bytes: u32,
+    pub alignment_bytes: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionTargetFrameLayout {
     pub machine: MachineId,
     pub contains_call: bool,
@@ -64,6 +72,7 @@ pub struct FunctionTargetFrameLayout {
     pub frame_size_bytes: u64,
     pub abi_stack_alignment_bytes: u16,
     pub outgoing_abi_area: OutgoingAbiFrameArea,
+    pub local_storage_slots: Vec<LocalStorageFrameSlot>,
     pub callee_save_slots: Vec<CalleeSaveFrameSlot>,
     pub return_address: ReturnAddressFrameCustody,
 }

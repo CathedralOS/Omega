@@ -250,7 +250,7 @@ pub(in crate::lowering) fn lower_direct_return(
                 source_byte_offset: 0,
                 fixed_array_length: None,
                 element_stride: None,
-                source: source_placement.clone(),
+                source: source_placement.clone().into(),
                 destination: destination.clone(),
             }],
             claim_transfers: claim_transfers.clone(),

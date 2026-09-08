@@ -59,7 +59,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
-                    source: call_plan.parameters[position].clone(),
+                    source: call_plan.parameters[position].clone().into(),
                     destination: call_plan.parameters[position].clone(),
                 },
             },

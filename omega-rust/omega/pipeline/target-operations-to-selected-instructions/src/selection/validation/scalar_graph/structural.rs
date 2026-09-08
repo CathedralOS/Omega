@@ -9,6 +9,7 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 mod byte_views;
+mod literals;
 mod shared_unit_call;
 mod subslice;
 
@@ -19,6 +20,7 @@ pub(super) struct Transport {
     pointers: Vec<(PlaceId, VirtualRegisterId)>,
     views: Vec<ByteViewHomes>,
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
+    pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,
     pub calls: Vec<SelectedCallContract>,
     pub memory: Vec<SelectedMemoryAccess>,
     pub settlements: Vec<SelectedBoundarySettlement>,
@@ -76,6 +78,13 @@ pub(super) fn entry(
     let Some(signature) = &source.structural else {
         return Ok(());
     };
+    if signature.parameters.is_empty() {
+        return if crate::selection::literal_storage_input::accepts(source) {
+            Ok(())
+        } else {
+            Err(replay.invalid())
+        };
+    }
     // Ranked structural state is retained ownership custody, not a physical read.
     // Its exact signature and cleanup are independently checked at legalization.
     if source.ranked.is_some()
@@ -193,6 +202,13 @@ pub(super) fn operation(
 ) -> Result<bool, SelectedInstructionError> {
     if matches!(
         node.kind,
+        LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
+    ) {
+        literals::establish(replay, node)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
         LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
     ) {
         subslice::create(source, replay, node)?;
@@ -253,7 +269,10 @@ pub(super) fn operation(
         if semantic.access != StructuralAccess::Owned
             || !semantic.path.is_empty()
             || target.place != semantic.place
-            || target.source != parameter.target.placement
+            || target.source
+                != target_operations::TargetStructuralArgumentSource::Placement(
+                    parameter.target.placement.clone(),
+                )
             || target.destination != call.call_plan.parameters[argument_index]
             || target.source_byte_offset != 0
         {
@@ -316,7 +335,10 @@ pub(super) fn operation(
                 SelectedMemoryAccessRole::WriteOutgoing { slot },
             )?;
             replay.check_instruction(
-                SelectedInstructionKind::Store64 { slot, byte_offset },
+                SelectedInstructionKind::Store64 {
+                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                    byte_offset,
+                },
                 replay
                     .constraints
                     .keys
@@ -337,7 +359,7 @@ pub(super) fn operation(
         )?;
         replay.check_instruction(
             SelectedInstructionKind::FrameAddress {
-                slot,
+                slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
                 byte_offset: 0,
             },
             replay

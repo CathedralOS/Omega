@@ -128,6 +128,40 @@ fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_ro
 }
 
 #[test]
+fn activation_local_roster_and_memory_roles_round_trip() {
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    let slot = selected_instructions::LocalStorageSlotId {
+        operation: OperationId::new(53).unwrap(),
+        place: PlaceId::new(59).unwrap(),
+    };
+    function
+        .local_storage_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 24,
+            alignment: 8,
+        });
+    for role in [
+        SelectedMemoryAccessRole::WriteLocal { slot },
+        SelectedMemoryAccessRole::AddressLocal { slot },
+    ] {
+        function.memory_accesses.push(SelectedMemoryAccess {
+            instruction: SelectedInstructionId(1),
+            operation: slot.operation,
+            place: slot.place,
+            byte_offset: 0,
+            byte_count: 8,
+            role,
+        });
+    }
+    std::sync::Arc::make_mut(&mut plan.transformed)
+        .functions
+        .push(function);
+    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+}
+
+#[test]
 fn stale_header_rejects_current_structural_payload() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)

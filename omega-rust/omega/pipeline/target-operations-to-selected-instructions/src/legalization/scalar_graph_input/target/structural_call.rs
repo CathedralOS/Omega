@@ -69,6 +69,7 @@ impl Checker<'_> {
             || super::super::structural_call::validate_argument(
                 semantic,
                 target,
+                *psi_operation,
                 self.optimized,
                 *callee,
                 self.native,

@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v21\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v22\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -205,7 +205,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         }
         SelectedInstructionKind::Store64 { slot, byte_offset }
         | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
-            contracts::slot(bytes, slot);
+            contracts::frame_slot(bytes, slot);
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::MaterializeI64 { value } => match value {

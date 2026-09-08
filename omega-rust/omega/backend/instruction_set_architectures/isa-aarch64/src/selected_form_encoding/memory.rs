@@ -1,5 +1,6 @@
 //! Unsigned-offset LDR with independently decoded pointer-read evidence.
 use super::*;
+mod frame;
 mod indexed;
 
 pub fn encode_aarch64_selected_memory_form(
@@ -9,6 +10,12 @@ pub fn encode_aarch64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
+    ) {
+        return frame::encode(physical, kind, alternative, operands, displacement);
+    }
     if kind == SelectedInstructionKind::Load8Indexed {
         return indexed::encode(physical, alternative, operands, displacement);
     }
@@ -33,6 +40,12 @@ pub fn validate_aarch64_selected_memory_form(
     displacement: u32,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
+    ) {
+        return frame::validate(physical, kind, alternative, operands, displacement, bytes);
+    }
     if kind == SelectedInstructionKind::Load8Indexed {
         return indexed::validate(physical, alternative, operands, displacement, bytes);
     }

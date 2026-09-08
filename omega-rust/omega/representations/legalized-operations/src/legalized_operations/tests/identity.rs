@@ -1,5 +1,6 @@
 use super::*;
 
+mod byte_literals;
 mod scalar_control;
 mod scalar_operations;
 

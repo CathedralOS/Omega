@@ -96,7 +96,7 @@ fn unit_call_receiving_rejects_changed_boolean_result_and_pointer_contracts() {
                         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
                 }
                 4 => call_plan.result = Some(call_plan.parameters[0].clone()),
-                5 => arguments[0].source = call_plan.parameters[0].clone(),
+                5 => arguments[0].source = call_plan.parameters[0].clone().into(),
                 6 => {
                     let copied = evaluate_call_plan(
                         call_plan.policy,

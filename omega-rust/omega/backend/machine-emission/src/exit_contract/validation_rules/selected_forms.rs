@@ -228,7 +228,7 @@ pub(in crate::exit_contract) fn validate_non_return(
         }
         (
             SelectedInstructionKind::Store64 { slot, byte_offset },
-            MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 { byte_count: 8, .. },
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 { byte_count: 8, .. },
             Some(address),
         ) => {
             address.symbolic

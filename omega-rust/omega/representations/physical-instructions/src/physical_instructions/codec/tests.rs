@@ -33,10 +33,10 @@ const SELECTED_OFFSET: usize = 44;
 const TARGET_OFFSET: usize = 236;
 const CHOICE_RULE_OFFSET: usize = 382;
 const MACHINE_OFFSET: usize = 391;
-const ALTERNATIVE_FAMILY_OFFSET: usize = 431;
-const OPERAND_ACCESS_OFFSET: usize = 532;
-const WRITE_SEMANTICS_PRESENCE_OFFSET: usize = 563;
-const WRITE_SEMANTICS_OFFSET: usize = 564;
+const ALTERNATIVE_FAMILY_OFFSET: usize = 439;
+const OPERAND_ACCESS_OFFSET: usize = 540;
+const WRITE_SEMANTICS_PRESENCE_OFFSET: usize = 571;
+const WRITE_SEMANTICS_OFFSET: usize = 572;
 
 fn identity(byte: u8) -> [u8; 32] {
     [byte; 32]
@@ -62,6 +62,7 @@ fn plan() -> PostAllocationMachinePlan {
         functions: vec![PostAllocationMachineFunction {
             machine: MachineId::new(17).unwrap(),
             outgoing_arguments: vec![],
+            local_storage_slots: Vec::new(),
             blocks: vec![PostAllocationMachineBlock {
                 block: SelectedBlockId(23),
                 instructions: vec![PostAllocationMachineInstruction {
@@ -139,7 +140,7 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in [3_u32, 4, 5, 6, 7, 9] {
+    for version in 0..9_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -260,11 +261,11 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             byte_offset: 8,
         },
         PhysicalAddressOperation::Store64 {
-            slot,
+            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 8,
         },
         PhysicalAddressOperation::FrameAddress {
-            slot,
+            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 0,
         },
     ] {
@@ -292,6 +293,53 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             PostAllocationMachinePlan::decode(&changed.encode()),
             Err(PostAllocationMachineDecodeError::InvalidIdentity)
         );
+    }
+}
+
+#[test]
+fn physical_codec_binds_activation_local_geometry_and_source_identity() {
+    let mut source = plan();
+    let slot = selected_instructions::LocalStorageSlotId {
+        operation: OperationId::new(137).unwrap(),
+        place: semantic_vocabulary::PlaceId::new(139).unwrap(),
+    };
+    source.functions[0]
+        .local_storage_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 24,
+            alignment: 8,
+        });
+    for address in [
+        PhysicalAddressOperation::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            byte_offset: 16,
+        },
+        PhysicalAddressOperation::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+    ] {
+        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        source.identity = post_allocation_machine_identity(&source);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        for field in 0..4 {
+            let mut changed = source.clone();
+            let local = &mut changed.functions[0].local_storage_slots[0];
+            match field {
+                0 => local.id.operation = OperationId::new(149).unwrap(),
+                1 => local.id.place = semantic_vocabulary::PlaceId::new(151).unwrap(),
+                2 => local.byte_size += 8,
+                _ => local.alignment = 4,
+            }
+            assert_eq!(
+                PostAllocationMachinePlan::decode(&changed.encode()),
+                Err(PostAllocationMachineDecodeError::InvalidIdentity)
+            );
+        }
     }
 }
 

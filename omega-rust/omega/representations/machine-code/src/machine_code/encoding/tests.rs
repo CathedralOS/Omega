@@ -31,13 +31,13 @@ fn deferred_program() -> SelectedFormEncoding {
 }
 
 #[test]
-fn current_encoding_binds_the_version_12_ordinary_instruction_schema() {
+fn current_encoding_binds_the_version_13_ordinary_instruction_schema() {
     let mut program = deferred_program();
-    // V12 adds the distinct U32 normalization family. This deferred-branch
-    // fixture's payload is unchanged; its schema domain must still change.
+    // V13 distinguishes outgoing ABI slots from activation-local storage.
+    // This deferred-branch payload is unchanged; its schema domain still changes.
     // Assemble the canonical bytes independently of the production encoder.
     use sha2::{Digest, Sha256};
-    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v12".to_vec();
+    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v13".to_vec();
     canonical.extend_from_slice(&[1; 32]); // Selected identity.
     canonical.extend_from_slice(&[2; 32]); // Physical identity.
     canonical.push(0); // No post-allocation rewrite custody.
@@ -51,8 +51,8 @@ fn current_encoding_binds_the_version_12_ordinary_instruction_schema() {
     }
     assert_eq!(canonical.len(), 187);
     let expected = [
-        100, 40, 74, 0, 202, 249, 16, 226, 94, 47, 235, 228, 109, 33, 80, 207, 54, 146, 1, 243,
-        211, 120, 8, 148, 190, 25, 56, 104, 86, 169, 254, 3,
+        199, 82, 168, 129, 254, 154, 64, 99, 20, 8, 133, 217, 240, 219, 147, 123, 171, 165, 58,
+        135, 13, 239, 126, 137, 100, 85, 77, 226, 215, 87, 76, 16,
     ];
     assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
     assert_eq!(program.recomputed_identity().bytes(), expected);
@@ -96,7 +96,7 @@ fn encoding_identity_binds_symbolic_role_and_resolved_displacement() {
     };
     program.rows[0].address = Some(ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::Store64 {
-            slot,
+            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 8,
         },
         displacement: 40,
@@ -107,7 +107,7 @@ fn encoding_identity_binds_symbolic_role_and_resolved_displacement() {
     assert_ne!(changed.recomputed_identity(), identity);
     changed = program.clone();
     changed.rows[0].address.as_mut().unwrap().symbolic = PhysicalAddressOperation::FrameAddress {
-        slot,
+        slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
         byte_offset: 8,
     };
     assert_ne!(changed.recomputed_identity(), identity);

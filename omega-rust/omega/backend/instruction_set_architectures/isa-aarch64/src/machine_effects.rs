@@ -108,8 +108,8 @@ fn selected_keys(
     Ok(SelectedConstraintKeys {
         load64: Some(crate::AARCH64_LOAD64),
         load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
-        store64: None,
-        frame_address: None,
+        store64: Some(crate::AARCH64_STORE64),
+        frame_address: Some(crate::AARCH64_FRAME_ADDRESS),
         call_unit: if target.object_format == ObjectFormat::Elf {
             crate::aarch64_aapcs64_register_unit_call_keys()
         } else {
@@ -149,12 +149,16 @@ fn declaration(
             MachineSemanticKind::Load64 | MachineSemanticKind::Load8Indexed
         ) {
             MachineMemoryEffect::ReadPointerV1
+        } else if semantic == MachineSemanticKind::Store64 {
+            MachineMemoryEffect::WriteFrameStorageV1
         } else {
             MachineMemoryEffect::NoneV1
         },
         trap: if matches!(
             semantic,
-            MachineSemanticKind::Load64 | MachineSemanticKind::Load8Indexed
+            MachineSemanticKind::Load64
+                | MachineSemanticKind::Load8Indexed
+                | MachineSemanticKind::Store64
         ) {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
@@ -223,9 +227,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
-        MachineSemanticKind::Store64
-        | MachineSemanticKind::FrameAddress
-        | MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::Store64 => (vec![0], vec![]),
+        MachineSemanticKind::FrameAddress => (vec![], vec![0]),
+        MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {
@@ -273,6 +277,16 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
             MachineEncodedControlEffect::FallThroughV1,
         ),
+        MachineSemanticKind::Store64 | MachineSemanticKind::FrameAddress => (
+            units("sp"),
+            vec![],
+            if semantic == MachineSemanticKind::Store64 {
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            } else {
+                MachineEncodedTrapBehavior::NeverV1
+            },
+            MachineEncodedControlEffect::FallThroughV1,
+        ),
         _ => (
             vec![],
             vec![],
@@ -297,6 +311,11 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 index_operand: 1,
                 byte_count: 1,
             }
+        } else if semantic == MachineSemanticKind::Store64 {
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                stack_pointer: view("sp"),
+                byte_count: 8,
+            }
         } else {
             MachineEncodedMemoryEffect::NoneV1
         },
@@ -312,9 +331,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
-        MachineSemanticKind::Store64
-        | MachineSemanticKind::FrameAddress
-        | MachineSemanticKind::CallUnit => {
+        MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
         MachineSemanticKind::CallI64 => {

@@ -3,7 +3,7 @@ use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{MachineId, ObligationId};
+use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 
 use crate::FixedViewCopyDecodeError;
 
@@ -110,8 +110,18 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         }
         SelectedInstructionKind::Store64 { slot, byte_offset }
         | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
-            bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
-            bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+            match slot {
+                selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+                }
+                selected_instructions::FrameStorageSlotId::Local(slot) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
+                    bytes.extend_from_slice(&slot.place.get().to_le_bytes());
+                }
+            }
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
@@ -171,9 +181,20 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
             byte_offset: cursor.u32()?,
         },
         tag @ (17 | 18) => {
-            let slot = selected_instructions::OutgoingArgumentSlotId {
-                operation: decode_id(cursor, semantic_vocabulary::OperationId::new)?,
-                argument_index: cursor.u32()?,
+            let slot = match cursor.byte()? {
+                0 => selected_instructions::FrameStorageSlotId::Outgoing(
+                    selected_instructions::OutgoingArgumentSlotId {
+                        operation: decode_id(cursor, OperationId::new)?,
+                        argument_index: cursor.u32()?,
+                    },
+                ),
+                1 => selected_instructions::FrameStorageSlotId::Local(
+                    selected_instructions::LocalStorageSlotId {
+                        operation: decode_id(cursor, OperationId::new)?,
+                        place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+                    },
+                ),
+                tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
             let byte_offset = cursor.u32()?;
             if tag == 17 {
@@ -302,11 +323,11 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
     for kind in [
         SelectedInstructionKind::Load64 { byte_offset: 8 },
         SelectedInstructionKind::Store64 {
-            slot,
+            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 8,
         },
         SelectedInstructionKind::FrameAddress {
-            slot,
+            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 0,
         },
         SelectedInstructionKind::CallUnit {

@@ -373,6 +373,7 @@ pub(in crate::selection) fn validate(
                     output
                 }
                 LegalizedScalarInstructionKind::BoundarySettlement(_)
+                | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
                     return Err(invalid());
                 }
@@ -399,6 +400,7 @@ pub(in crate::selection) fn validate(
     }
     if replay.transport.calls != selected.calls
         || replay.transport.slots != selected.outgoing_arguments
+        || replay.transport.local_slots != selected.local_storage_slots
         || replay.transport.memory != selected.memory_accesses
         || replay.transport.settlements != selected.boundary_settlements
     {

@@ -96,9 +96,59 @@ pub(super) fn validate_layout(
             }
             outgoing = outgoing.max(end);
         }
+        if row.local_storage_slots.len() != source.local_storage_slots.len() {
+            return Err(Error::NonCanonicalLayout);
+        }
+        let mut local_extent = outgoing;
+        for (index, (local, placed)) in source
+            .local_storage_slots
+            .iter()
+            .zip(&row.local_storage_slots)
+            .enumerate()
+        {
+            if local.byte_size == 0
+                || !local.alignment.is_power_of_two()
+                || local.alignment > 8
+                || source.local_storage_slots[..index]
+                    .iter()
+                    .any(|earlier| earlier.id == local.id)
+                || placed.id != local.id
+                || placed.size_bytes != local.byte_size
+                || placed.alignment_bytes != local.alignment
+                || !minimal_aligned_extent(
+                    local_extent,
+                    placed.frame_offset_bytes,
+                    u64::from(local.alignment),
+                    0,
+                )
+            {
+                return Err(Error::NonCanonicalLayout);
+            }
+            local_extent = placed
+                .frame_offset_bytes
+                .checked_add(u64::from(placed.size_bytes))
+                .ok_or(Error::GeometryOverflow)?;
+        }
+        let preservation_offset = if source.local_storage_slots.is_empty() {
+            outgoing
+        } else {
+            let alignment = storage
+                .slots
+                .iter()
+                .map(|slot| slot.alignment_bytes)
+                .max()
+                .unwrap_or(8)
+                .max(8);
+            if !alignment.is_power_of_two() {
+                return Err(Error::NonCanonicalLayout);
+            }
+            local_extent
+                .checked_add((alignment - local_extent % alignment) % alignment)
+                .ok_or(Error::GeometryOverflow)?
+        };
         let area = storage
             .abstract_area_bytes
-            .checked_add(outgoing)
+            .checked_add(preservation_offset)
             .ok_or(Error::GeometryOverflow)?;
         if row.machine != source.machine
             || row.contains_call != calls
@@ -114,7 +164,7 @@ pub(super) fn validate_layout(
                 .any(|(placed, abstract_slot)| {
                     placed.abstract_slot != abstract_slot.id
                         || placed.storage_view != abstract_slot.storage_view
-                        || placed.frame_offset_bytes.checked_sub(outgoing)
+                        || placed.frame_offset_bytes.checked_sub(preservation_offset)
                             != Some(abstract_slot.abstract_offset_bytes)
                         || placed.size_bytes != abstract_slot.size_bytes
                         || placed.alignment_bytes != abstract_slot.alignment_bytes
@@ -122,7 +172,7 @@ pub(super) fn validate_layout(
                             placed.frame_offset_bytes,
                             placed.size_bytes,
                             placed.alignment_bytes,
-                            outgoing,
+                            preservation_offset,
                             area,
                         )
                 })

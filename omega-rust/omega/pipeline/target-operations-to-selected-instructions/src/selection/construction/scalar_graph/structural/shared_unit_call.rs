@@ -27,6 +27,7 @@ pub(super) fn emit(
         function,
         source,
         call,
+        operation.operation,
         key,
         row_constraint(builder, key)?,
         environment,

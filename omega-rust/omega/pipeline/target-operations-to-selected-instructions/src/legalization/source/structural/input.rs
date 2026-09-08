@@ -144,7 +144,7 @@ fn matches_function(
                     .iter()
                     .zip(&parameters)
                     .any(|(argument, parameter)| {
-                        argument.target.source != parameter.target.placement
+                        argument.target.source != parameter.target.placement.clone().into()
                             || argument.target.shape != parameter.target.shape
                             || argument.target.root_structural_type
                                 != parameter.semantic.structural_type

@@ -45,10 +45,23 @@ pub(super) fn decode_instruction(
             byte_offset: u32_field(cursor)?,
         }),
         tag @ (2 | 3) => {
-            let slot = selected_instructions::OutgoingArgumentSlotId {
-                operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
-                    .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
-                argument_index: u32_field(cursor)?,
+            let slot = match byte(cursor)? {
+                0 => selected_instructions::FrameStorageSlotId::Outgoing(
+                    selected_instructions::OutgoingArgumentSlotId {
+                        operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
+                            .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                        argument_index: u32_field(cursor)?,
+                    },
+                ),
+                1 => selected_instructions::FrameStorageSlotId::Local(
+                    selected_instructions::LocalStorageSlotId {
+                        operation: semantic_vocabulary::OperationId::new(u64_field(cursor)?)
+                            .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                        place: semantic_vocabulary::PlaceId::new(u64_field(cursor)?)
+                            .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                    },
+                ),
+                _ => return Err(PostAllocationMachineDecodeError::InvalidField),
             };
             let byte_offset = u32_field(cursor)?;
             Some(if tag == 2 {

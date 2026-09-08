@@ -174,6 +174,7 @@ pub(super) fn raw_fixture() -> RawFixture {
         provenance: Default::default(),
         structural: None,
         outgoing_arguments: Vec::new(),
+        local_storage_slots: Vec::new(),
         calls: Vec::new(),
         memory_accesses: Vec::new(),
         boundary_settlements: Vec::new(),

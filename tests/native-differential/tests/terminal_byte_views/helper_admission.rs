@@ -54,7 +54,7 @@ fn helper_replay_rejects_substituted_argument_custody() {
                 3 => {
                     target.structural_type = semantic_vocabulary::StructuralTypeId::new(99).unwrap()
                 }
-                4 => target.source = call.result_placement.clone().unwrap(),
+                4 => target.source = call.result_placement.clone().unwrap().into(),
                 5 => {
                     let expected = calling_conventions::evaluate_call_plan(
                         call.call_plan.policy,

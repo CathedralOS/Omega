@@ -120,6 +120,11 @@ pub(in crate::function_fragments) fn validate_function(
             let LegalizedScalarArgument::Structural { target, .. } = expected else {
                 return Err(invalid());
             };
+            let target_operations::TargetStructuralArgumentSource::Placement(placement) =
+                &target.source
+            else {
+                return Err(invalid());
+            };
             validate_copy(selected, fragment, contract.operation, target.place, actual)?;
             if actual.place != target.place
                 || actual.access != target.access
@@ -132,7 +137,7 @@ pub(in crate::function_fragments) fn validate_function(
                 || actual.call_stack_bytes != frame_bytes
                 || actual.fixed_array_length != target.fixed_array_length
                 || actual.element_stride != target.element_stride
-                || actual.source != target.source
+                || actual.source != *placement
                 || actual.destination != target.destination
             {
                 return Err(invalid());
