@@ -4,7 +4,7 @@
 > current documentation structure. See the [migration index](../README.md).
 
 This is the published inventory for the first exact-name optimizer rollout.
-It is governed by the [optimizer rollout brief](../design_briefs/optimizer/rollout.md).
+It is governed by the [optimization contract](../../spec/build/optimizations.md#release-rollback-and-promotion).
 Every row is explicit and opt-in, and every V1 row is currently experimental.
 There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 

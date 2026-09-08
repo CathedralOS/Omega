@@ -11,7 +11,7 @@
 Canonical architecture and executable details live in:
 
 - [Bootstrap chain](../architecture/bootstrap_chain/bootstrap_chain.md)
-- [Alpha rung](../architecture/bootstrap_chain/rungs/alpha.md)
+- [Alpha execution floor](../../../bootstrap/0_alpha/README.md)
 - [`bootstrap/0_alpha/SEMANTICS.md`](../../../bootstrap/0_alpha/SEMANTICS.md)
 
 ## Responsibility

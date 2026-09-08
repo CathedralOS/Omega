@@ -3,7 +3,7 @@
 > **Needs porting.** This document has not been consolidated or vetted for the
 > current documentation structure. See the [migration index](../../README.md).
 
-[Chain overview](bootstrap_chain.md) | [Epsilon](rungs/epsilon.md) |
+[Chain overview](bootstrap_chain.md) | [Epsilon](../../../../bootstrap/4_epsilon/README.md) |
 [Compiler source profile](compiler_source_profile.md)
 
 Omega is the product-language endpoint. Psi is the publishable target-neutral

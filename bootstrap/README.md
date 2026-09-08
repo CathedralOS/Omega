@@ -18,6 +18,11 @@ proofs/     source-owned proof checker and artifact-specific theories
 
 Numeric prefixes sort the retained rungs in Greek-letter order. They are folder
 names, not language versions; source suffixes and language names are unchanged.
+A compiler or evaluator owner is named by the language it accepts or executes;
+its source suffix names the implementing language. `.beta`, `.gamma`, `.delta`,
+`.epsilon`, and `.omg` identify source languages; `.tape` identifies raw Alpha
+bytecode. Epsilon's evaluator retains the `epsilon_compiler.delta` entrance
+name; its ordered `.sources` manifest selects the complete implementation.
 [`proofs/`](proofs/README.md) supports the chain's proof obligations; it is not
 another language rung. Alpha, Beta, and Gamma keep their small implementations
 beside their contracts. Later rungs retain concept-owned source folders without
@@ -37,6 +42,8 @@ native execution floor. `5_omega/` is the bootstrap implementation of the Omega
 compiler; the final Omega-written compiler lives under [`../source/`](../source).
 The maintained Rust implementation under [`../omega-rust/`](../omega-rust) is a
 development comparator and grants no bootstrap authority.
+Beta self-reconstruction binds the readable compiler source to its admitted
+cold-start tape; no later intermediate rung is required to self-host.
 
 Cross-rung scripts resolve these owners through
 [`../tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh). Host tools may

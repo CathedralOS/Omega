@@ -17,8 +17,8 @@ and its ownership boundaries.
   and separate-consumer contract; [verification](../../spec/terminal-psi/verification.md)
   and the other [specification subjects](../../README.md#current-specification-subjects)
   own its vocabulary.
-- [Codegen Representation Cleanup](codegen_representation_cleanup.md): standing plan to remove re-declared representations and annotation-only stages so the backend obeys the Architecture Rule below.
-- [Whole-Program Assumptions](whole_program_assumptions.md): tracked inventory of where the backend assumes whole-program compilation, against the eventual separately-compiled-component story.
+- [Native representation ownership](../../../omega-rust/omega/representations/README.md): shared facts, compositional places, and emitted-layout authority.
+- [Artifact-local backend assumptions](../../../omega-rust/omega/backend/runtime/component-publication/README.md#artifact-local-backend-assumptions): current component implementation boundaries.
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):
   migration from lossy booleans/bitsets to the settled domain, machine,
   multiplicity, reach-row, and termination-plan semantic forms.

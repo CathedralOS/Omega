@@ -7,12 +7,8 @@
 > [`tests/alpha/conformance.sh`](../../tests/alpha/conformance.sh) is
 > the executable companion (hand-built tapes that pin each rule, which any
 > faithful seed must pass).
->
-> This fills the trust-root gap the bootstrap-chain design flagged: "you cannot audit the binary
-> against a spec that does not exist." See
-> [bootstrap_chain rungs/alpha.md](../../wiki/pre_migration/architecture/bootstrap_chain/rungs/alpha.md).
 
-Alpha is **role #1, an executor** (bootstrap-chain overview, "Five roles"). It is not a
+Alpha is the [bootstrap chain's](../README.md) native execution floor. It is not a
 type system, checker, or proof kernel — only a deterministic register machine
 with byte I/O. Its job is to make "given these bytes and this memory, exactly
 these state transitions occur" precise.
@@ -136,8 +132,7 @@ conditions are:
 
 ## 8. Currently undefined (the honest edges)
 
-These are real gaps versus an ideal trust-root executor, tracked in the alpha
-rung doc; they are **not** yet specified behavior:
+These cases are **not** yet specified behavior:
 
 - **Out-of-range memory** (`M[i]` for `i ∉ [0, MEMSIZE)`, including `sp` under/
   overflow): currently unchecked — the implementations may corrupt adjacent state

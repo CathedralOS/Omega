@@ -74,7 +74,7 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
 These are the next product-level priorities for the maintained Rust
 implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
-the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md).
+the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
   sibling Omega packages: target-neutral phases under `source/psi/` and the

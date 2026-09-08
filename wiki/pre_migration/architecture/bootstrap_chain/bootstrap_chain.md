@@ -78,5 +78,5 @@ produces a small target tape that executes under Alpha; this is not a complete
 D compiler or a closed refinement edge. Omega-written C is also incomplete,
 so `omega0` remains absent. No compatibility route fills these gaps.
 
-See the [manifest](chain_manifest.md), [repository map](repository_structure.md),
+See the [manifest](chain_manifest.md), [source map](../../../../bootstrap/README.md),
 and [`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md).

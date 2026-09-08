@@ -14,7 +14,7 @@ The pipeline-specific semantic rules live in
 How Omega reaches its hosted compiler—the selected
 `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega` trust lattice is a build-graph property
 described by [The Bootstrap Chain](bootstrap_chain/bootstrap_chain.md)
-and its [target repository structure](bootstrap_chain/repository_structure.md).
+and its [source map](../../../bootstrap/README.md).
 It is not a separate source ownership domain. Unapproved comparison options
 are separate in [Bootstrap chain alternatives](../../proposals/bootstrap_chain_alternatives.md).
 
@@ -104,7 +104,7 @@ the displayed Omega top-level directories are current and exhaustive.
 > paths. Package dependencies are declared by their `build.omg` package graph.
 > The tree below documents the current Cargo/product structure;
 > the canonical compiler-sequence inventory is documented in the
-> [bootstrap repository structure](bootstrap_chain/repository_structure.md),
+> [bootstrap source map](../../../bootstrap/README.md),
 > while active bootstrap work is tracked in
 > [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
 >

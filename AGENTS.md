@@ -628,4 +628,4 @@ what you mean. When a literal phrase is available, use it.
 - [Documentation index](wiki/README.md)
 - [Terminal Psi product contract](wiki/spec/terminal-psi/product.md)
 - [Optimization Phases](wiki/pre_migration/architecture/pipeline/optimization_phases.md)
-- [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md)
+- [Rust compiler completion](wiki/drafts/rust_compiler_completion.md)

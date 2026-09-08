@@ -83,6 +83,33 @@ does not justify that inference for arbitrary functions.
 the independently supplied authority above compilation and documents remaining
 production integration. Symbolic component imports/exports, lifetime cohorts,
 general disposition/migration interfaces, and cross-component specialization
-remain implementation work. The
-[whole-program inventory](../../../../../wiki/pre_migration/architecture/whole_program_assumptions.md)
-tracks legacy backend assumptions; its limits are not component semantics.
+remain implementation work.
+
+## Artifact-local backend assumptions
+
+Native candidates and replayed object artifacts already exist; that does not
+complete source `Independent` composition. The current
+[target plan](../../../representations/target-operations/src/target_operations.rs)
+names one semantic entry and its functions. The
+[object publisher](../../images/image-emission/src/lib.rs) builds artifact-local
+symbols, data, and relocations and resolves internal calls against that artifact's
+function roster. These local machine/symbol handles are not cross-compilation
+identities. General independent crossings need the specification's exported
+requirement identities and exact calling, state, representation, and observation
+plans, not addresses or handle coordinates borrowed from another compilation.
+
+Component stack demand describes the candidate's internal body closure; it does
+not supply crossing frames, runtime stack backing, or external-entry headroom.
+Entry selection and selected provider facts remain bound to each admitted
+artifact. Reusing those facts for a different artifact requires a new exact join.
+Keep new whole-artifact address, frame, or provider assumptions explicit beside
+their owner so they can be reconciled when widening component composition.
+
+Direct image construction remains the backend strategy; component loading extends
+the artifact/image machinery rather than requiring an external linker. Concrete
+mapping, patching, deduplication, lifetime cohorts, and loader policy belong to the
+consumer runtime/OS. A package-shaped initial closure restriction is only an
+implementation fence: widening it must preserve accepted meanings and identities,
+as required by the specification. See
+[representation ownership](../../../representations/README.md) for the shared
+place, annotation, and emitted-layout invariants.

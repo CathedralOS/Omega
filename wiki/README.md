@@ -57,6 +57,7 @@ beside code; completed work belongs in Git, not current reference material.
   [bounded growth](spec/resources/bounded_growth.md).
 - Build: [declarations and package identity](spec/build/declarations.md),
   [configuration and targets](spec/build/configuration.md),
+  [optimization selection and validation](spec/build/optimizations.md),
   [target slots and entry roots](spec/build/entry_roots.md),
   [UEFI entry and handoff](spec/build/uefi_entry.md),
   [installed external roots](spec/build/external_roots.md),
