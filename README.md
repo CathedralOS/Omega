@@ -5,7 +5,7 @@ and ownership of memory and resources. Borrow-checked, proof-checked, high-assur
 
 The thesis is simple: Make trust extremely explicit, and make failure impossible if that trust holds.
 
-By modeling a program as a state machine, we can answer otherwise impossible questions in other language:
+By modeling a program as a state machine, we can answer otherwise impossible questions in other languages:
 - Does a program halt?
 - Does this API access the filesystem?
 - Can this program or library crash?
