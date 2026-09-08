@@ -9,6 +9,53 @@ fn typed(source: &str) -> TypedTrees {
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
+#[test]
+fn enforced_type_bounds_require_exact_owned_bounded_integer_carriers() {
+    for (field_type, expected) in [
+        ("u64 [0..=5]", Some((0, 5))),
+        ("u8", Some((0, 255))),
+        ("i16 [-2..=5]", Some((-2, 5))),
+        ("u8 [0..=1000]", Some((0, 255))),
+        ("u64", None),
+        ("&u64 [0..=5]", None),
+        ("&mut u64 [0..=5]", None),
+        ("u64 [0..=5] in Wrapping", None),
+        ("u64 [0..=5] in Saturating", None),
+        ("u64 [0..=5] in Trapping", None),
+        ("AtomicU32", None),
+        ("f64", None),
+        ("bool", None),
+    ] {
+        let program = typed(&format!("data Counter {{ remaining: {field_type}; }}"));
+        let data = &program.data_definitions()[0];
+        let typed_trees::data::DataMember::Field(field) = &program.data_members(data)[0] else {
+            panic!("declared field");
+        };
+        assert_eq!(
+            enforced_integer_type_bounds(&program, field.type_reference),
+            expected,
+            "{field_type}"
+        );
+    }
+}
+
+#[test]
+fn enforced_type_bounds_reject_a_same_spelled_nominal_impostor() {
+    let mut program = typed("data Impostor {}");
+    let symbol = program.data_definitions()[0].symbol;
+    let handle = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol,
+            name: typed_trees::name::Identifier::generated_static("u8"),
+        });
+    assert_eq!(
+        program.primitive_type_reference(handle),
+        Some(PrimitiveType::U8)
+    );
+    assert_eq!(enforced_integer_type_bounds(&program, handle), None);
+}
+
 fn query(source: &str) -> Option<(i64, i64)> {
     let program = typed(source);
     let machine = program.machines().first().unwrap();

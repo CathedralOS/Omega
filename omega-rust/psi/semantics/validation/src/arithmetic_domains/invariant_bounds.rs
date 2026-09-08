@@ -3,6 +3,45 @@
 use super::*;
 use language_core::OperatorSpelling;
 
+/// Bounds enforced by an exact owned integer type at storage boundaries.
+/// References and atomic/policy carriers supply no invariant here. A caller
+/// using a field type must separately establish its exact declaration identity.
+pub fn enforced_integer_type_bounds(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(i64, i64)> {
+    let mut carrier_type = type_reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(carrier_type)
+    {
+        carrier_type = *base_type;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(carrier_type)
+    else {
+        return None;
+    };
+    let primitive = match program.symbols.builtin_type_atom(*symbol)? {
+        symbols::BuiltinTypeAtom::U8 => PrimitiveType::U8,
+        symbols::BuiltinTypeAtom::U16 => PrimitiveType::U16,
+        symbols::BuiltinTypeAtom::U32 => PrimitiveType::U32,
+        symbols::BuiltinTypeAtom::U64 => PrimitiveType::U64,
+        symbols::BuiltinTypeAtom::I8 => PrimitiveType::I8,
+        symbols::BuiltinTypeAtom::I16 => PrimitiveType::I16,
+        symbols::BuiltinTypeAtom::I32 => PrimitiveType::I32,
+        symbols::BuiltinTypeAtom::I64 => PrimitiveType::I64,
+        _ => return None,
+    };
+    if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
+        return None;
+    }
+    let carrier = primitive_range(primitive)?;
+    let interval = enforced_declared_range(program, type_reference)
+        .map_or(carrier, |range| range.intersect(carrier));
+    let (low, high) = (interval.low?, interval.high?);
+    (low <= high).then_some((low, high))
+}
+
 /// Bound a literal or builtin arithmetic tree over exact immutable primitive
 /// parameters. No initializer, caller flow fact, callee body, or mutable place
 /// is read: the interval is valid independently of the evaluation snapshot.

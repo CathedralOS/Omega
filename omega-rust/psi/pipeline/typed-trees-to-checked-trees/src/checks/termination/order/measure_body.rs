@@ -11,6 +11,7 @@ pub(super) enum MeasureBodyShape {
     FieldProjection {
         field: Identifier,
         owner: SymbolHandle,
+        field_type: typed_trees::types::TypeReferenceHandle,
     },
 }
 
@@ -83,6 +84,7 @@ pub(super) fn measure_body_shape(
     Some(MeasureBodyShape::FieldProjection {
         field: field.name.clone(),
         owner: *owner,
+        field_type: field.type_reference,
     })
 }
 

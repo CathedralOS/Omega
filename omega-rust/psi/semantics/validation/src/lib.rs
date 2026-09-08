@@ -195,6 +195,7 @@ pub struct ExactIntegerCastFact {
 
 pub use arithmetic_domains::arrival_integer_expression_bounds;
 pub use arithmetic_domains::builtin_monotonic_integer_update_bounds;
+pub use arithmetic_domains::enforced_integer_type_bounds;
 pub use arithmetic_domains::immutable_integer_expression_bounds;
 pub use arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use contract_entailment::integer_embedding_sources_equal;

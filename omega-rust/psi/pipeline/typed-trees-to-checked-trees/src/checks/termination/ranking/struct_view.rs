@@ -1,5 +1,7 @@
+use facts::NormalizedWriteFrame;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
+use typed_trees::statement::StatementNode;
 
 use super::patterns;
 
@@ -12,6 +14,7 @@ use super::patterns;
 /// projected field of the decreasing value, guarded by `<decrease>.field > 0`.
 pub(super) fn state_has_proven_self_loop(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
     field: &Identifier,
@@ -22,18 +25,59 @@ pub(super) fn state_has_proven_self_loop(
         return false;
     };
 
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    let Some(frames) = validation::CallFrameResolver::new(program) else {
+        return false;
+    };
+    let rank_path = format!("{}.{}", parameter.name.as_str(), field.as_str());
+    let statements = program.statement_table.statements(state.statement_nodes);
+    statements
         .iter()
-        .filter_map(|statement| patterns::guarded_self_loop(program, state, statement))
-        .any(|self_loop| {
+        .enumerate()
+        .filter_map(|(ordinal, statement)| {
+            patterns::guarded_self_loop(program, state, statement)
+                .map(|self_loop| (ordinal, self_loop))
+        })
+        .any(|(ordinal, self_loop)| {
             let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
                 return false;
             };
-            guard_is_positive_member(program, self_loop.guard, parameter, field)
-                && argument_rebuilds_with_field_minus_one(program, argument, parameter, field)
+            prefix_preserves_rank(&frames, machine, &statements[..=ordinal], &rank_path)
+                && validation::has_builtin_bound_expression_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    self_loop.guard,
+                )
+                && guard_is_positive_member(program, self_loop.guard, parameter, field)
+                && argument_rebuilds_with_field_minus_one(
+                    program, machine, state, argument, parameter, field,
+                )
         })
+}
+
+fn prefix_preserves_rank<'program>(
+    frames: &validation::CallFrameResolver<'program>,
+    machine: &'program typed_trees::machine::Machine,
+    statements: &'program [StatementNode],
+    rank_path: &str,
+) -> bool {
+    let disjoint = |frame: NormalizedWriteFrame| {
+        frame.into_complete_paths().is_some_and(|paths| {
+            paths
+                .iter()
+                .all(|path| !validation::frame_paths_overlap(path, rank_path))
+        })
+    };
+    statements.iter().all(|statement| {
+        let direct_writes_preserve = match statement {
+            StatementNode::Assignment(_) => {
+                disjoint(frames.assignment_write_frame(machine, statement))
+            }
+            StatementNode::Call(call) => disjoint(frames.may_write_frame(machine, call)),
+            _ => true,
+        };
+        direct_writes_preserve && disjoint(frames.statement_value_write_frame(machine, statement))
+    })
 }
 
 fn guard_is_positive_member(
@@ -46,16 +90,25 @@ fn guard_is_positive_member(
     let ExpressionNode::Binary(binary) = program.expression_table.expression(normalized) else {
         return false;
     };
-    matches!(binary.operator, BinaryOperator::Greater)
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(binary.right) else {
+        return false;
+    };
+    let Some(floor) = literal.value_i64() else {
+        return false;
+    };
+    let positive = match binary.operator {
+        BinaryOperator::Greater => floor >= 0,
+        BinaryOperator::GreaterOrEqual => floor > 0,
+        _ => false,
+    };
+    positive
         && patterns::expression_is_parameter_member(program, binary.left, parameter, field.as_str())
-        && matches!(
-            program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(literal) if literal.value_i64() == Some(0)
-        )
 }
 
 fn argument_rebuilds_with_field_minus_one(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     argument: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
     field: &Identifier,
@@ -72,6 +125,12 @@ fn argument_rebuilds_with_field_minus_one(
         .iter()
         .any(|literal_field| {
             literal_field.name.as_str() == field.as_str()
+                && validation::has_builtin_bound_expression_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    literal_field.value,
+                )
                 && field_value_is_member_minus_one(program, literal_field.value, parameter, field)
         })
 }

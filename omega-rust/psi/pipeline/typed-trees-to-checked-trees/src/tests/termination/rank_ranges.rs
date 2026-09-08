@@ -13,6 +13,7 @@ mod relational;
 mod slice_length;
 mod state_edges;
 mod static_fallback;
+mod struct_fields;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");

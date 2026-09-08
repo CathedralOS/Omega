@@ -33,8 +33,11 @@ pub(super) enum RankingOrder {
     CustomNatDescending,
     /// A declared `measure` whose body projects a field of a struct parameter,
     /// e.g. `measure Card::PowerOrder(card: Card) -> usize { card.power }`. The
-    /// stored identifier is the projected field name.
-    CustomStructView(typed_trees::name::Identifier),
+    /// stored field type retains its exact declaration's range constraints.
+    CustomStructView {
+        field: typed_trees::name::Identifier,
+        field_type: typed_trees::types::TypeReferenceHandle,
+    },
     /// A declared lexicographic `measure`; the stored field names are the ordered
     /// projection components compared left-to-right.
     Lexicographic(Vec<typed_trees::name::Identifier>),
@@ -201,7 +204,11 @@ impl RankingOrder {
                     None
                 }
             }
-            MeasureBodyShape::FieldProjection { field, owner } => {
+            MeasureBodyShape::FieldProjection {
+                field,
+                owner,
+                field_type,
+            } => {
                 // Applying the projection requires the exact nominal carrier,
                 // not another declaration with the same displayed type name.
                 let ExpressionNode::Name(path) = program.expression_table.expression(decreases)
@@ -220,7 +227,7 @@ impl RankingOrder {
                 {
                     return None;
                 }
-                Some(Self::CustomStructView(field))
+                Some(Self::CustomStructView { field, field_type })
             }
         }
     }

@@ -482,7 +482,7 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
         RankingOrder::SliceLength => Some("Slice::Length"),
         RankingOrder::IncreasingTo(_) => Some("Nat::IncreasingTo"),
         RankingOrder::CustomNatDescending
-        | RankingOrder::CustomStructView(_)
+        | RankingOrder::CustomStructView { .. }
         | RankingOrder::Lexicographic(_) => None,
     }
 }
@@ -607,8 +607,8 @@ fn state_has_proven_supported_self_loop(
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
             slice::state_has_proven_self_loop(program, machine, state, decreases)
         }
-        (RankingOrder::CustomStructView(field), DecreaseMeasure::Single(decreases)) => {
-            struct_view::state_has_proven_self_loop(program, state, decreases, field)
+        (RankingOrder::CustomStructView { field, .. }, DecreaseMeasure::Single(decreases)) => {
+            struct_view::state_has_proven_self_loop(program, machine, state, decreases, field)
         }
         (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) => {
             lexicographic::state_has_proven_self_loop(program, state, decreases, fields)

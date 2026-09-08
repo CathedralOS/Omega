@@ -71,6 +71,19 @@ fn proves_range(
             RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
             DecreaseMeasure::Single(subject),
         ) => (bounds(program, machine, subject)?, None),
+        (RankingOrder::CustomStructView { field_type, .. }, DecreaseMeasure::Single(_)) => {
+            // Order resolution already joined the exact parameter, field and
+            // nominal carrier. Its store-enforced type range bounds the
+            // produced rank; reconstruction and descent remain separate checks.
+            let (low, high) = validation::enforced_integer_type_bounds(program, *field_type)?;
+            (
+                Bounds {
+                    low: i128::from(low),
+                    high: i128::from(high),
+                },
+                None,
+            )
+        }
         (RankingOrder::IncreasingTo(limit), DecreaseMeasure::Distance { lower, upper })
             if *limit == upper =>
         {
