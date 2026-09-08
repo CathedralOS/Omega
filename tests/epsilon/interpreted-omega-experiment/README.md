@@ -194,7 +194,7 @@ profile is unchanged.
 The second customer concatenates the whole, unchanged D
 `representations.epsilon` and `alpha_tape.epsilon` members with
 [`customers/omega_alpha_tape/main.epsilon`](customers/omega_alpha_tape/main.epsilon).
-Every member and its 67,489-byte packed source is pinned. Its two distinct
+Every member and its 69,011-byte packed source is pinned. Its two distinct
 `AlphaTapeBuffer` receivers execute D's actual `initialize`,
 `write_reserved_word`, and `payload_length` machines, including their nested
 calls. It checks separate byte storage and lengths, little-endian word writes,
@@ -211,14 +211,38 @@ All four direct address-writing paths admit offset 16,777,211 and reject
 one-MiB target ceiling at 1,048,572. These short unfinished forward-target buffers
 exercise encoding guards, not full-size tape realization or successful
 finalization at those high offsets. Finalization still requires a target inside
-the actual payload at a reconstructed instruction start. The old four guards
-failed this same customer at `07e8c1df86` with diagnostic `01 08` and stdout
+the actual payload at a reconstructed instruction start. The address-admission
+controls failed the old four guards at `07e8c1df86` with diagnostic `01 08` and stdout
 `ABCDEFGH`; their one-MiB ceiling contradicted the selected Alpha profile.
 
-The successful observation is tagged `Exit(0)` with stdout `ABCDEFGH` followed
-by the actual ten-byte sealed payload above, compared independently by the host.
-The jump/return payload is structural evidence, not a terminating standalone
-Alpha program. No D functions or types are extracted or replaced. Run it with:
+The successful observation is tagged `Exit(0)` with stdout `ABCDEFGH`, the
+actual ten-byte sealed payload above, and a second sealed 79-byte program.
+The host compares the complete observation against literal bytes before
+extracting the actual final 79 bytes, stamping them with the existing
+`stamp_seed` route, and executing the result. It never stamps the expected
+literal or a failed diagnostic's partial stdout.
+
+The second program echoes input until EOF and exits with its byte count. D's
+ordinary emitters establish three labels and four fixups across address-only,
+register/address, and register/register/address shapes. Its read loop begins
+at offset 30, its halt at 74, and its write/return subroutine at 76. A nonzero
+byte takes `jnz` back to the loop; a zero byte takes the following `jmp`.
+The forward `jeq` distinguishes a zero-extended `0xff` input byte from the
+64-bit all-ones EOF sentinel. Counter initialization and increment are explicit.
+The same emitted tape runs on sealed inputs empty, `00`, `80 ff`, and
+`00 80 ff`, requiring exact echo and process statuses 0, 1, 2, and 3. These
+small statuses avoid platform exit-width ambiguity. Each target execution has
+a 30-second host watchdog, not a language or profile bound.
+On macOS arm64, the expanded customer at base `497e21fb9a` produced the exact
+observation in 135.413 seconds; all four emitted-tape executions passed. The
+existing shell/seed route also selects Windows x64, but that host has not been
+validated for this customer.
+
+This connects interpreted D tape construction to native Alpha execution. The
+first jump/return payload remains structural evidence, not a terminating
+standalone program. Neither payload establishes complete Omega compilation,
+full-size storage realization, or a checked refinement proof. No D functions
+or types are extracted or replaced. Run the customer and emitted program with:
 
 ```sh
 sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D Alpha tape buffers'

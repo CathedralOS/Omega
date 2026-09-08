@@ -144,4 +144,46 @@ machine Main::main(&mut self) {
   self.console.write_byte(self.first.bytes[7]);
   self.console.write_byte(self.first.bytes[8]);
   self.console.write_byte(self.first.bytes[9]);
+
+  // Produce a terminating echo/count program through every fixup shape.
+  // Zero bytes take the unconditional back edge; other bytes take jnz.
+  self.second.initialize();
+  let loop: i32 = self.second.new_label();
+  let done: i32 = self.second.new_label();
+  let writer: i32 = self.second.new_label();
+  assert self.second.emit_imm(255, -1, -1) == 1;
+  assert self.second.emit_imm(254, 1, 0) == 1;
+  assert self.second.emit_imm(253, 0, 0) == 1;
+  assert self.second.define_label(loop) == 1;
+  assert self.second.emit_r(17, 0) == 1;
+  assert self.second.emit_rrx_label(16, 0, 255, done) == 1;
+  assert self.second.emit_jump_label(19, writer) == 1;
+  assert self.second.emit_rr(3, 253, 254) == 1;
+  assert self.second.emit_rx_label(14, 0, loop) == 1;
+  assert self.second.emit_jump_label(12, loop) == 1;
+  assert self.second.define_label(done) == 1;
+  assert self.second.emit_r(0, 253) == 1;
+  assert self.second.define_label(writer) == 1;
+  assert self.second.emit_r(18, 0) == 1;
+  assert self.second.emit_ret() == 1;
+  assert self.second.fixup_count == 4;
+  assert self.second.finalize() == 1;
+  assert self.second.payload_length() == 79;
+  transition true {
+    true -> publish_program(0)
+  }
+
+  state publish_program(offset: i32) {
+    transition offset < self.second.payload_length() {
+      true -> publish_byte(offset)
+      _ -> return
+    }
+  }
+
+  state publish_byte(offset: i32) {
+    self.console.write_byte(self.second.bytes[offset]);
+    transition true {
+      true -> publish_program(offset + 1)
+    }
+  }
 }
