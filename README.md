@@ -3,7 +3,8 @@
 Omega is a systems language built around explicit state machines, checked contracts,
 and ownership of memory and resources. Borrow-checked, proof-checked, high-assurance, with zero-cost abstractions.
 
-The thesis is simple: Make trust extremely explicit, and make failure impossible if that trust holds.
+Make trust explicit. Prove that, when those assumptions hold, the program keeps
+its promises.
 
 By modeling a program as a state machine, we can answer otherwise impossible questions in other languages:
 - Does a program halt?
