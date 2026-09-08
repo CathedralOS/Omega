@@ -10,12 +10,38 @@ static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) fn assert_c_driver(layout: &StagedOptimizedResolvedSelectedFormLayout, driver: &str) {
     let bytes = function_bytes(layout);
+    assert_c_text(&bytes, 0, driver);
+}
+
+/// Link already framed and internally relocated compiler text without rewriting it.
+pub(crate) fn assert_c_text(bytes: &[u8], entry_offset: usize, driver: &str) {
+    assert!(entry_offset < bytes.len());
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let symbol = if cfg!(target_os = "macos") {
+        "_omega_entry"
+    } else {
+        "omega_entry"
+    };
+    let mut assembly = format!(
+        ".text\n.p2align 4\n.Lomega_text:\n.byte {bytes}\n.globl {symbol}\n.set {symbol}, .Lomega_text + {entry_offset}\n"
+    );
+    if !cfg!(target_os = "macos") {
+        assembly.push_str(".section .note.GNU-stack,\"\",@progbits\n");
+    }
+    compile_and_run(&assembly, driver);
+}
+
+fn compile_and_run(assembly: &str, driver: &str) {
     let directory = fresh_scratch_directory();
     let cleanup = ScratchDirectory(directory.clone());
     let assembly_path = directory.join("entry.s");
     let driver_path = directory.join("driver.c");
     let executable_path = directory.join("entry");
-    std::fs::write(&assembly_path, assembly(&bytes)).expect("write native function assembly");
+    std::fs::write(&assembly_path, assembly).expect("write native function assembly");
     std::fs::write(&driver_path, driver).expect("write native function caller");
     let link = Command::new("cc")
         .arg(&assembly_path)
@@ -61,21 +87,6 @@ fn function_bytes(layout: &StagedOptimizedResolvedSelectedFormLayout) -> Vec<u8>
         "layout contains a gap"
     );
     bytes
-}
-
-fn assembly(bytes: &[u8]) -> String {
-    let bytes = bytes
-        .iter()
-        .map(|byte| format!("0x{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    if cfg!(target_os = "macos") {
-        format!(".text\n.globl _omega_entry\n.p2align 2\n_omega_entry:\n.byte {bytes}\n")
-    } else {
-        format!(
-            ".text\n.globl omega_entry\n.type omega_entry,@function\nomega_entry:\n.byte {bytes}\n.size omega_entry, .-omega_entry\n.section .note.GNU-stack,\"\",@progbits\n"
-        )
-    }
 }
 
 fn fresh_scratch_directory() -> PathBuf {

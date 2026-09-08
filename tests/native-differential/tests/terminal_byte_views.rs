@@ -1,5 +1,5 @@
 //! Native byte observations start from encoded, independently verified Terminal.
-//! Source helper closure and byte subslices are not admitted by these fixtures.
+//! Source writer closure and byte subslices remain outside these fixtures.
 
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
@@ -18,6 +18,100 @@ use terminal_verifier::ProofBundle;
 #[path = "terminal_byte_views/fixtures.rs"]
 mod fixtures;
 use fixtures::{byte_view_length_module, byte_view_read_module, byte_view_read_proof};
+#[path = "terminal_byte_views/helper_admission.rs"]
+mod helper_admission;
+
+#[test]
+fn byte_view_length_helper_cross_lowers_on_hosted_targets() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for depth in [1, 3] {
+            let layout = stage_byte_view(
+                &fixtures::byte_view_length_helper_chain(depth),
+                &ProofBundle::default(),
+                target,
+            );
+            assert_eq!(layout.functions().len(), depth as usize + 1);
+        }
+    }
+}
+
+#[test]
+fn byte_view_length_helper_executes_with_original_descriptor() {
+    #[cfg(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "aarch64"),
+    ))]
+    {
+        for depth in [1, 3] {
+            let module = fixtures::byte_view_length_helper_chain(depth);
+            let semantic = terminal_codec::encode_module(&module).unwrap();
+            let proof = terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap();
+            let selections = OptimizationSelections::new([]).unwrap();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                compiler_baseline_request_v1(&selections),
+            )
+            .unwrap();
+            let physical = native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized, NativeTarget::host(), &[],
+        ).expect("borrowed helper reaches the complete physical pipeline");
+            let fragments = machine_emission::stage_optimized_function_fragment_emission(
+                physical.into_function_fragment_emission_source(),
+            )
+            .unwrap();
+            let framed =
+                machine_emission::stage_function_fragment_frame_application(fragments).unwrap();
+            let placed =
+                machine_emission::stage_optimized_fixed_frame_text_section(framed).unwrap();
+            let text = placed.text_section();
+            assert_eq!(text.resolved_internal_machine_calls.len(), depth as usize);
+            let entry = text
+                .functions
+                .iter()
+                .find(|function| function.machine == module.entry)
+                .unwrap();
+            native_function::assert_c_text(
+                &text.bytes,
+                entry.section_offset.try_into().unwrap(),
+                r#"
+            #include <stdint.h>
+            #include <stddef.h>
+            #include <unistd.h>
+            struct ByteView { const uint8_t *bytes; uint64_t length; };
+            extern uint64_t omega_entry(const struct ByteView *);
+            int main(void) {
+                alarm(10);
+                const uint8_t raw[] = { 0xff, 0, 0x80, 0x41 };
+                struct ByteView view = { NULL, 0 };
+                if (omega_entry(&view) != 0) return 1;
+                view.bytes = raw; view.length = sizeof(raw);
+                if (omega_entry(&view) != sizeof(raw)) return 2;
+                if (view.bytes != raw || view.length != sizeof(raw)) return 3;
+                view.length = 1;
+                if (omega_entry(&view) != 1) return 4;
+                view.bytes = NULL; view.length = 0;
+                if (omega_entry(&view) != 0) return 5;
+                return 0;
+            }
+        "#,
+            );
+        }
+    }
+    #[cfg(not(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "aarch64"),
+    )))]
+    eprintln!("SKIP borrowed helper execution: Linux/macOS cc host harness unavailable");
+}
 
 #[cfg(any(
     all(target_os = "linux", target_arch = "x86_64"),
@@ -36,6 +130,15 @@ fn stage_byte_view(
     proof: &ProofBundle,
     target: NativeTarget,
 ) -> StagedOptimizedResolvedSelectedFormLayout {
+    let target = byte_view_target(module, proof, target);
+    select_byte_view(target)
+}
+
+fn byte_view_target(
+    module: &TerminalModule,
+    proof: &ProofBundle,
+    target: NativeTarget,
+) -> abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations {
     let semantic = terminal_codec::encode_module(module).unwrap();
     let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
@@ -47,10 +150,15 @@ fn stage_byte_view(
         compiler_baseline_request_v1(&selections),
     )
     .expect("verified byte observation reaches the ordinary optimizer input");
-    let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+    abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         optimized, target,
     )
-    .expect("byte observation reaches target operations");
+    .expect("byte observation reaches target operations")
+}
+
+fn select_byte_view(
+    target: abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+) -> StagedOptimizedResolvedSelectedFormLayout {
     let environment =
         register_environment::baseline_target_register_environment(target.target()).unwrap();
     let selected =

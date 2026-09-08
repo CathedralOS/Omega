@@ -29,12 +29,22 @@ The ordinary conditional graph preserves the non-reading branch; shared
 and integer-result conditional lowering. Scalar inputs precede the descriptor
 pointer in the derived call signature.
 
-This does not complete literal descriptor materialization, structural helper
-calls, subslices, or ranked control. The
+Scalar-result helpers can forward one whole shared descriptor and return the
+callee's `u64` result, including through nested helper calls. The existing
+`ReturnStructuralScalarCall` target form enters ordinary scalar graph legalization;
+[call input checks](../target-operations-to-selected-instructions/src/legalization/scalar_graph_input/structural_call.rs)
+rejoin the exact source argument, callee declaration, reference ABI, and placement.
+Selection snapshots only the pointer, never the descriptor's contents, and
+independent replay checks its incoming and outgoing homes. No separate call IR
+or byte-view calling convention is introduced.
+
+This does not complete literal descriptor materialization, general Unit/mixed
+helper calls, subslices, or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
-executes caller-owned descriptors on supported hosts; it does not establish
-Omega-source helper closure or standalone executable publication.
+executes caller-owned descriptors and framed, internally relocated helper chains
+on supported hosts; it does not establish Omega-source writer closure or
+standalone executable publication.
 
 [Structural-header validation](src/validation/structural_signatures.rs) rejoins
 retained Unit and mixed scalar ABI parameters to the source declarations and
@@ -46,8 +56,9 @@ Finish caller preparation and independent native receiving/replay checks under
 `STRUCTURAL-BORROW-IDENTITY` on the [execution board](../../../../TASKS.md).
 Embedded callee plans and argument homes require their own reconciliation;
 standalone native consumers cannot assume a producer ran header validation.
-Existing owned-only structural-call legalization fences remain closed to borrowed
-execution; the byte observations above have their separate checked input shapes.
+Existing owned-copy structural-call forms remain closed to borrowed execution;
+the byte observations and scalar helper forwarding above preserve their exact
+reference input contract.
 
 A staged pointer and staged value bytes are different. A direct-home test is
 valid for owned semantics, not evidence that a borrowed caller sees a write.

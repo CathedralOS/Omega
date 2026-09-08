@@ -44,6 +44,14 @@ pub(super) fn validate_target(
     if target.provenance.operations != operations || target_edges != edges {
         return Err(invalid);
     }
+    if matches!(
+        target.operation,
+        TargetOperation::ReturnStructuralScalarCall { .. }
+    ) {
+        return super::structural_call::validate_target(
+            target, abstracted, optimized, native, plan, unit,
+        );
+    }
     if let TargetOperation::UnitBody(body) = &target.operation {
         if optimized.blocks.len() != 1 {
             return Err(invalid);

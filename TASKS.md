@@ -206,8 +206,9 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   Continue native descriptor creation/transport and subslice realization from
   the byte-observation leaves in `tests/native-differential/tests/terminal_byte_views.rs`.
   They measure and read one shared parameter with runtime `u64` indices guarded
-  by the exact view's length, through the ordinary native pipeline. They do not yet
-  materialize a literal descriptor, pass one through an Omega helper, or execute
+  by the exact view's length, through the ordinary native pipeline. Complete
+  literal descriptor materialization, subslices, and general Unit/mixed helper
+  calls; scalar-result whole-view forwarding alone does not execute
   the writer. Retain the exact slice-decrease and source-place evidence when
   joining these dependencies.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
