@@ -87,6 +87,12 @@ validates before atomic rename, and
 replays the visible file before reporting success. Rejection returns the runnable
 and requested path for retry. Receipt replay detects later byte or mode drift.
 
+Flat installation v1 retains its fixed `0` destination byte under the existing
+digest domain. No destination enum or optional second-copy receipt is required.
+Whole [macOS packages](macos_application.md) have their own complete scope;
+they cannot reinterpret the old executable-copy receipt. Flat installation,
+output-kind, and general report validation remain required independently.
+
 Reports retain the non-clonable published carrier, permitting borrowed inspection,
 validated path projection, or consuming transfer to the next owner. They must
 not reduce a failed linear transaction to diagnostics while dropping its custody.

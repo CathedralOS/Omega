@@ -85,13 +85,5 @@ and dependency handoff.
 
 ## Exact-target evaluation
 
-An invocation selects one target or a nonempty explicit canonical set. Share
-target-independent source/parsing, project role/name, and unconditional dependency
-rows. Each exact-target child filters target-scoped implementation declarations
-and resolves its own root slots. Flat target-qualified root bindings are not a
-support matrix.
-
-Evaluated Build state is not shared evidence: target, slot admission, filesystem
-observations, generated output, provider selection, and optimization selection
-belong to the exact child. A checkpoint or cache name cannot make them independent
-of target. No conditional dependency surface is reserved for a hypothetical use.
+[Configuration and target selection](configuration.md) defines exact-target
+admissibility, activation-local state, and identity-preserving staged fan-out.

@@ -2279,73 +2279,9 @@ coordinates. This ruling adds no rejection reason or wire code.
 
 ## D54 — Explicit target sets fan out at target-sensitive stages
 
-Omega accepts either one exact target or a caller-supplied nonempty set of exact
-targets. A multi-target request normalizes to canonical profile order with
-duplicates removed. `all`, `*`, an empty set, inference from source or
-dependencies, and iteration over the compiler's complete profile catalog are
-not target-set inputs. Source-level target policy is not an authored
-application-support matrix. The toolchain catalog likewise mixes deployment
-profiles with abstract and local modes and therefore cannot define deployment
-intent.
-
-The former root-level empty `target X { }` activation and discovery blocks and
-the last maintained nonempty policy blocks have been removed. The declaration
-grammar and lowering are deleted, and a directed parser diagnostic plus an
-architecture gate reject their return. Host/boundary policy is supplied by
-immutable invocation/package inputs.
-
-Multi-target compilation is staged fan-out, not an opaque loop around the whole
-compiler. Source acquisition, the immutable source snapshot, and parsing are
-formed once. Flat build facts mean only syntax-projectable declarations that
-cannot observe `Build.target`: the selected project role and name and the
-resolver's unconditional dependency rows. Target-qualified root bindings are
-unconditional rows in that shared parsed source, but slot membership, schema
-compatibility, and exact entry selection remain child-local. The pipeline forks
-at each first target-sensitive consumer: exact root selection, target-scoped
-declaration filtering, target semantics and admission, provider and
-foreign-binding selection, build-machine execution, and native realization.
-`Build.target`, filesystem observations, generated output, optimization and
-provider selection, and every other evaluated `Build` result are therefore not
-shared build facts. An implementation may share more work only when the shared
-result is exactly the same fact each independent child would have consumed;
-mutable target state or one child's authority never enters a sibling.
-
-Each target child has exactly the subject, semantic identity, diagnostics, and
-outcome it would have under a standalone exact-target invocation. Adding or
-removing siblings cannot change that child identity. Every requested child is
-checked even when another rejects, and the orchestration returns one ordered
-outcome per canonical target. A nonzero process result or human summary when
-any child fails is ordinary orchestration behavior, not semantic evidence about
-the application.
-
-Target-neutral checked, Terminal Psi, PCC, or other immutable products may be
-forwarded to several target children. Byte-identical or semantically identical
-products are shared only after their governing strong identities compare equal;
-coincidental structure or names do not authorize reuse. A target-specific Psi
-product remains a separate child. Each native branch receives its own target,
-admission profile, provider plans, external bindings, and consuming-lowerer
-authority and may independently accept or reject the Psi proposal. No
-unresolved target branch is encoded inside Psi.
-
-The maintained native batch route prepares each child's canonical Terminal
-artifact independently, then shares only the target-neutral decode,
-proof-admission, and abstract-input lowering keyed by the complete
-`TerminalArtifactIdentity`, exact `AdmissionProfile`, and the
-optimized/unoptimized entrance. The selected target, entry and calling plans,
-provider and external settlements, authority policies, callbacks, physical
-evidence, and machine/image lowering remain exact-child inputs. A prepared
-input rechecks its key when consumed. Controls pin both one identical Terminal
-artifact entering distinct x64/AArch64 lowerers and target-selected roots with
-different Terminal identities remaining separate. This reuse is an internal
-compiler optimization, not proof, review, or audit evidence.
-
-The optional batch manifest commits to the exact explicit request set and each
-child commitment/outcome. It claims only that those requested compilations were
-performed. It does not assert that the set is complete, supported, tested,
-audited, deployable, or equal to every target known by Omega. CI and release
-configuration may own an operational matrix, including cross-compiling several
-profiles on one host, without promoting that matrix into language or package
-identity.
+Consolidated into [configuration and target selection](../../../spec/build/configuration.md).
+Implementation reuse keys are documented [beside native realization](../../../../omega-rust/omega/compiler/native-realization/README.md#multi-target-reuse).
+This entry remains only as a navigation target while the ledger is ported.
 
 ## D55 — Exact requirement edges declare their lifetime application
 

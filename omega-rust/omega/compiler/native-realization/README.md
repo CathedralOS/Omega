@@ -6,6 +6,22 @@ inputs. Its public contracts are [boundary realization](../../../../wiki/spec/te
 [component publication](../../../../wiki/spec/build/component_publication.md).
 Start at [lib.rs](src/lib.rs).
 
+## Multi-target reuse
+
+[Target selection](../../../../wiki/spec/build/configuration.md) defines child
+identity and isolation. The compiler batch route prepares each child's canonical
+Terminal artifact independently. [PreparedNativeRealizationInput](src/realization/input.rs)
+shares target-neutral decoding, proof admission, and abstract-input lowering
+only for equal complete `TerminalArtifactIdentity`, exact `AdmissionProfile`,
+and exact `PostTerminalOptimizationSelections`; it rechecks that key on use.
+An optimized/unoptimized Boolean alone is not its key.
+
+Target, entry/calling plans, provider/external settlements, authority policies,
+callbacks, FMA admission, physical evidence, and machine/image lowering remain
+child-local. This reuse is an implementation optimization, not review, proof,
+or audit evidence. Equal Terminal artifacts may enter different ISA lowerers;
+different target-selected root artifacts must remain separate.
+
 ## Callback custody boundaries
 
 [callback_custody.rs](src/realization/callback_custody.rs) returns the caller's

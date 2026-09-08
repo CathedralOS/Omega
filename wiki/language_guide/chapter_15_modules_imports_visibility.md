@@ -29,7 +29,7 @@ Every `build.omg` states its kind explicitly — `builder.package` for a package
 application. No role is inferred from an absent declaration.
 
 For complete macOS GUI application output, the settled
-[publication contract](../pre_migration/design_briefs/macos_application_publication.md) uses
+[publication contract](../spec/build/macos_application.md) uses
 `builder.subsystem = Subsystem::Gui` as the opt-in to one `.app`, assembled
 after native emission. The application name supplies the executable and bundle
 basename; an explicit application identifier is required before signed macOS

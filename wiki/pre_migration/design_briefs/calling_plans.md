@@ -1320,23 +1320,10 @@ After atomic rename, the compiler independently reads the destination and
 compares every byte with the sealed container before minting or returning the
 installation receipt. A missing or changed destination is removed and rejects,
 so the outward report cannot attest merely to a validated temporary file.
-The [macOS application publication contract](macos_application_publication.md)
-supersedes the former flat-plus-optional-bundle-copy design. Current publication
-writes a flat executable even for macOS GUI output; std requests activation.
-There is no optional bundle-copy carrier: a second executable receipt would
-not establish a complete application. Flat-receipt and general report checks
-remain required. Flat installation v1 retains its fixed `0` destination tag
-and byte-identical digests without a destination enum.
-
-The replacement publishes one complete `.app` for a selected macOS GUI
-application, using the post-compilation product-publication owner. It validates
-the executable, generated plist, directory shape, and agreement between retained,
-signed, and plist application identifiers. The package root and inner executable
-have separate checked accessors with one validated structural relationship.
-No separate flat copy is a required deliverable. This is a settled contract with
-implementation outstanding, not a claim that the present writer emits bundles.
-The compilation root remains read-only information about the reported build;
-that property no longer depends on bundle-name derivation.
+The [macOS package contract](../../spec/build/macos_application.md) owns application
+assembly. [Component publication](../../spec/build/component_publication.md) owns
+flat installation and report validation; a second executable receipt does not
+establish a whole package.
 
 Immediately before an outward executable receipt is minted, installation
 replays the renamed destination bytes once more against the sealed container. Destination
