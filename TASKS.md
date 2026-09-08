@@ -786,6 +786,13 @@ Owners include
   lookup to other already-loaded sources of the same exact dependency while
   retaining exact-source validation of each import.
 
+  Resume evidence: `979eb95128`, macOS arm64 with Cargo and
+  `RUST_MIN_STACK=33554432`. The source pipeline probes check both imported
+  files and select `combat::damage` returning `7`; serialized scalar execution
+  and relocated canonical nominal rows have regression controls. The next
+  acceptance is exact namespace-aware normalization of the fenced forms,
+  retaining duplicate-name and package-authority rejection controls.
+
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
   [filesystem control/lifecycle policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
