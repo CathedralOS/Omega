@@ -21,7 +21,7 @@ pub(in crate::flow) fn call_storage_writes(
         state.symbol,
         borrow,
         borrow_call,
-        &ctx.state_mutation_summary_cache,
+        ctx.state_mutation_summary_cache,
     )
     .and_then(|places| {
         close_storage_places_over_aliases_with_resolver(

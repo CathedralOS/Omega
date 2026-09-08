@@ -7,7 +7,7 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) built_state_value_inputs: Vec<SymbolHandle>,
     pub(super) state_value_inputs_changed_after_build: bool,
     pub(super) new_state_field_input_height: usize,
-    pub(super) state_mutation_summary_cache: StateMutationSummaryCache,
+    pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
     pub(super) borrow_lifetimes: FlowBorrowLifetimeFacts,
@@ -23,6 +23,7 @@ impl<'plans> FlowBuildContext<'plans> {
         semantic: &FactPlan,
         scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
+        state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
         Self {
             scalar_expressions,
@@ -31,7 +32,7 @@ impl<'plans> FlowBuildContext<'plans> {
             built_state_value_inputs: Vec::new(),
             state_value_inputs_changed_after_build: false,
             new_state_field_input_height: 0,
-            state_mutation_summary_cache: StateMutationSummaryCache::default(),
+            state_mutation_summary_cache,
             contexts: FlowContextFacts::with_roots(
                 arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),
                 arena::Arena::with_capacity(

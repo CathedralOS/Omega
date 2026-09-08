@@ -96,9 +96,11 @@ The shared implementation and conservative fallback rules live beside
 Flow invalidation projects its complete-or-opaque result into structured places;
 do not create a second recursion or alias-admission policy here.
 
-Flow construction borrows one call-frame resolver across its value-input passes.
-Only program-wide preparation is shared: each call's alias closure still queries
-its exact statement prefix, and unavailable resolution remains conservative.
+Flow construction borrows one call-frame resolver and one lazy mutation-summary
+table across its value-input passes. Only preparation from the immutable program
+and borrow facts is shared; each pass rebuilds its changing incoming value facts.
+Each call's alias closure still queries its exact statement prefix, and
+unavailable resolution remains conservative. A new invocation owns a fresh table.
 
 `checks/borrows/persistent.rs` admits artifact-lifetime borrow storage and exact
 persistent copies. Named-state must-analysis preserves stable field/case/index

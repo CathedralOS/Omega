@@ -57,12 +57,14 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
         .unwrap();
     let entry = &program.machine_states(caller)[0];
     let scalar_expressions = Default::default();
+    let state_mutation_summary_cache = crate::flow::StateMutationSummaryCache::default();
     let mut context = super::FlowBuildContext::new(
         &Default::default(),
         &Default::default(),
         &Default::default(),
         &scalar_expressions,
         None,
+        &state_mutation_summary_cache,
     );
     super::join(
         &mut context,
@@ -233,12 +235,14 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
             _ => {}
         }
         let semantic = Default::default();
+        let state_mutation_summary_cache = crate::flow::StateMutationSummaryCache::default();
         let context = super::FlowBuildContext::new(
             &Default::default(),
             &Default::default(),
             &semantic,
             &plans,
             None,
+            &state_mutation_summary_cache,
         );
         let value = super::capture_argument(
             program,
