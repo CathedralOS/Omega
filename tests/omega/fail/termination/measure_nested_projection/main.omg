@@ -1,0 +1,12 @@
+data Inner { remaining: u64; }
+data Countdown { remaining: u64; inner: Inner; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+
+machine walk(countdown: Countdown)
+terminates by countdown -> Countdown::Remaining;
+-> u64 {
+    transition countdown.remaining > 0 {
+        true -> walk(Countdown { remaining: countdown.remaining - 1, inner: countdown.inner })
+        false -> countdown.remaining
+    }
+}

@@ -70,8 +70,12 @@ support. Slice ranking shares validation's exact nonempty-slice/`1..` rule.
 A declared `u64 -> u64` identity measure shares scalar range proofs only when
 its body names its exact resolved parameter. The authored custom view remains
 private witness identity; it is not relabeled `Nat::Descending`. Constrained
-subjects retain their scalar carrier. Non-identity projections and constrained
-measure parameters need their own checked application/projection evidence.
+subjects retain their scalar carrier. Direct struct measures require an exact
+parameter receiver, its owned field declaration with builtin `u64` carrier,
+and the same nominal subject type before publishing even a precheck summary.
+Nested projections cannot reuse a direct field's decrement. Custom-view rank
+ranges and constrained measure parameters still need application/projection
+evidence.
 
 Computed state arrivals may use multiple copies of the same authored scalar
 rank. Mapping discovery identifies that entry role; the arithmetic edge judgment

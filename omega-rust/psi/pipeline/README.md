@@ -112,6 +112,10 @@ references are not active loans; type-derived cleanup requirements are not a
 drop schedule. Proof discharge, flow invalidation and concrete ABI placement
 remain outside this stage.
 
+Missing measure-body field selectors bind through the exact measure parameter's
+declared nominal type. Existing nonzero selectors remain unchanged for checking;
+typing does not replace conflicting identities with a same-spelled field.
+
 [Call-result typing](symbol-resolved-trees-to-typed-trees/src/call_results.rs)
 selects computed-receiver methods from the producer's exact declared return type
 after receiver children lower, never from its body or a returned-place proof.
