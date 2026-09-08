@@ -81,7 +81,7 @@ pub fn lower_syntax_trees_for_const_argument_selection(
     sources: Option<Arc<SourceMap>>,
     bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_optional_sources(syntax, sources, bindings)
+    lower_syntax_trees_with_const_selection(syntax, sources, bindings, true)
 }
 
 /// Append one already-parsed later-stratum syntax forest to an exact retained
@@ -238,11 +238,27 @@ fn lower_syntax_trees_with_optional_sources(
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    lower_syntax_trees_with_const_selection(
+        syntax_trees,
+        sources,
+        source_scoped_top_level_bindings,
+        false,
+    )
+}
+
+fn lower_syntax_trees_with_const_selection(
+    syntax_trees: &SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+    source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retain_aggregate_selection: bool,
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     crate::module_normalization::validate_module_normalization(syntax_trees)?;
     let mut syntax_trees = syntax_trees.clone();
     crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
     let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
-    lowerer.defer_const_substitution = crate::constant::has_module_owned_constants(&syntax_trees);
+    lowerer.retain_const_argument_selection = retain_aggregate_selection;
+    lowerer.defer_const_substitution =
+        retain_aggregate_selection || crate::constant::has_module_owned_constants(&syntax_trees);
 
     for item in syntax_trees.root_items() {
         lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
@@ -283,6 +299,7 @@ pub(crate) struct Lowerer {
     /// Scalar initializer handles retained only until namespace-aware substitution.
     pub(crate) pending_const_values: Vec<(usize, ExpressionHandle)>,
     pub(crate) defer_const_substitution: bool,
+    pub(crate) retain_const_argument_selection: bool,
     /// Outcome paths are validated against the declared result sum during
     /// lowering, then stamped with exact declaration symbols after the shared
     /// symbol-assignment pass has minted those handles.
@@ -443,6 +460,7 @@ impl Lowerer {
             pending_const_selections: Vec::new(),
             pending_const_values: Vec::new(),
             defer_const_substitution: false,
+            retain_const_argument_selection: false,
             pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
             pending_const_argument_selections: Vec::new(),
@@ -648,6 +666,7 @@ impl Lowerer {
                 &self.pending_authored_expressions,
                 &mut self.pending_const_selections,
                 retained_const_count,
+                self.retain_const_argument_selection,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         }

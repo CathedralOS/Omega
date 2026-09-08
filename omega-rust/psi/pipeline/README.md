@@ -106,7 +106,12 @@ captured as constants. Public entry
 signatures retain public exposure independently of body and internal-state uses.
 Root scalar references also use resolved substitution, so locals and explicit
 receiver fields can share a constant's spelling without changing its selection.
-Open templates, aggregate indices, computed Boolean expressions, constrained
+Named aggregate indices in those machine owners also resolve their lexical
+paths before legacy materialization: a runtime-qualified root cannot acquire
+a same-spelled static aggregate. The selection prepass retains declaration
+custody without materializing aggregate values. Module-owned aggregates still
+require namespace-aware initializer normalization and materialization.
+Open templates, aggregate evaluation, computed Boolean expressions, constrained
 destinations, authored operators and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.
@@ -141,6 +146,7 @@ cargo run -p omega -- --check tests/omega/pass/modules/compound_constant_indices
 cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/boolean_machine_indices/main.omg
+cargo run -p omega -- --check tests/omega/pass/modules/aggregate_machine_indices/main.omg
 ```
 
 [Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration

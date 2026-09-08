@@ -34,6 +34,7 @@ pub(super) fn evaluate(
     let machine_arguments =
         syntax_trees_to_symbol_resolved_trees::closed_machine_const_arguments(&syntax);
     let mut lexical_arguments = Vec::new();
+    let mut aggregate_arguments = Vec::new();
     for (argument, destination, public) in machine_arguments {
         // This is probe routing, not builtin identity. The typed destination
         // must still resolve to the exact primitive before evaluation.
@@ -42,12 +43,11 @@ pub(super) fn evaluate(
         else {
             continue;
         };
-        if !matches!(
+        let scalar = matches!(
             destination_name.as_str(),
             "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool"
-        ) {
-            continue;
-        }
+        );
+        let original = syntax.type_references.type_reference(argument).clone();
         if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(argument) {
             let name = name.clone();
             let reference = name.source_span();
@@ -67,8 +67,38 @@ pub(super) fn evaluate(
                 .type_references
                 .replace_type_reference(argument, TypeReferenceNode::ConstExpression(expression));
         }
+        if !scalar {
+            aggregate_arguments.push((argument, original));
+            continue;
+        }
         arguments.push((argument, destination, public));
         lexical_arguments.push(argument);
+    }
+    if !aggregate_arguments.is_empty() {
+        // Aggregate substitution still uses the existing canonical-value route.
+        // Resolve its authored path first so that route cannot capture a static
+        // declaration through a runtime parameter or prior local binding.
+        let resolved =
+            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_for_const_argument_selection(
+                &syntax,
+                sources.clone(),
+                bindings.to_vec(),
+            )?;
+        for (argument, original) in aggregate_arguments {
+            if let TypeReferenceNode::ConstExpression(expression) =
+                syntax.type_references.type_reference(argument)
+            {
+                lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!("const argument expression: {reason}"))
+                            .with_source_span(syntax.expressions.source_span(*expression)),
+                    ]
+                })?;
+            }
+            syntax
+                .type_references
+                .replace_type_reference(argument, original);
+        }
     }
     let pending = arguments
         .iter()

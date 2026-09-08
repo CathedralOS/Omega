@@ -1,0 +1,8 @@
+// Runtime qualified roots cannot select a static aggregate index.
+data Index { value: u64; }
+data Sizes {}
+const Sizes::SIZE: Index = Index { value: 1 };
+data Indexed<const Selected: Index> { value: u8; }
+machine keep(Sizes: Index, value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> { value }
+data Main {}
+machine Main::main(&mut self) {}
