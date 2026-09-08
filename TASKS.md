@@ -162,7 +162,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe with production checkpoint `a12440a7e4`
+  The downstream native `cli_mvp` probe with production checkpoint `2596b778bf`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -183,21 +183,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
   length and guarded head/tail observations at selected edges, and
   slice-decrease evidence.
-  Continue native descriptor creation and transport from
+  Continue natural-ranked native writer realization from
   the byte-observation leaves in `tests/native-differential/tests/terminal_byte_views.rs`.
   They measure and read one shared parameter with runtime `u64` indices guarded
   by the exact view's length, observe checked subslices, and preserve the original
   descriptor and `u64`/Boolean inputs across repeated scalar-result and genuine
-  Unit helper calls. Complete descriptor block argument transfers before joining
-  natural-ranked writer execution. Void-call return
+  Unit helper calls and block arrivals. The `byte_view_block` filter in
+  `cargo nextest run -p omega-native-differential-test --test terminal_byte_views byte_view_block
+  --no-fail-fast --no-tests fail` pins four-target physical transfers with macOS
+  runtime observations and Linux Unit object/image/installation custody.
+  Linux byte-output execution remains unverified on macOS. Mixed scalar-result
+  image publication is still rejected by `image-emission/src/function_fragments/source.rs`;
+  those scalar fixtures are physical/runtime oracles, not a prerequisite for
+  the writer's Unit publication route. Void-call return
   and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
   and source-place evidence when joining these dependencies.
-  Extend the ordinary Unit graph's block transfers to activation-local descriptors
-  in `target-operations-to-selected-instructions/src/selection/`,
-  retaining original backing, exact bounds and single fuel settlement. Carry
-  the descriptor's actual producer and local frame residence through publication,
-  not an invented incoming placement or copy of backing bytes. Reuse
+  Join natural ranking to the ordinary graph's activation-local descriptor
+  transfers in `target-operations-to-selected-instructions/src/selection/`,
+  preserving exact source/block places, fresh length observations and one edge
+  settlement. Reuse
   `terminal_byte_views/subslice_calls.rs` for descriptor custody; Unit
   acceptance needs observable effects and caller continuation, not merely a
   resultless call or synthetic incoming descriptor.

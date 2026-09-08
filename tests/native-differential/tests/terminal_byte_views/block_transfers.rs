@@ -108,7 +108,7 @@ fn byte_view_block_transfers_preserve_selected_pointer_and_bounds_through_calls(
     let original = fixtures::byte_view_read_call_module();
     module.machines[0] = original.machines[0].clone();
     let caller = &mut module.machines[1];
-    let mut index = original.machines[1].parameters[0].clone();
+    let mut index = original.machines[1].parameters[0];
     index.id = semantic_vocabulary::ValueId::new(133).unwrap();
     caller.parameters.push(index);
     for operation in &mut caller.blocks[1].operations {

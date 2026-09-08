@@ -137,7 +137,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     };
     let [
         AbstractOperation::Jump {
-            structural_bindings: Vec::new(),
+            structural_bindings,
             psi_edge: jump_edge,
             target,
             bindings,
@@ -156,6 +156,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
         panic!("no-code cleanup must not add an abstract operation")
     };
     assert_eq!(*jump_edge, edge_id(1));
+    assert!(structural_bindings.is_empty());
     assert_eq!(*target, block_id(2));
     assert_eq!(trivial_affine_discards, &[place]);
     assert!(residual_affine_discards.is_empty());
