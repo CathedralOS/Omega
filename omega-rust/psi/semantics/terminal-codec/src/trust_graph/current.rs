@@ -21,12 +21,13 @@ use super::{
     PROOF_ADMISSION_PROOF_SOURCE, PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE,
     PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE,
     SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
-    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
-    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
-    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
-    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
-    VERIFIER_SOURCE_CLOSURE, VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE,
-    ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
+    TERMINAL_FIXED_BYTE_VIEW_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+    TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SEMANTICS_SOURCE,
+    TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
+    TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
+    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE,
+    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
+    validate_terminal_trust_graph,
 };
 use crate::FORMAT_MARKER;
 use terminal_semantics::{
@@ -45,7 +46,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-83-vocabulary-89"
+    "root:canonical-terminal-bytes-format-84-vocabulary-90"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -517,6 +518,10 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 exact_sources.push((
                     "terminal-semantics/call_composition.rs",
                     TERMINAL_CALL_COMPOSITION_SOURCE,
+                ));
+                exact_sources.push((
+                    "terminal-semantics/call_composition/fixed_byte_view.rs",
+                    TERMINAL_FIXED_BYTE_VIEW_SOURCE,
                 ));
                 exact_sources.push((
                     "terminal-verifier/verification/call_composition.rs",

@@ -144,6 +144,13 @@ impl TerminalExecution {
         if view.structural_type != structural_type {
             return Err(invalid());
         }
+        // Initialized array backing has one mutation owner. Projected scalar
+        // storage is not a second, potentially stale copy of its elements.
+        if self.structural_byte_arrays.keys().any(|array| {
+            array.opaque_identity == view.opaque_identity && view.path.starts_with(&array.path)
+        }) {
+            return Err(invalid());
+        }
         Ok((StructuralRuntimePlace::from(view), *scalar_type))
     }
 

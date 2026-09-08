@@ -567,6 +567,46 @@ fn boundary_argument_presentation_is_admitted(
     )
 }
 
+/// A fixed byte array lends initialized elements without becoming a bounded owner.
+fn fixed_byte_array_mutable_view_is_admitted(
+    program: &TypedTrees,
+    mut source: typed_trees::types::TypeReferenceHandle,
+    target: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(source)
+    {
+        source = *referee;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(_),
+    } = program.type_reference_table.type_reference(source)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Reference {
+        access: language_core::ReferenceAccess::Mutable,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(target)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Slice {
+        element_type: target_element,
+    } = program.type_reference_table.type_reference(*referee)
+    else {
+        return false;
+    };
+    [*element_type, *target_element].into_iter().all(|element| {
+        matches!(
+            program.type_reference_table.type_reference(element),
+            TypeReferenceNode::Named { .. }
+        ) && program.primitive_type_reference(element) == Some(PrimitiveType::U8)
+    }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
+}
+
 pub(super) fn build_call_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1327,8 +1367,8 @@ fn checked_literal_index_path(
 /// Both call lanes share this owner. What does not belong here is the admission
 /// decision: which segment shapes a lane permits, and which rule the projected
 /// type must satisfy against the target parameter. The ordinary transitive lane
-/// demands equal normalized identity; a boundary requirement additionally
-/// admits one declared carrier presentation.
+/// admits exact mutable byte-view presentations as well as equal normalized
+/// identity; each call owner retains its own access and path restrictions.
 pub(super) fn projected_argument_path(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
@@ -2188,7 +2228,17 @@ pub(super) fn structural_call_arguments(
                     projected_type,
                     target.type_reference,
                     &target_identity,
-                ) {
+                ) && !(is_unit(program, target_state.return_type)
+                    && caller_parameters[source_index].multiplicity == Multiplicity::Unrestricted
+                    && segments
+                        .iter()
+                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+                    && fixed_byte_array_mutable_view_is_admitted(
+                        program,
+                        projected_type,
+                        target.type_reference,
+                    ))
+                {
                     return None;
                 }
                 path
@@ -2302,7 +2352,19 @@ pub(super) fn structural_call_arguments(
             }
             _ => return None,
         };
-        if path.is_empty() && source_identity != target_identity {
+        if path.is_empty()
+            && source_identity != target_identity
+            && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                && is_unit(program, target_state.return_type)
+                && caller_parameters[source_index].access == CheckedStructuralAccess::MutableBorrow
+                && caller_parameters[source_index].multiplicity == Multiplicity::Unrestricted
+                && caller_parameters[source_index].qualifications.is_empty()
+                && fixed_byte_array_mutable_view_is_admitted(
+                    program,
+                    source_parameter.type_reference,
+                    target.type_reference,
+                ))
+        {
             return None;
         }
         output.push(CheckedUnitStructuralArgumentPlan {

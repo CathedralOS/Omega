@@ -1,5 +1,8 @@
 //! Exact call-composition policy rows.
 
+mod fixed_byte_view;
+pub use fixed_byte_view::mutable_fixed_byte_array_extent;
+
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,

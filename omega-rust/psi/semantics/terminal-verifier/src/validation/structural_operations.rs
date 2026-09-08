@@ -1340,7 +1340,22 @@ pub(super) fn validate_structural_arguments(
             || (unit_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
             && terminal_semantics::boundary_buffer_capacity(module, root_type, argument, expected)
                 .is_some();
-        if !buffer_presentation {
+        let fixed_array_presentation = unit_call
+            && caller.structural_parameters.iter().any(|actual| {
+                terminal_semantics::mutable_fixed_byte_array_extent(
+                    module, actual, argument, expected,
+                )
+                .is_some()
+                    && !caller
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == argument.place)
+                    && !caller
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == argument.place)
+            });
+        if !buffer_presentation && !fixed_array_presentation {
             let Some(actual_type) = resolve_structural_path(module, root_type, &argument.path)
             else {
                 return Err(ModuleError::InvalidStructuralArgumentPath {

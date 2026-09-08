@@ -91,6 +91,8 @@ const TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/proof_bearing_scalar/canonical_goal.rs");
 const TERMINAL_CALL_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/call_composition.rs");
+const TERMINAL_FIXED_BYTE_VIEW_SOURCE: &[u8] =
+    include_bytes!("../../terminal-semantics/src/call_composition/fixed_byte_view.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect.rs");
 const TERMINAL_BYTE_EXTENT_SOURCE: &[u8] =

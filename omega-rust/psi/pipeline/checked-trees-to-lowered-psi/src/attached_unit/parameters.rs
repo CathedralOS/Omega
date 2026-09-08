@@ -591,7 +591,14 @@ pub(crate) fn validate_transfer_shape(
             ))?;
         if argument.type_identity != target.type_identity
             || (argument.path.is_empty()
-                && source.structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
+                && source.structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+                && !fixed_byte_array_view_transfer(
+                    source,
+                    argument,
+                    target,
+                    type_ids,
+                    structural_types,
+                ))
         {
             return unsupported("Unit structural argument type identity is inconsistent");
         }
@@ -625,6 +632,41 @@ pub(crate) fn validate_transfer_shape(
         return unsupported("Unit claim transfer does not exactly match target entry custody");
     }
     Ok(())
+}
+
+fn fixed_byte_array_view_transfer(
+    source: &StructuralParameterDeclaration,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    target: &checked_trees::CheckedUnitStructuralParameterPlan,
+    type_ids: &[(String, StructuralTypeId)],
+    structural_types: &[StructuralTypeDeclaration],
+) -> bool {
+    if source.access != StructuralAccess::MutableBorrow
+        || argument.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+        || target.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+        || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || target.multiplicity != Multiplicity::Unrestricted
+        || !source.qualifications.is_empty()
+        || !source.projected_qualifications.is_empty()
+        || !target.qualifications.is_empty()
+        || !argument.path.is_empty()
+    {
+        return false;
+    }
+    let Some(StructuralTypeShape::FixedArray { element, .. }) = structural_types
+        .iter()
+        .find(|declaration| declaration.id == source.structural_type)
+        .map(|declaration| &declaration.shape)
+    else {
+        return false;
+    };
+    structural_types.iter().any(|declaration| declaration.id == *element
+        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
+            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
+        && lookup_type_id(type_ids, &target.type_identity).ok().is_some_and(|target_type| {
+            structural_types.iter().any(|declaration| declaration.id == target_type
+                && matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)))
+        })
 }
 
 fn checked_access_can_supply(
