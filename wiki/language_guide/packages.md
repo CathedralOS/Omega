@@ -62,3 +62,19 @@ lists current options and limits; [inspection](../../omega-rust/omega/packages/m
 describes reporting. [Package fixtures](../../tests/fixtures/packages/README.md)
 and [remote pins](../../tests/fixtures/packages/REMOTE_PINS.md) document integration
 test setup; local cases do not establish remote transport coverage.
+
+## Live component replacement
+
+Updating a source dependency, migrating stored data, and replacing running code
+are different operations. A replaceable component is a selected realization's
+closed code/state/resource graph, not intrinsically one package. Calls cross a
+stable requirement; already-entered calls and returned era-dependent handles
+retain their old era until their obligations end.
+
+Publication of new routing therefore does not imply reclamation of old code.
+Runtime packages coordinate admission, peak coexistence resources, state transfer,
+quiescence, and recovery inside an owner-authorized envelope. A migration theorem
+alone cannot discharge callbacks, borrows, or device claims. See the
+[component publication contract](../spec/build/component_publication.md) and its
+linked implementation note for the distinction between required protocol and
+available source support.

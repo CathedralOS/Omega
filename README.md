@@ -1,204 +1,103 @@
 # Omega
 
-Omega is a systems programming language with zero-cost abstractions and no unsafe code, while still achieving C and Rust-like speeds. All code is modeled by data-oriented state machines, borrow-checked memory access, proof-carrying behavior, and capability-aware boundaries.
+Omega is a proof-carrying systems language whose programs are data-oriented
+state machines. This repository contains its language contracts, Rust reference
+compiler, Omega-written product compiler, and trust-minimizing bootstrap chain.
+The language design is broader than the compiler's implemented support.
 
-In other words:
-- No deadlocks within the selected checked concurrency model; opaque external
-  waits remain explicit assumptions or rejected boundaries.
-- Termination is verified where promised — iteration is explicit state transitions; call cycles must prove termination; a `terminates` claim is enforced transitively.
-- No stack overflows.
-- No out-of-bounds indexing.
-- No divide-by-zero.
-- No unsafe memory access.
-- Inline assembly is allowed when **provably** safe.
-- Provable instruction/CPU budgets.
-- Full transparency over system effects, such as filesystem or network access. Ban libraries that use any capabilities that seem dangerous.
-- No panics in external libraries that have no reason to panic.
-
-Omega is designed to be safe enough to control an airplane, and powers the [Cathedral](https://github.com/CathedralOS/Cathedral) operating system.
+Start with the [language guide](wiki/language_guide/language_guide.md) for
+examples and the [specification index](wiki/README.md#current-specification-subjects)
+for current contracts.
 
 ## Language Direction
 
-Omega is chasing a few connected ideas:
+State transitions make control flow explicit. Ownership and loans govern memory
+access; contracts and proof obligations describe valid operations; capabilities
+carry authority across boundaries. Layouts and target realization connect those
+semantics to systems programming without making physical representation the
+meaning of a value.
 
-- State machines are syntax, not library objects. `machine`, `state`, and `transition` give control flow a durable graph shape instead of burying it in arbitrary branches.
-- Proof is part of normal compilation. Contracts, domains, bounded values, borrow facts, slice bounds, termination claims, and transition obligations are meant to be checked before the backend gets to emit bytes.
-- Authority should flow through values. Effects stay coarse and readable, while capabilities are tracked through values, domains, provenance, and boundary calls so package reports can say what code accepts, uses, derives, stores, returns, releases, or acquires.
-- Core collections are proof surfaces. Arrays, vectors, slices, strings, and string views should expose browsable operators and measures such as `Slice::Length`, while pointer/descriptor machinery stays behind explicit compiler/runtime boundaries.
-- Data layout matters. Omega should bias toward owned data, dense arenas, predictable access, SIMD-friendly transforms, and state graphs that can be optimized because their semantics are visible.
-- Native output is a first-class goal. The compiler is growing its own path from source to machine code, object data, linking, and final platform images instead of treating executable construction as mysterious external glue.
-
-The long-term pitch is ambitious on purpose: write programs as explicit state evolution, let the compiler challenge the facts, and then lower the surviving program into tight native code.
+Safety, termination, concurrency and resource guarantees have explicit scopes
+and assumptions. A logical-work bound is not a host CPU-time measurement, and
+an external boundary needs its own admitted contract. See the specification
+rather than treating these goals as unconditional implementation guarantees.
 
 ## Building
 
-The repository pins its Rust compiler, formatter, and linter in
-`rust-toolchain.toml`; `rustup` selects that toolchain automatically. Use
-`mbx` in place of Cargo when available. Keep
-`cargo fmt` and `cargo clean` direct: they do not compile, and `mbx clean` has
-different semantics. If `mbx` is unavailable, use Cargo without asking for
-permission, as specified in [AGENTS.md](AGENTS.md).
+Install Rust through `rustup`; [rust-toolchain.toml](rust-toolchain.toml) pins
+the compiler, formatter and linter. Use `mbx` for compiling commands when
+available, or substitute `cargo`. Keep `cargo fmt` and `cargo clean` direct.
 
-The baseline gates for a fresh checkout are:
-
-```bash
-mbx --version
-cargo fmt --all -- --check
-mbx clippy --workspace --all-targets -- -D warnings
-mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
-mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)'
-mbx check --workspace --all-targets
-mbx nextest run --workspace --lib --no-fail-fast
-```
-
-The final command is the platform-portable test subset: all workspace library
-tests, without target-specific executable/runtime integration legs. Platform
-integration tests remain separate and must report an explicit skip when the
-host cannot execute them.
-
-If many small Rust crates each pause for seconds before parsing, inspect the
-derived Cargo cache before changing compiler or test architecture. A long-lived
-`target/debug/deps` with hundreds of thousands of stale hashed artifacts makes
-rustc rescan that directory for every crate. `cargo clean` removes only
-rebuildable `target/` output and restores a compact cache; the next build is
-cold.
-
-Check the smallest CLI sample:
+To request checking of the smallest CLI sample:
 
 ```bash
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
-Build the smallest CLI sample on macOS ARM64:
+Checking is not evidence of native execution. The
+[CLI sample instructions](samples/cli/basics/cli_mvp/README.md) describe its
+current boundary and host-specific build/run commands. Do not execute an old
+image after a failed compilation.
 
-```bash
-mbx run -p omega -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
-./samples/cli/basics/cli_mvp/build/omega-program
-```
-
-Build the smallest CLI sample as a direct Linux ARM64 ELF image:
-
-```bash
-mbx run -p omega -- --target linux_arm64 samples/cli/basics/cli_mvp/main.omg
-docker run --rm --platform linux/arm64 -v "$PWD:/work" -w /work alpine:3.20 ./samples/cli/basics/cli_mvp/build/omega-program
-```
-
-Check the richer samples:
-
-```bash
-mbx run -p omega -- --check samples/cli/games/dungeon_crawler_cli/main.omg
-```
-
-Compile/check writes ignored phase artifacts under a `build/` directory next to the entrypoint unless `--build-dir <dir>` is provided.
-
-Important artifact files:
-
-- `00_timings.txt`: phase timing report.
-- `01_sources.txt`: discovered source files.
-- `02_ast.txt`: parsed source item summary.
-- `03_resolve.txt`: imports, definitions, references.
-- `04_types.txt`: type surface and effects.
-- `05_typed_program.txt`: lowered compiler representation.
-- `06_validation.txt`: semantic validation summary.
-- `07_graph.txt`: source and lowered state graph.
-- `08_proof.txt`: proof surface and obligations.
-- `09_backend_plan.txt`: target, host ABI, calls, data, instructions, and image planning.
-- `10_boundary.html`: boundary contracts and unchecked obligations.
-- `12_emission.txt`: whether native emission is currently possible.
-- `13_emitted_output.txt`: emitted native output information.
-- `14_finalization.txt`: executable finalization and permission stamping for directly emitted images.
-
-These are outputs of the current Rust development command, not required
-bootstrap artifacts. Human-only reports and HTML views may be disabled or
-removed from default validation paths when they impose measurable cost; the
-hosted product closure includes only tooling the compiler executable imports.
+Compiler observations normally go into an ignored `build/` beside the
+entrypoint; `--build-dir <dir>` overrides that location. Available reports
+depend on the requested product and observation policy. `--output-only`
+suppresses auxiliary reports, not checking or required admission. See
+[compiler products and observations](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
+for the owning contract.
 
 ## Current Native Status
 
-The native path runs real programs on macOS ARM64, Windows x64, and Linux
-(x64 and ARM64 ELF), all as directly emitted executable images:
+The native route consumes verified Terminal Psi and rejects unsupported
+constructs; it has no checked-tree or source-shaped fallback. A parser,
+interpreter or individual backend test does not establish end-to-end native
+support for a sample or target. The
+[completion plan](wiki/drafts/rust_compiler_completion.md) owns the required
+acceptance matrix, and [native realization](omega-rust/omega/compiler/native-realization/README.md)
+owns the implementation boundary.
 
-- Runtime dispatch over machine/state graphs, including nested machine calls, value-position calls, and guarded multi-arm transitions with payload-binding case arms.
-- Integer arithmetic across widths and signedness (including division, shifts, min/max), f32/f64 arithmetic and comparisons, and width-honest casts — all verified against a reference interpreter as a differential oracle (exit code and stdout must match exactly).
-- Console host calls on every target: stdout, stderr, line-disciplined stdin (CRLF-correct), and process exit. The full `dungeon_crawler_cli` sample runs its scripted loop byte-identically to the interpreter.
-- Slices and fat descriptors: element reads/writes through views, subslicing
-  (`items[1..]`), descriptor materialization, and runtime text building.
-- Case payload construction, tag dispatch, membership tests (`in`),
-  synthesized structural equality, and plan-generated `compact_binary`
-  encoders with byte-exact LEB128 output.
-
-The general implementation queue and its acceptance checks live in
-[`TASKS.md`](TASKS.md). Optimizer architecture and its dedicated execution queue
-live in
-[optimizer implementation](omega-rust/optimization.md) and
-[`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Completed limitations are removed
-rather than retained as status history.
-
-Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.
+Unfinished work belongs on [the compiler board](TASKS.md) and
+[optimizer board](TASKS_OPTIMIZER.md), not a parallel capability ledger here.
 
 ## Architecture
 
-Psi operates on Omega files and owns the target-neutral pipeline from parsing
-through one canonical terminal representation, including reference
-interpretation. Omega consumes terminal Psi for provider installation,
-optimization, and native lowering. The current Rust pipeline predates that cut
-and is being migrated; `StateGraph` and `ControlFlowPlan` are not the public
-portable format.
+[Psi](omega-rust/psi/README.md) owns source semantics through Terminal Psi.
+Omega consumes that portable product for provider selection, optimization,
+target realization, ABI and native emission. Target backends own unavoidable
+ISA, ABI, object-format and relocation details. The
+[connected pipeline](omega-rust/pipeline.md) maps transformations to code owners.
 
-See the [compiler pipeline](omega-rust/pipeline.md) for connected stages and implementation ownership.
+- [omega-rust/](omega-rust/README.md) is the Rust reference producer and
+  differential comparator, not a canonical language rung or source of authority.
+- [source/](source/README.md) holds the Omega-written product compiler.
+- [bootstrap/](bootstrap/README.md) holds Alpha → Beta → Gamma → Delta →
+  Epsilon → Omega and its separate proof tools.
 
-The selected bootstrap lattice is Alpha -> Beta -> Gamma -> Delta -> Epsilon ->
-Omega. Alpha is raw tape execution; Beta is the trusted imperative tape-
-assembly language; Gamma is the small typed scalar/effect language; Delta is
-the typed functional compiler language; and Epsilon is the fixed-storage
-compiler host. Their implementations and the Epsilon-written compiler closure
-`D` live under [`bootstrap/`](bootstrap). D produces the first full Omega
-compiler `omega₀`, which compiles the Omega-written closure `C` into production
-`omega`. Intermediate self-hosting is not a goal. Its active queue lives in
-[`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
-lives in
-[the bootstrap source map](bootstrap/README.md).
-Beta's self-reconstructing compiler and admitted Alpha tape live under
-`bootstrap/1_beta/`; the older imperative Gamma rung remains retired.
-The whole-chain audit is defined in
-[whole-chain minimization](bootstrap/MINIMIZATION.md). Unapproved comparison
-options are separated in the
-[shorter-chain proposal](wiki/proposals/bootstrap_chain_alternatives.md).
-The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
-the compiler source are defined and kept distinct in
-[bootstrap source contract](bootstrap/CONTRACT.md#source-subjects).
-[`source/README.md`](source/README.md) describes the final product-source side;
-the [ground-equality checker](bootstrap/proofs/checker/README.md) is an
-ordinary Gamma tool, not another language rung. Its full Beta encoding certificate
-and artifact admission remain open.
+Gamma is the small typed scalar/effect functional language with a direct Beta
+evaluator. Delta authors the Epsilon evaluator; Epsilon authors the first Omega
+compiler, D. D builds the Omega-written compiler, which rebuilds that same
+product source. Intermediate self-hosting is not a goal. The
+[bootstrap contract](bootstrap/CONTRACT.md) defines the source subjects and
+required evidence; [whole-chain minimization](bootstrap/MINIMIZATION.md)
+governs implementation choices.
 
 ## Samples And Language Cases
 
-Samples are language pressure tests. They may be pseudocode-ish if the language is still being shaped.
-Each sample is a copyable mini-project with its own `.gitignore`; local compiler output belongs in the ignored `build/` directory beside the entrypoint.
+Samples are copyable language pressure tests, not a blanket support claim.
+They may contain intended syntax that the compiler does not yet implement.
+Browse [CLI](samples/cli), [GUI](samples/gui), or [UEFI](samples/uefi) examples;
+each project's ignored `build/` owns its generated output.
 
-Current samples:
-
-- `samples/cli/`: console and terminal-oriented programs grouped by domain, such as `basics/`, `games/`, `systems/`, and `probes/`.
-- `samples/gui/`: windowed host/UI experiments, including the software-rendered calculator.
-- `samples/uefi/`: firmware-targeted samples.
-
-Language cases are not samples. They isolate one compiler capability at a time.
-They live under `tests/omega/pass/<feature>/main.omg` when the compiler should accept them and `tests/omega/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
-Executable behavior cases live under `tests/omega/run/<feature>/` with small input/output expectation files.
-
-Case names should describe the compiler behavior being pinned down, not the sample that exposed it. A dungeon crawler blocker should become a focused case such as `runtime_text_builder`, not `dungeon_step_04`.
-
-Generated case `build/` directories are ignored. Permanent expectations belong in small checked-in files, not preserved build artifacts.
+Language cases isolate compiler behavior in `tests/omega/pass/<feature>/`,
+`fail/<feature>/` and `run/<feature>/`. Name cases for that behavior, not the
+sample that exposed it. Keep permanent expectations small and checked in;
+generated build artifacts are not expectations.
 
 ## Bundled Omega Packages
 
-Imports beginning with `omega::` resolve to bundled Omega source packages under
-`source/library/`.
-
-Package paths can resolve to either `name.omg` or `name/mod.omg`, so larger packages such as `omega::host::targets::windows` can live in folders and shard their contracts by domain.
-
-Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testing an installed or alternate toolchain layout.
+Imports beginning with `omega::` resolve beneath [source/library/](source/library),
+as either `name.omg` or `name/mod.omg`. `OMEGA_LIBRARY_ROOT` selects an
+alternate bundled library root for toolchain-layout testing.
 
 ## [READONLY] Coding Conventions
 
@@ -226,36 +125,16 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 
 ## Useful Commands
 
-Run tests (see [local testing](tools/testing.md) for installation and affected-test selection):
-
-```bash
-mbx nextest run --workspace --lib --no-fail-fast
-```
-
-Check a sample:
-
-```bash
-mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
-```
-
-Compile a sample on macOS ARM64:
-
-```bash
-mbx run -p omega -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
-```
-
-Run focused compiler acceptance groups:
-
-```bash
-mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
-mbx nextest run -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
-```
+[AGENTS.md](AGENTS.md#driving-the-compiler) documents the CLI and
+[focused canary commands](AGENTS.md#running-one-test).
+[Local testing](tools/testing.md) covers nextest installation, platform
+integration and affected-test selection. Choose validation from the changed
+behavior; a fresh worktree alone does not require a full baseline.
 
 ## Design Notes
 
-The language is moving quickly. The best current design references are:
-
 - [Documentation index](wiki/README.md)
-- [Omega Language Guide](wiki/language_guide/language_guide.md)
+- [Language guide](wiki/language_guide/language_guide.md)
+- [Language and toolchain specification](wiki/README.md#current-specification-subjects)
 - [Compiler ownership and pipeline](omega-rust/pipeline.md)
-- [Rust compiler completion](wiki/drafts/rust_compiler_completion.md)
+- [Optimizer implementation](omega-rust/optimization.md)

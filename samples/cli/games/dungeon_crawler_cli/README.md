@@ -13,13 +13,20 @@ What it is trying to prove:
 - user input drives explicit `transition` dispatch
 - invalid input can loop back without hidden branches
 
-Current runtime note:
+Runtime acceptance:
 
-- All four hosted targets lower directly from the sample's authored program
-  entry.
-- The native runtime harness covers closed stdin: the first prompt observes
-  EOF and the game exits cleanly with status 0.
-- Live terminal input remains the sample's intended interactive path.
+This is a language pressure test, not a working-native-support claim.
+[build.omg](build.omg) declares four hosted entry bindings; those declarations
+do not establish that the current compiler can produce or execute this sample
+on any of them. The verified Terminal/native route still has unsupported
+constructs; see [native realization](../../../../omega-rust/omega/compiler/native-realization/README.md)
+and the [compiler completion plan](../../../../wiki/drafts/rust_compiler_completion.md).
+
+The intended interactive path accepts commands at a live terminal. The closed-
+stdin acceptance case instead reaches EOF at the first prompt and should exit
+with status 0. Neither expectation is a report of a current successful run.
+Record the actual compilation diagnostic before attempting execution, and never
+run a stale image after a failed build.
 
 Current state cycle:
 
@@ -44,10 +51,11 @@ Sample layout:
   and `rewards/`: domain-owned models plus their behavior
 - `platform/`: console boundary
 
-The ordinary target defaults supply console input/output and process exit, so
-the settled `build.omg` needs only target selection and an exact program-entry
-binding, not per-provider bindings. `build.omg` binds `Main::main` explicitly
-for every hosted target.
+The build declares the std dependency and binds `Main::main` explicitly for
+Windows x64, Linux x64/ARM64 and macOS ARM64. Ordinary target defaults select
+console and process-exit providers; the sample does not bind each provider
+separately. Selection is not proof of native provider implementation or runtime
+acceptance.
 
 Build output:
 

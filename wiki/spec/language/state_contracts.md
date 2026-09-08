@@ -7,6 +7,17 @@ independently checks the emitted product.
 
 ## Bindings and arrivals
 
+A machine enters its ordinary top-level body. If named states follow, setup
+ends in an explicit tail transition; there is no separately authored entry
+member. State targets belong to that machine. Ordinary calls invoke machines,
+not internal states. A transition adds no call frame or return address and never
+resumes the departed state by returning.
+
+A target state's declared receiver retains the machine attachment and is not
+repeated among ordinary jump arguments. This does not permit receiver rebinding.
+An ordinary terminal value, explicit return, or permitted implicit Unit
+completion ends the invocation and owes its declared result/return contract.
+
 A transition explicitly supplies the target state's values. Executable uses name
 the exact current-state declarations or preceding local bindings; state arrival
 contracts use that state's parameters. Entry and sibling bindings cannot be

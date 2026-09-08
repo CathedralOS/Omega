@@ -89,3 +89,26 @@ provider-key establishment, wider programmable placements, independently
 verified generated codecs, and historical compatibility remain separate work.
 Source API declarations or normalized plan records alone prove none of these
 consumer paths complete.
+
+## Generated compact binary codecs
+
+The generated `compact_binary` slice supports numbered scalars, exact arrays
+and `FixedVec` repeated scalars, trailing borrowed scalar encoding, a trailing
+runtime-sized UTF-8 byte field, and one level of nested scalar records. Arrays
+use their exact count and `FixedVec` its bounded live length, not an invented
+sibling count field. Borrowed bytes use a zero-copy length-delimited path.
+
+Borrowed scalar encoding measures then emits the packed body without allocation.
+Its normalized plan retains live count, two scalar passes per element, and
+capacity for the canonical length prefix plus exact body. Packed-varint decode
+requires owned or caller-provided mutable scalar storage; owned `Vec` needs its
+allocator contract.
+
+Reports retain distinct normalized `Encode` and `StrictDecode` requirements,
+the normalized plan and dynamic obligations, and generated origin independently
+of compiler-admitted trust. Validated plans and differential canaries do not
+constitute independent verification of generated bodies. Only that verification
+can establish derived trust. The current strict decoder cannot satisfy a
+preservation demand; preserving realization remains separate work.
+The [codec specification](../../../../wiki/spec/layouts/codecs.md) owns byte
+grammar, destination establishment, and failure behavior.

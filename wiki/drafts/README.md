@@ -10,10 +10,8 @@ Each draft names its purpose and when it can be deleted. Promote useful settled
 content to its proper owner, then delete the draft. Execution status belongs on
 the existing task boards, not in a second tracking system.
 
-- [Documentation cleanup](documentation_cleanup.md).
 - [Rust compiler completion](rust_compiler_completion.md): required release
   coverage before resuming self-hosting, removed after that migration closes.
-- [Terminal realization gaps](terminal_realization.md).
 - [Bootstrap cost investigation](bootstrap_cost_review.md): bounded Delta/P1
   feasibility evidence, not authority for another chain.
 - [Test-cycle measurements](test_cycle_measurements.md): dated Windows evidence

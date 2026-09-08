@@ -140,5 +140,4 @@ Current public contracts live in [Terminal Psi](../spec/terminal-psi/product.md)
 [content custody](../spec/resources/content_custody.md),
 [placed access](../spec/resources/placed_access.md), and
 [component publication](../spec/build/component_publication.md).
-Unmigrated material is still subject to the [documentation cleanup](documentation_cleanup.md);
-this customer map does not replace those contracts.
+This customer map does not replace those contracts.

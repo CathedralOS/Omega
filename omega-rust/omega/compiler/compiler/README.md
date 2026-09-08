@@ -53,6 +53,18 @@ when their assertions concern diagnostics, checked results or primary output;
 report-content tests must retain full mode. This is orchestration policy, not
 language semantics.
 
+## Intrinsic settlement conversion
+
+[intrinsic_settlements.rs](src/compiler/intrinsic_settlements.rs) currently
+guards supported native executions before a second, wildcard-backed conversion.
+Replace that pair with the boundary contract's single exhaustive optional mapping:
+every planner variant must be classified explicitly, and unsupported variants
+must retain their diagnostic refusal. Acceptance requires adding a planner
+variant to force a mapping decision at compile time, with supported settlement
+and unsupported rejection controls. Delete this gap paragraph when closed;
+the [boundary contract](../../../../wiki/spec/terminal-psi/boundary_calls.md)
+remains authoritative.
+
 ## Immutable source reuse and exact-target children
 
 [Explicit targets](src/compiler/request/targets.rs) accepts a nonempty supplied

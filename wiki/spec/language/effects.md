@@ -37,6 +37,28 @@ Recoverable failure and cancellation are result
 sums, not `fails` clauses. Resource capacity follows explicit capabilities and
 dependent contracts, not a `budget` or quantitative service member.
 
+## Recoverable outcomes and strict use
+
+Recoverable failure is an ordinary result sum, not a second control-flow system
+or dedicated error type. Exhaustive transitions handle its cases, and a case
+payload and its guarantees are available only on the corresponding arm.
+Across calls, ordinary `requires`/`ensures` mediate those facts. Host boundaries
+use the same result model and state which resources remain valid on each outcome;
+result-by-out-parameter is an ABI detail, not an alternate source result form.
+
+A non-Unit call result cannot be silently discarded. Intentional discard is
+`_ = call();`, subject to the result's ordinary ownership and legal-disposition
+obligations; the marker cannot erase linear custody. Failure propagation is an
+explicit checked edge returning the caller's outcome. There is no implicit
+propagation operator `?` or `fails` clause.
+
+An unproved obligation rejects; prover incompleteness neither constructs an
+error result nor authorizes a trap or abort. A checked failure-returning operation
+or explicitly selected Trapping operation has its own contract and admission.
+There is no implicit `expect`/`unwrap` escape from proof obligations. A failure
+case proved unreachable needs no executable handler, under ordinary exhaustive
+transition checking.
+
 ## Normalization and composition
 
 Resolve each authored service occurrence to its exact boundary-trait identity.
@@ -157,6 +179,27 @@ removes it. Crash-frontier lower bounds report definitely live obligations, not
 safe survivors or complete external custody. [Crash semantics](../terminal-psi/calls_and_outcomes.md#crash)
 owns verification and no-cleanup behavior; restart needs separate containment
 and recovery evidence. Process-exit reach and an `Abort` route are independent.
+
+### Recovery and execution domains
+
+A crash clause proves permitted routes, not recovery. Its local frontier is only
+a lower bound: caller frames, suspended activations, external storage, devices
+and peers may have affected state outside it. An uncontained crash terminates
+the complete execution domain; there is no ambient lock-poisoning, survivor or
+resumption guarantee.
+
+Continuation needs independent structure: a closed-custody component isolating
+all invalidated mutable state, a resource's explicit owner-death/recovery
+protocol, or external reset/reconciliation/transactional guarantees. The target
+must realize the isolation and restart plan. Restart establishes a fresh
+activation, never resumes abandoned computation. Component replacement uses
+cooperative drain, coexistence or migration, not hidden asynchronous destruction.
+
+Crashes have explicit no-successor abandonment, not a missing cleanup list.
+Recoverable outcomes follow ordinary cleanup-bearing edges. There is no implicit
+unwind; any future unwinding or resumable-fault protocol requires explicit graph
+edges, cleanup and proof obligations. Graceful shutdown remains ordinary cleanup
+followed by its selected exit operation.
 
 ## Published identity and installation rows
 

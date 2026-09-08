@@ -1,57 +1,17 @@
 # Chapter 12: Dependent Types
 
-A type, contract, or layout may name in-scope, proof-visible values — fields,
-parameters, and locals, not only constants.
+A range, contract, or view can name ordinary in-scope values, not only constants.
+The compiler tracks the relationship; the program does not acquire hidden
+witness storage or runtime type metadata merely because a fact names a value.
 
-The staged systems fragment is settled; implementation remains incomplete.
-Motivation, prior-art evidence, and the implementation ladder live in the
-companion design brief
-([value-dependent facts and views](../spec/language/dependent_values.md)). Chapters
-[7](chapter_7_types_constraints_invariants.md),
-[8](chapter_8_domains.md), [11](chapter_11_invariant_windows.md), and
-[13](chapter_13_generics.md) are assumed.
-
-```omega
-machine Math::clamp(
-    value: i32,
-    min: i32,
-    max: i32,
-    out: &mut i32
-) requires min <= max
-  ensures out in min..=max
-{
-    match (value < min, value > max) {
-        (true, _) -> { out = min; }
-        (false, true) -> { out = max; }
-        (false, false) -> { out = value; }
-    }
-}
-```
-
-This is chapter 7's clamp with the `const` qualifiers removed: `min` and `max`
-are ordinary runtime parameters, and the result's range names them.
-
-Working interpretation:
-
-- A value named by a type or contract is a **witness**. A witness is always an
-  ordinary stored field, parameter, or local the program already carries —
-  never hidden metadata. `len` is its own witness; there is no shadow copy.
-- A fact tying two or more places together (`payload.length == self.len`,
-  `count * stride <= len`) is a **coupling**. Couplings on a data type are
-  facts of its default domain, declared with the data declaration
-  (chapter 7).
-- Every naming is a fact the compiler tracks. Every use is an obligation the
-  entailment engine discharges from facts in scope, exactly as constant
-  ranges discharge today.
-- Facts arrive by the same three routes as every other fact: declaration
-  (store-enforced at every write), dominating guards (flow-scoped), and `as`
-  qualifications (chapter 8). Dependency adds no fourth route.
+The [dependent-value specification](../spec/language/dependent_values.md) defines
+this systems fragment. Examples show intended contracts; implementation support
+for relational proofs and views remains narrower. General mathematical
+foundations have their separate [proof contract](../spec/proofs/contracts.md).
 
 ## Dependent Contracts
 
-Contract facts and bracket ranges may name sibling parameters and reachable
-fields. A bracket range naming a value is sugar for a `requires` fact, the
-same desugar a constant bracket range has today:
+A parameter's range may name another parameter:
 
 ```omega
 machine Buffer::get(items: &[u8], index: u64 [0..items.len]) -> u8 {
@@ -59,45 +19,40 @@ machine Buffer::get(items: &[u8], index: u64 [0..items.len]) -> u8 {
 }
 ```
 
-`index: u64 [0..items.len]` desugars to `requires index < items.len`. The
-callee indexes without a guard; the obligation is the caller's, discharged by
-a fact in the caller's scope or established with a dominating guard.
+For this unsigned index, the range supplies `index < items.len`. The caller
+proves it, perhaps using a visible guard, and the callee may rely on it. A
+runtime length is a witness already stored in the slice, not a const argument.
 
-Entry values are not selected implicitly. `old(place)` explicitly denotes a
-structural place at the callable-entry revision (chapter 10). A name bound in
-`requires` denotes the value at machine entry, because `requires` is evaluated
-there; `ensures` may use it:
+Pre-state relationships must name a real binding or use `old(place)`. Equality
+in `requires` does not invent a snapshot variable. For example, the caller can
+pass a scalar snapshot explicitly:
 
 ```omega
-machine Counter::bump(&mut self)
-requires self.count == c && self.count < self.cap
-ensures self.count == c + 1
+machine Counter::bump(&mut self, before: u32)
+requires
+    self.count == before
+    self.count < self.cap
+ensures
+    self.count == before + 1
+{
+    self.count = self.count + 1;
+}
 ```
 
-Working rules:
-
-- `requires` and `ensures` facts may name any parameter or reachable field of
-  the signature, at any binding time — `const` is no longer required.
-- `ensures` states results, including exact preservation guarantees where a
-  public interface needs them. Internal inferred mutation summaries preserve
-  other facts when the callee is known (see Facts Across Calls).
-- A dependent parameter range is an obligation at every call site and a
-  standing fact inside the callee.
+This sketch assumes `count` and `cap` are `u32` fields. The strict bound also
+establishes representability of the increment. `old(place)` instead selects an
+existing structural place's callable-entry revision without copying an owned
+value; see [proof views](chapter_10_compile_time_proofs.md#proof-views).
 
 ## Dependent Data
 
-A data type's fields may witness each other. The default domain is declared
-on the data signature as a `where` clause: bare field
-names, any number of facts, holding at every observation of the value. A
-field constraint is single-field sugar for a `where` fact; the body stays
-pure layout. Semantically and in the implementation these facts ARE the
-default domain — the clause is a spelling over that model, so re-skinning
-the syntax later is near-trivial by design:
+Fields can witness one another. Their coupling belongs to the data's default
+domain, expressed with `where`:
 
 ```omega
 data MemoryMap
 where
-    count * stride <= len,
+    embed(count) * embed(stride) <= embed(len),
     stride >= 40,
 {
     buf: [u8; 4096];
@@ -107,279 +62,114 @@ where
 }
 ```
 
-This is the same clause position generics use (chapter 13), deliberately:
-`where N > 0` on a const parameter and `where count * stride <= len` on
-runtime fields are one construct at two binding times — a compile-time-known
-operand collapses the every-observation obligation to a single
-instantiation-time proof, which is exactly the static lowering rule.
+Every observation must satisfy that domain. `embed` states the product bound in
+unbounded proof arithmetic; actual runtime offset computations still prove their
+own representability. The coupling does not execute a multiplication or exempt
+a runtime intermediate from ordinary arithmetic obligations.
 
-> **Gating.** The zero value either satisfies the default domain or it does
-> not, and both are legal:
->
-> - **Zero satisfies it** — the type is zero-constructible. A zeroed value
->   is born established and its facts stand everywhere.
-> - **Zero does not** — the type is **gated**. Data can have non-zero
->   requirements; such a type is simply not zero-constructible. Its zeroed
->   form exists only as storage — memory the compiler may still zero-fill —
->   and is inaccessible as the type until construction or an `as` qualification
->   proves the default domain.
->
-> `MemoryMap` above is gated (`stride >= 40` fails at zero). The current
-> implementation accepts only zero-constructible declared ranges; that is an
-> implementation restriction, not language law.
+This type is gated because zero does not satisfy `stride >= 40`. Zeroed backing
+may exist as storage but is not yet a `MemoryMap` value. Construction or checked
+qualification establishes the complete domain. A decoder proves only its checked
+conditions, not that firmware told the truth or that the bytes grant authority.
 
-Working rules:
+Gating propagates through contained values. An explicit empty case can make an
+optional container zero-constructible without inventing an invalid payload:
 
-- **Construction is the gate.** A gated type's literal must prove the
-  default domain, so exactly the fields whose zero violates it are
-  mandatory:
+```omega
+data Player { health: i32 [1..=100]; }
 
-  ```omega
-  data Player { health: i32 [1..=100]; }    // gated: zero health is not a Player
+data PlayerSlot {
+    case Empty;
+    case Filled(player: Player);
+}
 
-  self.champion = Player { health = 50 };   // health mandatory; other fields ZII
-  ```
+data Team { roster: [PlayerSlot; 8]; }
+```
 
-- **Gating propagates through containment.** A container of gated data is
-  gated: `data Team { roster: [Player; 8]; }` owes eight proven Players at
-  construction. A zero-valid first sum case absorbs the gate — emptiness is
-  spelled as a case, not as a nonsense zero value:
+The zero case contains no `Player`; constructing `Filled` owes a valid one.
+Machine-owned backing may likewise begin zeroed while gated fields remain
+inaccessible until established.
 
-  ```omega
-  data PlayerSlot {
-      case Empty;              // tag 0: the zero value IS this case (chapter 20)
-      case Filled(p: Player);
-  }
-
-  data Team { roster: [PlayerSlot; 8]; }    // zero-constructible: eight Empties
-  ```
-
-- **Machine-owned data is access-gated, not construction-gated.** Nobody
-  constructs `Main`; it boots zeroed. A gated field inside it is legal as
-  storage — the machine simply cannot read it as the type until some state
-  establishes it.
-
-- **A write that breaks a coupling opens an invariant window**
-  (chapter 11). Write the witness and its dependents in either order; the
-  coupling is re-proven from the flow facts at the next consumption point —
-  read, borrow, call, transition, or return. Nothing can observe the value
-  mid-window. An explicit `crash` is the one no-successor exception: it may
-  abandon the open window. The checked site records the invariant-bearing
-  identity in its abandonment lower bound, but that record does not prove any
-  survivor safe. Init-syntax (construct a valid whole) remains the idiomatic
-  form when rebuilding is cheap:
-
-  ```omega
-  self.map.count = fresh_count;      // window opens: coupling unproven
-  self.map.len = fresh_len;          // flow facts accumulate
-  // next consumption point proves count * stride <= len, or errors
-  // citing both the opening write and the point that needed it closed
-  ```
-
-- **A live borrow of a dependent place pins its witnesses.** `&self.map.buf`
-  held across statements implies a read loan on `len`, `stride`, and
-  `count` — every place the dependent facts name. A write to a pinned witness
-  while the loan lives is a borrow error, by the ordinary loan rules.
-
-Facts that describe some values of the type rather than all — facts you do
-not want gating every access — remain ordinary subdomains (chapter 8),
-established and shed as usual.
+Mutating witnesses and dependents can open an
+[invariant window](chapter_11_invariant_windows.md), which must close before
+consumption. A live dependent borrow read-loans the witnesses required by its
+validity, so those witnesses cannot change while the view remains live. Optional
+facts about only some values belong in ordinary domains, not the default domain
+of every instance.
 
 ## Static Lowering
 
-When every witness is compile-time-known — a literal, a `const`, a `const`
-parameter — the dependent type is chapter 13, unchanged:
+When dimensions are static, ordinary generics select a fixed shape:
 
 ```omega
 data Matrix<const R: u64, const C: u64> {
     cells: [f64; R * C];
 }
-
-machine Matrix::multiply<const R: u64, const K: u64, const C: u64>(
-    a: &Matrix<R, K>,
-    b: &Matrix<K, C>,
-    out: &mut Matrix<R, C>
-) { ... }
 ```
 
-Instances are spelled, monomorphization stamps a concrete layout per
-instance, `[f64; R * C]` is a fixed size, dimension agreement (`K` appears in
-both operand types) is enforced at instantiation, and every obligation
-discharges at build. No witness is stored, because nothing varies.
+A concrete `Matrix<3, 4>` has twelve cells after its layout and arithmetic
+obligations are checked. Static arguments enter application identity and need
+not be stored as runtime witnesses. [Generics](chapter_13_generics.md) explains
+those applications; runtime dimensions do not become const arguments by analogy.
 
 ## Dynamic Lowering
 
-When a witness is a runtime value:
+A runtime witness remains its ordinary stored field, parameter, or view value.
+A strided access can lower to ordinary offset arithmetic; the proof establishes
+that its actual byte range lies in the backing region. Dynamic-sized data lives
+behind checked views or provisioned buffers/storage, not variable-sized stack
+locals or an implicit global layout descriptor.
 
-- **The witness is stored as the ordinary field or parameter it already is.**
-  Dynamic lowering adds no metadata, no runtime type information, and no fat
-  pointers beyond the slices of chapter 20. For a zero-constructible type, a
-  zeroed witness means an empty structure; a gated type is never observed
-  zeroed.
-- **Offsets are ordinary arithmetic.** An access strided by a runtime witness
-  lowers to a multiply and an add. The proof work is compile-time only.
-- **Obligations discharge against flow facts** — declared couplings,
-  dominating guards, and established subdomain facts — instead of constants.
+For a foreign memory map, the supplied stride determines where the next record
+starts. A useful access proof relates `i < count`, `count * stride <= len`, and
+the requested record's extent. Bounds are only part of establishing a typed
+view: alignment, selected representation, initialized content, and ownership
+still matter. Casting a byte's address does not silently prove all of them.
 
-Runtime-sized data takes exactly three shapes, permanently: borrowed views
-(`{ptr, len}` over someone else's bytes), fixed-capacity buffers with
-dynamic validity (as `MemoryMap` above: static storage, a runtime valid
-prefix carried as facts), and — once the `Arena` allocator lands — owned
-allocations (`{handle, len}`, Vec-shaped, the length proof-visible). An
-owned value whose INLINE size is a runtime witness (`payload: [u8; len]` as
-machine-resident storage) is not part of the language: the facts never
-cared where the bytes live, and the one language that shipped inline
-value-dependent layout spent forty years paying for it. The same spelling
-remains legal in wire schemas (chapter 21), where it describes serialized
-bytes; decode establishes it in one of the three shapes.
-
-The memory map, end to end:
-
-```omega
-// MemoryMap is gated; the boundary decode is what establishes its default
-// domain (chapter 19 owns the boundary ensures). After the success arm,
-// self.map's facts are standing: count*stride <= len, stride >= 40.
-machine Kernel::walk_map(&self) {
-    transition { _ -> at(0) }
-
-    state at(&self, i: u32) {
-        transition i < self.map.count {
-            true -> visit(i)
-            false -> done()
-        }
-    }
-
-    state visit(&self, i: u32) {
-        // Obligation: i*stride + stride <= len.
-        // Facts in scope: i < count (arm guard), count*stride <= len and
-        // stride >= 40 (default domain, standing since the decode
-        // established it).
-        let entry: &EfiMemoryDescriptor =
-            &self.map.buf[i * self.map.stride] as &EfiMemoryDescriptor;
-        ...
-        transition { _ -> at(i + 1) }
-    }
-
-    state done(&self) { }
-}
-```
-
-The recast borrow (Chapter 20) discharges its bounds obligation from the
-arm guard plus the coupling. Striding by the compile-time size of
-`EfiMemoryDescriptor` instead does not compile: no fact ties that constant to
-`len`.
+Use a checked view/recast or decoder under its exact
+[layout plan](../spec/layouts/plans.md) and [recast contract](../spec/layouts/recasts.md).
+The compiled record size cannot replace a foreign stride without the necessary
+relation. Runtime witnesses add no implicit boxing, hidden proof tuple, or
+arbitrary runtime computation of nominal types.
 
 ## Products In Obligations
 
-Obligations like `i*stride + stride <= len` and `y*width + x < width*height`
-are discharged by one closed rule — bounded products: from `0 <= a <= A` and
-`0 <= b`, conclude `a*b <= A*b`, normalized into the polynomial engine. There
-is no general nonlinear arithmetic and no solver.
+Row-major indexing needs more than two independent range checks. To justify
+`y * width + x`, relate the coordinates, dimensions, and total backing extent,
+and prove each arithmetic intermediate representable. Mathematical facts such
+as multiplying a nonnegative inequality by a nonnegative value are useful proof
+steps; they are not a promise of a complete nonlinear solver.
 
-```omega
-machine Canvas::plot(&mut self, x: u32, y: u32)
-requires x < self.width && y < self.height
-{
-    self.pixels[y * self.width + x] = 1;
-}
-```
-
-*(Bounded products are not yet implemented; the linear relational fragment
-lands first.)*
+The checker may discharge a supported instance, consume an explicitly cited
+theorem, or reject an unproved obligation. Current automation limits belong
+beside [validation](../../omega-rust/psi/semantics/validation/README.md), not in
+the definition of dependent values.
 
 ## Facts Across Calls
 
-The frame rule is **preserve-unless-written, at borrow granularity**:
+The practical frame rule is preserve-unless-written, at exact storage granularity:
 
-- A place the callee cannot reach — no borrow passed, no capability that owns
-  it — keeps every fact.
-- A place passed by shared borrow is frozen: facts survive.
-- A place passed by write-only borrow is exclusively loaned. The callee may
-  use only content-independent projections and writes whose legality follows
-  from written inputs, static structure, or explicitly supplied facts. Caller
-  facts survive for paths the exact outcome write frame leaves unchanged;
-  facts depending on a written path are invalidated and may be re-established
-  by the callee's guarantees.
-- A place passed by exclusive borrow to an opaque callee or unknown dynamic
-  conformance loses its flow-scoped extras (guard-established narrowings,
-  established subdomains), atom by atom. A resolved checked callee invalidates
-  only the places its inferred mutation summary may overlap. Declared ranges,
-  standing couplings, and domain memberships survive every call:
-  calls and returns are consumption points (chapter 11), so a callee cannot
-  return — or call onward, or hand out a borrow — with an open window.
-- Callee `ensures` adds facts back.
-- Capability reach havocs the facts established from that capability's boundary.
-  Reach frames capability-reachable state only; it never names program
-  places.
+- Unreachable places retain their facts.
+- A shared loan excludes ordinary conflicting mutation. Synchronized mutation
+  retains its own contract and fact-invalidation rules.
+- Mutable or write-only access may invalidate facts about written places.
+- Exact outcome guarantees can preserve or establish facts after the call.
 
-Checked bodies infer normalized mutation summaries as implementation metadata.
-A statically selected checked callee may use that summary to preserve facts
-about disjoint places, including across separate compilation when the artifact
-publishes the summary. An opaque callee, an unknown dynamic conformance, or an
-unresolved or overlapping summary invalidates the flow-scoped facts of every
-mutable place reachable from the call's signature.
+A checked implementation may publish a complete narrower mutation frame. An
+opaque or unknown dynamic call uses its conservative signature and authority
+ceiling; unknown is not an empty write set. Operand evaluation contributes writes
+too. Broad mutable receivers therefore lose more precision than narrow parameters.
+Default-domain facts must be restored before consumption; that is not a promise
+that the value stayed unchanged.
 
-Public contracts recover any precision the interface deliberately guarantees
-with ordinary postconditions:
+For example, an insertion helper taking `&mut Entries` cannot mutate an unrelated
+hasher merely because both are fields of a larger table. A helper receiving the
+whole table needs a checked frame or an explicit preservation guarantee to retain
+that precision. Entry/current comparisons use `old(place)` or a real pre-state
+binding, not a name introduced by an equality expression.
 
-```omega
-boundary trait TableStorage {
-    machine reserve(table: &mut Table, additional: u64)
-    requires table.capacity == capacity0 && table.hasher == hasher0
-    ensures table.capacity >= capacity0
-    ensures table.hasher == hasher0;
-}
-```
-
-Equality to a `requires`-bound entry value transports every fact about that
-place; it is not limited to one known predicate. Prefer narrower mutable
-parameters when only a subobject changes, so the signature itself provides the
-useful frame:
-
-```omega
-machine insert(entries: &mut Entries, item: Item) { ... }
-```
-
-Broad mutable receivers therefore have broad conservative invalidation under
-opaque or abstract dispatch. Interfaces that need structural precision should
-accept the narrowest mutable place they require.
-
-Inferred summaries are normalized complete-or-opaque checked plans. Complete
-paths sort and deduplicate, state parameters normalize positionally, and each
-summary has a deterministic implementation fingerprint. They remain under the
-machine-contract artifact's `implementation` section and do not enter authored
-contract or specialization identity.
-
-An acyclic state-transition graph participates in the same inference. The
-summary unions every conditional arm, memoizes shared downstream states, and
-substitutes target-state parameters back through their transition arguments.
-Value-position calls nested in a state body contribute their shared inferred
-call frames before the containing statement or jump, including calls in local
-initializers, assignment operands, statement-call arguments, transition
-subjects and arguments, and returned values. Recursive statement- and
-value-call graphs share cycle detection. Every reachable state-transition
-cycle and every genuinely unresolved frame remain opaque. Callers may
-therefore use exact preservation only when the complete control-flow
-implementation was summarized; one terminating observed route never licenses
-a cyclic machine.
-
-A state's signature is its arrival contract. Parameter refinements —
-dependent ones included — plus an explicit state-level `requires` are proven
-at every in-edge, including guarded named transitions and back-edges, and are
-assumed only inside that state. A state accepts `requires` after its return
-type and before its body; exit guarantees and effect/termination clauses stay
-on the machine. The assumed arrival set is the induction hypothesis the
-ranking-witness rung consumes. A self-transitioning state is a loop whose
-invariant is its own signature, so a mutation that invalidates the invariant
-must be followed by a guard or other proof that re-establishes it before the
-back-edge:
-
-A state may consume an ordinary proof-only witness bundle when its contract
-needs the bundle's laws. Every in-edge must establish the target's complete
-arrival contract with exact substitutions and still-valid subjects. Proof-only
-arguments erase without changing runtime state transfer. The general bundle
-migration is tracked in `PROOF-CONTRACT-MIGRATION`; no separate hidden-witness
-transition syntax is required by this design.
+State signatures are arrival contracts. Every incoming transition proves them
+under the exact substitution, including backedges after mutation:
 
 ```omega
 state fill(&mut self, i: u64)
@@ -393,115 +183,52 @@ requires
 }
 ```
 
-The contract is part of the state's typed and specialization identity. It is
-not a comment or a body-local assertion: an unconditional edge to `fill(n)`
-is rejected unless the current proof context establishes `n <= self.cap`.
-
-For the common write-first machine-field loop, the checker also infers one
-relational arrival fact without authored syntax. If every entry and back edge
-to an increasing-counter head establishes the same
-`self.i < self.items.len`, and recursive call frames prove both places stable,
-that collection-relative index fact holds at the head. Equivalent guards in
-different states are matched semantically rather than by syntax-tree identity.
-Reassigning `self.i` immediately invalidates the fact; a collection write or an
-opaque/overlapping call prevents the candidate entirely.
-
-A finite chain of stable intermediate bounds may be composed too. Any relation
-may supply the strict link: edge/contract chains
-`self.i < self.limit <= self.items.len` and
-`self.i <= self.outer <= self.limit < self.items.len` both give the head
-`self.i < self.items.len`. A fully non-strict chain does not; it permits the
-out-of-bounds equality case and is rejected.
-Because every bridge premise was established at machine arrival, the checker
-requires each intermediate place and `self.items` to remain frame-stable in
-every machine state, including the preheader. A preheader assignment or
-overlapping call therefore blocks this candidate even when the natural loop
-itself is read-only.
+This sketch assumes a `u64` capacity and the enclosing `done` state. The target
+may assume its own arrival facts, not stale machine-entry facts. Proof-only
+arguments obey the same substitution and validity rules before erasure; no hidden
+witness-transition syntax is needed. See [state contracts](../spec/language/state_contracts.md)
+and [mutation frames](../spec/language/dependent_values.md#mutation-frames).
 
 ## When The Checker Says No
 
-An undischarged dependent obligation is a compile error naming the missing
-fact:
+An unproved dependent use rejects with the missing relationship and its subject.
+For a descriptor view, that might be the absence of `i < count`, or a missing
+alignment or representation fact rather than a numeric bound.
 
-```text
-error: cannot prove `i * self.map.stride + self.map.stride <= self.map.len`
-       at the recast borrow; missing fact: `i < self.map.count`
-       (establish it with a dominating guard, or carry it in a contract)
-```
-
-Omega inserts no silent runtime checks. There are exactly two bridges, both
-explicit, both already in the language:
-
-- **A dominating guard.** `transition i < self.map.count { true -> ... }` —
-  the runtime check is the guard, written in your code, with a false arm the
-  no-silent-fallthrough rule forces you to handle.
-- **An `as` qualification.** A validated decode whose success establishes the domain
-  fact once, at the boundary, after which downstream uses are check-free.
+Supply a contract, cite an appropriate proof, use an explicit guard with a handled
+false outcome, or call a validator/decoder whose success establishes the required
+fact. An `as` qualification uses established evidence; it is not a hidden
+validation call. Omega does not insert residual runtime checks to make an
+unproved refinement true.
 
 ## Scope
 
 ### Proof-static domain indices
 
-A staged extension may let an erased domain family take canonical static values
-as indices and let a generic result constrain its index using expressions over
-input indices. These indices are ordinary first-order proof/static data, not
-unique type IDs, predicates, runtime fields, or inhabitants of a type universe.
-The generic declaration binds its carrier explicitly before using it in the
-ordinary carrier position: `domain<T, const U: Unit> T::Quantity<U>;`.
+Static domain indices and runtime witnesses are different applications of
+value-dependent reasoning:
 
-Closed indices evaluate and compare canonically. An open generic index remains
-a constraint fact: use at an expected index produces an equality obligation,
-discharged by closed evaluation, licensed canonical normalization, or an
-established local fact. Otherwise it rejects. The successful judgment performs no
-runtime transport because the domain is erased and the carrier is unchanged.
-Normalization determines interface identity; proof strength may accept more
-compatible uses but may not rewrite that identity.
+```omega
+domain<T, const U: Unit> T::Quantity<U>;
+```
 
-This is enough for libraries to build zero-representation-cost units,
-coordinate frames, currencies, tensor shapes, fixed-point scales, and protocol
-indices. The compiler does not know their meanings or conversions.
+This family binds its carrier and static index explicitly. Closed indices use
+canonical values; open expressions use licensed normalization or exact local
+facts for compatibility without rewriting interface identity. Qualifying the
+same carrier adds no representation, but a units library's scaling or rounding
+operation can still perform real work. See [indexed domains](../spec/language/domains.md#indexed-families).
 
-The implemented systems fragment in this chapter is intentionally narrow:
-
-- **No type-level computation.** A type never runs a machine. Layouts and
-  facts are parameterized by values, never computed by arbitrary code.
-- **No runtime-general quantifiers.** Array-wide facts are element ranges and
-  domains carried on the type (store-enforced), not hidden runtime loops.
-- **No runtime proof objects.** Runtime dependent data acquires no hidden proof
-  field, layout, or cleanup.
-
-The proof stratum distinguishes formulas, mathematical values, and effectful
-computation. Contracts state formulas; machines establish them; ordinary named
-trait/conformance bundles organize witnesses and laws. Erased Type witnesses
-retain their ordinary multiplicity and conservation. Logical evidence cannot
-be inspected by runtime code or contribute layout.
-
-General proof-side dependency must support arbitrary mathematical functions
-and predicates, nested quantification, and noncomputable values. The first-order
-systems restrictions above do not constrain that mathematical language.
-Universes, equality, and foundation compatibility need explicit design; the
-current specialized checker is not a complete implementation. See
-[Mathematical Proofs](../spec/proofs/contracts.md) and the
-[proof contracts](../spec/proofs/contracts.md).
+The systems model does not support arbitrary runtime-dependent nominal types
+or implicit runtime proof objects. It does not prohibit eligible static
+evaluation in layout plans, nor restrict general proof-side quantification.
+Arbitrary mathematical functions/predicates, noncomputable values, and the full
+universe/equality foundations remain required but
+[undetermined](../spec/proofs/contracts.md#undetermined-foundations).
 
 ## Relationship To Other Chapters
 
-- Chapter 7 owns contracts and the default domain; this chapter widens what
-  their facts may name.
-- Chapter 8 owns domains and `as` qualification; establishing a gated default
-  domain at a boundary decode is an ordinary proved qualification.
-- Chapter 11 owns the mutation discipline; a coupling update is an
-  invariant window closed at the next consumption point.
-- Chapter 10 owns proof machines and evidence; a dependent contract may cite
-  a theorem — a fact justified by a proof machine, instantiated at the
-  operands — including refinement facts equating a runtime place with a pure
-  machine's result. It also owns general proof-side relations and witness bundles;
-  this chapter does not generalize that extension into runtime dependent
-  types.
-- Chapter 13 owns the static lowering; const parameters are witnesses the
-  compiler evaluates away. It also owns the staged structured-static-parameter
-  and indexed-domain generic surface.
-- Chapter 20 owns layout and the recast borrow; dynamic strides are its
-  runtime face.
-- The index/count model brief (§8, shape-typed views) is the planned home
-  for multidimensional index sugar over the raw `y*width + x` spelling.
+Chapter 7 introduces default domains; Chapter 8 explains qualification;
+Chapter 11 explains restoring validity after mutation. Chapter 10 supplies
+proofs and explicit pre-state reasoning, Chapter 13 handles static generic
+applications, and Chapter 20 explains the representation and view obligations
+that a dependent bound alone cannot establish.

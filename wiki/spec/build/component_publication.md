@@ -175,6 +175,12 @@ and the boundary returns detached data or an explicit era-pinning handle instead
 
 ## Replacement and coexistence
 
+Capture owns device, clock, scheduler, and other boundary reach. Replayable
+upgrade code operates on owned old state and captured context, writes an
+exclusive output, observes no shared or atomic racing state, and calls only
+deterministic providers. Empty reach is necessary but not sufficient to prove
+that determinism.
+
 Every old activation, continuation, state object, registration, authority, and
 device claim receives a disposition: drain, era retention, migration,
 contracted cancellation/restart, redirection, or acknowledged transfer. Before

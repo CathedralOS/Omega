@@ -672,9 +672,8 @@ fn parse_wire_data_member<'tokens, 'source>(
     if input.at_contextual("reserved") {
         // The `reserved N;` spelling died with the `wire data` form: a retired
         // identity number is a DECLARATION, not a tombstone field.
-        return Err(input.error_here(
-            "`reserved` is retired: tombstone an identity number with `retired #N;` (chapter 21)",
-        ));
+        return Err(input
+            .error_here("`reserved` is retired: tombstone an identity number with `retired #N;`"));
     }
 
     if input.at_contextual("version") {

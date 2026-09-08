@@ -22,6 +22,15 @@ case order remains available to home-layout policies. Canonical numbered
 schemas and plans order members by stable identity; these identities are not
 runtime discriminants.
 
+Stable identities are nonnegative `u64` values, unique within their member
+scope and disjoint from its retired identities. A retirement declaration also
+activates numbered mode. Renaming a member preserves its identity; numbering
+does not itself choose source matching order or physical placement.
+An erased numbered field retains semantic and historical schema identity,
+including compatibility and retirement history, without codec placement, tag,
+or bytes. Decode establishes its erased term by checked elaboration; erasure
+never renumbers other members.
+
 Opaque member keys, stable identities, sizes, alignment, offsets, bit widths
 and indices, tags, and counts use `u64`, not `addr`. An absent stable identity
 is `Optional<u64>`, not an integer sentinel. Evaluation preserves all 64 bits;

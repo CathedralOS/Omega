@@ -110,3 +110,21 @@ Evaluate them against published schema, codec, unknown-member, canonicalization,
 and `FormatMigration` evidence; report every fact and reject unmet requests.
 This is channel/store deployment policy, not intrinsic version metadata on the
 two data types.
+
+The first four arguments identify the edge, lineage, local schema, and peer
+schema. Remaining arguments come from the closed vocabulary:
+
+| Fact | Demand |
+| --- | --- |
+| `Readable` | The local decoder accepts every peer value. |
+| `Writable` | The peer decoder accepts every local value. |
+| `PreserveUnknown` | Unknown information is preserved for relay. |
+| `Canonical` | The selected encoding produces canonical bytes. |
+| `CompleteMigration` | Selected `FormatMigration<Lineage, Old, New>` conformances provide the required peer-to-local migration route. |
+
+Omitted facts remain reported but cannot reject the build. The wire report
+retains schema/codec identities, numbered and retired members, accepted
+historical shapes, migration routes, unknown-member behavior, canonicalization,
+and derived/admitted realization provenance. `04_wire_protocols.txt` reports
+every directional fact and its explanation before unmet requested facts reject.
+Strict decoding cannot satisfy preservation merely by validating known fields.

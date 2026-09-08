@@ -1,36 +1,34 @@
 # Chapter 6: Pattern Matching And Dispatch
 
-Pattern matching inspects values and binds facts.
-
-Omega uses the same pattern vocabulary in both expression position and
-transition dispatch. The selected arm contributes facts to the arm body or
-target edge.
+Patterns select an arm and contribute facts about the saved subject. Expression
+matching returns a value; transition matching chooses a control edge. The
+[pattern specification](../spec/language/patterns.md) owns their shared rules.
 
 ## Match Expressions
 
-Expression-level `match` chooses a value-producing arm.
+A value-position match selects one result:
 
 ```omega
-let command: Command = match self.input {
-    "quit" -> Command::Quit
-    "look" -> Command::Look
-    _ -> Command::Invalid
+let category: i32 = match code {
+    2 -> 10
+    13 -> 20
+    _ -> 0
 };
 ```
 
-Working rules:
+The intended semantics evaluate the subject once, test arms in order, and
+evaluate only the selected arm. Arm values need compatible types and the
+dispatch must be exhaustive.
 
-- `match` evaluates one scrutinee expression.
-- Arms are checked top-to-bottom.
-- The selected arm contributes its matched facts to the arm body.
-- Every reachable arm of a value-producing `match` must produce a compatible
-  result type.
-- Exhaustiveness is checked unless existing facts prove some arms unreachable.
+The Rust parser's current arithmetic expansion does not implement general
+selective evaluation. Do not treat an accepted arithmetic-shaped example as
+coverage for effects, owned values, or general result types. The
+[source processing note](../../omega-rust/psi/pipeline/README.md#lexing-and-parsing)
+records the gap.
 
 ## Transition Dispatch
 
-Transition dispatch uses the same pattern model, but instead of producing a
-value it selects the next control edge.
+A transition chooses the next state:
 
 ```omega
 transition navigation.choice {
@@ -40,43 +38,43 @@ transition navigation.choice {
 }
 ```
 
-Each selected arm adds its matched pattern as proof facts for that edge.
+Only the chosen edge runs. Its pattern facts help establish the target state's
+requirements, but do not waive its ordinary type, ownership, or authority checks.
 
 ## Tuple Patterns
 
-Tuple scrutinees make multi-fact dispatch explicit.
+Tuple dispatch combines conditions:
 
 ```omega
-transition (round.player_defeated, round.enemy_defeated) {
+transition (player_defeated, enemy_defeated) {
     (true, _) -> player_died()
     (false, true) -> enemy_died()
     (false, false) -> exchange_blows()
 }
 ```
 
-The wildcard `_` ignores a value but still participates in exhaustiveness.
+The first arm deliberately wins when both conditions hold. A component wildcard
+ignores that component without asserting anything about its value.
 
 ## Named Facts Before Dispatch
 
-When the facts become hard to read, name them first.
+Name complicated conditions before branching:
 
 ```omega
-let found: bool = inventory.items[index].kind == kind;
-let has_next: bool = index + 1 < item_count;
-
-transition (found, has_next) {
-    (true, _) -> found_item(index)
-    (false, true) -> find_item_at(next_index)
-    (false, false) -> not_found()
+let empty: bool = items.len == 0;
+transition empty {
+    true -> no_items()
+    false -> inspect_first()
 }
 ```
 
-This keeps proof facts visible to humans and tools.
+The false arm establishes nonempty input. A target using that fact must receive
+the corresponding view or value through its state parameters. Naming a fact
+does not make the source binding ambient in the target state.
 
 ## Exhaustiveness
 
-Dispatch should be exhaustive unless a prior proof fact makes missing arms
-unreachable.
+A complete case dispatch fails when an added case is not covered:
 
 ```omega
 transition command {
@@ -86,53 +84,31 @@ transition command {
 }
 ```
 
-If `Command` later gains a variant, this transition should fail until it handles
-the new variant or proves that the new variant cannot occur.
-
-For case-bearing subjects this is enforced: exhaustiveness counts
-decidable arms only -- case arms (one tag each) and pure case-union domain
-arms (a declared `when self in Type::A | Type::B` tag set, see
-[Data, Values, And Literals](chapter_1_data_values_literals.md)). A dispatch
-with uncovered cases is a compile error naming them; a dispatch relying on
-arms the counter cannot decide (predicate domains, `if`-guarded patterns,
-value compares) must close with `_`.
+A wildcard opts into handling other cases. Pure case-union domains can contribute
+finite case coverage; arbitrary predicate-domain tests do not establish coverage
+merely because every known example matches. Prior facts can exclude impossible
+subjects, but a failed proof cannot be treated as an unreachable arm.
 
 ## Tail Dispatch
 
-Transitions are expressed with the `transition` keyword. Tail transitions are
-the supported control form inside state bodies.
-
-```omega
-state read_command(&mut self) {
-    self.console.read_line(&mut self.input);
-
-    transition self.input {
-        "" -> finished()
-        "quit" -> finished()
-        "look" -> look()
-        _ -> invalid_command()
-    }
-}
-```
-
-The selected arm ends the current state and transfers control to the target
-state. Entry code follows the same rule: the machine body executes straight-line
-setup first, then reaches one explicit trailing `transition { ... }` before the
-state declarations begin. Chapter 4 defines the machine/state control model;
-this chapter focuses on how pattern selection feeds that control model.
+A transition ends the current straight-line segment. Its target is a state in
+the same machine, not a machine call disguised by call-shaped arguments.
+[Chapter 4](chapter_4_states_transitions.md) explains entry transitions,
+state frontiers, and terminal values.
 
 ## Domain Patterns
 
-Domains may participate in matching when their predicate requirements are proof-visible.
-Chapter 8 defines domains themselves; this section only defines how domain
-patterns participate in matching once those domains exist.
+A runtime domain pattern needs a finite, pure executable test and any required
+establishment provenance. Proof visibility alone does not make a test executable.
 
 ```omega
-match player {
-    Player::Alive -> continue_game(player)
-    Player::Dead -> game_over(player)
+transition player {
+    Player::Dead -> game_over()
+    _ -> continue_game()
 }
 ```
 
-The selected arm contributes the matched domain fact to the selected arm body or
-transition target.
+The selected domain fact belongs to the saved subject and its current revision.
+Mutation can invalidate it. Overlapping domains use ordinary first-match order;
+testing predicates cannot mint a routed qualification. See
+[domains](chapter_8_domains.md).
