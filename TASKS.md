@@ -111,7 +111,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Work from the unchanged `print_squares` [outer command](samples/cli/basics/print_squares/README.md).
   Resume its native compiler-library probe with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  At base `93affbf21c` on macOS arm64, this exits 100 before
+  At `4cf202857d` on macOS arm64, this exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
   The verifier admits scalar computations, immutable byte views, persistent
@@ -122,16 +122,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   validation yet.
   Shared state-body construction in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-  retains ordered field replacement, but runtime-indexed byte writes remain
-  absent from the portable store vocabulary. Implement indexed mutation with
-  exact source byte, destination live-length evidence, bounds, and invariant
-  preservation. Retain the source live-prefix judgments in
+  retains ordered whole-field and runtime-indexed byte replacement. Complete
+  Main's checked transitive Unit closure without replacing its authored graph.
+  The portable indexed store retains exact runtime operands and current field
+  length; ordinary and nested-field source artifacts interpret caller-visible
+  writes. Retain the source live-prefix judgments in
   `typed-trees-to-checked-trees/src/checks/ranges/assignment_lengths.rs`;
   capacity must not substitute for live length in the portable plan.
   The bounded replacement owner is
-  `checked-trees-to-lowered-psi/src/structural_byte_sequence_store.rs`;
-  its native consumer still rejects `StructuralByteSequenceFieldStore` before
-  projection. Reuse literal/length observations and checked source predicate
+  `checked-trees-to-lowered-psi/src/structural_byte_sequence_store.rs`,
+  and the indexed producer is
+  `checked-trees-to-lowered-psi/src/structural_byte_sequence_index_store.rs`.
+  Realize whole replacement, field-length observation, and indexed replacement
+  in the native consumer, which still rejects all three before projection.
+  Reuse literal/length observations and checked source predicate
   obligations; predicate-only `Utf8` erasure does not itself require adding a
   projected qualification roster. The CLI outer command
   separately exits 1 awaiting ordinary package review; do not manufacture acceptance.

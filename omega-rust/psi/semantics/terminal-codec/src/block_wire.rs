@@ -1860,10 +1860,10 @@ mod tests {
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
         let mut unknown = bytes.clone();
-        unknown[position] = 59;
+        unknown[position] = 61;
         assert_eq!(
             decode_block(&mut Reader::new(&unknown)),
-            Err(CodecError::InvalidTag("OperationKind", 59))
+            Err(CodecError::InvalidTag("OperationKind", 61))
         );
         for length in 0..bytes.len() {
             assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());

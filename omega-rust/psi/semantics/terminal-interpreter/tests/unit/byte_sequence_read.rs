@@ -539,7 +539,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
 fn byte_read_wire_rejects_tampered_operands_and_stale_vocabulary() {
     let module = guarded_module(vec![0xff], 0);
     let semantic = encode_module(&module).unwrap();
-    assert_eq!(&semantic[10..12], &86_u16.to_le_bytes());
+    assert_eq!(&semantic[10..12], &87_u16.to_le_bytes());
     let mut stale = semantic.clone();
     stale[10..12].copy_from_slice(&82_u16.to_le_bytes());
     assert!(decode_module(&stale).is_err());
