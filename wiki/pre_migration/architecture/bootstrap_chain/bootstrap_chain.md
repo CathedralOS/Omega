@@ -75,7 +75,8 @@ complete edge remains open. The Delta-written Epsilon evaluator and
 Epsilon-written Omega D are incomplete; D has no compiled tape. Omega-written C
 is also incomplete, so `omega0` remains absent. No compatibility route fills these
 gaps. The former concatenative Gamma implementation and its Delta compiler are
-nested bootstrap evidence under their language owners, not selected edges.
+[retired](../../design_briefs/legacy_bootstrap_retirement.md); their historical
+comparison findings are not selected proof edges.
 
 See the [manifest](chain_manifest.md), [repository map](repository_structure.md),
 and [`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md).

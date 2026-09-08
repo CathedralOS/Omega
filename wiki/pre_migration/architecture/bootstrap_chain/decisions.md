@@ -2941,9 +2941,11 @@ global namespaces, sum representation, storage allocation, array indexes, and
 call recursion. Reopen the functional-rung comparison when a representative
 larger slice requires recursive syntax values, variable-length collections,
 nested scopes, or rich deterministic diagnostics. Those costs are absent here
-and could reverse the result. Its latest Gamma implementation is retained under
-`tests/delta/state-machine-experiment/`; the test owner retains the
-customer and interpreted/native agreement gate.
+and could reverse the result. Its last Gamma implementation and customer gate
+are archived at revision `f8355fbad1af7672812b6eab66f8309c3c34ffee`, under
+`tests/delta/state-machine-experiment/`. The
+[retirement review](../../design_briefs/legacy_bootstrap_retirement.md) preserves
+the assertion dispositions; this speculative compiler is no longer maintained.
 
 ## D72 — Address target comments use compact spacing
 
@@ -3364,9 +3366,11 @@ exact 26,674-byte `gamma_compiler_bytecode.tape`. Running the native tape on the
 same Gamma source reproduces the same receipt and tape. Thus the selected
 compiler reconstructs without the former direct Gamma-to-Alpha compiler.
 
-The former 533-line direct compiler moves to
-`tests/gamma/gamma-to-beta-experiment/direct_compiler.gamma`. It remains only as a differential
-comparator. The promoted compiler compiles that comparator through Beta into a
+The former 533-line direct compiler moved to
+`tests/gamma/gamma-to-beta-experiment/direct_compiler.gamma` as a differential
+comparator (archived at `f8355fbad1af7672812b6eab66f8309c3c34ffee`; see the
+[retirement review](../../design_briefs/legacy_bootstrap_retirement.md)).
+At this checkpoint, the promoted compiler compiled that comparator through Beta into a
 disposable tape; promoted and direct routes then agree on Delta0, the complete
 retained Gamma corpus, and D84's 1,048,547-byte near-limit witness. The direct
 source supplies no selected bootstrap premise and is deletion-bounded by

@@ -72,11 +72,9 @@ prerequisite to every lower-rung milestone.
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
   [measured cost review](wiki/pre_migration/design_briefs/bootstrap_cost_review.md) before
   expanding infrastructure. Owners remain Delta normalization,
-  Gamma evaluator/checker/Beta definitions, and the retained comparison routes.
+  Gamma evaluator/checker/Beta definitions, and selected-chain resource profiles.
   Current Epsilon demand does not justify more depth machinery; retain deep-source
   conformance until a simpler implementation or owner-approved scope replaces it.
-  Map unique legacy assertions to selected gates before removing the old
-  execution routes and their adapters together.
   For P1 in `bootstrap/2_gamma/beta_encoding/`, use the consolidated
   [complete encoder candidate](wiki/pre_migration/design_briefs/beta_encoder_plan.md), not
   another isolated helper probe. It removes completed-token/output histories

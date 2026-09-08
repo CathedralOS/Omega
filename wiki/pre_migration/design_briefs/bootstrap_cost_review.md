@@ -19,7 +19,7 @@ evidence, not successive authorization to add more helpers.
 | Delta name construction | Shared-prefix cursors save 275,352 pairs/11,014,080 bytes over root-rebuilding seeks on the current Epsilon subject; both produce the same complete receipt. | Retain the existing implementation without expansion. Customer capacity alone does not require it; preserve separate conformance obligations before considering removal. |
 | Generic Gamma checker | Capacity checks at 547,817 work; the normalized forward state-fold recipe costs another 681,724 even with identity byte steps. | Separate capacity and scanner passes do not fit the current provision. Cost the combined encoder and a coherent resource provision before adopting either representation. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
-| Retained concatenative Gamma route | Nine bootstrap files, 169,376 bytes; seven remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
+| Retired concatenative Gamma route | The final coordinated retirement removes 38 files / 339,616 bytes, including seven test entrypoints and the state-machine Delta experiment. | [Coverage mapping and historical findings](legacy_bootstrap_retirement.md); no selected proof edge is closed by deletion. |
 
 The resource follow-through below changes one private checker limit after an
 allocation audit; no language contract, evaluator capacity, or trusted assumption
@@ -808,27 +808,18 @@ the [Delta abstraction review](delta_abstraction_review.md), including their
 archival revision and assertion-to-selected-coverage mapping. Their extra
 elaborator and size-pinning gate are retired; their cost findings remain.
 
-`bootstrap/2_gamma/bootstrap/concatenative/` retains three language-source/
-receipt files totaling 4,968 lines/129,149 bytes, one 26,674-byte tape, and five docs.
-These are outside the selected execution route; their size is maintenance and
-review-discovery cost, not automatically additional trusted chain material.
+The remaining concatenative Gamma compiler/evaluator, six Gamma test entrypoints,
+and speculative state-machine Delta gate are now retired together with their
+artifact helper, role exports, and positive hygiene requirements. The
+[retirement review](legacy_bootstrap_retirement.md) records the complete consumer
+inventory, assertion dispositions, recoverable Git revision, and comparison costs.
+These were outside the selected execution route: removal reduces maintenance and
+review-discovery cost, not the selected trusted root or its proof obligations.
 
-The six remaining Gamma entrypoints are `evaluator-slice.sh`, `evaluator-reconstruction.sh`,
-`compiler-fixed-point.sh`, `state-machine-customer.sh`, and the `run.sh` files in
-`gamma1-augmentation-experiment/` and `gamma-to-beta-experiment/`.
-The remaining Delta entrypoint is `state-machine-experiment/run.sh`.
-The role registry, the Gamma artifact helper, and
-chain-hygiene gate also retain the old route. Searches must include helper calls
-and role variables, not only literal directory names.
-
-Their [retention inventories](../../../tests/delta/README.md) include historical
-architecture discriminators and conformance evidence. Some old comparisons
-explicitly lack current typing, arithmetic, and Bytes coverage, so their line
-counts do not justify replacing the selected implementation. Audit each unique
-assertion against selected-route gates; keep useful findings in existing design
-documentation and retire obsolete execution paths together with their adapters
-and hygiene requirements. Do not preserve them merely to make inventory checks
-pass, or delete them while leaving their consumers broken.
+The checkpoint accounts below describe the earlier partial retirements. References
+there to still-shared artifacts and receipts are historical; the final coordinated
+retirement above removes those remaining consumers. The selected test owners are
+[Gamma](../../../tests/gamma/README.md) and [Delta](../../../tests/delta/README.md).
 
 ### Completed topology discriminators
 

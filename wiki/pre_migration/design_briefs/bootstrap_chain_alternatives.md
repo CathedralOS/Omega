@@ -3,11 +3,12 @@
 > **Needs porting.** Separate the selected chain's current contract from useful
 > proposal rationale and obsolete alternatives. See the [migration index](../README.md).
 
-> **Status: concatenative Gamma selected after implementation measurement.** The live
-> direction is `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega`. Alpha
-> remains the portable tape machine. Beta is the trusted imperative tape-
-> assembly language; Gamma is the bounded concatenative compiler machine; Delta and Epsilon
-> are the typed functional and fixed-storage compiler languages.
+> **Historical alternatives, superseded by D88.** The selected chain remains
+> `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega`, but Gamma is now the
+> typed functional language evaluated directly by Beta. The former concatenative
+> implementation is [retired](legacy_bootstrap_retirement.md). Read the
+> [current chain](../architecture/bootstrap_chain/bootstrap_chain.md) for selected
+> ownership; the alternatives below are comparison rationale, not live contracts.
 
 ## Question
 
