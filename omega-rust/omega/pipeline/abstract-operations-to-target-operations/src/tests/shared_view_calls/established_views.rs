@@ -112,3 +112,132 @@ fn repeated_calls_retain_exact_subslice_producer_without_a_parameter_home() {
         }
     }
 }
+
+fn unit_subslice_calls() -> AbstractOperationPlan {
+    let mut plan = subslice_calls();
+    for function in &mut plan.functions {
+        function.result = AbstractFunctionResult::Unit;
+        for operation in &mut function.operations {
+            *operation = match operation.clone() {
+                AbstractOperation::CallStructuralScalar {
+                    psi_operation,
+                    callee,
+                    arguments,
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                } => AbstractOperation::CallUnit {
+                    psi_operation,
+                    callee,
+                    arguments,
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                },
+                AbstractOperation::Return {
+                    psi_edge,
+                    cleanup_actions,
+                    ..
+                } => AbstractOperation::ReturnUnit {
+                    psi_edge,
+                    cleanup_actions,
+                },
+                other => other,
+            };
+        }
+    }
+    plan
+}
+
+#[test]
+fn unit_calls_retain_once_only_length_and_subslice_establishment() {
+    let plan = unit_subslice_calls();
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    let TargetOperation::UnitGraph(graph) = &lowered.functions[0].operation else {
+        panic!("Unit graph");
+    };
+    let operations = &graph.blocks[0].operations;
+    assert!(matches!(
+        operations[0],
+        target_operations::TargetUnitOperation::ScalarDefinition { .. }
+    ));
+    assert!(matches!(
+        operations[1],
+        target_operations::TargetUnitOperation::ByteSequenceSubslice { .. }
+    ));
+    for call in &operations[2..] {
+        let target_operations::TargetUnitOperation::Call { arguments, .. } = call else {
+            panic!("Unit call");
+        };
+        assert_eq!(
+            arguments[0].source,
+            target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                psi_operation: OperationId::new(21).unwrap(),
+            }
+        );
+    }
+    assert_eq!(
+        lowered.functions[0].provenance.operations,
+        vec![
+            OperationId::new(20).unwrap(),
+            OperationId::new(21).unwrap(),
+            OperationId::new(3).unwrap(),
+            OperationId::new(4).unwrap()
+        ]
+    );
+}
+
+#[test]
+fn unit_calls_reject_future_duplicate_and_sibling_view_producers() {
+    for mutation in 0..3 {
+        let mut plan = unit_subslice_calls();
+        let caller = &mut plan.functions[0];
+        match mutation {
+            0 => caller.operations.swap(1, 2),
+            1 => caller.operations.insert(2, caller.operations[1].clone()),
+            _ => {
+                let condition = ValueId::new(90).unwrap();
+                caller.parameters.push(AbstractParameter {
+                    value: condition,
+                    scalar_type: ScalarType::Boolean,
+                });
+                let successor = |edge, block| abstract_operations::AbstractSuccessor {
+                    psi_edge: EdgeId::new(edge).unwrap(),
+                    target: BlockId::new(block).unwrap(),
+                    bindings: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                };
+                caller.operations.insert(
+                    1,
+                    AbstractOperation::Conditional {
+                        condition,
+                        when_true: successor(30, 30),
+                        when_false: successor(31, 31),
+                    },
+                );
+                caller.operations.insert(
+                    3,
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(32).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                );
+                caller.block_entries = [(1, 0), (30, 2), (31, 4)]
+                    .into_iter()
+                    .map(|(block, operation_offset)| AbstractBlockEntry {
+                        block: BlockId::new(block).unwrap(),
+                        parameters: Vec::new(),
+                        operation_offset,
+                    })
+                    .collect();
+            }
+        }
+        assert!(
+            lower_to_target_operations(&plan, NativeTarget::linux_x64()).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}

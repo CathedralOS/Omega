@@ -19,6 +19,15 @@ pub(super) fn validate(
         {
             (&body.call_plan, &body.scalar_parameters, &body.parameters)
         }
+        (AbstractFunctionResult::Unit, TargetOperation::UnitGraph(graph), None)
+            if graph.call_plan.result.is_none() =>
+        {
+            (
+                &graph.call_plan,
+                &graph.scalar_parameters,
+                &graph.parameters,
+            )
+        }
         (AbstractFunctionResult::Scalar(result), _, Some(abi))
             if result.scalar_type == ScalarType::Integer(u64_type())
                 && abi.result.value == result.value
@@ -44,6 +53,12 @@ pub(super) fn validate(
         || target.attachment != abstracted.attachment
         || target.attachment != optimized.attachment
         || target.scalar_abi.is_some()
+        || (matches!(target.operation, TargetOperation::UnitGraph(_))
+            && !crate::structural_unit_input::accepts_borrowed_view(
+                call_plan,
+                &parameters,
+                &plan.structural_types,
+            ))
         || abstracted.parameters.len() != optimized.parameters.len()
         || scalar_parameters.len() != abstracted.parameters.len()
         || call_plan.parameters.len() != abstracted.parameters.len() + 1

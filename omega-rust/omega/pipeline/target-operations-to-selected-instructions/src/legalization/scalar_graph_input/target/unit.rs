@@ -4,6 +4,7 @@ use target_operations::{
     TargetUnitScalarArgumentSource as Source,
 };
 pub(super) fn validate(
+    function: &TargetFunction,
     body: &TargetUnitBody,
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
@@ -35,6 +36,7 @@ pub(super) fn validate(
         .collect::<Vec<_>>();
     for (target, abstracted) in body.operations.iter().zip(&abstracted.operations) {
         validate_operation(
+            function,
             target,
             abstracted,
             &body.scalar_parameters,
@@ -51,6 +53,7 @@ pub(super) fn validate(
 
 /// Replay one ordered Unit operation with only the SSA sources available here.
 pub(super) fn validate_operation(
+    function: &TargetFunction,
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
     scalar_parameters: &[ScalarAbiValue],
@@ -62,7 +65,41 @@ pub(super) fn validate_operation(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
+    let checker = Checker {
+        function,
+        available: Some(sources),
+        optimized,
+        native,
+        plan,
+        unit,
+    };
     match (target, abstracted) {
+        (
+            TargetUnitOperation::ScalarDefinition { result_home, .. },
+            AbstractOperation::ByteSequenceLength { .. }
+            | AbstractOperation::ByteSequenceRead { .. }
+            | AbstractOperation::IntegerEqual { .. }
+            | AbstractOperation::IntegerLessThan { .. }
+            | AbstractOperation::IntegerLessOrEqual { .. },
+        ) => {
+            super::scalar_definitions::observation(target, abstracted, &checker)?;
+            sources.push((result_home.source_value, Source::Home(*result_home)));
+        }
+        (
+            TargetUnitOperation::ByteSequenceSubslice { result, view },
+            AbstractOperation::ByteSequenceSubslice {
+                result: expected,
+                psi_operation,
+                ..
+            },
+        ) => {
+            if result != expected
+                || !matches!(view, target_operations::TargetByteView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
+                || !checker.byte_view(view, result.place, &[])
+            {
+                return Err(invalid);
+            }
+        }
         (
             TargetUnitOperation::ScalarDefinition { result_home, .. },
             AbstractOperation::IntegerWiden { .. },

@@ -54,11 +54,21 @@ pub(super) fn lower_unit_function(
     let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
     let bounded_closed_sum = closed_sum::has_bounded_shape(function);
     let dynamic_descriptor_join = dynamic_join::has_bounded_shape(function);
-    if function.block_entries.len() > 1
+    if (function.block_entries.len() > 1
+        || function.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::ByteSequenceLength { .. }
+                    | AbstractOperation::ByteSequenceRead { .. }
+                    | AbstractOperation::ByteSequenceSubslice { .. }
+            )
+        }))
         && !bounded_conditional_exit
         && !bounded_closed_sum
         && !dynamic_descriptor_join
-        && (function.structural_parameters.is_empty() || !continuation::has_shape(function))
+        && (function.structural_parameters.iter().all(|parameter| {
+            super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
+        }) || !continuation::has_shape(function))
     {
         return graph::lower(function, target, functions, structural_types);
     }

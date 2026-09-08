@@ -277,6 +277,7 @@ pub(super) fn lower_unit_body(
                 structural_types,
                 &parameters_by_place,
                 &established_affine_local_sources,
+                &BTreeMap::new(),
                 &scalar_values,
                 &scalar_aliases,
                 &boolean_constants,

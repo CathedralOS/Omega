@@ -9,6 +9,8 @@ use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetBooleanExpression {
+    /// Read an already executed scalar definition; physical residence is downstream.
+    ScalarHome(crate::TargetUnitScalarHomeRequirement),
     Call {
         psi_operation: OperationId,
         source_value: ValueId,

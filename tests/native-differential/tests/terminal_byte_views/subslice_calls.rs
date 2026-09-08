@@ -6,7 +6,7 @@ use terminal_psi::{
     SuccessorEdge, Terminator, ValueDeclaration,
 };
 
-fn suffix_call_module() -> TerminalModule {
+pub(super) fn suffix_call_module() -> TerminalModule {
     let mut module = fixtures::byte_view_read_call_module();
     let caller = &mut module.machines[1];
     let scalar_type = caller.parameters[0].scalar_type;

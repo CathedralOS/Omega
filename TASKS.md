@@ -185,26 +185,26 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   They measure and read one shared parameter with runtime `u64` indices guarded
   by the exact view's length, observe checked subslices, and preserve the original
   descriptor and `u64`/Boolean inputs across repeated scalar-result and genuine
-  Unit helper calls. Complete derived-view Unit calls, block argument transfers
-  and byte-dependent Unit control before joining natural-ranked writer execution. Void-call return
+  Unit helper calls. Complete block argument transfers and derived-view Unit
+  object/image publication before joining natural-ranked writer execution. Void-call return
   and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
   and source-place evidence when joining these dependencies.
-  Extend `abstract-operations-to-target-operations/src/lowering/unit/graph.rs`
-  from scalar-only acyclic calls and Boolean branches to derived-view Unit
-  calls and byte observations/subslices; `unit/body.rs` also rejects those
-  producers, and `scalar/straight_line/operation.rs` rejects `CallUnit`. Unit argument
-  sourcing also lacks established-view producers. Join the ordinary call route
-  to the activation-local homes in
-  `target-operations-to-selected-instructions/src/selection/`, retaining
-  original backing, exact bounds and single fuel settlement. Reuse
+  Join the ordinary Unit graph's activation-local descriptors in
+  `target-operations-to-selected-instructions/src/selection/` to block transfers
+  and publication, retaining original backing, exact bounds and single fuel
+  settlement. `image-emission/src/function_fragments/source.rs` still rejects
+  mixed scalar/view Unit ABI, while `function_fragments/structural.rs` and its
+  independent validator require an incoming placement and owned-copy span.
+  Extend exact selected call/producer/descriptor-home custody for shared derived
+  views, not an invented incoming placement or copy of backing bytes. Reuse
   `terminal_byte_views/subslice_calls.rs` for descriptor custody; Unit
   acceptance needs observable effects and caller continuation, not merely a
   resultless call or synthetic incoming descriptor.
   Use `terminal_byte_views/byte_output.rs` for the Linux `i32` byte leaf's
   selected/frame/object/image custody; Linux execution requires a Linux host.
-  While joining derived views and byte-dependent control, retain the byte widening,
-  scalar-only calls and branch/join regression floor in `terminal_byte_views/byte_output/`.
+  Retain the byte widening, scalar-only calls, branches/joins and derived-view
+  Unit-output regression floor in `terminal_byte_views/byte_output/`.
   Preserve the defining operation, normalized byte ABI inputs, exact selected
   call evidence, output order and visible caller continuation; do not fabricate
   a descriptor or scalar return.

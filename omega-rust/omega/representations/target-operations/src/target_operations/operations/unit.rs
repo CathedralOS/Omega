@@ -48,6 +48,11 @@ pub enum TargetUnitOperation {
         result_home: TargetUnitScalarHomeRequirement,
         expression: crate::TargetScalarExpression,
     },
+    /// Establish one checked descriptor without copying its immutable backing bytes.
+    ByteSequenceSubslice {
+        result: StructuralOperationResult,
+        view: crate::TargetByteView,
+    },
     EstablishByteSequenceLiteral {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,

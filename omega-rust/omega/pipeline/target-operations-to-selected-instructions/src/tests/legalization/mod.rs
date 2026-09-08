@@ -11,4 +11,5 @@ mod scalar_unit_calls;
 mod structural_call;
 mod structural_publication;
 mod unit_graph;
+mod unit_view_graph;
 mod widening;

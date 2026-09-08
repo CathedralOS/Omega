@@ -50,11 +50,16 @@ order independently of its topological traversal. The common target-to-selected
 reader independently checks this graph against source before constructing the
 existing legalized/selected graph. The target-only family receipt does not claim
 this coverage; its legacy continuation check still rejects linear graph sources
-that match that older family. Nonempty block argument transfers, structural
-views, and cycles remain separately rejected until their native transport and
+that match that older family. Nonempty block argument transfers and cycles
+remain separately rejected until their native transport and
 authority are joined.
-The current node set is scalar constants, integer widening and ordinary Unit
-calls; conditions are canonical Boolean parameters or available constants.
+The node set includes scalar constants, integer widening, immutable byte length
+and read observations, integer comparisons, subslice establishments and ordinary
+Unit calls. Views must be exact shared parameters or dominating establishments;
+their length-observation identity is retained separately from scalar residence.
+Comparisons define Boolean homes for conditions rather than repeating their
+producer at the edge. Computed Boolean Unit-call arguments remain unsupported;
+the existing parameter/constant Boolean call forms are unchanged.
 Abstract lowering preserves entry parameter metadata that exactly repeats the
 function parameters, but this is not native admission: optimization-unit
 validation still requires empty entry block parameters.
@@ -125,16 +130,18 @@ retain their original pointer placements. Native selection admits `u64` and
 Boolean scalar actuals beside one whole shared view, with resultless call
 constraints for each supported native register arity. Independent replay checks
 the scalar types, original pointer, call order, and absence of a result operand.
-Conditional Unit bodies, descriptor
-rebinding, and the console writer's ranked loop remain separate dependencies.
+The ordinary Unit graph above also admits byte-dependent acyclic branches.
+Descriptor rebinding across block parameters and the console writer's ranked
+loop remain separate dependencies.
 
 Checked subslices retain their exact source, structural result, endpoints, and
 two-leg bounds obligation. Acyclic scalar-result graphs can measure, read, and
 derive nested views without copying the original descriptor or backing bytes.
 Target expressions retain the derivation, and legalization independently rejoins
 it to the verified operations. Derived views need an addressable descriptor
-before they can be passed through the reference ABI; that call path is not yet
-implemented.
+before they can be passed through the reference ABI. Ordinary scalar-result
+and Unit calls reuse the selected activation-local descriptor storage; the
+descriptor points into the original backing rather than copying its bytes.
 
 Selection retains the original backing pointer with an integer byte offset and
 length in ordinary value homes. For root length `R`, each derived view preserves
@@ -144,9 +151,8 @@ the existing indexed load. No arithmetic proof is asserted about the pointer,
 and an empty suffix need not form a one-past address. Independent replay checks
 the same source chain and every contributing home.
 
-This does not complete literal descriptor materialization, general Unit control,
-mixed scalar types beyond `u64` and Boolean, derived-view calls/block transfers,
-or ranked control. The
+This does not complete literal descriptor materialization, computed Boolean
+Unit-call arguments, derived-view block transfers, or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
 executes caller-owned descriptors, derived views, and framed helper chains
@@ -154,7 +160,12 @@ on supported hosts; it does not establish Omega-source writer closure or
 standalone executable publication.
 The void-call runtime fixture checks normal return, descriptor preservation, and
 surrounding stack canaries. Its discarded byte-reader result does not establish
-observable byte output or Boolean-dependent behavior.
+observable byte output or Boolean-dependent behavior. The separate
+`byte_output/derived_unit.rs` fixture retains a checked suffix, a genuine Unit
+reader's guarded byte output, and caller continuation. Its Linux runtime oracle
+requires a Linux host. Object/image publication still needs the derived structural
+argument's selected producer and descriptor-home custody; the existing object
+record builder accepts incoming placements only.
 
 [Structural-header validation](src/validation/structural_signatures.rs) rejoins
 retained Unit and mixed scalar ABI parameters to the source declarations and

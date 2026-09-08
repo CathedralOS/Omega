@@ -1,6 +1,35 @@
 //! Independent expression correspondence under source successor bindings.
 use super::*;
 impl Checker<'_> {
+    fn scalar_parameters(&self) -> &[target_operations::ScalarAbiValue] {
+        if let Some(abi) = &self.function.scalar_abi {
+            &abi.parameters
+        } else if let Some(abi) = &self.function.mixed_structural_scalar_abi {
+            &abi.scalar_parameters
+        } else {
+            match &self.function.operation {
+                TargetOperation::UnitBody(body) => &body.scalar_parameters,
+                TargetOperation::UnitGraph(graph) => &graph.scalar_parameters,
+                _ => &[],
+            }
+        }
+    }
+
+    fn available_home(&self, home: &target_operations::TargetUnitScalarHomeRequirement) -> bool {
+        let Some(sources) = self.available else {
+            return false;
+        };
+        let mut definitions = sources
+            .iter()
+            .filter(|(value, _)| *value == home.source_value);
+        let Some((_, target_operations::TargetUnitScalarArgumentSource::Home(expected))) =
+            definitions.next()
+        else {
+            return false;
+        };
+        home == expected && definitions.next().is_none()
+    }
+
     pub(super) fn expression(
         &self,
         expression: &Expression,
@@ -9,6 +38,9 @@ impl Checker<'_> {
     ) -> bool {
         let resolved = resolve(value, aliases);
         match expression {
+            Expression::ScalarHome(home) => home.source_value == resolved
+                && matches!(home.scalar_type, ScalarType::Integer(_))
+                && self.available_home(home),
             Expression::StructuralCall { .. } => self.structural_call(expression, resolved, aliases),
             Expression::ByteSequenceRead { psi_operation, source_value, source, view, index, length, obligation } => {
                 *source_value == resolved
@@ -28,8 +60,7 @@ impl Checker<'_> {
             Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.blocks.iter().flat_map(|block|&block.nodes).any(|node|
                 matches!(&node.operation,AbstractOperation::IntegerConstant {result,value:actual,..} if *result == resolved && actual == literal)),
             Expression::Parameter {source_value,parameter_index,location} => {
-                let Some(parameter) = self.function.scalar_abi.as_ref().and_then(|abi|abi.parameters.get(*parameter_index))
-                    .or_else(|| self.function.mixed_structural_scalar_abi.as_ref().and_then(|abi| abi.scalar_parameters.get(*parameter_index))) else {return false;};
+                let Some(parameter) = self.scalar_parameters().get(*parameter_index) else {return false;};
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)
             }
             Expression::Call {psi_operation,source_value,callee,arguments,requirement_obligations,crash_continuations} => {
@@ -66,6 +97,24 @@ impl Checker<'_> {
         value: ValueId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        if let Boolean::ScalarHome(home) = expression {
+            return home.source_value == resolve(value, aliases)
+                && home.scalar_type == ScalarType::Boolean
+                && self.available_home(home);
+        }
+        if let Boolean::Immediate {
+            source_value,
+            value: literal,
+        } = expression
+        {
+            return *source_value == value
+                && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node|
+                    matches!(&node.operation, AbstractOperation::BooleanConstant { result, value: actual, .. }
+                        if *result == resolve(value, aliases) && actual == literal))
+                && self.available.is_none_or(|sources| sources.iter().any(|(source, definition)|
+                    *source == value && matches!(definition,
+                        target_operations::TargetUnitScalarArgumentSource::BooleanImmediate { value: actual, .. } if actual == literal)));
+        }
         if let Boolean::Parameter {
             source_value,
             parameter_index,
@@ -74,10 +123,8 @@ impl Checker<'_> {
         {
             return *source_value == value
                 && self
-                    .function
-                    .scalar_abi
-                    .as_ref()
-                    .and_then(|abi| abi.parameters.get(*parameter_index))
+                    .scalar_parameters()
+                    .get(*parameter_index)
                     .is_some_and(|parameter| {
                         parameter.value == resolve(value, aliases)
                             && parameter.scalar_type == ScalarType::Boolean

@@ -61,10 +61,10 @@ pub(super) fn validate_target(
         if optimized.blocks.len() != 1 {
             return Err(invalid);
         }
-        return unit::validate(body, abstracted, optimized, native, plan, unit);
+        return unit::validate(target, body, abstracted, optimized, native, plan, unit);
     }
     if let TargetOperation::UnitGraph(graph) = &target.operation {
-        return unit_graph::validate(graph, optimized, native, plan, unit);
+        return unit_graph::validate(target, graph, optimized, native, plan, unit);
     }
     let (scalar_type, control) = match &target.operation {
         TargetOperation::ReturnIntegerImmediate {
@@ -154,6 +154,7 @@ pub(super) fn validate_target(
     }
     let checker = Checker {
         function: target,
+        available: None,
         optimized,
         native,
         plan,
@@ -166,6 +167,7 @@ pub(super) fn validate_target(
 }
 struct Checker<'a> {
     function: &'a TargetFunction,
+    available: Option<&'a [(ValueId, target_operations::TargetUnitScalarArgumentSource)]>,
     optimized: &'a PsiOptimizationFunction,
     native: &'a TargetOperationPlan,
     plan: &'a AbstractOperationPlan,
