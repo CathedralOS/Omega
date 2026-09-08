@@ -320,8 +320,8 @@ pub(super) struct Engine<'program> {
     pub(super) substitutions: BTreeMap<String, Polynomial>,
     /// Lower bounds: each entry means `polynomial >= bound`.
     bounds: Vec<(Polynomial, BigInt)>,
-    /// Mod-term atoms with their euclidean intervals (`t % k` in `0 ..= k-1`).
-    mod_intervals: BTreeMap<String, Interval>,
+    /// Derived bounds for truncating integer quotient and remainder atoms.
+    arithmetic_intervals: BTreeMap<String, Interval>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
     matrix: BTreeMap<String, BTreeMap<String, BigInt>>,
@@ -371,7 +371,7 @@ impl<'program> Engine<'program> {
             unsigned_atoms,
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
-            mod_intervals: BTreeMap::new(),
+            arithmetic_intervals: BTreeMap::new(),
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
         }
@@ -510,7 +510,7 @@ impl<'program> Engine<'program> {
             unsigned_atoms: Vec::new(),
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
-            mod_intervals: BTreeMap::new(),
+            arithmetic_intervals: BTreeMap::new(),
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
         }
@@ -879,7 +879,7 @@ impl<'program> Engine<'program> {
     }
 
     fn atom_interval(&self, atom: &str) -> Interval {
-        if let Some(interval) = self.mod_intervals.get(atom) {
+        if let Some(interval) = self.arithmetic_intervals.get(atom) {
             return interval.clone();
         }
         Interval {
@@ -901,12 +901,12 @@ impl<'program> Engine<'program> {
         for atom in self.unsigned_atoms.clone() {
             self.record_difference(&atom, ZERO_ATOM, BigInt::zero());
         }
-        let mod_atoms: Vec<(String, Interval)> = self
-            .mod_intervals
+        let arithmetic_atoms: Vec<(String, Interval)> = self
+            .arithmetic_intervals
             .iter()
             .map(|(atom, interval)| (atom.clone(), interval.clone()))
             .collect();
-        for (atom, interval) in mod_atoms {
+        for (atom, interval) in arithmetic_atoms {
             if let Some(low) = interval.low {
                 self.record_difference(&atom, ZERO_ATOM, low);
             }
@@ -1162,7 +1162,7 @@ impl<'program> Engine<'program> {
                 BinaryOperator::Divide | BinaryOperator::Modulo => {
                     let dividend = self.normalize(binary.left)?;
                     let divisor = self.normalize(binary.right)?;
-                    if proof_integer_expression(self.program, expression)
+                    let builtin_proof_integer = proof_integer_expression(self.program, expression)
                         && self
                             .program
                             .expression_table
@@ -1183,7 +1183,8 @@ impl<'program> Engine<'program> {
                                                 | Target::LateBound(LateBinding::CheckedOperator)
                                         )
                                     })
-                            })
+                            });
+                    if builtin_proof_integer
                         && let (Some(dividend), Some(divisor)) = (
                             self.substituted(&dividend).constant_value(),
                             self.substituted(&divisor).constant_value(),
@@ -1199,7 +1200,39 @@ impl<'program> Engine<'program> {
                         ));
                     }
                     if binary.operator == BinaryOperator::Divide {
-                        return None;
+                        if !builtin_proof_integer
+                            || (self.strict_symbol_bindings.is_some()
+                                && !self.proof_integer_formation)
+                        {
+                            return None;
+                        }
+                        let divisor = self.substituted(&divisor).constant_value()?;
+                        if divisor.is_zero() {
+                            return None;
+                        }
+                        let dividend_interval =
+                            self.polynomial_interval(&self.substituted(&dividend));
+                        let quotient_bound = |bound: Option<BigInt>| {
+                            bound.and_then(|value| {
+                                value.div_rem(&divisor).map(|(quotient, _)| quotient)
+                            })
+                        };
+                        let interval = if divisor.is_negative() {
+                            Interval {
+                                low: quotient_bound(dividend_interval.high),
+                                high: quotient_bound(dividend_interval.low),
+                            }
+                        } else {
+                            Interval {
+                                low: quotient_bound(dividend_interval.low),
+                                high: quotient_bound(dividend_interval.high),
+                            }
+                        };
+                        // Structural polynomial identity keeps distinct dividends
+                        // separate; the private prefix cannot be an authored name.
+                        let atom = format!("\0integer-quotient:{dividend:?}/{divisor}");
+                        self.arithmetic_intervals.insert(atom.clone(), interval);
+                        return Some(Polynomial::atom(atom));
                     }
                     let operand = dividend;
                     let modulus = divisor.constant_value()?;
@@ -1209,7 +1242,7 @@ impl<'program> Engine<'program> {
                     let magnitude = modulus.abs().sub(&BigInt::from_i64(1));
                     let operand_interval = self.polynomial_interval(&self.substituted(&operand));
                     let display = format!("({}) % {}", polynomial_display(&operand), modulus);
-                    self.mod_intervals.insert(
+                    self.arithmetic_intervals.insert(
                         display.clone(),
                         Interval {
                             low: Some(operand_interval.low.map_or_else(

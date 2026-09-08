@@ -966,7 +966,9 @@ convention. The fractional-intermediate warning remains unchanged.
 > quotient and remainder expressions use exact unbounded arithmetic during
 > source contract entailment, including anonymous integral arithmetic operands.
 > Their fractional intermediates remain exact and retain the integer-landing
-> warning. Authored const operator selection, symbolic `Int`
+> warning. Source entailment also derives quotient bounds from dividend bounds
+> and an exact nonzero constant divisor, retaining one-sided bounds and the
+> divisor's sign. Authored const operator selection, symbolic `Int`
 > division/remainder terms and independent replay, and the remaining numeric
 > landing boundaries remain execution-board work.
 

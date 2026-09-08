@@ -863,6 +863,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/content_projection_signed_embedding",
     "proofs/proof_integer_embedding_boolean",
     "proofs/proof_integer_quotient_false_twin",
+    "proofs/proof_integer_quotient_bound_false_twin",
     "proofs/proof_integer_zero_divisor",
     "proofs/proof_bignum_constant_false",
     "arithmetic/u64_range_fact_cap_store_rejected",
