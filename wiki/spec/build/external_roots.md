@@ -50,6 +50,12 @@ it may support analysis but reserves no register, changes no ABI, and authorizes
 no sponsor, transfer, or resume operation. See [logical work](../resources/logical_work.md)
 and [machine-state evidence](machine_state_evidence.md).
 
+`StatePlan` is part of the public boundary contract. Stack and fuel realization
+facts normally belong to the candidate and admission provision, not public
+API identity. A replacement contract promising no reprovisioning must explicitly
+publish the resource ceiling that promise requires. Equal public contracts do
+not excuse replaying stale candidate-specific resource evidence.
+
 ## Installation-bound reach
 
 An installation-bound requirement may declare one bounded abstract row

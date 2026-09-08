@@ -1,4 +1,4 @@
-// PLAN-LAID VALUE TYPES (layouts L4, programmable_layouts.md section 5):
+// PLAN-LAID VALUE TYPES (wiki/spec/layouts/plans.md):
 // `gdt: Spread16<Gdtish>` applies a layout POLICY to a schema in TYPE
 // position. The policy here is deliberately NOT the native packing rule --
 // every field is placed on its own 16-byte slot (offsets 0/16/32/48, size 64,

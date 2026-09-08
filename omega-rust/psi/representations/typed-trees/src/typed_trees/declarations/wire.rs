@@ -5,7 +5,7 @@ use symbols::SymbolHandle;
 
 /// One wire field's DERIVED placement -- the plan the tagged codec walks
 /// (mint arc rung 2a). The Rust-side mirror of the FieldPlan wire cases
-/// (`Varint(tag)` / `LengthPrefixed(tag)`, programmable_layouts §3): a scalar
+/// (`Varint(tag)` / `LengthPrefixed(tag)`, wiki/spec/layouts/codecs.md): a scalar
 /// field encodes as tag varint + value varint; text/byte-slice/nested/repeated
 /// fields encode as tag varint + length varint + payload. Placements are
 /// stored SORTED BY TAG (the codec emits in field-number order).

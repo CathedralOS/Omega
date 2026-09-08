@@ -631,7 +631,8 @@ Owners include
 
 - **BUMP-ALLOCATOR-CANARY.** Build a package-level allocator over one qualified
   `Extent`, supporting two coexisting allocations, exact cleanup/recomposition,
-  and reset only after full return. Use it to discover the real `Vec<T>`
+  and reset only after full return under the
+  [allocation contract](wiki/spec/resources/allocation.md). Use it to discover the real `Vec<T>`
   contract; do not add allocator semantics to the compiler.
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,

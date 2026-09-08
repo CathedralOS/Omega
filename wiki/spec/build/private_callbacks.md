@@ -63,9 +63,15 @@ A nested private field destination originates in an explicitly selected named
 `PrivateCallbackSlot<Requirement>` conformance cited by the layout plan. An
 uncited declaration is inert. Retain conformance-owned slot identity, exact
 target-neutral requirement overload, target-closed placement, and the complete
-layout-plan fingerprint. An authored byte offset is placement data, neither
+layout-plan identity. A compact fingerprint alone is not that identity.
+An authored byte offset is placement data, neither
 slot identity nor a calling-plan coordinate. Private slots are not ordinary
-source-visible fields or addresses.
+source-visible fields or addresses: they have no source projection, read/write,
+serialization, or runtime topology. The cited conformance binds the layout owner;
+visible conformance enumeration and layout ownership do not grant an exception.
+Every private demand must be supplied exactly once before layout is complete,
+including for a `Placed` view. Physical offset ownership remains in layout, not
+the binding or calling plan.
 
 ## Plan and occurrence validation
 
@@ -111,7 +117,7 @@ resource.
 Materialization retains binder and destination, not a duplicate lifetime field.
 The native parameter's ordinary custody contract determines whether its storage
 is call-scoped or retained. Foreign internal tables are provider state; retained
-caller storage needs the general foreign-retention contract.
+caller storage needs the [general foreign-retention contract](foreign_storage.md).
 
 `invokes` describes possible synchronous entry before the registrar returns;
 it is separate from creating a future root. Bodyful machines infer direct
@@ -122,6 +128,12 @@ synchronous invocation graph must be acyclic; inserting another synchronous
 trait does not break a cycle. A genuine new-activation boundary does. A package
 may handle restricted synchronous queries and queue ordinary application events
 without inferring an opaque provider's internal call graph.
+
+Opaque native re-entry remains trust-relative. A binding may enforce an active
+or depth limit for one call chain only when its protocol supplies a valid
+unavailable result. Otherwise finite mixed-chain admission requires a checked
+provider contract or structural isolation. A native declaration alone does not
+prove non-re-entry.
 
 The registration retains the selected concrete envelope but does not import it
 automatically into the caller's proof context. An API exposing those facts must

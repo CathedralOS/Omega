@@ -77,7 +77,9 @@ A counted byte quantity accounts for normalized requested size, alignment paddin
 and allocator metadata against a proof-level natural residual keyed by the
 `Bytes` unit. A residual extent supplies placement; the number does not.
 For bump allocation, releasing a live extent does not restore capacity until
-reset recomposes the original backing.
+reset recomposes the original backing. [Allocation strategies](allocation.md)
+own that package-level contract; [bounded growth](bounded_growth.md) states when
+fixed storage can avoid allocation entirely.
 
 A free-byte count does not prove that a fragmented heap contains the required
 placement. Such allocation stays fallible unless an exact free-extent or

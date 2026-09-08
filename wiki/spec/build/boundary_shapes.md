@@ -52,7 +52,9 @@ pointer/length record is not interchangeable with two native parameters.
 A custom policy may explicitly define a slice/text ABI; it is not inferred
 from the compiler's current carrier.
 
-A checked adapter exposes the safe Omega view. A synchronous non-retaining
+A checked adapter exposes the safe Omega view. [Foreign storage](foreign_storage.md)
+defines inert pointers, checked marshaling, access, and retained custody.
+A synchronous non-retaining
 leaf uses a call-scoped borrowed-out contract; its calling plan cannot extend
 the loan. Retention requires a pinned loan, ownership transfer, or registration
 protocol. Outbound text supplies bytes without its `Utf8` qualification;

@@ -1,8 +1,6 @@
-// FAIL canary: `usize` is RETIRED (owner directive 2026-07-13: "we do not
-// have usize. We have addr, we have primitives" -- conflating addresses and
-// sizes is a semantic disaster; index_count_and_address_model brief). Sizes,
-// counts, and indexes are u64; addresses are addr. The name no longer
-// resolves as a builtin type.
+// Counts and addresses have separate carriers; indexing accepts any integer
+// with the required bound (wiki/spec/language/counts_and_addresses.md).
+// `usize` does not resolve as a builtin type.
 use omega::language::std::console;
 data Main { console: Console; n: usize; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

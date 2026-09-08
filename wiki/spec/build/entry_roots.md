@@ -83,6 +83,15 @@ only the exact disjoint residual. Generated bridge code remains subject to
 portable demand checking. A freestanding schema may deliberately expose image
 and initial-storage roots as parameters; hosted source sees neither by default.
 
+The bridge runs ordinary receiver cleanup on normal return and accounts for
+abandonment through the ordinary crash frontier otherwise. A non-ZII-valid
+receiver rejects; a free entry may instead explicitly construct state from the
+resources in its schema. Other roots, tasks, and handlers obtain access only
+through explicit ordinary capability transfer, borrowing, or synchronized sharing.
+Hosted writable-image placement and freestanding storage partitioning must
+preserve the same occurrence, root lineage, backing, and initial exclusive borrow.
+Knowing the receiver's size never creates a new physical root.
+
 For selected Fused service fields, ZII bytes alone do not establish `Bound`.
 Each direct `Service<R> in Bound` receiver field requires occurrence evidence
 binding source signature/slot, receiver/attachment/field, carrier/qualification,

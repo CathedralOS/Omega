@@ -325,7 +325,8 @@ pub const IMPORT_NAME: [u8; 9] = "WriteFile";
   does not exist. There is no `static` keyword. A receiver-bound program entry
   gets one target-provisioned receiver, reachable only through its explicit
   `&mut self` parameter; see
-  [Constants And Provisioned Entry State](../pre_migration/design_briefs/static_root_and_constants.md).
+  [constant values](../spec/language/constants.md) and
+  [provisioned entry state](../spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
 
 A constant may depend on a typed observation from the selected target-semantic
 capsule. Such an application remains symbolic in a target-neutral package and
