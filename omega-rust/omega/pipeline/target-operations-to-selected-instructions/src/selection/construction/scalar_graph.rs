@@ -6,6 +6,7 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
+mod byte_input;
 mod byte_output;
 mod control;
 mod process_exit;
@@ -215,7 +216,9 @@ pub(super) fn build(
                 }
                 continue;
             }
-            if byte_output::emit(operation, block_id, start, &mut builder)? {
+            if byte_input::emit(operation, block_id, start, &mut builder)?
+                || byte_output::emit(operation, block_id, start, &mut builder)?
+            {
                 continue;
             }
             if zero_compare::folded_zero(source, block, operation_index + 1).is_some() {
@@ -426,6 +429,7 @@ pub(super) fn build(
                 }
                 LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                 | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
+                | LegalizedScalarInstructionKind::HostedReadByte { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)

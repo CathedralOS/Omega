@@ -36,6 +36,7 @@ pub(crate) fn validate(
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
+        | SelectedInstructionKind::HostedReadByte { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
@@ -49,6 +50,16 @@ pub(crate) fn validate(
                 let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
                 {
                     isa_aarch64::validate_aarch64_selected_hosted_write_byte_form(
+                        target,
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        address.displacement,
+                        bytes,
+                    )
+                } else if matches!(kind, SelectedInstructionKind::HostedReadByte { .. }) {
+                    isa_aarch64::validate_aarch64_selected_hosted_read_byte_form(
                         target,
                         physical,
                         kind,
@@ -76,6 +87,8 @@ pub(crate) fn validate(
             } else {
                 let encode = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. }) {
                     isa_x86_64::validate_x86_64_selected_hosted_write_byte_form
+                } else if matches!(kind, SelectedInstructionKind::HostedReadByte { .. }) {
+                    isa_x86_64::validate_x86_64_selected_hosted_read_byte_form
                 } else {
                     isa_x86_64::validate_x86_64_selected_memory_form
                 };

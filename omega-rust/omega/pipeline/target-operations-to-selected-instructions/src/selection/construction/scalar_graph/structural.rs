@@ -73,7 +73,9 @@ pub(super) fn entry(
         return Ok(());
     };
     if signature.parameters.is_empty() {
-        return if crate::selection::literal_storage_input::accepts(source) {
+        return if crate::selection::literal_storage_input::accepts(source)
+            || crate::selection::read_result_input::accepts(source)
+        {
             Ok(())
         } else {
             Err(SelectedInstructionError::UnsupportedSourceShape { function })

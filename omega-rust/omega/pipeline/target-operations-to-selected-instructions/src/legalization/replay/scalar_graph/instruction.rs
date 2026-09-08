@@ -26,6 +26,23 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::HostedReadByte {
+                boundary,
+                result,
+                layout,
+            },
+            AbstractOperation::BoundaryCall {
+                boundary: expected_boundary,
+                result: abstract_operations::AbstractBoundaryResult::Structural(expected_result),
+                ..
+            },
+        ) if actual.has_valid_hosted_read_byte_shape()
+            && boundary == expected_boundary
+            && result == expected_result
+            && *layout == scalar_graph_input::read_byte::layout(expected_result, plan)?
+            && scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
+                == target_operations::CompilerBuiltinExecution::LinuxReadByte => {}
+        (
             LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source },
             AbstractOperation::BoundaryCall {
                 boundary: expected,

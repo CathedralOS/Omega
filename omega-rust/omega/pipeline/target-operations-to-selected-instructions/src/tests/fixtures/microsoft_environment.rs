@@ -28,6 +28,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
         keys: SelectedConstraintKeys {
             hosted_exit_process_i32: None,
             hosted_write_byte_i32: None,
+            hosted_read_byte: None,
             call_unit: isa_x86_64::x86_64_microsoft_register_unit_call_keys(),
             call_unit_mixed: Vec::new(),
             load64: Some(isa_x86_64::X86_64_LOAD64),

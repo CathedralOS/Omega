@@ -1,5 +1,7 @@
 //! Structural signature and call records projected from ordinary function data.
+mod byte_input;
 mod byte_output;
+pub(super) use byte_input::cleanup_actions_match as read_result_cleanup_actions_match;
 mod established_views;
 mod process_exit;
 mod validation;
@@ -235,6 +237,7 @@ pub(super) fn populate(
     function: &mut ObjectFunction,
     rows: &[SemanticCodeAttribution],
 ) -> Result<(), Error> {
+    byte_input::populate_cleanup(source, function, rows)?;
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
     if let Some(contract) = &selected.structural
@@ -431,6 +434,7 @@ pub(super) fn settlements(
                 &located.settlement
             else {
                 result.push(match located.settlement {
+                    selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte { .. } => byte_input::settlement(source, placed.machine, located)?,
                     selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. } => process_exit::settlement(source, placed.machine, located)?,
                     _ => byte_output::settlement(source, placed.machine, located)?,
                 });

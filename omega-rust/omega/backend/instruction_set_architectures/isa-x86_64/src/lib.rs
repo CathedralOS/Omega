@@ -16,6 +16,7 @@ mod register_model;
 pub use register_model::X86_64_LOAD32;
 pub use register_model::{
     X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
+    X86_64_HOSTED_READ_BYTE,
 };
 pub use register_model::{
     x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
@@ -80,6 +81,10 @@ pub use register_model::{
 };
 pub use register_model::{
     x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,
+};
+pub use selected_form_encoding::hosted_read_byte::{
+    decode_x86_64_selected_hosted_read_byte, encode_x86_64_selected_hosted_read_byte_form,
+    validate_x86_64_selected_hosted_read_byte_form,
 };
 pub use selected_form_encoding::hosted_write_byte::decode_x86_64_selected_hosted_write_byte_i32;
 pub use selected_form_encoding::{

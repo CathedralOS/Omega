@@ -74,6 +74,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::HostedReadByte {
+                    boundary,
+                    result,
+                    layout,
+                } => {
+                    bytes.push(15);
+                    super::read_byte::encode_payload(bytes, *boundary, result, layout);
+                }
                 LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                     destination,
                     value,

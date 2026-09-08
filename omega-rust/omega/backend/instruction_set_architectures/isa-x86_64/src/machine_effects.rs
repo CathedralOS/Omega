@@ -64,6 +64,11 @@ pub fn x86_64_machine_effect_catalog(
                         X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch
                     });
                 }
+                if semantic == MachineSemanticKind::HostedReadByte {
+                    return Ok(
+                        crate::selected_form_encoding::hosted_read_byte::declaration(constraint),
+                    );
+                }
                 if semantic == MachineSemanticKind::HostedWriteByteI32 {
                     return Ok(
                         crate::selected_form_encoding::hosted_write_byte::declaration(constraint),
@@ -130,6 +135,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        hosted_read_byte: (target == NativeTarget::linux_x64())
+            .then_some(crate::X86_64_HOSTED_READ_BYTE),
         hosted_exit_process_i32: (target == NativeTarget::linux_x64())
             .then_some(crate::X86_64_HOSTED_EXIT_PROCESS_I32),
         hosted_write_byte_i32: (target.object_format == ObjectFormat::Elf)
@@ -336,6 +343,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32
+        | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
@@ -487,6 +495,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32
+        | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
@@ -628,7 +637,8 @@ mod tests {
                         MachineBarrier::Call
                     } else if matches!(
                         row.semantic,
-                        MachineSemanticKind::HostedWriteByteI32
+                        MachineSemanticKind::HostedReadByte
+                            | MachineSemanticKind::HostedWriteByteI32
                             | MachineSemanticKind::HostedExitProcessI32
                     ) {
                         MachineBarrier::ExternalEffect

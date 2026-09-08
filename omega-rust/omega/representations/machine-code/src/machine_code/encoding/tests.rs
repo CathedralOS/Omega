@@ -31,6 +31,86 @@ fn deferred_program() -> SelectedFormEncoding {
 }
 
 #[test]
+fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
+    use physical_instructions::PhysicalAddressOperation;
+    use register_model::RegisterViewId;
+    use selected_instructions::{
+        LocalStorageSlotId, MachineEncodedControlEffect, MachineEncodedEffects,
+        MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
+    };
+    use semantic_vocabulary::{OperationId, PlaceId};
+
+    let slot = LocalStorageSlotId::Structural {
+        operation: OperationId::new(3).unwrap(),
+        place: PlaceId::new(5).unwrap(),
+    };
+    let mut program = deferred_program();
+    program.rows[0].alternative.family = MachineAlternativeFamily::HostedReadByte;
+    program.rows[0].address = Some(ResolvedPhysicalAddress {
+        symbolic: PhysicalAddressOperation::HostedReadByte { slot },
+        displacement: 8,
+    });
+    let mut effects = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
+    effects.memory = MachineEncodedMemoryEffect::HostedReadByteV1 {
+        stack_pointer: RegisterViewId(7),
+    };
+    effects.trap = MachineEncodedTrapBehavior::HostedReadFailureV1;
+    effects.control = MachineEncodedControlEffect::HostedReadReturnOrTrapV1;
+    program.rows[0].state = SelectedFormEncodingState::Encoded {
+        bytes: vec![1],
+        footprint: Box::new(SelectedFormDecodedFootprint {
+            register_reads: Vec::new(),
+            register_writes: Vec::new(),
+            implicit_defs: Vec::new(),
+            implicit_clobbers: Vec::new(),
+            encoded: effects,
+        }),
+    };
+    let identity = program.recomputed_identity();
+    for mutation in 0..7 {
+        let mut changed = program.clone();
+        match mutation {
+            0 => changed.rows[0].alternative.family = MachineAlternativeFamily::HostedWriteByteI32,
+            1 => changed.rows[0].address.as_mut().unwrap().displacement = 12,
+            2 => {
+                changed.rows[0].address.as_mut().unwrap().symbolic =
+                    PhysicalAddressOperation::HostedReadByte {
+                        slot: LocalStorageSlotId::Structural {
+                            operation: OperationId::new(3).unwrap(),
+                            place: PlaceId::new(7).unwrap(),
+                        },
+                    }
+            }
+            _ => {
+                let SelectedFormEncodingState::Encoded { footprint, .. } =
+                    &mut changed.rows[0].state
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    3 => {
+                        footprint.encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {
+                            stack_pointer: RegisterViewId(7),
+                        }
+                    }
+                    4 => {
+                        footprint.encoded.memory = MachineEncodedMemoryEffect::HostedReadByteV1 {
+                            stack_pointer: RegisterViewId(8),
+                        }
+                    }
+                    5 => footprint.encoded.trap = MachineEncodedTrapBehavior::HostedWriteFailureV1,
+                    _ => {
+                        footprint.encoded.control =
+                            MachineEncodedControlEffect::HostedWriteReturnOrTrapV1
+                    }
+                }
+            }
+        }
+        assert_ne!(changed.recomputed_identity(), identity);
+    }
+}
+
+#[test]
 fn current_encoding_binds_the_version_19_ordinary_instruction_schema() {
     let mut program = deferred_program();
     // V19 adds a closed nonreturning hosted-exit selected form and effects.

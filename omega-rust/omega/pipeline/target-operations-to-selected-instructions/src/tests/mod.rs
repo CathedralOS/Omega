@@ -1,7 +1,7 @@
 //! Optimizer module role: stage group. Legalization and selection tests over named source fixtures.
 
 mod fixtures;
-mod legalization;
+pub(crate) mod legalization;
 mod scalar_leaf;
 mod selection;
 mod shared_return;

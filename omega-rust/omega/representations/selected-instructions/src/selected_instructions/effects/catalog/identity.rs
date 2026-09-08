@@ -16,6 +16,7 @@ pub fn machine_effect_catalog_identity(
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
+        catalog.selected_keys.hosted_read_byte,
         catalog.selected_keys.hosted_write_byte_i32,
         catalog.selected_keys.store,
         catalog.selected_keys.address_offset,
@@ -48,6 +49,7 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
+            crate::MachineMemoryEffect::HostedReadByteV1 => 5,
             crate::MachineMemoryEffect::HostedWriteByteV1 => 3,
             crate::MachineMemoryEffect::WriteFrameStorageV1 => 2,
             crate::MachineMemoryEffect::WritePointerV1 => 4,
@@ -55,6 +57,7 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::NeverV1 => 0,
             crate::MachineTrapBehavior::HostedExitReturnedV1 => 3,
+            crate::MachineTrapBehavior::HostedReadFailureV1 => 4,
             crate::MachineTrapBehavior::HostedWriteFailureV1 => 2,
             crate::MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
         });
@@ -164,6 +167,10 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
+        MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
+            bytes.push(8);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
             bytes.push(6);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
@@ -238,11 +245,13 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     bytes.push(match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
         MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
+        MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     match effects.control {
         MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.push(7),
+        MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => bytes.push(8),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.push(6),
         MachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
         MachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
@@ -317,6 +326,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::Load64 => 16,
         MachineSemanticKind::Load32 => 30,
         MachineSemanticKind::HostedExitProcessI32 => 31,
+        MachineSemanticKind::HostedReadByte => 32,
         MachineSemanticKind::HostedWriteByteI32 => 23,
         MachineSemanticKind::Store => 24,
         MachineSemanticKind::AddressOffset => 25,
@@ -354,6 +364,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::Load64 => 16,
         MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedExitProcessI32 => 31,
+        MachineAlternativeFamily::HostedReadByte => 32,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,

@@ -15,6 +15,7 @@ pub(super) fn decode_instruction(
     let memory = match cursor.byte()? {
         0 => MachineMemoryEffect::NoneV1,
         1 => MachineMemoryEffect::ReadPointerV1,
+        5 => MachineMemoryEffect::HostedReadByteV1,
         3 => MachineMemoryEffect::HostedWriteByteV1,
         2 => MachineMemoryEffect::WriteFrameStorageV1,
         4 => MachineMemoryEffect::WritePointerV1,
@@ -22,6 +23,7 @@ pub(super) fn decode_instruction(
     };
     let trap = match cursor.byte()? {
         3 => MachineTrapBehavior::HostedExitReturnedV1,
+        4 => MachineTrapBehavior::HostedReadFailureV1,
         2 => MachineTrapBehavior::HostedWriteFailureV1,
         0 => MachineTrapBehavior::NeverV1,
         1 if allow_scalar_call => MachineTrapBehavior::MayArchitecturalFaultV1,
@@ -104,6 +106,9 @@ fn decode_kind(
         29 => SelectedInstructionKind::BitsToFloat64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
+        32 => SelectedInstructionKind::HostedReadByte {
+            slot: decode_local_storage_slot(cursor)?,
+        },
         23 => SelectedInstructionKind::HostedWriteByteI32 {
             slot: decode_local_storage_slot(cursor)?,
         },
@@ -290,6 +295,7 @@ fn decode_alternative_for_version(
         15 => MachineAlternativeFamily::ZeroExtendU8,
         20 => MachineAlternativeFamily::ZeroExtendU32,
         31 => MachineAlternativeFamily::HostedExitProcessI32,
+        32 => MachineAlternativeFamily::HostedReadByte,
         23 => MachineAlternativeFamily::HostedWriteByteI32,
         22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
@@ -386,6 +392,9 @@ fn decode_encoded_effects(
     let implicit_unit_defs = decode_units(cursor)?;
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
+        8 => MachineEncodedMemoryEffect::HostedReadByteV1 {
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+        },
         6 => MachineEncodedMemoryEffect::HostedWriteByteV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
         },
@@ -432,6 +441,7 @@ fn decode_encoded_effects(
     };
     let trap = match cursor.byte()? {
         3 => MachineEncodedTrapBehavior::HostedExitReturnedV1,
+        4 => MachineEncodedTrapBehavior::HostedReadFailureV1,
         2 => MachineEncodedTrapBehavior::HostedWriteFailureV1,
         0 => MachineEncodedTrapBehavior::NeverV1,
         1 => MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -439,6 +449,7 @@ fn decode_encoded_effects(
     };
     let control = match cursor.byte()? {
         7 => MachineEncodedControlEffect::HostedExitOrTrapV1,
+        8 => MachineEncodedControlEffect::HostedReadReturnOrTrapV1,
         6 => MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
         0 => MachineEncodedControlEffect::FallThroughV1,
         1 => MachineEncodedControlEffect::ConditionalRelativeBranchV1,

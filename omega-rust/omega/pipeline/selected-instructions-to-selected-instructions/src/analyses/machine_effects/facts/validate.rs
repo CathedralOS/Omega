@@ -187,6 +187,7 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::HostedWriteByteI32 { .. } => {
             MachineSemanticKind::HostedWriteByteI32
         }
+        SelectedInstructionKind::HostedReadByte { .. } => MachineSemanticKind::HostedReadByte,
         SelectedInstructionKind::ByteViewAddress => MachineSemanticKind::ByteViewAddress,
         SelectedInstructionKind::HostedExitProcessI32 => MachineSemanticKind::HostedExitProcessI32,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
@@ -241,6 +242,7 @@ fn replay_declaration<'a>(
 fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
+        hosted_read_byte: keys.hosted_read_byte,
         hosted_exit_process_i32: keys.hosted_exit_process_i32,
         load64: keys.load64,
         load32: keys.load32,

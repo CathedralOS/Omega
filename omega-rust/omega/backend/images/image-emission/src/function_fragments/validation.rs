@@ -199,7 +199,6 @@ fn empty_unsupported_records(function: &ObjectFunction) -> bool {
         && function.unit_structural_scalar_field_stores.is_empty()
         && function.unit_write_only_primitive_stores.is_empty()
         && function.scalar_structural_scalar_field_stores.is_empty()
-        && function.unit_affine_cleanup.is_none()
         && function.unit_continuations.is_empty()
         && function.scalar_affine_cleanup.is_none()
         && function.scalar_control_affine_cleanups.is_empty()

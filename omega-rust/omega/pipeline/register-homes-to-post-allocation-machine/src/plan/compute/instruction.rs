@@ -112,6 +112,9 @@ pub(super) fn build(
                     index_operand: 1,
                 },
             ),
+            selected_instructions::SelectedInstructionKind::HostedReadByte { slot } => {
+                Some(physical_instructions::PhysicalAddressOperation::HostedReadByte { slot })
+            }
             selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { slot } => {
                 Some(physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot })
             }

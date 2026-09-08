@@ -14,6 +14,21 @@ pub(in crate::legalization) fn instruction(
         Some((*psi_operation, None))
     } else if let AbstractOperation::BoundaryCall {
         psi_operation,
+        result: abstract_operations::AbstractBoundaryResult::Structural(_),
+        arguments,
+        structural_arguments,
+        completion_claim_sources,
+        completion_receipts,
+        ..
+    } = &node.operation
+    {
+        (arguments.is_empty()
+            && structural_arguments.is_empty()
+            && completion_claim_sources.is_empty()
+            && completion_receipts.is_empty())
+        .then_some((*psi_operation, None))
+    } else if let AbstractOperation::BoundaryCall {
+        psi_operation,
         result: abstract_operations::AbstractBoundaryResult::Unit,
         arguments,
         structural_arguments,
@@ -258,11 +273,25 @@ pub(super) fn validate(
             }
             continue;
         }
-        if let AbstractOperation::BoundaryCall { arguments, .. } = &node.operation {
+        if let AbstractOperation::BoundaryCall {
+            arguments,
+            result: boundary_result,
+            ..
+        } = &node.operation
+        {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || arguments.len() != 1
-                || value_type(optimized, arguments[0]) != Some(ScalarType::Integer(i32_type()))
+                || match boundary_result {
+                    abstract_operations::AbstractBoundaryResult::Structural(_) => {
+                        !arguments.is_empty()
+                    }
+                    abstract_operations::AbstractBoundaryResult::Unit => {
+                        arguments.len() != 1
+                            || value_type(optimized, arguments[0])
+                                != Some(ScalarType::Integer(i32_type()))
+                    }
+                    _ => true,
+                }
             {
                 return Err(invalid);
             }

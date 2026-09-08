@@ -38,6 +38,7 @@ impl LegalizedScalarFunction {
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
+                    | LegalizedScalarInstructionKind::HostedReadByte { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
@@ -95,6 +96,12 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// Exact admitted byte-input boundary and its owned structural result home.
+    HostedReadByte {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        result: terminal_psi::StructuralOperationResult,
+        layout: calling_conventions::ConventionalSumLayout,
+    },
     /// Non-observing replacement of the primitive root, without a fabricated field.
     WriteOnlyPrimitiveStore {
         destination: terminal_psi::StructuralParameterDeclaration,

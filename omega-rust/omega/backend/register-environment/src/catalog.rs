@@ -67,6 +67,7 @@ pub(super) fn selected_environment_keys(
         address_offset: keys.address_offset,
         store64: keys.store64,
         frame_address: keys.frame_address,
+        hosted_read_byte: keys.hosted_read_byte,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         hosted_exit_process_i32: keys.hosted_exit_process_i32,
         call_unit: keys.call_unit,
@@ -94,6 +95,8 @@ pub(super) fn selected_environment_keys(
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            hosted_read_byte: (target == NativeTarget::linux_x64())
+                .then_some(isa_x86_64::X86_64_HOSTED_READ_BYTE),
             hosted_write_byte_i32: Some(isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32),
             hosted_exit_process_i32: (target == NativeTarget::linux_x64())
                 .then_some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32),
@@ -125,6 +128,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
+            hosted_read_byte: None,
             hosted_write_byte_i32: None,
             hosted_exit_process_i32: None,
             load64: Some(isa_x86_64::X86_64_LOAD64),
@@ -155,6 +159,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            hosted_read_byte: (target == NativeTarget::linux_arm64())
+                .then_some(isa_aarch64::AARCH64_HOSTED_READ_BYTE),
             hosted_write_byte_i32: (target == NativeTarget::linux_arm64())
                 .then_some(isa_aarch64::AARCH64_HOSTED_WRITE_BYTE_I32),
             hosted_exit_process_i32: (target == NativeTarget::linux_arm64())
@@ -187,6 +193,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
+            hosted_read_byte: None,
             hosted_write_byte_i32: (target == NativeTarget::macos_arm64())
                 .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32),
             hosted_exit_process_i32: (target == NativeTarget::macos_arm64())

@@ -387,6 +387,54 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
 }
 
 #[test]
+fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
+    let mut source = plan();
+    let slot = selected_instructions::LocalStorageSlotId::Structural {
+        place: semantic_vocabulary::PlaceId::new(139).unwrap(),
+        operation: OperationId::new(137).unwrap(),
+    };
+    source.functions[0]
+        .local_storage_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 8,
+            alignment: 4,
+        });
+    source.functions[0].blocks[0].instructions[0].address =
+        Some(PhysicalAddressOperation::HostedReadByte { slot });
+    source.identity = post_allocation_machine_identity(&source);
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&source.encode()),
+        Ok(source.clone())
+    );
+    for mutation in 0..4 {
+        let mut changed = source.clone();
+        match mutation {
+            0 => {
+                changed.functions[0].local_storage_slots[0].id =
+                    selected_instructions::LocalStorageSlotId::Boundary {
+                        operation: slot.operation().expect("source-backed local slot"),
+                    }
+            }
+            1 => changed.functions[0].local_storage_slots[0].byte_size = 2,
+            2 => changed.functions[0].local_storage_slots[0].alignment = 2,
+            _ => {
+                changed.functions[0].blocks[0].instructions[0].address =
+                    Some(PhysicalAddressOperation::HostedReadByte {
+                        slot: selected_instructions::LocalStorageSlotId::Boundary {
+                            operation: OperationId::new(149).unwrap(),
+                        },
+                    })
+            }
+        }
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&changed.encode()),
+            Err(PostAllocationMachineDecodeError::InvalidIdentity)
+        );
+    }
+}
+
+#[test]
 fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
     for byte_size in [1, 2, 4, 8] {
         let mut source = plan();
