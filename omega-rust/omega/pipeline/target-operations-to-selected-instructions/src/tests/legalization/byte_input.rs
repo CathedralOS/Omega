@@ -101,8 +101,8 @@ pub(crate) fn fixture(
     cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
     let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
         &source, native, &[AdmittedBoundarySettlement {
-            boundary, execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte),
-            realization: target_operations::LinuxReadByteRealization.into(),
+            boundary, execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
+            realization: target_operations::HostedReadByteRealization.into(),
         }],
     ).unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -115,7 +115,11 @@ pub(crate) fn fixture(
 
 #[test]
 fn read_byte_preserves_structural_result_without_scalar_definition() {
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let (source, target, unit) = fixture(native);
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
         let function = &legal.plan().scalar_functions[0];
@@ -173,8 +177,8 @@ pub(crate) fn two_results_fixture(
     let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
         &source, native, &[AdmittedBoundarySettlement {
             boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte),
-            realization: target_operations::LinuxReadByteRealization.into(),
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
+            realization: target_operations::HostedReadByteRealization.into(),
         }],
     ).unwrap();
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -326,8 +330,8 @@ fn read_byte_rejects_same_width_unsigned_payload() {
     let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
         &source, native, &[AdmittedBoundarySettlement {
             boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte),
-            realization: target_operations::LinuxReadByteRealization.into(),
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
+            realization: target_operations::HostedReadByteRealization.into(),
         }],
     ).expect("target sum layout alone does not distinguish signed payload meaning");
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

@@ -23,8 +23,8 @@ fn structural_case_unused_payload_retains_direct_edge_metadata_without_load() {
         let targeted = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
             &abstracted, native, &[abstract_operations_to_target_operations::AdmittedBoundarySettlement {
                 boundary: abstracted.boundary_machines[0].id,
-                execution: abstract_operations_to_target_operations::AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::LinuxReadByte),
-                realization: target_operations::LinuxReadByteRealization.into(),
+                execution: abstract_operations_to_target_operations::AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::HostedReadByte),
+                realization: target_operations::HostedReadByteRealization.into(),
             }],
         ).unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(

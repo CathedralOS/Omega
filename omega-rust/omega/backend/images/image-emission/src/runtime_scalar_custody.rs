@@ -110,7 +110,7 @@ pub(crate) fn selected_byte_output_shape_is_exact(
         )
 }
 
-pub(crate) fn inspected_linux_read_byte_roots(
+pub(crate) fn inspected_hosted_read_byte_roots(
     settlements: &[BoundarySettlementRecord],
 ) -> std::collections::BTreeSet<semantic_vocabulary::PlaceId> {
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid");
@@ -149,7 +149,7 @@ pub(crate) fn inspected_linux_read_byte_roots(
             });
             (matches!(
                 read.realization,
-                target_operations::BoundaryRealization::LinuxReadByte(_)
+                target_operations::BoundaryRealization::HostedReadByte(_)
             ) && exact_layout
                 && exact_consumer)
                 .then_some(result.result.place)
@@ -284,7 +284,7 @@ fn structural_payload_source_is_exact(
             let result = read.native_result.structural()?;
             (matches!(
                 read.realization,
-                target_operations::BoundaryRealization::LinuxReadByte(_)
+                target_operations::BoundaryRealization::HostedReadByte(_)
             ) && read.operation_ordinal < write.operation_ordinal
                 && result.defining_operation == home.defining_operation
                 && result.layout.tag_byte_offset == 0

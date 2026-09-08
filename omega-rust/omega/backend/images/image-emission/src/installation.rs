@@ -4212,7 +4212,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         && function.scalar_stack.is_none()
                 }
             }
-            BoundaryRealization::LinuxReadByte(_) => {
+            BoundaryRealization::HostedReadByte(_) => {
                 installed.settlement.scalar_arguments.is_empty()
                     && installed.settlement.runtime_scalar_arguments.is_empty()
                     && installed.settlement.arguments.is_empty()

@@ -37,12 +37,24 @@ impl HostedExitProcessI32Realization {
     }
 }
 
-/// Import-free Linux single-byte standard-input read through `read(2)`. The
+/// Import-free hosted single-byte standard-input read through `read(2)`. The
 /// realization writes one complete conventional `ByteRead` sum into its
 /// assigned caller-frame home: zero remains `Eof`, success writes case tag 1
 /// and the zero-extended byte payload, and every other syscall result traps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct LinuxReadByteRealization;
+pub struct HostedReadByteRealization;
+
+impl HostedReadByteRealization {
+    /// Only complete canonical target profiles select this closed realization.
+    pub fn supports_target(target: target::NativeTarget) -> bool {
+        [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ]
+        .contains(&target)
+    }
+}
 
 /// Import-free hosted single-byte standard-output write through the selected
 /// kernel's `write(2)` ABI. Syscall coordinates remain exact target facts.
@@ -121,7 +133,7 @@ builtin_settlement_conversion!(MetadataOnlyPortRealization);
 builtin_settlement_conversion!(DirectPortReadU8Realization);
 builtin_settlement_conversion!(LinuxWriteLineRealization);
 builtin_settlement_conversion!(HostedExitProcessI32Realization);
-builtin_settlement_conversion!(LinuxReadByteRealization);
+builtin_settlement_conversion!(HostedReadByteRealization);
 builtin_settlement_conversion!(HostedWriteByteI32Realization);
 builtin_settlement_conversion!(ClaimCompletionOnlyRealization);
 
@@ -131,7 +143,7 @@ pub enum BoundaryRealization {
     DirectPortReadU8(DirectPortReadU8Realization),
     LinuxWriteLine(LinuxWriteLineRealization),
     HostedExitProcessI32(HostedExitProcessI32Realization),
-    LinuxReadByte(LinuxReadByteRealization),
+    HostedReadByte(HostedReadByteRealization),
     HostedWriteByteI32(HostedWriteByteI32Realization),
     ClaimCompletionOnly(ClaimCompletionOnlyRealization),
 }
@@ -154,9 +166,9 @@ impl From<HostedExitProcessI32Realization> for BoundaryRealization {
     }
 }
 
-impl From<LinuxReadByteRealization> for BoundaryRealization {
-    fn from(realization: LinuxReadByteRealization) -> Self {
-        Self::LinuxReadByte(realization)
+impl From<HostedReadByteRealization> for BoundaryRealization {
+    fn from(realization: HostedReadByteRealization) -> Self {
+        Self::HostedReadByte(realization)
     }
 }
 

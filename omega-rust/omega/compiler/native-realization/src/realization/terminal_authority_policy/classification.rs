@@ -19,7 +19,7 @@ pub(super) fn classify_compiler_intrinsic(
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             disposition([TerminalAuthorityClass::ProcessOutput])
         }
-        CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
+        CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             disposition([TerminalAuthorityClass::ProcessInput])
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {

@@ -26,7 +26,7 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     let mut mechanisms = Vec::with_capacity(CLOSED_POLICY_ROW_COUNT as usize);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32);
-    mechanisms.push(CompilerIntrinsicExecutionIdentity::LinuxReadByte);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedReadByte);
     mechanisms.extend(
         BuiltinFunction::ALL
             .into_iter()

@@ -15,7 +15,7 @@ use target::{Architecture, NativeTarget};
 use target_operations::{BoundaryRealization, CompilerBuiltinExecution};
 
 fn decoded_home(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
-    if ![NativeTarget::linux_x64(), NativeTarget::linux_arm64()].contains(&target) {
+    if !target_operations::HostedReadByteRealization::supports_target(target) {
         return None;
     }
     match target.architecture {
@@ -230,9 +230,9 @@ pub(super) fn settlement(
         psi_operation: *operation,
         boundary: *boundary,
         execution: BoundaryExecutionRecord::CompilerBuiltin(
-            CompilerBuiltinExecution::LinuxReadByte,
+            CompilerBuiltinExecution::HostedReadByte,
         ),
-        realization: BoundaryRealization::LinuxReadByte(Default::default()),
+        realization: BoundaryRealization::HostedReadByte(Default::default()),
         scalar_arguments: Vec::new(),
         runtime_scalar_arguments: Vec::new(),
         arguments: Vec::new(),
@@ -339,8 +339,8 @@ pub(super) fn validate(
         || record.operation_ordinal
             != attribution::ordinal(abstracted, SemanticCodeSite::Operation(*operation))?
         || record.execution
-            != BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte)
-        || record.realization != BoundaryRealization::LinuxReadByte(Default::default())
+            != BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte)
+        || record.realization != BoundaryRealization::HostedReadByte(Default::default())
         || produced.defining_operation != *operation
         || produced.result != *result
         || produced.layout != *layout

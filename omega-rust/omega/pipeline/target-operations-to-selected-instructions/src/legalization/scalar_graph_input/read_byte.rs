@@ -65,8 +65,8 @@ pub(in crate::legalization) fn validate(
             boundary,
             result: TargetBoundaryResult::Structural(home),
             execution:
-                BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte),
-            realization: BoundaryRealization::LinuxReadByte(_),
+                BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
+            realization: BoundaryRealization::HostedReadByte(_),
             scalar_arguments,
             runtime_scalar_arguments,
             arguments,
@@ -99,6 +99,7 @@ pub(in crate::legalization) fn validate(
         || ![
             ::target::NativeTarget::linux_x64(),
             ::target::NativeTarget::linux_arm64(),
+            ::target::NativeTarget::macos_arm64(),
         ]
         .contains(&native)
         || unit

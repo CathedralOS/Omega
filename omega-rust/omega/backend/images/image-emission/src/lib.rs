@@ -2032,22 +2032,28 @@ fn build_object_artifact_with_x86_feature_profile(
                     ) && function.unit_stack.is_some()
                         && function.scalar_stack.is_none()
                 }
-                BoundaryRealization::LinuxReadByte(_) => {
+                BoundaryRealization::HostedReadByte(_) => {
                     let expected = settlement.native_result.structural().and_then(|result| {
                         let payload = result
                             .home_byte_offset
                             .checked_add(u32::from(result.layout.payload_byte_offset))?;
-                        match plan.target.architecture {
-                            Architecture::X86_64 => isa_x86_64::encode_linux_read_byte_to_stack(
+                        match plan.target {
+                            target if target == NativeTarget::linux_x64() => isa_x86_64::encode_linux_read_byte_to_stack(
                                 result.home_byte_offset,
                                 payload,
                             )
                             .ok(),
-                            Architecture::Aarch64 => isa_aarch64::encode_linux_read_byte_to_stack(
+                            target if target == NativeTarget::linux_arm64() => isa_aarch64::encode_linux_read_byte_to_stack(
                                 result.home_byte_offset,
                                 payload,
                             )
                             .ok(),
+                            target if target == NativeTarget::macos_arm64() => isa_aarch64::encode_macos_read_byte_to_stack(
+                                result.home_byte_offset,
+                                payload,
+                            )
+                            .ok(),
+                            _ => None,
                         }
                     });
                     settlement.scalar_arguments.is_empty()

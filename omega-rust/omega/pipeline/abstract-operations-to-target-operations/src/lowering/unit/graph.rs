@@ -319,7 +319,7 @@ fn lower_operation(
                     target_operations::BoundarySettlementRealization::Builtin(
                         BoundaryRealization::HostedWriteByteI32(_)
                             | BoundaryRealization::HostedExitProcessI32(_)
-                            | BoundaryRealization::LinuxReadByte(_)
+                            | BoundaryRealization::HostedReadByte(_)
                     )
                 )
             }) =>

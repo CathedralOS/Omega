@@ -53,8 +53,8 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             PackageReviewCompilerIntrinsicExecution::HostedWriteByteI32
         }
-        CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
-            PackageReviewCompilerIntrinsicExecution::LinuxReadByte
+        CompilerIntrinsicExecutionIdentity::HostedReadByte => {
+            PackageReviewCompilerIntrinsicExecution::HostedReadByte
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)
@@ -85,8 +85,8 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
             "Hosted write-byte with one `i32` argument".to_owned()
         }
-        CompilerIntrinsicExecutionIdentity::LinuxReadByte => {
-            "Linux read-byte returning `ByteRead`".to_owned()
+        CompilerIntrinsicExecutionIdentity::HostedReadByte => {
+            "Hosted read-byte returning `ByteRead`".to_owned()
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             format!("builtin function `{}`", function.name())

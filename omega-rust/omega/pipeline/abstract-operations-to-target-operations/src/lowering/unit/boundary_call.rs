@@ -192,7 +192,7 @@ pub(super) fn lower_boundary_call(
             let scalar_arguments = Vec::new();
             let mut runtime_scalar_arguments = Vec::new();
             let mut byte_sequence_arguments = Vec::new();
-            if !matches!(realization, BoundaryRealization::LinuxReadByte(_))
+            if !matches!(realization, BoundaryRealization::HostedReadByte(_))
                 && !matches!(
                     &target_result,
                     target_operations::TargetBoundaryResult::Unit
@@ -294,12 +294,8 @@ pub(super) fn lower_boundary_call(
                         bytes: bytes.clone(),
                     });
                 }
-                BoundaryRealization::LinuxReadByte(_) => {
-                    if target.object_format != ObjectFormat::Elf
-                        || !matches!(
-                            target.architecture,
-                            Architecture::X86_64 | Architecture::Aarch64
-                        )
+                BoundaryRealization::HostedReadByte(_) => {
+                    if !target_operations::HostedReadByteRealization::supports_target(target)
                         || !arguments.is_empty()
                         || !structural_arguments.is_empty()
                         || !declaration.scalar_parameters.is_empty()

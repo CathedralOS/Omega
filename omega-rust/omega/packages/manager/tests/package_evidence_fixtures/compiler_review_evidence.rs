@@ -647,7 +647,7 @@ fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_sibli
     );
     assert_eq!(
         execution_for("read_byte"),
-        Some(package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxReadByte,),
+        Some(package_evidence::record::PackageReviewCompilerIntrinsicExecution::HostedReadByte,),
         "Console read_byte retains its exact closed Linux execution identity",
     );
     // Unlike bundled std, host-services still declares write_byte with legacy

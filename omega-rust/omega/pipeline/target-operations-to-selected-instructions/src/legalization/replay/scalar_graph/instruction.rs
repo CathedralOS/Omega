@@ -41,7 +41,7 @@ pub(super) fn validate(
             && result == expected_result
             && *layout == scalar_graph_input::read_byte::layout(expected_result, plan)?
             && scalar_graph_input::hosted_execution(native, optimized.machine, operation)?
-                == target_operations::CompilerBuiltinExecution::LinuxReadByte => {}
+                == target_operations::CompilerBuiltinExecution::HostedReadByte => {}
         (
             LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source },
             AbstractOperation::BoundaryCall {

@@ -11,8 +11,8 @@ mod preservation_storage;
 mod register_model;
 pub use register_model::AARCH64_LOAD32;
 pub use register_model::{
-    AARCH64_BITS_TO_FLOAT32, AARCH64_BITS_TO_FLOAT64, AARCH64_FLOAT32_TO_BITS,
-    AARCH64_FLOAT64_TO_BITS, AARCH64_HOSTED_READ_BYTE,
+    AARCH64_BITS_TO_FLOAT32, AARCH64_BITS_TO_FLOAT64, AARCH64_DARWIN_HOSTED_READ_BYTE,
+    AARCH64_FLOAT32_TO_BITS, AARCH64_FLOAT64_TO_BITS, AARCH64_HOSTED_READ_BYTE,
 };
 pub use register_model::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
@@ -179,6 +179,41 @@ pub fn encode_linux_read_byte_to_stack(
     words.push(str_w(9, home_byte_offset));
     words.push(0x1400_0002); // b done
     words.push(u32::from_le_bytes(encode_brk(0)));
+    Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
+}
+
+/// Import-free Darwin read into caller-owned storage, without changing SP.
+pub fn encode_macos_read_byte_to_stack(
+    home_byte_offset: u32,
+    payload_byte_offset: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !home_byte_offset.is_multiple_of(4)
+        || home_byte_offset.checked_add(4) != Some(payload_byte_offset)
+        || payload_byte_offset > 0xfff
+    {
+        return Err(Diagnostic::error(
+            "Darwin AArch64 read-byte home is not directly addressable",
+        ));
+    }
+    let store =
+        |register: u32, offset: u32| 0xb900_0000 | ((offset / 4) << 10) | (31 << 5) | register;
+    let words = [
+        store(31, home_byte_offset),
+        store(31, payload_byte_offset),
+        0x9100_03e1 | (payload_byte_offset << 10),
+        u32::from_le_bytes(encode_movz(0, 0)),
+        u32::from_le_bytes(encode_movz(2, 1)),
+        u32::from_le_bytes(encode_movz(16, 3)),
+        u32::from_le_bytes(encode_svc(0x80)),
+        0x5400_00e2, // b.cs trap: consume syscall carry before CMP replaces NZCV
+        0xb400_00e0, // cbz x0, done
+        u32::from_le_bytes(encode_compare_x_immediate(0, 1)?),
+        0x5400_0081, // b.ne trap
+        0x5280_0029, // mov w9, #1
+        store(9, home_byte_offset),
+        0x1400_0002, // b done
+        u32::from_le_bytes(encode_brk(0)),
+    ];
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
 }
 

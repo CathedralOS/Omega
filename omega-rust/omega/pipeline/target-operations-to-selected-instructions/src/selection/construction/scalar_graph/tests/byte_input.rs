@@ -7,6 +7,7 @@ fn repeated_byte_input_preserves_distinct_owned_homes_and_reverse_cleanup() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
     ] {
         let (abstracted, native, unit) =
             crate::tests::legalization::byte_input::two_results_fixture(target);
@@ -102,6 +103,7 @@ fn byte_input_selection_rejects_result_home_and_occurrence_substitution() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
     ] {
         let (abstracted, native, unit) = crate::tests::legalization::byte_input::fixture(target);
         let legal = crate::legalize_target_operations(&native, &abstracted, &unit).unwrap();

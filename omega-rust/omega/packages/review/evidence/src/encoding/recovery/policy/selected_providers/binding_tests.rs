@@ -138,7 +138,7 @@ fn absent_intrinsic_execution_is_not_replaced_with_a_supported_leaf() {
         None
     );
     unsupported.plans[0].rows[0].compiler_intrinsic_execution =
-        Some(PackageReviewCompilerIntrinsicExecution::LinuxReadByte);
+        Some(PackageReviewCompilerIntrinsicExecution::HostedReadByte);
     let supported = unsupported.canonical_bytes().unwrap();
     assert_ne!(supported, bytes);
     assert_eq!(recover(&supported).unwrap(), unsupported);
@@ -177,7 +177,7 @@ fn invalid_binding_custody_rejects_without_recovering_receipts() {
         TargetProfile::LinuxX64,
     );
     changed.plans[0].rows[0].compiler_intrinsic_execution =
-        Some(PackageReviewCompilerIntrinsicExecution::LinuxReadByte);
+        Some(PackageReviewCompilerIntrinsicExecution::HostedReadByte);
     cases.push(changed);
     for policy in cases {
         assert!(policy.canonical_bytes().is_err());

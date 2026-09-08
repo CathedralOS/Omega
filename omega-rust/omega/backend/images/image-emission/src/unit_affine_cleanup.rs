@@ -126,7 +126,7 @@ pub(super) fn validate_unit_affine_cleanup(
         .map(|argument| argument.place)
         .collect::<std::collections::BTreeSet<_>>();
     let inspected_roots =
-        crate::runtime_scalar_custody::inspected_linux_read_byte_roots(boundary_settlements);
+        crate::runtime_scalar_custody::inspected_hosted_read_byte_roots(boundary_settlements);
     let expected_local_prefix = local_places
         .iter()
         .rev()

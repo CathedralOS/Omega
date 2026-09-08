@@ -285,21 +285,22 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   mutable byte views still needs forwarding. Implement the checked line adapter
   over the settled native byte leaves; each target's `console_impl.omg` currently
   declares bodyless `read_line` instead.
-  Native byte input next needs actual byte/EOF execution on matching Linux
-  hosts, plus an admitted macOS read-byte realization. Retain the connected
-  case-selection path as the regression floor:
+  Native byte input still needs matching Linux runtime evidence and a Windows
+  realization. Retain the shared hosted read leaf and connected case-selection
+  path as the regression floor:
   `cargo nextest run -p compiler --test canary_suite
   runtime_console_byte_inspection_replays_validated_cross_target_artifacts
   --no-fail-fast --no-tests fail` passes cross-emission and native artifact replay
-  for Linux x64 and ARM64 on macOS ARM64 at `e4e59717f5`. The same command with
-  `runtime_console_byte_read_return_catalog_replays_both_linux_targets` preserves
-  uninspected result cleanup. Neither probe executes Linux code; no emulator or
-  running Linux VM was available. Execute the unchanged inspection fixture with
-  a byte (same byte on stdout, exit 70) and EOF (empty stdout, exit 70), then
-  retain a matching-host regression. Its selected-edge payload loads, exact
+  for Linux x64/ARM64 and macOS ARM64. The same command with
+  `runtime_console_byte_read_return_catalog_replays_supported_hosted_targets`
+  preserves uninspected result cleanup. For matching-host execution, use
+  `hosted_read_inspection_executes_every_byte_eof_and_failed_read`: every byte
+  echoes exactly with exit 70, EOF produces empty stdout with exit 70, and a
+  failed read traps. This has run on macOS ARM64; Linux runtime remains unverified
+  without a Linux host or emulator. Its selected-edge payload loads, exact
   destination definitions, and once-only cleanup/fuel must survive publication.
   Multi-block return cleanup remains a separate admission limit.
-  The same checkpoint's macOS `cli_mvp` probe above still stops at the missing
+  The macOS `cli_mvp` probe above still stops at the missing
   `Console::read_line` catalog identity. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar

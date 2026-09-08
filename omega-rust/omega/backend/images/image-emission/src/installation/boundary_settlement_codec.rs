@@ -17,7 +17,7 @@ use semantic_vocabulary::{
 use target_operations::{
     BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
     CompilerBuiltinExecution, DirectPortReadU8Realization, HostedExitProcessI32Realization,
-    HostedWriteByteI32Realization, LinuxReadByteRealization, LinuxWriteLineRealization,
+    HostedReadByteRealization, HostedWriteByteI32Realization, LinuxWriteLineRealization,
     MetadataOnlyPortRealization,
 };
 use terminal_psi::{
@@ -103,7 +103,7 @@ pub(super) fn encode_boundary_settlements(
                 push_u16(bytes, 0);
                 bytes.push(0);
             }
-            BoundaryRealization::LinuxReadByte(_) => {
+            BoundaryRealization::HostedReadByte(_) => {
                 bytes.push(6);
                 push_u64(bytes, 0);
                 push_u64(bytes, 0);
@@ -296,7 +296,7 @@ pub(super) fn decode_boundary_settlements(
                 BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization)
             }
             6 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
-                BoundaryRealization::LinuxReadByte(LinuxReadByteRealization)
+                BoundaryRealization::HostedReadByte(HostedReadByteRealization)
             }
             _ => return Err(InstallationError::InvalidBoundaryRealizationTag),
         };
@@ -776,7 +776,7 @@ fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRe
         ) => {
             bytes.push(1);
         }
-        BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxReadByte) => {
+        BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte) => {
             bytes.push(3);
         }
         BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32) => {
@@ -799,7 +799,7 @@ fn decode_boundary_execution(
             CompilerBuiltinExecution::HostedWriteByteI32,
         )),
         3 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
-            CompilerBuiltinExecution::LinuxReadByte,
+            CompilerBuiltinExecution::HostedReadByte,
         )),
         _ => Err(InstallationError::InvalidBoundaryExecutionTag),
     }

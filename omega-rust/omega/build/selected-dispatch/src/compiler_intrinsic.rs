@@ -142,7 +142,7 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
             CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
         )));
     }
-    if linux_console_read_byte_row(
+    if hosted_console_read_byte_row(
         checked,
         plan,
         row,
@@ -154,7 +154,7 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
         accepted_declaration_symbol,
     )? {
         return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-            CompilerIntrinsicExecutionIdentity::LinuxReadByte,
+            CompilerIntrinsicExecutionIdentity::HostedReadByte,
         )));
     }
     Ok(Some(
@@ -190,7 +190,7 @@ fn hosted_console_write_byte_row(
     )
 }
 
-fn linux_console_read_byte_row(
+fn hosted_console_read_byte_row(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -211,7 +211,7 @@ fn linux_console_read_byte_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
-        &["linux_x86_64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64", "macos_arm64"],
         "read_byte",
         "ConsoleNativeProvider::read_byte",
         ConsoleIntrinsicShape::UnitToByteRead,

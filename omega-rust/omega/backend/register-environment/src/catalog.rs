@@ -193,7 +193,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
-            hosted_read_byte: None,
+            hosted_read_byte: (target == NativeTarget::macos_arm64())
+                .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_READ_BYTE),
             hosted_write_byte_i32: (target == NativeTarget::macos_arm64())
                 .then_some(isa_aarch64::AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32),
             hosted_exit_process_i32: (target == NativeTarget::macos_arm64())

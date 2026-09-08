@@ -31,7 +31,7 @@ builtin_native_realization_conversion!(target_operations::MetadataOnlyPortRealiz
 builtin_native_realization_conversion!(target_operations::DirectPortReadU8Realization);
 builtin_native_realization_conversion!(target_operations::LinuxWriteLineRealization);
 builtin_native_realization_conversion!(target_operations::HostedExitProcessI32Realization);
-builtin_native_realization_conversion!(target_operations::LinuxReadByteRealization);
+builtin_native_realization_conversion!(target_operations::HostedReadByteRealization);
 builtin_native_realization_conversion!(target_operations::ClaimCompletionOnlyRealization);
 
 /// Native authority is independent of optimization selection.

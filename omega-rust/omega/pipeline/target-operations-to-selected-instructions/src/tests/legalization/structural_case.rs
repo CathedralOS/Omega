@@ -111,8 +111,8 @@ pub(crate) fn fixture(
     let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
         &plan, native, &[AdmittedBoundarySettlement {
             boundary: BoundaryMachineId::new(1).unwrap(),
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::LinuxReadByte),
-            realization: target_operations::LinuxReadByteRealization.into(),
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::HostedReadByte),
+            realization: target_operations::HostedReadByteRealization.into(),
         }, AdmittedBoundarySettlement {
             boundary: BoundaryMachineId::new(2).unwrap(),
             execution: AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::HostedWriteByteI32),

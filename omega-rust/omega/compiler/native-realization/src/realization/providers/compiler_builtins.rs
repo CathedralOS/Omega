@@ -7,7 +7,7 @@ use diagnostics::Diagnostic;
 use effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
-    HostedWriteByteI32Realization, LinuxReadByteRealization,
+    HostedReadByteRealization, HostedWriteByteI32Realization,
 };
 
 pub(super) fn settle_compiler_builtins<'request>(
@@ -99,14 +99,14 @@ pub(super) fn settle_compiler_builtins<'request>(
                     request.target
                 ))]);
             }
-            CompilerBuiltinExecution::LinuxReadByte
-                if request.target.object_format == target::ObjectFormat::Elf =>
+            CompilerBuiltinExecution::HostedReadByte
+                if HostedReadByteRealization::supports_target(request.target) =>
             {
-                LinuxReadByteRealization.into()
+                HostedReadByteRealization.into()
             }
-            CompilerBuiltinExecution::LinuxReadByte => {
+            CompilerBuiltinExecution::HostedReadByte => {
                 return Err(vec![Diagnostic::error(format!(
-                    "local target catalog cannot realize Linux read-byte for `{requirement}` on {:?}",
+                    "local target catalog cannot realize hosted read-byte for `{requirement}` on {:?}",
                     request.target
                 ))]);
             }
@@ -134,8 +134,8 @@ const fn compiler_intrinsic_execution_identity(
         CompilerBuiltinExecution::HostedWriteByteI32 => {
             CompilerIntrinsicExecutionIdentity::HostedWriteByteI32
         }
-        CompilerBuiltinExecution::LinuxReadByte => {
-            CompilerIntrinsicExecutionIdentity::LinuxReadByte
+        CompilerBuiltinExecution::HostedReadByte => {
+            CompilerIntrinsicExecutionIdentity::HostedReadByte
         }
     }
 }

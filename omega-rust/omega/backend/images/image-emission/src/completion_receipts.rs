@@ -60,16 +60,16 @@ pub(super) fn validate_completion_custody(
         )
         | (
             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::LinuxReadByte,
+                target_operations::CompilerBuiltinExecution::HostedReadByte,
             ),
-            target_operations::BoundaryRealization::LinuxReadByte(_),
+            target_operations::BoundaryRealization::HostedReadByte(_),
         ) => true,
         (machine_code::BoundaryExecutionRecord::CompilerBuiltin(_), _)
         | (
             _,
             target_operations::BoundaryRealization::HostedExitProcessI32(_)
             | target_operations::BoundaryRealization::HostedWriteByteI32(_)
-            | target_operations::BoundaryRealization::LinuxReadByte(_),
+            | target_operations::BoundaryRealization::HostedReadByte(_),
         ) => false,
         _ => true,
     };
