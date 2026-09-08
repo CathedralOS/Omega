@@ -110,8 +110,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Work from the unchanged `print_squares` [outer command](samples/cli/basics/print_squares/README.md).
   Resume its native compiler-library probe with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
-  and `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  At code checkpoint `6e0afc54a4` on Windows x64, this still exits 100 before
+  and `cargo nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
+  At base `2d2bc4f918` on macOS arm64, this exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
   The verifier admits scalar computations, immutable byte views, persistent
@@ -120,11 +120,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `terminal-verifier/src/validation/control_flow.rs`; their focused
   `ranked_scc` checks pass, but the source producer does not reach Terminal
   validation yet.
-  The ordinary Unit planner in
-  `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
-  authored state. Shared unranked graphs retain scalar prefixes, field writes,
-  and provider-field calls; byte/aggregate construction and runtime-indexed
-  writes still need shared body lowering.
+  Shared state-body construction in
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
+  sends assignments through scalar-field-store admission. The first missing
+  operation is `self.out = "XXX"`; runtime-indexed byte writes are also absent
+  from the portable store vocabulary. Implement bounded-owned byte replacement
+  with exact source extent, live-length writeback, and `length <= capacity`
+  evidence, then indexed mutation. Reuse literal/length observations and checked
+  source predicate obligations; predicate-only `Utf8` erasure does not itself
+  require adding a projected qualification roster. The CLI outer command
+  separately exits 1 awaiting ordinary package review; do not manufacture acceptance.
   Producer widening alone cannot close this: general owned cyclic validation
   and native execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
