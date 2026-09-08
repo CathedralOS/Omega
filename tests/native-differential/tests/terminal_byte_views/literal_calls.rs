@@ -135,7 +135,7 @@ const OTHER_LITERAL: &[u8] = &[
 fn independent_literal_call_module(return_first: bool) -> TerminalModule {
     let mut module = literal_call_module(LITERALS[2]);
     let caller = &mut module.machines[1];
-    let mut second = caller.structural_places[0].clone();
+    let mut second = caller.structural_places[0];
     second.id = PlaceId::new(112).unwrap();
     let StructuralPlaceKind::ByteSequenceLiteral {
         declaration_ordinal,

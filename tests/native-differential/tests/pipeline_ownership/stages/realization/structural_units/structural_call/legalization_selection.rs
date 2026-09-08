@@ -64,7 +64,7 @@ pub(super) fn lower_and_select_structural_call() -> StagedOptimizedSelectedInstr
         };
         assert_eq!(semantic.place, parameter.semantic.place);
         assert_eq!(semantic.access, StructuralAccess::Owned);
-        assert_eq!(argument.source, parameter.target.placement);
+        assert_eq!(argument.source, parameter.target.placement.clone().into());
         assert_eq!(
             argument.destination,
             callee_parameters[parameter_index].target.placement
