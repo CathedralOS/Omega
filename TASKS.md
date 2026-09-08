@@ -162,7 +162,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe with production checkpoint `8dc2e629bc`
+  The downstream native `cli_mvp` probe with production checkpoint `a12440a7e4`
   passes Terminal production but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -188,7 +188,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   They measure and read one shared parameter with runtime `u64` indices guarded
   by the exact view's length, observe checked subslices, and preserve the original
   descriptor and `u64`/Boolean inputs across repeated scalar-result and genuine
-  Unit helper calls. Complete block argument transfers before joining
+  Unit helper calls. Complete descriptor block argument transfers before joining
   natural-ranked writer execution. Void-call return
   and descriptor/stack preservation do not establish
   byte output or Boolean-dependent behavior. Retain the exact slice-decrease
