@@ -49,6 +49,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
                     ("pressure-rematerialization", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
+                    ("runtime-spill", identity.bytes())
+                }
             };
             writeln!(
                 output,
@@ -64,7 +67,17 @@ impl PostAllocationOptimizationManifest {
             hex(&self.allocator_availability.bytes())
         )
         .unwrap();
-        writeln!(output, "spills: not required for validated home plan").unwrap();
+        writeln!(
+            output,
+            "spills: {}",
+            match self.spills {
+                super::PostAllocationSpillStatus::NotRequiredForValidatedHomePlan =>
+                    "not required for validated home plan",
+                super::PostAllocationSpillStatus::RealizedInSelectedProgram =>
+                    "realized in selected program",
+            }
+        )
+        .unwrap();
         writeln!(output, "frame: unavailable").unwrap();
         writeln!(output, "emission: unavailable").unwrap();
         writeln!(output, "publication: unavailable").unwrap();

@@ -25,6 +25,7 @@ pub(super) fn classify(
     }
     let (defining_id, source_value) = match victim.origin {
         VirtualRegisterOrigin::BlockParameter { .. }
+        | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::UnsupportedRangeShape);
         }

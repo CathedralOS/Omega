@@ -92,6 +92,7 @@ fn slot_region(
     slot: FrameStorageSlotId,
 ) -> Result<(u64, u32, u64, bool), Error> {
     match slot {
+        FrameStorageSlotId::Incoming { .. } => Err(Error::ArtifactMismatch),
         FrameStorageSlotId::Outgoing(id) => {
             let mut entries = function
                 .outgoing_arguments
@@ -162,6 +163,31 @@ pub(super) fn resolve(
         return Ok(None);
     };
     let displacement = match symbolic {
+        Address::FrameAddress {
+            slot:
+                FrameStorageSlotId::Incoming {
+                    abi_stack_byte_offset,
+                    ..
+                },
+            byte_offset: 0,
+        } => {
+            let geometry = function_geometry(function, frame)?;
+            let return_address_bytes = match geometry.return_address {
+                machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                    size_bytes,
+                    ..
+                } => u64::from(size_bytes),
+                machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
+                | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
+            };
+            let displacement = geometry
+                .frame_size_bytes
+                .checked_add(return_address_bytes)
+                .and_then(|base| base.checked_add(u64::from(abi_stack_byte_offset)))
+                .filter(|offset| *offset <= i32::MAX as u64)
+                .ok_or(Error::ArtifactMismatch)?;
+            u32::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
+        }
         Address::LinuxWriteByteI32 { slot } => {
             if !matches!(
                 slot,
@@ -250,6 +276,33 @@ pub(super) fn validate_address(
         return Err(Error::ArtifactMismatch);
     }
     match symbolic {
+        Address::FrameAddress {
+            slot:
+                FrameStorageSlotId::Incoming {
+                    abi_stack_byte_offset,
+                    ..
+                },
+            byte_offset: 0,
+        } => {
+            let geometry = function_geometry(function, frame)?;
+            let return_address_bytes = match geometry.return_address {
+                machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+                    size_bytes,
+                    ..
+                } => u64::from(size_bytes),
+                machine_code::ReturnAddressFrameCustody::SavedLinkRegister { .. }
+                | machine_code::ReturnAddressFrameCustody::LiveLinkRegister { .. } => 0,
+            };
+            let incoming_offset = u64::from(candidate.displacement)
+                .checked_sub(geometry.frame_size_bytes)
+                .and_then(|offset| offset.checked_sub(return_address_bytes));
+            if incoming_offset != Some(u64::from(abi_stack_byte_offset))
+                || candidate.displacement > i32::MAX as u32
+            {
+                return Err(Error::ArtifactMismatch);
+            }
+            Ok(())
+        }
         Address::LinuxWriteByteI32 { slot } => {
             if !matches!(
                 slot,

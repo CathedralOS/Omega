@@ -33,6 +33,9 @@ pub(super) fn expected_record(
             PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
                 (3_u8, identity.bytes())
             }
+            PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
+                (4_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {
@@ -93,7 +96,16 @@ pub(super) fn expected_record(
         register_environment: legality.receipt().register_environment(),
         allocator_availability: legality.receipt().allocator_availability(),
         homes: homes.receipt().identity(),
-        spills: PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
+        spills: if selected_transformations.iter().any(|transformation| {
+            matches!(
+                transformation,
+                PostAllocationSelectedTransformation::RuntimeSpill(_)
+            )
+        }) {
+            PostAllocationSpillStatus::RealizedInSelectedProgram
+        } else {
+            PostAllocationSpillStatus::NotRequiredForValidatedHomePlan
+        },
         frame: PostAllocationUnavailableData::Unavailable,
         emission: PostAllocationUnavailableData::Unavailable,
         publication: PostAllocationUnavailableData::Unavailable,

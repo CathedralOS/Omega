@@ -570,17 +570,22 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Run literal indexed write-only receiver caller observations on both Linux
-  hosts and extend ordinary graph transport to stack-passed borrowed pointers.
+  Run indexed write-only receiver caller observations on both Linux hosts and
+  carry borrowed register/stack pointers through ordinary object publication.
   Keep original referent identity and exclusive access through incoming homes,
   projected calls, callee frames and caller continuation. The owning path is
   `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`
   and ordinary selection construction/replay, not the retired emitter.
   The source-backed probe is `cargo nextest run -p omega-native-differential-test
   --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail`.
-  Its register-pointer caller observations execute on macOS ARM64; four-target
-  cross-emission is not Linux runtime coverage. Extend those observations to
-  stack-passed pointers, broader scalar call arguments, and stores outside the
+  Its register/stack-pointer caller observations execute on macOS ARM64,
+  including runtime scalar values and a retained root across three calls;
+  four-target cross-emission is not Linux runtime coverage. The publication
+  consumer in `image-emission/src/function_fragments/structural.rs` still assumes
+  incoming indirect registers and owned copies and rejects mixed scalar Unit
+  arguments. Extend its records and independent replay without substituting
+  copied referents for pointer identity. Extend caller observations to broader
+  scalar call arguments and stores outside the
   currently supported ordinary integer/Boolean field-store path. Preserve exact
   write widths, untouched bytes, and independent receiving replay; frame-slot
   stores or copied referents are not writeback.

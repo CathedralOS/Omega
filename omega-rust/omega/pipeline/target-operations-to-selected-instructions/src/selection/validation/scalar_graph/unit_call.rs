@@ -21,7 +21,9 @@ pub(super) fn validate(
         .constraints
         .keys
         .call_unit
-        .get(call.arguments.len())
+        .get(crate::selection::scalar_call_abi::register_argument_count(
+            call,
+        ))
         .copied()
         .ok_or_else(|| replay.invalid())?;
     let constraint = environment
@@ -37,15 +39,18 @@ pub(super) fn validate(
         environment,
     )?;
     let mut operands = Vec::new();
-    for argument in &call.arguments {
+    for (argument_index, argument) in call.arguments.iter().enumerate() {
         match argument {
             LegalizedScalarArgument::Structural { semantic, target } => {
-                operands.push(structural::call_pointer(
+                if let Some(pointer) = super::scalar_call::argument_pointer(
                     replay,
                     operation,
-                    semantic.place,
-                    target.source_byte_offset,
-                )?)
+                    argument_index,
+                    semantic,
+                    target,
+                )? {
+                    operands.push(pointer);
+                }
             }
             LegalizedScalarArgument::Scalar {
                 source: value,

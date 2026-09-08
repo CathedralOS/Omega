@@ -16,7 +16,7 @@ use super::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v16";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v18";
 
 pub(super) fn encoding_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -115,6 +115,14 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                         3
                     }]);
                     match slot {
+                        selected_instructions::FrameStorageSlotId::Incoming {
+                            parameter_index,
+                            abi_stack_byte_offset,
+                        } => {
+                            hasher.update([2]);
+                            hasher.update(parameter_index.to_le_bytes());
+                            hasher.update(abi_stack_byte_offset.to_le_bytes());
+                        }
                         selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
                             hasher.update([0]);
                             hasher.update(slot.operation.get().to_le_bytes());

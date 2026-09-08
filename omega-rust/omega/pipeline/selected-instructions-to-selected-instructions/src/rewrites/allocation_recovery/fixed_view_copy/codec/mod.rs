@@ -12,11 +12,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v20_identity;
+use self::envelope::v22_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 20;
+const VERSION: u32 = 22;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -26,7 +26,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v20_identity(self, &content));
+        encoded.extend_from_slice(&v22_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

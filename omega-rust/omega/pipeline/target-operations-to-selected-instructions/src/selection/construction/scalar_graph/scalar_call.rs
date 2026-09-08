@@ -2,6 +2,70 @@
 use super::*;
 use legalized_operations::LegalizedScalarInstruction;
 
+/// Snapshot the projected pointer, then place its bits in the exact outgoing ABI slot.
+pub(super) fn argument_pointer(
+    builder: &mut Builder<'_>,
+    operation: &legalized_operations::LegalizedScalarInstruction,
+    argument_index: usize,
+    semantic: &terminal_psi::StructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
+) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+    let pointer = structural::call_pointer(
+        builder,
+        operation,
+        semantic.place,
+        target.source_byte_offset,
+    )?;
+    let Some(stack_byte_offset) =
+        crate::structural_reference_input::stack_pointer_offset(&target.destination)
+    else {
+        return Ok(Some(pointer));
+    };
+    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let slot = selected_instructions::OutgoingArgumentSlotId {
+        operation: operation.operation,
+        argument_index: argument_index.try_into().map_err(|_| invalid())?,
+    };
+    builder
+        .transport
+        .slots
+        .push(selected_instructions::SelectedOutgoingArgumentSlot {
+            id: slot,
+            byte_size: 8,
+            alignment: 8,
+            abi_stack_byte_offset: stack_byte_offset,
+        });
+    builder
+        .transport
+        .memory
+        .push(selected_instructions::SelectedMemoryAccess {
+            instruction: SelectedInstructionId(
+                builder
+                    .instructions
+                    .len()
+                    .try_into()
+                    .map_err(|_| invalid())?,
+            ),
+            operation: operation.operation,
+            place: semantic.place,
+            byte_offset: 0,
+            byte_count: 8,
+            role: selected_instructions::SelectedMemoryAccessRole::WriteOutgoing { slot },
+        });
+    builder.emit(
+        SelectedInstructionKind::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+            byte_offset: 0,
+        },
+        builder.constraints.keys.store64.ok_or_else(invalid)?,
+        &[pointer],
+        SelectedInstructionProvenance {
+            operations: vec![operation.operation],
+            ..Default::default()
+        },
+    )?;
+    Ok(None)
+}
 pub(super) fn emit(
     function: usize,
     source: &LegalizedScalarFunction,
@@ -19,7 +83,9 @@ pub(super) fn emit(
         .constraints
         .keys
         .call_i64
-        .get(call.arguments.len())
+        .get(crate::selection::scalar_call_abi::register_argument_count(
+            call,
+        ))
         .copied()
         .ok_or_else(invalid)?;
     crate::selection::scalar_call_abi::validate(
@@ -32,16 +98,15 @@ pub(super) fn emit(
         environment,
     )?;
     let mut operands = Vec::new();
-    for argument in &call.arguments {
+    for (argument_index, argument) in call.arguments.iter().enumerate() {
         if let legalized_operations::LegalizedScalarArgument::Structural { semantic, target } =
             argument
         {
-            operands.push(structural::call_pointer(
-                builder,
-                operation,
-                semantic.place,
-                target.source_byte_offset,
-            )?);
+            if let Some(pointer) =
+                argument_pointer(builder, operation, argument_index, semantic, target)?
+            {
+                operands.push(pointer);
+            }
             continue;
         }
         let (_, input, site, argument_type) = builder

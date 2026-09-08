@@ -33,6 +33,22 @@ pub fn stage_optimized_register_homes(
     Ok(staged)
 }
 
+pub(crate) fn stage_register_homes_with_assignment(
+    legality: StagedOptimizedAllocationLegality,
+    homes: crate::ValidatedRegisterHomes,
+) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
+    let staged = construction::construct_with_assignment(legality, homes)?;
+    let custody = validate_optimized_register_home_custody(
+        staged.legality_stage(),
+        staged.homes(),
+        staged.post_allocation_manifest(),
+    )?;
+    if custody != staged.custody() {
+        return Err(OptimizedRegisterHomeCustodyError::ReceiptMismatch);
+    }
+    Ok(staged)
+}
+
 pub fn stage_optimized_register_homes_after_fixed_view_copies(
     reanalysis: StagedOptimizedSelectedReanalysis,
 ) -> Result<

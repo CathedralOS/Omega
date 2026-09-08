@@ -77,6 +77,99 @@ fn fixture() -> (
 }
 
 #[test]
+fn incoming_pointer_slots_bind_entry_bias_frame_size_and_parameter_identity() {
+    let (function, mut frame, mut instruction) = fixture();
+    let slot = FrameStorageSlotId::Incoming {
+        parameter_index: 8,
+        abi_stack_byte_offset: 32,
+    };
+    instruction.address = Some(Address::FrameAddress {
+        slot,
+        byte_offset: 0,
+    });
+    for return_address in [
+        machine_code::ReturnAddressFrameCustody::CallerActivationStack {
+            post_prologue_offset_bytes: 16,
+            size_bytes: 8,
+        },
+        machine_code::ReturnAddressFrameCustody::LiveLinkRegister {
+            view: register_model::RegisterViewId(30),
+        },
+        machine_code::ReturnAddressFrameCustody::SavedLinkRegister {
+            view: register_model::RegisterViewId(30),
+            frame_offset_bytes: 8,
+            size_bytes: 8,
+        },
+    ] {
+        frame.functions[0].return_address = return_address;
+        let bias = if matches!(
+            return_address,
+            machine_code::ReturnAddressFrameCustody::CallerActivationStack { .. }
+        ) {
+            8
+        } else {
+            0
+        };
+        let resolved = resolve(&function, Some(&frame), &instruction)
+            .unwrap()
+            .unwrap();
+        assert_eq!(resolved.displacement, 16 + bias + 32);
+        validate_address(&function, Some(&frame), &instruction, Some(resolved)).unwrap();
+        for displacement in [resolved.displacement - 8, resolved.displacement + 8] {
+            assert!(
+                validate_address(
+                    &function,
+                    Some(&frame),
+                    &instruction,
+                    Some(ResolvedPhysicalAddress {
+                        displacement,
+                        ..resolved
+                    })
+                )
+                .is_err()
+            );
+        }
+        let changed = ResolvedPhysicalAddress {
+            symbolic: Address::FrameAddress {
+                slot: FrameStorageSlotId::Incoming {
+                    parameter_index: 9,
+                    abi_stack_byte_offset: 32,
+                },
+                byte_offset: 0,
+            },
+            ..resolved
+        };
+        assert!(validate_address(&function, Some(&frame), &instruction, Some(changed)).is_err());
+    }
+    assert!(resolve(&function, None, &instruction).is_err());
+    for address in [
+        Address::Store64 {
+            slot,
+            byte_offset: 0,
+        },
+        Address::FrameAddress {
+            slot,
+            byte_offset: 8,
+        },
+    ] {
+        instruction.address = Some(address);
+        assert!(resolve(&function, Some(&frame), &instruction).is_err());
+        assert!(
+            validate_address(
+                &function,
+                Some(&frame),
+                &instruction,
+                Some(ResolvedPhysicalAddress {
+                    symbolic: address,
+                    displacement: 48
+                })
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
     let (mut function, mut frame, mut instruction) = fixture();
     let slot = LocalStorageSlotId::Boundary {
@@ -106,7 +199,7 @@ fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
             1 => {
                 changed_instruction.address = Some(Address::LinuxWriteByteI32 {
                     slot: LocalStorageSlotId::Structural {
-                        operation: slot.operation(),
+                        operation: slot.operation().expect("source-backed local slot"),
                         place: PlaceId::new(5).unwrap(),
                     },
                 })
@@ -196,7 +289,7 @@ fn local_address_replay_rejects_displacement_source_and_extent_substitution() {
         match mutation {
             0 => {
                 local.id = selected_instructions::LocalStorageSlotId::Structural {
-                    operation: local.id.operation(),
+                    operation: local.id.operation().expect("source-backed local slot"),
                     place: PlaceId::new(7).unwrap(),
                 }
             }
@@ -266,4 +359,42 @@ fn pointer_address_replay_binds_base_offset_and_store_width_without_a_frame() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn compiler_spill_slot_addresses_bind_register_identity_and_exact_store_bounds() {
+    let (mut function, mut frame, mut instruction) = fixture();
+    let slot = LocalStorageSlotId::Spill {
+        register: selected_instructions::VirtualRegisterId(7),
+    };
+    function.local_storage_slots[0].id = slot;
+    function.local_storage_slots[0].byte_size = 8;
+    frame.functions[0].local_storage_slots[0].id = slot;
+    frame.functions[0].local_storage_slots[0].size_bytes = 8;
+    instruction.address = Some(Address::Store64 {
+        slot: FrameStorageSlotId::Local(slot),
+        byte_offset: 0,
+    });
+    assert!(resolve(&function, Some(&frame), &instruction).is_ok());
+    instruction.address = Some(Address::Store64 {
+        slot: FrameStorageSlotId::Local(slot),
+        byte_offset: 1,
+    });
+    assert!(resolve(&function, Some(&frame), &instruction).is_err());
+    instruction.address = Some(Address::Store64 {
+        slot: FrameStorageSlotId::Local(slot),
+        byte_offset: 0,
+    });
+    let original_identity = machine_code::target_frame_layout_identity(&frame);
+    frame.functions[0].local_storage_slots[0].id = LocalStorageSlotId::Spill {
+        register: selected_instructions::VirtualRegisterId(8),
+    };
+    assert_ne!(
+        machine_code::target_frame_layout_identity(&frame),
+        original_identity
+    );
+    assert!(resolve(&function, Some(&frame), &instruction).is_err());
+    frame.functions[0].local_storage_slots[0].id = slot;
+    frame.functions[0].frame_size_bytes = 7;
+    assert!(resolve(&function, Some(&frame), &instruction).is_err());
 }

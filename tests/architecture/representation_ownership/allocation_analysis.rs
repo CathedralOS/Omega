@@ -72,7 +72,7 @@ const FAMILIES: &[Family] = &[
         destination: "recovery/classification",
         plan: "RecoveryClassificationPlan",
         identity: "recovery_classification_identity",
-        domain: "omega.terminal-recovery-classification.v4",
+        domain: "omega.terminal-recovery-classification.v5",
         validated: "ValidatedRecoveryClassifications",
         receipt: "RecoveryClassificationValidationReceipt",
     },

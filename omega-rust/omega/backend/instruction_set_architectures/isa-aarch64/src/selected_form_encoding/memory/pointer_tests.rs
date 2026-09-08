@@ -243,3 +243,97 @@ fn pointer_stores_reject_unsupported_widths_and_offsets() {
         );
     }
 }
+
+#[test]
+fn incoming_slot_address_and_pointer_load_replay_without_a_store() {
+    let physical =
+        register_model::validate_physical_register_model(crate::aarch64_physical_register_model())
+            .unwrap();
+    let address_view = physical.model().view_named("x9").unwrap().id;
+    let pointer_view = physical.model().view_named("x10").unwrap().id;
+    let slot = selected_instructions::FrameStorageSlotId::Incoming {
+        parameter_index: 8,
+        abi_stack_byte_offset: 16,
+    };
+    let address_kind = SelectedInstructionKind::FrameAddress {
+        slot,
+        byte_offset: 0,
+    };
+    let address_key = MachineAlternativeKey {
+        family: MachineAlternativeFamily::FrameAddress,
+        variant: 0,
+    };
+    let encoded = encode_aarch64_selected_memory_form(
+        &physical,
+        address_kind,
+        address_key,
+        &[address_view],
+        48,
+    )
+    .unwrap();
+    validate_aarch64_selected_memory_form(
+        &physical,
+        address_kind,
+        address_key,
+        &[address_view],
+        48,
+        encoded.bytes(),
+    )
+    .unwrap();
+    assert!(
+        validate_aarch64_selected_memory_form(
+            &physical,
+            address_kind,
+            address_key,
+            &[address_view],
+            56,
+            encoded.bytes()
+        )
+        .is_err()
+    );
+    let load_kind = SelectedInstructionKind::Load64 { byte_offset: 0 };
+    let load_key = MachineAlternativeKey {
+        family: MachineAlternativeFamily::Load64,
+        variant: 0,
+    };
+    let load = encode_aarch64_selected_memory_form(
+        &physical,
+        load_kind,
+        load_key,
+        &[address_view, pointer_view],
+        0,
+    )
+    .unwrap();
+    validate_aarch64_selected_memory_form(
+        &physical,
+        load_kind,
+        load_key,
+        &[address_view, pointer_view],
+        0,
+        load.bytes(),
+    )
+    .unwrap();
+    let store_kind = SelectedInstructionKind::Store64 {
+        slot,
+        byte_offset: 0,
+    };
+    let store_key = MachineAlternativeKey {
+        family: MachineAlternativeFamily::Store64,
+        variant: 0,
+    };
+    assert!(
+        encode_aarch64_selected_memory_form(&physical, store_kind, store_key, &[pointer_view], 48)
+            .is_err()
+    );
+    assert!(
+        validate_aarch64_selected_memory_form(
+            &physical,
+            store_kind,
+            store_key,
+            &[pointer_view],
+            48,
+            encoded.bytes()
+        )
+        .is_err()
+    );
+}

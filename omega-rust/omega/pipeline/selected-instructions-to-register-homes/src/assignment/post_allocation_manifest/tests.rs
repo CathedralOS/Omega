@@ -47,6 +47,31 @@ fn record() -> PostAllocationOptimizationManifest {
 }
 
 #[test]
+fn executable_runtime_spill_manifest_binds_order_and_realized_storage() {
+    let mut spilled = record();
+    spilled.selected_transformations = vec![
+        PostAllocationSelectedTransformation::RuntimeSpill(
+            SelectedInstructionPlanIdentity::from_bytes([7; 32]),
+        ),
+        PostAllocationSelectedTransformation::RuntimeSpill(
+            SelectedInstructionPlanIdentity::from_bytes([8; 32]),
+        ),
+    ];
+    spilled.spills = PostAllocationSpillStatus::RealizedInSelectedProgram;
+    spilled.identity = spilled.recomputed_identity();
+    assert_eq!(
+        PostAllocationOptimizationManifest::decode(&spilled.encode()),
+        Ok(spilled.clone())
+    );
+    let mut reordered = spilled.clone();
+    reordered.selected_transformations.reverse();
+    assert_ne!(reordered.recomputed_identity(), spilled.identity);
+    let mut missing_storage = spilled.clone();
+    missing_storage.spills = PostAllocationSpillStatus::NotRequiredForValidatedHomePlan;
+    assert_ne!(missing_storage.recomputed_identity(), spilled.identity);
+}
+
+#[test]
 fn identity_binds_every_post_allocation_domain() {
     let baseline = record();
     assert_eq!(baseline.identity, baseline.recomputed_identity());

@@ -36,7 +36,7 @@ use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutP
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
     let mut hasher = Sha256::new();
-    hasher.update(b"omega.target-frame-layout.v5");
+    hasher.update(b"omega.target-frame-layout.v6");
     hasher.update(plan.post_allocation_machine.bytes());
     hasher.update(plan.callee_saved_requirements.bytes());
     hasher.update(plan.callee_save_storage.bytes());

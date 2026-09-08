@@ -103,6 +103,7 @@ impl<'program> AllocationOutput<'program> {
 /// representation or machine-plan implementation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationEvidence {
+    RuntimeSpill(optimization_core::PostAllocationOptimizationManifestIdentity),
     RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
     FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
     LiteralFolds(StagedOptimizedPostLiteralFoldHomeCustodyReceipt),
@@ -112,6 +113,7 @@ pub enum AllocationEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationReplayError {
+    RuntimeSpill(crate::RuntimeSpillAllocationError),
     CurrentProgramMismatch,
     SelectionMismatch,
     RegisterHomes(OptimizedRegisterHomeCustodyError),

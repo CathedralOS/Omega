@@ -191,6 +191,7 @@ fn source_value(register: &VirtualRegister) -> Option<ValueId> {
         | VirtualRegisterOrigin::InstructionResult { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. } => Some(source_value),
         VirtualRegisterOrigin::StructuralParameter { .. }
+        | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => None,
     }
 }

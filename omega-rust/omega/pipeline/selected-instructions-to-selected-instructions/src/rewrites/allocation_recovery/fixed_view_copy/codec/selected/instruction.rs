@@ -125,6 +125,14 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store64 { slot, byte_offset }
         | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
             match slot {
+                selected_instructions::FrameStorageSlotId::Incoming {
+                    parameter_index,
+                    abi_stack_byte_offset,
+                } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&parameter_index.to_le_bytes());
+                    bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
+                }
                 selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
                     bytes.push(0);
                     bytes.extend_from_slice(&slot.operation.get().to_le_bytes());
@@ -204,6 +212,10 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         },
         tag @ (17 | 18) => {
             let slot = match cursor.byte()? {
+                2 => selected_instructions::FrameStorageSlotId::Incoming {
+                    parameter_index: cursor.u32()?,
+                    abi_stack_byte_offset: cursor.u32()?,
+                },
                 0 => selected_instructions::FrameStorageSlotId::Outgoing(
                     selected_instructions::OutgoingArgumentSlotId {
                         operation: decode_id(cursor, OperationId::new)?,
@@ -344,6 +356,13 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         argument_index: 1,
     };
     for kind in [
+        SelectedInstructionKind::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::Incoming {
+                parameter_index: 8,
+                abi_stack_byte_offset: 16,
+            },
+            byte_offset: 0,
+        },
         SelectedInstructionKind::LinuxWriteByteI32 {
             slot: selected_instructions::LocalStorageSlotId::Boundary {
                 operation: slot.operation,

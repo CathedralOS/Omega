@@ -148,7 +148,7 @@ fn activation_local_roster_and_memory_roles_round_trip() {
     ] {
         function.memory_accesses.push(SelectedMemoryAccess {
             instruction: SelectedInstructionId(1),
-            operation: slot.operation(),
+            operation: slot.operation().expect("source-backed local slot"),
             place: slot.structural_place().unwrap(),
             byte_offset: 0,
             byte_count: 8,
@@ -226,4 +226,28 @@ fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
         FixedViewCopyPlan::decode(&noncanonical),
         Err(FixedViewCopyDecodeError::TransformedPayloadMismatch)
     );
+}
+
+#[test]
+fn compiler_spill_origin_and_local_slot_round_trip_without_source_authority() {
+    let mut source = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let function = &mut std::sync::Arc::make_mut(&mut source.transformed).functions[0];
+    let slot = selected_instructions::LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(0),
+    };
+    assert_eq!(slot.operation(), None);
+    assert_eq!(slot.structural_place(), None);
+    function
+        .local_storage_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 8,
+            alignment: 8,
+        });
+    function.virtual_registers[0].origin = VirtualRegisterOrigin::SpillAddress {
+        instruction: SelectedInstructionId(0),
+        register: VirtualRegisterId(0),
+    };
+    function.virtual_registers[0].definition_site = None;
+    assert_eq!(FixedViewCopyPlan::decode(&source.encode()).unwrap(), source);
 }

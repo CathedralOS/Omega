@@ -22,7 +22,7 @@ use crate::{
 use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 const RECOVERY_CLASSIFICATION_MAGIC: &[u8; 8] = b"OMGRCV\0\0";
-const RECOVERY_CLASSIFICATION_VERSION: u32 = 5;
+const RECOVERY_CLASSIFICATION_VERSION: u32 = 6;
 
 impl RecoveryClassificationPlan {
     /// Canonical transport only. Decoding returns an unchecked plain plan; only
@@ -295,6 +295,12 @@ impl<'encoded> RecoveryClassificationCursor<'encoded> {
 
     fn origin(&mut self) -> Result<VirtualRegisterOrigin, RecoveryClassificationDecodeError> {
         match self.byte()? {
+            6 => Ok(VirtualRegisterOrigin::SpillAddress {
+                instruction: SelectedInstructionId(u32::from_le_bytes(self.array()?)),
+                register: selected_instructions::VirtualRegisterId(u32::from_le_bytes(
+                    self.array()?,
+                )),
+            }),
             4 => {
                 let raw = u64::from_le_bytes(self.array()?);
                 Ok(VirtualRegisterOrigin::StructuralParameter {

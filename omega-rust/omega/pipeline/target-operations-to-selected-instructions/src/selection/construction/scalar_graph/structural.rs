@@ -125,6 +125,37 @@ pub(super) fn entry(
         if !used {
             continue;
         }
+        if let Some(abi_stack_byte_offset) =
+            crate::structural_reference_input::stack_pointer_offset(&parameter.target.placement)
+        {
+            let native_parameter = source
+                .parameters
+                .len()
+                .checked_add(parameter_index)
+                .ok_or_else(invalid)?;
+            let address = transport_register(builder, place, 0)?;
+            builder.emit(
+                SelectedInstructionKind::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Incoming {
+                        parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
+                        abi_stack_byte_offset,
+                    },
+                    byte_offset: 0,
+                },
+                builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+                &[address],
+                SelectedInstructionProvenance::default(),
+            )?;
+            let pointer = transport_register(builder, place, 0)?;
+            builder.emit(
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                builder.constraints.keys.load64.ok_or_else(invalid)?,
+                &[address, pointer],
+                SelectedInstructionProvenance::default(),
+            )?;
+            builder.transport.pointers.push((place, pointer));
+            continue;
+        }
         let pointer = match parameter.target.placement.locations.as_slice() {
             [
                 ValueLocation::Indirect {

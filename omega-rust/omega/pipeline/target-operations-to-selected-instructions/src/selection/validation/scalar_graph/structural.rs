@@ -130,6 +130,47 @@ pub(super) fn entry(
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call)=>call.arguments.iter().any(|argument|matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place==place)),_=>false,
         }) {continue;}
+        if let Some(abi_stack_byte_offset) =
+            crate::structural_reference_input::stack_pointer_offset(&parameter.target.placement)
+        {
+            let native_parameter = source
+                .parameters
+                .len()
+                .checked_add(parameter_index)
+                .ok_or_else(|| replay.invalid())?;
+            let address = result(replay, place, 0)?;
+            replay.check_instruction(
+                SelectedInstructionKind::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Incoming {
+                        parameter_index: native_parameter
+                            .try_into()
+                            .map_err(|_| replay.invalid())?,
+                        abi_stack_byte_offset,
+                    },
+                    byte_offset: 0,
+                },
+                replay
+                    .constraints
+                    .keys
+                    .frame_address
+                    .ok_or_else(|| replay.invalid())?,
+                &[address],
+                &SelectedInstructionProvenance::default(),
+            )?;
+            let pointer = result(replay, place, 0)?;
+            replay.check_instruction(
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                replay
+                    .constraints
+                    .keys
+                    .load64
+                    .ok_or_else(|| replay.invalid())?,
+                &[address, pointer],
+                &SelectedInstructionProvenance::default(),
+            )?;
+            replay.transport.pointers.push((place, pointer));
+            continue;
+        }
         let pointer = match parameter.target.placement.locations.as_slice() {
             [
                 ValueLocation::Indirect {

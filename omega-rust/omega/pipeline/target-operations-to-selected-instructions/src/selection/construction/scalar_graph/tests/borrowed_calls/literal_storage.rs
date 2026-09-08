@@ -161,7 +161,10 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                     1 => {
                         changed.local_storage_slots[0].id =
                             selected_instructions::LocalStorageSlotId::Structural {
-                                operation: changed.local_storage_slots[0].id.operation(),
+                                operation: changed.local_storage_slots[0]
+                                    .id
+                                    .operation()
+                                    .expect("source-backed local slot"),
                                 place: PlaceId::new(99).unwrap(),
                             }
                     }

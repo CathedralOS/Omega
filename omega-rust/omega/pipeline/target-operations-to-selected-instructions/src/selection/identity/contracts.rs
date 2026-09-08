@@ -13,6 +13,14 @@ fn local_slot(bytes: &mut Vec<u8>, slot: selected_instructions::LocalStorageSlot
 }
 pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: selected_instructions::FrameStorageSlotId) {
     match slot {
+        selected_instructions::FrameStorageSlotId::Incoming {
+            parameter_index,
+            abi_stack_byte_offset,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&parameter_index.to_le_bytes());
+            bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
+        }
         selected_instructions::FrameStorageSlotId::Outgoing(value) => {
             bytes.push(0);
             self::slot(bytes, value);

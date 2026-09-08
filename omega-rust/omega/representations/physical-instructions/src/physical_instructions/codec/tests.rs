@@ -162,7 +162,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
 #[test]
 fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
-    for version in 0..12_u32 {
+    for version in 0..14_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -274,6 +274,13 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             abi_stack_byte_offset: 48,
         });
     for address in [
+        PhysicalAddressOperation::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::Incoming {
+                parameter_index: 8,
+                abi_stack_byte_offset: 16,
+            },
+            byte_offset: 0,
+        },
         PhysicalAddressOperation::Store {
             base_operand: 0,
             byte_offset: 2,
@@ -353,7 +360,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
             0 => {
                 changed.functions[0].local_storage_slots[0].id =
                     selected_instructions::LocalStorageSlotId::Structural {
-                        operation: slot.operation(),
+                        operation: slot.operation().expect("source-backed local slot"),
                         place: semantic_vocabulary::PlaceId::new(139).unwrap(),
                     }
             }
@@ -446,6 +453,13 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
             alignment: 8,
         });
     for address in [
+        PhysicalAddressOperation::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::Incoming {
+                parameter_index: 8,
+                abi_stack_byte_offset: 16,
+            },
+            byte_offset: 0,
+        },
         PhysicalAddressOperation::Store64 {
             slot: selected_instructions::FrameStorageSlotId::Local(slot),
             byte_offset: 16,
@@ -473,7 +487,7 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
                 }
                 1 => {
                     local.id = selected_instructions::LocalStorageSlotId::Structural {
-                        operation: local.id.operation(),
+                        operation: local.id.operation().expect("source-backed local slot"),
                         place: semantic_vocabulary::PlaceId::new(151).unwrap(),
                     }
                 }
@@ -535,4 +549,43 @@ fn physical_u32_normalization_round_trips_and_binds_its_family() {
         PostAllocationMachinePlan::decode(&source.encode()),
         Err(PostAllocationMachineDecodeError::InvalidIdentity)
     );
+}
+
+#[test]
+fn compiler_spill_slot_codec_retains_function_local_identity() {
+    let mut source = plan();
+    let slot = selected_instructions::LocalStorageSlotId::Spill {
+        register: selected_instructions::VirtualRegisterId(7),
+    };
+    source.functions[0]
+        .local_storage_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 8,
+            alignment: 8,
+        });
+    for address in [
+        PhysicalAddressOperation::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+        PhysicalAddressOperation::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+    ] {
+        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        source.identity = post_allocation_machine_identity(&source);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        let mut changed = source.clone();
+        changed.functions[0].local_storage_slots[0].id =
+            selected_instructions::LocalStorageSlotId::Spill {
+                register: selected_instructions::VirtualRegisterId(8),
+            };
+        assert_ne!(post_allocation_machine_identity(&changed), source.identity);
+        assert!(PostAllocationMachinePlan::decode(&changed.encode()).is_err());
+    }
 }

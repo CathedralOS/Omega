@@ -38,19 +38,6 @@ pub(crate) fn validate(
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
-            if matches!(
-                kind,
-                SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(_),
-                    ..
-                } | SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(_),
-                    ..
-                }
-            ) && target != NativeTarget::windows_x64()
-            {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-            }
             let address = row
                 .address
                 .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;

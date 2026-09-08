@@ -3,6 +3,7 @@
 mod baseline;
 mod current;
 mod recovery;
+pub(crate) mod runtime_spill;
 mod transformed;
 
 pub use baseline::*;
@@ -10,6 +11,7 @@ pub use current::{RegisterAllocationError, stage_register_allocation};
 pub use recovery::{
     stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
 };
+pub use runtime_spill::RuntimeSpillAllocationError;
 pub use transformed::*;
 
 pub(crate) mod abstract_spill_access_constraints;

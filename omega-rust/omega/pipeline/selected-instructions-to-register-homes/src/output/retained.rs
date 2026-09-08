@@ -16,6 +16,7 @@ pub struct RetainedAllocation {
 
 #[derive(Debug)]
 enum ReplayInputs {
+    RuntimeSpill(Box<crate::assignment::runtime_spill::RuntimeSpillAllocation>),
     Baseline(Box<StagedOptimizedRegisterHomes>),
     FixedView(Box<StagedOptimizedRegisterHomesAfterFixedViewCopies>),
     LiteralFolds(Box<StagedOptimizedRegisterHomesAfterLiteralFolds>),
@@ -80,6 +81,7 @@ impl sealed::Sealed for RetainedAllocation {}
 impl AllocationSource for RetainedAllocation {
     fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
         let current = match &self.replay {
+            ReplayInputs::RuntimeSpill(source) => source.replay_allocation(),
             ReplayInputs::Baseline(source) => source.replay_allocation(),
             ReplayInputs::FixedView(source) => source.replay_allocation(),
             ReplayInputs::LiteralFolds(source) => source.replay_allocation(),
@@ -186,6 +188,7 @@ fn validate_recovery_selection(
             &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
         }
         AllocationEvidence::RegisterHomes(_)
+        | AllocationEvidence::RuntimeSpill(_)
         | AllocationEvidence::LiteralFolds(_)
         | AllocationEvidence::SelectedLowering(_) => &[],
     };
@@ -198,4 +201,20 @@ fn validate_recovery_selection(
         return Err(AllocationReplayError::SelectionMismatch);
     }
     Ok(())
+}
+
+impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for RetainedAllocation {
+    type Error = AllocationReplayError;
+
+    fn try_from(
+        source: crate::assignment::runtime_spill::RuntimeSpillAllocation,
+    ) -> Result<Self, Self::Error> {
+        let replayed = source.replay_allocation()?;
+        validate_recovery_selection(&replayed)?;
+        let current = super::current::CurrentAllocation::from_replayed(&replayed);
+        Ok(Self {
+            current,
+            replay: ReplayInputs::RuntimeSpill(Box::new(source)),
+        })
+    }
 }
