@@ -2120,9 +2120,12 @@ pub(super) fn build_structural_scalar_return_machine(
         statements,
         [StatementNode::Assignment(_), StatementNode::Expression(_)]
     );
+    let primitive_reference_body = has_primitive_effect
+        || (matches!(statements, [StatementNode::Expression(_)])
+            && primitive_effects::has_plain_primitive_borrows(program, state));
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        if machine.attached_data.is_none() && has_primitive_effect {
+        if machine.attached_data.is_none() && primitive_reference_body {
             let (structural, scalar) =
                 free_structural_scalar_signature(program, shapes, state, &binders)?;
             (None, structural, scalar)
@@ -2131,7 +2134,7 @@ pub(super) fn build_structural_scalar_return_machine(
                 structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
             (Some(attachment), structural, scalar)
         };
-    let effects = if has_primitive_effect {
+    let effects = if primitive_reference_body {
         primitive_effects::build(
             program,
             facts,
@@ -2167,7 +2170,7 @@ pub(super) fn build_structural_scalar_return_machine(
             .any(|pair| pair[0].source_position >= pair[1].source_position)
         || structural_parameters.iter().any(|parameter| {
             parameter.is_self
-                || (effects.is_empty() && parameter.multiplicity != Multiplicity::Affine)
+                || (!primitive_reference_body && parameter.multiplicity != Multiplicity::Affine)
                 || !parameter.qualifications.is_empty()
         })
     {
@@ -2373,7 +2376,7 @@ pub(super) fn build_structural_scalar_return_machine(
         machine.symbol,
         state,
     )?;
-    if !effects.is_empty() && !whole_discards.is_empty() {
+    if primitive_reference_body && !whole_discards.is_empty() {
         return None;
     }
     let has_nominal_cleanup = whole_discards.iter().any(|(_, position)| {
