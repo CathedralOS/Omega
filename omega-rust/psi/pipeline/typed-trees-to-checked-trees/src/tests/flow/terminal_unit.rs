@@ -23,6 +23,7 @@ mod scalar_primitive_targets;
 mod scalar_sequences;
 mod shared_convergence;
 mod shared_result_borrows;
+mod state_graph_literals;
 mod state_graph_scalars;
 mod state_graph_subslices;
 mod tail_calls;

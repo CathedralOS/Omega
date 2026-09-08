@@ -45,6 +45,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 &catalogs.domain_ids,
                 &mut catalogs.next_place,
             )?;
+            let mut block_position = 0_u32;
             for parameter in &mut block_parameters {
                 if parameter.is_self {
                     *parameter = parameters
@@ -54,6 +55,16 @@ pub(in crate::attached_unit::composed_control) fn emit(
                             "Unit graph receiver invocation is missing",
                         ))?
                         .clone();
+                } else {
+                    // The persistent receiver is not a block parameter. Only
+                    // transferred descriptors occupy its dense namespace.
+                    parameter.position = block_position;
+                    block_position =
+                        block_position
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "Unit graph block parameter count exceeds u32",
+                            ))?;
                 }
             }
             structural_places.extend(

@@ -389,20 +389,19 @@ pub(super) fn emit_call_operations(
             )?;
             continue;
         }
-        let mut calls = catalogs.scalar_calls.emission_context();
-        let arguments = evaluation.arguments(
+        let (arguments, byte_argument_places) = literal_arguments::evaluate(
             checked,
             machine,
             state.state,
             operation,
+            catalogs,
+            evaluation,
             values,
             next_value,
             next_block,
             next_edge,
             operations,
-            &mut calls,
         )?;
-        catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
         match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { .. } => emit_boundary_call_operation(
                 state,
@@ -413,6 +412,7 @@ pub(super) fn emit_call_operations(
                 parameters,
                 claim_bindings,
                 arguments.as_deref(),
+                &byte_argument_places,
                 operations,
             )?,
             CheckedUnitEffectOperationPlan::CallUnit { .. } => {
@@ -424,6 +424,7 @@ pub(super) fn emit_call_operations(
                     &catalogs.type_ids,
                     &catalogs.structural_types,
                     arguments.as_deref(),
+                    &byte_argument_places,
                     operations,
                 )?
             }
@@ -443,6 +444,7 @@ pub(super) fn emit_boundary_call_operation(
     parameters: &[StructuralParameterDeclaration],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     scalar_values: Option<&[ValueDeclaration]>,
+    byte_argument_places: &[PlaceId],
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     let CheckedUnitEffectOperationPlan::BoundaryCall {
@@ -532,7 +534,7 @@ pub(super) fn emit_boundary_call_operation(
                 &[],
                 &[],
                 &[],
-                &[],
+                byte_argument_places,
             )?,
             completion_receipts: completion_receipts
                 .iter()

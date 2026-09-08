@@ -37,6 +37,7 @@ mod composed_unit_nested_control;
 mod composed_unit_prefixed_control;
 mod composed_unit_transitive_internal_calls;
 mod content_conservation;
+mod cyclic_byte_literal_calls;
 mod dynamic_composed_unit;
 mod guarded_scalar_returns;
 mod literal_byte_extent;

@@ -129,6 +129,15 @@ field reads occur at their expression positions; successor states keep the
 original invocation place rather than copied field values. Scalar expressions
 use the existing checked arithmetic and call-argument evaluation paths.
 
+Ordinary Unit helpers and boundaries receive immutable byte literals through
+the same structural argument lane as whole borrowed views. State-graph calls
+establish each literal at its authored argument position on the selected path;
+mixed scalar operands retain their original bindings across short-circuit blocks.
+Source replay checks each literal's bytes, type, access, and call coordinate.
+Backedges reexecute the same establishment, and neither an earlier iteration nor
+a sibling branch authorizes premature use. Projected byte-field operands,
+mutable byte views, and owned argument transfers need separate producer support.
+
 Provider-field calls retain the same exact attachment requirement roots as
 ordinary Unit bodies, including across backedges and interleaved field writes.
 Each machine retains only its direct boundary requirements; an ordinary callee

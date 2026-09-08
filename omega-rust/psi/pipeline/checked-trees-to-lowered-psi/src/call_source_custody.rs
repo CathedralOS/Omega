@@ -4,6 +4,7 @@ use super::*;
 
 pub(crate) mod authored;
 pub(crate) mod initializers;
+pub(crate) mod literal_arguments;
 pub(crate) mod occurrences;
 pub(crate) mod projected_receivers;
 
@@ -240,6 +241,7 @@ pub(super) fn validate_operation(
     {
         return unsupported("call operands disagree with their authored call site or signature");
     }
+    literal_arguments::validate(checked, caller_machine, &call, operation)?;
     for (ordinal, (argument, (expression, primitive_type))) in
         arguments.iter().zip(&call.scalar_arguments).enumerate()
     {

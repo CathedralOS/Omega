@@ -83,6 +83,10 @@ scalar work, unrestricted shared byte views, and bounded Unit-effect operations.
 Persistent unrestricted mutable record receivers additionally admit independently
 typed integer/Boolean field observations, ordered scalar-field stores, and whole
 mutable `CallUnit` arguments with empty claims, requirements, and crash continuations.
+The same Unit-call fence admits whole immutable borrowed byte views from machine
+or block parameters, established literals, and subslice results. Exact source
+type/access and full-graph establishment dominance remain independently checked;
+a previous iteration's literal cannot authorize a call before its producer.
 The receiver remains a machine parameter; it is not a structural block parameter
 or an owned transfer. Mutable-field entry requirements remain outside this slice:
 the unversioned field vocabulary does not establish a loop-entry snapshot.
