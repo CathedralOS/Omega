@@ -9,6 +9,14 @@ mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
 mod register_model;
+pub use register_model::AARCH64_LOAD32;
+pub use register_model::{
+    AARCH64_BITS_TO_FLOAT32, AARCH64_BITS_TO_FLOAT64, AARCH64_FLOAT32_TO_BITS,
+    AARCH64_FLOAT64_TO_BITS,
+};
+pub use register_model::{
+    aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
+};
 mod selected_form_encoding;
 pub use floating_control::{
     encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,

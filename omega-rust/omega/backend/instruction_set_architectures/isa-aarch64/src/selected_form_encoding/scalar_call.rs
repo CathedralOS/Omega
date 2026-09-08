@@ -161,36 +161,54 @@ pub fn validate_aarch64_selected_scalar_call_template(
     if alternative != expected_alternative {
         return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
     }
-    let arity = operand_views
-        .len()
-        .checked_sub(usize::from(!unit))
-        .filter(|arity| *arity <= 8)
-        .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
-    let mut expected_operand_views = expected_operand_views(physical, arity);
-    if unit {
-        expected_operand_views.pop();
-    }
-    if operand_views != expected_operand_views {
-        return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
-    }
-    let mut expected = expected_effects(target, physical, arity);
-    if unit {
-        let key = if target == NativeTarget::linux_arm64() {
-            crate::aarch64_aapcs64_register_unit_call_keys()[arity]
+    let (expected_operand_views, expected) = if unit {
+        let keys = if target == NativeTarget::linux_arm64() {
+            crate::aarch64_aapcs64_register_unit_call_keys()
+                .into_iter()
+                .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
+                .collect::<Vec<_>>()
         } else {
-            crate::aarch64_darwin_register_unit_call_keys()[arity]
+            crate::aarch64_darwin_register_unit_call_keys()
+                .into_iter()
+                .chain(crate::aarch64_darwin_mixed_unit_call_keys())
+                .collect::<Vec<_>>()
         };
         let catalog = aarch64_register_constraint_catalog(physical);
         let row = catalog
             .constraints
             .iter()
-            .find(|row| row.key == key)
-            .expect("canonical Unit call");
+            .find(|row| {
+                keys.contains(&row.key)
+                    && row.operands.len() == operand_views.len()
+                    && row
+                        .operands
+                        .iter()
+                        .zip(operand_views)
+                        .all(|(operand, view)| operand.fixed_view == Some(*view))
+            })
+            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+        let mut expected = expected_effects(target, physical, 0);
+        expected.external_operand_reads = (0..operand_views.len() as u16).collect();
         expected.external_operand_writes.clear();
         expected.implicit_unit_uses = row.implicit_uses.clone();
         expected.implicit_unit_defs = row.implicit_defs.clone();
         expected.implicit_unit_clobbers = row.clobbers.clone();
-    }
+        (operand_views.to_vec(), expected)
+    } else {
+        let arity = operand_views
+            .len()
+            .checked_sub(1)
+            .filter(|arity| *arity <= 8)
+            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+        let expected_operand_views = expected_operand_views(physical, arity);
+        if operand_views != expected_operand_views {
+            return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
+        }
+        (
+            expected_operand_views,
+            expected_effects(target, physical, arity),
+        )
+    };
     if effects != &expected {
         return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
     }
@@ -274,6 +292,8 @@ fn expected_effects(
     }
 }
 
+#[cfg(test)]
+mod mixed_calls;
 #[cfg(test)]
 mod target_abis;
 #[cfg(test)]

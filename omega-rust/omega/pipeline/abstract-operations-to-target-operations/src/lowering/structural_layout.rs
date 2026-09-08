@@ -283,7 +283,7 @@ pub(super) fn direct_integer_field_offset(
     )
 }
 
-fn direct_scalar_field_offset(
+pub(super) fn direct_scalar_field_offset(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
     expected_type: ScalarType,
@@ -328,9 +328,14 @@ fn direct_scalar_field_offset(
         offset = checked_align_up_u32(offset, u32::from(shape.alignment))
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
         if candidate.id == field {
-            return (candidate.field_type == StructuralFieldType::Scalar(expected_type))
-                .then_some(offset)
-                .ok_or(LoweringError::UnknownStructuralType(structural_type));
+            return (candidate.field_type == StructuralFieldType::Scalar(expected_type)
+                || matches!(
+                    (&candidate.field_type, expected_type),
+                    (StructuralFieldType::IeeeFloat(actual), ScalarType::IeeeFloat(expected))
+                        if *actual == expected
+                ))
+            .then_some(offset)
+            .ok_or(LoweringError::UnknownStructuralType(structural_type));
         }
         offset = offset
             .checked_add(u32::from(shape.byte_size))

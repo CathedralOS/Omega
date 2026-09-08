@@ -12,6 +12,32 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+#[cfg(test)]
+mod float_transport_tests;
+mod mixed_calls;
+pub use mixed_calls::*;
+
+pub const AARCH64_LOAD32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 714,
+};
+pub const AARCH64_FLOAT32_TO_BITS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 710,
+};
+pub const AARCH64_FLOAT64_TO_BITS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 711,
+};
+pub const AARCH64_BITS_TO_FLOAT32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 712,
+};
+pub const AARCH64_BITS_TO_FLOAT64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 713,
+};
+
 const GPR64: RegisterClassId = RegisterClassId(0);
 const GPR32: RegisterClassId = RegisterClassId(1);
 const VECTOR128: RegisterClassId = RegisterClassId(2);
@@ -33,13 +59,12 @@ pub fn aarch64_fixed_register_view(
     if model.model() != &aarch64_physical_register_model() {
         return None;
     }
-    let MachineRegister::Aarch64X(index @ 0..=30) = register else {
-        return None;
+    let name = match register {
+        MachineRegister::Aarch64X(index @ 0..=30) => format!("x{index}"),
+        MachineRegister::Aarch64V(index @ 0..=31) => format!("d{index}"),
+        _ => return None,
     };
-    model
-        .model()
-        .view_named(&format!("x{index}"))
-        .map(|view| view.id)
+    model.model().view_named(&name).map(|view| view.id)
 }
 
 /// Resolve the exact preservation convention selected by the clean terminal
@@ -234,7 +259,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 62] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 67] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -402,6 +427,11 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 62] = [
     AARCH64_STORE,
     AARCH64_ADDRESS_OFFSET,
     AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32,
+    AARCH64_FLOAT32_TO_BITS,
+    AARCH64_FLOAT64_TO_BITS,
+    AARCH64_BITS_TO_FLOAT32,
+    AARCH64_BITS_TO_FLOAT64,
+    AARCH64_LOAD32,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -591,6 +621,9 @@ pub fn aarch64_physical_register_model() -> PhysicalRegisterModel {
             RegisterWriteSemantics::InstructionDefined,
             true,
         );
+        // Scalar FMOV destinations clear the rest of the architectural vector.
+        // Normalized scalar transports therefore interfere with both lanes.
+        builder.views[usize::from(d_view.0)].write_units = vec![low, high];
         let s_view = builder.view(
             s.clone(),
             FLOAT32,
@@ -1164,6 +1197,26 @@ pub fn aarch64_register_constraint_catalog(
         );
         constraints.push(call);
     }
+    for (key, source_class, destination_class) in [
+        (AARCH64_LOAD32, GPR64, GPR64),
+        (AARCH64_FLOAT32_TO_BITS, FLOAT64, GPR64),
+        (AARCH64_FLOAT64_TO_BITS, FLOAT64, GPR64),
+        (AARCH64_BITS_TO_FLOAT32, GPR64, FLOAT64),
+        (AARCH64_BITS_TO_FLOAT64, GPR64, FLOAT64),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, source_class),
+                allocatable(1, RegisterOperandAccess::Def, destination_class),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        });
+    }
+    mixed_calls::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =
@@ -1171,7 +1224,13 @@ pub fn aarch64_register_constraint_catalog(
     }
     RegisterConstraintCatalog {
         architecture: Architecture::Aarch64,
-        required: AARCH64_REQUIRED_REGISTER_CONSTRAINTS.to_vec(),
+        required: {
+            let mut required = AARCH64_REQUIRED_REGISTER_CONSTRAINTS.to_vec();
+            required.extend(aarch64_aapcs64_mixed_unit_call_keys());
+            required.extend(aarch64_darwin_mixed_unit_call_keys());
+            required.sort_unstable();
+            required
+        },
         constraints,
     }
 }
@@ -1193,7 +1252,7 @@ pub fn validate_aarch64_register_constraint_catalog(
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(Aarch64RegisterConstraintCatalogValidationError::Structural)?;
     let canonical = aarch64_register_constraint_catalog(model);
-    for key in AARCH64_REQUIRED_REGISTER_CONSTRAINTS {
+    for key in canonical.required.iter().copied() {
         let Some(actual) = validated
             .catalog()
             .constraints
@@ -1211,11 +1270,12 @@ pub fn validate_aarch64_register_constraint_catalog(
             return Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(key));
         }
     }
-    if let Some(unexpected) = validated.catalog().constraints.iter().find(|constraint| {
-        AARCH64_REQUIRED_REGISTER_CONSTRAINTS
-            .binary_search(&constraint.key)
-            .is_err()
-    }) {
+    if let Some(unexpected) = validated
+        .catalog()
+        .constraints
+        .iter()
+        .find(|constraint| canonical.required.binary_search(&constraint.key).is_err())
+    {
         return Err(
             Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(unexpected.key),
         );
@@ -1354,9 +1414,16 @@ mod tests {
         )
         .unwrap();
         let catalog = validated.catalog();
-        assert_eq!(
-            catalog.required.as_slice(),
+        assert!(
             AARCH64_REQUIRED_REGISTER_CONSTRAINTS
+                .iter()
+                .all(|key| catalog.required.contains(key))
+        );
+        assert_eq!(
+            catalog.required.len(),
+            AARCH64_REQUIRED_REGISTER_CONSTRAINTS.len()
+                + aarch64_aapcs64_mixed_unit_call_keys().len()
+                + aarch64_darwin_mixed_unit_call_keys().len()
         );
 
         let call = row(catalog, AARCH64_AAPCS64_CALL);
@@ -1518,9 +1585,9 @@ mod tests {
     #[test]
     fn every_missing_required_aarch64_constraint_rejects() {
         let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        for (position, expected) in AARCH64_REQUIRED_REGISTER_CONSTRAINTS
-            .iter()
-            .copied()
+        for (position, expected) in aarch64_register_constraint_catalog(&model)
+            .required
+            .into_iter()
             .enumerate()
         {
             let mut catalog = aarch64_register_constraint_catalog(&model);

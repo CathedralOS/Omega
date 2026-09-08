@@ -298,6 +298,10 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             base_operand: 0,
             byte_offset: 8,
         },
+        PhysicalAddressOperation::Load32 {
+            base_operand: 0,
+            byte_offset: 12,
+        },
         PhysicalAddressOperation::Store64 {
             slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 8,

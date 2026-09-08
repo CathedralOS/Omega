@@ -223,7 +223,8 @@ to layout and byte replay.
 
 Straight-line Unit primitive/field stores and projected exclusive Unit calls enter the
 ordinary graph with original borrowed pointers. Integer stores use exact 1-, 2-,
-4- or 8-byte footprints; Boolean stores use one byte. Selection independently
+4- or 8-byte footprints; Boolean stores use one byte and IEEE stores use their
+exact 4- or 8-byte format. Selection independently
 reconstructs each field/index projection and its byte offset from declarations.
 `AddressOffset` adjusts the pointer without reading its referent or asserting
 source arithmetic, and `Store` writes that referent rather than a frame slot.
@@ -246,5 +247,9 @@ also checks whole primitive replacement through forwarded calls, signed and
 unsigned runtime values, both Boolean values, literal stores with unused inputs,
 and stack-passed primitive roots across three calls. Primitive declarations stay
 primitive; the ordinary store retains exact source type and width without a
-synthetic record or field. IEEE scalar call arguments/stores and general
-control/cleanup remain native dependencies.
+synthetic record or field. The `ieee_stores::` group checks runtime IEEE primitive
+and projected-field replacement, mixed integer/f32/f64 register and stack
+arguments across repeated Unit calls, and primitive literals with unused inputs.
+Caller comparisons retain NaN payloads, signed zero, subnormals, and surrounding
+bytes. IEEE field literals, literal call actuals, computed floating sources, and
+general control/cleanup remain native dependencies.

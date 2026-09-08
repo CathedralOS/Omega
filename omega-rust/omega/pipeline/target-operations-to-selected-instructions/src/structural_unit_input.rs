@@ -37,8 +37,13 @@ pub(crate) fn accepts_write_borrow(
         .map(|placement| placement.shape)
         .collect::<Vec<_>>();
     if shapes.iter().any(|shape| {
-        ![1, 2, 4, 8].contains(&shape.byte_size)
-            || *shape != calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+        !([1, 2, 4, 8].contains(&shape.byte_size)
+            && *shape == calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+            || [
+                calling_conventions::ValueShape::float(4),
+                calling_conventions::ValueShape::float(8),
+            ]
+            .contains(shape))
     }) {
         return false;
     }

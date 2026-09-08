@@ -90,6 +90,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::CopyI64 => 2,
+        SelectedInstructionKind::Float32ToBits => 26,
+        SelectedInstructionKind::Float64ToBits => 27,
+        SelectedInstructionKind::BitsToFloat32 => 28,
+        SelectedInstructionKind::BitsToFloat64 => 29,
         SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ZeroExtendU32 => 20,
         SelectedInstructionKind::ExactAddI64 { .. } => 3,
@@ -105,6 +109,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallI64 { .. } => 13,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Load32 { .. } => 30,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
@@ -123,7 +128,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::AddressOffset { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::Load64 { byte_offset } => {
+        SelectedInstructionKind::Load64 { byte_offset }
+        | SelectedInstructionKind::Load32 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }
         SelectedInstructionKind::Store64 { slot, byte_offset }
@@ -179,6 +185,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
+        | SelectedInstructionKind::Float32ToBits
+        | SelectedInstructionKind::Float64ToBits
+        | SelectedInstructionKind::BitsToFloat32
+        | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU32
         | SelectedInstructionKind::ByteViewAddress

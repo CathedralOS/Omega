@@ -49,6 +49,10 @@ pub enum PhysicalAddressOperation {
         base_operand: u16,
         byte_offset: u32,
     },
+    Load32 {
+        base_operand: u16,
+        byte_offset: u32,
+    },
     Store64 {
         slot: selected_instructions::FrameStorageSlotId,
         byte_offset: u32,

@@ -3,6 +3,181 @@ use super::*;
 use calling_conventions::ValuePlacement;
 use selected_instructions::FrameStorageSlotId;
 
+#[test]
+fn ieee_stack_fragments_replay_exact_width_source_and_outgoing_slot() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ] {
+            let environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let scalar_type = ScalarType::IeeeFloat(format);
+            let shape = crate::selection::scalar_call_abi::scalar_shape(scalar_type).unwrap();
+            let mut source = projected_borrows::projected_call(target);
+            let root_shape = source.call_plan.parameters[0].shape;
+            source.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: std::iter::repeat_n(shape, 9).chain([root_shape]).collect(),
+                    result: None,
+                },
+            )
+            .unwrap();
+            source.parameters = source.call_plan.parameters[..9]
+                .iter()
+                .enumerate()
+                .map(|(position, placement)| LegalizedScalarParameter {
+                    value: ValueId::new(100 + position as u64).unwrap(),
+                    scalar_type,
+                    definition_site: ValueDefinitionSite::FunctionParameter(position as u32),
+                    placement: placement.clone(),
+                })
+                .collect();
+            let value = source.parameters[8].value;
+            source.structural.as_mut().unwrap().parameters[0]
+                .target
+                .placement = source.call_plan.parameters[9].clone();
+            let LegalizedScalarInstructionKind::Call(call) =
+                &mut source.blocks[0].instructions[0].kind
+            else {
+                panic!("call")
+            };
+            let mut reference = call.arguments[0].clone();
+            call.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: std::iter::repeat_n(shape, 9)
+                        .chain([reference.placement().shape])
+                        .collect(),
+                    result: None,
+                },
+            )
+            .unwrap();
+            let LegalizedScalarArgument::Structural {
+                target: argument, ..
+            } = &mut reference
+            else {
+                panic!("reference")
+            };
+            argument.source = source.call_plan.parameters[9].clone().into();
+            argument.destination = call.call_plan.parameters[9].clone();
+            call.arguments = call.call_plan.parameters[..9]
+                .iter()
+                .map(|placement| LegalizedScalarArgument::Scalar {
+                    source: value,
+                    placement: placement.clone(),
+                })
+                .chain([reference])
+                .collect();
+            let constraints = SelectedSelectionConstraints {
+                keys: environment.selected_keys(),
+                projected_structural_call: None,
+                fixed_inputs: Vec::new(),
+            };
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let validate = |candidate: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &source,
+                    candidate,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&selected).unwrap();
+            let address_rows = selected.virtual_registers.iter().filter(|register|
+                matches!(register.origin, VirtualRegisterOrigin::ScalarAbiAddress { source_value, .. } if source_value == value)).collect::<Vec<_>>();
+            assert!(
+                address_rows.len() >= 2,
+                "incoming and outgoing scalar stack addresses"
+            );
+            for address in address_rows {
+                assert_eq!(
+                    address.scalar_type,
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+                );
+                let mut wrong_type = selected.clone();
+                wrong_type.virtual_registers[address.id.0 as usize].scalar_type = scalar_type;
+                assert!(
+                    validate(&wrong_type).is_err(),
+                    "address cannot inherit IEEE payload type"
+                );
+                let mut wrong_origin = selected.clone();
+                let VirtualRegisterOrigin::ScalarAbiAddress {
+                    instruction,
+                    source_value,
+                } = address.origin
+                else {
+                    unreachable!()
+                };
+                wrong_origin.virtual_registers[address.id.0 as usize].origin =
+                    VirtualRegisterOrigin::InstructionResult {
+                        instruction,
+                        source_value,
+                    };
+                assert!(
+                    validate(&wrong_origin).is_err(),
+                    "address cannot impersonate scalar payload"
+                );
+            }
+            let load = selected.blocks[0]
+                .instructions
+                .iter()
+                .position(|row| {
+                    matches!(
+                        row.kind,
+                        SelectedInstructionKind::Load32 { .. }
+                            | SelectedInstructionKind::Load64 { .. }
+                    ) && row.provenance.values == vec![value]
+                })
+                .unwrap();
+            assert_eq!(
+                selected.blocks[0].instructions[load].kind,
+                if shape.byte_size == 4 {
+                    SelectedInstructionKind::Load32 { byte_offset: 0 }
+                } else {
+                    SelectedInstructionKind::Load64 { byte_offset: 0 }
+                }
+            );
+            let mut wrong_width = selected.clone();
+            wrong_width.blocks[0].instructions[load].kind = if shape.byte_size == 4 {
+                SelectedInstructionKind::Load64 { byte_offset: 0 }
+            } else {
+                SelectedInstructionKind::Load32 { byte_offset: 0 }
+            };
+            assert!(validate(&wrong_width).is_err());
+            let mut wrong_source = selected.clone();
+            wrong_source.blocks[0].instructions[load].provenance.values[0] =
+                source.parameters[0].value;
+            assert!(validate(&wrong_source).is_err());
+            let mut wrong_slot = selected.clone();
+            wrong_slot
+                .outgoing_arguments
+                .iter_mut()
+                .find(|slot| slot.id.argument_index == 8)
+                .unwrap()
+                .abi_stack_byte_offset += 4;
+            assert!(validate(&wrong_slot).is_err());
+        }
+    }
+}
+
 fn incoming_stack_call(
     target: target::NativeTarget,
     scalar_count: usize,

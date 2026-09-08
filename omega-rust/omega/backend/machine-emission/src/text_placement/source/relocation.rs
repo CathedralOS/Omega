@@ -91,6 +91,7 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::HostedWriteByteI32
                 | MachineAlternativeFamily::Load8Indexed
                 | MachineAlternativeFamily::Load64
+                | MachineAlternativeFamily::Load32
                 | MachineAlternativeFamily::Store
                 | MachineAlternativeFamily::AddressOffset
                 | MachineAlternativeFamily::Store64
@@ -98,6 +99,10 @@ pub(in crate::text_placement) fn prove_none(
                 | MachineAlternativeFamily::CompareI64
                 | MachineAlternativeFamily::MaterializeI64
                 | MachineAlternativeFamily::CopyI64
+                | MachineAlternativeFamily::Float32ToBits
+                | MachineAlternativeFamily::Float64ToBits
+                | MachineAlternativeFamily::BitsToFloat32
+                | MachineAlternativeFamily::BitsToFloat64
                 | MachineAlternativeFamily::ZeroExtendU8
                 | MachineAlternativeFamily::ZeroExtendU32
                 | MachineAlternativeFamily::ByteViewAddress

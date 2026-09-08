@@ -33,6 +33,11 @@ pub(in crate::legalization) fn instruction(
 }
 fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)> {
     match &node.operation {
+        AbstractOperation::IeeeFloatConstant {
+            psi_operation,
+            result,
+            ..
+        } => Some((*psi_operation, *result)),
         AbstractOperation::BooleanConstant {
             psi_operation,
             result,
@@ -276,6 +281,9 @@ pub(super) fn validate(
             return Err(invalid);
         }
         let expected_type = match &node.operation {
+            AbstractOperation::IeeeFloatConstant { value, .. } => {
+                ScalarType::IeeeFloat(value.format())
+            }
             AbstractOperation::BooleanConstant { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructuralScalar { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {

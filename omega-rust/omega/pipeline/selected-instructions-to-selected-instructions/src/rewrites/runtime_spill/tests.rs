@@ -168,6 +168,101 @@ fn every_future_use_gets_a_distinct_short_lived_reload() {
 }
 
 #[test]
+fn ieee_raw_bit_spills_retain_type_and_reject_fp_register_residence() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ] {
+            let mut source = fixture(target);
+            let scalar_type = ScalarType::IeeeFloat(format);
+            for register in
+                &mut Arc::make_mut(&mut source.transformed).functions[0].virtual_registers
+            {
+                register.scalar_type = scalar_type;
+            }
+            let identity = selected_instruction_plan_identity(source.transformed());
+            source.receipt.source_selected = identity;
+            source.receipt.transformed_selected = identity;
+            let result = spill_selected_runtime_value(
+                &source,
+                0,
+                VirtualRegisterId(1),
+                &environment,
+                budget(),
+            )
+            .unwrap();
+            let address_type =
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+            assert!(
+                result.transformed().functions[0]
+                    .virtual_registers
+                    .iter()
+                    .all(|register| register.scalar_type
+                        == if matches!(register.origin, VirtualRegisterOrigin::SpillAddress { .. })
+                        {
+                            address_type
+                        } else {
+                            scalar_type
+                        })
+            );
+            let mut forged = result.transformed().clone();
+            forged.functions[0].virtual_registers[6].scalar_type =
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+            assert!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    forged
+                )
+                .is_err()
+            );
+            let mut forged_address = result.transformed().clone();
+            forged_address.functions[0].virtual_registers[5].scalar_type = scalar_type;
+            assert!(
+                validate_runtime_spill(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    forged_address
+                )
+                .is_err()
+            );
+
+            let mut floating_home = source.clone();
+            let float_class = environment
+                .constraint(environment.selected_keys().bits_to_float64.unwrap())
+                .unwrap()
+                .operands[1]
+                .class;
+            Arc::make_mut(&mut floating_home.transformed).functions[0].virtual_registers[1].class =
+                float_class;
+            assert!(
+                spill_selected_runtime_value(
+                    &floating_home,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget()
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
+#[test]
 fn independent_replay_rejects_storage_use_source_and_fuel_corruption() {
     let source = fixture(NativeTarget::linux_x64());
     let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();

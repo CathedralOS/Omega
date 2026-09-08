@@ -36,6 +36,6 @@ fn has_bounded_scalar_parameter_shape(function: &AbstractFunction) -> bool {
                     scalar_type.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                         && matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
                 }
-                ScalarType::IeeeFloat(_) => false,
+                ScalarType::IeeeFloat(_) => true,
             })
 }

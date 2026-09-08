@@ -16,6 +16,7 @@ pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
     pub victim: &'source VirtualRegister,
     pub source_value: ValueId,
+    pub address_scalar_type: ScalarType,
     pub definition: SelectedInstructionId,
     pub slot: LocalStorageSlotId,
     pub first_instruction: u32,
@@ -67,7 +68,8 @@ pub(super) fn admit<'source>(
     else {
         return Err(RuntimeSpillError::UnsupportedValue);
     };
-    if victim.scalar_type != ScalarType::Integer(unsigned)
+    if (victim.scalar_type != ScalarType::Integer(unsigned)
+        && !matches!(victim.scalar_type, ScalarType::IeeeFloat(_)))
         || victim.entry_fixed_view.is_some()
         || !matches!(
             victim.definition_site,
@@ -215,6 +217,7 @@ pub(super) fn admit<'source>(
         function,
         victim,
         source_value,
+        address_scalar_type: ScalarType::Integer(unsigned),
         definition,
         slot,
         first_instruction,

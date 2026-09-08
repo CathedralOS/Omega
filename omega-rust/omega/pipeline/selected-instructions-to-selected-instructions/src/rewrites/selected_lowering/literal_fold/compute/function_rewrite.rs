@@ -142,6 +142,7 @@ fn redensify(
         match &mut register.origin {
             VirtualRegisterOrigin::InstructionResult { instruction, .. }
             | VirtualRegisterOrigin::SpillAddress { instruction, .. }
+            | VirtualRegisterOrigin::ScalarAbiAddress { instruction, .. }
             | VirtualRegisterOrigin::AbiTransport { instruction, .. } => {
                 *instruction =
                     lower_instruction(function_index, *instruction, removed_instruction)?;

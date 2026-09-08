@@ -76,10 +76,24 @@ pub(super) fn validate_operation(
     };
     match (target, abstracted) {
         (
+            TargetUnitOperation::IeeeFloatConstant {
+                psi_operation,
+                result,
+                value,
+            },
+            AbstractOperation::IeeeFloatConstant {
+                psi_operation: expected_operation,
+                result: expected_result,
+                value: expected_value,
+            },
+        ) if psi_operation == expected_operation
+            && result == expected_result
+            && value == expected_value => {}
+        (
             TargetUnitOperation::WriteOnlyPrimitiveStore { .. },
             AbstractOperation::WriteOnlyPrimitiveStore { .. },
         ) => {
-            primitive_store::validate(target, abstracted, parameters, sources, unit)?;
+            primitive_store::validate(target, abstracted, parameters, sources, optimized, unit)?;
         }
         (
             TargetUnitOperation::ScalarDefinition { result_home, .. },

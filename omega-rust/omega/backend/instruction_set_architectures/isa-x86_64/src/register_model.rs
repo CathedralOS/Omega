@@ -12,6 +12,32 @@ use register_model::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
+#[cfg(test)]
+mod float_transport_tests;
+mod mixed_calls;
+pub use mixed_calls::*;
+
+pub const X86_64_LOAD32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 714,
+};
+pub const X86_64_FLOAT32_TO_BITS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 710,
+};
+pub const X86_64_FLOAT64_TO_BITS: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 711,
+};
+pub const X86_64_BITS_TO_FLOAT32: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 712,
+};
+pub const X86_64_BITS_TO_FLOAT64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 713,
+};
+
 pub const X86_64_HOSTED_WRITE_BYTE_I32: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 704,
@@ -66,6 +92,12 @@ pub fn x86_64_fixed_register_view(
         return None;
     }
     let name = match register {
+        MachineRegister::X86Xmm(index @ 0..=15) => {
+            return model
+                .model()
+                .view_named(&format!("xmm{index}"))
+                .map(|view| view.id);
+        }
         MachineRegister::X86Rax => "rax",
         MachineRegister::X86Rcx => "rcx",
         MachineRegister::X86Rdx => "rdx",
@@ -253,7 +285,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 49] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 54] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -369,6 +401,11 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 49] = [
     X86_64_HOSTED_WRITE_BYTE_I32,
     X86_64_STORE,
     X86_64_ADDRESS_OFFSET,
+    X86_64_FLOAT32_TO_BITS,
+    X86_64_FLOAT64_TO_BITS,
+    X86_64_BITS_TO_FLOAT32,
+    X86_64_BITS_TO_FLOAT64,
+    X86_64_LOAD32,
 ];
 
 struct ModelBuilder {
@@ -1095,6 +1132,26 @@ pub fn x86_64_register_constraint_catalog(
         );
         constraints.push(call);
     }
+    for (key, source_class, destination_class) in [
+        (X86_64_LOAD32, GPR64, GPR64),
+        (X86_64_FLOAT32_TO_BITS, VECTOR128, GPR64),
+        (X86_64_FLOAT64_TO_BITS, VECTOR128, GPR64),
+        (X86_64_BITS_TO_FLOAT32, GPR64, VECTOR128),
+        (X86_64_BITS_TO_FLOAT64, GPR64, VECTOR128),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, source_class),
+                allocatable(1, RegisterOperandAccess::Def, destination_class),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        });
+    }
+    mixed_calls::append_constraints(&mut constraints, model);
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =
@@ -1102,7 +1159,13 @@ pub fn x86_64_register_constraint_catalog(
     }
     RegisterConstraintCatalog {
         architecture: Architecture::X86_64,
-        required: X86_64_REQUIRED_REGISTER_CONSTRAINTS.to_vec(),
+        required: {
+            let mut required = X86_64_REQUIRED_REGISTER_CONSTRAINTS.to_vec();
+            required.extend(x86_64_system_v_mixed_unit_call_keys());
+            required.extend(x86_64_microsoft_mixed_unit_call_keys());
+            required.sort_unstable();
+            required
+        },
         constraints,
     }
 }
@@ -1145,7 +1208,7 @@ pub fn validate_x86_64_register_constraint_catalog(
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(X86_64RegisterConstraintCatalogValidationError::Structural)?;
     let canonical = x86_64_register_constraint_catalog(model);
-    for key in X86_64_REQUIRED_REGISTER_CONSTRAINTS {
+    for key in canonical.required.iter().copied() {
         let Some(actual) = validated
             .catalog()
             .constraints
@@ -1167,11 +1230,12 @@ pub fn validate_x86_64_register_constraint_catalog(
             );
         }
     }
-    if let Some(unexpected) = validated.catalog().constraints.iter().find(|constraint| {
-        X86_64_REQUIRED_REGISTER_CONSTRAINTS
-            .binary_search(&constraint.key)
-            .is_err()
-    }) {
+    if let Some(unexpected) = validated
+        .catalog()
+        .constraints
+        .iter()
+        .find(|constraint| canonical.required.binary_search(&constraint.key).is_err())
+    {
         return Err(
             X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(unexpected.key),
         );
@@ -1306,9 +1370,16 @@ mod tests {
         )
         .unwrap();
         let catalog = validated.catalog();
-        assert_eq!(
-            catalog.required.as_slice(),
+        assert!(
             X86_64_REQUIRED_REGISTER_CONSTRAINTS
+                .iter()
+                .all(|key| catalog.required.contains(key))
+        );
+        assert_eq!(
+            catalog.required.len(),
+            X86_64_REQUIRED_REGISTER_CONSTRAINTS.len()
+                + x86_64_system_v_mixed_unit_call_keys().len()
+                + x86_64_microsoft_mixed_unit_call_keys().len()
         );
 
         let sysv_call = row(catalog, X86_64_SYSTEM_V_CALL);

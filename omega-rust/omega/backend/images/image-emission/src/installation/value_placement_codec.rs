@@ -14,6 +14,11 @@ pub(super) fn encode_shape(
     bytes.push(match shape.class {
         ValueClass::Integer => 1,
         ValueClass::BorrowedReference => 2,
+        ValueClass::Float
+            if matches!(shape.byte_size, 4 | 8) && shape.alignment == shape.byte_size =>
+        {
+            3
+        }
         _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
     });
     bytes.push(0);
@@ -141,6 +146,7 @@ pub(super) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, Instal
     let class = match reader.u8()? {
         1 => ValueClass::Integer,
         2 => ValueClass::BorrowedReference,
+        3 => ValueClass::Float,
         _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
     };
     if reader.u8()? != 0 {
@@ -148,6 +154,9 @@ pub(super) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, Instal
     }
     let byte_size = reader.u16()?;
     let alignment = reader.u16()?;
+    if class == ValueClass::Float && (!matches!(byte_size, 4 | 8) || alignment != byte_size) {
+        return Err(InstallationError::UnsupportedStructuralReturnShape);
+    }
     if reader.u16()? != 0 {
         return Err(InstallationError::NonzeroReservedField);
     }
@@ -286,6 +295,8 @@ pub(super) fn register_tag(register: MachineRegister) -> Result<u8, Installation
         MachineRegister::Aarch64X(5) => Ok(13),
         MachineRegister::Aarch64X(6) => Ok(14),
         MachineRegister::Aarch64X(7) => Ok(15),
+        MachineRegister::X86Xmm(register @ 0..=7) => Ok(16 + register),
+        MachineRegister::Aarch64V(register @ 0..=7) => Ok(24 + register),
         _ => Err(InstallationError::UnsupportedStructuralReturnRegister(
             register,
         )),
@@ -309,6 +320,45 @@ pub(super) fn decode_register(value: u8) -> Result<MachineRegister, Installation
         13 => Ok(MachineRegister::Aarch64X(5)),
         14 => Ok(MachineRegister::Aarch64X(6)),
         15 => Ok(MachineRegister::Aarch64X(7)),
+        register @ 16..=23 => Ok(MachineRegister::X86Xmm(register - 16)),
+        register @ 24..=31 => Ok(MachineRegister::Aarch64V(register - 24)),
         _ => Err(InstallationError::InvalidStructuralReturnRegister(value)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ieee_abi_placements_round_trip_without_integer_relabeling() {
+        for byte_size in [4, 8] {
+            for register_index in 0..8 {
+                for register in [
+                    MachineRegister::X86Xmm(register_index),
+                    MachineRegister::Aarch64V(register_index),
+                ] {
+                    let placement = ValuePlacement {
+                        shape: ValueShape::float(byte_size),
+                        locations: vec![ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size,
+                        }],
+                    };
+                    let mut bytes = Vec::new();
+                    encode_direct_placement(&mut bytes, &placement).unwrap();
+                    assert_eq!(
+                        decode_direct_placement(&mut Reader::new(&bytes)).unwrap(),
+                        placement
+                    );
+                    bytes[2..4].copy_from_slice(&2u16.to_le_bytes());
+                    assert!(decode_direct_placement(&mut Reader::new(&bytes)).is_err());
+                }
+            }
+        }
+        assert!(register_tag(MachineRegister::X86Xmm(8)).is_err());
+        assert!(register_tag(MachineRegister::Aarch64V(8)).is_err());
+        assert!(decode_register(32).is_err());
     }
 }

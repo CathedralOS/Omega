@@ -307,3 +307,44 @@ fn compiler_spill_origin_and_local_slot_round_trip_without_source_authority() {
     function.virtual_registers[0].definition_site = None;
     assert_eq!(FixedViewCopyPlan::decode(&source.encode()).unwrap(), source);
 }
+
+#[test]
+fn scalar_abi_address_codec_binds_origin_instruction_and_payload_identity() {
+    let mut source = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let value = semantic_vocabulary::ValueId::new(17).unwrap();
+    std::sync::Arc::make_mut(&mut source.transformed).functions[0].virtual_registers[0].origin =
+        VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction: SelectedInstructionId(3),
+            source_value: value,
+        };
+    let encoded = source.encode();
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
+    let identity = target_operations_to_selected_instructions::selected_instruction_plan_identity(
+        &source.transformed,
+    );
+    for origin in [
+        VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction: SelectedInstructionId(4),
+            source_value: value,
+        },
+        VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction: SelectedInstructionId(3),
+            source_value: semantic_vocabulary::ValueId::new(18).unwrap(),
+        },
+        VirtualRegisterOrigin::InstructionResult {
+            instruction: SelectedInstructionId(3),
+            source_value: value,
+        },
+    ] {
+        let mut changed = source.clone();
+        std::sync::Arc::make_mut(&mut changed.transformed).functions[0].virtual_registers[0]
+            .origin = origin;
+        assert_ne!(changed.encode(), encoded);
+        assert_ne!(
+            target_operations_to_selected_instructions::selected_instruction_plan_identity(
+                &changed.transformed
+            ),
+            identity
+        );
+    }
+}

@@ -275,6 +275,20 @@ pub(in crate::exit_contract) fn validate_non_return(
                 }
         }
         (
+            SelectedInstructionKind::Load32 { byte_offset },
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count: 4,
+            },
+            Some(address),
+        ) => {
+            address.symbolic
+                == physical_instructions::PhysicalAddressOperation::Load32 {
+                    base_operand: 0,
+                    byte_offset,
+                }
+        }
+        (
             SelectedInstructionKind::Store64 { slot, byte_offset },
             MachineEncodedMemoryEffect::WriteFrameStorageV1 { byte_count: 8, .. },
             Some(address),

@@ -78,6 +78,12 @@ pub(super) fn u8_type() -> IntegerType {
 }
 pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(ValueShape::float(4))
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(ValueShape::float(8))
+        }
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer)
             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
@@ -196,7 +202,8 @@ pub(super) fn match_input(
                 .flat_map(|block| &block.nodes)
                 .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
                 && !(Some(placement.shape) == (if ranked && parameter.scalar_type == ScalarType::Integer(u32_type()) { Some(ValueShape::integer(4, 4)) } else { scalar_shape(parameter.scalar_type) })
-                    && matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size))
+                    && (matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size)
+                        || !ranked && matches!(abstracted.result, AbstractFunctionResult::Unit) && scalar_stack(placement)))
         })
     {
         return Err(invalid);
@@ -294,7 +301,7 @@ pub(super) fn match_input(
                     .any(|((value, parameter), placement)| {
                         value_type(optimized, *value) != Some(parameter.scalar_type)
                             || scalar_shape(parameter.scalar_type) != Some(placement.shape)
-                            || !scalar_register(placement)
+                            || !(scalar_register(placement) || scalar_stack(placement))
                     })
             {
                 return Err(invalid);
@@ -369,6 +376,7 @@ pub(super) fn callee_plan(
     };
     if !call_plan.parameters.iter().all(|placement| {
         scalar_register(placement)
+            || scalar_stack(placement)
             || crate::structural_reference_input::stack_pointer_offset(placement).is_some()
             || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
                 && matches!(placement.locations.as_slice(),
@@ -390,6 +398,8 @@ pub(super) fn callee_plan(
 }
 fn scalar_register(placement: &ValuePlacement) -> bool {
     [
+        ValueShape::float(4),
+        ValueShape::float(8),
         ValueShape::integer(1, 1),
         ValueShape::integer(2, 2),
         ValueShape::integer(4, 4),
@@ -399,6 +409,20 @@ fn scalar_register(placement: &ValuePlacement) -> bool {
         && matches!(placement.locations.as_slice(),
             [ValueLocation::Register {value_byte_offset: 0, byte_size, ..}]
             if *byte_size == placement.shape.byte_size)
+}
+
+fn scalar_stack(placement: &ValuePlacement) -> bool {
+    [
+        ValueShape::float(4),
+        ValueShape::float(8),
+        ValueShape::integer(4, 4),
+        ValueShape::integer(8, 8),
+    ]
+    .contains(&placement.shape)
+        && matches!(placement.locations.as_slice(),
+            [ValueLocation::Stack { stack_byte_offset, value_byte_offset: 0, byte_size, alignment }]
+                if *byte_size == placement.shape.byte_size && *alignment >= placement.shape.alignment
+                    && alignment.is_power_of_two() && stack_byte_offset.is_multiple_of(u32::from(*alignment)))
 }
 pub(super) fn i64_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 64).expect("I64")

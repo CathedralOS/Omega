@@ -53,7 +53,7 @@ pub fn validate_runtime_spill(
             let reload_register = VirtualRegisterId(admission::fresh(&mut next_register)?);
             let address = VirtualRegister {
                 id: address_register,
-                scalar_type: admitted.victim.scalar_type,
+                scalar_type: admitted.address_scalar_type,
                 class: admitted.victim.class,
                 origin: VirtualRegisterOrigin::SpillAddress {
                     instruction: address_instruction,

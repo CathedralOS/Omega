@@ -325,6 +325,7 @@ fn origin_value(origin: VirtualRegisterOrigin) -> Option<ValueId> {
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }
         | VirtualRegisterOrigin::InstructionResult { source_value, .. } => Some(source_value),
         VirtualRegisterOrigin::StructuralParameter { .. }
+        | VirtualRegisterOrigin::ScalarAbiAddress { .. }
         | VirtualRegisterOrigin::SpillAddress { .. }
         | VirtualRegisterOrigin::AbiTransport { .. } => None,
     }
@@ -334,6 +335,10 @@ fn origin_value(origin: VirtualRegisterOrigin) -> Option<ValueId> {
 fn place_backed_origins_cannot_supply_scalar_callable_results() {
     let place = semantic_vocabulary::PlaceId::new(1).unwrap();
     for origin in [
+        VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction: selected_instructions::SelectedInstructionId(0),
+            source_value: ValueId::new(1).unwrap(),
+        },
         VirtualRegisterOrigin::SpillAddress {
             instruction: selected_instructions::SelectedInstructionId(0),
             register: selected_instructions::VirtualRegisterId(0),

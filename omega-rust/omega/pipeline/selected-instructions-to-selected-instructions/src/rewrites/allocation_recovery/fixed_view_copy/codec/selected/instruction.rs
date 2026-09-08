@@ -83,6 +83,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Load32 { .. } => 30,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
@@ -95,6 +96,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ConditionalBranchNonZero => 2,
         SelectedInstructionKind::ReturnI64 => 3,
         SelectedInstructionKind::CopyI64 => 4,
+        SelectedInstructionKind::Float32ToBits => 26,
+        SelectedInstructionKind::Float64ToBits => 27,
+        SelectedInstructionKind::BitsToFloat32 => 28,
+        SelectedInstructionKind::BitsToFloat64 => 29,
         SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ZeroExtendU32 => 20,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
@@ -119,7 +124,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::AddressOffset { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::Load64 { byte_offset } => {
+        SelectedInstructionKind::Load64 { byte_offset }
+        | SelectedInstructionKind::Load32 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }
         SelectedInstructionKind::Store64 { slot, byte_offset }
@@ -210,6 +216,9 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         16 => SelectedInstructionKind::Load64 {
             byte_offset: cursor.u32()?,
         },
+        30 => SelectedInstructionKind::Load32 {
+            byte_offset: cursor.u32()?,
+        },
         tag @ (17 | 18) => {
             let slot = match cursor.byte()? {
                 2 => selected_instructions::FrameStorageSlotId::Incoming {
@@ -245,6 +254,10 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         2 => SelectedInstructionKind::ConditionalBranchNonZero,
         3 => SelectedInstructionKind::ReturnI64,
         4 => SelectedInstructionKind::CopyI64,
+        26 => SelectedInstructionKind::Float32ToBits,
+        27 => SelectedInstructionKind::Float64ToBits,
+        28 => SelectedInstructionKind::BitsToFloat32,
+        29 => SelectedInstructionKind::BitsToFloat64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
         23 => SelectedInstructionKind::HostedWriteByteI32 {
@@ -386,6 +399,11 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         },
         SelectedInstructionKind::AddressOffset { byte_offset: 26 },
         SelectedInstructionKind::Load64 { byte_offset: 8 },
+        SelectedInstructionKind::Load32 { byte_offset: 12 },
+        SelectedInstructionKind::Float32ToBits,
+        SelectedInstructionKind::Float64ToBits,
+        SelectedInstructionKind::BitsToFloat32,
+        SelectedInstructionKind::BitsToFloat64,
         SelectedInstructionKind::Store64 {
             slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 8,

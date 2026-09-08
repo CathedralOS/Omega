@@ -403,6 +403,9 @@ fn direct_relevant_scalar_field(
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
                 terminal_psi::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                terminal_psi::StructuralFieldType::IeeeFloat(format) => {
+                    Some(ScalarType::IeeeFloat(*format))
+                }
                 _ => None,
             })
     })

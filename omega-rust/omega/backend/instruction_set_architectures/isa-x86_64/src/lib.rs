@@ -13,6 +13,13 @@ mod mov_r64_imm32_sign_extended_i64_materialization;
 mod post_handoff_writer;
 mod preservation_storage;
 mod register_model;
+pub use register_model::X86_64_LOAD32;
+pub use register_model::{
+    X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
+};
+pub use register_model::{
+    x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
+};
 mod selected_form_encoding;
 mod semantic_unit_wrapper_encoding;
 mod xor_zero_i64_materialization;

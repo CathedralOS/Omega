@@ -81,6 +81,14 @@ pub fn selected_instruction_plan_identity(
             encode_scalar_type(&mut bytes, register.scalar_type);
             bytes.extend_from_slice(&register.class.0.to_le_bytes());
             match register.origin {
+                VirtualRegisterOrigin::ScalarAbiAddress {
+                    instruction,
+                    source_value,
+                } => {
+                    bytes.push(7);
+                    bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&source_value.get().to_le_bytes());
+                }
                 VirtualRegisterOrigin::SpillAddress {
                     instruction,
                     register,
@@ -198,6 +206,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Load32 { .. } => 30,
         SelectedInstructionKind::Load8Indexed => 21,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Store64 { .. } => 17,
@@ -210,6 +219,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ConditionalBranchNonZero => 2,
         SelectedInstructionKind::ReturnI64 => 3,
         SelectedInstructionKind::CopyI64 => 4,
+        SelectedInstructionKind::Float32ToBits => 26,
+        SelectedInstructionKind::Float64ToBits => 27,
+        SelectedInstructionKind::BitsToFloat32 => 28,
+        SelectedInstructionKind::BitsToFloat64 => 29,
         SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ZeroExtendU32 => 20,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
@@ -239,7 +252,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::AddressOffset { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::Load64 { byte_offset } => {
+        SelectedInstructionKind::Load64 { byte_offset }
+        | SelectedInstructionKind::Load32 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }
         SelectedInstructionKind::Store64 { slot, byte_offset }
@@ -297,6 +311,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
+        | SelectedInstructionKind::Float32ToBits
+        | SelectedInstructionKind::Float64ToBits
+        | SelectedInstructionKind::BitsToFloat32
+        | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU32
         | SelectedInstructionKind::Load8Indexed

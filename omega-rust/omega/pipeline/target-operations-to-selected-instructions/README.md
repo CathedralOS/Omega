@@ -68,7 +68,7 @@ storage merely because their parameters are structural; actual outgoing and
 preservation storage must be replayed against the realized frame.
 
 Straight-line Unit field stores through mutable or write-only parameters retain
-the original incoming pointer. Boolean and 8-, 16-, 32-, and 64-bit integer
+the original incoming pointer. IEEE binary32/binary64, Boolean, and 8-, 16-, 32-, and 64-bit integer
 stores carry the exact destination declaration, carrier path, scalar field and
 typed SSA source. Input-only layout replay reconstructs the offset and width;
 selection emits one pointer store with a write footprint and the source fuel
@@ -79,8 +79,18 @@ Whole primitive stores use the same exact-width pointer instruction while
 retaining `WriteOnlyPrimitiveStore` as their semantic origin. Their destination
 must be an unrestricted, unqualified, claim-free mutable or write-only parameter
 whose referent is exactly the SSA source's primitive scalar type. Boolean and
-fixed 8/16/32/64-bit integers are supported; no synthetic record, field, readable
-borrow, or IEEE-to-integer conversion is introduced.
+fixed 8/16/32/64-bit integers and IEEE binary32/binary64 are supported; no synthetic
+record, field, readable borrow, or IEEE-to-integer conversion is introduced.
+
+Runtime IEEE Unit arguments use their target's floating-register or exact-width
+stack placement. Explicit raw-bit transfers connect floating ABI views to ordinary
+GPR payload storage; the values retain IEEE scalar types. Mixed call constraints
+retain the exact GPR and floating operand views, including Microsoft positional
+holes. Incoming scalar stack loads and outgoing stores use private scalar ABI
+addresses, not invented referent places. Independent replay derives source,
+format, placement, width, and call order again. Runtime preservation spills keep
+the payload's IEEE type and use integer-typed slot addresses; they do not admit
+floating-register residents into GPR spill instructions.
 
 Literal and transported subslice descriptors use activation-local homes, separately
 from ABI argument-copy slots. A subslice retains the original backing plus

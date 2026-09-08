@@ -114,25 +114,37 @@ pub(super) fn lower_write_only_primitive_store(
             (ValueShape::borrowed_reference(1, 1), source)
         }
         ScalarType::IeeeFloat(format) => {
-            let (defining_operation, immediate) = ieee_float_constants
-                .get(&value.value)
-                .copied()
-                .ok_or_else(invalid)?;
-            if immediate.format() != format {
-                return Err(invalid());
-            }
             let byte_size = match format {
                 IeeeFloatFormat::Binary32 => 4,
                 IeeeFloatFormat::Binary64 => 8,
             };
-            (
-                ValueShape::borrowed_reference(byte_size, byte_size),
+            let source = if let Some((parameter_index, _)) = function
+                .parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| {
+                    parameter.value == value.value && parameter.scalar_type == value.scalar_type
+                }) {
+                TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
+                    parameter_index: u32::try_from(parameter_index).map_err(|_| invalid())?,
+                    source_value: value.value,
+                    scalar_type: value.scalar_type,
+                }
+            } else {
+                let (defining_operation, immediate) = ieee_float_constants
+                    .get(&value.value)
+                    .copied()
+                    .ok_or_else(invalid)?;
+                if immediate.format() != format {
+                    return Err(invalid());
+                }
                 TargetUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
                     defining_operation,
                     source_value: value.value,
                     value: immediate,
-                },
-            )
+                }
+            };
+            (ValueShape::borrowed_reference(byte_size, byte_size), source)
         }
     };
     let target_parameter = parameters_by_place

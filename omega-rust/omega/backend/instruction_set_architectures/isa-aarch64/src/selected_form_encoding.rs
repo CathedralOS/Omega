@@ -11,6 +11,7 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::aarch64_physical_register_model;
 
+mod float_bits;
 pub(crate) mod hosted_write_byte;
 mod jump;
 pub use hosted_write_byte::{
@@ -490,6 +491,9 @@ pub fn encode_aarch64_selected_form(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if float_bits::is_transfer(kind) {
+        return float_bits::encode(physical, kind, alternative, operands);
+    }
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_registers(physical, operands)?;
     validate_return_home(kind, &registers)?;
@@ -504,6 +508,9 @@ pub fn validate_aarch64_selected_form_encoding(
     operands: &[RegisterViewId],
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if float_bits::is_transfer(kind) {
+        return float_bits::validate(physical, kind, alternative, operands, bytes);
+    }
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_registers(physical, operands)?;
     validate_return_home(kind, &registers)?;
@@ -572,7 +579,12 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::Load8Indexed
+        SelectedInstructionKind::Float32ToBits
+        | SelectedInstructionKind::Float64ToBits
+        | SelectedInstructionKind::BitsToFloat32
+        | SelectedInstructionKind::BitsToFloat64
+        | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
@@ -710,7 +722,12 @@ fn encode_unchecked(
         | SelectedInstructionKind::Jump => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::Load8Indexed
+        SelectedInstructionKind::Float32ToBits
+        | SelectedInstructionKind::Float64ToBits
+        | SelectedInstructionKind::BitsToFloat32
+        | SelectedInstructionKind::BitsToFloat64
+        | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
@@ -1039,7 +1056,12 @@ fn validate_decoded(
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::Float32ToBits
+        | SelectedInstructionKind::Float64ToBits
+        | SelectedInstructionKind::BitsToFloat32
+        | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
@@ -1172,7 +1194,12 @@ fn footprint(
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::Float32ToBits
+        | SelectedInstructionKind::Float64ToBits
+        | SelectedInstructionKind::BitsToFloat32
+        | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }

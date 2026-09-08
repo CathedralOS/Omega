@@ -101,6 +101,14 @@ fn scalar(bytes: &mut Vec<u8>, value: ScalarType) {
 
 fn origin(bytes: &mut Vec<u8>, value: VirtualRegisterOrigin) {
     match value {
+        VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction,
+            source_value,
+        } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+        }
         VirtualRegisterOrigin::SpillAddress {
             instruction,
             register,

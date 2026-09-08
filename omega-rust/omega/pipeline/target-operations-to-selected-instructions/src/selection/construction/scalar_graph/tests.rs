@@ -5,6 +5,7 @@ mod byte_output;
 mod byte_views;
 mod control;
 mod derived_calls;
+mod ieee_borrows;
 mod parameters;
 mod projected_borrows;
 mod scalar_stores;

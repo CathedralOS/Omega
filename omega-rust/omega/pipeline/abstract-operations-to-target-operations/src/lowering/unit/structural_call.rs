@@ -74,7 +74,10 @@ pub(super) fn lower_structural_unit_call(
             ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
             ScalarType::Integer(integer_type) => fixed_native_integer_shape(integer_type)
                 .ok_or(LoweringError::UnitCallTargetKindMismatch(*callee)),
-            ScalarType::IeeeFloat(_) => Err(LoweringError::UnitCallTargetKindMismatch(*callee)),
+            ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
+                IeeeFloatFormat::Binary32 => 4,
+                IeeeFloatFormat::Binary64 => 8,
+            })),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let signature = StructuralCallSignature::derive(
@@ -150,7 +153,24 @@ pub(super) fn lower_structural_unit_call(
                         known.into_target_source(*source_value)
                     }
                     ScalarType::IeeeFloat(_) => {
-                        return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
+                        let (caller_parameter_index, _) = function
+                            .parameters
+                            .iter()
+                            .enumerate()
+                            .find(|(_, caller_parameter)| {
+                                caller_parameter.value == *source_value
+                                    && caller_parameter.scalar_type == parameter.scalar_type
+                            })
+                            .ok_or(LoweringError::CallArgumentTypeMismatch {
+                                callee: *callee,
+                                argument: *source_value,
+                            })?;
+                        TargetUnitScalarArgumentSource::Parameter {
+                            parameter_index: u32::try_from(caller_parameter_index)
+                                .map_err(|_| LoweringError::UnitCallTargetKindMismatch(*callee))?,
+                            source_value: *source_value,
+                            scalar_type: parameter.scalar_type,
+                        }
                     }
                 };
                 if source.scalar_type() != parameter.scalar_type

@@ -295,6 +295,10 @@ impl<'encoded> RecoveryClassificationCursor<'encoded> {
 
     fn origin(&mut self) -> Result<VirtualRegisterOrigin, RecoveryClassificationDecodeError> {
         match self.byte()? {
+            7 => Ok(VirtualRegisterOrigin::ScalarAbiAddress {
+                instruction: SelectedInstructionId(u32::from_le_bytes(self.array()?)),
+                source_value: self.value_id()?,
+            }),
             6 => Ok(VirtualRegisterOrigin::SpillAddress {
                 instruction: SelectedInstructionId(u32::from_le_bytes(self.array()?)),
                 register: selected_instructions::VirtualRegisterId(u32::from_le_bytes(

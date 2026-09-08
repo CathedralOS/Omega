@@ -1,12 +1,12 @@
-//! Canonical transport for fixed-width integer identities, durable Unit homes,
+//! Canonical transport for exact scalar identities, durable Unit homes,
 //! and zero-code Unit integer definitions.
 
 use machine_code::{
     UnitAffineScalarRecordEstablishmentRecord, UnitIntegerConstantRecord, UnitScalarHomeRecord,
 };
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType, StructuralFieldId,
-    StructuralTypeId, ValueId,
+    IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 
 use super::{
@@ -59,7 +59,17 @@ pub(super) fn encode_scalar_type(
             Ok(())
         }
         ScalarType::Integer(integer) => encode_integer_type(bytes, integer),
-        ScalarType::IeeeFloat(_) => Err(InstallationError::UnsupportedInstalledFixedIntegerType),
+        ScalarType::IeeeFloat(format) => {
+            bytes.extend_from_slice(&[3, 0]);
+            push_u16(
+                bytes,
+                match format {
+                    IeeeFloatFormat::Binary32 => 32,
+                    IeeeFloatFormat::Binary64 => 64,
+                },
+            );
+            Ok(())
+        }
     }
 }
 
@@ -71,6 +81,17 @@ pub(super) fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, 
         return (reserved == 0 && bits == 0)
             .then_some(ScalarType::Boolean)
             .ok_or(InstallationError::NonzeroReservedField);
+    }
+    if tag == 3 {
+        if reserved != 0 {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        let format = match bits {
+            32 => IeeeFloatFormat::Binary32,
+            64 => IeeeFloatFormat::Binary64,
+            _ => return Err(InstallationError::UnsupportedInstalledFixedIntegerType),
+        };
+        return Ok(ScalarType::IeeeFloat(format));
     }
     let sign = match tag {
         1 => IntegerSign::Signed,
@@ -294,6 +315,24 @@ pub(super) fn decode_unit_affine_scalar_records(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ieee_scalar_identity_codec_retains_format_and_rejects_other_widths() {
+        use super::*;
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            let scalar_type = ScalarType::IeeeFloat(format);
+            let mut bytes = Vec::new();
+            encode_scalar_type(&mut bytes, scalar_type).unwrap();
+            assert_eq!(
+                decode_scalar_type(&mut Reader::new(&bytes)).unwrap(),
+                scalar_type
+            );
+            let mut reserved = bytes.clone();
+            reserved[1] = 1;
+            assert!(decode_scalar_type(&mut Reader::new(&reserved)).is_err());
+            bytes[2..4].copy_from_slice(&16u16.to_le_bytes());
+            assert!(decode_scalar_type(&mut Reader::new(&bytes)).is_err());
+        }
+    }
     use calling_conventions::ValueShape;
 
     use super::*;
