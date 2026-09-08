@@ -63,20 +63,25 @@ A program is a raw **tape** containing `L` bytes of bytecode. Seed stamping
 places it in the fixed hole as `[4-byte LE length L][raw tape]`; the prefix and
 host container are not part of the `.tape` or compiler identity. The loader:
 
-1. zero-fills `M` (memory starts clean),
-2. copies the `L` bytecode bytes into `M[0 .. L-1]`,
-3. sets `pc = 0`, all `R[i] = 0`, `sp = 0x10000000`,
-4. begins fetch/dispatch.
+1. checks `L <= 16,777,212` and `L <= MEMSIZE`; otherwise it performs a loader
+  trap before copying bytes or starting execution,
+2. zero-fills `M` (memory starts clean),
+3. copies the `L` bytecode bytes into `M[0 .. L-1]`,
+4. sets `pc = 0`, all `R[i] = 0`, `sp = 0x10000000`,
+5. begins fetch/dispatch.
 
 The same tape runs on every platform's seed — only the surrounding executable
 shim differs per ISA/OS.
 
 ## 5. Transition rules
 
-Fetch reads `op = M[pc]` and advances past the opcode; the columns below give the
-operands (consumed in order, each advancing `pc`) and the effect. `R[d]`, `R[s]`
-denote register-indexed slots; `k`/`a` are 8-byte immediate/address operands;
-`zext8` zero-extends a byte to 64 bits.
+Fetch checks `pc < MEMSIZE` before reading `op = M[pc]`. After the opcode selects
+an instruction width, every operand byte must also be in `M`; a failed fetch or
+operand-range check traps before the instruction has any effect. Checks use
+nonwrapping comparisons. The columns below give the operands (consumed in order,
+each advancing `pc`) and the effect. `R[d]`, `R[s]` denote register-indexed
+slots; `k`/`a` are 8-byte immediate/address operands; `zext8` zero-extends a
+byte to 64 bits.
 
 | Op | Mnemonic | Operands | Effect | Next `pc` |
 | --- | --- | --- | --- | --- |
@@ -88,10 +93,10 @@ denote register-indexed slots; `k`/`a` are 8-byte immediate/address operands;
 | 0x05 | `mul`  | `d, s` | `R[d] = (R[d] · R[s]) mod 2⁶⁴` | `pc+2` |
 | 0x06 | `div`  | `d, s` | trap if `R[s]=0 ∨ (R[d]=INT_MIN ∧ R[s]=-1)`; else `R[d] = R[d] ÷ₛ R[s]` | `pc+2` |
 | 0x07 | `mod`  | `d, s` | same traps; else `R[d] = R[d] −ₛ (R[d] ÷ₛ R[s])·R[s]` | `pc+2` |
-| 0x08 | `loadb`| `d, s` | `R[d] = zext8(M[R[s]])` | `pc+2` |
-| 0x09 | `storeb`| `d, s`| `M[R[d]] = R[s] mod 2⁸` | `pc+2` |
-| 0x0A | `load` | `d, s` | `R[d] = M[R[s] .. R[s]+8]` (LE 64-bit) | `pc+2` |
-| 0x0B | `store`| `d, s` | `M[R[d] .. R[d]+8] = R[s]` (LE 64-bit) | `pc+2` |
+| 0x08 | `loadb`| `d, s` | trap unless `R[s] < MEMSIZE`; else `R[d] = zext8(M[R[s]])` | `pc+2` |
+| 0x09 | `storeb`| `d, s`| trap unless `R[d] < MEMSIZE`; else `M[R[d]] = R[s] mod 2⁸` | `pc+2` |
+| 0x0A | `load` | `d, s` | trap unless `[R[s], R[s]+8)` is in `M`; else load that range as LE 64-bit | `pc+2` |
+| 0x0B | `store`| `d, s` | trap unless `[R[d], R[d]+8)` is in `M`; else store `R[s]` there as LE 64-bit | `pc+2` |
 | 0x0C | `jmp`  | `a` | — | `a` |
 | 0x0D | `jz`   | `c, a` | — | `a` if `R[c]=0` else `pc+10` |
 | 0x0E | `jnz`  | `c, a` | — | `a` if `R[c]≠0` else `pc+10` |
@@ -99,8 +104,8 @@ denote register-indexed slots; `k`/`a` are 8-byte immediate/address operands;
 | 0x10 | `jeq`  | `a, b, a₂` | — | `a₂` if `R[a] = R[b]` else `pc+11` |
 | 0x11 | `read` | `d` | consume head byte `x` of `in`: `R[d] = zext8(x)`; at EOF `R[d] = 0xFFFFFFFFFFFFFFFF` | `pc+2` |
 | 0x12 | `write`| `s` | append `R[s] mod 2⁸` to `out` | `pc+2` |
-| 0x13 | `call` | `a` | `sp -= 8`; `M[sp..sp+8] = (pc+8)` (the offset just past `a`, LE); | `a` |
-| 0x14 | `ret`  | — | `r = M[sp..sp+8]` (LE); `sp += 8`; | `r` |
+| 0x13 | `call` | `a` | trap unless `[sp-8, sp)` is in `M`; else decrement `sp` by 8 and store `(pc+8)` there as LE | `a` |
+| 0x14 | `ret`  | — | trap unless `[sp, sp+8)` is in `M`; else load `r` there and increment `sp` by 8 | `r` |
 | 0x15..0xFE | — | — | **Trap** (unknown opcode) | — |
 | 0xFF | — | — | **Trap**; permanently reserved as the first byte of an out-of-band producer-diagnostic frame and never assignable as an opcode | — |
 
@@ -128,32 +133,48 @@ conditions are:
 1. an unknown opcode (`0x15..0xFE`) or the permanently reserved diagnostic
    marker (`0xFF`),
 2. `div`/`mod` with divisor `0`,
-3. `div`/`mod` signed overflow (`INT64_MIN / -1`).
+3. `div`/`mod` signed overflow (`INT64_MIN / -1`),
+4. an out-of-range instruction fetch, operand fetch, data access, or call/return
+   stack access,
+5. a stamped tape length exceeding the physical tape hole or `MEMSIZE`.
 
-## 8. Currently undefined (the honest edges)
+Runtime traps preserve the exact stdout prefix written before the failing
+transition and append no diagnostic bytes. A loader trap occurs before execution
+and therefore has an empty stdout prefix. Both have the same external Trap
+observation; “loader” names the cause, not a second outcome.
 
-These cases are **not** yet specified behavior:
+## 8. Bounds and fixed capacity
 
-- **Out-of-range memory** (`M[i]` for `i ∉ [0, MEMSIZE)`, including `sp` under/
-  overflow): currently unchecked — the implementations may corrupt adjacent state
-  or fault. A trust root *should* trap; until it does, programs must stay in
-  bounds and this document does not assign a meaning to violations.
-- **Memory size is fixed** (`MEMSIZE`, and the tape hole) rather than an
-  execution parameter with a defined out-of-memory result. AlphaBootstrapV4
-  selects 1.75 GiB of semantic memory and an exact 16 MiB stamped hole,
-  including the four-byte length, for a 16,777,212-byte raw-tape maximum.
-  Capacity is not part of Alpha's opcode semantics; the same admitted tape runs
-  identically on both platform realizations.
+Every memory range is checked in full before it is read, written, or used to
+change machine state. Implementations use nonwrapping range checks; an address
+near `2^64` cannot wrap into valid memory. A failed `call` does not move `sp` or
+write a return address, and a failed `ret` does not read memory or move `sp`.
 
-Everything in §5–§7 and the selected in-bounds memory extent are pinned by
-`tests/alpha/conformance.sh`; undefined out-of-range behavior remains out of
-scope until the hardening lands.
+Execution is not restricted to the original tape extent or instruction
+boundaries. Mutable code and unaligned data remain legal. A taken control target
+is checked when its next instruction is fetched; an untaken branch does not
+access or validate its target. The stack remains ordinary memory: Alpha adds no
+stack partition, does not require a preceding `call` for `ret`, and does not
+trap merely because `sp` rises above its initial value while its next access
+remains in range.
+
+`MEMSIZE` and the tape hole are fixed execution-profile parameters rather than a
+recoverable allocation service. AlphaBootstrapV4 selects 1.75 GiB of semantic
+memory and an exact 16 MiB stamped hole, including the four-byte length, for a
+16,777,212-byte raw-tape maximum. A bounds trap is an Alpha failure and must not
+be relabeled as a successful Gamma or compiler-owned resource refusal.
+
+The current native seeds predate these checks. The hardening task must update
+both implementations, listings, identities, and exact-boundary/adjacent
+conformance evidence before either seed claims this complete revision.
 
 ## 9. Conformance
 
-`tests/alpha/conformance.sh` runs hand-built bytecode tapes — one per rule and per edge
-(signed division/remainder, signed `jlt`, EOF, the three traps) — against the
-host's seed and checks exit code and stdout. A faithful seed on any ISA passes
-all of them; a divergence between two realizations on the same tape exposes a
-conformance or implementation problem. Run it after touching a seed and as the
-acceptance gate for a new platform realization.
+`tests/alpha/conformance.sh` runs hand-built bytecode tapes against the host's
+seed and checks exit code and stdout. Its current cases pin the preexisting
+in-bound rules, signed division/remainder, signed `jlt`, EOF, and the three
+preexisting traps. Bounds hardening adds exact-boundary and adjacent cases for
+fetch, operands, byte/word data access, call/return stack access, and stamped
+tape length, including stdout-prefix preservation. A faithful seed on any ISA
+passes all applicable cases; a divergence between two realizations on the same
+tape exposes a conformance or implementation problem.

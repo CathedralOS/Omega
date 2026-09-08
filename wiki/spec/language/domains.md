@@ -60,7 +60,7 @@ addition may therefore break an existing extension.
 
 The exact foreign-domain import-gate spelling, optional owner/orphan restrictions,
 and authority/reporting presentation remain
-[undetermined](../../../OWNER_QUESTIONS.md#q4--foreign-domain-import-and-applicability).
+[undetermined](../../../OWNER_QUESTIONS.md#q3--foreign-domain-import-and-applicability).
 These open details do
 not authorize ambient extension discovery or priority-based collision resolution.
 
@@ -69,7 +69,7 @@ not authorize ambient extension discovery or priority-based collision resolution
 Domains classify values within the carrier's ordinary validity. A domain cannot
 license observing a value outside its default domain. Whether an inconsistent
 domain declaration is rejected or denotes an uninhabited domain remains
-[undetermined](../../../OWNER_QUESTIONS.md#q3--empty-domains-and-contradictory-declarations);
+[undetermined](../../../OWNER_QUESTIONS.md#q2--empty-domains-and-contradictory-declarations);
 no member can be established without proving all obligations.
 
 `A::B::C` is a single-parent refinement of `A::B`: its predicate requirements
