@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn proof_integer_arithmetic_lands_complete_anonymous_peers() {
+    for (arithmetic, expected) in [
+        ("embed(7i32) / (1 + 1)", Some(3)),
+        ("embed(7i32) % (1 + 1)", Some(1)),
+        ("(1 + 6) / embed(2i32)", Some(3)),
+        ("(1 + 6) % embed(2i32)", Some(1)),
+        ("embed(7i32) / (1 / 2 * 2)", Some(7)),
+        ("embed(7i32) % (1 / 2 * 2)", Some(0)),
+        ("embed(7i32) / (1 / 2)", None),
+        ("embed(7i32) % (1 / 2)", None),
+    ] {
+        let source = format!("machine predicate() ensures {arithmetic} == 0 {{}}");
+        let tokens = source_files_to_tokens::Lexer::new(&source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(_, node)| match node {
+                ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+                    Some(binary.left)
+                }
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(
+            proof_integer_expression(&program, expression),
+            expected.is_some(),
+            "{arithmetic}"
+        );
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        assert_eq!(
+            engine.normalize(expression),
+            expected.map(|value| Polynomial::constant(BigInt::from_i64(value))),
+            "{arithmetic}"
+        );
+    }
+}
+
+#[test]
 fn closed_proof_integer_quotient_and_remainder_are_exact() {
     for (operator, expected) in [("/", -3), ("%", -1)] {
         let source =

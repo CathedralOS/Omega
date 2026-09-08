@@ -390,3 +390,31 @@ fn proof_integer_folding_preserves_anonymous_and_fixed_width_controls() {
     check("machine trapping(value: i32 in Trapping) requires value == 7\nensures embed(value / 2) == 3 {}")
         .expect_err("embedding cannot erase trapping arithmetic formation");
 }
+
+#[test]
+fn proof_integer_operands_accept_exact_anonymous_arithmetic() {
+    for expression in [
+        "embed(7i32) / (1 + 1) == 3",
+        "embed(7i32) % (1 + 1) == 1",
+        "(5 + 2) / embed(2i32) == 3",
+        "(5 + 2) % embed(2i32) == 1",
+        "embed(7i32) / (1 / 2 * 4) == 3",
+        "embed(7i32) % (1 / 2 * 4) == 1",
+        "embed(7i32) / (1.5 + 0.5) == 3",
+    ] {
+        let source = format!("machine predicate()\nensures {expression}\n{{}}");
+        check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+        check(&source.replace("==", "!=")).expect_err("exact anonymous operand false twin");
+    }
+}
+
+#[test]
+fn proof_integer_operands_do_not_truncate_fractions_or_erase_zero_divisors() {
+    for operator in ["/", "%"] {
+        for operand in ["(1 / 2)", "(1.5 + 1)", "(1 - 1)"] {
+            let expression = format!("(embed(7i32) {operator} {operand})");
+            let source = format!("machine predicate()\nensures {expression} == {expression}\n{{}}");
+            check(&source).expect_err("an undefined Int operand cannot prove reflexivity");
+        }
+    }
+}

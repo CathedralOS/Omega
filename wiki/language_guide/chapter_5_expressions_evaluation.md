@@ -964,7 +964,9 @@ convention. The fractional-intermediate warning remains unchanged.
 > checked before value/proof admission and closed-const normalization; const
 > argument parsing preserves the operation for that check. Closed builtin `Int`
 > quotient and remainder expressions use exact unbounded arithmetic during
-> source contract entailment. Authored const operator selection, symbolic `Int`
+> source contract entailment, including anonymous integral arithmetic operands.
+> Their fractional intermediates remain exact and retain the integer-landing
+> warning. Authored const operator selection, symbolic `Int`
 > division/remainder terms and independent replay, and the remaining numeric
 > landing boundaries remain execution-board work.
 

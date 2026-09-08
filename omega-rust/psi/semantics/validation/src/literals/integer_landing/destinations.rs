@@ -71,12 +71,33 @@ pub(crate) fn anonymous_integer_landing_warnings(program: &TypedTrees) -> Vec<Di
             }
         }
     }
+    for (expression, node) in program.expression_table.iter_expressions() {
+        let ExpressionNode::Binary(binary) = node else {
+            continue;
+        };
+        if crate::contract_entailment::proof_integer_expression(program, expression) {
+            for operand in [binary.left, binary.right] {
+                append_integer_landing_warning(program, None, operand, &mut warned, &mut warnings);
+            }
+        }
+    }
     warnings
 }
 
 fn append_landing_warning(
     program: &TypedTrees,
     primitive: PrimitiveType,
+    expression: ExpressionHandle,
+    warned: &mut Vec<ExpressionHandle>,
+    warnings: &mut Vec<Diagnostic>,
+) {
+    append_integer_landing_warning(program, Some(primitive), expression, warned, warnings);
+}
+
+/// A missing machine carrier denotes the unbounded proof Int landing.
+fn append_integer_landing_warning(
+    program: &TypedTrees,
+    primitive: Option<PrimitiveType>,
     expression: ExpressionHandle,
     warned: &mut Vec<ExpressionHandle>,
     warnings: &mut Vec<Diagnostic>,
@@ -94,7 +115,7 @@ fn append_landing_warning(
     let Some(integer) = evaluated.value.to_integer_exact() else {
         return;
     };
-    if land_integer_value(&integer, primitive).is_none() {
+    if primitive.is_some_and(|primitive| land_integer_value(&integer, primitive).is_none()) {
         return;
     }
     let Some(fractional) =
@@ -525,6 +546,19 @@ mod tests {
         )
         .unwrap();
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    }
+
+    #[test]
+    fn proof_integer_peer_landing_warns_on_exact_fractional_intermediates() {
+        for arithmetic in ["embed(7i32) / (1 / 2 * 4)", "(1 / 2 * 4) % embed(7i32)"] {
+            let program = typed(&format!("machine value() ensures {arithmetic} == 0 {{}}"));
+            let warnings = anonymous_integer_landing_warnings(&program);
+            assert_eq!(warnings.len(), 1, "{arithmetic}: {warnings:?}");
+            assert!(warnings[0].message.contains("`1/2`"));
+            assert!(warnings[0].message.contains("integer `2`"));
+        }
+        let anonymous = typed("machine value() ensures (1 / 2 * 4) == 2 {}");
+        assert!(anonymous_integer_landing_warnings(&anonymous).is_empty());
     }
 
     #[test]
