@@ -1,4 +1,5 @@
 use super::*;
+use native_realization as native;
 
 #[path = "providers_float_and_console/console_writer.rs"]
 mod console_writer;
@@ -1903,45 +1904,42 @@ fn hosted_console_compiler_intrinsic_review_identities_are_exact() {
     );
 }
 
+fn replay_parts(parts: &native::NativeArtifactParts) -> native::NativeArtifactParts {
+    let module = terminal_codec::decode_module(parts.psi_artifact.semantic_bytes())
+        .expect("replay Terminal semantics");
+    let proof = terminal_codec::decode_proof_bundle(parts.psi_artifact.proof_bytes())
+        .expect("replay Terminal proof");
+    let debug = parts
+        .psi_artifact
+        .debug_bytes()
+        .map(|bytes| terminal_codec::decode_debug_map(&module, bytes).expect("debug map"));
+    native::NativeArtifactParts {
+        target: parts.target,
+        psi_artifact: terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &module,
+            &proof,
+            parts.psi_artifact.optimization(),
+            debug.as_ref(),
+        )
+        .expect("reconstruct canonical Terminal artifact"),
+        object: parts.object.clone(),
+        image: parts.image.clone(),
+        selected_provider_closure_report_identity: parts.selected_provider_closure_report_identity,
+        selected_provider_closure_digest: parts.selected_provider_closure_digest,
+        selected_provider_plans: parts.selected_provider_plans.clone(),
+        provider_executions: parts.provider_executions.clone(),
+        terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity: parts
+            .terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review: parts.terminal_authority_closure_review.clone(),
+        boundary_application_coverage: parts.boundary_application_coverage.clone(),
+        physical_evidence_scope: parts.physical_evidence_scope.clone(),
+        physical_evidence: parts.physical_evidence.clone(),
+    }
+}
+
 #[test]
 fn hosted_console_exit_catalog_settlement_emits_and_executes_native_image() {
-    use native_realization as native;
-
-    fn replay_parts(parts: &native::NativeArtifactParts) -> native::NativeArtifactParts {
-        let module = terminal_codec::decode_module(parts.psi_artifact.semantic_bytes())
-            .expect("replay Terminal semantics");
-        let proof = terminal_codec::decode_proof_bundle(parts.psi_artifact.proof_bytes())
-            .expect("replay Terminal proof");
-        let debug = parts
-            .psi_artifact
-            .debug_bytes()
-            .map(|bytes| terminal_codec::decode_debug_map(&module, bytes).expect("debug map"));
-        native::NativeArtifactParts {
-            target: parts.target,
-            psi_artifact: terminal_codec::CanonicalTerminalArtifact::from_parts(
-                &module,
-                &proof,
-                parts.psi_artifact.optimization(),
-                debug.as_ref(),
-            )
-            .expect("reconstruct canonical Terminal artifact"),
-            object: parts.object.clone(),
-            image: parts.image.clone(),
-            selected_provider_closure_report_identity: parts
-                .selected_provider_closure_report_identity,
-            selected_provider_closure_digest: parts.selected_provider_closure_digest,
-            selected_provider_plans: parts.selected_provider_plans.clone(),
-            provider_executions: parts.provider_executions.clone(),
-            terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity: parts
-                .terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review: parts.terminal_authority_closure_review.clone(),
-            boundary_application_coverage: parts.boundary_application_coverage.clone(),
-            physical_evidence_scope: parts.physical_evidence_scope.clone(),
-            physical_evidence: parts.physical_evidence.clone(),
-        }
-    }
-
     let canary = pass_canary(fixture_roster::ADAPTER_SATISFIES_COMPILE);
     for target in ["linux_x86_64", "linux_arm64", "macos_arm64"] {
         let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
@@ -2399,11 +2397,7 @@ fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
 
 #[test]
 fn runtime_console_byte_literal_exit_canary_runs() {
-    // write_byte(<integer literal>) -- the staged 1-byte data object path,
-    // dead from birth until the HostCallArgumentKind::Integer fix (literals
-    // fold to the Integer kind before any plan sees the call; the stager and
-    // the selection arm matched only Expression-wrapped nodes). "7\n" then
-    // exit 70, both engines.
+    // Literal byte writes agree between the checked interpreter and native product.
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_LITERAL_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)

@@ -300,11 +300,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   destination definitions, and once-only cleanup/fuel must survive publication.
   Multi-block return cleanup remains a separate admission limit.
   The same checkpoint's macOS `cli_mvp` probe above still stops at the missing
-  `Console::read_line` catalog identity. At `5cbcd1893d` on macOS ARM64,
-  `runtime_console_byte_literal_exit_canary_runs` reaches
-  `native-artifact/src/physical/derivation.rs::derive_write_byte_child`, which
-  requires ELF and rejects Mach-O with the Linux D41 settlement diagnostic.
-  That output-provider gap also remains open. Preserve exact operation/result identity,
+  `Console::read_line` catalog identity. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
   results or replace the structural home with boundary scratch.
