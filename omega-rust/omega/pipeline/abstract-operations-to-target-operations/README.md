@@ -38,6 +38,13 @@ Selection snapshots only the pointer, never the descriptor's contents, and
 independent replay checks its incoming and outgoing homes. No separate call IR
 or byte-view calling convention is introduced.
 
+Mixed scalar/view calls also use ordinary `StructuralCall` integer expressions
+in straight-line and conditional graphs. Each occurrence retains the exact
+callee plan, ordered scalar actuals, whole-reference structural actuals, and
+call contracts. Repeated calls remain ordered operations even when an earlier
+result is unused. This route admits unqualified, unrestricted shared byte-view
+parameters; it does not infer projection or mutable-reference support.
+
 Checked subslices retain their exact source, structural result, endpoints, and
 two-leg bounds obligation. Acyclic scalar-result graphs can measure, read, and
 derive nested views without copying the original descriptor or backing bytes.
@@ -54,8 +61,8 @@ the existing indexed load. No arithmetic proof is asserted about the pointer,
 and an empty suffix need not form a one-past address. Independent replay checks
 the same source chain and every contributing home.
 
-This does not complete literal descriptor materialization, general Unit/mixed
-helper calls, derived-view calls/block transfers, or ranked control. The
+This does not complete literal descriptor materialization, general Unit calls,
+non-`u64` mixed helper calls, derived-view calls/block transfers, or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
 executes caller-owned descriptors, derived views, and framed helper chains

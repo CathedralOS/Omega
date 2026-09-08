@@ -330,16 +330,23 @@ pub(crate) fn operation_scalar_types_match(
                 )
                 && dynamic_arguments_match(function, *psi_operation, callee, dynamic_arguments)
         }),
-        O::CallStructuralScalar { result, callee, .. } => {
-            functions.get(callee).is_some_and(|callee| {
-                callee.parameters.is_empty()
-                    && matches!(
-                        callee.result,
-                        abstract_operations::AbstractFunctionResult::Scalar(signature)
-                            if signature.scalar_type == result.scalar_type
-                    )
-            })
-        }
+        O::CallStructuralScalar {
+            result,
+            callee,
+            arguments,
+            ..
+        } => functions.get(callee).is_some_and(|callee| {
+            arguments.len() == callee.parameters.len()
+                && arguments
+                    .iter()
+                    .zip(&callee.parameters)
+                    .all(|(argument, parameter)| scalar(*argument) == Some(parameter.scalar_type))
+                && matches!(
+                    callee.result,
+                    abstract_operations::AbstractFunctionResult::Scalar(signature)
+                        if signature.scalar_type == result.scalar_type
+                )
+        }),
         O::CallStructuralScalarWithDynamicArguments {
             psi_operation,
             result,

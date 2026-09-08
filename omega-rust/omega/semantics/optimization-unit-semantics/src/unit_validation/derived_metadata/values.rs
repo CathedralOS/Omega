@@ -184,7 +184,10 @@ pub(crate) fn expected_uses(
         O::ByteSequenceSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],
-        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
+        O::Call { arguments, .. }
+        | O::CallStructuralScalar { arguments, .. }
+        | O::CallUnit { arguments, .. }
+        | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
             vec![value.value]
         }

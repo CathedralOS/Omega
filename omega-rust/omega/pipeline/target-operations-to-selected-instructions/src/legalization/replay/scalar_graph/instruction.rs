@@ -64,6 +64,7 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::Call(call),
             AbstractOperation::CallStructuralScalar {
                 callee,
+                arguments: scalar_arguments,
                 structural_arguments,
                 claim_transfers,
                 requirement_obligations,
@@ -71,8 +72,8 @@ pub(super) fn validate(
                 ..
             },
         ) => {
-            let ([argument], [LegalizedScalarArgument::Structural { semantic, target }]) =
-                (structural_arguments.as_slice(), call.arguments.as_slice())
+            let ([argument], Some(LegalizedScalarArgument::Structural { semantic, target })) =
+                (structural_arguments.as_slice(), call.arguments.last())
             else {
                 return Err(invalid);
             };
@@ -80,6 +81,18 @@ pub(super) fn validate(
                 argument, target, optimized, *callee, native, plan, unit,
             )?;
             if semantic != argument
+                || call.arguments.len() != scalar_arguments.len() + 1
+                || expected.parameters.len() != call.arguments.len()
+                || call
+                    .arguments
+                    .iter()
+                    .zip(scalar_arguments)
+                    .zip(&expected.parameters)
+                    .any(|((actual, source), placement)| {
+                        !matches!(actual,
+                        LegalizedScalarArgument::Scalar { source: value, placement: actual }
+                        if value == source && actual == placement)
+                    })
                 || call.callee != *callee
                 || call.call_plan != expected
                 || call.result_placement != expected.result

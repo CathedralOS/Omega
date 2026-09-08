@@ -15,7 +15,10 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
             replace(&mut value.value)
         }
-        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => {
+        O::Call { arguments, .. }
+        | O::CallStructuralScalar { arguments, .. }
+        | O::CallUnit { arguments, .. }
+        | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);
             }
@@ -84,9 +87,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
-        | O::CallUnit { .. }
         | O::CallUnitWithDynamicArguments { .. }
-        | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
         | O::CallStoredDynamicScalar { .. }

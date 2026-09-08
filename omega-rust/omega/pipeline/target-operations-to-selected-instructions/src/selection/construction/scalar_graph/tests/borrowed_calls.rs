@@ -113,6 +113,150 @@ fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunction {
 }
 
 #[test]
+fn mixed_borrowed_calls_preserve_separate_scalar_and_pointer_placements() {
+    for (target, maximum_scalars) in [
+        (target::NativeTarget::linux_x64(), 5),
+        (target::NativeTarget::linux_arm64(), 7),
+        (target::NativeTarget::windows_x64(), 3),
+        (target::NativeTarget::macos_arm64(), 7),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        for scalar_count in 1..=maximum_scalars {
+            let mut source = borrowed_call(target);
+            let mut call_row = source.blocks[0].instructions.remove(0);
+            call_row.operation = OperationId::new(10).unwrap();
+            call_row.result.as_mut().unwrap().value = ValueId::new(10).unwrap();
+            call_row.result.as_mut().unwrap().definition_site = ValueDefinitionSite::Node {
+                block: source.entry_block,
+                node: 1,
+            };
+            call_row.fuel[0].site = PsiProvenance::Operation(call_row.operation);
+            let LegalizedScalarInstructionKind::Call(call) = &mut call_row.kind else {
+                panic!("call");
+            };
+            call.call_plan = evaluate_call_plan(
+                source.call_plan.policy,
+                &CallSignature {
+                    parameters: std::iter::repeat_n(ValueShape::integer(8, 8), scalar_count)
+                        .chain(std::iter::once(ValueShape::borrowed_reference(16, 8)))
+                        .collect(),
+                    result: Some(ValueShape::integer(8, 8)),
+                },
+            )
+            .unwrap();
+            let mut borrowed = call.arguments.remove(0);
+            let LegalizedScalarArgument::Structural {
+                target: argument, ..
+            } = &mut borrowed
+            else {
+                panic!("borrow");
+            };
+            argument.destination = call.call_plan.parameters[scalar_count].clone();
+            call.arguments = call.call_plan.parameters[..scalar_count]
+                .iter()
+                .map(|placement| LegalizedScalarArgument::Scalar {
+                    source: ValueId::new(1).unwrap(),
+                    placement: placement.clone(),
+                })
+                .chain(std::iter::once(borrowed))
+                .collect();
+            source.blocks[0].instructions = vec![
+                fixture(target, 0).blocks[0].instructions[0].clone(),
+                call_row,
+            ];
+            source.provenance.operations =
+                vec![OperationId::new(1).unwrap(), OperationId::new(10).unwrap()];
+            returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
+                value: ValueId::new(10).unwrap(),
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            };
+            let construct = |source: &LegalizedScalarFunction| {
+                build(
+                    0,
+                    source,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            let selected = construct(&source).unwrap();
+            let validate = |source: &LegalizedScalarFunction, selected: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    source,
+                    selected,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&source, &selected).unwrap();
+            assert!(selected.outgoing_arguments.is_empty());
+            assert!(
+                selected.memory_accesses.is_empty(),
+                "references are never copied as values"
+            );
+            for mutation in 0..4 {
+                let mut changed = source.clone();
+                let LegalizedScalarInstructionKind::Call(call) =
+                    &mut changed.blocks[0].instructions[1].kind
+                else {
+                    panic!("call");
+                };
+                match mutation {
+                    0 => call.arguments.swap(0, scalar_count),
+                    1 => {
+                        call.arguments.remove(0);
+                    }
+                    2 => {
+                        let LegalizedScalarArgument::Scalar { placement, .. } =
+                            &mut call.arguments[0]
+                        else {
+                            panic!("scalar");
+                        };
+                        *placement = call.call_plan.parameters[scalar_count].clone();
+                    }
+                    _ => {
+                        let LegalizedScalarArgument::Structural { target, .. } =
+                            &mut call.arguments[scalar_count]
+                        else {
+                            panic!("borrow");
+                        };
+                        target.destination = target.source.clone();
+                    }
+                }
+                assert!(construct(&changed).is_err(), "input mutation {mutation}");
+                assert!(
+                    validate(&changed, &selected).is_err(),
+                    "receiving mutation {mutation}"
+                );
+            }
+            let mut changed = selected.clone();
+            let call = changed.blocks[0]
+                .instructions
+                .iter_mut()
+                .find(|instruction| {
+                    matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. })
+                })
+                .unwrap();
+            call.operands.swap(0, scalar_count);
+            assert!(
+                validate(&source, &changed).is_err(),
+                "scalar and pointer register roles cannot be swapped"
+            );
+        }
+    }
+}
+
+#[test]
 fn borrowed_descriptor_call_forwards_pointer_and_replays_custody() {
     for target in [
         target::NativeTarget::linux_x64(),

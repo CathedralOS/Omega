@@ -35,9 +35,6 @@ pub(in crate::legalization) fn validate_argument(
         return Err(invalid);
     };
     let callee_plan = super::callee_plan(callee, native, plan, unit)?;
-    let [destination] = callee_plan.parameters.as_slice() else {
-        return Err(invalid);
-    };
     let callee = unit
         .functions
         .iter()
@@ -46,6 +43,10 @@ pub(in crate::legalization) fn validate_argument(
     let [callee_parameter] = callee.structural_parameters.as_slice() else {
         return Err(invalid);
     };
+    let destination = callee_plan
+        .parameters
+        .get(callee.parameters.len())
+        .ok_or(invalid.clone())?;
     if argument.place != source.place
         || argument.access != StructuralAccess::SharedBorrow
         || !argument.path.is_empty()
@@ -72,6 +73,47 @@ pub(in crate::legalization) fn validate_argument(
         return Err(invalid);
     }
     Ok(callee_plan)
+}
+
+/// Reconstruct the whole-reference transport from validated caller and callee ABIs.
+/// Ordered calls whose results are unused have no target expression tree.
+pub(in crate::legalization) fn argument(
+    semantic: &StructuralArgument,
+    caller: &PsiOptimizationFunction,
+    callee: MachineId,
+    native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<TargetStructuralArgument, LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    let parameter = native
+        .functions
+        .iter()
+        .find(|function| function.machine == caller.machine)
+        .and_then(|function| function.mixed_structural_scalar_abi.as_ref())
+        .and_then(|abi| {
+            abi.structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == semantic.place)
+        })
+        .ok_or(invalid.clone())?;
+    let call = super::callee_plan(callee, native, plan, unit)?;
+    let destination = call.parameters.last().ok_or(invalid.clone())?;
+    let argument = TargetStructuralArgument {
+        place: semantic.place,
+        access: semantic.access,
+        path: semantic.path.clone(),
+        root_structural_type: parameter.structural_type,
+        structural_type: parameter.structural_type,
+        shape: parameter.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source: parameter.placement.clone(),
+        destination: destination.clone(),
+    };
+    validate_argument(semantic, &argument, caller, callee, native, plan, unit)?;
+    Ok(argument)
 }
 
 pub(super) fn validate_target(

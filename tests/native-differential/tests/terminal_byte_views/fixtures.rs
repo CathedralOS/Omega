@@ -308,11 +308,15 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     caller.id = caller_id;
     caller.entry = BlockId::new(101).unwrap();
-    caller.parameters = vec![ValueDeclaration { id: byte_index, scalar_type }];
+    caller.parameters = vec![ValueDeclaration {
+        id: byte_index,
+        scalar_type,
+    }];
     caller.structural_parameters[0].place = source;
     caller.structural_places[0].id = source;
     caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
-        id: ValueId::new(104).unwrap(), scalar_type,
+        id: ValueId::new(104).unwrap(),
+        scalar_type,
     });
     caller.contract.id = ContractId::new(110).unwrap();
     caller.blocks = vec![Block {
@@ -320,22 +324,28 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         // The second invocation requires both original inputs to survive the first call.
-        operations: [(105, 106), (107, 108)].into_iter().map(|(operation, result)| Operation {
-            id: OperationId::new(operation).unwrap(),
-            result: OperationResult::Scalar(ValueDeclaration {
-                id: ValueId::new(result).unwrap(), scalar_type,
-            }),
-            kind: OperationKind::CallStructuralScalar {
-                callee: module.entry,
-                arguments: vec![byte_index],
-                structural_arguments: vec![terminal_psi::StructuralArgument {
-                    place: source, path: Vec::new(), access: StructuralAccess::SharedBorrow,
-                }],
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        }).collect(),
+        operations: [(105, 106), (107, 108)]
+            .into_iter()
+            .map(|(operation, result)| Operation {
+                id: OperationId::new(operation).unwrap(),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: ValueId::new(result).unwrap(),
+                    scalar_type,
+                }),
+                kind: OperationKind::CallStructuralScalar {
+                    callee: module.entry,
+                    arguments: vec![byte_index],
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
+                        place: source,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            })
+            .collect(),
         terminator: Terminator::Return {
             edge: EdgeId::new(109).unwrap(),
             value: ValueId::new(108).unwrap(),
@@ -344,5 +354,81 @@ pub(super) fn byte_view_read_call_module() -> TerminalModule {
     }];
     module.entry = caller_id;
     module.machines.push(caller);
+    module
+}
+
+pub(super) fn byte_view_conditional_read_call_module() -> TerminalModule {
+    let mut module = byte_view_read_call_module();
+    let caller = module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let scalar_type = caller.parameters[0].scalar_type;
+    let zero = ValueId::new(121).unwrap();
+    let condition = ValueId::new(122).unwrap();
+    let sentinel = ValueId::new(124).unwrap();
+    let successor = |edge, target| SuccessorEdge {
+        edge: EdgeId::new(edge).unwrap(),
+        target,
+        arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let conditional = Block {
+        id: BlockId::new(90).unwrap(),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations: vec![
+            Operation {
+                id: OperationId::new(121).unwrap(),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: zero,
+                    scalar_type,
+                }),
+                kind: OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(0),
+                },
+            },
+            Operation {
+                id: OperationId::new(122).unwrap(),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: condition,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::IntegerEqual {
+                    left: caller.parameters[0].id,
+                    right: zero,
+                },
+            },
+        ],
+        terminator: Terminator::Conditional {
+            condition,
+            when_true: successor(126, BlockId::new(123).unwrap()),
+            when_false: successor(127, caller.entry),
+        },
+    };
+    caller.entry = conditional.id;
+    caller.blocks.insert(0, conditional);
+    caller.blocks.push(Block {
+        id: BlockId::new(123).unwrap(),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations: vec![Operation {
+            id: OperationId::new(124).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: sentinel,
+                scalar_type,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(257),
+            },
+        }],
+        terminator: Terminator::Return {
+            edge: EdgeId::new(125).unwrap(),
+            value: sentinel,
+            cleanup_actions: Vec::new(),
+        },
+    });
     module
 }

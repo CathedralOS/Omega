@@ -101,10 +101,14 @@ fn validate_borrowed_argument(
     let [parameter] = signature.parameters.as_slice() else {
         return None;
     };
-    let [LegalizedScalarArgument::Structural { semantic, target }] = call.arguments.as_slice()
-    else {
+    let (last, scalars) = call.arguments.split_last()?;
+    let LegalizedScalarArgument::Structural { semantic, target } = last else {
         return None;
     };
+    if scalars.iter().any(|argument| !matches!(argument,
+        LegalizedScalarArgument::Scalar { placement, .. } if placement.shape == ValueShape::integer(8, 8))) {
+        return None;
+    }
     let parameters = [crate::structural_unit_input::Parameter {
         semantic: &parameter.semantic,
         target: &parameter.target,
@@ -113,7 +117,11 @@ fn validate_borrowed_argument(
     let expected = evaluate_call_plan(
         source.call_plan.policy,
         &CallSignature {
-            parameters: vec![shape],
+            parameters: scalars
+                .iter()
+                .map(|_| ValueShape::integer(8, 8))
+                .chain(std::iter::once(shape))
+                .collect(),
             result: Some(ValueShape::integer(8, 8)),
         },
     )
@@ -145,7 +153,7 @@ fn validate_borrowed_argument(
         || target.fixed_array_length.is_some()
         || target.element_stride.is_some()
         || target.source != parameter.target.placement
-        || target.destination != expected.parameters[0]
+        || Some(&target.destination) != expected.parameters.last()
     {
         return None;
     }

@@ -204,6 +204,27 @@ pub(super) fn match_input(
                 return Err(invalid);
             }
         }
+        if let AbstractOperation::CallStructuralScalar {
+            callee,
+            arguments,
+            structural_arguments,
+            ..
+        } = &node.operation
+        {
+            let call = callee_plan(*callee, native, plan, unit)?;
+            let [argument] = structural_arguments.as_slice() else {
+                return Err(invalid);
+            };
+            if call.parameters.len() != arguments.len() + 1
+                || !call.parameters[..arguments.len()].iter().all(register)
+                || arguments.iter().any(|value| {
+                    value_type(optimized, *value) != Some(ScalarType::Integer(u64_type()))
+                })
+            {
+                return Err(invalid);
+            }
+            structural_call::argument(argument, optimized, *callee, native, plan, unit)?;
+        }
     }
     if !ranked && !acyclic(optimized) {
         return Err(invalid);

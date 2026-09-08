@@ -101,8 +101,24 @@ pub(super) fn lower_operation(
                 operation: *psi_operation,
             });
         }
-        AbstractOperation::CallStructuralScalar { .. }
-        | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
+        AbstractOperation::CallStructuralScalar {
+            psi_operation,
+            result,
+            ..
+        } => {
+            let value = super::super::structural_call::lower_ordinary(
+                operation,
+                function.machine,
+                target,
+                functions,
+                structural_types,
+                target_structural_parameters,
+                values,
+            )?;
+            insert_value(values, result.value, value)?;
+            provenance.operations.push(*psi_operation);
+        }
+        AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
         | AbstractOperation::CallDynamicScalar { .. }
         | AbstractOperation::CallDynamicParameterScalar { .. }
         | AbstractOperation::CallStructural { .. } => {

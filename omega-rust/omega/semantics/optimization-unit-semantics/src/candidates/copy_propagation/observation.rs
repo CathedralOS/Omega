@@ -104,6 +104,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
             replace(&mut value.value)
         }
         O::Call { arguments, .. }
+        | O::CallStructuralScalar { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
@@ -195,7 +196,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
         | O::CallUnitWithDynamicArguments { .. }
-        | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
         | O::CallStoredDynamicScalar { .. }

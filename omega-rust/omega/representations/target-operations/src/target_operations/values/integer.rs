@@ -9,6 +9,17 @@ use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetIntegerExpression {
+    StructuralCall {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        callee: MachineId,
+        arguments: Vec<TargetCallArgument>,
+        structural_arguments: Vec<crate::TargetStructuralArgument>,
+        call_plan: calling_conventions::CallPlan,
+        claim_transfers: Vec<terminal_psi::ClaimTransfer>,
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// Exact `u8` observation. The view retains its parameter placement or
     /// checked derivation. The index expression retains its Terminal
     /// identity; length and obligation retain proof custody, not a new check.
