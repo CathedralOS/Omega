@@ -162,21 +162,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe at production checkpoint `835b7175c5`
+  The downstream native `cli_mvp` probe at fixture checkpoint `f39cf8de72`
   passes Terminal and native abstract admission but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution with missing catalog identities for `exit_process`, `read_line`, and
-  `write_byte`. Distinguish missing implementation from missing authority:
-  `compiler/tests/samples_compile.rs::sample_package_inputs` supplies package-owned
-  std without accepted semantic bindings, so even the implemented hosted byte
-  leaf correctly remains unclassified in this harness. Route sample native
-  compilation through exact reviewed package acceptance and receiving permissions;
-  do not infer authority from package names or weaken the production checks.
-  `compiler/tests/support/console_acceptance.rs` is the existing explicit fixture
-  binding helper, not a substitute for product review. The reviewed-package
-  `hosted_byte_catalog` canary pins macOS byte-output classification independently.
+  execution with missing macOS catalog identities for `exit_process` and `read_line`.
+  The native sample harness now supplies exact test-owned Console acceptance and
+  receiving permissions through the shared canary helper. Byte-output classification
+  succeeds; this fixture acceptance does not replace the CLI's actual package review.
+  Checking-only sample probes remain unaccepted, and stale-target bindings reject.
   macOS input and exit still need provider definitions and native realization in
   `selected-dispatch/` and `native-realization/`; do not substitute Linux or
   interpreter output.
