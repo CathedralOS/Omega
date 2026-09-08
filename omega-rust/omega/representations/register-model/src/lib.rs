@@ -196,9 +196,9 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
+    /// Target-owned resultless call keys indexed by argument count, including zero.
+    /// Empty means this environment supplies no Unit register-call form.
     pub call_unit: Vec<RegisterConstraintKey>,
-    /// Target-applicable bounded structural Unit call. `None` means this
-    /// environment does not claim that ABI/ISA form; it is not a dummy row.
     /// Target-owned register-call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no scalar register-call form.
     pub call_i64: Vec<RegisterConstraintKey>,

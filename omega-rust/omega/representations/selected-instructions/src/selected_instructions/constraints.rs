@@ -10,9 +10,9 @@ pub struct SelectedConstraintKeys {
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
+    /// Register-passed Unit call rows indexed by argument count, including zero.
+    /// An empty roster explicitly supplies no Unit-call form on this target.
     pub call_unit: Vec<RegisterConstraintKey>,
-    /// Target-applicable structural Unit call. Absence is an explicit refusal
-    /// to select the bounded structural-call roster on this target.
     /// Register-passed U64 call rows indexed by argument count, including zero.
     /// An empty roster explicitly supplies no scalar-call form on this target.
     pub call_i64: Vec<RegisterConstraintKey>,

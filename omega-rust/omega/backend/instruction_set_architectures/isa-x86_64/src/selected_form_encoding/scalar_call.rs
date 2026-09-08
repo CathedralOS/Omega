@@ -186,7 +186,14 @@ pub fn validate_x86_64_selected_scalar_call_template(
         let row = catalog
             .constraints
             .iter()
-            .find(|row| row.key == if target == NativeTarget::linux_x64() { crate::x86_64_system_v_register_unit_call_keys()[arity] } else { crate::x86_64_microsoft_register_unit_call_keys()[arity] })
+            .find(|row| {
+                row.key
+                    == if target == NativeTarget::linux_x64() {
+                        crate::x86_64_system_v_register_unit_call_keys()[arity]
+                    } else {
+                        crate::x86_64_microsoft_register_unit_call_keys()[arity]
+                    }
+            })
             .expect("canonical Unit call");
         expected.external_operand_writes.clear();
         expected.implicit_unit_uses = row.implicit_uses.clone();

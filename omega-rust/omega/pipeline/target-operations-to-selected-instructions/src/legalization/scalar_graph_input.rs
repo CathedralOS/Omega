@@ -21,19 +21,30 @@ mod byte_views;
 mod header;
 mod ranked;
 pub(super) mod structural_call;
+fn structural_parameters(
+    target: &TargetFunction,
+) -> Option<&[target_operations::TargetStructuralParameter]> {
+    if let Some(abi) = &target.mixed_structural_scalar_abi {
+        Some(&abi.structural_parameters)
+    } else if let TargetOperation::UnitBody(body) = &target.operation {
+        (!body.parameters.is_empty()).then_some(body.parameters.as_slice())
+    } else {
+        None
+    }
+}
 pub(super) fn structural_contract(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
-    if let Some(abi) = &target.mixed_structural_scalar_abi {
+    if let Some(parameters) = structural_parameters(target) {
         return Some(legalized_operations::LegalizedStructuralContract {
             structural_types: plan.structural_types.clone(),
             parameters: abstracted
                 .structural_parameters
                 .iter()
-                .zip(&abi.structural_parameters)
+                .zip(parameters)
                 .map(
                     |(semantic, target)| legalized_operations::LegalizedCallUnitParameter {
                         semantic: semantic.clone(),
@@ -95,7 +106,7 @@ pub(super) fn match_input(
     let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
     let call_plan = if ranked {
         ranked::validate(target, abstracted, optimized, native, plan, unit)?
-    } else if target.mixed_structural_scalar_abi.is_some() {
+    } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
     } else {
         function_abi(native.target, target, abstracted, optimized)?
@@ -200,11 +211,20 @@ pub(super) fn match_input(
         } = &node.operation
         {
             let call = callee_plan(*callee, native, plan, unit)?;
-            if call.parameters.len() != arguments.len() || !call.parameters.iter().all(register) {
+            if call.result.is_none()
+                || call.parameters.len() != arguments.len()
+                || !call.parameters.iter().all(register)
+            {
                 return Err(invalid);
             }
         }
         if let AbstractOperation::CallStructuralScalar {
+            callee,
+            arguments,
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::CallUnit {
             callee,
             arguments,
             structural_arguments,
@@ -215,11 +235,27 @@ pub(super) fn match_input(
             let [argument] = structural_arguments.as_slice() else {
                 return Err(invalid);
             };
-            if call.parameters.len() != arguments.len() + 1
-                || !call.parameters[..arguments.len()].iter().all(register)
-                || arguments.iter().any(|value| {
-                    value_type(optimized, *value) != Some(ScalarType::Integer(u64_type()))
-                })
+            let called = unit
+                .functions
+                .iter()
+                .find(|function| function.machine == *callee)
+                .ok_or(invalid.clone())?;
+            if call.result.is_some()
+                != matches!(
+                    node.operation,
+                    AbstractOperation::CallStructuralScalar { .. }
+                )
+                || call.parameters.len() != arguments.len() + 1
+                || called.parameters.len() != arguments.len()
+                || arguments
+                    .iter()
+                    .zip(&called.parameters)
+                    .zip(&call.parameters)
+                    .any(|((value, parameter), placement)| {
+                        value_type(optimized, *value) != Some(parameter.scalar_type)
+                            || scalar_shape(parameter.scalar_type) != Some(placement.shape)
+                            || !scalar_register(placement)
+                    })
             {
                 return Err(invalid);
             }
@@ -263,21 +299,21 @@ pub(super) fn callee_plan(
         return Err(LegalizationError::SourceCustodyMismatch);
     };
     if target.attachment.is_some()
-        || !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
-        || abstracted
-            .parameters
-            .iter()
-            .any(|parameter| parameter.scalar_type != ScalarType::Integer(u64_type()))
+        || !matches!(abstracted.result, AbstractFunctionResult::Unit)
+            && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
+        || abstracted.parameters.iter().any(|parameter| {
+            ![ScalarType::Integer(u64_type()), ScalarType::Boolean].contains(&parameter.scalar_type)
+        })
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
-    let call_plan = if target.mixed_structural_scalar_abi.is_some() {
+    let call_plan = if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
     } else {
         function_abi(native.target, target, abstracted, optimized)?
     };
     if !call_plan.parameters.iter().all(|placement| {
-        register(placement)
+        scalar_register(placement)
             || placement.shape == ValueShape::borrowed_reference(16, 8)
                 && matches!(
                     placement.locations.as_slice(),
@@ -292,6 +328,12 @@ pub(super) fn callee_plan(
         return Err(LegalizationError::SourceCustodyMismatch);
     }
     Ok(call_plan)
+}
+fn scalar_register(placement: &ValuePlacement) -> bool {
+    [ValueShape::integer(1, 1), ValueShape::integer(8, 8)].contains(&placement.shape)
+        && matches!(placement.locations.as_slice(),
+            [ValueLocation::Register {value_byte_offset: 0, byte_size, ..}]
+            if *byte_size == placement.shape.byte_size)
 }
 pub(super) fn i64_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 64).expect("I64")

@@ -20,8 +20,6 @@ mod fixtures;
 use fixtures::{byte_view_length_module, byte_view_read_module, byte_view_read_proof};
 #[path = "terminal_byte_views/calls.rs"]
 mod calls;
-#[path = "terminal_byte_views/unit_calls.rs"]
-mod unit_calls;
 #[path = "terminal_byte_views/calls_admission.rs"]
 mod calls_admission;
 #[path = "terminal_byte_views/helper_admission.rs"]
@@ -32,6 +30,8 @@ mod mixed_helpers;
 mod subslice;
 #[path = "terminal_byte_views/subslice_admission.rs"]
 mod subslice_admission;
+#[path = "terminal_byte_views/unit_calls.rs"]
+mod unit_calls;
 
 #[test]
 fn byte_view_length_helper_cross_lowers_on_hosted_targets() {

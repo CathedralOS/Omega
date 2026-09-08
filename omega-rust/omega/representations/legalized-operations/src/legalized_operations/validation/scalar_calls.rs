@@ -28,7 +28,7 @@ impl LegalizedScalarCall {
         {
             if argument.placement() != placement
                 || matches!(argument, crate::LegalizedScalarArgument::Scalar { .. })
-                    && !direct_u64_register(placement)
+                    && !direct_scalar_register(placement)
             {
                 return Err(Error::ArgumentPlacement { argument: index });
             }
@@ -43,6 +43,18 @@ impl LegalizedScalarCall {
         }
         Ok(())
     }
+}
+fn direct_scalar_register(placement: &ValuePlacement) -> bool {
+    direct_u64_register(placement)
+        || placement.shape == ValueShape::integer(1, 1)
+            && matches!(
+                placement.locations.as_slice(),
+                [ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size: 1,
+                    ..
+                }]
+            )
 }
 fn direct_u64_register(placement: &ValuePlacement) -> bool {
     placement.shape == ValueShape::integer(8, 8)

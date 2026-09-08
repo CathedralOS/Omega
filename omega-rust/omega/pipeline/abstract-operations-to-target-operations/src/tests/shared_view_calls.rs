@@ -272,8 +272,10 @@ fn unit_fixture() -> AbstractOperationPlan {
     helper.block_entries[0].block = helper.entry;
     helper.structural_parameters[0].place = PlaceId::new(3).unwrap();
     helper.operations.truncate(1);
-    if let AbstractOperation::CallStructuralScalar { structural_arguments, .. } =
-        &mut helper.operations[0]
+    if let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut helper.operations[0]
     {
         structural_arguments[0].place = PlaceId::new(3).unwrap();
     }
@@ -314,8 +316,12 @@ fn unit_fixture() -> AbstractOperationPlan {
 #[test]
 fn repeated_unit_view_calls_preserve_boolean_sources_and_have_no_result() {
     let source = unit_fixture();
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(), NativeTarget::macos_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
         let lowered = lower_to_target_operations(&source, target).unwrap();
         let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
             panic!("genuine Unit body");
@@ -323,20 +329,36 @@ fn repeated_unit_view_calls_preserve_boolean_sources_and_have_no_result() {
         assert!(body.call_plan.result.is_none());
         for (position, expected_operation) in [(0, 10), (2, 12)] {
             let target_operations::TargetUnitOperation::Call {
-                psi_operation, call_plan, scalar_arguments, arguments, ..
-            } = &body.operations[position] else { panic!("ordinary Unit call"); };
+                psi_operation,
+                call_plan,
+                scalar_arguments,
+                arguments,
+                ..
+            } = &body.operations[position]
+            else {
+                panic!("ordinary Unit call");
+            };
             assert_eq!(psi_operation.get(), expected_operation);
             assert!(call_plan.result.is_none());
             assert_eq!(arguments[0].source, body.parameters[0].placement);
             assert_eq!(arguments[0].destination, call_plan.parameters[2]);
-            assert!(matches!(arguments[0].destination.locations.as_slice(),
-                [ValueLocation::Indirect { copy_stack_byte_offset: None, .. }]));
+            assert!(matches!(
+                arguments[0].destination.locations.as_slice(),
+                [ValueLocation::Indirect {
+                    copy_stack_byte_offset: None,
+                    ..
+                }]
+            ));
             match &scalar_arguments[1].source {
                 target_operations::TargetUnitScalarArgumentSource::Parameter {
-                    source_value, scalar_type: ScalarType::Boolean, ..
+                    source_value,
+                    scalar_type: ScalarType::Boolean,
+                    ..
                 } => assert_eq!(source_value.get(), 12),
                 target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
-                    source_value, value: true, ..
+                    source_value,
+                    value: true,
+                    ..
                 } => assert_eq!(source_value.get(), 13),
                 other => panic!("exact Boolean source: {other:?}"),
             }
@@ -345,10 +367,14 @@ fn repeated_unit_view_calls_preserve_boolean_sources_and_have_no_result() {
             panic!("Unit helper");
         };
         assert!(helper.call_plan.result.is_none());
-        assert!(matches!(helper.operations[0],
-            target_operations::TargetUnitOperation::StructuralScalarCall { .. }));
-        assert!(matches!(helper.operations[1],
-            target_operations::TargetUnitOperation::Return { .. }));
+        assert!(matches!(
+            helper.operations[0],
+            target_operations::TargetUnitOperation::StructuralScalarCall { .. }
+        ));
+        assert!(matches!(
+            helper.operations[1],
+            target_operations::TargetUnitOperation::Return { .. }
+        ));
     }
 }
 
@@ -356,8 +382,14 @@ fn repeated_unit_view_calls_preserve_boolean_sources_and_have_no_result() {
 fn unit_view_calls_reject_substituted_referents_access_and_boolean_actuals() {
     for mutation in 0..4 {
         let mut source = unit_fixture();
-        let AbstractOperation::CallUnit { arguments, structural_arguments, .. } =
-            &mut source.functions[0].operations[0] else { unreachable!(); };
+        let AbstractOperation::CallUnit {
+            arguments,
+            structural_arguments,
+            ..
+        } = &mut source.functions[0].operations[0]
+        else {
+            unreachable!();
+        };
         match mutation {
             0 => structural_arguments[0].place = PlaceId::new(99).unwrap(),
             1 => structural_arguments[0].access = StructuralAccess::MutableBorrow,

@@ -109,7 +109,8 @@ pub fn encode_aarch64_selected_scalar_call_template(
     effects: &MachineEncodedEffects,
 ) -> Result<ValidatedAarch64SelectedScalarCallTemplate, Aarch64ScalarCallTemplateError> {
     let callee = match kind {
-        SelectedInstructionKind::CallI64 { callee } | SelectedInstructionKind::CallUnit { callee } => callee,
+        SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let bytes = 0x9400_0000_u32.to_le_bytes();
@@ -144,12 +145,17 @@ pub fn validate_aarch64_selected_scalar_call_template(
         return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
     let callee = match kind {
-        SelectedInstructionKind::CallI64 { callee } | SelectedInstructionKind::CallUnit { callee } => callee,
+        SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
     };
     let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
     let expected_alternative = MachineAlternativeKey {
-        family: if unit { MachineAlternativeFamily::CallUnit } else { MachineAlternativeFamily::CallI64 },
+        family: if unit {
+            MachineAlternativeFamily::CallUnit
+        } else {
+            MachineAlternativeFamily::CallI64
+        },
         variant: 0,
     };
     if alternative != expected_alternative {
@@ -161,15 +167,25 @@ pub fn validate_aarch64_selected_scalar_call_template(
         .filter(|arity| *arity <= 8)
         .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
     let mut expected_operand_views = expected_operand_views(physical, arity);
-    if unit { expected_operand_views.pop(); }
+    if unit {
+        expected_operand_views.pop();
+    }
     if operand_views != expected_operand_views {
         return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
     }
     let mut expected = expected_effects(target, physical, arity);
     if unit {
-        let key = if target == NativeTarget::linux_arm64() { crate::aarch64_aapcs64_register_unit_call_keys()[arity] } else { crate::aarch64_darwin_register_unit_call_keys()[arity] };
+        let key = if target == NativeTarget::linux_arm64() {
+            crate::aarch64_aapcs64_register_unit_call_keys()[arity]
+        } else {
+            crate::aarch64_darwin_register_unit_call_keys()[arity]
+        };
         let catalog = aarch64_register_constraint_catalog(physical);
-        let row = catalog.constraints.iter().find(|row| row.key == key).expect("canonical Unit call");
+        let row = catalog
+            .constraints
+            .iter()
+            .find(|row| row.key == key)
+            .expect("canonical Unit call");
         expected.external_operand_writes.clear();
         expected.implicit_unit_uses = row.implicit_uses.clone();
         expected.implicit_unit_defs = row.implicit_defs.clone();

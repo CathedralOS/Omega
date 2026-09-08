@@ -44,7 +44,10 @@ pub(super) fn stage_call_text(
     placed
 }
 
-fn stage_read_calls(target: NativeTarget, module: &TerminalModule) -> StagedOptimizedFixedFrameTextSection {
+fn stage_read_calls(
+    target: NativeTarget,
+    module: &TerminalModule,
+) -> StagedOptimizedFixedFrameTextSection {
     let placed = stage_call_text(target, module);
     let text = placed.text_section();
     assert_eq!(

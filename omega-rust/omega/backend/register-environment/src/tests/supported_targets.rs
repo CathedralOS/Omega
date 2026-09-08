@@ -91,13 +91,22 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             (Architecture::X86_64, ObjectFormat::Coff)
         );
         let unit_keys = &environment.selected_keys().call_unit;
-        assert_eq!(unit_keys, &environment.allocation_constraint_keys().call_unit);
+        assert_eq!(
+            unit_keys,
+            &environment.allocation_constraint_keys().call_unit
+        );
         assert_eq!(unit_keys.len(), environment.selected_keys().call_i64.len());
-        if microsoft { assert_eq!(unit_keys[2], X86_64_MICROSOFT_CALL_UNIT); }
+        if microsoft {
+            assert_eq!(unit_keys[2], X86_64_MICROSOFT_CALL_UNIT);
+        }
         for (arity, key) in unit_keys.iter().enumerate() {
             let row = environment.constraint(*key).unwrap();
             assert_eq!(row.operands.len(), arity);
-            assert!(row.operands.iter().all(|operand| operand.access == register_model::RegisterOperandAccess::Use));
+            assert!(
+                row.operands
+                    .iter()
+                    .all(|operand| operand.access == register_model::RegisterOperandAccess::Use)
+            );
         }
         let load = match target.architecture {
             Architecture::X86_64 => X86_64_LOAD64,

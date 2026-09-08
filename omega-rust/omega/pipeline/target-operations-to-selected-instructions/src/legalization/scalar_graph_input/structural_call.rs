@@ -24,14 +24,11 @@ pub(in crate::legalization) fn validate_argument(
         .iter()
         .find(|function| function.machine == caller.machine)
         .ok_or(invalid.clone())?;
-    let abi = target_caller
-        .mixed_structural_scalar_abi
-        .as_ref()
-        .ok_or(invalid.clone())?;
+    let parameters = super::structural_parameters(target_caller).ok_or(invalid.clone())?;
     let [source] = caller.structural_parameters.as_slice() else {
         return Err(invalid);
     };
-    let [parameter] = abi.structural_parameters.as_slice() else {
+    let [parameter] = parameters else {
         return Err(invalid);
     };
     let callee_plan = super::callee_plan(callee, native, plan, unit)?;
@@ -90,9 +87,9 @@ pub(in crate::legalization) fn argument(
         .functions
         .iter()
         .find(|function| function.machine == caller.machine)
-        .and_then(|function| function.mixed_structural_scalar_abi.as_ref())
-        .and_then(|abi| {
-            abi.structural_parameters
+        .and_then(super::structural_parameters)
+        .and_then(|parameters| {
+            parameters
                 .iter()
                 .find(|parameter| parameter.place == semantic.place)
         })

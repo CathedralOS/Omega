@@ -56,6 +56,48 @@ fn register_call_shape_admits_actual_arity_and_rejects_roster_corruption() {
 }
 
 #[test]
+fn boolean_argument_shape_preserves_width_and_unit_result_absence() {
+    for policy in [CallingPolicy::SystemVAMD64, CallingPolicy::MicrosoftX64] {
+        let mut plan = scalar_call_unit_plan();
+        let call = call(&mut plan);
+        let source = call.arguments[0].scalar_source().unwrap();
+        call.call_plan = evaluate_call_plan(
+            policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(1, 1)],
+                result: None,
+            },
+        )
+        .unwrap();
+        call.result_placement = None;
+        call.arguments = vec![LegalizedScalarArgument::Scalar {
+            source,
+            placement: call.call_plan.parameters[0].clone(),
+        }];
+        assert_eq!(call.validate_shape(), Ok(()));
+        let mut changed = call.clone();
+        changed.result_placement = Some(changed.call_plan.parameters[0].clone());
+        assert!(changed.validate_shape().is_err());
+        let mut changed = call.clone();
+        let calling_conventions::ValueLocation::Register { byte_size, .. } =
+            &mut changed.call_plan.parameters[0].locations[0]
+        else {
+            unreachable!()
+        };
+        *byte_size = 8;
+        *scalar_argument_mut(&mut changed.arguments[0]).1 = changed.call_plan.parameters[0].clone();
+        assert!(changed.validate_shape().is_err());
+        let mut changed = call.clone();
+        changed.call_plan.result = Some(changed.call_plan.parameters[0].clone());
+        changed.result_placement = changed.call_plan.result.clone();
+        assert!(
+            changed.validate_shape().is_err(),
+            "Boolean results are not admitted by an argument-width extension"
+        );
+    }
+}
+
+#[test]
 fn register_call_identity_retains_argument_length_order_and_placement() {
     let plan = scalar_call_unit_plan();
     let identity = legalized_operation_plan_identity(&plan);

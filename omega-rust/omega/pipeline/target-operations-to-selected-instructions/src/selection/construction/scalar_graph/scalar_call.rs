@@ -1,23 +1,21 @@
-//! Independent replay of scalar-result calls and their argument transport.
+//! Scalar-result calls copy typed arguments and retain their actual result home.
 use super::*;
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
-use register_environment::ValidatedTargetRegisterEnvironment;
+use legalized_operations::LegalizedScalarInstruction;
 
-pub(super) fn validate(
+pub(super) fn emit(
+    function: usize,
     source: &LegalizedScalarFunction,
     operation: &LegalizedScalarInstruction,
-    replay: &mut Replay<'_>,
-    environment: &ValidatedTargetRegisterEnvironment,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let function = replay.function;
-    let invalid = || SelectedInstructionError::FunctionProjectionMismatch { function };
+    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
         return Err(invalid());
     };
     let result = operation.result.ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
-    let key = replay
+    let key = builder
         .constraints
         .keys
         .call_i64
@@ -29,16 +27,21 @@ pub(super) fn validate(
         source,
         call,
         key,
-        row(catalog, key)?,
+        row(builder.catalog, key)?,
         environment,
     )?;
     let mut operands = Vec::new();
     for argument in &call.arguments {
-        if let LegalizedScalarArgument::Structural { semantic, .. } = argument {
-            operands.push(structural::call_pointer(replay, operation, semantic.place)?);
+        if let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } = argument
+        {
+            operands.push(structural::call_pointer(
+                builder,
+                operation,
+                semantic.place,
+            )?);
             continue;
         }
-        let (_, input, site, argument_type) = replay
+        let (_, input, site, argument_type) = builder
             .resolve(argument.scalar_source().ok_or_else(invalid)?)
             .ok_or_else(invalid)?;
         let shape = match argument_type {
@@ -51,22 +54,23 @@ pub(super) fn validate(
         if argument.placement().shape != shape {
             return Err(invalid());
         }
-        operands.push(replay.check_copy(
+        operands.push(builder.copy(
             input,
             argument.scalar_source().ok_or_else(invalid)?,
             site,
             argument_type,
         )?);
     }
-    let short_result = replay.result_register(result.value, result.definition_site, scalar_type)?;
+    let short_result = builder.register(result.value, result.definition_site, scalar_type)?;
     operands.push(short_result);
-    replay
+    builder
         .transport
         .calls
         .push(selected_instructions::SelectedCallContract {
             instruction: SelectedInstructionId(
-                replay
-                    .instruction_cursor
+                builder
+                    .instructions
+                    .len()
                     .try_into()
                     .map_err(|_| invalid())?,
             ),
@@ -75,13 +79,13 @@ pub(super) fn validate(
             effect: operation.effect,
             ownership: operation.ownership.clone(),
         });
-    replay.check_instruction(
+    builder.emit(
         SelectedInstructionKind::CallI64 {
             callee: call.callee,
         },
         key,
         &operands,
-        &SelectedInstructionProvenance {
+        SelectedInstructionProvenance {
             operations: vec![operation.operation],
             values: call
                 .arguments
@@ -94,7 +98,7 @@ pub(super) fn validate(
             ..Default::default()
         },
     )?;
-    replay.check_copy(
+    builder.copy(
         short_result,
         result.value,
         result.definition_site,

@@ -35,7 +35,11 @@ pub(super) fn declaration(
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
             key: MachineAlternativeKey {
-                family: if unit { MachineAlternativeFamily::CallUnit } else { MachineAlternativeFamily::CallI64 },
+                family: if unit {
+                    MachineAlternativeFamily::CallUnit
+                } else {
+                    MachineAlternativeFamily::CallI64
+                },
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,

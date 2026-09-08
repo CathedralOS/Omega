@@ -1,4 +1,4 @@
-//! ABI declarations may remain without physical transport when unused.
+//! Scalar inputs retain exact ABI types and canonical literal values, even when unused.
 use super::*;
 
 #[test]
@@ -218,6 +218,73 @@ fn u32_entry_snapshot_normalizes_bits_and_replay_rejects_copy_substitution() {
             assert!(
                 validate(&changed).is_err(),
                 "normalization corruption {corruption}"
+            );
+        }
+    }
+}
+
+#[test]
+fn raw_boolean_constants_reject_unsigned_two_before_selection() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        let mut source = fixture(target, 0);
+        source.blocks[0].instructions.truncate(1);
+        source.provenance.operations.truncate(1);
+        source.blocks[0].instructions[0]
+            .result
+            .as_mut()
+            .unwrap()
+            .scalar_type = ScalarType::Boolean;
+        let construct = |source: &LegalizedScalarFunction| {
+            build(
+                0,
+                source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        for value in [0, 1] {
+            source.blocks[0].instructions[0].kind =
+                LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(value));
+            let selected = construct(&source).unwrap();
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                &selected,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let mut invalid = source.clone();
+            invalid.blocks[0].instructions[0].kind =
+                LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(2));
+            assert!(construct(&invalid).is_err());
+            assert!(
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &invalid,
+                    &selected,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+                .is_err()
             );
         }
     }
