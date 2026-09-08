@@ -17,8 +17,16 @@ pub(super) fn stage_call_text(
     module: &TerminalModule,
 ) -> StagedOptimizedFixedFrameTextSection {
     let proof = byte_view_read_proof(module);
+    stage_call_text_with_proof(target, module, &proof)
+}
+
+pub(super) fn stage_call_text_with_proof(
+    target: NativeTarget,
+    module: &TerminalModule,
+    proof: &terminal_verifier::ProofBundle,
+) -> StagedOptimizedFixedFrameTextSection {
     let semantic = terminal_codec::encode_module(module).unwrap();
-    let proof = terminal_codec::encode_proof_bundle(&proof).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
     let optimized = optimize_artifact_sections(
         &semantic,

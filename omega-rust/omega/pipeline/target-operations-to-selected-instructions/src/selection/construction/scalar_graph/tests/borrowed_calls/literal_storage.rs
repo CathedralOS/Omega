@@ -35,7 +35,7 @@ fn literal_call(target: target::NativeTarget, bytes: &[u8]) -> LegalizedScalarFu
     let LegalizedScalarArgument::Structural { target, .. } = &mut call.arguments[0] else {
         panic!("view argument");
     };
-    target.source = target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+    target.source = target_operations::TargetStructuralArgumentSource::EstablishedByteView {
         psi_operation: operation,
     };
     let establishment = LegalizedScalarInstruction {
@@ -239,7 +239,7 @@ fn literal_storage_replays_raw_bytes_descriptor_geometry_and_single_fuel() {
                         unreachable!()
                     };
                     target.source =
-                        target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+                        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                             psi_operation: OperationId::new(99).unwrap(),
                         };
                 } else {

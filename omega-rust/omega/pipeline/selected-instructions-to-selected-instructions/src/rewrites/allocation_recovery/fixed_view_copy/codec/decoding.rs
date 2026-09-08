@@ -1,6 +1,6 @@
 //! Current-version admission precedes payload interpretation and authentication.
 use super::{
-    FixedViewCopyDecodeError, FixedViewCopyPlan, MAGIC, VERSION, content, envelope::v17_identity,
+    FixedViewCopyDecodeError, FixedViewCopyPlan, MAGIC, VERSION, content, envelope::v18_identity,
     primitives::Cursor,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -26,7 +26,7 @@ pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyD
     {
         return Err(FixedViewCopyDecodeError::TransformedIdentityMismatch);
     }
-    if v17_identity(&decoded.plan, &encoded[content_offset..]) != identity {
+    if v18_identity(&decoded.plan, &encoded[content_offset..]) != identity {
         return Err(FixedViewCopyDecodeError::IdentityMismatch);
     }
     Ok(decoded.plan)

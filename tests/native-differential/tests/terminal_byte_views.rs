@@ -32,6 +32,8 @@ mod mixed_helpers;
 mod subslice;
 #[path = "terminal_byte_views/subslice_admission.rs"]
 mod subslice_admission;
+#[path = "terminal_byte_views/subslice_calls.rs"]
+mod subslice_calls;
 #[path = "terminal_byte_views/unit_calls.rs"]
 mod unit_calls;
 

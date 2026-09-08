@@ -3,6 +3,7 @@ use super::*;
 mod borrowed_calls;
 mod byte_views;
 mod control;
+mod derived_calls;
 mod parameters;
 mod subslices;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};

@@ -173,6 +173,7 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
         SelectedInstructionKind::ZeroExtendU8 => MachineSemanticKind::ZeroExtendU8,
         SelectedInstructionKind::ZeroExtendU32 => MachineSemanticKind::ZeroExtendU32,
+        SelectedInstructionKind::ByteViewAddress => MachineSemanticKind::ByteViewAddress,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate

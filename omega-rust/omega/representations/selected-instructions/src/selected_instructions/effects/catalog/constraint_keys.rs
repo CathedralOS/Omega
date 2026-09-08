@@ -47,7 +47,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CopyI64
             | MachineSemanticKind::ZeroExtendU8
             | MachineSemanticKind::ZeroExtendU32 => self.copy_i64,
-            MachineSemanticKind::ExactAddI64 => self.add_i64,
+            MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => self.add_i64,
             MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
             MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,

@@ -79,7 +79,7 @@ pub(super) fn replay(
                 target_operations::TargetStructuralArgumentSource::Placement(placement) => {
                     placement.clone()
                 }
-                target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                     ..
                 } => return Err(SelectedInstructionError::UnsupportedProjectedStructuralShape),
             },

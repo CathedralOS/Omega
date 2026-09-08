@@ -1,5 +1,6 @@
 //! Ordinary repeated shared-view calls retain scalar and referent identities.
 use super::*;
+mod established_views;
 
 fn fixture() -> AbstractOperationPlan {
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -448,7 +449,7 @@ fn literal_call_source_is_an_earlier_local_producer_not_a_parameter() {
         };
         assert_eq!(
             structural_arguments[0].source,
-            target_operations::TargetStructuralArgumentSource::ByteSequenceLiteral {
+            target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: OperationId::new(10).unwrap(),
             }
         );

@@ -12,7 +12,7 @@ pub(super) fn encode_argument_source(bytes: &mut Vec<u8>, source: &TargetStructu
             bytes.push(0);
             encode_placement(bytes, placement);
         }
-        TargetStructuralArgumentSource::ByteSequenceLiteral { psi_operation } => {
+        TargetStructuralArgumentSource::EstablishedByteView { psi_operation } => {
             bytes.push(1);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
@@ -26,7 +26,7 @@ pub(super) fn decode_argument_source(
         0 => Ok(TargetStructuralArgumentSource::Placement(decode_placement(
             cursor,
         )?)),
-        1 => Ok(TargetStructuralArgumentSource::ByteSequenceLiteral {
+        1 => Ok(TargetStructuralArgumentSource::EstablishedByteView {
             psi_operation: decode_id(cursor, OperationId::new)?,
         }),
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
@@ -49,7 +49,7 @@ mod tests {
                 },
                 locations: Vec::new(),
             }),
-            TargetStructuralArgumentSource::ByteSequenceLiteral {
+            TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: OperationId::new(313).unwrap(),
             },
         ] {
@@ -73,7 +73,7 @@ mod tests {
         for (bytes, operation) in [(&mut first, 313), (&mut second, 317)] {
             encode_argument_source(
                 bytes,
-                &TargetStructuralArgumentSource::ByteSequenceLiteral {
+                &TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation: OperationId::new(operation).unwrap(),
                 },
             );

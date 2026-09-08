@@ -45,10 +45,11 @@ pub enum MachineSemanticKind {
     Store64,
     FrameAddress,
     CallUnit,
+    ByteViewAddress,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::Load8Indexed,
         Self::CompareI64Zero,
         Self::MaterializeI64,
@@ -71,6 +72,7 @@ impl MachineSemanticKind {
         Self::Store64,
         Self::FrameAddress,
         Self::CallUnit,
+        Self::ByteViewAddress,
     ];
 }
 
@@ -98,11 +100,13 @@ pub enum MachineAlternativeFamily {
     Store64,
     FrameAddress,
     CallUnit,
+    ByteViewAddress,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::ByteViewAddress => Self::ByteViewAddress,
             MachineSemanticKind::Load8Indexed => Self::Load8Indexed,
             MachineSemanticKind::CompareI64Zero => Self::CompareI64Zero,
             MachineSemanticKind::MaterializeI64 => Self::MaterializeI64,

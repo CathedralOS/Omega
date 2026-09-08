@@ -52,14 +52,11 @@ pub(in crate::legalization) fn argument(
         return Err(invalid);
     }
     let (structural_type, source) = if let Some((producer, structural_type)) =
-        super::literals::producer(caller, call_operation, semantic.place)
+        established_view(caller, call_operation, semantic.place)
     {
-        if !super::literals::roster(caller) {
-            return Err(invalid);
-        }
         (
             structural_type,
-            TargetStructuralArgumentSource::ByteSequenceLiteral {
+            TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: producer,
             },
         )
@@ -112,6 +109,47 @@ pub(in crate::legalization) fn argument(
             .ok_or(invalid)?
             .clone(),
     })
+}
+
+/// Whole-unit custody has already checked exact CFG dominance and producer
+/// metadata. Rejoin that producer, not a declaration or flattened predecessor.
+fn established_view(
+    caller: &PsiOptimizationFunction,
+    call: semantic_vocabulary::OperationId,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::StructuralTypeId,
+)> {
+    if let Some(producer) = super::literals::producer(caller, call, place) {
+        return super::literals::roster(caller).then_some(producer);
+    }
+    if !caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+        matches!(&node.operation, AbstractOperation::CallStructuralScalar { psi_operation, structural_arguments, .. }
+            | AbstractOperation::CallUnit { psi_operation, structural_arguments, .. }
+            if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == place))
+    }) {
+        return None;
+    }
+    caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::ByteSequenceSubslice {
+                psi_operation,
+                result,
+                ..
+            } if result.place == place
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty() =>
+            {
+                Some((*psi_operation, result.structural_type))
+            }
+            _ => None,
+        })
 }
 
 pub(super) fn validate_target(

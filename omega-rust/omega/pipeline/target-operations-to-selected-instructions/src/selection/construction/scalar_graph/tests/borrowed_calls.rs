@@ -9,7 +9,7 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunction {
+pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunction {
     let mut source = fixture(target, 0);
     source.attachment = None;
     source.blocks[0].instructions.truncate(1);

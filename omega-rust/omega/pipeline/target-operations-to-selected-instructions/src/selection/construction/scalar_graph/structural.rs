@@ -10,6 +10,7 @@ use semantic_vocabulary::{IntegerType, PlaceId};
 
 mod byte_views;
 mod literals;
+mod local_storage;
 mod shared_unit_call;
 mod subslice;
 
