@@ -268,8 +268,8 @@ not non-observing.
 | --- | --- | --- |
 | `AtomicCompareExchange<T>` | `AtomicCompareExchangeOutcome<T>`: `Mismatched(observed: T)`, `Exchanged`. | Copyable `T`. |
 | `AtomicCompareExchangeOnce<T>` | `AtomicCompareExchangeOnceOutcome<T>`: `Mismatched(observed: T)`, `Exchanged`, `Uncommitted(observed: T)`. | Copyable `T`. |
-| `AtomicTryExchange<T, Key>` | `AtomicTryExchangeOutcome<T>`: every case owns one `T`, proposed on failure and displaced on success. | Affine or linear `T` is allowed. |
-| `AtomicTryExchangeOnce<T, Key>` | `AtomicTryExchangeOnceOutcome<T>`: same custody rule, including uncommitted attempts. | Affine or linear `T` is allowed. |
+| `AtomicTryExchange<T, Key>` | `AtomicTryExchangeOutcome<T>`: `Mismatched(proposed: T)`, `Exchanged(displaced: T)`. | Affine or linear `T` is allowed. |
+| `AtomicTryExchangeOnce<T, Key>` | `AtomicTryExchangeOnceOutcome<T>`: `Mismatched(proposed: T)`, `Exchanged(displaced: T)`, `Uncommitted(proposed: T)`. | Affine or linear `T` is allowed. |
 
 Observing failure exposes a copy of the resident; affine/linear residents reject.
 Canonical outcome tags are `Mismatched = 0`, `Exchanged = 1`, and, where present,

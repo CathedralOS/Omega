@@ -898,6 +898,23 @@ Owners include
   Acceptance: stack/control custody is never compiler-owned or lost across a
   suspension edge, and missing crossing demand rejects under the
   [call/outcome contract](wiki/spec/terminal-psi/calls_and_outcomes.md).
+  Follow the [task runtime contract](wiki/spec/build/task_runtime.md) through
+  `task-plans`, provider admission, and a real selected runtime. Acceptance also
+  exercises concurrent start/park/resume/finish, rejection returning every moved
+  argument and lease, cross-instance settlement rejection, and fresh storage
+  eras on reuse. Static plans and lifecycle ledger tests alone do not establish
+  executable activation or argument conservation.
+
+- **ATOMIC-MEMORY-MODEL.** Complete the formal atomic/fence axioms and checked
+  target refinement under the
+  [concurrency contract](wiki/spec/language/concurrency.md). Owning areas are
+  proof semantics, normalized atomic events, and target realization. Acceptance:
+  reads-from/modification/global-order constraints and fence synchronization
+  are independently checked; swap/fetch retain the instruction-observed prior;
+  single-attempt failure retains its distinct outcome and custody. Add real
+  concurrent-activation controls once TR3-TR8 supplies that execution route.
+  Serial instruction tests and bounded exploration do not discharge these
+  proof obligations or authorize a weaker acquire without its protocol proof.
 
 - **BLOCKEXEC.** Implement a package-level blocking executor with bounded
   queues, moved custody, linear completion claims, suspension, and provider

@@ -432,7 +432,7 @@ The remaining proof-language work packages a modulus with its universal law
 and supports existential claims without demanding executable witness extraction.
 These are distinct capabilities. The required general relation expressions,
 typed index telescopes, and bundle contracts precede full quotient formation.
-See [Law-Bearing Relations, Evidence, And Quotients](../pre_migration/design_briefs/law_bearing_relations_and_quotients.md).
+See [relations and quotients](../spec/proofs/quotients.md).
 
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the

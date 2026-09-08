@@ -130,7 +130,7 @@ full source acceptance or executable Terminal realization.
 
 ## Quotient correspondence
 
-The [published correspondence contract](../../../../wiki/spec/proofs/contracts.md#published-quotient-correspondence)
+The [published correspondence contract](../../../../wiki/spec/proofs/quotients.md#published-quotient-correspondence)
 is implemented through [quotients/terminal_bridge.rs](src/quotients/terminal_bridge.rs)
 and the relation-plan bridge. Current direct `define`/transport-backed `lift`
 retention and proof-only package review do not admit executable quotient calls.
