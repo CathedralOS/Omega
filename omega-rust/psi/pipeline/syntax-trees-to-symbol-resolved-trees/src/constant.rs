@@ -10,9 +10,9 @@
 //! one). The symbol table retains only declaration provenance so authored-
 //! selection and package-authority checks cannot be erased by substitution.
 //!
-//! In module-constant source closures, scalar values substitute only after the
-//! shared resolver has selected their namespace and lexical binding. Legacy
-//! no-module lowering retains its conservative free-constant shadowing walk.
+//! Scalar values substitute only after the shared resolver has selected their
+//! namespace and lexical binding. Legacy aggregate materialization retains its
+//! conservative free-constant shadowing walk.
 //!
 //! Remaining boundaries, enforced loudly:
 //! - LITERAL-ONLY initializers (scalars, negated scalars -- already folded by
@@ -48,7 +48,7 @@ pub(crate) fn validate_const_definition(
         // table after lowering, not in a whole-forest spelling collision walk.
         return validate_literal_initializer(syntax_trees, definition, definition.value);
     }
-    if definition.scope.as_str().is_empty() {
+    if definition.scope.as_str().is_empty() && !has_scalar_initializer(syntax_trees, definition) {
         free_const_shadowing_walk(lowerer, syntax_trees, definition)?;
     }
 
@@ -260,11 +260,9 @@ fn declarations_share_resolution_scope(
         == lowerer.source_reference_can_see_declaration(right, left)
 }
 
-/// If `members` is a two-segment path naming a declared const -- or a
-/// SINGLE-segment path naming a FREE-FLOATING one (safe: the shadowing walk
-/// refused every collidable name) -- lower a fresh copy of its initializer
-/// into `expressions` and return it. `None` = not a const reference; the
-/// caller lowers the path normally.
+/// Preserve legacy eager aggregate materialization. Scalar references return
+/// `None` so ordinary lexical resolution selects them before substitution.
+/// Free aggregate names remain protected by the conservative shadowing walk.
 pub(crate) fn try_lower_const_reference(
     lowerer: &mut crate::lowerer::Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -292,6 +290,9 @@ pub(crate) fn try_lower_const_reference(
         }
         _ => None,
     })?;
+    if has_scalar_initializer(syntax_trees, definition) {
+        return None;
+    }
     // Item order is source order, so a use can lower before its declaration
     // validates -- re-check the initializer shape here (cheap) so an invalid
     // const can never substitute garbage.
@@ -348,17 +349,7 @@ pub(crate) fn retain_const_initializer(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
-    if !lowerer.defer_const_substitution {
-        return Ok(());
-    }
-    use syntax_trees::expression::ExpressionNode;
-    if !matches!(
-        syntax.expressions.expression(definition.value),
-        ExpressionNode::Boolean(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::String(_)
-    ) {
+    if !has_scalar_initializer(syntax, definition) {
         return Ok(());
     }
     let initializer =
@@ -367,6 +358,17 @@ pub(crate) fn retain_const_initializer(
         .pending_const_values
         .push((lowerer.pending_const_declarations.len(), initializer));
     Ok(())
+}
+
+fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
+    use syntax_trees::expression::ExpressionNode;
+    matches!(
+        syntax.expressions.expression(definition.value),
+        ExpressionNode::Boolean(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_)
+    )
 }
 
 pub(crate) fn substitute_resolved_constants(
@@ -1002,6 +1004,84 @@ mod module_tests {
                 .expression(local_value(&program, "read", "observed")),
             ExpressionNode::StructLiteral(_)
         ));
+    }
+
+    #[test]
+    fn root_scalar_lexical_selection_coexists_with_aggregate_materialization() {
+        let program = resolve(&["data Pair { value: u64; }
+            const PAIR: Pair = Pair { value: 11 };
+            machine read() -> u64 {
+                let aggregate: Pair = PAIR;
+                let before: u64 = SIZE;
+                let SIZE: u64 = SIZE;
+                let after: u64 = SIZE;
+                after
+            }
+            machine parameter(SIZE: u64) -> u64 { let observed: u64 = SIZE; observed }
+            const SIZE: u64 = 7;"])
+        .expect("forward scalar selection preserves lexical scope beside an aggregate");
+        assert!(matches!(
+            program.tables.bodies.expressions.expression(local_value(
+                &program,
+                "read",
+                "aggregate"
+            )),
+            ExpressionNode::StructLiteral(_)
+        ));
+        for local in ["before", "SIZE"] {
+            let expression = local_value(&program, "read", local);
+            let ExpressionNode::Integer(value) =
+                program.tables.bodies.expressions.expression(expression)
+            else {
+                panic!("earlier use and self-initializer select the forward constant");
+            };
+            assert_eq!(value.value_u64(), Some(7));
+            assert_eq!(
+                program
+                    .tables
+                    .bodies
+                    .expressions
+                    .authored_selection_occurrences(expression)
+                    .count(),
+                1
+            );
+        }
+        for (machine, local, kind) in [
+            ("read", "after", SymbolKind::Local),
+            ("parameter", "observed", SymbolKind::Parameter),
+        ] {
+            let expression = local_value(&program, machine, local);
+            let ExpressionNode::Name(path) =
+                program.tables.bodies.expressions.expression(expression)
+            else {
+                panic!("actual lexical binding remains a name");
+            };
+            assert_eq!(program.symbols.get(path.symbol).kind, kind);
+        }
+    }
+
+    #[test]
+    fn root_scalar_and_explicit_receiver_field_remain_distinct() {
+        let program = resolve(&["const SIZE: u64 = 7; data Main { SIZE: u64; }
+            machine Main::read(&self) -> u64 { let field: u64 = self.SIZE; let constant: u64 = SIZE; constant }"])
+            .expect("bare fields do not alias explicit receiver projections");
+        assert!(matches!(
+            program.tables.bodies.expressions.expression(local_value(
+                &program,
+                "Main::read",
+                "field"
+            )),
+            ExpressionNode::Member(_)
+        ));
+        let ExpressionNode::Integer(value) = program
+            .tables
+            .bodies
+            .expressions
+            .expression(local_value(&program, "Main::read", "constant"))
+        else {
+            panic!("bare spelling selects the constant");
+        };
+        assert_eq!(value.value_u64(), Some(7));
     }
 
     #[test]

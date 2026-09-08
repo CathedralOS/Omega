@@ -1,0 +1,6 @@
+// Explicit receiver projection and a bare constant are distinct selections.
+const flags: u32 = 3;
+data Main { flags: u32; }
+machine global() -> u32 { flags }
+machine Main::selected(&self) -> u32 { self.flags }
+machine Main::main(&mut self) {}

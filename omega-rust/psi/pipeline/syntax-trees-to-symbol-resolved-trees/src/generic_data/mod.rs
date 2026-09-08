@@ -54,18 +54,47 @@ use uses::*;
 pub fn closed_data_const_argument_expressions(
     syntax: &SyntaxTrees,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
-    let mut pending = Vec::new();
+    let positions = collect_data_type_reference_positions(syntax, false);
     let public_positions = collect_data_type_reference_positions(syntax, true);
+    collect_closed_const_arguments(syntax, &positions, &public_positions, false)
+}
+
+/// Authored constant arguments in nongeneric machine type owners. Discovery
+/// supplies destinations, not value-selection authority: callers must resolve
+/// each expression in its original machine and state scope before evaluation.
+pub fn closed_machine_const_arguments(
+    syntax: &SyntaxTrees,
+) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
+    let (positions, public_positions) = collect_machine_type_reference_positions(syntax);
+    collect_closed_const_arguments(syntax, &positions, &public_positions, true)
+}
+
+fn collect_closed_const_arguments(
+    syntax: &SyntaxTrees,
+    positions: &[TypeReferenceHandle],
+    public_positions: &[TypeReferenceHandle],
+    include_named: bool,
+) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
+    let mut pending = Vec::new();
     let mut retain_arguments = |parameters: &[TypeParameter], arguments: &[TypeReferenceHandle]| {
         if parameters.len() != arguments.len() {
             return;
         }
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if let TypeParameterKind::Const { type_reference } = parameter.kind
-                && matches!(
-                    syntax.type_references.type_reference(*argument),
-                    TypeReferenceNode::ConstExpression(_)
-                )
+                && match syntax.type_references.type_reference(*argument) {
+                    TypeReferenceNode::ConstExpression(_) => true,
+                    TypeReferenceNode::Named(name) if include_named => {
+                        syntax
+                            .type_references
+                            .const_argument_normalization(*argument)
+                            .is_none()
+                            && CanonicalConstValue::from_atom(name.as_str()).is_none()
+                            && name.as_str().parse::<i128>().is_err()
+                            && !matches!(name.as_str(), "true" | "false")
+                    }
+                    _ => false,
+                }
                 && !pending.iter().any(|(existing, _, _)| existing == argument)
             {
                 pending.push((
@@ -76,8 +105,8 @@ pub fn closed_data_const_argument_expressions(
             }
         }
     };
-    for position in collect_data_type_reference_positions(syntax, false) {
-        match syntax.type_references.type_reference(position) {
+    for position in positions {
+        match syntax.type_references.type_reference(*position) {
             TypeReferenceNode::Generic {
                 base_name,
                 arguments,
@@ -106,21 +135,9 @@ pub fn closed_data_const_argument_expressions(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         continue;
                     };
-                    let mut definitions = syntax.root_items().filter_map(|item| match item {
-                        Item::Domain(definition)
-                            if definition.name.as_str() == domain.name.as_str() =>
-                        {
-                            Some(definition)
-                        }
-                        _ => None,
-                    });
-                    let Some(definition) = definitions.next() else {
-                        continue;
-                    };
-                    if definitions.next().is_some() {
-                        continue;
-                    }
-                    let Some(parameters) = domain_index_parameters(syntax, definition) else {
+                    let Some(parameters) =
+                        unique_domain_index_parameters(syntax, domain.name.as_str())
+                    else {
                         continue;
                     };
                     retain_arguments(
@@ -134,7 +151,49 @@ pub fn closed_data_const_argument_expressions(
             _ => {}
         }
     }
+    if include_named {
+        let concrete = concrete_machine_expression_handles(syntax);
+        for (handle, expression) in syntax.expressions.iter_expressions() {
+            if !concrete.contains(&handle.arena_index()) {
+                continue;
+            }
+            let ExpressionNode::Cast(cast) = expression else {
+                continue;
+            };
+            let name = syntax
+                .expressions
+                .identifier_path_members(cast.semantic_domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let Some(parameters) = unique_domain_index_parameters(syntax, &name) else {
+                continue;
+            };
+            retain_arguments(
+                parameters,
+                syntax
+                    .type_references
+                    .type_reference_handles(cast.semantic_domain_arguments),
+            );
+        }
+    }
     pending
+}
+
+fn unique_domain_index_parameters<'syntax>(
+    syntax: &'syntax SyntaxTrees,
+    name: &str,
+) -> Option<&'syntax [TypeParameter]> {
+    let mut definitions = syntax.root_items().filter_map(|item| match item {
+        Item::Domain(definition) if definition.name.as_str() == name => Some(definition),
+        _ => None,
+    });
+    let definition = definitions.next()?;
+    if definitions.next().is_some() {
+        return None;
+    }
+    domain_index_parameters(syntax, definition)
 }
 
 /// Canonicalize one source const declaration against its own declared type.

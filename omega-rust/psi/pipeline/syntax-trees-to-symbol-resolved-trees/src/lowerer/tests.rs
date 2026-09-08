@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
+mod const_argument_selection;
 mod const_value_resolution;
 mod measure_resolution;
 mod module_constants;
@@ -3885,7 +3886,7 @@ fn const_collision_walks_separate_base_from_current_activation_extension() {
 }
 
 #[test]
-fn const_collision_walks_still_reject_within_the_extension_stratum() {
+fn const_declaration_collisions_still_reject_within_the_extension_stratum() {
     for (left, right, expected) in [
         (
             "const Limits::VALUE: u64 = 1;",
@@ -3895,7 +3896,7 @@ fn const_collision_walks_still_reject_within_the_extension_stratum() {
         (
             "const Clash: u64 = 1;",
             "data Clash {}",
-            "free-floating `const Clash` collides with data `Clash`",
+            "free-floating const `Clash` collides with a declaration in the same namespace",
         ),
         (
             "const Choice::Ready: u64 = 1;",

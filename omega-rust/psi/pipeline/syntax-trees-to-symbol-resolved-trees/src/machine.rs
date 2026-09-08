@@ -43,7 +43,7 @@ pub(crate) fn lower_machine_into(
         .collect();
     let states = lowerer.with_authored_expression_exposure(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-        |lowerer| lower_machine_states(lowerer, syntax_trees, machine.states),
+        |lowerer| lower_machine_states(lowerer, syntax_trees, machine.states, machine.is_public),
     )?;
     lowerer.current_machine_is_boundary = false;
     lowerer.current_machine_root_index = None;
@@ -616,11 +616,17 @@ fn lower_machine_states(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     states: HandleSpan<syntax::item::StateHandle>,
+    is_public: bool,
 ) -> Result<HandleSpan<Handle<State>>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
-    for state in syntax_trees.items.state_handles(states) {
-        let state = lower_state_node(lowerer, syntax_trees, syntax_trees.items.state(*state))?;
+    for (ordinal, state) in syntax_trees.items.state_handles(states).iter().enumerate() {
+        let state = lower_state_node(
+            lowerer,
+            syntax_trees,
+            syntax_trees.items.state(*state),
+            is_public && ordinal == 0,
+        )?;
         let state = lowerer
             .symbol_resolved_trees
             .tables

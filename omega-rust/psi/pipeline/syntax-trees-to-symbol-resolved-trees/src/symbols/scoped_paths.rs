@@ -69,7 +69,29 @@ pub(super) fn resolve_state_scoped_table_path_member_symbols(
         index += 1;
     }
 
-    for member in &members[index..] {
+    let suffix = resolve_path_members_from_head(symbols, current, &members[index..]);
+    if suffix.is_empty() {
+        return Vec::new();
+    }
+    resolved.extend_from_slice(&suffix[1..]);
+
+    if resolved.len() == members.len() {
+        resolved
+    } else {
+        Default::default()
+    }
+}
+
+/// A failed suffix does not invalidate the caller's independently selected
+/// lexical head, but it cannot publish a complete member-selection chain.
+pub(super) fn resolve_path_members_from_head(
+    symbols: &SymbolTable,
+    head: SymbolHandle,
+    suffix: &[symbol_resolved_trees::name::DiagnosticName],
+) -> Vec<SymbolHandle> {
+    let mut current = head;
+    let mut resolved = vec![head];
+    for member in suffix {
         current = child_or_attached_data_child_symbol_by_kinds(
             symbols,
             current,
@@ -87,11 +109,7 @@ pub(super) fn resolve_state_scoped_table_path_member_symbols(
         resolved.push(current);
     }
 
-    if resolved.len() == members.len() {
-        resolved
-    } else {
-        Default::default()
-    }
+    resolved
 }
 
 pub(super) fn resolve_state_scoped_table_path_with_indexed_last_member(
@@ -175,7 +193,7 @@ pub(super) fn resolve_state_scoped_members(
             member.as_str(),
         );
         if !current.is_valid() {
-            return invalid_symbol_pair();
+            return (head, SymbolHandle::invalid());
         }
     }
 
@@ -289,7 +307,7 @@ fn resolve_state_scoped_table_members(
             )
         };
         if !current.is_valid() {
-            return invalid_symbol_pair();
+            return (head, SymbolHandle::invalid());
         }
     }
 

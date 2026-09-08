@@ -3,6 +3,7 @@
 //! The probe owns no published layout or symbols. Only its canonical result and
 //! exact authored selection custody return to the original syntax forest.
 
+mod lexical_selection;
 mod value;
 
 #[cfg(test)]
@@ -28,8 +29,47 @@ pub(super) fn evaluate(
     bindings: &[SourceScopedTopLevelBinding],
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let arguments =
+    let mut arguments =
         syntax_trees_to_symbol_resolved_trees::closed_data_const_argument_expressions(&syntax);
+    let machine_arguments =
+        syntax_trees_to_symbol_resolved_trees::closed_machine_const_arguments(&syntax);
+    let mut lexical_arguments = Vec::new();
+    for (argument, destination, public) in machine_arguments {
+        // This is probe routing, not builtin identity. The typed destination
+        // must still resolve to the exact primitive before evaluation.
+        let TypeReferenceNode::Named(destination_name) =
+            syntax.type_references.type_reference(destination)
+        else {
+            continue;
+        };
+        if !matches!(
+            destination_name.as_str(),
+            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+        ) {
+            continue;
+        }
+        if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(argument) {
+            let name = name.clone();
+            let reference = name.source_span();
+            let mut members = HandleSpan::empty();
+            // Named type arguments retain one complete authored path span.
+            // Restore its lexical segments without inventing member offsets
+            // across source trivia; selection custody belongs to the whole use.
+            for member in name.as_str().split("::") {
+                syntax.expressions.append_identifier_path_member_to_span(
+                    &mut members,
+                    Identifier::new(member, reference),
+                );
+            }
+            let expression = syntax.expressions.insert(ExpressionNode::Name(members));
+            syntax.expressions.set_source_span(expression, reference);
+            syntax
+                .type_references
+                .replace_type_reference(argument, TypeReferenceNode::ConstExpression(expression));
+        }
+        arguments.push((argument, destination, public));
+        lexical_arguments.push(argument);
+    }
     let pending = arguments
         .iter()
         .filter_map(|(argument, destination, public)| {
@@ -48,6 +88,34 @@ pub(super) fn evaluate(
         .collect::<Vec<_>>();
     if pending.is_empty() {
         return Ok(syntax);
+    }
+
+    let mut lexical_origins = Vec::new();
+    if pending
+        .iter()
+        .any(|(argument, _, _, _)| lexical_arguments.contains(argument))
+    {
+        // Resolve the original machine owners before placeholder synthesis.
+        // Their runtime bodies are neither typed as probes nor executed here.
+        let resolved =
+            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_for_const_argument_selection(
+                &syntax,
+                sources.clone(),
+                bindings.to_vec(),
+            )?;
+        for (argument, expression, _, _) in &pending {
+            if lexical_arguments.contains(argument) {
+                let origins = lexical_selection::retain(&syntax, &resolved, *expression).map_err(
+                    |reason| {
+                        vec![
+                            Diagnostic::error(format!("const argument expression: {reason}"))
+                                .with_source_span(syntax.expressions.source_span(*expression)),
+                        ]
+                    },
+                )?;
+                lexical_origins.push((*argument, origins));
+            }
+        }
     }
 
     // As in const-generic call evaluation, temporary arguments let the ordinary
@@ -115,6 +183,15 @@ pub(super) fn evaluate(
             .map_err(&failure)?;
         let (origins, operators) =
             expression_custody(&typed, machine, state, *expression, public).map_err(&failure)?;
+        if let Some((_, expected)) = lexical_origins
+            .iter()
+            .find(|(original, _)| *original == argument)
+            && (&origins != expected)
+        {
+            return Err(failure(
+                "standalone probe changed the original machine's constant selection".to_owned(),
+            ));
+        }
         let (result, warnings) =
             value::evaluate(&typed, machine, state, *expression, destination).map_err(&failure)?;
         if result.type_name != destination.name() {

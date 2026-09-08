@@ -82,8 +82,14 @@ data applications and root-owned domain families through a private typed probe.
 Exact primitive carriers, builtin operator meaning and
 package selection are checked before fixed-width arithmetic. Each argument retains
 one canonical result, every selected constant occurrence and its builtin operator
-occurrences. Machine-local indices, open templates, constrained destinations,
-authored operators and module-owned domain families retain their existing fences.
+occurrences. Nongeneric machine parameters, results, locals and casts resolve
+named and compound integer indices in their original lexical scope before using
+the same probe. Runtime bindings cannot be captured as constants. Public entry
+signatures retain public exposure independently of body and internal-state uses.
+Root scalar references also use resolved substitution, so locals and explicit
+receiver fields can share a constant's spelling without changing its selection.
+Open templates, noninteger expression destinations, constrained destinations,
+authored operators and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.
 Unrelated root constants and literal or binder-only
@@ -115,6 +121,7 @@ cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass
 cargo run -p omega -- --check tests/omega/pass/modules/qualified_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/compound_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/main.omg
+cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_indices/main.omg
 ```
 
 [Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration

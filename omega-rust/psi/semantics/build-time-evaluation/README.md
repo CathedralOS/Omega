@@ -20,7 +20,7 @@ requires declaration admission before early evaluation. The
 maps that gate to exact calls, candidate sets, and authored application sites.
 
 Closed integer indices for data applications and root-owned domain families in
-concrete data fields and payloads use
+concrete data fields, payloads and nongeneric machine type annotations use
 [typed expression probes](src/const_generic_expressions.rs) before generic data
 synthesis. The temporary probe carries original source/import custody; its
 symbols and placeholder layouts never become the published program. Exact
@@ -30,9 +30,17 @@ before arithmetic. Existing fixed-integer kernels enforce every node's carrier
 bounds; anonymous arithmetic lands once through the shared rational evaluator,
 including fractional-intermediate warnings. The canonical result is distinct
 from the arena-backed constant and operator occurrences retained at the real use.
-Machine-local scopes, open templates, authored operator execution, constrained
-destinations and address-dependent arithmetic need their own complete contexts;
-the standalone probe does not claim those forms.
+Machine parameters, results, locals and casts first resolve in their original
+lexical owners, including prior-local frontiers. Every named operand must select
+a constant there, and the standalone probe must retain exactly that selection;
+runtime parameters and locals cannot become same-spelled constants. Only public
+entry signatures publish public-interface occurrences; body and internal-state
+annotations retain private implementation exposure. Root scalar constants use
+the same resolved substitution as module constants, while legacy aggregate
+materialization remains separate.
+Open templates, noninteger expression destinations, authored operator execution,
+constrained destinations and address-dependent arithmetic need their own complete
+contexts; the standalone probe does not claim those forms.
 
 ## Semantic admission boundary
 

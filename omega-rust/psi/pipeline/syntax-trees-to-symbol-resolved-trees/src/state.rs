@@ -18,6 +18,7 @@ pub(crate) fn lower_state_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     state: &syntax::item::StateNode,
+    public_signature: bool,
 ) -> Result<State, Diagnostic> {
     lower_state_parts(
         lowerer,
@@ -27,6 +28,7 @@ pub(crate) fn lower_state_node(
         state.return_type,
         state.contracts,
         state.statements,
+        public_signature,
     )
 }
 
@@ -38,13 +40,24 @@ fn lower_state_parts(
     return_type_handle: syntax::types::TypeReferenceHandle,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
     statements: arena::HandleSpan<syntax::statement::StatementHandle>,
+    public_signature: bool,
 ) -> Result<State, Diagnostic> {
     lowerer.current_state_name = Some(name.as_str().to_owned());
-    let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
-    let return_type = return_type_handle
-        .is_valid()
-        .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
-        .transpose()?;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    let signature_exposure = if public_signature {
+        AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        AuthoredDeclarationSelectionExposure::PrivateImplementation
+    };
+    let (parameters, return_type) =
+        lowerer.with_authored_expression_exposure(signature_exposure, |lowerer| {
+            let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
+            let return_type = return_type_handle
+                .is_valid()
+                .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
+                .transpose()?;
+            Ok::<_, Diagnostic>((parameters, return_type))
+        })?;
     // Record which of THIS state's params are shared references to a NAMED
     // type (`table: &EfiSystemTable`): a member read through one must
     // dereference the pointer slot, so the guard/operand hoists materialize it

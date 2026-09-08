@@ -1,0 +1,7 @@
+module combat;
+const SIZE: u64 = 2;
+
+machine keep(value: Buffer<SIZE + 1>) -> Buffer<SIZE + 1> {
+    let local: Buffer<SIZE + 1> = value;
+    local
+}

@@ -1,5 +1,6 @@
 //! Type-bound value expressions use the callable's ordinary value namespace.
-//! Type/domain names and const-generic applications retain declaration lookup.
+//! Type/domain names retain declaration lookup; index expressions must resolve
+//! lexical subjects before a later phase can establish that their value is static.
 
 use arena::{Arena, Handle};
 use symbol_resolved_trees::{
@@ -89,9 +90,20 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 }
             }
         }
-        // These are declaration/proof-static namespaces, not runtime bounds.
-        TypeReference::ConstExpression(_)
-        | TypeReference::Named { .. }
+        TypeReference::ConstExpression(expression) => {
+            // Resolve lexical subjects before determining whether an index is
+            // closed. A runtime binding cannot become a same-named constant.
+            assign_statement_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expressions,
+                child_types,
+                *expression,
+            );
+        }
+        TypeReference::Named { .. }
         | TypeReference::DynamicTrait { .. }
         | TypeReference::SelfType { .. }
         | TypeReference::Unit => {}

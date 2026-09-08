@@ -157,6 +157,16 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                     &mut argument,
                 );
                 *child_type_references.get_mut(handle) = argument;
+                let argument = child_type_references.get(handle).clone();
+                crate::symbols::type_references::assign_type_value_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    &argument,
+                );
             }
         }
         symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
