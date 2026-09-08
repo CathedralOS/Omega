@@ -23,9 +23,7 @@ use super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_i
 use super::scalar_wire::{
     decode_ieee_float_value, decode_integer_value, encode_ieee_float_value, encode_integer_value,
 };
-use super::structural_result_wire::{
-    ResultPathWireFormat, decode_operation_result, encode_operation_result,
-};
+use super::structural_result_wire::{decode_operation_result, encode_operation_result};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
 };
@@ -36,25 +34,10 @@ use super::{
     encode_obligation_ids, encode_optional_id, encode_structural_arguments, encode_structural_path,
 };
 
-#[cfg(test)]
 pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
-    encode_block_for_result_paths(writer, block, ResultPathWireFormat::Current)
-}
-
-pub(super) fn encode_block_for_result_paths(
-    writer: &mut Writer,
-    block: &Block,
-    result_path_format: ResultPathWireFormat,
-) -> Result<(), CodecError> {
     writer.id(block.id);
     encode_declarations(writer, "block parameters", &block.parameters)?;
-    if result_path_format == ResultPathWireFormat::Current {
-        encode_structural_parameters(writer, &block.structural_parameters)?;
-    } else if !block.structural_parameters.is_empty() {
-        return Err(CodecError::MalformedStructuralFoundation(
-            "legacy format cannot encode structural block parameters",
-        ));
-    }
+    encode_structural_parameters(writer, &block.structural_parameters)?;
     writer.len("operations", block.operations.len())?;
     for operation in &block.operations {
         writer.id(operation.id);
@@ -66,7 +49,7 @@ pub(super) fn encode_block_for_result_paths(
             }
             OperationResult::Structural(result) => {
                 writer.u8(2);
-                encode_operation_result(writer, result, result_path_format)?;
+                encode_operation_result(writer, result)?;
             }
         }
         match operation.kind.clone() {
@@ -77,9 +60,6 @@ pub(super) fn encode_block_for_result_paths(
                 length,
                 obligation,
             } => {
-                if result_path_format != ResultPathWireFormat::Current {
-                    return Err(CodecError::InvalidTag("OperationKind", 57));
-                }
                 writer.u8(57);
                 writer.id(source);
                 writer.id(start);
@@ -93,9 +73,6 @@ pub(super) fn encode_block_for_result_paths(
                 length,
                 obligation,
             } => {
-                if result_path_format != ResultPathWireFormat::Current {
-                    return Err(CodecError::InvalidTag("OperationKind", 56));
-                }
                 writer.u8(56);
                 writer.id(source);
                 writer.id(index);
@@ -103,9 +80,6 @@ pub(super) fn encode_block_for_result_paths(
                 writer.id(obligation);
             }
             OperationKind::ByteSequenceLength { source } => {
-                if result_path_format != ResultPathWireFormat::Current {
-                    return Err(CodecError::InvalidTag("OperationKind", 55));
-                }
                 writer.u8(55);
                 writer.id(source);
             }
@@ -664,13 +638,7 @@ pub(super) fn encode_block_for_result_paths(
             for argument in arguments {
                 writer.id(*argument);
             }
-            if result_path_format == ResultPathWireFormat::Current {
-                encode_structural_arguments(writer, structural_arguments)?;
-            } else if !structural_arguments.is_empty() {
-                return Err(CodecError::MalformedStructuralFoundation(
-                    "legacy format cannot encode structural jump arguments",
-                ));
-            }
+            encode_structural_arguments(writer, structural_arguments)?;
             writer.len(
                 "jump trivial affine discards",
                 trivial_affine_discards.len(),
@@ -781,8 +749,8 @@ pub(super) fn encode_block_for_result_paths(
         } => {
             writer.u8(3);
             writer.id(*condition);
-            encode_successor_edge(writer, when_true, result_path_format)?;
-            encode_successor_edge(writer, when_false, result_path_format)?;
+            encode_successor_edge(writer, when_true)?;
+            encode_successor_edge(writer, when_false)?;
         }
         Terminator::StructuralCase { source, cases } => {
             writer.u8(9);
@@ -830,22 +798,10 @@ pub(super) fn encode_block_for_result_paths(
     Ok(())
 }
 
-#[cfg(test)]
 pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
-    decode_block_for_result_paths(reader, ResultPathWireFormat::Current)
-}
-
-pub(super) fn decode_block_for_result_paths(
-    reader: &mut Reader<'_>,
-    result_path_format: ResultPathWireFormat,
-) -> Result<Block, CodecError> {
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
-    let structural_parameters = if result_path_format == ResultPathWireFormat::Current {
-        decode_structural_parameters(reader)?
-    } else {
-        Vec::new()
-    };
+    let structural_parameters = decode_structural_parameters(reader)?;
     let operation_count = reader.count()?;
     let mut operations = Vec::new();
     for _ in 0..operation_count {
@@ -853,32 +809,26 @@ pub(super) fn decode_block_for_result_paths(
         let result = match reader.u8()? {
             0 => OperationResult::Unit,
             1 => OperationResult::Scalar(decode_declaration(reader)?),
-            2 => OperationResult::Structural(decode_operation_result(reader, result_path_format)?),
+            2 => OperationResult::Structural(decode_operation_result(reader)?),
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
-            57 if result_path_format == ResultPathWireFormat::Current => {
-                OperationKind::ByteSequenceSubslice {
-                    source: reader.id("PlaceId")?,
-                    start: reader.id("ValueId")?,
-                    end: reader.id("ValueId")?,
-                    length: reader.id("ValueId")?,
-                    obligation: reader.id("ObligationId")?,
-                }
-            }
-            56 if result_path_format == ResultPathWireFormat::Current => {
-                OperationKind::ByteSequenceRead {
-                    source: reader.id("PlaceId")?,
-                    index: reader.id("ValueId")?,
-                    length: reader.id("ValueId")?,
-                    obligation: reader.id("ObligationId")?,
-                }
-            }
-            55 if result_path_format == ResultPathWireFormat::Current => {
-                OperationKind::ByteSequenceLength {
-                    source: reader.id("PlaceId")?,
-                }
-            }
+            57 => OperationKind::ByteSequenceSubslice {
+                source: reader.id("PlaceId")?,
+                start: reader.id("ValueId")?,
+                end: reader.id("ValueId")?,
+                length: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            },
+            56 => OperationKind::ByteSequenceRead {
+                source: reader.id("PlaceId")?,
+                index: reader.id("ValueId")?,
+                length: reader.id("ValueId")?,
+                obligation: reader.id("ObligationId")?,
+            },
+            55 => OperationKind::ByteSequenceLength {
+                source: reader.id("PlaceId")?,
+            },
             43 => OperationKind::WriteOnlyPrimitiveStore {
                 destination: reader.id("PlaceId")?,
                 value: reader.id("ValueId")?,
@@ -1254,11 +1204,7 @@ pub(super) fn decode_block_for_result_paths(
                 edge,
                 target,
                 arguments,
-                structural_arguments: if result_path_format == ResultPathWireFormat::Current {
-                    decode_structural_arguments(reader)?
-                } else {
-                    Vec::new()
-                },
+                structural_arguments: decode_structural_arguments(reader)?,
                 trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
                 residual_affine_discards: if tag == 10 {
                     let residuals = decode_counted(reader, |reader| {
@@ -1284,8 +1230,8 @@ pub(super) fn decode_block_for_result_paths(
         },
         3 => Terminator::Conditional {
             condition: reader.id("ValueId")?,
-            when_true: decode_successor_edge(reader, result_path_format)?,
-            when_false: decode_successor_edge(reader, result_path_format)?,
+            when_true: decode_successor_edge(reader)?,
+            when_false: decode_successor_edge(reader)?,
         },
         4 => {
             let edge = reader.id("EdgeId")?;
@@ -1382,10 +1328,7 @@ mod tests {
         Terminator, ValueDeclaration,
     };
 
-    use super::{
-        decode_block, decode_block_for_result_paths, encode_block, encode_block_for_result_paths,
-    };
-    use crate::structural_result_wire::ResultPathWireFormat;
+    use super::{decode_block, encode_block};
     use crate::{
         CodecError,
         wire::{Reader, Writer},
@@ -1413,18 +1356,14 @@ mod tests {
     }
 
     #[test]
-    fn root_only_jump_retains_its_exact_legacy_wire_encoding() {
+    fn root_only_jump_retains_its_exact_current_wire_encoding() {
         let block = jump_block(Vec::new());
         let mut writer = Writer::default();
-        encode_block_for_result_paths(
-            &mut writer,
-            &block,
-            ResultPathWireFormat::LegacyWithoutResultPaths,
-        )
-        .unwrap();
+        encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
         let expected = [
             1_u64.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
             0_u32.to_le_bytes().as_slice(),
             &[1],
@@ -1432,18 +1371,13 @@ mod tests {
             3_u64.to_le_bytes().as_slice(),
             1_u32.to_le_bytes().as_slice(),
             4_u64.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
             1_u32.to_le_bytes().as_slice(),
             5_u64.to_le_bytes().as_slice(),
         ]
         .concat();
         assert_eq!(bytes, expected);
-        assert_eq!(
-            decode_block_for_result_paths(
-                &mut Reader::new(&bytes),
-                ResultPathWireFormat::LegacyWithoutResultPaths,
-            ),
-            Ok(block)
-        );
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
     }
 
     #[test]
@@ -1685,24 +1619,6 @@ mod tests {
             .expect("length operation tag");
         assert_eq!(&bytes[position + 1..position + 9], &4_u64.to_le_bytes());
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
-        assert!(
-            encode_block_for_result_paths(
-                &mut Writer::default(),
-                &block,
-                ResultPathWireFormat::LegacyWithoutResultPaths
-            )
-            .is_err()
-        );
-        // Legacy blocks omit the structural-parameter count after the empty
-        // scalar-parameter roster. Keep the rejected operation in that envelope.
-        let legacy_bytes = [&bytes[..12], &bytes[16..]].concat();
-        assert_eq!(
-            decode_block_for_result_paths(
-                &mut Reader::new(&legacy_bytes),
-                ResultPathWireFormat::LegacyWithoutResultPaths
-            ),
-            Err(CodecError::InvalidTag("OperationKind", 55))
-        );
         let mut changed = bytes.clone();
         changed[position + 1..position + 9].copy_from_slice(&6_u64.to_le_bytes());
         let decoded = decode_block(&mut Reader::new(&changed)).unwrap();
@@ -1770,21 +1686,6 @@ mod tests {
             assert_eq!(decoded.operations[0].result, block.operations[0].result);
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
-        assert!(
-            encode_block_for_result_paths(
-                &mut Writer::default(),
-                &block,
-                ResultPathWireFormat::LegacyWithoutResultPaths
-            )
-            .is_err()
-        );
-        assert!(
-            decode_block_for_result_paths(
-                &mut Reader::new(&bytes),
-                ResultPathWireFormat::LegacyWithoutResultPaths
-            )
-            .is_err()
-        );
         let mut unknown = bytes.clone();
         unknown[position] = 58;
         assert_eq!(
@@ -1797,7 +1698,7 @@ mod tests {
     }
 
     #[test]
-    fn byte_sequence_read_wire_binds_all_operands_and_rejects_legacy_decode() {
+    fn byte_sequence_read_wire_binds_all_operands() {
         let block = Block {
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
@@ -1835,24 +1736,6 @@ mod tests {
             assert!(decode_block(&mut Reader::new(&zero)).is_err());
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
-        assert!(
-            encode_block_for_result_paths(
-                &mut Writer::default(),
-                &block,
-                ResultPathWireFormat::LegacyWithoutResultPaths
-            )
-            .is_err()
-        );
-        // Remove only the new empty structural-parameter count so rejection
-        // reaches the unsupported read operation in the legacy envelope.
-        let legacy_bytes = [&bytes[..12], &bytes[16..]].concat();
-        assert_eq!(
-            decode_block_for_result_paths(
-                &mut Reader::new(&legacy_bytes),
-                ResultPathWireFormat::LegacyWithoutResultPaths
-            ),
-            Err(CodecError::InvalidTag("OperationKind", 56))
-        );
         let mut unknown = bytes.clone();
         unknown[position] = 255;
         assert_eq!(

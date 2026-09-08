@@ -30,11 +30,16 @@ completion declarations remain an owner question before that route can be built.
 Scalar and whole-root structural comparison helpers provide value comparison
 only, not trace construction or refinement evidence.
 
-## Compatibility gap
+## Current-only decoding
 
-The public pre-release contract requires stale artifacts to reject. The current
-module decoder additionally recognizes the legacy result-path format pair
-`56/59`. This is an implementation discrepancy, not a second compatibility
-policy for readers to choose. Retire or explicitly resolve that route under the
-current contract before claiming current-only decoding. Do not preserve the
-legacy branch by adding an undocumented migration rule to the specification.
+The module decoder accepts only the current semantic format and vocabulary
+markers. It rejects every other marker before reading the module body, including
+crossed format/vocabulary pairs. All current rosters are required; the decoder
+does not supply missing historical rows or migrate an older artifact.
+Proof, envelope, and installation markers remain independently owned.
+
+Run the marker, captured-byte, truncation, and envelope-admission controls with:
+
+```sh
+cargo nextest run -p terminal-codec --lib --no-fail-fast --no-tests fail -E 'test(current_format_tests)'
+```

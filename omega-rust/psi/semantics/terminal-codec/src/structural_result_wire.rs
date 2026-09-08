@@ -13,22 +13,9 @@ use super::{
     CodecError, decode_counted, decode_ids, decode_structural_path, encode_structural_path,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum ResultPathWireFormat {
-    LegacyWithoutResultPaths,
-    Current,
-}
-
-impl ResultPathWireFormat {
-    pub(super) const fn carries_result_paths(self) -> bool {
-        matches!(self, Self::Current)
-    }
-}
-
 pub(super) fn encode_function_result(
     writer: &mut Writer,
     result: &StructuralResultDeclaration,
-    format: ResultPathWireFormat,
 ) -> Result<(), CodecError> {
     writer.id(result.place);
     writer.id(result.structural_type);
@@ -40,29 +27,25 @@ pub(super) fn encode_function_result(
     for qualification in &result.qualifications {
         writer.id(*qualification);
     }
-    if format.carries_result_paths() {
-        encode_projected_qualifications(writer, &result.projected_qualifications)?;
-    }
+    encode_projected_qualifications(writer, &result.projected_qualifications)?;
     Ok(())
 }
 
 pub(super) fn decode_function_result(
     reader: &mut Reader<'_>,
-    format: ResultPathWireFormat,
 ) -> Result<StructuralResultDeclaration, CodecError> {
     Ok(StructuralResultDeclaration {
         place: reader.id("PlaceId")?,
         structural_type: reader.id("StructuralTypeId")?,
         multiplicity: decode_multiplicity(reader)?,
         qualifications: decode_ids(reader, "StructuralDomainId")?,
-        projected_qualifications: decode_result_paths(reader, format)?,
+        projected_qualifications: decode_projected_qualifications(reader)?,
     })
 }
 
 pub(super) fn encode_operation_result(
     writer: &mut Writer,
     result: &StructuralOperationResult,
-    format: ResultPathWireFormat,
 ) -> Result<(), CodecError> {
     writer.id(result.place);
     writer.id(result.structural_type);
@@ -74,9 +57,7 @@ pub(super) fn encode_operation_result(
     for qualification in &result.qualifications {
         writer.id(*qualification);
     }
-    if format.carries_result_paths() {
-        encode_projected_qualifications(writer, &result.projected_qualifications)?;
-    }
+    encode_projected_qualifications(writer, &result.projected_qualifications)?;
     writer.len("structural operation result claims", result.claims.len())?;
     for claim in &result.claims {
         writer.id(claim.claim);
@@ -91,14 +72,13 @@ pub(super) fn encode_operation_result(
 
 pub(super) fn decode_operation_result(
     reader: &mut Reader<'_>,
-    format: ResultPathWireFormat,
 ) -> Result<StructuralOperationResult, CodecError> {
     Ok(StructuralOperationResult {
         place: reader.id("PlaceId")?,
         structural_type: reader.id("StructuralTypeId")?,
         multiplicity: decode_multiplicity(reader)?,
         qualifications: decode_ids(reader, "StructuralDomainId")?,
-        projected_qualifications: decode_result_paths(reader, format)?,
+        projected_qualifications: decode_projected_qualifications(reader)?,
         claims: decode_counted(reader, |reader| {
             Ok(StructuralResultClaimBinding {
                 claim: reader.id("ClaimId")?,
@@ -106,17 +86,6 @@ pub(super) fn decode_operation_result(
             })
         })?,
     })
-}
-
-fn decode_result_paths(
-    reader: &mut Reader<'_>,
-    format: ResultPathWireFormat,
-) -> Result<Vec<terminal_psi::StructuralPathQualification>, CodecError> {
-    if format.carries_result_paths() {
-        decode_projected_qualifications(reader)
-    } else {
-        Ok(Vec::new())
-    }
 }
 
 fn encode_multiplicity(writer: &mut Writer, multiplicity: StructuralMultiplicity) {

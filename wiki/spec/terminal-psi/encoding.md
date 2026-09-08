@@ -24,8 +24,7 @@ bytes. Successful decoding re-encodes byte-for-byte; it never normalizes an
 alternative spelling. The pre-release contract has no implicit migration:
 semantic changes move producer, codec, verifier, interpreter, and lowerers
 together. Current golden bytes establish the current format, not historical
-acceptance. The [codec's legacy-path discrepancy](../../../omega-rust/psi/semantics/terminal-codec/README.md#compatibility-gap)
-is implementation work, not an exception to this rule.
+acceptance.
 
 Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs

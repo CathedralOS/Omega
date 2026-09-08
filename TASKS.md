@@ -439,10 +439,7 @@ Owners include
   those claims. Physical optimization replay belongs to
   `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
 
-  Close current-only decoding under the
-  [codec compatibility gap](omega-rust/psi/semantics/terminal-codec/README.md#compatibility-gap);
-  legacy 56/59 acceptance is not a compatibility policy. Complete intrinsic
-  settlement with one exhaustive optional mapping in
+  Complete intrinsic settlement with one exhaustive optional mapping in
   `compiler/src/compiler/intrinsic_settlements.rs`: new planner variants must
   require classification, and unsupported identities must refuse explicitly.
 
