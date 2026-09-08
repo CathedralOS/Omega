@@ -11,7 +11,8 @@ use super::super::lookup::{
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::{
-    resolve_state_scoped_table_path, resolve_state_scoped_table_path_member_symbols,
+    resolve_path_members_from_head, resolve_state_scoped_table_path,
+    resolve_state_scoped_table_path_member_symbols,
 };
 use super::super::targets::{
     assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
@@ -275,7 +276,7 @@ pub(in crate::symbols) fn assign_name_symbol(
 ) {
     let mut lookup_state = state_symbol;
     if !path.is_self_value
-        && let [member] = expression_table.name_path_members(path.members)
+        && let [member, suffix @ ..] = expression_table.name_path_members(path.members)
     {
         // Only preceding locals belong to this value frontier. The whole
         // state arena also contains later locals and the current initializer's
@@ -312,12 +313,23 @@ pub(in crate::symbols) fn assign_name_symbol(
                     .map(|parameter| parameter.symbol)
             });
         if let Some(symbol) = symbol {
-            expression_table.set_name_path_member_symbol_at_offset(path.member_symbols, 0, symbol);
+            let member_symbols = resolve_path_members_from_head(symbols, symbol, suffix);
+            let leaf = member_symbols
+                .last()
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid);
+            for (offset, member_symbol) in (0u32..).zip(member_symbols) {
+                expression_table.set_name_path_member_symbol_at_offset(
+                    path.member_symbols,
+                    offset,
+                    member_symbol,
+                );
+            }
             if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
                 expression_table.expression_mut(expression)
             {
                 path.head_symbol = symbol;
-                path.symbol = symbol;
+                path.symbol = leaf;
             }
             return;
         }
@@ -352,7 +364,7 @@ pub(in crate::symbols) fn assign_name_symbol(
             );
         }
     }
-    if symbol.is_valid()
+    if head_symbol.is_valid()
         && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
             expression_table.expression_mut(expression)
     {

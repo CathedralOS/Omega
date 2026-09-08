@@ -1,0 +1,13 @@
+use combat;
+use rooms;
+
+const SIZE: u64 = 1;
+data Buffer<const N: u64> { value: u8; }
+
+machine keep(value: Buffer<SIZE + 1>) -> Buffer<SIZE + 1> {
+    let local: Buffer<SIZE + 1> = value;
+    local
+}
+
+data Main {}
+machine Main::main(&mut self) {}

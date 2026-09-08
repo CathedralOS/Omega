@@ -1,0 +1,9 @@
+// A scalar constant is selected only where no nearer lexical binding exists.
+const PAGE_SIZE: u32 = 64;
+machine global() -> u32 { PAGE_SIZE }
+machine local() -> u32 {
+    let PAGE_SIZE: u32 = 1;
+    PAGE_SIZE
+}
+data Main {}
+machine Main::main(&mut self) {}

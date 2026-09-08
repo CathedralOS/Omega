@@ -73,6 +73,17 @@ pub fn lower_syntax_trees_with_sources_and_top_level_bindings(
     lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources), bindings)
 }
 
+/// Resolve raw index expressions in their authored owners through normal
+/// lexical selection. This performs no generic instance synthesis or evaluation;
+/// callers must still admit every selected leaf and checked operator meaning.
+pub fn lower_syntax_trees_for_const_argument_selection(
+    syntax: &SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    lower_syntax_trees_with_optional_sources(syntax, sources, bindings)
+}
+
 /// Append one already-parsed later-stratum syntax forest to an exact retained
 /// symbol-resolved base. Existing arenas and symbol tables are consumed and
 /// extended in place; no source bytes are read and neither forest is parsed
@@ -626,7 +637,7 @@ impl Lowerer {
             &self.pending_const_argument_selections,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        if self.defer_const_substitution {
+        {
             let retained_const_count = match &finish_mode {
                 FinishMode::Complete => 0,
                 FinishMode::Seeded { roots, .. } => roots.const_declarations,

@@ -226,13 +226,17 @@ fn free_constants_cannot_capture_measure_parameters_in_either_declaration_order(
         format!("{constant} {measure}"),
         format!("{measure} {constant}"),
     ] {
-        let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
-        let diagnostics = lower_syntax_trees(&syntax).expect_err("constant/binder collision");
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("collides with measure parameter `value`")),
-            "{diagnostics:#?}"
+        let program = resolve(&source);
+        let measure = program.measures.iter().next().expect("identity measure");
+        assert_parameter_forward(&program, measure);
+        let expressions = &program.tables.bodies.expressions;
+        let [body] = expressions.expression_handles(measure.body) else {
+            panic!("one parameter reference")
+        };
+        assert_eq!(
+            expressions.authored_selection_occurrences(*body).count(),
+            0,
+            "a measure parameter must not acquire constant-selection custody"
         );
     }
     let program = resolve(&format!("const Other::value: u64 = 5; {measure}"));

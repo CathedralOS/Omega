@@ -243,20 +243,15 @@ pub(super) fn build_symbol_table(
                 symbol_seed(SymbolKind::WireSchema, &wire_schema.name, has_sources)
             }))
             .chain(const_declarations.iter().map(|declaration| {
-                if has_sources {
-                    (
-                        SymbolKind::Const,
-                        SymbolNameRef::OwnedSource {
-                            value: declaration.semantic_name.as_str(),
-                            source_span: declaration.source_span,
-                        },
-                    )
-                } else {
-                    (
-                        SymbolKind::Const,
-                        SymbolNameRef::Borrowed(declaration.semantic_name.as_str()),
-                    )
-                }
+                // Exact declaration joins also run without a source-map owner.
+                // Retaining parser coordinates grants no package authority.
+                (
+                    SymbolKind::Const,
+                    SymbolNameRef::OwnedSource {
+                        value: declaration.semantic_name.as_str(),
+                        source_span: declaration.source_span,
+                    },
+                )
             })),
     );
     let mut root_children = SymbolTableBuilder::child_handles(root_children);

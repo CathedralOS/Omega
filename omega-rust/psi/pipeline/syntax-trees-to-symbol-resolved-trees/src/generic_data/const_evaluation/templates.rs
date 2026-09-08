@@ -223,65 +223,65 @@ pub(in crate::generic_data) fn collect_data_type_reference_positions(
     collect_owned_type_reference_positions(syntax, false, public_only)
 }
 
+fn collect(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    positions: &mut Vec<TypeReferenceHandle>,
+    include_domain_arguments: bool,
+) {
+    positions.push(type_reference);
+    match syntax.tables.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect(syntax, *referee, positions, include_domain_arguments)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            collect(syntax, *base_type, positions, include_domain_arguments);
+            // The legacy synthesis walk must not capture machine-domain
+            // locals. Original-scope discovery may visit these children,
+            // but its caller must resolve their lexical bindings first.
+            if !include_domain_arguments {
+                return;
+            }
+            for constraint in syntax.type_references.constraints(*constraints) {
+                if let TypeConstraintNode::Domain(domain) = constraint {
+                    for argument in syntax
+                        .type_references
+                        .type_reference_handles(domain.arguments)
+                    {
+                        collect(syntax, *argument, positions, include_domain_arguments);
+                    }
+                }
+            }
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            collect(syntax, *element_type, positions, include_domain_arguments)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in syntax
+                .tables
+                .type_references
+                .type_reference_handles(*arguments)
+            {
+                collect(syntax, *argument, positions, include_domain_arguments);
+            }
+        }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named(_)
+        | TypeReferenceNode::SelfType
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
 fn collect_owned_type_reference_positions(
     syntax: &SyntaxTrees,
     include_machines: bool,
     public_only: bool,
 ) -> Vec<TypeReferenceHandle> {
-    fn collect(
-        syntax: &SyntaxTrees,
-        type_reference: TypeReferenceHandle,
-        positions: &mut Vec<TypeReferenceHandle>,
-        include_domain_arguments: bool,
-    ) {
-        positions.push(type_reference);
-        match syntax.tables.type_references.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. } => {
-                collect(syntax, *referee, positions, include_domain_arguments)
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                collect(syntax, *base_type, positions, include_domain_arguments);
-                // Only concrete data owners have the closed lexical context
-                // admitted by the domain-index precursor. Machine domain
-                // arguments may refer to runtime locals or parameters.
-                if !include_domain_arguments {
-                    return;
-                }
-                for constraint in syntax.type_references.constraints(*constraints) {
-                    if let TypeConstraintNode::Domain(domain) = constraint {
-                        for argument in syntax
-                            .type_references
-                            .type_reference_handles(domain.arguments)
-                        {
-                            collect(syntax, *argument, positions, include_domain_arguments);
-                        }
-                    }
-                }
-            }
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => {
-                collect(syntax, *element_type, positions, include_domain_arguments)
-            }
-            TypeReferenceNode::Generic { arguments, .. } => {
-                for argument in syntax
-                    .tables
-                    .type_references
-                    .type_reference_handles(*arguments)
-                {
-                    collect(syntax, *argument, positions, include_domain_arguments);
-                }
-            }
-            TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Named(_)
-            | TypeReferenceNode::SelfType
-            | TypeReferenceNode::Unit => {}
-        }
-    }
-
     let mut positions: Vec<TypeReferenceHandle> = Vec::new();
     for item in syntax.root_items() {
         match item {
@@ -368,4 +368,62 @@ fn collect_owned_type_reference_positions(
         }
     }
     positions
+}
+
+/// Type owners admitted for original-scope machine constant selection. Public
+/// exposure belongs only to the entry signature, never local/state storage.
+pub(in crate::generic_data) fn collect_machine_type_reference_positions(
+    syntax: &SyntaxTrees,
+) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
+    let mut positions = Vec::new();
+    let mut public_positions = Vec::new();
+    for item in syntax.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        if !machine.type_parameters.is_empty() {
+            continue;
+        }
+        for (ordinal, state_handle) in syntax
+            .items
+            .state_handles(machine.states)
+            .iter()
+            .enumerate()
+        {
+            let state = syntax.items.state(*state_handle);
+            let start = positions.len();
+            collect(syntax, state.return_type, &mut positions, true);
+            for parameter in syntax.items.state_parameters(state.parameters) {
+                collect(
+                    syntax,
+                    syntax.items.state_parameter(*parameter).type_reference,
+                    &mut positions,
+                    true,
+                );
+            }
+            if ordinal == 0 && machine.is_public {
+                public_positions.extend_from_slice(&positions[start..]);
+            }
+            for statement in syntax.items.statements(state.statements) {
+                if let StatementNode::LocalData(local) = syntax.statements.statement(*statement) {
+                    collect(syntax, local.type_reference, &mut positions, true);
+                }
+            }
+        }
+    }
+    let concrete_expressions = super::concrete_machine_expression_handles(syntax);
+    for (handle, expression) in syntax.expressions.iter_expressions() {
+        if concrete_expressions.contains(&handle.arena_index())
+            && let ExpressionNode::Cast(cast) = expression
+        {
+            collect(syntax, cast.target_type, &mut positions, true);
+            for argument in syntax
+                .type_references
+                .type_reference_handles(cast.semantic_domain_arguments)
+            {
+                collect(syntax, *argument, &mut positions, true);
+            }
+        }
+    }
+    (positions, public_positions)
 }
