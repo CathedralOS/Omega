@@ -34,8 +34,11 @@ beside code; completed work belongs in Git, not current reference material.
   [storage](spec/resources/storage.md),
   [content custody](spec/resources/content_custody.md), and
   [placed access](spec/resources/placed_access.md).
-- Build products: [native products and component publication](spec/build/component_publication.md)
+- Build: [declarations and package identity](spec/build/declarations.md),
+  [native products and component publication](spec/build/component_publication.md)
   and [private callbacks](spec/build/private_callbacks.md).
+- Packages: [acceptance](spec/packages/acceptance.md) and the
+  [workflow guide](language_guide/packages.md).
 
 Only the migrated subjects above have specification owners so far.
 The [migration index](pre_migration/README.md) identifies the remaining source

@@ -55,4 +55,5 @@ Boundary and low-level topics:
 - [Chapter 21: Wire Protocols](chapter_21_wire_protocols.md)
 - [Chapter 22: Historical Data And Component Replacement](chapter_22_versioned_data.md)
 - [Chapter 23: Inline Assembly](chapter_23_inline_assembly.md)
+- [Using source packages](packages.md)
 - [Appendix: Open Questions](appendix_open_questions.md)
