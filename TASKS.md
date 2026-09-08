@@ -285,43 +285,29 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   mutable byte views still needs forwarding. Implement the checked line adapter
   over the settled native byte leaves; each target's `console_impl.omg` currently
   declares bodyless `read_line` instead.
-  Native byte input next needs sum-tag branching and payload transfer in
-  `target-operations-to-selected-instructions`, then actual byte/EOF execution.
-  Retain the connected read-result path as the regression floor:
+  Native byte input next needs actual byte/EOF execution on matching Linux
+  hosts, plus an admitted macOS read-byte realization. Retain the connected
+  case-selection path as the regression floor:
   `cargo nextest run -p compiler --test canary_suite
-  runtime_console_byte_read_return_catalog_replays_both_linux_targets
+  runtime_console_byte_inspection_replays_validated_cross_target_artifacts
   --no-fail-fast --no-tests fail` passes cross-emission and native artifact replay
-  on macOS ARM64 at `95d162cd33`; it does not execute Linux code.
-  At checkpoint `5cbcd1893d`, the same command with
-  `runtime_console_byte_inspection_replays_validated_cross_target_artifacts`
-  passes legalization and independent replay, then fails
-  `Selection(Selection(UnsupportedSourceShape { function: 0 }))` on Linux x64.
-  Extend `target-operations-to-selected-instructions/src/selection/read_result_input.rs`
-  and ordinary scalar-graph selection using the retained
-  `LegalizedScalarTerminator::StructuralCase`. The admitted read result has two
-  tags; existing conditional branches and edge-transfer blocks suffice.
-  Add explicit case-payload bindings and structural-observation temporaries,
-  not fabricated source values or a new ISA case opcode. Load only the selected
-  payload from its exact result home before no-code cleanup and destination
-  binding commit; retain the edge's fuel exactly once. Update independent
-  selection/edge-transfer replay, liveness and allocation connectors, and
-  identity/persistence readers together. The legalized definition belongs to
-  the destination block, not the boundary producer. Its exact graph, layout,
-  cleanup and fuel are already retained; multi-block return cleanup remains a
-  separate admission limit.
-  The same checkpoint's macOS `cli_mvp` probe above still stops at `read_line`.
-  `runtime_console_byte_sources_retain_checked_unit_plans_and_terminal_artifacts`
-  is the source-to-Terminal replay floor for literal output and byte inspection;
-  `runtime_console_byte_literal_linux_catalog_replays_both_targets` also passes.
-  On macOS ARM64, `runtime_console_byte_literal_exit_canary_runs` instead reaches
+  for Linux x64 and ARM64 on macOS ARM64 at `e4e59717f5`. The same command with
+  `runtime_console_byte_read_return_catalog_replays_both_linux_targets` preserves
+  uninspected result cleanup. Neither probe executes Linux code; no emulator or
+  running Linux VM was available. Execute the unchanged inspection fixture with
+  a byte (same byte on stdout, exit 70) and EOF (empty stdout, exit 70), then
+  retain a matching-host regression. Its selected-edge payload loads, exact
+  destination definitions, and once-only cleanup/fuel must survive publication.
+  Multi-block return cleanup remains a separate admission limit.
+  The same checkpoint's macOS `cli_mvp` probe above still stops at the missing
+  `Console::read_line` catalog identity. At `5cbcd1893d` on macOS ARM64,
+  `runtime_console_byte_literal_exit_canary_runs` reaches
   `native-artifact/src/physical/derivation.rs::derive_write_byte_child`, which
   requires ELF and rejects Mach-O with the Linux D41 settlement diagnostic.
-  These probes were run with the same scoped command on macOS ARM64; they do
-  not establish native execution. Preserve exact operation/result identity,
+  That output-provider gap also remains open. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
   results or replace the structural home with boundary scratch.
-  macOS still needs an admitted target-specific read-byte realization.
   Close this slice with the existing carrier round-trip and sequential-read
   native canaries, preserving capacity, overwrite, access, and alias checks.
 
