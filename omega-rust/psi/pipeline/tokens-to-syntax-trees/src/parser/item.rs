@@ -147,12 +147,10 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_contextual("abi") {
-        // RETIRED (calling_plans.md): a string names nothing checkable. The
-        // exported-callable surface is `boundary machine ...`; its calling
-        // plan is inferred from the image subsystem (an explicit plan arrives
-        // as `boundary(<Plan>)` with the calling-plan vocabulary).
+        // Boundary calling policy belongs to the satisfied requirement,
+        // not an ABI string or an image-subsystem inference.
         return Err(input.error_here(
-            "`abi \"...\"` is retired: declare the exported callable as `boundary machine ...` (calling plans are inferred from the image; see calling_plans.md)",
+            "`abi \"...\"` is retired: declare the exported callable as `boundary machine ...`; its satisfied requirement selects the calling policy (see wiki/spec/build/calling_plans.md)",
         ));
     }
 
