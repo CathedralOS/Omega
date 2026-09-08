@@ -138,8 +138,9 @@ machine Game::start_game(&mut self)
 A domain declaration states two independent kinds of establishment evidence:
 
 - `requires` contains propositions about `self`; all of them must be proved.
-- `established by` contains exact trait-requirement identities authorized to
-  establish membership. Its comma-separated entries are alternative routes.
+- `established by` contains exact trait-requirement or machine-declaration
+    identities authorized to establish membership. Its comma-separated entries
+    are alternative routes.
 
 For a predicate-only domain, proving every `requires` row establishes the
 structural qualification. For a domain with `established by`, those proofs are
@@ -163,20 +164,43 @@ It is private unless marked `pub`; it does not inherit visibility from its
 carrier. Conversely, publishing a domain does not publish a private carrier,
 and any public signature that names both must be able to name both.
 
-The `established by` clause does not execute those requirements. It authorizes
-their selected realizations to establish the domain at exact qualified subjects.
-Normally that subject is the requirement's result. A matching non-`self`
+The `established by` clause does not execute its targets. A requirement route
+authorizes valid selected conformers through that requirement; an exact-machine
+route authorizes only that declaration's invocation. Normally the established
+subject is the result. A matching non-`self`
 parameter may instead be introduced when the requirement is invoked as an
 installed external root. Every predicate obligation is checked at the
 established subject once; later uses consume the resulting guarantee rather
 than re-proving it.
 
-Because an `established by` entry carries no call signature, its requirement
-path must resolve uniquely. An overloaded short name is ambiguous and rejects; route
-resolution never inspects visible or selected conformances to choose one.
-Adding an overload can therefore break establishment clauses in other packages. This is
-the language-wide signature-free requirement-addressing rule, not a special
-domain rule.
+Because an `established by` entry carries no call signature, its target path
+must resolve uniquely. Ambiguity across overloads or declaration kinds rejects;
+an expected result or selected conformance cannot choose the target. Adding an
+overload can therefore break establishment clauses in other packages. The
+signature-free addressing rule retains whether the target is a requirement or
+an exact machine, rather than treating a satisfier as its requirement.
+
+A public domain can keep issuance private. For example, if `issue_reservation`
+names a private checked machine accessible to the domain author:
+
+```omega
+pub domain Reservation::Issued
+established by issue_reservation;
+```
+
+Its authorized result occurrence supplies provenance only after the carrier,
+predicates, and result/custody obligations are independently established. It
+cannot assume `Issued` to prove those obligations. Naming this concrete machine
+does not authorize other implementations of a trait it satisfies. A private
+trait requirement is another valid route for a public domain; its visibility
+prevents outside conformers. An open public trait deliberately permits them.
+
+The public interface retains exact private issuer identities for verification,
+not for downstream calls, conformance, or private-type access. A public wrapper
+may return an issued value without becoming a new issuer. Private is not secret,
+and neither this metadata exception nor an exact-machine route hides admissions
+or mints resource capacity. Public carriers, predicates, and ordinary signatures
+still obey their visibility rules.
 
 The same parameter remains an ordinary precondition when checked code calls
 the requirement directly. Direction comes from the installed external-root
@@ -198,7 +222,7 @@ verified finite capacity. Implementing or selecting the requirement is not
 itself the introduction event. The [content-custody contract](../spec/resources/content_custody.md#installed-introduction-schemas)
 owns occurrence cardinality, lifecycle leases, and cohort establishment.
 
-An empty declaration has neither predicate nor provenance obligations:
+A predicate-free, route-free declaration has no added membership obligations:
 
 ```omega
 domain i32::Km;
@@ -210,15 +234,16 @@ every package.
 
 A route changes that rule. Neither the domain-owning package nor any other
 code may manufacture `Reservation::Issued` with `as`; establishment must pass
-through one of the exact requirements named by the domain. Trait visibility
-controls who may conform, machine visibility controls who may invoke a
-conformer, and a boundary requirement additionally requires provider selection
+through one of the exact routes named by the domain. Trait visibility
+controls who may conform, machine visibility controls who may invoke the
+selected machine, and a boundary requirement additionally requires provider selection
 and admission. Public ordinary conformances are allowed when the domain author
 deliberately publishes an open checked route.
 
 `established by` belongs to the domain. A machine's `satisfies` clause realizes
 the named requirement; an external `via` payload supplies its foreign binding.
-These are separate relationships, not alternative domain declaration forms.
+These are separate relationships; naming an exact-machine route requires no
+artificial trait or additional `satisfies` declaration.
 
 Some compiler-owned domain classifications add closed semantic laws without
 changing representation. A progress profile is explicit:
@@ -836,14 +861,32 @@ granted by transport. Abstract codepoint text, when needed, is a mathematical
 ## Domains On Foreign Types
 
 A package may declare a domain over another package's carrier, for example
-`domain Entity::Quarantined requires ...;`. The extension is not an ambient
-addition to every user's namespace. Visible collisions with a case, domain,
-or machine of the same carrier-qualified name reject rather than applying an
-inherent-versus-extension priority.
+`domain Entity::Quarantined requires ...;`. The carrier owner need not approve
+that independent classification. It cannot change the carrier's invariants,
+expose private state, or alter another domain's minting routes.
 
-The exact import gate, optional owner restrictions, and reporting rules remain
-[undetermined](../spec/language/domains.md#visibility-and-foreign-declarations).
-Do not assume an orphan ban or invent a new import form.
+Use ordinary explicit imports. Importing the declaring module exposes its
+directly declared public domains in this source file; importing one domain
+exposes only it. No exposure spreads from sibling files, descendant modules, or
+transitive imports. Importing a carrier or one machine does not expose sibling
+domains merely because their source was loaded.
+
+An exact import such as `use ui_policy::screen::Point::OnScreen;` selects the
+domain owned by `ui_policy::screen`; its `Point` attachment was resolved in the
+declaring context to the exact carrier. Direct qualified selection exposes no
+sibling domains. Caller aliases cannot change the carrier or domain owner.
+
+Distinct visible declarations with the same carrier-qualified name reject,
+including carrier-owned declarations; neither inherent ownership nor import
+order wins. Repeated imports of one exact domain are not a collision. Broad
+imports can encounter new collisions as a module grows; narrow imports avoid
+unrelated additions. Diagnostics identify the owners and exposing imports.
+
+Importing enables selection, not membership or authority. A returned value may
+carry a foreign qualification and its evidence without importing it for authored
+lookup or exposing the package's other domains. See
+[foreign declarations](../spec/language/domains.md#visibility-and-foreign-declarations)
+and [import scope](../spec/language/modules.md#import-scope-and-exposure).
 
 ## No Hidden RTTI
 

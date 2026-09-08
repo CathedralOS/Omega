@@ -780,6 +780,16 @@ Owners include
   lookup to other already-loaded sources of the same exact dependency while
   retaining exact-source validation of each import.
 
+  Foreign-domain customers additionally need the settled
+  [file-local import exposure](wiki/spec/language/modules.md#import-scope-and-exposure)
+  and [exact attached paths](wiki/spec/language/modules.md#foreign-attached-declaration-paths).
+  Acceptance: broad imports expose only directly declared public domains; narrow
+  imports select one exact declaration; machine/carrier loading, sibling files,
+  descendants, and transitive imports do not activate extensions. Preserve the
+  declaring domain owner and resolved carrier independently; repeated exposure
+  of one identity is valid, competing carrier-qualified names reject with both
+  owners/imports, and carried qualifications do not grant source selection.
+
   Resume evidence: `cfaab01a51`, macOS arm64 with Cargo and
   `RUST_MIN_STACK=33554432`. Run
   `cargo run -p omega -- --check tests/omega/pass/modules/qualified_constant_indices/main.omg`:
@@ -792,6 +802,27 @@ Owners include
   and authored operator selections through evaluation before removing those
   fences. Preserve declared carriers, lexical precedence, per-use exposure
   under nested specialization, and package-authority controls.
+
+- **DOMAIN-ISSUER-ROUTES.** Implement the
+  [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
+  and [private issuer catalogs](wiki/spec/resources/authority.md#private-issuer-routes)
+  for public qualifications issued by owner-selected validators without an
+  artificial trait. Psi route normalization, checked membership, and Terminal
+  qualification evidence own target-kind/identity and exact result introduction;
+  package source-selection capture owns the limited private-route metadata
+  exception. Module-owned targets depend on MODULE-NAMESPACE-RESOLUTION; do not
+  weaken its existing rejection fences to accept same-spelled identities.
+
+  Acceptance: exact free/attached issuer calls establish only their authorized
+  result provenance after carrier/predicate/custody checks; public ordinary
+  requirements still permit valid downstream conformers. Public domains may name
+  author-accessible private machines/requirements, and public wrappers forward
+  issued values without becoming issuers. Reject ambiguous target kinds/overloads,
+  self-justifying membership, forged result/route evidence, direct-call borrowing
+  of admitted requirement authority, and outside private call/conformance access.
+  Artifact/package replay retains exact private issuer identity and dependencies
+  without exposing private types or hiding admissions. Resource capacity and
+  classification-specific boundary-route restrictions remain unchanged.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled

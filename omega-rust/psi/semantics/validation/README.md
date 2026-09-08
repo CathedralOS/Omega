@@ -4,6 +4,22 @@ Start at [lib.rs](src/lib.rs). Source automation must preserve the
 [mathematical proof contract](../../../../wiki/spec/proofs/contracts.md) and
 feed the separately reconstructed [Terminal questions](../../../../wiki/spec/terminal-psi/verification.md).
 
+## Domain issuer migration
+
+The [establishment contract](../../../../wiki/spec/resources/authority.md#establishment-routes)
+permits exact machine routes and public-domain catalogs containing private issuer
+requirements or machines. This does not describe completed compiler support.
+Source route normalization, result-provenance checking, package exposure, and
+artifact evidence must migrate together under `DOMAIN-ISSUER-ROUTES` on the
+[execution board](../../../../TASKS.md). Existing requirement-only and private-route
+rejections are implementation limits, not the settled language rule.
+
+An exact issuer result must discharge carrier, predicate, and ordinary custody
+obligations before route provenance is introduced. Qualification cannot prove
+itself. Open requirement routes, boundary admission, installed parameter subjects,
+resource conservation, and classification-specific restrictions keep their own
+rules; a machine route is not blanket trust or a new capacity origin.
+
 ## Source proof automation
 
 [contract_entailment.rs](src/contract_entailment.rs) handles a bounded contract
