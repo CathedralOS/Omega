@@ -202,7 +202,22 @@ fn receiver_place(
         return None;
     }
     let site = crate::find_call_site(program, machine, state, statement_index, call_ordinal)?;
-    crate::flow::canonical_receiver_place_for_call_site(program, machine, state, &site)
+    let mut place =
+        crate::flow::canonical_receiver_place_for_call_site(program, machine, state, &site)?;
+    let authored_machine = program
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)?;
+    let authored_state = crate::find_state_in_machine(program, machine, state)?;
+    if let Some(aliases) =
+        receiver_aliases::prefix(program, facts, authored_machine, authored_state)
+        && let Some(alias) = aliases
+            .iter()
+            .find(|alias| place.root == facts::PlaceRoot::Symbol(alias.owner))
+    {
+        place.root = facts::PlaceRoot::Symbol(alias.root);
+    }
+    Some(place)
 }
 
 fn is_self_root(

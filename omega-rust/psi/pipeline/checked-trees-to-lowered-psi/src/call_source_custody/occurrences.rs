@@ -32,6 +32,7 @@ pub(crate) fn validate(
                     checked,
                     caller_machine,
                     caller_state,
+                    coordinate.statement_index as usize,
                     authored.receiver,
                 )?
                 .stamp

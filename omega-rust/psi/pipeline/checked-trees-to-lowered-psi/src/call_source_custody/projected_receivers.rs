@@ -8,19 +8,30 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+mod aliases;
+
 pub(crate) struct ReceiverSource {
     pub(crate) root: SymbolHandle,
     pub(crate) path: Vec<CheckedUnitStructuralPathSegment>,
     pub(crate) stamp: SymbolHandle,
+    erased_alias: bool,
 }
 
 pub(crate) fn source(
     checked: &CheckedTrees,
     caller: SymbolHandle,
     state: SymbolHandle,
+    statement_index: usize,
     expression: ExpressionHandle,
 ) -> Result<ReceiverSource, LoweringError> {
-    resolve_source(checked, caller, state, expression, true)
+    resolve_source(
+        checked,
+        caller,
+        state,
+        expression,
+        true,
+        Some(statement_index),
+    )
 }
 
 /// Assignment targets can retain a declared parameter field without stamping
@@ -31,7 +42,7 @@ pub(crate) fn store_destination(
     state: SymbolHandle,
     expression: ExpressionHandle,
 ) -> Result<ReceiverSource, LoweringError> {
-    resolve_source(checked, caller, state, expression, false)
+    resolve_source(checked, caller, state, expression, false, None)
 }
 
 fn resolve_source(
@@ -40,6 +51,7 @@ fn resolve_source(
     state: SymbolHandle,
     expression: ExpressionHandle,
     require_endpoint_stamp: bool,
+    statement_index: Option<usize>,
 ) -> Result<ReceiverSource, LoweringError> {
     let (machine, state) = crate::scalar_source_custody::authored_state(checked, state)?;
     if machine.symbol != caller {
@@ -49,6 +61,7 @@ fn resolve_source(
     let mut path = Vec::new();
     let mut visited = Vec::new();
     let mut stamp = SymbolHandle::invalid();
+    let mut erased_alias = false;
     let root = loop {
         if !checked.expression_table.expression_is_valid(cursor) || visited.contains(&cursor) {
             return unsupported("projected receiver has a stale or cyclic source");
@@ -163,6 +176,18 @@ fn resolve_source(
                 }) {
                     break parameter.symbol;
                 }
+                if let Some(statement_index) = statement_index
+                    && let Some(root) = aliases::parameter_root(
+                        checked,
+                        machine.symbol,
+                        state.symbol,
+                        statement_index,
+                        name.symbol,
+                    )?
+                {
+                    erased_alias = true;
+                    break root;
+                }
                 let field = validation::exact_attached_field(
                     &checked.typed,
                     machine,
@@ -193,7 +218,12 @@ fn resolve_source(
         }
     };
     path.reverse();
-    Ok(ReceiverSource { root, path, stamp })
+    Ok(ReceiverSource {
+        root,
+        path,
+        stamp,
+        erased_alias,
+    })
 }
 
 fn field_segment(field: &checked_trees::data::DataField) -> CheckedUnitStructuralPathSegment {
@@ -203,6 +233,89 @@ fn field_segment(field: &checked_trees::data::DataField) -> CheckedUnitStructura
             .map(|identity| format!("#{identity}"))
             .unwrap_or_else(|| field.name.as_str().to_owned()),
     )
+}
+
+/// Statement calls retain the root and endpoint symbols, with the intervening
+/// field spellings. Resolve that suffix beneath the already-replayed alias
+/// declaration using the same exact field owner as expression receivers.
+fn statement_alias_source(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    call: &checked_trees::statement::TableCall,
+    root: SymbolHandle,
+) -> Result<ReceiverSource, LoweringError> {
+    let members = checked.statement_table.name_path_members(call.receiver);
+    let local = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            checked_trees::statement::StatementNode::LocalData(local)
+                if local.symbol == call.receiver_root_symbol =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .ok_or(LoweringError::Unsupported(
+            "receiver alias statement lost its declaration",
+        ))?;
+    if members.first() != Some(&local.name) || !call.receiver_symbol.is_valid() {
+        return unsupported("receiver alias statement changed its root or endpoint identity");
+    }
+    let mut reference = local.type_reference;
+    let mut endpoint = local.symbol;
+    let mut path = Vec::new();
+    for (position, member) in members.iter().enumerate().skip(1) {
+        let nominal = validation::unwrapped_type_reference(&checked.typed, reference).ok_or(
+            LoweringError::Unsupported("receiver alias field lost its nominal type"),
+        )?;
+        let TypeReferenceNode::Named { symbol, .. } =
+            checked.type_reference_table.type_reference(nominal)
+        else {
+            return unsupported("receiver alias field has no declared record owner");
+        };
+        let owner = checked
+            .data_definitions()
+            .iter()
+            .find(|owner| owner.symbol == *symbol)
+            .ok_or(LoweringError::Unsupported(
+                "receiver alias field owner is absent",
+            ))?;
+        // Intermediate field symbols are not separately retained by TableCall.
+        // Its exact nominal owner must select one field, and the final field
+        // must additionally match the captured receiver endpoint.
+        let retained = if position + 1 == members.len() {
+            call.receiver_symbol
+        } else {
+            SymbolHandle::invalid()
+        };
+        let field = validation::exact_data_member_field(
+            &checked.typed,
+            owner,
+            retained,
+            member.as_str(),
+            None,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "receiver alias field disagrees with its declaration",
+        ))?;
+        if field.relevance.is_erased() {
+            return unsupported("receiver alias cannot select an erased field");
+        }
+        path.push(field_segment(field));
+        reference = field.type_reference;
+        endpoint = field.symbol;
+    }
+    if endpoint != call.receiver_symbol {
+        return unsupported("receiver alias statement changed its captured endpoint");
+    }
+    Ok(ReceiverSource {
+        root,
+        path,
+        stamp: endpoint,
+        erased_alias: true,
+    })
 }
 
 pub(crate) fn validate(
@@ -220,19 +333,6 @@ pub(crate) fn validate(
         return Ok(());
     };
     let authored = super::authored::locate_source(checked, caller.state, *coordinate)?;
-    let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = authored.source_site
-    else {
-        return Ok(());
-    };
-    let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
-        return unsupported("receiver call lost its authored expression");
-    };
-    if !matches!(
-        checked.expression_table.expression(call.receiver),
-        ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
-    ) {
-        return Ok(());
-    }
     let mut targets = target_parameters
         .iter()
         .enumerate()
@@ -242,7 +342,48 @@ pub(crate) fn validate(
         // No implicit operand remains to grant storage or borrow authority.
         return Ok(());
     };
-    let source = source(checked, caller.machine, caller.state, call.receiver)?;
+    let source = match authored.source_site {
+        Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
+            let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
+                return unsupported("receiver call lost its authored expression");
+            };
+            if !matches!(
+                checked.expression_table.expression(call.receiver),
+                ExpressionNode::Indexed(_) | ExpressionNode::Member(_) | ExpressionNode::Name(_)
+            ) {
+                return Ok(());
+            }
+            source(
+                checked,
+                caller.machine,
+                caller.state,
+                coordinate.statement_index as usize,
+                call.receiver,
+            )?
+        }
+        Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
+            let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+            let Some(checked_trees::statement::StatementNode::Call(call)) = checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(coordinate.statement_index as usize)
+            else {
+                return unsupported("receiver alias lost its authored statement call");
+            };
+            let Some(root) = aliases::parameter_root(
+                checked,
+                caller.machine,
+                caller.state,
+                coordinate.statement_index as usize,
+                call.receiver_root_symbol,
+            )?
+            else {
+                return Ok(());
+            };
+            statement_alias_source(checked, state, call, root)?
+        }
+        None => return Ok(()),
+    };
     let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
     let position = checked
         .state_parameters(state)
@@ -264,6 +405,8 @@ pub(crate) fn validate(
             "projected receiver operand is absent",
         ))?;
     if targets.next().is_some()
+        || (source.erased_alias
+            && target.access != checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
         || argument.source_parameter_index() != u32::try_from(parameter).ok()
         || argument.path != source.path
         || argument.type_identity != target.type_identity
