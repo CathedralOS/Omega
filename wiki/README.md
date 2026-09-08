@@ -24,6 +24,7 @@ beside code; completed work belongs in Git, not current reference material.
   [named conformances](spec/language/conformances.md),
   [generic applications](spec/language/generics.md),
   [termination and progress](spec/language/termination.md),
+  [process exit and abandonment](spec/language/process_exit.md),
   [domains and qualification](spec/language/domains.md),
   [value-dependent facts and views](spec/language/dependent_values.md),
   [service reach and operational ceilings](spec/language/effects.md),

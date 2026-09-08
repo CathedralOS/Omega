@@ -71,6 +71,13 @@ cases need not choose the same disposition: success may consume an input while
 failure returns it, provided each case satisfies its exact published contract.
 A path cannot consume an obligation and also return it or silently omit it.
 
+[Process exit](process_exit.md#abandonment-and-survivors) explicitly ends its
+bound domain with abandonment, including outstanding linear obligations. It is
+not an ordinary consumer or proof of release. No post-exit frontier merges into
+a returning branch, and no successful disposition receipt is fabricated.
+Cross-domain survivor guarantees still require their specified evidence;
+domain-ending authority cannot waive them.
+
 Partial moves retain unselected siblings and make ancestors unavailable for
 whole-value use or disposal. Transparent child paths do not duplicate a nominal
 root obligation. They cannot evade a nominal cleanup hook's whole-value
@@ -125,16 +132,18 @@ Ownership is determined by the receiver type: bare `self` is owned; `&self` and
 annotation and no inference from the method's name.
 
 A call returning an outcome containing the obligation transfers it back. A
-terminal outcome without it requires its authorized disposition within the
+normal return without it requires its authorized disposition within the
 callee. Pending or failure outcomes of incomplete consuming operations retain
 the live input rather than discard it. A borrowed-receiver call cannot silently
 become an owned consumer.
 
 Affine ownership permits eligible automatic cleanup. Linear ownership permits
 it only when the type owner declares that exact plan as a valid terminal
-disposition. The hook must be terminating, infallible, nonblocking,
+disposition. The hook must return normally and be infallible, nonblocking,
 non-suspending, free of abnormal outcomes, and require no runtime authority
-beyond its receiver. The compiler begins consumption before temporarily lending
+beyond its receiver. Termination alone is insufficient: the transitive hook
+contract must exclude process exit as well as crashes. The compiler begins
+consumption before temporarily lending
 `&mut self` to the hook; this is not consumption by an ordinary borrowed call.
 [Nominal cleanup](../terminal-psi/ownership.md#nominal-cleanup) owns the reserved
 `T::drop` edge and ordinary consuming early-disposal call.

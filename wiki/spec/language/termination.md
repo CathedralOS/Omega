@@ -7,6 +7,19 @@ a particular result, fairness, wakeup, deadlines, no suspension, or no blocking.
 not prove that edge is reached. [Effects](effects.md) independently constrains
 possible suspension, blocking, and crashes.
 
+Permitted endpoints include normal return, a covered crash, and the canonical
+[process-exit transfer](process_exit.md). The promise authorizes none of them;
+crash contracts and service reach/capability requirements remain independent.
+A machine that conditionally exits and otherwise returns can satisfy
+`terminates` when every admitted path has the required progress. An exit leaf
+needs no further cycle decrease, but its operands and preceding calls still
+require progress. Excluding crashes and all external-terminal services together
+with termination establishes normal return under the stated premises.
+
+An exit does not establish a normal-return `ensures` clause and does not
+necessarily violate it. Unconditional eventual-disposition guarantees must
+account for terminal outcomes separately; ranking alone does not prove release.
+
 ## Published guarantees and private witnesses
 
 The source clause family separates a public promise from implementation evidence:

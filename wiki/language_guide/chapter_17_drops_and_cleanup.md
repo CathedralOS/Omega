@@ -17,6 +17,8 @@ The core rules are:
 - Moving a value transfers its obligation.
 - Every ordinary outgoing edge carries a checked cleanup plan.
 - A crash is not an ownership-graph edge and performs no cleanup.
+- A canonical process exit abandons its domain without cleanup or discharge
+  claims; it does not weaken accounting on ordinary continuing/returning paths.
 - Cleanup remains visible in semantic, proof, debug, and resource artifacts.
 
 ## Cleanup Machines
@@ -51,11 +53,15 @@ consumption.
 The hook may call ordinary machines and carry declared service reach, but
 automatic cleanup is always:
 
-- terminating;
+- guaranteed to return normally;
 - infallible;
 - non-suspending;
 - nonblocking; and
 - free of abort, trap, or another abnormal outcome.
+
+`terminates` alone is insufficient: the transitive cleanup contract must also
+exclude [process exit](../spec/language/process_exit.md). An exit could prevent
+the remaining cleanup sequence despite being terminating and non-crashing.
 
 These restrictions, not multiplicity alone, determine whether a linear type
 can authorize automatic cleanup. The disposition must be expressible using the

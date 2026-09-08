@@ -73,9 +73,17 @@ widen the supported candidate-body, claim, content, or crash-contract vocabulary
 
 Execution transfers actual input custody through the ordinary structural-call
 continuation and establishes the caller's result only after the selected
-provider's successful, fuel-charged return. Suspension does not repeat the call
+provider's successful, fuel-charged normal return. Suspension does not repeat the call
 or invoke a host result fabricator. Projected consumers keep the same residual
 complement and cleanup obligations as ordinary calls.
+
+The canonical [process-exit requirement](../language/process_exit.md) instead
+retains a closed external completion with no normal result. Conformance must
+preserve its exact terminal identity, arguments, and progress contract. A
+returning, divergent, or aborting provider is not a substitute merely because
+its signature or reach matches. Exit produces no successful-disposition receipt
+for abandoned obligations. A simulator terminates the bound simulated domain,
+not its embedding host. Conditional ordinary helpers retain their return paths.
 
 For projected claim transfer, replay the exact record/fixed-array argument path,
 completion receipt, and complete caller claim-source catalog. The provider's
@@ -167,9 +175,13 @@ roles reject. Retain complete admitted settlement content for later replay;
 a commitment alone cannot reconstruct it.
 
 Physical nonreturning behavior does not itself prove source-semantic successful
-external termination. That observation needs an explicit boundary/Terminal
-terminal-effect identity. Likewise, image bytes and provider selection do not
-by themselves establish executable publication.
+external termination. That observation needs the exact canonical ProcessExit
+requirement's explicit boundary/Terminal completion and effect identity, not a
+separate provider-selected name. A containment trap after an unexpectedly
+returning native exit does not authorize a source crash; it contains a violated
+provider premise. Exact semantic exit arguments remain separate from the target's
+physical status presentation. Likewise, image bytes and provider selection do
+not by themselves establish executable publication.
 
 ## Operator applications and physical children
 

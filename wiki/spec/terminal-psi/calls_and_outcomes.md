@@ -6,7 +6,7 @@
 
 ## Normal results
 
-A machine declares exactly one normal result form:
+A machine admitting normal return declares exactly one normal result form:
 
 | Form | Semantic result |
 | --- | --- |
@@ -51,6 +51,9 @@ own invocation's requirements; the argument's arithmetic obligations precede the
 call obligation.
 
 Normal guarantees refer to the actual result and appropriate parameter versions.
+They apply only on normal return; external exit neither establishes them nor
+necessarily violates them. A no-normal-result terminal transfer publishes no
+fictional result or normal-return guarantee.
 The reserved result occurrence belongs to its contract owner, not any local or
 parameter spelled `result`. Declared requirements and published crash routes
 describe invocation entry. Reassigned storage and earlier immutable snapshots
@@ -129,6 +132,25 @@ the exit. Logical-work analysis composes their invocations.
 Lowering and publication preserve action order and call ownership. A no-code
 disposition produces no target instruction. Register-held results alone are not
 persistent storage for a later projected use.
+
+## External process exit
+
+The canonical [process-exit requirement](../language/process_exit.md) carries
+an explicit closed external completion kind and no normal result. Its invocation
+is a terminal transfer retaining the exact requirement and ordered arguments,
+with no normal successor, return postconditions, or implicit cleanup.
+The verifier reconstructs its terminal-external observation independently.
+
+An ordinary helper that conditionally exits still has a normal continuation
+when it returns. The verifier checks the returning branch's result and cleanup
+without joining a fictional frontier from the exit branch. Reach ceilings
+propagate exit permission; they are neither guaranteed exit nor outcome guards.
+
+Exit abandons the bound domain, including outstanding linear obligations,
+without successful-disposition receipts. Retained local frontier evidence is
+only a lower bound; survivor guarantees require their crossing evidence. Normal
+entry return must still settle or legally transfer task/resource custody under
+the root/runtime contract, even when physical completion uses an exit syscall.
 
 ## Suspension
 

@@ -37,6 +37,21 @@ Recoverable failure and cancellation are result
 sums, not `fails` clauses. Resource capacity follows explicit capabilities and
 dependent contracts, not a `budget` or quantitative service member.
 
+## Process-exit reach
+
+The canonical core [ProcessExit boundary](process_exit.md) contributes ordinary
+`reaches ProcessExit` demand. Calls and providers propagate it through the same
+conservative ceilings as other services. The ceiling permits exit; actual
+domain-bound capability authority is still required. Console I/O alone grants
+neither, and importing core or selecting a provider creates no authority.
+
+The exact exit requirement defines a non-crashing terminal transfer with no
+normal result or successor. A helper that may exit retains its normal
+continuation when it returns. Reach alone supplies neither a guaranteed exit
+nor a guarded guarantee of return. `terminates` independently excludes
+divergence under its premises; it does not authorize an endpoint. No completion
+keyword or second effect row is introduced.
+
 ## Recoverable outcomes and strict use
 
 Recoverable failure is an ordinary result sum, not a second control-flow system
@@ -200,6 +215,11 @@ Recoverable outcomes follow ordinary cleanup-bearing edges. There is no implicit
 unwind; any future unwinding or resumable-fault protocol requires explicit graph
 edges, cleanup and proof obligations. Graceful shutdown remains ordinary cleanup
 followed by its selected exit operation.
+
+The same survivor-contract requirements apply to non-crashing
+[process-exit abandonment](process_exit.md#abandonment-and-survivors).
+Permission to end a domain cannot waive safety guarantees relied upon by
+surviving components. Process exit is a distinct outcome, not an `Abort` route.
 
 ## Published identity and installation rows
 

@@ -83,8 +83,13 @@ only the exact disjoint residual. Generated bridge code remains subject to
 portable demand checking. A freestanding schema may deliberately expose image
 and initial-storage roots as parameters; hosted source sees neither by default.
 
-The bridge runs ordinary receiver cleanup on normal return and accounts for
-abandonment through the ordinary crash frontier otherwise. A non-ZII-valid
+The bridge runs ordinary receiver cleanup on normal return. A crash retains its
+crash frontier; a canonical [process exit](../language/process_exit.md) instead
+retains the distinct external terminal outcome and abandonment contract.
+Returning from the entry does not establish that other activations were settled:
+the root/runtime contract must settle or legally transfer outstanding task and
+resource custody before physical completion. The result map cannot conceal
+abandonment behind the same exit syscall. A non-ZII-valid
 receiver rejects; a free entry may instead explicitly construct state from the
 resources in its schema. Other roots, tasks, and handlers obtain access only
 through explicit ordinary capability transfer, borrowing, or synchronized sharing.

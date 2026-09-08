@@ -25,8 +25,12 @@ and compares the decoded profile exactly.
 
 The current encoder writes the terminal-external group with zero count; the
 decoder rejects a nonzero count. That is an implementation fence, not an assertion
-that the semantic trace excludes successful external termination. Source
-completion declarations remain an owner question before that route can be built.
+that the semantic trace excludes successful external termination. The
+[canonical ProcessExit contract](../../../../wiki/spec/language/process_exit.md)
+settles requirement-owned completion identity without a new source keyword.
+The [source-to-verifier migration](../../../../TASKS.md#process-exit-contract)
+remains unimplemented; nonzero rows must continue to reject until that route
+retains and independently verifies the exact terminal transfer.
 Scalar and whole-root structural comparison helpers provide value comparison
 only, not trace construction or refinement evidence.
 

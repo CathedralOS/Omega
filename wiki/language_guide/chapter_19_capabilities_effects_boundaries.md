@@ -274,11 +274,41 @@ acyclic: adding a wrapper does not break a cycle, while a queue or genuine new
 activation can. Root admission separately checks the concrete future handler.
 See [callback lifetime](../spec/build/private_callbacks.md#registration-and-lifetime).
 
-A nonreturning native operation is not automatically successful external
-termination. `never`, a Unit `exit_process` declaration, or an exit syscall cannot
-distinguish success from crash or divergence. The semantic distinction is settled,
-but its authored completion declaration and effect-identity ownership remain
-[undetermined](../spec/terminal-psi/observations.md#successful-external-termination-source-form-undetermined).
+## Process Exit
+
+The canonical core `ProcessExit` boundary service separates process-exit authority
+from console I/O. `reaches ProcessExit` permits an API to invoke exit, including
+through helpers; the API still needs actual authority bound to its process
+domain. Importing core or selecting a provider grants none. Output-only code
+does not need exit authority. Targets without a process abstraction do not
+supply this service.
+
+`terminates` promises eventual arrival at a permitted endpoint under the
+invocation's premises, not necessarily return to the caller. A machine may
+conditionally exit and otherwise return. It publishes the conservative reach
+ceiling, but only the exit branch has no continuation. Returning branches retain
+their normal results, postconditions, and cleanup. An imported reach ceiling
+alone cannot establish which arguments guarantee return.
+
+The exact `ProcessExit::exit_process(return_code: i32)` requirement defines a
+non-crashing terminal transfer ending the bound process and its activations.
+It has no normal result or implicit unwind. Outstanding obligations, including
+linear ones, are abandoned, not discharged; external survivor guarantees still
+require their crossing contracts. A zero status proves no cleanup or protocol
+success. A normal-return `ensures` is neither established nor necessarily
+violated by exit.
+
+Graceful shutdown remains ordinary cleanup and explicit task/resource settlement
+followed by entry return. The entry bridge cannot conceal unfinished custody.
+Automatic cleanup must return normally and cannot transitively permit exit.
+
+No `completes` keyword or public `never` type is needed. The compiler must retain
+the canonical requirement's terminal meaning and exact arguments through
+checking, provider selection, and verification. A returning mock, divergent
+provider, or abort is not an exit implementation; an interpreter instead ends
+its simulated process. See the [process-exit contract](../spec/language/process_exit.md)
+for the settled semantics and implementation boundary. The current Unit console
+call and native syscall alone do not yet establish that portable observation.
 
 ## Capabilities And Authority Flow
 

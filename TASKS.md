@@ -48,6 +48,30 @@ tables, schedulers, process tables, timer queues, or drivers as compiler-owned
 Rust models. Compiler validation and code generation may consume general plans;
 they must not acquire customer-shaped semantic types or lifecycle protocols.
 
+## Process-exit contract
+
+Implement the [canonical process-exit contract](wiki/spec/language/process_exit.md)
+for CLI programs that deliberately exit, including conditional exits through
+helpers. Core must declare the exact `ProcessExit::exit_process(i32)` requirement
+and separate its authority/reach from console I/O. Psi owns canonical recognition,
+checking, conditional control and ownership, Terminal completion, codec,
+independent verification, observation, and interpreter support. Omega owns
+provider conformance and realization; targets supply domain-bound authority and
+physical exit under the same contract. Preserve the current trace distinction;
+do not infer terminal meaning from the transitional Unit call or a native syscall.
+
+Acceptance: source-produced unconditional and conditional exit cases retain
+exact requirement/argument identity through canonical replay and target
+realization. Returning branches retain cleanup and postconditions; exit branches
+abandon without discharge receipts. Reject missing authority/reach, lookalike
+requirements, returning or aborting substitutes, unmet progress premises, exit
+from automatic cleanup, and unsupported survivor contracts. Root return cannot
+hide unfinished task custody. The interpreter ends only its simulated domain;
+native tests on each available host preserve status mapping and ordered output,
+with unavailable-host coverage explicit. Tampered identity, arguments, completion
+rows, or provider evidence reject independently. General completion syntax and
+other terminal services are not prerequisites.
+
 ## Immediate product closure
 
 These are the next product-level priorities for the maintained Rust

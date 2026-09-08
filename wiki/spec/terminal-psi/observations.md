@@ -80,25 +80,34 @@ support; a comparison helper does not construct a trace or issue refinement.
 A digest cannot silently replace semantic value equality. Its use as a compact
 coordinate requires an explicit commitment/collision admission.
 
-## Successful external termination: source form undetermined
+## Process exit observations
 
-Successful external termination is a source-semantic effect. A `never` result
-proves only no normal return and cannot distinguish success from crash or
-divergence. The checked boundary and Terminal declaration must retain an explicit
-closed completion kind and effect identity; invocation is a terminal transfer,
-not an ordinary call with a fictional successor. Providers and backends consume
-that fact, never infer it from spelling, selected implementation, or syscall.
+The [process-exit contract](../language/process_exit.md) supplies the canonical
+core `ProcessExit` boundary requirement, domain-bound authority, ordinary reach
+propagation, and non-crashing external terminal outcome. The exact canonical
+requirement owns its public effect identity; provider selection preserves it.
+No separate effect name, completion keyword, or public bottom type is required.
 
-The semantic requirement is settled. The authored declaration of that completion
-kind and the ownership/resolution of its effect identity are **undetermined**.
-The [external-completion question](../../../OWNER_QUESTIONS.md#q1--terminal-external-completion-declarations)
-asks for those source rules. The internal contract's descriptive
-`TerminatesExternally(effect_identity)` name is not approved source syntax.
+Checking and Terminal declarations retain an explicit closed completion kind;
+invocation is a terminal transfer with exact arguments and no normal result or
+successor, not an ordinary Unit call. A helper that only conditionally exits
+retains its normal continuation when it returns. The static reach ceiling is
+not an unconditional terminal event, nor a guard describing when exit occurs.
+Providers and backends consume the retained fact, never infer it from spelling,
+selected implementation, or syscall.
 
-Until that source-to-Terminal route is defined and implemented, an ordinary Unit
-`exit_process` call or a provider's nonreturning native operation establishes no
-terminal-external observation. Unsupported terminal-external rows reject; do
-not fill them from interpreter name matching or backend behavior.
+The exit event preserves the preceding ordered events and exact semantic `i32`
+status. Host status presentation cannot weaken argument comparison. Successful
+external termination establishes neither zero status nor cleanup or discharge
+of abandoned obligations. Interpreter exit ends the simulated domain, not the
+embedding process. A native containment trap after a violated provider premise
+is not a permitted substitute terminal event.
+
+The source-to-Terminal route remains unimplemented. An ordinary Unit
+`Console::exit_process` call or a provider's nonreturning native operation still
+establishes no terminal-external observation. Unsupported rows reject until
+the [implementation task](../../../TASKS.md#process-exit-contract) closes; do
+not populate them from interpreter name matching or backend behavior.
 
 ## Other observation domains
 
