@@ -263,17 +263,9 @@ fn state_symbol_in_any_machine(
     program: &typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
-    if target_symbol.is_valid()
-        && program
-            .machines()
-            .iter()
-            .flat_map(|machine| program.machine_states(machine).iter())
-            .any(|state| state.symbol == target_symbol)
-    {
-        return target_symbol;
-    }
-
-    SymbolHandle::invalid()
+    crate::find_state(program, target_symbol)
+        .map(|state| state.symbol)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 /// `target_symbol` when it is a machine signature of ANY trait in the program
