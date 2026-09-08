@@ -1,4 +1,5 @@
 use super::*;
+use crate::flow::mutation::close_storage_places_over_aliases_with_resolver;
 
 pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) post_contexts: HandleSpan<FlowSemanticContextRef>,
@@ -23,12 +24,13 @@ pub(in crate::flow) fn call_storage_writes(
         &ctx.state_mutation_summary_cache,
     )
     .and_then(|places| {
-        close_storage_places_over_aliases(
+        close_storage_places_over_aliases_with_resolver(
             program,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
             places,
+            ctx.call_frames,
         )
     })
 }

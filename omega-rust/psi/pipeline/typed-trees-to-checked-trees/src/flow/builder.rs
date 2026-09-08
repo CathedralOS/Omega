@@ -38,6 +38,13 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     // derived contexts. Inputs join immediately so source-ordered chains need
     // no pass per edge. A changed input can only weaken, never regain a value.
     let baseline = semantic.clone();
+    // Symbol preparation depends on the immutable program, not the changing
+    // incoming value facts. Prefix origins still resolve at each exact site.
+    let call_frames = if borrow.calls.is_empty() {
+        None
+    } else {
+        validation::CallFrameResolver::new(program)
+    };
     let mut inputs = Vec::new();
     // Each state becomes reachable once; each formal can acquire a constant
     // then lose it to unknown once. Include one pass to observe convergence.
@@ -57,7 +64,13 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         if pass != 0 {
             *semantic = baseline.clone();
         }
-        let mut ctx = FlowBuildContext::new(borrow, proof, semantic, scalar_expressions);
+        let mut ctx = FlowBuildContext::new(
+            borrow,
+            proof,
+            semantic,
+            scalar_expressions,
+            call_frames.as_ref(),
+        );
         ctx.state_value_inputs = inputs;
         for machine in program.machines() {
             for state in program.machine_states(machine) {
@@ -81,7 +94,13 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     }
     // No provisional input fact survives a nonconvergent graph.
     *semantic = baseline;
-    let mut ctx = FlowBuildContext::new(borrow, proof, semantic, scalar_expressions);
+    let mut ctx = FlowBuildContext::new(
+        borrow,
+        proof,
+        semantic,
+        scalar_expressions,
+        call_frames.as_ref(),
+    );
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
     ctx.state_value_inputs = super::state_values::unknown_inputs(program);

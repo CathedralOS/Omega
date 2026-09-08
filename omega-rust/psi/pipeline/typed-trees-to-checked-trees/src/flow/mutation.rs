@@ -6,6 +6,7 @@ mod receiver;
 mod summary;
 
 pub(crate) use local_origins::close_storage_places_over_aliases;
+pub(super) use local_origins::close_storage_places_over_aliases_with_resolver;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };
