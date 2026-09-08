@@ -609,7 +609,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            48
+            50
         );
         assert_eq!(
             OperationSemanticRow::ALL
