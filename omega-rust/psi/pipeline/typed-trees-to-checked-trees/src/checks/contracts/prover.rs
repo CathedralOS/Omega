@@ -9,6 +9,7 @@ pub(super) use scalars::{
     ScalarValue, closed_boolean_value, evaluate as evaluate_scalar, has_builtin_operators,
 };
 mod booleans;
+mod field_actuals;
 #[cfg(test)]
 mod tests;
 
@@ -60,28 +61,48 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         return false;
     };
 
-    entry_contexts.iter().any(|entry_context| {
-        let context = semantic.contexts.get(*entry_context);
-        semantic_context_proves_instantiated_boolean_expression(
+    let mut field_handled = false;
+    for entry_context in entry_contexts {
+        if let Some(proven) = field_actuals::proves(
             program,
             semantic,
-            context,
+            semantic.contexts.get(*entry_context),
             state_flow.state_symbol,
             call_flow.statement_index,
             &call_site,
             target_parameters,
             expression,
+        ) {
+            field_handled = true;
+            if proven {
+                return true;
+            }
+        }
+    }
+    (!field_handled
+        && entry_contexts.iter().any(|entry_context| {
+            let context = semantic.contexts.get(*entry_context);
+            semantic_context_proves_instantiated_boolean_expression(
+                program,
+                semantic,
+                context,
+                state_flow.state_symbol,
+                call_flow.statement_index,
+                &call_site,
+                target_parameters,
+                expression,
+            )
+        }))
+        || call_site_proves_boolean_contract_expression(
+            program,
+            operators,
+            state_flow,
+            call_flow,
+            &call_site,
+            call_flow.target_symbol,
+            target_parameters,
+            expression,
         )
-    }) || call_site_proves_boolean_contract_expression(
-        program,
-        operators,
-        state_flow,
-        call_flow,
-        &call_site,
-        call_flow.target_symbol,
-        target_parameters,
-        expression,
-    )
 }
 
 pub(super) fn semantic_contexts_prove_contract_fact(

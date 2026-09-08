@@ -1300,6 +1300,11 @@ pub enum ModuleError {
         block: BlockId,
         place: PlaceId,
     },
+    StructuralCaseRequiresReadableAccess {
+        machine: MachineId,
+        block: BlockId,
+        source: PlaceId,
+    },
     StructuralCaseRequiresClosedSum {
         machine: MachineId,
         block: BlockId,

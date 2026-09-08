@@ -59,17 +59,17 @@ fn outcome_specific_guarantee_checks_its_structural_field_metadata() {
             evidence: None,
         });
     validate_module(&module).expect("valid guarded guarantee on a readable integer field");
-    for unreadable in [false, true] {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
         let mut invalid = module.clone();
-        if unreadable {
-            invalid.machines[0].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
-        } else {
-            let StructuralTypeShape::Record { fields } = &mut invalid.structural_types[1].shape
-            else {
-                panic!("input record");
-            };
-            fields[0].id = StructuralFieldId::new(2).unwrap();
-        }
+        invalid.machines[0].structural_parameters[0].access = access;
+        validate_module(&invalid).expect("guarded contract formation does not read the field");
+        let StructuralTypeShape::Record { fields } = &mut invalid.structural_types[1].shape else {
+            panic!("input record");
+        };
+        fields[0].id = StructuralFieldId::new(2).unwrap();
         assert!(matches!(
             validate_module(&invalid),
             Err(ModuleError::InvalidIntegerFieldTerm { .. })
