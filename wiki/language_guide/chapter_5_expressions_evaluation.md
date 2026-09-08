@@ -969,7 +969,9 @@ convention. The fractional-intermediate warning remains unchanged.
 > warning. Source entailment also derives quotient bounds from dividend bounds
 > and an exact nonzero constant divisor, retaining one-sided bounds and the
 > divisor's sign. Remainder bounds also accept a divisor fixed to a nonzero
-> constant by contract facts. Authored const operator selection, symbolic `Int`
+> constant by contract facts. When both dividend bounds have the same truncated
+> quotient, remainder bounds retain the endpoint remainders; ranges crossing a
+> quotient change retain conservative bounds. Authored const operator selection, symbolic `Int`
 > division/remainder terms and independent replay, and the remaining numeric
 > landing boundaries remain execution-board work.
 

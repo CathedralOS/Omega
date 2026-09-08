@@ -510,3 +510,32 @@ fn proof_integer_remainder_bounds_use_a_known_divisor() {
         );
     }
 }
+
+#[test]
+fn proof_integer_remainder_bounds_preserve_one_quotient_interval() {
+    for divisor in [8, -8] {
+        for (minimum, maximum, low, high) in [
+            (5, 7, 5, 7),
+            (13, 15, 5, 7),
+            (-15, -13, -7, -5),
+            (-7, 7, -7, 7),
+        ] {
+            let source = format!(
+                "machine remainder(value: i32)\nrequires value >= {minimum}, value <= {maximum}\nensures embed(value) % {divisor} >= {low}, embed(value) % {divisor} <= {high}\n{{}}"
+            );
+            check(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+        }
+        for (minimum, maximum, bound) in [
+            (5, 10, "<= 5"),
+            (-10, -5, ">= -5"),
+            (5, 9, ">= 5"),
+            (-9, -5, "<= -5"),
+            (13, 15, ">= 6"),
+        ] {
+            let source = format!(
+                "machine remainder(value: i32)\nrequires value >= {minimum}, value <= {maximum}\nensures embed(value) % {divisor} {bound}\n{{}}"
+            );
+            assert!(check(&source).is_err(), "false remainder bound: {source}");
+        }
+    }
+}
