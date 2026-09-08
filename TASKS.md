@@ -90,7 +90,7 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
-  [settled publication contract](wiki/pre_migration/design_briefs/macos_application_publication.md)
+  [settled publication contract](wiki/spec/build/macos_application.md)
   in build evaluation/realization inputs, Mach-O signing, command publication,
   and compilation reports. Preserve flat/report validation and flat v1 digests.
   Specify the identifier field in ordinary build vocabulary,
@@ -98,7 +98,7 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   signing identity before emission. Publish one whole validated `.app` with
   distinct checked package-root and inner-executable accessors.
 
-  Acceptance: the brief's stage-requiredness, deterministic bytes, cross-invocation,
+  Acceptance: the specification's stage-requiredness, deterministic bytes, cross-invocation,
   tampering, partial-output, and flat-regression controls pass; GUI samples carry
   authored identifiers and consumers use reported paths. Validate the procedural
   GUI cohort on macOS, recording unavailable-host coverage explicitly. Resource
