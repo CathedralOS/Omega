@@ -23,6 +23,11 @@ impl MachineEffectCatalogIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineSemanticKind {
+    Load32,
+    Float32ToBits,
+    Float64ToBits,
+    BitsToFloat32,
+    BitsToFloat64,
     Load8Indexed,
     CompareI64Zero,
     MaterializeI64,
@@ -52,7 +57,12 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 31] = [
+        Self::Load32,
+        Self::Float32ToBits,
+        Self::Float64ToBits,
+        Self::BitsToFloat32,
+        Self::BitsToFloat64,
         Self::Load8Indexed,
         Self::CompareI64Zero,
         Self::MaterializeI64,
@@ -84,6 +94,11 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    Load32,
+    Float32ToBits,
+    Float64ToBits,
+    BitsToFloat32,
+    BitsToFloat64,
     Load8Indexed,
     CompareI64Zero,
     MaterializeI64,
@@ -115,6 +130,11 @@ pub enum MachineAlternativeFamily {
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::Load32 => Self::Load32,
+            MachineSemanticKind::Float32ToBits => Self::Float32ToBits,
+            MachineSemanticKind::Float64ToBits => Self::Float64ToBits,
+            MachineSemanticKind::BitsToFloat32 => Self::BitsToFloat32,
+            MachineSemanticKind::BitsToFloat64 => Self::BitsToFloat64,
             MachineSemanticKind::HostedWriteByteI32 => Self::HostedWriteByteI32,
             MachineSemanticKind::Store => Self::Store,
             MachineSemanticKind::AddressOffset => Self::AddressOffset,

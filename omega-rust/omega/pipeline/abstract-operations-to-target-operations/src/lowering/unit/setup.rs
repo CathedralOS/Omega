@@ -13,7 +13,7 @@ pub(super) fn integer_parameters(
         .iter()
         .enumerate()
         .filter_map(|(parameter_index, parameter)| match parameter.scalar_type {
-            ScalarType::Boolean => None,
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
             ScalarType::Integer(scalar_type) => Some(
                 u32::try_from(parameter_index)
                     .map(|parameter_index| {
@@ -27,9 +27,6 @@ pub(super) fn integer_parameters(
                     })
                     .map_err(|_| LoweringError::UnitFunctionHasScalarParameters(machine)),
             ),
-            ScalarType::IeeeFloat(_) => {
-                Some(Err(LoweringError::UnitFunctionHasScalarParameters(machine)))
-            }
         })
         .collect()
 }
@@ -62,9 +59,10 @@ pub(super) fn prepare_unit_function(
             ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
                 LoweringError::UnitFunctionHasScalarParameters(function.machine),
             ),
-            ScalarType::IeeeFloat(_) => Err(LoweringError::UnitFunctionHasScalarParameters(
-                function.machine,
-            )),
+            ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
+                IeeeFloatFormat::Binary32 => 4,
+                IeeeFloatFormat::Binary64 => 8,
+            })),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut shape_cache = BTreeMap::new();

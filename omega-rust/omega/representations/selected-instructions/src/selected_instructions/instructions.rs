@@ -41,6 +41,10 @@ pub enum SelectedInstructionKind {
     Load64 {
         byte_offset: u32,
     },
+    /// Load exactly four bytes and zero-extend their raw bits into GPR storage.
+    Load32 {
+        byte_offset: u32,
+    },
     Store64 {
         slot: super::FrameStorageSlotId,
         byte_offset: u32,
@@ -61,6 +65,14 @@ pub enum SelectedInstructionKind {
         value: IntegerValue,
     },
     CopyI64,
+    /// Preserve the IEEE binary32 payload while moving from an FP ABI home to GPR storage.
+    Float32ToBits,
+    /// Preserve the IEEE binary64 payload while moving from an FP ABI home to GPR storage.
+    Float64ToBits,
+    /// Restore the exact binary32 payload into an FP ABI home without arithmetic conversion.
+    BitsToFloat32,
+    /// Restore the exact binary64 payload into an FP ABI home without arithmetic conversion.
+    BitsToFloat64,
     /// Zero-extend the low eight input bits into the complete result register.
     ZeroExtendU8,
     /// Normalize the low 32 input bits; upper ABI register bits are not meaningful.

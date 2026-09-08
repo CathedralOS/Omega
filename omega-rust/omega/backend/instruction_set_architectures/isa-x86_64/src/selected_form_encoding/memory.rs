@@ -2,6 +2,8 @@
 use super::*;
 mod indexed;
 #[cfg(test)]
+mod load32_tests;
+#[cfg(test)]
 mod pointer_tests;
 
 pub fn encode_x86_64_selected_memory_form(
@@ -51,7 +53,7 @@ pub fn validate_x86_64_selected_memory_form(
     }
     let (opcode, register, base, footprint) = request(physical, kind, alternative, operands)?;
     let width = store_width(kind)?;
-    if matches!(kind, SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if byte_offset != displacement)
+    if matches!(kind, SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if byte_offset != displacement)
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -104,6 +106,7 @@ fn store_width(kind: SelectedInstructionKind) -> Result<u8, X86_64SelectedFormEn
         SelectedInstructionKind::Store { .. } => {
             Err(X86_64SelectedFormEncodingError::EncodedFormMismatch)
         }
+        SelectedInstructionKind::Load32 { .. } => Ok(4),
         _ => Ok(8),
     }
 }
@@ -138,6 +141,12 @@ fn request(
             2,
             0x8d,
             crate::X86_64_ADDRESS_OFFSET,
+        ),
+        SelectedInstructionKind::Load32 { .. } => (
+            MachineAlternativeFamily::Load32,
+            2,
+            0x8b,
+            crate::X86_64_LOAD32,
         ),
         SelectedInstructionKind::Load64 { .. } => (
             MachineAlternativeFamily::Load64,
@@ -195,12 +204,16 @@ fn request(
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedTrapBehavior::NeverV1,
         ),
-        SelectedInstructionKind::Load64 { .. } => (
+        SelectedInstructionKind::Load32 { .. } | SelectedInstructionKind::Load64 { .. } => (
             vec![0],
             vec![1],
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
-                byte_count: 8,
+                byte_count: if matches!(kind, SelectedInstructionKind::Load32 { .. }) {
+                    4
+                } else {
+                    8
+                },
             },
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ),

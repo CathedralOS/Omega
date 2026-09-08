@@ -45,7 +45,7 @@ pub fn spill_selected_runtime_value(
             let reload_register = VirtualRegisterId(admission::fresh(&mut next_register)?);
             function.virtual_registers.push(VirtualRegister {
                 id: address_register,
-                scalar_type: admitted.victim.scalar_type,
+                scalar_type: admitted.address_scalar_type,
                 class: admitted.victim.class,
                 origin: VirtualRegisterOrigin::SpillAddress {
                     instruction: address_instruction,

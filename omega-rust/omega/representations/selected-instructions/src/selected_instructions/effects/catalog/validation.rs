@@ -290,11 +290,15 @@ fn validate_encoded_effects(
         (
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand,
-                byte_count: 8,
+                byte_count,
             },
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && matches!(
+                (declaration.semantic, byte_count),
+                (MachineSemanticKind::Load32, 4) | (MachineSemanticKind::Load64, 8)
+            )
             && encoded.external_operand_reads.contains(&pointer_operand) => {}
         (
             MachineEncodedMemoryEffect::WriteFrameStorageV1 { byte_count: 8, .. },

@@ -72,6 +72,7 @@ mod translation_validation_wrapping_integer_shift_right_immediate;
 mod translation_validation_wrapping_integer_shift_right_parameters;
 mod translation_validation_wrapping_integer_subtract;
 mod unit_and_settlements;
+mod unit_ieee_stores;
 mod unit_scalar_calls;
 mod unit_structural_calls;
 mod unit_structural_scalar;

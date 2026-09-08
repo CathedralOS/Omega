@@ -213,9 +213,9 @@ pub(super) fn resolve(
             u32::try_from(start).map_err(|_| Error::ArtifactMismatch)?
         }
         Address::Load8Indexed { .. } => 0,
-        Address::Load64 { byte_offset, .. } | Address::AddressOffset { byte_offset, .. } => {
-            byte_offset
-        }
+        Address::Load64 { byte_offset, .. }
+        | Address::Load32 { byte_offset, .. }
+        | Address::AddressOffset { byte_offset, .. } => byte_offset,
         Address::Store {
             byte_offset,
             byte_size,
@@ -343,6 +343,10 @@ pub(super) fn validate_address(
             index_operand: 1,
         } if candidate.displacement == 0 => Ok(()),
         Address::Load64 {
+            base_operand: 0,
+            byte_offset,
+        }
+        | Address::Load32 {
             base_operand: 0,
             byte_offset,
         } if candidate.displacement == byte_offset => Ok(()),

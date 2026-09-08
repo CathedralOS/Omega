@@ -44,7 +44,13 @@ pub(super) fn validate_initial_roots(
             source
                 .parameters
                 .iter()
-                .filter(|parameter| source.references_value(parameter.value))
+                .filter(|parameter| {
+                    source.references_value(parameter.value)
+                        && matches!(
+                            parameter.placement.locations.as_slice(),
+                            [calling_conventions::ValueLocation::Register { .. }]
+                        )
+                })
                 .count()
         })
         .sum::<usize>();

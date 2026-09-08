@@ -46,6 +46,12 @@ fn align(value: u32, alignment: u16) -> Option<u32> {
 
 pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(ValueShape::float(4))
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(ValueShape::float(8))
+        }
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
             let bytes = integer.bits() / 8;
@@ -143,6 +149,7 @@ fn field_shape(
 ) -> Option<ValueShape> {
     match field {
         StructuralFieldType::Scalar(scalar) => scalar_shape(*scalar),
+        StructuralFieldType::IeeeFloat(format) => scalar_shape(ScalarType::IeeeFloat(*format)),
         StructuralFieldType::Structural(nested) => shape_inner(*nested, declarations, active),
         _ => None,
     }
@@ -219,7 +226,12 @@ pub(crate) fn store(
         let layout = field_shape(&candidate.field_type, declarations, &mut Vec::new())?;
         offset = align(offset, layout.alignment)?;
         if candidate.id == field {
-            if candidate.field_type != StructuralFieldType::Scalar(scalar) {
+            let matches_type = match candidate.field_type {
+                StructuralFieldType::Scalar(actual) => actual == scalar,
+                StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format) == scalar,
+                _ => false,
+            };
+            if !matches_type {
                 return None;
             }
             let offset = carrier_offset.checked_add(offset)?;

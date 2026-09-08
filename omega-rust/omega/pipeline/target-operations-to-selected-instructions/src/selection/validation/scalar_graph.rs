@@ -3,14 +3,16 @@
 //! This checks the proposed stream in place; it does not call selection.
 
 use super::integrity::{validate_block_constraints, validate_def_use};
-use crate::selection::constraints::{fixed_input_constraint, row};
+use crate::selection::constraints::row;
 use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
 mod byte_output;
 mod control;
+mod register_entry;
 mod scalar_call;
+mod scalar_stack;
 mod structural;
 mod unit_call;
 mod zero_compare;
@@ -61,85 +63,8 @@ pub(in crate::selection) fn validate(
         constraints,
     };
     structural::entry(source, &environment, &mut replay)?;
-    for (index, parameter) in source.parameters.iter().enumerate() {
-        if !source.references_value(parameter.value) {
-            continue;
-        }
-        let [
-            ValueLocation::Register {
-                register,
-                value_byte_offset: 0,
-                byte_size,
-            },
-        ] = parameter.placement.locations.as_slice()
-        else {
-            return Err(invalid());
-        };
-        if *byte_size
-            != match parameter.scalar_type {
-                ScalarType::Boolean => 1,
-                ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
-                    integer.bits() / 8
-                }
-                _ => return Err(invalid()),
-            }
-        {
-            return Err(invalid());
-        }
-        let fixed = fixed_input_constraint(
-            source.machine,
-            parameter.value,
-            index,
-            *register,
-            &constraints.fixed_inputs,
-        )
-        .ok_or_else(invalid)?;
-        if environment.fixed_register_view(*register) != Some(fixed.fixed_view) {
-            return Err(invalid());
-        }
-        let id = replay.check_register(
-            parameter.definition_site,
-            parameter.scalar_type,
-            VirtualRegisterOrigin::EntryParameter {
-                source_value: parameter.value,
-                parameter_index: index,
-            },
-            Some(fixed.fixed_view),
-        )?;
-        replay.definitions.push((
-            parameter.value,
-            id,
-            parameter.definition_site,
-            parameter.scalar_type,
-        ));
-    }
-    for index in 0..replay.definitions.len() {
-        let (value, input, site, scalar_type) = replay.definitions[index];
-        let output = if scalar_type == ScalarType::Boolean
-            || matches!(scalar_type, ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 32))
-        {
-            let output = replay.result_register(value, site, scalar_type)?;
-            replay.check_instruction(
-                if scalar_type == ScalarType::Boolean
-                    || matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 8)
-                {
-                    SelectedInstructionKind::ZeroExtendU8
-                } else {
-                    SelectedInstructionKind::ZeroExtendU32
-                },
-                constraints.keys.copy_i64,
-                &[input, output],
-                &SelectedInstructionProvenance {
-                    values: vec![value],
-                    ..Default::default()
-                },
-            )?;
-            output
-        } else {
-            replay.check_copy(input, value, site, scalar_type)?
-        };
-        replay.definitions[index].1 = output;
-    }
+    register_entry::validate(source, &environment, catalog, &mut replay)?;
+    scalar_stack::entry(source, &mut replay)?;
     // Check the predeclared destination roster before any edge refers to it.
     for block in &selected.blocks {
         let source_block = source
@@ -306,6 +231,17 @@ pub(in crate::selection) fn validate(
                     output
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
+                    if matches!(
+                        scalar_type,
+                        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
+                    ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u32::MAX))
+                        || matches!(
+                            scalar_type,
+                            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64)
+                        ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u64::MAX))
+                    {
+                        return Err(invalid());
+                    }
                     if scalar_type == ScalarType::Boolean
                         && !matches!(value, IntegerValue::Unsigned(0 | 1))
                     {
@@ -455,6 +391,17 @@ impl Replay<'_> {
         origin: VirtualRegisterOrigin,
         fixed: Option<RegisterViewId>,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+        self.check_register_class(self.class, site, scalar_type, origin, fixed)
+    }
+
+    fn check_register_class(
+        &mut self,
+        class: RegisterClassId,
+        site: ValueDefinitionSite,
+        scalar_type: ScalarType,
+        origin: VirtualRegisterOrigin,
+        fixed: Option<RegisterViewId>,
+    ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         let register = self
             .selected
             .virtual_registers
@@ -462,7 +409,7 @@ impl Replay<'_> {
             .ok_or_else(|| self.invalid())?;
         if register.id.0 as usize != self.register_cursor
             || register.scalar_type != scalar_type
-            || register.class != self.class
+            || register.class != class
             || register.origin != origin
             || register.definition_site != Some(site)
             || register.entry_fixed_view != fixed

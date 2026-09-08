@@ -131,6 +131,36 @@ fn contiguous_spans_coalesce_without_absorbing_neighboring_operations() {
 }
 
 #[test]
+fn ieee_literal_attribution_requires_complete_exact_operation_membership() {
+    for value in [
+        semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc0_0041),
+        semantic_vocabulary::IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+    ] {
+        let (fragment, mut source) = fixture();
+        source.operations[0] = AbstractOperation::IeeeFloatConstant {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(1).unwrap(),
+            value,
+        };
+        let rows = produce(&fragment, &source).unwrap();
+        validate(&fragment, &source, &rows).unwrap();
+        assert_eq!(
+            (
+                rows[0].operation_ordinal,
+                rows[0].code_offset,
+                rows[0].byte_count
+            ),
+            (0, 0, 5)
+        );
+        let mut omitted = rows.clone();
+        omitted.remove(0);
+        assert!(validate(&fragment, &source, &omitted).is_err());
+        source.operations.swap(0, 1);
+        assert!(validate(&fragment, &source, &rows).is_err());
+    }
+}
+
+#[test]
 fn omitted_operation_and_return_attribution_reject() {
     let (fragment, source) = fixture();
     let rows = produce(&fragment, &source).unwrap();

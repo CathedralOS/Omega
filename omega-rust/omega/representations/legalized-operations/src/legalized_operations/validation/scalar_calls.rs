@@ -28,7 +28,7 @@ impl LegalizedScalarCall {
         {
             if argument.placement() != placement
                 || matches!(argument, crate::LegalizedScalarArgument::Scalar { .. })
-                    && !direct_scalar_register(placement)
+                    && !direct_scalar_placement(placement)
             {
                 return Err(Error::ArgumentPlacement { argument: index });
             }
@@ -44,18 +44,23 @@ impl LegalizedScalarCall {
         Ok(())
     }
 }
-fn direct_scalar_register(placement: &ValuePlacement) -> bool {
+fn direct_scalar_placement(placement: &ValuePlacement) -> bool {
     let width = placement.shape.byte_size;
     matches!(width, 1 | 2 | 4 | 8)
-        && placement.shape == ValueShape::integer(width, width)
-        && matches!(
+        && (placement.shape == ValueShape::integer(width, width)
+            || matches!(width, 4 | 8) && placement.shape == ValueShape::float(width))
+        && (matches!(
             placement.locations.as_slice(),
             [ValueLocation::Register {
                 value_byte_offset: 0,
                 byte_size,
                 ..
             }] if *byte_size == width
-        )
+        ) || matches!(placement.locations.as_slice(),
+            [ValueLocation::Stack { stack_byte_offset, value_byte_offset: 0, byte_size, alignment }]
+                if matches!(width, 4 | 8) && *byte_size == width
+                    && *alignment >= placement.shape.alignment && alignment.is_power_of_two()
+                    && stack_byte_offset.is_multiple_of(u32::from(*alignment))))
 }
 fn direct_u64_register(placement: &ValuePlacement) -> bool {
     placement.shape == ValueShape::integer(8, 8)

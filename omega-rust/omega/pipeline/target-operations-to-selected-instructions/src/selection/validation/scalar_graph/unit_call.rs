@@ -17,14 +17,7 @@ pub(super) fn validate(
     }
     call.validate_source(&operation.ownership)
         .map_err(|_| replay.invalid())?;
-    let key = replay
-        .constraints
-        .keys
-        .call_unit
-        .get(crate::selection::scalar_call_abi::register_argument_count(
-            call,
-        ))
-        .copied()
+    let key = crate::selection::scalar_call_abi::unit_key(call, environment)
         .ok_or_else(|| replay.invalid())?;
     let constraint = environment
         .constraint(key)
@@ -49,13 +42,22 @@ pub(super) fn validate(
                     semantic,
                     target,
                 )? {
-                    operands.push(pointer);
+                    operands.push((argument_index, pointer));
                 }
             }
             LegalizedScalarArgument::Scalar {
                 source: value,
                 placement,
             } => {
+                if super::scalar_stack::argument(
+                    replay,
+                    operation,
+                    argument_index,
+                    *value,
+                    placement,
+                )? {
+                    continue;
+                }
                 let (_, input, site, scalar_type) =
                     replay.resolve(*value).ok_or_else(|| replay.invalid())?;
                 if crate::selection::scalar_call_abi::scalar_shape(scalar_type)
@@ -63,10 +65,59 @@ pub(super) fn validate(
                 {
                     return Err(replay.invalid());
                 }
-                operands.push(replay.check_copy(input, *value, site, scalar_type)?);
+                let output = if let Some((kind, key)) =
+                    crate::selection::scalar_call_abi::outgoing_float_transfer(
+                        scalar_type,
+                        &replay.constraints.keys,
+                    ) {
+                    let class = environment
+                        .constraint(key)
+                        .and_then(|row| row.operands.get(1))
+                        .ok_or_else(|| replay.invalid())?
+                        .class;
+                    let output = replay.check_register_class(
+                        class,
+                        site,
+                        scalar_type,
+                        VirtualRegisterOrigin::InstructionResult {
+                            instruction: SelectedInstructionId(
+                                replay
+                                    .instruction_cursor
+                                    .try_into()
+                                    .map_err(|_| replay.invalid())?,
+                            ),
+                            source_value: *value,
+                        },
+                        None,
+                    )?;
+                    replay.check_instruction(
+                        kind,
+                        key,
+                        &[input, output],
+                        &SelectedInstructionProvenance {
+                            values: vec![*value],
+                            ..Default::default()
+                        },
+                    )?;
+                    output
+                } else {
+                    replay.check_copy(input, *value, site, scalar_type)?
+                };
+                operands.push((argument_index, output));
             }
         }
     }
+    let order = crate::selection::scalar_call_abi::register_argument_order(call);
+    let operands = order
+        .iter()
+        .map(|index| {
+            operands
+                .iter()
+                .find(|(argument, _)| argument == index)
+                .map(|(_, register)| *register)
+                .ok_or_else(|| replay.invalid())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     replay.transport.calls.push(SelectedCallContract {
         instruction: SelectedInstructionId(
             replay

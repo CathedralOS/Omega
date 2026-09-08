@@ -80,6 +80,14 @@ pub(super) fn decode_scalar_type(
 
 pub(super) fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction,
+            source_value,
+        } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+        }
         VirtualRegisterOrigin::SpillAddress {
             instruction,
             register,
@@ -179,6 +187,14 @@ pub(super) fn decode_origin(
                 place: semantic_vocabulary::PlaceId::new(raw)
                     .ok_or(LogicalSpillOperationDecodeError::InvalidPlaceId(raw))?,
                 byte_offset: u32::from_le_bytes(cursor.array()?),
+            })
+        }
+        7 => {
+            let instruction = SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
+            let raw = u64::from_le_bytes(cursor.array()?);
+            Ok(VirtualRegisterOrigin::ScalarAbiAddress {
+                instruction,
+                source_value: value(raw)?,
             })
         }
         6 => Ok(VirtualRegisterOrigin::SpillAddress {

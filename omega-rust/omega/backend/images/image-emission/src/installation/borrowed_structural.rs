@@ -25,6 +25,12 @@ pub(super) fn has_borrowed(function: &InstalledFunction) -> bool {
 
 fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(ValueShape::float(4))
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(ValueShape::float(8))
+        }
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer)
             if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
@@ -158,13 +164,17 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
                 .zip(&plan.parameters)
                 .any(|(parameter, placement)| {
                     parameter.placement != *placement
-                        || !matches!(
+                        || !(matches!(
                             placement.locations.as_slice(),
                             [ValueLocation::Register {
                                 value_byte_offset: 0,
-                                ..
-                            }]
-                        )
+                                byte_size, ..
+                            }] if *byte_size == placement.shape.byte_size
+                        ) || matches!(placement.locations.as_slice(),
+                            [ValueLocation::Stack { stack_byte_offset, value_byte_offset: 0, byte_size, alignment }]
+                                if matches!(*byte_size, 4 | 8) && *byte_size == placement.shape.byte_size
+                                    && *alignment >= placement.shape.alignment && alignment.is_power_of_two()
+                                    && stack_byte_offset.is_multiple_of(u32::from(*alignment))))
                 })
     }) {
         return false;

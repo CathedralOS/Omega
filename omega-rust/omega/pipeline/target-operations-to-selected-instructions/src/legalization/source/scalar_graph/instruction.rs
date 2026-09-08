@@ -203,6 +203,13 @@ pub(super) fn project(
         AbstractOperation::IntegerConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(*value)
         }
+        AbstractOperation::IeeeFloatConstant { value, .. } => {
+            let bits = match value {
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => u128::from(*bits),
+                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => u128::from(*bits),
+            };
+            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(bits))
+        }
         AbstractOperation::BooleanConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(*value)))
         }

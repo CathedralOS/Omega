@@ -607,9 +607,9 @@ Owners include
   calls, exact installed-image custody and spill-inclusive stack demand. Its
   implementation owners are `image-emission/src/function_fragments/structural.rs`
   and `installation/borrowed_structural.rs`; keep copied referents distinct from
-  pointer identity while extending their bounded Unit admission. Extend caller
-  observations to IEEE scalar call arguments and stores beyond the ordinary
-  fixed-integer/Boolean primitive- and field-store paths. The same source-backed
+  pointer identity while extending their bounded Unit admission. Extend native
+  IEEE stores to field literals, literal call actuals, and computed floating
+  sources without erasing format or selected-operation evidence. The same source-backed
   probe's `primitive_stores::` group checks whole primitive replacement,
   signed runtime inputs, both Boolean values, literal stores with unused inputs,
   and stack-passed primitive roots across three calls through publication.

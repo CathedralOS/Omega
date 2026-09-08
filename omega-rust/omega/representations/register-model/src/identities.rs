@@ -156,12 +156,17 @@ pub fn target_register_environment_identity(
     bytes.extend_from_slice(&reservations.identity().bytes());
     for key in [
         selected_keys.load64,
+        selected_keys.load32,
         selected_keys.load8_indexed,
         selected_keys.store,
         selected_keys.address_offset,
         selected_keys.store64,
         selected_keys.frame_address,
         selected_keys.hosted_write_byte_i32,
+        selected_keys.float32_to_bits,
+        selected_keys.float64_to_bits,
+        selected_keys.bits_to_float32,
+        selected_keys.bits_to_float64,
     ] {
         optional_constraint_key(&mut bytes, key);
     }
@@ -170,6 +175,10 @@ pub fn target_register_environment_identity(
         constraint_key(&mut bytes, key.family, key.variant);
     }
     u64_value(&mut bytes, selected_keys.call_i64.len() as u64);
+    u64_value(&mut bytes, selected_keys.call_unit_mixed.len() as u64);
+    for key in &selected_keys.call_unit_mixed {
+        constraint_key(&mut bytes, key.family, key.variant);
+    }
     for key in &selected_keys.call_i64 {
         constraint_key(&mut bytes, key.family, key.variant);
     }

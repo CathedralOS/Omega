@@ -7,11 +7,112 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 
 use crate::structural_reference_input::stack_pointer_offset;
 
+/// One complete scalar ABI stack fragment, excluding borrowed-pointer placement.
+pub(super) fn scalar_stack_placement(
+    placement: &calling_conventions::ValuePlacement,
+) -> Option<(u32, u16, u16)> {
+    match placement.locations.as_slice() {
+        [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size,
+                alignment,
+            },
+        ] if matches!(
+            placement.shape.class,
+            calling_conventions::ValueClass::Float | calling_conventions::ValueClass::Integer
+        ) && matches!(*byte_size, 4 | 8)
+            && *byte_size == placement.shape.byte_size
+            && *alignment >= placement.shape.alignment
+            && alignment.is_power_of_two()
+            && stack_byte_offset.is_multiple_of(u32::from(*alignment)) =>
+        {
+            Some((*stack_byte_offset, *byte_size, *alignment))
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn register_argument_count(call: &LegalizedScalarCall) -> usize {
     call.arguments
         .iter()
-        .filter(|argument| stack_pointer_offset(argument.placement()).is_none())
+        .filter(|argument| {
+            stack_pointer_offset(argument.placement()).is_none()
+                && scalar_stack_placement(argument.placement()).is_none()
+        })
         .count()
+}
+
+/// Preserve ABI register-bank order while keeping source arguments in their authored roster.
+pub(super) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> {
+    let mut order = call
+        .arguments
+        .iter()
+        .enumerate()
+        .filter(|(_, argument)| {
+            stack_pointer_offset(argument.placement()).is_none()
+                && scalar_stack_placement(argument.placement()).is_none()
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    if call.result_placement.is_none() {
+        order.sort_by_key(|index| {
+            call.arguments[*index].placement().shape.class == calling_conventions::ValueClass::Float
+        });
+    }
+    order
+}
+
+fn placement_register(
+    placement: &calling_conventions::ValuePlacement,
+) -> Option<target_operations::MachineRegister> {
+    match placement.locations.as_slice() {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                ..
+            },
+        ]
+        | [
+            ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(register),
+                copy_stack_byte_offset: None,
+                ..
+            },
+        ] => Some(*register),
+        _ => None,
+    }
+}
+
+pub(super) fn unit_key(
+    call: &LegalizedScalarCall,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Option<RegisterConstraintKey> {
+    let order = register_argument_order(call);
+    let views = order
+        .iter()
+        .map(|index| {
+            environment.fixed_register_view(placement_register(call.arguments[*index].placement())?)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let keys = environment.selected_keys();
+    let mut matches = keys
+        .call_unit
+        .iter()
+        .chain(&keys.call_unit_mixed)
+        .filter(|key| {
+            environment.constraint(**key).is_some_and(|row| {
+                row.operands.len() == views.len()
+                    && row.operands.iter().zip(&views).all(|(operand, view)| {
+                        operand.access == RegisterOperandAccess::Use
+                            && operand.fixed_view == Some(*view)
+                    })
+            })
+        });
+    let result = *matches.next()?;
+    matches.next().is_none().then_some(result)
 }
 
 pub(super) fn validate(
@@ -44,7 +145,11 @@ pub(super) fn validate(
     } else {
         &selected_keys.call_unit
     };
-    if keys.get(register_count) != Some(&key)
+    if (if result.is_some() {
+        keys.get(register_count).copied()
+    } else {
+        unit_key(call, environment)
+    }) != Some(key)
         || environment.constraint(key) != Some(row)
         || row.key != key
         || call.call_plan.parameters.len() != count
@@ -55,8 +160,16 @@ pub(super) fn validate(
     if result != call.result_placement.as_ref() {
         return Err(invalid());
     }
-    let mut operands = row.operands.iter();
+    let order = register_argument_order(call);
     for (index, placement) in call.call_plan.parameters.iter().chain(result).enumerate() {
+        if scalar_stack_placement(placement).is_some() {
+            if !matches!(call.arguments.get(index), Some(LegalizedScalarArgument::Scalar { source: value, placement: actual })
+                if actual == placement && scalar_value_shape(source, *value) == Some(placement.shape))
+            {
+                return Err(invalid());
+            }
+            continue;
+        }
         if stack_pointer_offset(placement).is_some() {
             if !matches!(call.arguments.get(index), Some(LegalizedScalarArgument::Structural { target, .. }) if target.destination == *placement)
             {
@@ -64,7 +177,15 @@ pub(super) fn validate(
             }
             continue;
         }
-        let operand = operands.next().ok_or_else(invalid)?;
+        let operand_index = if index == count {
+            register_count
+        } else {
+            order
+                .iter()
+                .position(|argument| *argument == index)
+                .ok_or_else(invalid)?
+        };
+        let operand = row.operands.get(operand_index).ok_or_else(invalid)?;
         let register = match placement.locations.as_slice() {
             [
                 ValueLocation::Register {
@@ -306,6 +427,12 @@ fn exclusive_projection_shape(
 
 pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     match scalar_type {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            Some(ValueShape::float(4))
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            Some(ValueShape::float(8))
+        }
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer)
             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
@@ -313,6 +440,40 @@ pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
         {
             Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
         }
+        _ => None,
+    }
+}
+
+pub(super) fn incoming_float_transfer(
+    scalar_type: ScalarType,
+    keys: &SelectedConstraintKeys,
+) -> Option<(SelectedInstructionKind, RegisterConstraintKey)> {
+    match scalar_type {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some((
+            SelectedInstructionKind::Float32ToBits,
+            keys.float32_to_bits?,
+        )),
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some((
+            SelectedInstructionKind::Float64ToBits,
+            keys.float64_to_bits?,
+        )),
+        _ => None,
+    }
+}
+
+pub(super) fn outgoing_float_transfer(
+    scalar_type: ScalarType,
+    keys: &SelectedConstraintKeys,
+) -> Option<(SelectedInstructionKind, RegisterConstraintKey)> {
+    match scalar_type {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some((
+            SelectedInstructionKind::BitsToFloat32,
+            keys.bits_to_float32?,
+        )),
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some((
+            SelectedInstructionKind::BitsToFloat64,
+            keys.bits_to_float64?,
+        )),
         _ => None,
     }
 }

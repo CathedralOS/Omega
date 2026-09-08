@@ -141,6 +141,14 @@ fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
 
 fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction,
+            source_value,
+        } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+        }
         VirtualRegisterOrigin::SpillAddress {
             instruction,
             register,
@@ -387,6 +395,43 @@ mod tests {
         provenance.fuel[0].units += 1;
         future_uses[0].point.0 += 1;
         assert_ne!(baseline, recovery_classification_identity(&changed));
+    }
+
+    #[test]
+    fn scalar_abi_address_recovery_codec_retains_its_distinct_origin() {
+        let mut source = plan();
+        let value = ValueId::new(17).unwrap();
+        let row = source.functions[0].classification.as_mut().unwrap();
+        row.origin = VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction: SelectedInstructionId(3),
+            source_value: value,
+        };
+        row.classification = RecoveryClassification::NoAdmittedRecovery {
+            reason: crate::NoAdmittedRecoveryReason::UnsupportedRangeShape,
+        };
+        assert_eq!(
+            RecoveryClassificationPlan::decode(&source.encode()).unwrap(),
+            source
+        );
+        let identity = recovery_classification_identity(&source);
+        for origin in [
+            VirtualRegisterOrigin::ScalarAbiAddress {
+                instruction: SelectedInstructionId(4),
+                source_value: value,
+            },
+            VirtualRegisterOrigin::ScalarAbiAddress {
+                instruction: SelectedInstructionId(3),
+                source_value: ValueId::new(18).unwrap(),
+            },
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(3),
+                source_value: value,
+            },
+        ] {
+            let mut changed = source.clone();
+            changed.functions[0].classification.as_mut().unwrap().origin = origin;
+            assert_ne!(recovery_classification_identity(&changed), identity);
+        }
     }
 
     #[test]

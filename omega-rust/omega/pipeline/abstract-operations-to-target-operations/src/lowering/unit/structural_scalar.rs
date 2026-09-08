@@ -7,8 +7,9 @@ use super::super::scalar::scalar_shape;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::{
-    direct_boolean_field_offset, direct_integer_field_offset, resolve_structural_field_path,
-    resolve_structural_projection_path, structural_parameter_shape, structural_shape,
+    direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,
+    resolve_structural_field_path, resolve_structural_projection_path, structural_parameter_shape,
+    structural_shape,
 };
 use super::super::structural_signature::StructuralCallSignature;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
@@ -139,10 +140,28 @@ pub(super) fn lower_field_store(
             };
             (source, 1)
         }
-        ScalarType::IeeeFloat(_) => {
-            return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                function.machine,
-            ));
+        ScalarType::IeeeFloat(format) => {
+            let (parameter_index, _) = function
+                .parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| {
+                    parameter.value == value.value && parameter.scalar_type == value.scalar_type
+                })
+                .ok_or(LoweringError::UnknownValue(value.value))?;
+            (
+                TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: u32::try_from(parameter_index).map_err(|_| {
+                        LoweringError::UnitFunctionHasScalarParameters(function.machine)
+                    })?,
+                    source_value: value.value,
+                    scalar_type: value.scalar_type,
+                },
+                match format {
+                    IeeeFloatFormat::Binary32 => 4,
+                    IeeeFloatFormat::Binary64 => 8,
+                },
+            )
         }
     };
     let (carrier_type, carrier_byte_offset) = if path.is_empty() {
@@ -168,7 +187,9 @@ pub(super) fn lower_field_store(
         ScalarType::Integer(integer_type) => {
             direct_integer_field_offset(carrier_type, *field, integer_type, structural_types)?
         }
-        ScalarType::IeeeFloat(_) => unreachable!("IEEE field stores were rejected above"),
+        ScalarType::IeeeFloat(_) => {
+            direct_scalar_field_offset(carrier_type, *field, value.scalar_type, structural_types)?
+        }
     };
     let field_byte_offset = carrier_byte_offset
         .checked_add(scalar_byte_offset)

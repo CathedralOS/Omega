@@ -2,6 +2,8 @@
 use super::*;
 mod frame;
 mod indexed;
+#[cfg(test)]
+mod load32_tests;
 mod pointer;
 #[cfg(test)]
 mod pointer_tests;
@@ -29,8 +31,10 @@ pub fn encode_aarch64_selected_memory_form(
         return indexed::encode(physical, alternative, operands, displacement);
     }
     let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
+    let width = load_width(kind)?;
+    let opcode = if width == 4 { 0xb940_0000 } else { 0xf940_0000 };
     let word =
-        0xf940_0000 | ((displacement / 8) << 10) | (u32::from(base) << 5) | u32::from(destination);
+        opcode | ((displacement / width) << 10) | (u32::from(base) << 5) | u32::from(destination);
     validate_aarch64_selected_memory_form(
         physical,
         kind,
@@ -65,15 +69,16 @@ pub fn validate_aarch64_selected_memory_form(
         return indexed::validate(physical, alternative, operands, displacement, bytes);
     }
     let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
+    let width = load_width(kind)?;
     let word = bytes
         .try_into()
         .ok()
         .map(u32::from_le_bytes)
-        .filter(|word| word & 0xffc0_0000 == 0xf940_0000)
+        .filter(|word| word & 0xffc0_0000 == if width == 4 { 0xb940_0000 } else { 0xf940_0000 })
         .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
     if (word & 31) != u32::from(destination)
         || ((word >> 5) & 31) != u32::from(base)
-        || ((word >> 10) & 4095) * 8 != displacement
+        || ((word >> 10) & 4095) * width != displacement
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -91,7 +96,7 @@ pub fn validate_aarch64_selected_memory_form(
                 implicit_unit_clobbers: Vec::new(),
                 memory: MachineEncodedMemoryEffect::ReadPointerV1 {
                     pointer_operand: 0,
-                    byte_count: 8,
+                    byte_count: if width == 4 { 4 } else { 8 },
                 },
                 stack: MachineEncodedStackEffect::UnchangedV1,
                 trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -108,21 +113,34 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 2], Aarch64SelectedFormEncodingError> {
+    let width = load_width(kind)?;
     if physical.model() != &aarch64_physical_register_model()
-        || !matches!(kind, SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
+        || !matches!(kind, SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
         || alternative
             != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::Load64,
+                family: if width == 4 {
+                    MachineAlternativeFamily::Load32
+                } else {
+                    MachineAlternativeFamily::Load64
+                },
                 variant: 0,
             })
-        || !displacement.is_multiple_of(8)
-        || displacement / 8 > 4095
+        || !displacement.is_multiple_of(width)
+        || displacement / width > 4095
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     resolve_registers(physical, operands)?
         .try_into()
         .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+}
+
+fn load_width(kind: SelectedInstructionKind) -> Result<u32, Aarch64SelectedFormEncodingError> {
+    match kind {
+        SelectedInstructionKind::Load32 { .. } => Ok(4),
+        SelectedInstructionKind::Load64 { .. } => Ok(8),
+        _ => Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
+    }
 }
 
 #[cfg(test)]

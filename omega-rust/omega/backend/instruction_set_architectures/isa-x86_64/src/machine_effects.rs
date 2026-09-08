@@ -63,7 +63,8 @@ pub fn x86_64_machine_effect_catalog(
                 }
                 if matches!(
                     semantic,
-                    MachineSemanticKind::Load64
+                    MachineSemanticKind::Load32
+                        | MachineSemanticKind::Load64
                         | MachineSemanticKind::Store
                         | MachineSemanticKind::AddressOffset
                         | MachineSemanticKind::Load8Indexed
@@ -122,11 +123,17 @@ fn selected_keys(
         hosted_write_byte_i32: (target.object_format == ObjectFormat::Elf)
             .then_some(crate::X86_64_HOSTED_WRITE_BYTE_I32),
         load64: Some(crate::X86_64_LOAD64),
+        load32: Some(crate::X86_64_LOAD32),
         load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
         store: Some(crate::X86_64_STORE),
         address_offset: Some(crate::X86_64_ADDRESS_OFFSET),
         store64: Some(crate::X86_64_STORE64),
         frame_address: Some(crate::X86_64_FRAME_ADDRESS),
+        call_unit_mixed: if target.object_format == ObjectFormat::Elf {
+            crate::x86_64_system_v_mixed_unit_call_keys()
+        } else {
+            crate::x86_64_microsoft_mixed_unit_call_keys()
+        },
         call_unit: if target.object_format == ObjectFormat::Elf {
             crate::x86_64_system_v_register_unit_call_keys()
         } else {
@@ -139,6 +146,10 @@ fn selected_keys(
         },
         materialize_i64: X86_64_MATERIALIZE_I64,
         copy_i64: X86_64_COPY_I64,
+        float32_to_bits: Some(crate::X86_64_FLOAT32_TO_BITS),
+        float64_to_bits: Some(crate::X86_64_FLOAT64_TO_BITS),
+        bits_to_float32: Some(crate::X86_64_BITS_TO_FLOAT32),
+        bits_to_float64: Some(crate::X86_64_BITS_TO_FLOAT64),
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
@@ -284,7 +295,11 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
-        MachineSemanticKind::CopyI64
+        MachineSemanticKind::Float32ToBits
+        | MachineSemanticKind::Float64ToBits
+        | MachineSemanticKind::BitsToFloat32
+        | MachineSemanticKind::BitsToFloat64
+        | MachineSemanticKind::CopyI64
         | MachineSemanticKind::ZeroExtendU8
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ByteViewAddress | MachineSemanticKind::ExactAddI64 => {
@@ -301,6 +316,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallI64
+        | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Store
         | MachineSemanticKind::AddressOffset
@@ -409,6 +425,15 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::CompareI64Zero
         | MachineSemanticKind::CompareI64
         | MachineSemanticKind::CopyI64 => MachineSizeKnowledge::ExactBytes(3),
+        MachineSemanticKind::Float32ToBits | MachineSemanticKind::BitsToFloat32 => {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(5),
+            }
+        }
+        MachineSemanticKind::Float64ToBits | MachineSemanticKind::BitsToFloat64 => {
+            MachineSizeKnowledge::ExactBytes(5)
+        }
         MachineSemanticKind::ZeroExtendU8 => MachineSizeKnowledge::ExactBytes(4),
         MachineSemanticKind::ZeroExtendU32 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
@@ -441,6 +466,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             unreachable!("subtraction declares alias-dependent alternatives")
         }
         MachineSemanticKind::CallI64
+        | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Store
         | MachineSemanticKind::AddressOffset

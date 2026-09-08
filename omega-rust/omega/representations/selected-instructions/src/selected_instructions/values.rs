@@ -17,6 +17,11 @@ pub struct VirtualRegister {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VirtualRegisterOrigin {
+    /// Compiler-owned ABI stack address associated with a scalar source, not its payload.
+    ScalarAbiAddress {
+        instruction: SelectedInstructionId,
+        source_value: ValueId,
+    },
     /// Compiler-owned frame address for one original virtual value's spill slot.
     SpillAddress {
         instruction: SelectedInstructionId,

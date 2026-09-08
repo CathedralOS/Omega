@@ -274,6 +274,14 @@ pub(super) fn validate(
         ) if actual == value => {}
         (
             LegalizedScalarInstructionKind::Constant(actual),
+            AbstractOperation::IeeeFloatConstant { value, .. },
+        ) if *actual
+            == IntegerValue::Unsigned(match value {
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => u128::from(*bits),
+                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => u128::from(*bits),
+            }) => {}
+        (
+            LegalizedScalarInstructionKind::Constant(actual),
             AbstractOperation::BooleanConstant { value, .. },
         ) if *actual == IntegerValue::Unsigned(u128::from(*value)) => {}
         (

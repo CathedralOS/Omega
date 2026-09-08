@@ -5,6 +5,8 @@ use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOper
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
+#[cfg(test)]
+mod tests;
 
 pub(super) fn fragments(
     source: &StagedOptimizedRelocationFreeObjectContainer,
@@ -160,6 +162,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             let admitted = match operation {
                 AbstractOperation::IntegerConstant { .. }
                 | AbstractOperation::BooleanConstant { .. } => true,
+                AbstractOperation::IeeeFloatConstant { .. } => {
+                    matches!(&targeted.operation, target_operations::TargetOperation::UnitBody(body)
+                        if ieee_literal_retained(operation, &body.operations))
+                }
                 AbstractOperation::ByteSequenceLength { .. }
                 | AbstractOperation::ByteSequenceRead { .. }
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
@@ -229,6 +235,30 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
     }
     Ok(())
+}
+
+/// Account for one exact typed literal; mandatory source replay validates its realization.
+fn ieee_literal_retained(
+    operation: &AbstractOperation,
+    operations: &[target_operations::TargetUnitOperation],
+) -> bool {
+    let AbstractOperation::IeeeFloatConstant {
+        psi_operation,
+        result,
+        value,
+    } = operation
+    else {
+        return false;
+    };
+    let mut matching = operations.iter().filter(|candidate| {
+        matches!(candidate,
+        target_operations::TargetUnitOperation::IeeeFloatConstant { psi_operation: retained, .. }
+            if retained == psi_operation)
+    });
+    matches!(matching.next(), Some(target_operations::TargetUnitOperation::IeeeFloatConstant {
+        result: retained_result, value: retained_value, ..
+    }) if retained_result == result && retained_value == value)
+        && matching.next().is_none()
 }
 
 /// Restrict publication to the Unit graph's unique byte-operation membership.

@@ -97,6 +97,10 @@ fn decode_kind(
             value: decode_integer(cursor)?,
         },
         2 => SelectedInstructionKind::CopyI64,
+        26 => SelectedInstructionKind::Float32ToBits,
+        27 => SelectedInstructionKind::Float64ToBits,
+        28 => SelectedInstructionKind::BitsToFloat32,
+        29 => SelectedInstructionKind::BitsToFloat64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
         23 => SelectedInstructionKind::HostedWriteByteI32 {
@@ -105,6 +109,9 @@ fn decode_kind(
         22 => SelectedInstructionKind::ByteViewAddress,
         21 => SelectedInstructionKind::Load8Indexed,
         16 => SelectedInstructionKind::Load64 {
+            byte_offset: cursor.u32()?,
+        },
+        30 => SelectedInstructionKind::Load32 {
             byte_offset: cursor.u32()?,
         },
         tag @ (17 | 18) => {
@@ -274,12 +281,17 @@ fn decode_alternative_for_version(
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
         2 => MachineAlternativeFamily::CopyI64,
+        26 => MachineAlternativeFamily::Float32ToBits,
+        27 => MachineAlternativeFamily::Float64ToBits,
+        28 => MachineAlternativeFamily::BitsToFloat32,
+        29 => MachineAlternativeFamily::BitsToFloat64,
         15 => MachineAlternativeFamily::ZeroExtendU8,
         20 => MachineAlternativeFamily::ZeroExtendU32,
         23 => MachineAlternativeFamily::HostedWriteByteI32,
         22 => MachineAlternativeFamily::ByteViewAddress,
         21 => MachineAlternativeFamily::Load8Indexed,
         16 => MachineAlternativeFamily::Load64,
+        30 => MachineAlternativeFamily::Load32,
         24 => MachineAlternativeFamily::Store,
         25 => MachineAlternativeFamily::AddressOffset,
         17 => MachineAlternativeFamily::Store64,

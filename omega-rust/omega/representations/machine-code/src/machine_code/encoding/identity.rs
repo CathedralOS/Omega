@@ -99,6 +99,14 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                     hasher.update(base_operand.to_le_bytes());
                     hasher.update(index_operand.to_le_bytes());
                 }
+                Address::Load32 {
+                    base_operand,
+                    byte_offset,
+                } => {
+                    hasher.update([8]);
+                    hasher.update(base_operand.to_le_bytes());
+                    hasher.update(byte_offset.to_le_bytes());
+                }
                 Address::Load64 {
                     base_operand,
                     byte_offset,
@@ -344,6 +352,10 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::CompareI64Zero => 0,
         MachineAlternativeFamily::MaterializeI64 => 1,
         MachineAlternativeFamily::CopyI64 => 2,
+        MachineAlternativeFamily::Float32ToBits => 26,
+        MachineAlternativeFamily::Float64ToBits => 27,
+        MachineAlternativeFamily::BitsToFloat32 => 28,
+        MachineAlternativeFamily::BitsToFloat64 => 29,
         MachineAlternativeFamily::ZeroExtendU8 => 15,
         MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::ExactAddI64 => 3,
@@ -361,6 +373,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Store => 24,
         MachineAlternativeFamily::AddressOffset => 25,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,
         MachineAlternativeFamily::Load8Indexed => 21,

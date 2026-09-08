@@ -13,6 +13,7 @@ pub(super) fn validate(
     abstracted: &AbstractOperation,
     parameters: &[TargetStructuralParameter],
     sources: &[(ValueId, Source)],
+    optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
@@ -55,13 +56,39 @@ pub(super) fn validate(
         .is_none()
         || source.source_value() != value.value
         || source.scalar_type() != value.scalar_type
-        || !sources.iter().any(|(identity, expected)| {
+        || !(sources.iter().any(|(identity, expected)| {
             *identity == value.value && source_is_exact(source, expected)
-        })
+        }) || preceding_ieee_literal(source, *expected_operation, optimized))
     {
         return Err(invalid);
     }
     Ok(())
+}
+
+/// A literal store requires its exact definition earlier in the same block.
+/// Float call arguments are not added to the independent scalar-call vocabulary.
+fn preceding_ieee_literal(
+    source: &PrimitiveSource,
+    store: semantic_vocabulary::OperationId,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+) -> bool {
+    let PrimitiveSource::IeeeFloatImmediate {
+        defining_operation,
+        source_value,
+        value,
+    } = source
+    else {
+        return false;
+    };
+    optimized.blocks.iter().any(|block| {
+        let Some(store_position) = block.nodes.iter().position(|node| matches!(node.operation,
+            AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } if psi_operation == store)) else {
+            return false;
+        };
+        block.nodes[..store_position].iter().any(|node| matches!(node.operation,
+            AbstractOperation::IeeeFloatConstant { psi_operation, result, value: literal }
+                if psi_operation == *defining_operation && result == *source_value && literal == *value))
+    })
 }
 
 // Primitive-store literals and call arguments have separate source vocabularies.

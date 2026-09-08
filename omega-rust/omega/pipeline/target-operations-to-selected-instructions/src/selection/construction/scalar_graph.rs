@@ -9,6 +9,7 @@ use semantic_vocabulary::IntegerValue;
 mod byte_output;
 mod control;
 mod scalar_call;
+mod scalar_stack;
 mod structural;
 mod unit_call;
 mod zero_compare;
@@ -50,6 +51,10 @@ pub(super) fn build(
     // Entry ABI precoloring ends at a copy. The semantic parameter may remain
     // live across calls without being pinned to a caller-clobbered register.
     for (index, parameter) in source.parameters.iter().enumerate() {
+        if crate::selection::scalar_call_abi::scalar_stack_placement(&parameter.placement).is_some()
+        {
+            continue;
+        }
         if !source.references_value(parameter.value) {
             continue;
         }
@@ -66,6 +71,8 @@ pub(super) fn build(
         if *byte_size
             != match parameter.scalar_type {
                 ScalarType::Boolean => 1,
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => 4,
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => 8,
                 ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
                     integer.bits() / 8
                 }
@@ -86,10 +93,23 @@ pub(super) fn build(
             return Err(invalid());
         }
         let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+        let parameter_class = if let Some((_, key)) =
+            crate::selection::scalar_call_abi::incoming_float_transfer(
+                parameter.scalar_type,
+                &constraints.keys,
+            ) {
+            row(catalog, key)?
+                .operands
+                .first()
+                .ok_or_else(invalid)?
+                .class
+        } else {
+            class
+        };
         builder.registers.push(VirtualRegister {
             id,
             scalar_type: parameter.scalar_type,
-            class,
+            class: parameter_class,
             origin: VirtualRegisterOrigin::EntryParameter {
                 source_value: parameter.value,
                 parameter_index: index,
@@ -106,7 +126,23 @@ pub(super) fn build(
     }
     for index in 0..builder.definitions.len() {
         let (value, input, site, scalar_type) = builder.definitions[index];
-        let output = if scalar_type == ScalarType::Boolean
+        let output = if let Some((kind, key)) =
+            crate::selection::scalar_call_abi::incoming_float_transfer(
+                scalar_type,
+                &constraints.keys,
+            ) {
+            let output = builder.register(value, site, scalar_type)?;
+            builder.emit(
+                kind,
+                key,
+                &[input, output],
+                SelectedInstructionProvenance {
+                    values: vec![value],
+                    ..Default::default()
+                },
+            )?;
+            output
+        } else if scalar_type == ScalarType::Boolean
             || matches!(scalar_type, ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 32))
         {
             let output = builder.register(value, site, scalar_type)?;
@@ -131,6 +167,7 @@ pub(super) fn build(
         };
         builder.definitions[index].1 = output;
     }
+    scalar_stack::entry(source, &mut builder)?;
     // Forward successors name their materialized destination parameters explicitly.
     for (block_index, source_index) in order.iter().copied().enumerate() {
         let block = &source.blocks[source_index];
@@ -300,6 +337,17 @@ pub(super) fn build(
                     output
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
+                    if matches!(
+                        scalar_type,
+                        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
+                    ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u32::MAX))
+                        || matches!(
+                            scalar_type,
+                            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64)
+                        ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u64::MAX))
+                    {
+                        return Err(invalid());
+                    }
                     if scalar_type == ScalarType::Boolean
                         && !matches!(value, IntegerValue::Unsigned(0 | 1))
                     {

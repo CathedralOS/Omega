@@ -60,6 +60,10 @@ pub(super) fn decode_instruction(
             base_operand: u16_field(cursor)?,
             index_operand: u16_field(cursor)?,
         }),
+        8 => Some(crate::PhysicalAddressOperation::Load32 {
+            base_operand: u16_field(cursor)?,
+            byte_offset: u32_field(cursor)?,
+        }),
         1 => Some(crate::PhysicalAddressOperation::Load64 {
             base_operand: u16_field(cursor)?,
             byte_offset: u32_field(cursor)?,

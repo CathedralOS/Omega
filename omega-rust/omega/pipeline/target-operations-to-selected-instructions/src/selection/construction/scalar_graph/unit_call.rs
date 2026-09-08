@@ -19,15 +19,7 @@ pub(super) fn emit(
     }
     call.validate_source(&operation.ownership)
         .map_err(|_| invalid())?;
-    let key = builder
-        .constraints
-        .keys
-        .call_unit
-        .get(crate::selection::scalar_call_abi::register_argument_count(
-            call,
-        ))
-        .copied()
-        .ok_or_else(invalid)?;
+    let key = crate::selection::scalar_call_abi::unit_key(call, environment).ok_or_else(invalid)?;
     crate::selection::scalar_call_abi::validate(
         function,
         source,
@@ -48,23 +40,67 @@ pub(super) fn emit(
                     semantic,
                     target,
                 )? {
-                    operands.push(pointer);
+                    operands.push((argument_index, pointer));
                 }
             }
             LegalizedScalarArgument::Scalar {
                 source: value,
                 placement,
             } => {
+                if super::scalar_stack::argument(
+                    builder,
+                    operation,
+                    argument_index,
+                    *value,
+                    placement,
+                )? {
+                    continue;
+                }
                 let (_, input, site, scalar_type) = builder.resolve(*value).ok_or_else(invalid)?;
                 if crate::selection::scalar_call_abi::scalar_shape(scalar_type)
                     != Some(placement.shape)
                 {
                     return Err(invalid());
                 }
-                operands.push(builder.copy(input, *value, site, scalar_type)?);
+                let output = if let Some((kind, key)) =
+                    crate::selection::scalar_call_abi::outgoing_float_transfer(
+                        scalar_type,
+                        &builder.constraints.keys,
+                    ) {
+                    let output = builder.register(*value, site, scalar_type)?;
+                    builder.registers[output.0 as usize].class = row(builder.catalog, key)?
+                        .operands
+                        .get(1)
+                        .ok_or_else(invalid)?
+                        .class;
+                    builder.emit(
+                        kind,
+                        key,
+                        &[input, output],
+                        SelectedInstructionProvenance {
+                            values: vec![*value],
+                            ..Default::default()
+                        },
+                    )?;
+                    output
+                } else {
+                    builder.copy(input, *value, site, scalar_type)?
+                };
+                operands.push((argument_index, output));
             }
         }
     }
+    let order = crate::selection::scalar_call_abi::register_argument_order(call);
+    let operands = order
+        .iter()
+        .map(|index| {
+            operands
+                .iter()
+                .find(|(argument, _)| argument == index)
+                .map(|(_, register)| *register)
+                .ok_or_else(invalid)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     builder.transport.calls.push(SelectedCallContract {
         instruction: SelectedInstructionId(
             builder

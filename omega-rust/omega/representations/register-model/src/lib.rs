@@ -193,6 +193,7 @@ pub struct RegisterConstraintKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load64: Option<RegisterConstraintKey>,
+    pub load32: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store: Option<RegisterConstraintKey>,
     pub address_offset: Option<RegisterConstraintKey>,
@@ -202,11 +203,16 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Target-owned resultless call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no Unit register-call form.
     pub call_unit: Vec<RegisterConstraintKey>,
+    pub call_unit_mixed: Vec<RegisterConstraintKey>,
     /// Target-owned register-call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no scalar register-call form.
     pub call_i64: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
+    pub float32_to_bits: Option<RegisterConstraintKey>,
+    pub float64_to_bits: Option<RegisterConstraintKey>,
+    pub bits_to_float32: Option<RegisterConstraintKey>,
+    pub bits_to_float64: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
@@ -1613,6 +1619,7 @@ mod tests {
         .unwrap();
         let keys = TargetRegisterEnvironmentConstraintKeys {
             load64: Some(instruction_key(30)),
+            load32: None,
             load8_indexed: None,
             store: Some(instruction_key(34)),
             address_offset: Some(instruction_key(35)),
@@ -1623,12 +1630,17 @@ mod tests {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
             }],
+            call_unit_mixed: Vec::new(),
             call_i64: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 3,
             }],
             materialize_i64: instruction_key(1),
             copy_i64: instruction_key(5),
+            float32_to_bits: None,
+            float64_to_bits: None,
+            bits_to_float32: None,
+            bits_to_float64: None,
             add_i64: instruction_key(6),
             add_i64_immediate: instruction_key(7),
             subtract_i64: instruction_key(8),
@@ -1699,6 +1711,7 @@ mod tests {
             },
             TargetRegisterEnvironmentConstraintKeys {
                 call_unit: Vec::new(),
+                call_unit_mixed: Vec::new(),
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
@@ -1728,6 +1741,10 @@ mod tests {
             },
             TargetRegisterEnvironmentConstraintKeys {
                 copy_i64: instruction_key(15),
+                float32_to_bits: None,
+                float64_to_bits: None,
+                bits_to_float32: None,
+                bits_to_float64: None,
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {

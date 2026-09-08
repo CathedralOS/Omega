@@ -10,17 +10,24 @@ pub struct SelectedConstraintKeys {
     pub store: Option<RegisterConstraintKey>,
     pub address_offset: Option<RegisterConstraintKey>,
     pub load64: Option<RegisterConstraintKey>,
+    pub load32: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
     /// Register-passed Unit call rows indexed by argument count, including zero.
     /// An empty roster explicitly supplies no Unit-call form on this target.
     pub call_unit: Vec<RegisterConstraintKey>,
+    /// Canonical mixed integer/FP register call rows, independently matched to the ABI placements.
+    pub call_unit_mixed: Vec<RegisterConstraintKey>,
     /// Register-passed U64 call rows indexed by argument count, including zero.
     /// An empty roster explicitly supplies no scalar-call form on this target.
     pub call_i64: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
+    pub float32_to_bits: Option<RegisterConstraintKey>,
+    pub float64_to_bits: Option<RegisterConstraintKey>,
+    pub bits_to_float32: Option<RegisterConstraintKey>,
+    pub bits_to_float64: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
