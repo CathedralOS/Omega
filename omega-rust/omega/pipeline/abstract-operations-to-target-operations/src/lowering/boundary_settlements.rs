@@ -1,6 +1,6 @@
 use super::shared::*;
 
-pub(super) fn lower_linux_exit_group_i32(
+pub(super) fn lower_hosted_exit_process_i32(
     function: &AbstractFunction,
     target: NativeTarget,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
@@ -17,18 +17,13 @@ pub(super) fn lower_linux_exit_group_i32(
         return Err(LoweringError::MissingBoundarySettlement(*boundary));
     };
     let target_operations::BoundarySettlementRealization::Builtin(
-        BoundaryRealization::LinuxExitGroupI32(realization),
+        BoundaryRealization::HostedExitProcessI32(realization),
     ) = binding.realization
     else {
         return Ok(None);
     };
-    if target.object_format != ObjectFormat::Elf
-        || !matches!(
-            target.architecture,
-            Architecture::X86_64 | Architecture::Aarch64
-        )
-    {
-        return Err(LoweringError::LinuxExitGroupUnsupportedTarget {
+    if !target_operations::HostedExitProcessI32Realization::supports_target(target) {
+        return Err(LoweringError::HostedExitProcessUnsupportedTarget {
             machine: function.machine,
             target,
         });
@@ -60,7 +55,7 @@ pub(super) fn lower_linux_exit_group_i32(
         },
     ] = function.operations.as_slice()
     else {
-        // A Linux exit may be the nonreturning tail of a larger straight-line
+        // A hosted exit may be the nonreturning tail of a larger straight-line
         // Unit effect body (notably a checked scalar call or write_line before
         // exit_process). Let the Unit lowering validate those compositions;
         // retain the directed error for a malformed isolated exit shape.
@@ -83,7 +78,9 @@ pub(super) fn lower_linux_exit_group_i32(
         {
             Ok(None)
         } else {
-            Err(LoweringError::InvalidLinuxExitGroupShape(function.machine))
+            Err(LoweringError::InvalidHostedExitProcessShape(
+                function.machine,
+            ))
         };
     };
     if function.result != AbstractFunctionResult::Unit
@@ -102,7 +99,9 @@ pub(super) fn lower_linux_exit_group_i32(
         || !structural_arguments.is_empty()
         || !cleanup_actions.is_empty()
     {
-        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
     }
     let destination = match target.architecture {
         Architecture::X86_64 => MachineRegister::X86Rdi,

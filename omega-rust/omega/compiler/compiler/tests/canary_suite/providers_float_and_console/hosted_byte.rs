@@ -46,7 +46,16 @@ fn hosted_byte_catalog_retains_exact_target_and_provider_custody() {
             );
         }
         if target == "macos_arm64" {
-            for method in ["exit_process", "read_byte", "read_line"] {
+            let exit = plan
+                .rows
+                .iter()
+                .position(|row| row.method == "exit_process")
+                .unwrap();
+            assert_eq!(
+                retained.row_compiler_intrinsic_executions[exit],
+                Some(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
+            );
+            for method in ["read_byte", "read_line"] {
                 let row = plan
                     .rows
                     .iter()

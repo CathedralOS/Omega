@@ -48,9 +48,9 @@ pub(super) fn validate_completion_custody(
     let compiler_builtin_pair_is_exact = match (settlement.execution, settlement.realization) {
         (
             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+                target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
             ),
-            target_operations::BoundaryRealization::LinuxExitGroupI32(_),
+            target_operations::BoundaryRealization::HostedExitProcessI32(_),
         )
         | (
             machine_code::BoundaryExecutionRecord::CompilerBuiltin(
@@ -67,7 +67,7 @@ pub(super) fn validate_completion_custody(
         (machine_code::BoundaryExecutionRecord::CompilerBuiltin(_), _)
         | (
             _,
-            target_operations::BoundaryRealization::LinuxExitGroupI32(_)
+            target_operations::BoundaryRealization::HostedExitProcessI32(_)
             | target_operations::BoundaryRealization::HostedWriteByteI32(_)
             | target_operations::BoundaryRealization::LinuxReadByte(_),
         ) => false,
@@ -391,7 +391,7 @@ mod tests {
 
         let mut role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
         role_substitution.execution = machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
         );
         assert_eq!(
             validate_completion_custody(&role_substitution),

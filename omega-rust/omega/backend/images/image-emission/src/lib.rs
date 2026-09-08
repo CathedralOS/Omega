@@ -1304,7 +1304,7 @@ fn build_object_artifact_with_x86_feature_profile(
             matches!(
                 settlement.realization,
                 BoundaryRealization::DirectPortReadU8(_)
-                    | BoundaryRealization::LinuxExitGroupI32(_)
+                    | BoundaryRealization::HostedExitProcessI32(_)
             )
         });
         let scalar_custody = scalar_cleanup_custody
@@ -1923,7 +1923,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     ) && function.unit_stack.is_some()
                         && function.scalar_stack.is_none()
                 }
-                BoundaryRealization::LinuxExitGroupI32(_) => {
+                BoundaryRealization::HostedExitProcessI32(_) => {
                     let [argument] = settlement.scalar_arguments.as_slice() else {
                         return Err(ObjectError::BoundaryRealizationMismatch {
                             machine: function.machine,
@@ -1943,21 +1943,26 @@ fn build_object_artifact_with_x86_feature_profile(
                         _ => None,
                     };
                     let expected_destination =
-                        match (plan.target.object_format, plan.target.architecture) {
-                            (target::ObjectFormat::Elf, Architecture::X86_64) => {
-                                Some(calling_conventions::MachineRegister::X86Rdi)
+                        if !target_operations::HostedExitProcessI32Realization::supports_target(
+                            plan.target,
+                        ) {
+                            None
+                        } else {
+                            match plan.target.architecture {
+                                Architecture::X86_64 => {
+                                    Some(calling_conventions::MachineRegister::X86Rdi)
+                                }
+                                Architecture::Aarch64 => {
+                                    Some(calling_conventions::MachineRegister::Aarch64X(0))
+                                }
                             }
-                            (target::ObjectFormat::Elf, Architecture::Aarch64) => {
-                                Some(calling_conventions::MachineRegister::Aarch64X(0))
-                            }
-                            _ => None,
                         };
                     let expected = value.and_then(|value| match plan.target.architecture {
                         Architecture::X86_64 => {
-                            Some(isa_x86_64::encode_linux_exit_group_i32(value))
+                            Some(isa_x86_64::encode_hosted_exit_process_i32(value))
                         }
                         Architecture::Aarch64 => {
-                            isa_aarch64::encode_linux_exit_group_i32(value).ok()
+                            isa_aarch64::encode_hosted_exit_process_i32(plan.target, value).ok()
                         }
                     });
                     let exact_nominal_tail = settlement

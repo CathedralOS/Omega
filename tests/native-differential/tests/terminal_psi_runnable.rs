@@ -12,7 +12,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use target::NativeTarget;
-use target_operations::{LinuxExitGroupI32Realization, LinuxWriteLineRealization};
+use target_operations::{HostedExitProcessI32Realization, LinuxWriteLineRealization};
 use terminal_codec::{decode_module, encode_proof_bundle};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::TerminalModule;
@@ -464,7 +464,7 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
                 AdmittedBoundarySettlement {
                     boundary: exit_boundary,
                     execution: AdmittedBoundaryExecution::Provider(&exit_provider),
-                    realization: LinuxExitGroupI32Realization.into(),
+                    realization: HostedExitProcessI32Realization.into(),
                 },
             ],
         ),

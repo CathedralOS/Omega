@@ -432,7 +432,7 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
     let builtin = encoded(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(
         symbols::BuiltinFunction::Min,
     ));
-    let linux_exit = encoded(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32);
+    let linux_exit = encoded(PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32);
     let negate_f32 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
         numerics::literals::FloatFormat::F32,
     ));

@@ -640,7 +640,9 @@ fn process_exit_fixture_retains_exact_closed_console_leaves_and_unresolved_sibli
     };
     assert_eq!(
         execution_for("exit_process"),
-        Some(package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32,),
+        Some(
+            package_evidence::record::PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32,
+        ),
         "process-exit retains the exact closed Linux execution identity",
     );
     assert_eq!(

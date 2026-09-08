@@ -413,7 +413,7 @@ fn checked_boundary_operator_physical_custody_canary_compiles() {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| { diagnostic.message.contains("InvalidLinuxExitGroupShape") })
+            .any(|diagnostic| { diagnostic.message.contains("InvalidHostedExitProcessShape") })
     );
 }
 
@@ -445,7 +445,7 @@ fn checked_fixed_operator_physical_custody_canary_compiles() {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| { diagnostic.message.contains("InvalidLinuxExitGroupShape") })
+            .any(|diagnostic| { diagnostic.message.contains("InvalidHostedExitProcessShape") })
     );
 }
 
@@ -1781,104 +1781,105 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
 }
 
 #[test]
-fn linux_console_compiler_intrinsic_review_identities_are_exact() {
+fn hosted_console_compiler_intrinsic_review_identities_are_exact() {
     use provider_planning::plans::CompilerIntrinsicExecutionIdentity;
 
     let canary = pass_canary(fixture_roster::RUNTIME_ADAPTER_FORWARDING_EXIT);
     let main_path = canary.join("main.omg");
-    let checked = compile_to_checked(&main_path, Some("linux_x86_64"))
-        .expect("Linux Console provider should compile to checked trees");
-    let (plan, retained) = checked
-        .selected_provider_plans()
-        .plans()
-        .iter()
-        .zip(checked.selected_provider_provenance())
-        .find(|(plan, _)| plan.schema.trait_name == "Console")
-        .expect("std Console must retain one selected provider plan");
-    let exit = plan
-        .rows
-        .iter()
-        .position(|row| row.method == "exit_process")
-        .expect("Console plan must retain exit_process");
-    assert_eq!(
-        retained.row_compiler_intrinsic_executions[exit],
-        Some(CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32),
-    );
-    let write_byte = plan
-        .rows
-        .iter()
-        .position(|row| row.method == "write_byte")
-        .expect("Console plan must retain write_byte");
-    assert_eq!(
-        retained.row_compiler_intrinsic_executions[write_byte],
-        Some(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32),
-    );
-    let derive = |requirement, realization, target| {
-        selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row(
-            &checked,
-            plan,
-            retained.provider.schema,
-            &plan.rows[exit],
-            requirement,
-            realization,
-            target,
-        )
-        .expect("exact compiler-intrinsic catalog derivation")
-    };
-    let read_byte = plan
-        .rows
-        .iter()
-        .position(|row| row.method == "read_byte")
-        .expect("Console plan must retain read_byte");
-    assert_eq!(
-        retained.row_compiler_intrinsic_executions[read_byte],
-        Some(CompilerIntrinsicExecutionIdentity::LinuxReadByte),
-    );
-    assert_eq!(
-        derive(
-            retained.provider.row_requirements[exit],
-            retained.provider.row_realizations[exit],
-            Some("linux_x86_64"),
-        ),
-        Some(selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
-        "package-owned std source requires the accepted package binding that produced retained closed custody",
-    );
-    for unsupported in [
-        derive(
-            retained.provider.row_requirements[read_byte],
-            retained.provider.row_realizations[exit],
-            Some("linux_x86_64"),
-        ),
-        derive(
-            retained.provider.row_requirements[exit],
-            retained.provider.row_realizations[read_byte],
-            Some("linux_x86_64"),
-        ),
-        derive(
-            retained.provider.row_requirements[exit],
-            retained.provider.row_realizations[exit],
-            Some("macos_arm64"),
-        ),
-    ] {
-        assert_eq!(
-            unsupported,
-            Some(selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Unsupported,),
-            "requirement, realization, and selected target are independent catalog authority",
-        );
-    }
-    {
-        let method = "read_line";
-        let index = plan
+    for target in ["linux_x86_64", "linux_arm64", "macos_arm64"] {
+        let checked = compile_to_checked(&main_path, Some(target))
+            .expect("Linux Console provider should compile to checked trees");
+        let (plan, retained) = checked
+            .selected_provider_plans()
+            .plans()
+            .iter()
+            .zip(checked.selected_provider_provenance())
+            .find(|(plan, _)| plan.schema.trait_name == "Console")
+            .expect("std Console must retain one selected provider plan");
+        let exit = plan
             .rows
             .iter()
-            .position(|row| row.method == method)
-            .unwrap_or_else(|| panic!("Console plan must retain {method}"));
+            .position(|row| row.method == "exit_process")
+            .expect("Console plan must retain exit_process");
         assert_eq!(
-            retained.row_compiler_intrinsic_executions[index], None,
-            "unsupported CompilerIntrinsic row `{method}` must remain outside the closed catalog",
+            retained.row_compiler_intrinsic_executions[exit],
+            Some(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32),
         );
+        let write_byte = plan
+            .rows
+            .iter()
+            .position(|row| row.method == "write_byte")
+            .expect("Console plan must retain write_byte");
+        assert_eq!(
+            retained.row_compiler_intrinsic_executions[write_byte],
+            Some(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32),
+        );
+        let derive = |requirement, realization, target| {
+            selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row(
+                &checked,
+                plan,
+                retained.provider.schema,
+                &plan.rows[exit],
+                requirement,
+                realization,
+                target,
+            )
+            .expect("exact compiler-intrinsic catalog derivation")
+        };
+        let read_byte = plan
+            .rows
+            .iter()
+            .position(|row| row.method == "read_byte")
+            .expect("Console plan must retain read_byte");
+        assert_eq!(
+            retained.row_compiler_intrinsic_executions[read_byte],
+            (target != "macos_arm64").then_some(CompilerIntrinsicExecutionIdentity::LinuxReadByte),
+        );
+        assert_eq!(
+            derive(
+                retained.provider.row_requirements[exit],
+                retained.provider.row_realizations[exit],
+                Some("linux_x86_64"),
+            ),
+            Some(selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
+            "package-owned std source requires the accepted package binding that produced retained closed custody",
+        );
+        for unsupported in [
+            derive(
+                retained.provider.row_requirements[read_byte],
+                retained.provider.row_realizations[exit],
+                Some("linux_x86_64"),
+            ),
+            derive(
+                retained.provider.row_requirements[exit],
+                retained.provider.row_realizations[read_byte],
+                Some("linux_x86_64"),
+            ),
+            derive(
+                retained.provider.row_requirements[exit],
+                retained.provider.row_realizations[exit],
+                Some("macos_arm64"),
+            ),
+        ] {
+            assert_eq!(
+                unsupported,
+                Some(selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Unsupported,),
+                "requirement, realization, and selected target are independent catalog authority",
+            );
+        }
+        {
+            let method = "read_line";
+            let index = plan
+                .rows
+                .iter()
+                .position(|row| row.method == method)
+                .unwrap_or_else(|| panic!("Console plan must retain {method}"));
+            assert_eq!(
+                retained.row_compiler_intrinsic_executions[index], None,
+                "unsupported CompilerIntrinsic row `{method}` must remain outside the closed catalog",
+            );
+        }
     }
-
     let targetless = compile_to_checked(&main_path, None)
         .expect("targetless Console provider should compile to checked trees");
     let (targetless_plan, targetless_retained) = targetless
@@ -1990,12 +1991,12 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         };
         assert!(matches!(
             settlement.settlement.realization,
-            target_operations::BoundaryRealization::LinuxExitGroupI32(_),
+            target_operations::BoundaryRealization::HostedExitProcessI32(_),
         ));
         assert_eq!(
             settlement.settlement.execution,
             native_realization::BoundaryExecutionRecord::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+                target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
             ),
             "the consuming lowerer must retain structural builtin custody for {target}",
         );
@@ -2013,7 +2014,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         );
         assert_eq!(
             accepted_policy
-                .classify(effects::CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32)
+                .classify(effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
                 .expect("closed compiler-intrinsic policy classifies Linux exit-group")
                 .classes(),
             &[effects::TerminalAuthorityClass::ProcessTermination],
@@ -2051,7 +2052,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         assert_eq!(
             parent.execution(),
             target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+                target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
             ),
         );
 
@@ -2330,7 +2331,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
     assert_eq!(
         settlement.settlement.execution,
         native_realization::BoundaryExecutionRecord::CompilerBuiltin(
-            target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
         ),
     );
     assert!(matches!(

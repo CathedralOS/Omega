@@ -15,7 +15,7 @@ use typed_trees::types::TypeReferenceNode;
 ///
 /// Boundary-operator rows preserve the established float catalog. Console
 /// entries bind the exact requirement and realization on each supported target.
-/// Byte output supports Linux and macOS; input and exit remain Linux-only. The source
+/// Byte output and exit support Linux and macOS; input remains Linux-only. The source
 /// leaf is bodyless boundary supply without an authored payload-free `via`;
 /// toolchain custody or one settled ordinary-package consumer binding must
 /// additionally own that row.
@@ -112,7 +112,7 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
             SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
         ));
     };
-    if linux_console_exit_row(
+    if hosted_console_exit_row(
         checked,
         plan,
         row,
@@ -124,7 +124,7 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
         accepted_declaration_symbol,
     )? {
         return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
+            CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
         )));
     }
     if hosted_console_write_byte_row(
@@ -218,7 +218,7 @@ fn linux_console_read_byte_row(
     )
 }
 
-fn linux_console_exit_row(
+fn hosted_console_exit_row(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -239,7 +239,7 @@ fn linux_console_exit_row(
         selected_target,
         accepted_binding,
         accepted_declaration_symbol,
-        &["linux_x86_64", "linux_arm64"],
+        &["linux_x86_64", "linux_arm64", "macos_arm64"],
         "exit_process",
         "ConsoleNativeProvider::exit_process",
         ConsoleIntrinsicShape::I32ToUnit,

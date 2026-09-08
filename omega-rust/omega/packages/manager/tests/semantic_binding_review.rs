@@ -791,7 +791,7 @@ invokes console;
             .row_declarations()
             .iter()
             .all(|row| row.compiler_intrinsic_execution()
-                != Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32)),
+                != Some(PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32)),
         "semantic recognition must not mint Linux physical execution on Windows",
     );
 }

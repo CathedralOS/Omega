@@ -19,7 +19,7 @@
 //! `terminal_authority_class_order_matches_canonical_tags` asserts over every
 //! one. Reordering that enum for readability silently rewrites every stored
 //! disposition. The compiler-intrinsic family tags are the opposite case and
-//! deliberately NOT in declaration order - `LinuxExitGroupI32` is 0,
+//! deliberately NOT in declaration order - `HostedExitProcessI32` is 0,
 //! `BuiltinFunction` 1, and `HostedWriteByteI32` 5 - because those were assigned
 //! as families were added. Role tags for `terminal_mechanism_identity_bytes`
 //! follow the same append-only rule: `CompilerIntrinsic` 0, `NormalizedForeign`

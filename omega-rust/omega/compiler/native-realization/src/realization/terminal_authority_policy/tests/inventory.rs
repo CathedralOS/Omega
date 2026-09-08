@@ -122,7 +122,7 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
     let policy = current_compiler_intrinsic_terminal_authority_policy();
     assert_eq!(
         policy
-            .classify(CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32)
+            .classify(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
             .expect("Linux exit must have a committed policy row")
             .classes(),
         &[TerminalAuthorityClass::ProcessTermination]
@@ -149,7 +149,7 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
 
 #[test]
 fn absent_policy_row_rejects_instead_of_becoming_empty() {
-    let mechanism = CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32;
+    let mechanism = CompilerIntrinsicExecutionIdentity::HostedExitProcessI32;
     let error = classify_from_inventory(&[], mechanism)
         .expect_err("an absent mechanism must not inherit an empty disposition");
     assert_eq!(error.mechanism(), mechanism.into());

@@ -36,7 +36,7 @@ impl NativeByteSpan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeCompilerBuiltinCatalogIdentity {
-    LinuxElfV1,
+    HostedV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -49,7 +49,7 @@ pub fn derive_stack_demand(
             matching.next().is_none()
                 && matches!(
                     row.settlement.realization,
-                    target_operations::BoundaryRealization::LinuxExitGroupI32(_)
+                    target_operations::BoundaryRealization::HostedExitProcessI32(_)
                 )
                 && row.settlement.code_offset == 0
                 && row.settlement.byte_count == function.byte_count

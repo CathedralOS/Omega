@@ -30,7 +30,7 @@ use target::{
 };
 use target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
-    LinuxExitGroupI32Realization, MetadataOnlyPortRealization, ProviderExecutionBinding,
+    HostedExitProcessI32Realization, MetadataOnlyPortRealization, ProviderExecutionBinding,
     ProviderPlanReportIdentity, TerminalPsiProvenance,
 };
 use terminal_psi::{
@@ -255,7 +255,7 @@ fn source_free_x86_fma_object_rejects_cross_profile_even_when_native_target_matc
 }
 
 #[test]
-fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
+fn hosted_exit_process_object_validation_replays_exact_scalar_and_trap_bytes() {
     for (target, destination) in [
         (
             NativeTarget::linux_x64(),
@@ -265,153 +265,193 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             NativeTarget::linux_arm64(),
             calling_conventions::MachineRegister::Aarch64X(0),
         ),
+        (
+            NativeTarget::macos_arm64(),
+            calling_conventions::MachineRegister::Aarch64X(0),
+        ),
     ] {
-        let machine = machine_id(91);
-        let constant = operation_id(91);
-        let settlement_operation = operation_id(92);
-        let nominal_return = edge_id(91);
-        let boundary = BoundaryMachineId::new(91).unwrap();
-        let source_value = semantic_vocabulary::ValueId::new(91).unwrap();
-        let scalar_type = semantic_vocabulary::ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
-                .unwrap(),
-        );
-        let argument = BoundaryScalarArgument {
-            source_value,
-            scalar_type,
-            immediate: semantic_vocabulary::IntegerValue::Signed(37),
-            destination,
-        };
-        let bytes = match target.architecture {
-            target::Architecture::X86_64 => isa_x86_64::encode_linux_exit_group_i32(37),
-            target::Architecture::Aarch64 => isa_aarch64::encode_linux_exit_group_i32(37).unwrap(),
-        };
-        let plan = MachineCodePlan {
-            psi: identity(),
-            target,
-            entry: machine,
-            functions: vec![MachineCodeFunction {
-                scalar_abi: None,
-                mixed_structural_scalar_abi: None,
-                structural_call_scalar_return: None,
-                unit_scalar_abi: None,
-                internal_unit_scalar_calls: Vec::new(),
-                installed_provider_unit_scalar_calls: Vec::new(),
-                dynamic_calls: Vec::new(),
-                stored_dynamic_calls: Vec::new(),
-                dynamic_parameter_calls: Vec::new(),
-                forwarded_dynamic_parameter_calls: Vec::new(),
-                forwarded_dynamic_descriptor_calls: Vec::new(),
-                unit_scalar_homes: Vec::new(),
-                unit_integer_constants: Vec::new(),
-                unit_affine_scalar_records: Vec::new(),
-                unit_structural_scalar_field_stores: Vec::new(),
-                unit_write_only_primitive_stores: Vec::new(),
-                scalar_structural_scalar_field_stores: Vec::new(),
-                machine,
-                attachment: None,
-                provenance: TerminalPsiProvenance {
-                    operations: vec![constant, settlement_operation],
-                    edges: vec![nominal_return],
-                },
-                bytes: bytes.clone(),
-                x86_scalar_fma: Vec::new(),
-                x86_scalar_fma_occurrences: Vec::new(),
-                x86_floating_control: None,
-                unit_stack: None,
-                unit_parameter_homes: Vec::new(),
-                unit_parameters: Vec::new(),
-                scalar_stack: None,
-                internal_calls: Vec::new(),
-                foreign_calls: Vec::new(),
-                internal_unit_calls: Vec::new(),
-                unit_continuations: Vec::new(),
-                unit_affine_cleanup: None,
-                semantic_code_attribution: vec![
-                    SemanticCodeAttribution {
-                        site: SemanticCodeSite::Operation(constant),
-                        operation_ordinal: 0,
-                        code_offset: 0,
-                        byte_count: 0,
+        for value in [0, 1, 37, 255, 256, -1, i32::MIN, i32::MAX] {
+            let machine = machine_id(91);
+            let constant = operation_id(91);
+            let settlement_operation = operation_id(92);
+            let nominal_return = edge_id(91);
+            let boundary = BoundaryMachineId::new(91).unwrap();
+            let source_value = semantic_vocabulary::ValueId::new(91).unwrap();
+            let scalar_type = semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                    .unwrap(),
+            );
+            let argument = BoundaryScalarArgument {
+                source_value,
+                scalar_type,
+                immediate: semantic_vocabulary::IntegerValue::Signed(i128::from(value)),
+                destination,
+            };
+            let bytes = match target.architecture {
+                target::Architecture::X86_64 => isa_x86_64::encode_hosted_exit_process_i32(value),
+                target::Architecture::Aarch64 => {
+                    isa_aarch64::encode_hosted_exit_process_i32(target, value).unwrap()
+                }
+            };
+            let plan = MachineCodePlan {
+                psi: identity(),
+                target,
+                entry: machine,
+                functions: vec![MachineCodeFunction {
+                    scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
+                    structural_call_scalar_return: None,
+                    unit_scalar_abi: None,
+                    internal_unit_scalar_calls: Vec::new(),
+                    installed_provider_unit_scalar_calls: Vec::new(),
+                    dynamic_calls: Vec::new(),
+                    stored_dynamic_calls: Vec::new(),
+                    dynamic_parameter_calls: Vec::new(),
+                    forwarded_dynamic_parameter_calls: Vec::new(),
+                    forwarded_dynamic_descriptor_calls: Vec::new(),
+                    unit_scalar_homes: Vec::new(),
+                    unit_integer_constants: Vec::new(),
+                    unit_affine_scalar_records: Vec::new(),
+                    unit_structural_scalar_field_stores: Vec::new(),
+                    unit_write_only_primitive_stores: Vec::new(),
+                    scalar_structural_scalar_field_stores: Vec::new(),
+                    machine,
+                    attachment: None,
+                    provenance: TerminalPsiProvenance {
+                        operations: vec![constant, settlement_operation],
+                        edges: vec![nominal_return],
                     },
-                    SemanticCodeAttribution {
-                        site: SemanticCodeSite::Operation(settlement_operation),
+                    bytes: bytes.clone(),
+                    x86_scalar_fma: Vec::new(),
+                    x86_scalar_fma_occurrences: Vec::new(),
+                    x86_floating_control: None,
+                    unit_stack: None,
+                    unit_parameter_homes: Vec::new(),
+                    unit_parameters: Vec::new(),
+                    scalar_stack: None,
+                    internal_calls: Vec::new(),
+                    foreign_calls: Vec::new(),
+                    internal_unit_calls: Vec::new(),
+                    unit_continuations: Vec::new(),
+                    unit_affine_cleanup: None,
+                    semantic_code_attribution: vec![
+                        SemanticCodeAttribution {
+                            site: SemanticCodeSite::Operation(constant),
+                            operation_ordinal: 0,
+                            code_offset: 0,
+                            byte_count: 0,
+                        },
+                        SemanticCodeAttribution {
+                            site: SemanticCodeSite::Operation(settlement_operation),
+                            operation_ordinal: 1,
+                            code_offset: 0,
+                            byte_count: bytes.len(),
+                        },
+                        SemanticCodeAttribution {
+                            site: SemanticCodeSite::Edge(nominal_return),
+                            operation_ordinal: 2,
+                            code_offset: bytes.len(),
+                            byte_count: 0,
+                        },
+                    ],
+                    port_effects: Vec::new(),
+                    boundary_settlements: vec![BoundarySettlementRecord {
+                        psi_operation: settlement_operation,
+                        boundary,
+                        execution: machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                        ),
+                        realization: BoundaryRealization::HostedExitProcessI32(
+                            HostedExitProcessI32Realization,
+                        ),
+                        scalar_arguments: vec![argument],
+                        runtime_scalar_arguments: Vec::new(),
+                        arguments: Vec::new(),
+                        byte_sequence_arguments: Vec::new(),
+                        completion_claim_sources: Vec::new(),
+                        completion_receipts: Vec::new(),
+                        completion_provider_custody: Vec::new(),
+                        native_result: machine_code::BoundaryResultRecord::Unit,
                         operation_ordinal: 1,
                         code_offset: 0,
                         byte_count: bytes.len(),
-                    },
-                    SemanticCodeAttribution {
-                        site: SemanticCodeSite::Edge(nominal_return),
-                        operation_ordinal: 2,
-                        code_offset: bytes.len(),
-                        byte_count: 0,
-                    },
-                ],
-                port_effects: Vec::new(),
-                boundary_settlements: vec![BoundarySettlementRecord {
-                    psi_operation: settlement_operation,
-                    boundary,
-                    execution: machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
-                    ),
-                    realization: BoundaryRealization::LinuxExitGroupI32(
-                        LinuxExitGroupI32Realization,
-                    ),
-                    scalar_arguments: vec![argument],
-                    runtime_scalar_arguments: Vec::new(),
-                    arguments: Vec::new(),
-                    byte_sequence_arguments: Vec::new(),
-                    completion_claim_sources: Vec::new(),
-                    completion_receipts: Vec::new(),
-                    completion_provider_custody: Vec::new(),
-                    native_result: machine_code::BoundaryResultRecord::Unit,
-                    operation_ordinal: 1,
-                    code_offset: 0,
-                    byte_count: bytes.len(),
+                    }],
+                    scalar_affine_cleanup: None,
+                    scalar_control_affine_cleanups: Vec::new(),
+                    scalar_structural_parameters: Vec::new(),
+                    scalar_structural_parameter_homes: Vec::new(),
+                    ranked_u32_countdown: None,
+                    structural_return: None,
                 }],
-                scalar_affine_cleanup: None,
-                scalar_control_affine_cleanups: Vec::new(),
-                scalar_structural_parameters: Vec::new(),
-                scalar_structural_parameter_homes: Vec::new(),
-                ranked_u32_countdown: None,
-                structural_return: None,
-            }],
-        };
-        let object = build_object_artifact(&plan).expect("validated exit object");
-        let again = build_object_artifact(&plan).expect("deterministic exit object");
-        assert_eq!(object.text_bytes(), again.text_bytes());
-        assert_eq!(
-            object.boundary_settlements()[0].settlement.scalar_arguments,
-            [argument]
-        );
-        let image = emit_executable_image(&object, 3).expect("import-free exit image");
-        assert_eq!(
-            image.boundary_settlements()[0].settlement.byte_count,
-            bytes.len()
-        );
-        let installation = build_installation_record(&image, ProfileDecisionId::new(91).unwrap())
-            .expect("exit installation record");
-        let encoded =
-            encode_installation_record(&installation).expect("exit installation encoding");
-        let decoded = decode_installation_record(&encoded).expect("exit installation decoding");
-        assert_eq!(decoded, installation);
-        assert_eq!(
-            decoded.boundary_settlements()[0]
-                .settlement
-                .scalar_arguments,
-            [argument]
-        );
-        validate_installation_record(&decoded, &image)
-            .expect("decoded exit installation binds image");
+            };
+            let object = build_object_artifact(&plan).expect("validated exit object");
+            let again = build_object_artifact(&plan).expect("deterministic exit object");
+            assert_eq!(object.text_bytes(), again.text_bytes());
+            assert_eq!(
+                object.boundary_settlements()[0].settlement.scalar_arguments,
+                [argument]
+            );
+            let image = emit_executable_image(&object, 3).expect("import-free exit image");
+            image_emission::validate_executable_image(&object, &image)
+                .expect("exact exit image replay");
+            assert_eq!(
+                image.boundary_settlements()[0].settlement.byte_count,
+                bytes.len()
+            );
+            let installation =
+                build_installation_record(&image, ProfileDecisionId::new(91).unwrap())
+                    .unwrap_or_else(|error| {
+                        panic!("exit installation for {target:?}, {value}: {error:?}")
+                    });
+            let encoded =
+                encode_installation_record(&installation).expect("exit installation encoding");
+            let decoded = decode_installation_record(&encoded).expect("exit installation decoding");
+            assert_eq!(decoded, installation);
+            assert_eq!(
+                decoded.boundary_settlements()[0]
+                    .settlement
+                    .scalar_arguments,
+                [argument]
+            );
+            validate_installation_record(&decoded, &image)
+                .expect("decoded exit installation binds image");
+            if target == NativeTarget::host() {
+                hosted_exit_runtime::assert_exit(&image.output().bytes, value);
+            }
 
-        let mut corrupted = plan;
-        corrupted.functions[0].bytes[0] ^= 1;
-        assert!(matches!(
-            build_object_artifact(&corrupted),
-            Err(ObjectError::BoundaryRealizationMismatch { .. })
-        ));
+            for byte_position in 0..bytes.len() {
+                for bit_position in 0..8 {
+                    let mut corrupted = plan.clone();
+                    corrupted.functions[0].bytes[byte_position] ^= 1 << bit_position;
+                    assert!(matches!(
+                        build_object_artifact(&corrupted),
+                        Err(ObjectError::BoundaryRealizationMismatch { .. })
+                    ));
+                }
+            }
+            if target.architecture == target::Architecture::Aarch64 {
+                let mut wrong_target = plan.clone();
+                wrong_target.target = if target == NativeTarget::linux_arm64() {
+                    NativeTarget::macos_arm64()
+                } else {
+                    NativeTarget::linux_arm64()
+                };
+                assert!(build_object_artifact(&wrong_target).is_err());
+            }
+        }
     }
+    #[cfg(not(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64")
+    )))]
+    eprintln!("SKIP: physical hosted exit runtime requires Linux x64/AArch64 or macOS AArch64");
 }
+
+#[path = "artifacts/hosted_exit_runtime.rs"]
+mod hosted_exit_runtime;
 
 #[test]
 fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
@@ -468,7 +508,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         path: Vec::new(),
     };
     let (write_bytes, data) = isa_x86_64::encode_linux_write_line_literal(&literal).unwrap();
-    let exit_bytes = isa_x86_64::encode_linux_exit_group_i32(37);
+    let exit_bytes = isa_x86_64::encode_hosted_exit_process_i32(37);
     let mut bytes = write_bytes.clone();
     let exit_offset = bytes.len();
     bytes.extend_from_slice(&exit_bytes);
@@ -619,9 +659,9 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                     psi_operation: exit_operation,
                     boundary: exit_boundary,
                     execution: machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
                     ),
-                    realization: LinuxExitGroupI32Realization.into(),
+                    realization: HostedExitProcessI32Realization.into(),
                     scalar_arguments: vec![exit_argument],
                     runtime_scalar_arguments: Vec::new(),
                     arguments: Vec::new(),

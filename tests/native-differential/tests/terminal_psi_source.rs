@@ -70,7 +70,7 @@ use semantic_vocabulary::{
 use std::path::{Path, PathBuf};
 use target::NativeTarget;
 use target_operations::{
-    LinuxExitGroupI32Realization, TargetBooleanControl, TargetBooleanExpression,
+    HostedExitProcessI32Realization, TargetBooleanControl, TargetBooleanExpression,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation,
 };
 use terminal_codec::{
@@ -913,7 +913,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &[ComponentProviderSettlement {
             provider_execution: &unselected,
             provider_plan: selected_plan,
-            realization: LinuxExitGroupI32Realization.into(),
+            realization: HostedExitProcessI32Realization.into(),
         }],
     )
     .expect_err("staging must reject a provider execution outside the selected closure");
@@ -932,7 +932,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &[ComponentProviderSettlement {
             provider_execution: &provider,
             provider_plan: selected_plan,
-            realization: LinuxExitGroupI32Realization.into(),
+            realization: HostedExitProcessI32Realization.into(),
         }],
     )
     .expect("production staging should retain the progress-bearing terminal candidate");
@@ -1143,7 +1143,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             &[ComponentProviderSettlement {
                 provider_execution: &provider,
                 provider_plan: selected_plan,
-                realization: LinuxExitGroupI32Realization.into(),
+                realization: HostedExitProcessI32Realization.into(),
             }],
         )
         .expect("compiler transaction should restage the progress-bearing candidate");

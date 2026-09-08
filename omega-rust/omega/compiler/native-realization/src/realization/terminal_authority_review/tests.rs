@@ -225,7 +225,7 @@ fn permission_policy(
 fn intrinsic_mechanism(boundary: u32) -> AdmittedTerminalMechanism {
     AdmittedTerminalMechanism {
         boundary: BoundaryMachineId::new(u64::from(boundary)).unwrap(),
-        mechanism: CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32.into(),
+        mechanism: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32.into(),
     }
 }
 
@@ -296,7 +296,7 @@ fn intrinsic_leaf_requires_exact_service_permission() {
         "LeafProvider",
         LEAF_REQUIREMENT,
         ProviderBinding::CompilerIntrinsic {
-            machine: "test::linux_exit_group_i32".to_owned(),
+            machine: "test::hosted_exit_process_i32".to_owned(),
         },
     );
     let selected =
@@ -431,7 +431,7 @@ fn checked_adapter_expands_to_selected_terminal_leaf() {
         "LeafProvider",
         LEAF_REQUIREMENT,
         ProviderBinding::CompilerIntrinsic {
-            machine: "test::linux_exit_group_i32".to_owned(),
+            machine: "test::hosted_exit_process_i32".to_owned(),
         },
     );
     let selected =
@@ -479,7 +479,7 @@ fn internal_call_edges_are_part_of_the_reviewed_closure() {
         "LeafProvider",
         LEAF_REQUIREMENT,
         ProviderBinding::CompilerIntrinsic {
-            machine: "test::linux_exit_group_i32".to_owned(),
+            machine: "test::hosted_exit_process_i32".to_owned(),
         },
     );
     let selected =

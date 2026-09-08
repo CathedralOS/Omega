@@ -2,17 +2,20 @@
 use super::*;
 
 #[test]
-fn macos_origin_infers_only_write_byte_and_replays_exact_custody() {
+fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
     let source = r#"
         boundary trait Console {
             machine write_byte(byte: i32);
             machine exit_process(code: i32);
+            machine read_byte(value: i32);
         }
         data ConsoleNativeProvider {}
         boundary machine ConsoleNativeProvider::write_byte(byte: i32)
             satisfies Console::write_byte;
         boundary machine ConsoleNativeProvider::exit_process(code: i32)
             satisfies Console::exit_process;
+        boundary machine ConsoleNativeProvider::read_byte(value: i32)
+            satisfies Console::read_byte;
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -45,15 +48,22 @@ fn macos_origin_infers_only_write_byte_and_replays_exact_custody() {
     let [candidate] = candidates.as_slice() else {
         panic!("one Console candidate");
     };
-    let [row] = candidate.plan.rows.as_slice() else {
-        panic!("only byte output is supported");
-    };
-    assert_eq!(row.method, "write_byte");
+    let mut methods = candidate
+        .plan
+        .rows
+        .iter()
+        .map(|row| row.method.as_str())
+        .collect::<Vec<_>>();
+    methods.sort_unstable();
+    assert_eq!(methods, ["exit_process", "write_byte"]);
     assert_eq!(candidate.plan.target, "macos_arm64");
-    assert!(matches!(
-        row.binding,
-        ProviderBinding::CompilerIntrinsic { .. }
-    ));
+    assert!(
+        candidate
+            .plan
+            .rows
+            .iter()
+            .all(|row| matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }))
+    );
     assert!(validate_derived_provider_plan_candidates(&typed, &evaluated, &candidates).is_empty());
     for wrong_target in ["linux_arm64", "windows_x86_64"] {
         let mut wrong_origins = origins.clone();

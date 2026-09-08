@@ -314,7 +314,7 @@ fn structural_payload_source_is_exact(
         .filter(|candidate| {
             matches!(
                 candidate.realization,
-                target_operations::BoundaryRealization::LinuxExitGroupI32(_)
+                target_operations::BoundaryRealization::HostedExitProcessI32(_)
             ) && candidate.operation_ordinal > write.operation_ordinal
         })
         .max_by_key(|candidate| candidate.operation_ordinal)
@@ -557,7 +557,7 @@ mod tests {
 
             let mut changed = settlement.clone();
             changed.execution = BoundaryExecutionRecord::CompilerBuiltin(
-                CompilerBuiltinExecution::LinuxExitGroupI32,
+                CompilerBuiltinExecution::HostedExitProcessI32,
             );
             assert!(!hosted_write_byte_custody_is_exact(
                 target,

@@ -142,10 +142,10 @@ fn byte_output_replays_exact_builtin_argument_and_occurrence() {
             match mutation {
                 0 => {
                     *execution = BoundaryExecutionBinding::CompilerBuiltin(
-                        CompilerBuiltinExecution::LinuxExitGroupI32,
+                        CompilerBuiltinExecution::HostedExitProcessI32,
                     )
                 }
-                1 => *realization = BoundaryRealization::LinuxExitGroupI32(Default::default()),
+                1 => *realization = BoundaryRealization::HostedExitProcessI32(Default::default()),
                 2 => *boundary = BoundaryMachineId::new(2).unwrap(),
                 3 => runtime_scalar_arguments[0].parameter_index = 1,
                 _ => {

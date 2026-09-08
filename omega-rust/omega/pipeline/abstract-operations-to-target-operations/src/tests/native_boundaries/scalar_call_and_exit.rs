@@ -49,7 +49,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         )
         .unwrap()
         .into(),
-        realization: target_operations::LinuxExitGroupI32Realization.into(),
+        realization: target_operations::HostedExitProcessI32Realization.into(),
     };
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -70,7 +70,7 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
         assert!(body.operations.iter().any(|operation| matches!(
             operation,
             TargetUnitOperation::BoundarySettlement {
-                realization: target_operations::BoundaryRealization::LinuxExitGroupI32(_),
+                realization: target_operations::BoundaryRealization::HostedExitProcessI32(_),
                 scalar_arguments,
                 ..
             } if scalar_arguments[0].immediate == IntegerValue::Signed(37)
@@ -92,6 +92,8 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             NativeTarget::linux_x64(),
             std::slice::from_ref(&settlement),
         ),
-        Err(LoweringError::InvalidLinuxExitGroupShape(multi_block.entry)),
+        Err(LoweringError::InvalidHostedExitProcessShape(
+            multi_block.entry
+        )),
     );
 }

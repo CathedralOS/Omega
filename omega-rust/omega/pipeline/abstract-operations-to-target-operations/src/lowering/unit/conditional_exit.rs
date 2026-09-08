@@ -290,7 +290,9 @@ pub(super) fn lower(
         unreachable!("bounded shape fixes the false return")
     };
     if !true_cleanup.is_empty() || !false_cleanup.is_empty() {
-        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
     }
 
     let conditional_ordinal = operations.len();
@@ -482,7 +484,9 @@ fn lower_exit_arm(
         &mut nonreturning,
     )?;
     if !nonreturning {
-        return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+        return Err(LoweringError::InvalidHostedExitProcessShape(
+            function.machine,
+        ));
     }
     Ok(())
 }

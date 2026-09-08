@@ -49,7 +49,9 @@ pub(super) fn lower_unit_return(
                 return Ok(());
             }
             if nonreturning_boundary && !cleanup_actions.is_empty() {
-                return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
+                return Err(LoweringError::InvalidHostedExitProcessShape(
+                    function.machine,
+                ));
             }
             if operations.iter().any(|operation| {
                 matches!(

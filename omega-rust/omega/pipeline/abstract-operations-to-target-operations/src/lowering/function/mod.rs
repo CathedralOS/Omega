@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Per-function route order by exact result and boundary shape.
 
-use super::boundary_settlements::lower_linux_exit_group_i32;
+use super::boundary_settlements::lower_hosted_exit_process_i32;
 use super::shared::*;
 use super::structural::lower_structural_function;
 use super::unit::lower_unit_function;
@@ -42,7 +42,7 @@ pub(super) fn lower_function(
     }
     if !native_boundaries::has_installed_scalar_call(function, installed_calls)
         && let Some(lowered) =
-            lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
+            lower_hosted_exit_process_i32(function, target, boundary_machines, settlements)?
     {
         return Ok(lowered);
     }

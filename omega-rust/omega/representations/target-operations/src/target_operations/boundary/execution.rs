@@ -35,7 +35,7 @@ pub struct ProviderExecutionBinding {
 /// provider execution or a compact authority coordinate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
-    LinuxExitGroupI32,
+    HostedExitProcessI32,
     LinuxReadByte,
     HostedWriteByteI32,
 }
