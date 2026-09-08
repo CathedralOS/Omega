@@ -54,7 +54,38 @@ when numeric totals happen to match.
 That join is not itself a final stack plan, provisioned lease, or admission
 receipt. Installation must establish backing and the applicable ceiling before
 execution; compiler spill accesses do not add author-visible crash causes.
-See the [language's compiler-owned stack contract](../../language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+
+### Compiler-owned stack accesses
+
+Spill slots belong to the activation frame. Derive final live physical extent
+including reuse, alignment, saved registers and calling-plan storage, not the
+sum of spill instructions or overlapping slot demands. Compose it through the
+closed call chain and external-root context/nesting rules, including checked or
+admitted same-stack providers, then compare it with admitted supply.
+Runtime non-tail recursion rejects; tail backedges accumulate no frames. A
+termination measure alone supplies neither frame sizing nor recursive stack
+capacity. Spill realization introduces no recursion-depth or per-call exhaustion
+protocol.
+
+Provisioning must establish access, alignment, valid backing and lifetime through
+the selected stack plan/lease or external-entry contract, including suspension.
+A byte count alone is insufficient. Failed supply or establishment follows
+admission, installation or activation failure, not a new source `Trap`. Ordinary
+nested calls consume the composed bound rather than adding a new exhaustion
+mechanism.
+
+Within that established contract, validated spill loads/stores are non-faulting
+in the language model. Target-required setup or probing may establish the
+contract and must charge its live overhead. It does not remove physical
+provenance, bounds, offsets, alignment, lifetime or frame replay. A wrong generated
+address or expired backing is a compiler defect, not permitted resource failure.
+
+Demand binds the exact optimization/allocation result, final frames, target and
+calling rules, and installed artifact. Matching Terminal semantics alone cannot
+reuse another realization's demand. Existing independently checked transitive
+identity relations may establish the join; no parallel hash field is required
+solely to repeat it. Abstract spill requirements and stack composition alone do
+not establish physical realization or provisioned backing.
 
 ## Program-local content roots
 

@@ -58,12 +58,8 @@ physical failure remain explicit boot-envelope assumptions, not proved absence.
 
 ## Checked instructions
 
-Parsed `asm { ... }` is the only source-level instruction surface; opaque bytes
-and unknown instructions reject. Every instruction has a compiler-owned
-contract for regime, authority, facts, reach, register/flag/memory changes,
-ordering, and exits. Direct assembly and higher-level boundary operations
-contribute the same normalized reach. Regime transitions require the old regime
-and establish the new one.
+[Checked assembly](../language/assembly.md) owns source syntax, exact block
+assertions/clobbers, instruction requirements, regime changes and control flow.
 
 Entry/exit operations such as `iretq` and `sysret` are deriver-only, not ways for
 source to manufacture control exits. Provider-only checked `lidt` requires

@@ -94,7 +94,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             );
         }
         // A call through a DATA TYPE name (`Counter::from_v1(old, &mut current)`)
-        // targets the machine attached to that data type: chapter 21's migration
+        // targets the machine attached to that data type. Ordinary migration
         // machines take the old shape and the migration target as ordinary
         // parameters, so they are called through the type, not through a value.
         if matches!(receiver_kind, SymbolKind::Data) {

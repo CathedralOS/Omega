@@ -1,23 +1,13 @@
 # Omega Language Guide
 
-This guide explains Omega's current language direction. During documentation
-consolidation, its chapters remain the reference for language subjects not yet
-extracted into the specification. The [documentation index](../README.md)
-identifies each migrated subject's authoritative owner.
+This guide teaches Omega through explanations and examples. The
+[subject-organized specification](../README.md) defines its contracts; examples
+do not imply that every compiler path is implemented. Current implementation
+notes start at [compiler ownership](../../omega-rust/README.md).
 
-Describe one present model, not the arguments that produced it. Rewrite changed
-rules in place; keep useful proposal rationale in proposals, engineering status on
-the execution board, and unresolved decisions in `OWNER_QUESTIONS.md`.
-The guide must not independently redefine a specification's contract.
-
-Implementation-status claims name the exact landed layer: source surface,
-normalization, validation, lowering, runtime realization, or proof. Landing one
-layer never licenses describing the complete language model as implemented.
-Generated origin and checked trust, historical schema and migration coverage,
-and selected representation and authored representation law remain similarly
-distinct.
-
-Compiler implementation notes start at [compiler ownership](../../omega-rust/README.md).
+[Owner questions](../../OWNER_QUESTIONS.md) identify unresolved decisions, and
+[proposals](../proposals/README.md) describe candidate changes. Neither extends
+the language described here until accepted.
 
 Suggested reading path:
 
@@ -42,7 +32,7 @@ Proof and semantic model:
 Language-building features:
 
 - [Chapter 13: Generics](chapter_13_generics.md)
-- [Chapter 14: Traits And Runtime Dispatch](chapter_14_traits.md)
+- [Chapter 14: Traits And Erased Dispatch](chapter_14_traits.md)
 - [Chapter 15: Modules, Imports, And Visibility](chapter_15_modules_imports_visibility.md)
 - [Chapter 16: Errors, Traps, And Failure](chapter_16_errors_traps_failure.md)
 - [Chapter 17: Drops And Cleanup](chapter_17_drops_and_cleanup.md)
@@ -52,8 +42,5 @@ Boundary and low-level topics:
 
 - [Chapter 19: Capabilities, Reach, And Boundaries](chapter_19_capabilities_effects_boundaries.md)
 - [Chapter 20: Memory Layout And ABI](chapter_20_memory_layout_abi.md)
-- [Chapter 21: Wire Protocols](chapter_21_wire_protocols.md)
-- [Chapter 22: Historical Data And Component Replacement](chapter_22_versioned_data.md)
-- [Chapter 23: Inline Assembly](chapter_23_inline_assembly.md)
+- [Chapter 21: Inline Assembly](chapter_21_inline_assembly.md)
 - [Using source packages](packages.md)
-- [Appendix: Open Questions](appendix_open_questions.md)

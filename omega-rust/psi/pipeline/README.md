@@ -8,6 +8,14 @@ authority.
 
 ## Lexing and parsing
 
+Value-position `match` currently expands into arithmetic in
+[`primary.rs`](tokens-to-syntax-trees/src/parser/expression/primary.rs).
+This repeats subject/default nodes and computes nonselected arm terms;
+it does not implement the specified single-evaluation, first-match selective
+behavior for general values/effects. Replace that expansion with retained
+dispatch before claiming general match support. Parse acceptance and numeric
+examples are not coverage for the [dispatch contract](../../../wiki/spec/language/patterns.md).
+
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal
 bytes are spelling-level payload, not typed values or proof facts. The closed

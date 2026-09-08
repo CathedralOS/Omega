@@ -2,7 +2,7 @@
 
 | Directory | Read it for |
 | --- | --- |
-| [language_guide/](language_guide/language_guide.md) | How to write Omega. The existing guide is still being consolidated. |
+| [language_guide/](language_guide/language_guide.md) | How to write Omega. |
 | spec/ | Current contracts, organized by subject. |
 | [proposals/](proposals/README.md) | Proposed changes, not current rules. |
 | [drafts/](drafts/README.md) | Temporary investigations and migration plans. |
@@ -14,16 +14,20 @@ beside code; completed work belongs in Git, not current reference material.
 ## Current specification subjects
 
 - Source semantics: [state contracts and live facts](spec/language/state_contracts.md),
+  [data and literals](spec/language/data_and_literals.md),
+  [patterns and dispatch](spec/language/patterns.md),
   [modules and visibility](spec/language/modules.md),
   [ownership and multiplicity](spec/language/ownership.md),
   [lifetimes and carried borrows](spec/language/lifetimes.md),
   [concurrency and atomics](spec/language/concurrency.md),
   [machines and refinement](spec/language/machines.md),
   [named conformances](spec/language/conformances.md),
+  [generic applications](spec/language/generics.md),
   [termination and progress](spec/language/termination.md),
   [domains and qualification](spec/language/domains.md),
   [value-dependent facts and views](spec/language/dependent_values.md),
   [service reach and operational ceilings](spec/language/effects.md),
+  [inline assembly](spec/language/assembly.md),
   [semantic evaluation](spec/language/evaluation.md),
   [expressions and operators](spec/language/expressions.md),
   [constants](spec/language/constants.md), [numeric values and bounds](spec/language/numeric_values.md),
@@ -95,6 +99,5 @@ Bootstrap language and proof contracts live beside the chain; start at
 [minimization](../bootstrap/MINIMIZATION.md). Alternative chains remain an
 [open proposal](proposals/bootstrap_chain_alternatives.md).
 
-The [cleanup plan](drafts/documentation_cleanup.md) drives the migration.
 [Execution tasks](../TASKS.md) track implementation;
 [owner questions](../OWNER_QUESTIONS.md) hold unresolved decisions.

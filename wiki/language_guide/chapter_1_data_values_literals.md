@@ -1,50 +1,57 @@
 # Chapter 1: Data, Values, And Literals
 
-Omega starts with explicit data shapes and explicit values.
+Omega programs use explicit data shapes and ordinary machines. This chapter
+introduces values; [data and literal rules](../spec/language/data_and_literals.md)
+specify the source contract.
 
-> **No default *values* on data.** A field may not carry a `= default`
-> initializer. Construction may omit a field only when zero satisfies the
-> data's [default domain](chapter_7_types_constraints_invariants.md); otherwise
-> that field is mandatory. Non-zero convenience defaults belong in explicit
-> constructor machines such as `Config::with_defaults()`, never hidden field
-> initializers. The parser rejects field initializers for every data shape.
+Fields have no hidden default initializers. A constructor may omit a runtime field only
+when zero satisfies the complete data validity requirements. Nonzero defaults
+belong in ordinary constructor machines.
+Erased proof fields use their [construction rule](../spec/proofs/contracts.md#explicit-erased-bindings),
+not zero-filling.
 
 ## Hello World
 
-The smallest console program has a free entry machine and no implicit state.
+A console entry uses its admitted Console provider:
 
 ```omega
-use omega::language::std::console;
+use omega_language_std::console;
 
-machine start() {
-    Console::write_line("Hello, Omega.");
+data Main {
+    console: Console;
 }
 
-machine build(builder: &mut Build) {
-    builder.roots.bind(windows_x86_64::ProgramEntry, start);
+machine Main::main(&mut self) {
+    self.console.write_line("Hello, Omega.");
 }
 ```
 
-The invocation selects one exact target—when omitted, the CLI may resolve its
-`Host` convenience to a concrete profile before evaluating this build. The
-`build.omg` file binds `start` for the Windows profile; it does not choose the
-target, call the machine, supply arguments, or bless storage, and the language
-does not discover `main` by name. At launch, the hosted target's generated
-bridge performs platform storage and provider setup before calling this
-source-level entry, so ordinary applications do not receive raw image or stack
-extents. The target-selected Console provider services the call. Programs that
-need one program-lifetime receiver attach the selected entry machine to that
-receiver's data type; Chapter 3 shows that form.
+The project's `build.omg` explicitly declares the application and selects its
+entry:
 
-The receiver's `data` declaration remains an ordinary value shape. Selecting an
-attached entry provisions one occurrence. Storage authority, qualification,
-and root lineage belong to that provisioned occurrence; other values of the
-same type follow the ordinary construction and ownership rules.
+```omega
+machine build(builder: &mut Build) {
+    builder.application("hello");
+    // Declare the std dependency for this project's source layout.
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+```
+
+These are the central source forms, not a complete package setup. The
+[CLI sample](../../samples/cli/basics/cli_mvp/main.omg) and its
+[build file](../../samples/cli/basics/cli_mvp/build.omg) include dependency
+declarations and target bindings.
+
+The invocation selects an exact target; naming a binding does not select it.
+The target's entry bridge provisions one receiver and the admitted storage and
+providers before calling the entry. There is no special discovery of a machine
+named `main`. A free machine may also be selected when no receiver is needed.
+Other values of `Main` remain ordinary values: the data type itself grants no
+entry authority. See [entry roots](../spec/build/entry_roots.md).
 
 ## Data
 
-`data` declarations describe stored state. Fields inside `data` are owned by
-that value.
+A record owns its fields:
 
 ```omega
 data Player {
@@ -52,53 +59,30 @@ data Player {
     health: i32;
     armor: i32;
 }
-```
 
-Machines describe behavior over data. A machine receives access to data through
-its signature.
-
-```omega
-machine Player::take_damage(
-    &mut self,
-    amount: i32
-) {
+machine Player::take_damage(&mut self, amount: i32)
+requires amount >= 0
+requires self.health >= amount
+{
     self.health = self.health - amount;
 }
 ```
 
-Working interpretation:
-
-- `data` owns its fields.
-- Machines do not implicitly own fields.
-- A machine can mutate receiver state through `&mut self`.
-- A machine can read receiver state through `&self`.
-- Other inputs arrive as explicit parameters.
-- Locals are temporary values inside a machine or state body.
-- Mutation should be visible through `&mut` parameters or `self.` field access.
-
-The `self.` prefix is intentionally visible. It lets a reader distinguish stored
-state from locals and parameters at a glance.
+The receiver parameter supplies access; the machine does not implicitly own
+fields. `self.health` identifies stored state, while `amount` is an explicit
+input. The preconditions establish that the subtraction is in range.
 
 ## Case Members (Sum Shapes)
 
-Omega does not have a separate `enum` type. Alternatives are a MEMBER CLASS of
-`data`: a `case` member declares one shape of a closed set, and a value
-inhabits exactly one case at a time.
+Alternatives are cases inside ordinary data:
 
 ```omega
 data Direction {
     case None;
     case North;
     case South;
-    case East;
-    case West;
 }
-```
 
-Cases may carry named payload fields, owned by the value exactly like ordinary
-fields:
-
-```omega
 data Command {
     case None;
     case Quit;
@@ -107,387 +91,179 @@ data Command {
 }
 ```
 
-**Foreign integer codes.** A payload-less case is a nominal value, not an
-untyped integer constant. The retired `case Name = 7;` spelling neither adds a
-payload nor controls a layout and is rejected. A numbered member identity such
-as `case #7 Name;` is stable schema metadata; it also does not supply a runtime
-integer value or tag.
-
-A foreign enumeration crosses a boundary in its declared integer carrier (or
-in a `repr native` record containing that carrier). Ordinary checked machines
-map between that integer and an Omega sum. For example, the filesystem library
-maps native `errno` values to `ErrorKind` with an ordinary exhaustive `match`:
-
-```omega
-let kind: ErrorKind = match code {
-    2  -> ErrorKind::NotFound,
-    13 -> ErrorKind::PermissionDenied,
-    17 -> ErrorKind::AlreadyExists,
-    _  -> ErrorKind::Other
-};
-```
-
-The reverse correspondence is another ordinary mapping machine over the sum's
-cases. The wildcard or rejection path states what unknown foreign integers
-mean; no raw integer silently becomes an established sum value. This mechanism
-is source-visible, checked, and already sufficient for firmware, hardware, and
-protocol constants. A future zero-copy optimization may skip such a mapping
-only after proving complete byte-representation equivalence; it is not a
-different language meaning for cases.
-
-A declaration's shape follows from its members: only fields is a RECORD, only
-cases is a SUM, fields AND cases together is MIXED -- common fields shared by
-every case, plus a case part:
+A value inhabits one case. Its active payload belongs to the value. Common
+fields can accompany the cases:
 
 ```omega
 data RoomEvent {
-    consumed: bool;                 // present in every case
+    consumed: bool;
     case Nothing;
     case Treasure(gold: u32);
-    case Enemy(enemy: Enemy);
 }
+
+let event = RoomEvent::Treasure { consumed: true, gold: 5 };
 ```
 
-The mixed shape replaces the two-type split other languages force (a struct
-holding a separately-named `Kind` enum). The header and the tag belong to one
-declaration, so the compiler, reflected schema, and selected layout policy see
-them as one thing. Mixed shapes are LIVE with these rules:
+This mixed shape has `consumed` in every case, with a case-specific payload.
+Common fields can be accessed without a case test; payload fields need the
+matching case. Case-bearing types use case construction, not a record literal
+that omits the case.
 
-- LAYOUT: tag at offset 0 (the universal case-bearing constant), common
-  fields packed after the tag, payload overlay after the common fields.
-  Common-field offsets are case-independent constants; a zeroed value is the
-  first case with zeroed common fields (ZII unchanged).
-- CONSTRUCTION: always the case-literal form (`RoomEvent::Treasure { gold:
-  5 }` -- no record-form literal for case-bearing types). Common fields may
-  be named alongside payload fields (`RoomEvent::Treasure { consumed: true,
-  gold: 5 }`); every common field NOT named zero-initializes -- construction
-  replaces the whole value, and ZII makes the zero valid. Because of that
-  rule, common fields may not declare default initializers (a default would
-  silently never apply), and -- first cut -- must be scalar primitives. Every
-  named field expression evaluates exactly once in authored literal order,
-  independently of declaration order and physical layout, under
-  [Chapter 5's evaluation schedule](chapter_5_expressions_evaluation.md#evaluation-schedule).
-- ACCESS: common fields read and write WITHOUT case knowledge
-  (`event.consumed`); payload fields stay case-bound (arm bindings).
-- EQUALITY: synthesized structural `==` is common fields AND tag AND the
-  matching case's payload.
-- Wire encoding over case-bearing value types (sums AND mixed) is rejected
-  loudly until the case part has a schema spelling.
+Omitted fields still need valid zero values. Zeroed storage selects the first
+case, but observation requires its common fields and active payload to be
+established. Zero does not prove an authority qualification or mean “empty.”
+[Chapter 20](chapter_20_memory_layout_abi.md#zeroed-storage-and-establishment)
+explains that distinction.
+
+Cases are not integer aliases. Foreign numeric codes use their declared integer
+carrier and an explicit checked mapping to a sum, including unknown-code
+handling. Stable `#N` member numbers are schema identities, not runtime integer
+values or byte offsets.
 
 ## Cases Are Domains
 
-Declaring a case implicitly declares the same-named domain: `case Move(...)`
-on `Command` declares `Command::Move`, the set of values whose tag is `Move`,
-with a free constant-time membership test (a tag compare). `case` therefore never
-appears at a USE site. Checks, patterns, and compositions all use the one
-`Type::Name` spelling and the ordinary domain algebra
-([Domains](chapter_8_domains.md)):
+Each case also names the domain of values inhabiting it:
 
 ```omega
 domain Command::Interactive
     requires self in Command::Move | Command::Say;
 ```
 
-A case-subset domain replaces the shadow-enum pattern (`Direction` vs
-`HorizontalDirection`): a narrower set of cases is a union of case-domains
-over the same type, not a new type.
+This is a subset of `Command`, not another enum with copied cases. Case
+patterns and domain patterns share `Type::Name` spelling. A payload binding
+such as `Command::Move { direction }` additionally exposes the case shape.
 
-Match arms are CLASSIFICATIONS -- case arms and domain arms mix freely in one
-match, spelled identically, and the first satisfied arm wins (the same rule
-transitions use):
-
-```omega
-match entity {
-    Entity::Dead -> loot()              // domain (predicate)
-    Entity::Monster { ai } -> hunt(ai)  // case, payload bound
-    Entity::Hostile -> flee()           // domain (case union)
-    _ -> ignore()
-}
-```
-
-Working rules:
-
-- The FIRST case is the zero case: its tag is `0`, so a zeroed value is the
-  first case with a recursively zeroed payload. The compiler derives whether
-  that value establishes the type from the default domain and zero-reachable
-  fields. A payload-free first case has no special semantic status; emptiness
-  is an authored domain or contract (see
-  [Memory Layout And ABI](chapter_20_memory_layout_abi.md)).
-- The subject's shape decides what an arm can be: a scalar subject takes
-  value patterns, a record subject takes domain arms, a case-bearing subject
-  takes case arms and domain arms together.
-- Payload binding (`Entity::Monster { ai }`) is legal only on a case arm,
-  because only a case implies a payload shape. A binding arm is therefore
-  visibly a case; an unbound `Type::Name` arm requires the declaration (or
-  tooling) to tell case from domain -- accepted, since wanting domains over
-  case-bearing types makes that ambiguity intrinsic.
-- Exhaustiveness counts DECIDABLE arms: case arms and pure case-union
-  domains (those are finite tag sets). A match relying on any predicate
-  domain needs a `_` arm.
-- Cases, domains, and machines share the type's `Type::member` namespace.
-  Names must be unique; any collision -- including a later domain or machine
-  declared against an existing case -- is a hard compile error. There is no
-  shadowing and no resolution priority: silently rebinding what a match arm
-  means is never acceptable.
-- The compiler never repurposes invalid payload bit patterns to elide the tag
-  (no niche optimization); the zero bit pattern must stay a valid value.
+Patterns are ordered. A selected domain pattern supplies its facts, but an
+executable test must be runtime-checkable and cannot mint routed provenance.
+Finite case unions can support exhaustiveness; arbitrary predicate patterns
+need a fallback unless coverage is established. See
+[dispatch](chapter_6_pattern_matching_dispatch.md) and
+[domains](chapter_8_domains.md).
 
 ### Equality Vs Membership
 
-`==` is always VALUE equality (resolved through core `Equatable`,
-[Traits](chapter_14_traits.md)); `in` is always DOMAIN membership (the tag
-test, for case domains). A bare payload-bearing case name denotes no value --
-only its domain -- so comparing against it is a category error:
+`==` compares values; `in` asks domain membership:
+
+This example assumes `Command` has its required `Equatable` conformance:
 
 ```omega
-let q: bool = cmd == Command::Quit;                  // ok: payload-less name IS a value (tag identity)
-let m: bool = cmd in Command::Move;                  // ok: membership -- "is this case"
-let e: bool = cmd in Command::Quit | Command::None;  // ok: domain unions, value position
-let v: bool = cmd == Command::Move { dx: 1, dy: 2 }; // ok: constructed value, STRUCTURAL equality
-let x: bool = cmd == Command::Move;                  // ERROR: `Move` is not a value; use `in`
+let quit: bool = command == Command::Quit;
+let moving: bool = command in Command::Move;
+let interactive: bool = command in Command::Move | Command::Say;
 ```
 
-Equatable is intrinsic for primitives and payload-less sums (tag identity is
-the only thing it could mean); records and payload-bearing sums declare one
-named synthesis block, which synthesizes structural `equals` from
-the members. Adding a payload case to a payload-less sum flips the type from
-implicit to declared, erroring every `==` site until the one-line conformance
-is written -- a deliberate re-affirmation after equality's meaning changed.
-Guard-level equality never silently degrades to a tag compare; the tag test
-is what `in` lowers to.
+`Command::Move` alone is not a value because it needs a direction payload.
+Construct one to compare whole values. Structural equality compares common
+fields, the active case, and its payload—not only a tag.
 
-Still pending: `match`-statement arms and recursive Equatable types. Both reject
-loudly at the conformance block. Bounded byte carriers participate in
-synthesized equality through their live length and bytes.[^case-members]
-
-[^case-members]: Payload binding in `transition` arms uses the ordinary
-data-pattern machinery (`Case { field, fixed: value }`); a future `match`
-statement must reuse that spelling rather than inventing another pattern
-language. Generic payloads use ordinary cased data (`Optional<T>`-style), while
-the layout rule for payload storage uses a tag-prefixed overlay with a
-recursively zeroed first-case payload. A domain declared as a
-pure case union is recognized for exhaustiveness
-  SYNTACTICALLY -- the domain `requires` clause must contain exactly the fact
-`self in Type::A | Type::B` over the target type's own cases; recognition by
-general fact analysis remains a possible later widening.
+Primitive and payload-free-sum equality is intrinsic. Records and payload-bearing
+sums declare their selected `Equatable` synthesis or conformance. Adding a
+payload therefore requires an explicit equality decision. See
+[core equality](../spec/language/conformances.md#core-equality-acquisition).
 
 ## Locals
 
-Locals are values introduced inside executable machine/state bodies.
+Locals are temporary bindings, not stored fields:
 
 ```omega
-machine Player::heal(
-    &mut self,
-    amount: i32
-) {
-    let next_health: i32 = self.health + amount;
-    self.health = next_health;
-}
+let amount: i32 = 4;
+let next_health: i32 = self.health - amount;
+self.health = next_health;
 ```
 
-Locals are not data fields. They do not become part of the data layout and they
-do not survive outside the graph paths where their lifetime is valid.
+The subtraction needs the same range proof as any other arithmetic. The local's
+scope and ownership determine how long it may be used; introducing it does not
+make it part of the data layout.
 
 ## Constants
 
-A `const` is a named compile-time value. Its initializer is evaluated at build
-time (a build-time-admissible expression in constant position — see
-[Semantic evaluation](../spec/language/evaluation.md)), so a `const`
-is a *value*, not runtime storage.
+A `const` names an evaluated value, not one addressable storage occurrence:
 
 ```omega
 pub const PAGE_SIZE: u64 = 4096;
-pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
 pub const IMPORT_NAME: [u8; 9] = "WriteFile";
 ```
 
-- **Free-floating, namespaced by package/module** (the default), resolved by the
-  `::` path rule — a `const` is a compile-time name (`memory::PAGE_SIZE`). It may
-  instead be **type-scoped** when it genuinely belongs to a type
-  (`const EfiStatus::SUCCESS = …`), declared like a machine (`Type::NAME`),
-  **outside** the `data` block — so it is never part of a value's shape and never
-  counts toward `sizeof`. (Only scope a constant to a type it truly belongs to;
-  binding unrelated constants to a `data` symbol is worse design.)
-- **Immutable, and a pure value** — the const's type must have **no cleanup
-  obligation, no shared ownership, and no interior mutability**. It is copied
-  freely at each use, so it is trivially borrowable and thread-safe. A type with
-  a drop/cleanup obligation cannot be a `const`; the restriction is checked from
-  the cleanup facts ([Drops And Cleanup](chapter_17_drops_and_cleanup.md)), and
-  it is what makes a `const` safe to reference from anywhere without analysis.
-- **Not scalar-only.** Fixed arrays, records, and copy-eligible sums are
-  const-evaluable when their complete types recursively
-  satisfy the same pure-value/multiplicity rule. An unrestricted active case
-  does not make a structurally linear sum eligible. A constant initializer may
-  call any ordinary machine whose concrete invocation passes semantic-
-  evaluation admission; there is no `const machine` category.
-- **Not authority.** A constant grants nothing, so free-floating constants are
-  consistent with the capability model — unlike ambient *mutable* state, which
-  does not exist. There is no `static` keyword. A receiver-bound program entry
-  gets one target-provisioned receiver, reachable only through its explicit
-  `&mut self` parameter; see
-  [constant values](../spec/language/constants.md) and
-  [provisioned entry state](../spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
+Constants may be package/module-scoped or genuinely attached to a type. Their
+complete type must permit copying without cleanup, shared ownership, or interior
+mutability. Arrays and records can qualify; constants are not scalar-only.
 
-A constant may depend on a typed observation from the selected target-semantic
-capsule. Such an application remains symbolic in a target-neutral package and
-closes only when the target is selected. It is still an ordinary canonical
-constant: it may appear anywhere an equivalent constant may appear, including
-an array length or const-generic argument. Its exact observation and selected-
-realization dependencies remain in the public signature, artifact identity,
-and diagnostic provenance after folding. This adds no conditional field/case
-or declaration-splice facility. See
-[Semantic evaluation](../spec/language/evaluation.md#target-semantic-capsule).
+Initializers use ordinary [semantic evaluation](../spec/language/evaluation.md).
+There is no separate `const machine` category. Target-dependent constants retain
+their exact target dependencies even after folding. Runtime use additionally
+needs determined bytes under the selected layout; proof-only use may erase.
 
-`const` names a value, not one addressable image occurrence. Compile-time-only
-uses may erase completely. When runtime use requires bytes, the compiler applies
-a separate value-sensitive materialization judgment to the evaluated value and
-selected layout. The active case and its actual fields must recursively have a
-fully determined observable encoding; inactive cases do not participate, and
-layout padding is emitted as zero and remains outside program semantics. The
-diagnostic names the first offending component and the computation that
-produced it.
-
-This is deliberately distinct from immutable static/image storage. Omega has no
-source `static` declaration today; a future addressable read-only image object
-would promise one storage identity, which a `const` never does.
+A constant grants no authority. Omega has no ambient mutable `static`; long-lived
+entry state is one explicitly provisioned occurrence. See
+[constants](../spec/language/constants.md).
 
 ## Lexical Profile V1
 
-Omega source files are valid UTF-8 byte sequences, but UTF-8 is source framing,
-not an ambient text semantics for the language. The V1 grammar recognizes only
-ASCII syntax:
+Source is UTF-8 with ASCII syntax. Identifiers use
+`[A-Za-z_][A-Za-z0-9_]*`; whitespace is space, tab, carriage return, or line feed.
+Non-ASCII bytes are admitted inside comments and literal bodies, not identifiers.
+Invisible Unicode whitespace is not an alternative separator.
 
-- identifiers match `[A-Za-z_][A-Za-z0-9_]*`;
-- syntactic whitespace is exactly space, tab, carriage return, and line feed;
-- punctuation, operators, keywords, and numeric spellings use ASCII bytes; and
-- non-ASCII source is admitted only inside comments and literal bodies.
-
-Other Unicode whitespace, including non-breaking space and Unicode line or
-paragraph separators, rejects with a diagnostic that the spelling is outside
-the current language profile. This closed list keeps invisible pasted text and
-the host implementation's changing Unicode tables from changing tokenization.
-Identifier comparison is therefore exact ASCII-byte comparison; there is no
-normalization or confusable-name policy in V1.
-
-Unicode identifiers and a raw-payload literal form remain possible future
-features, not reserved current syntax. Admitting Unicode identifiers requires
-one normative, versioned identifier table plus normalization/confusable and
-cross-implementation agreement rules. Admitting raw payloads requires an
-Omega-owned delimiter, terminator, newline, and exact-byte contract. A future
-profile can widen either rejection without changing the meaning of existing
-source.
+The [lexical profile](../spec/language/data_and_literals.md#lexical-profile)
+keeps tokenization independent of host Unicode tables.
 
 ## String Literals And Bytes
 
-A quoted literal is **raw bytes**, nothing more. The compiler's only string job
-is turning quoted text into bytes; it knows nothing about encodings (that is
-library code — see [Chapter 8](chapter_8_domains.md)). So a string literal has
-type `&[u8]` and carries **no** encoding domain until one is explicitly
-established. Its bytes live in immutable image storage: the resulting
-shared view can therefore be copied into persistent machine fields without
-borrowing a state-local owner.
+A quoted literal is a shared byte view, not automatically text:
 
 ```omega
-let greeting = "Hello, Omega.";   // : &[u8]  -- just bytes, no Utf8 yet
-```
-
-In an exact-width owned fixed-array constant or evaluator-result position, a
-quoted literal contextually copies its bytes into the array rather than
-returning an evaluator reference:
-
-```omega
+let greeting = "Hello, Omega."; // &[u8], no encoding qualification
 pub const DLL_NAME: [u8; 12] = "kernel32.dll";
 ```
 
-The literal byte count must equal the array length; mismatch rejects rather
-than truncating or padding. Length is part of the array type and every byte is
-ordinary structural value content. Constant-pool interning is an emission
-optimization with no semantic identity. Ordinary temporary references and
-slices may be used inside an evaluated machine, but only an owned value
-snapshot may cross back out of the evaluator. Variable-length ownership uses
-ordinary bounded or allocated collection types; literals do not introduce a
-special compile-time byte type.
+The literal view has immutable image backing. An exact-width owned array context
+instead copies its bytes; the length must match exactly, without padding or a
+hidden live-length field.
 
-The rule is **copy, never synthesize or interpret**:
+Directly authored `"café"` copies the editor's UTF-8 bytes. Byte escapes such as
+`\n`, `\0`, and `\xNN` specify bytes without choosing a text encoding. Quotes
+and backslashes use `\"` and `\\`. Raw newlines and codepoint escapes are not
+accepted inside quotes; encoders and normalizers are library operations.
 
-- The lexer copies the source bytes between the quotes verbatim. `"café"` typed
-  directly copies the UTF-8 bytes saved by the editor. Source decoding finds
-  the literal boundary; it does not normalize, transcode, or attach text
-  meaning to the payload.
-- **Byte-level escapes** produce one specific byte and need no encoding
-  knowledge: `\n \r \t \0 \\ \" \xNN`. `\\` and `\"` are required so the lexer
-  can find the closing quote.
-- **No `\u{...}` codepoint escapes.** Encoding a codepoint to bytes *is* an
-  encoding decision, which the front end does not make; a codepoint is produced
-  by a library compile-time helper (e.g. `utf8::encode(0x1F600)`) and joined with
-  `+`, not smuggled into literal syntax.
-- **No raw-string form in V1.** Exact payloads use ordinary literals plus
-  byte-level escapes. A build-time machine may read a resource, generate bytes,
-  run a selected Unicode encoder or normalizer, validate the result, and emit
-  an owned byte artifact when a literal would be inconvenient.
-- **No raw newlines inside `"..."`.** A program's meaning must not depend on how
-  the file was checked out (CRLF vs LF), so a newline is written `\n`; span
-  source lines by joining literals, which folds at compile time:
-
-  ```omega
-  let banner = "line one\n"
-             + "line two\n";
-  ```
-
-- **Source is ASCII-transparent UTF-8.** Only ASCII bytes are syntactically
-  significant; non-ASCII bytes are opaque payload inside a literal or comment.
-  This is an input-format rule, not value semantics.
-
-To treat a literal as text, establish the encoding domain explicitly
-(`"hi" as [u8]::Utf8`, which the compiler discharges by checking the bytes at
-compile time — [Chapter 8](chapter_8_domains.md)). The literal itself stays raw
-bytes.
+Establish a text domain explicitly when needed, for example
+`"hi" as [u8]::Utf8` under the imported domain's checked rules. Source UTF-8
+framing alone does not establish that qualification.
 
 ## Parameters
 
-Parameters are explicit entry values.
+Signatures say which inputs are values and which are borrowed:
 
 ```omega
-machine Combat::strike(
-    attacker: &Player,
-    defender: &mut Player,
-    damage: i32
+machine inspect_and_update(
+    source: &Player,
+    destination: &mut Player,
+    amount: i32
 ) {
-    defender.health = defender.health - damage + attacker.armor;
+    // Ordinary checked operations use these explicit inputs.
 }
 ```
 
-Working interpretation:
-
-- `attacker` is a shared borrow.
-- `defender` is a unique mutable borrow.
-- `damage` is a value parameter.
-- Nothing is implicitly captured from ambient process state.
+There is no implicit capture of ambient process state. Shared and exclusive
+access, transfers, and cleanup are covered in
+[Chapter 2](chapter_2_ownership_borrowing_moves.md).
 
 ## Stored Values And Proof Facts
 
-Stored fields may eventually carry proof-visible constraints, but constraints
-are not part of Chapter 1's core model.
+A field's representation and its validity conditions are separate:
 
 ```omega
 data Player {
-    health: i32;
+    health: i32 in 0..=100;
 }
 ```
 
-That syntax means `health` is still represented as an `i32`, with additional
-proof obligations attached to assignments and transitions that can change it.
-The constraint story is covered later in the invariants/proof chapters.
+The stored carrier is still `i32`. Construction and consumption must establish
+the range; mutation follows the invariant-window rules rather than adding hidden
+runtime checks. [Contracts and flow facts](chapter_7_types_constraints_invariants.md)
+introduces that model.
 
 ## Foundation
 
-The foundation is:
-
-- Data shape is explicit.
-- Behavior is explicit.
-- Access is explicit.
-- There is no hidden machine-owned field declaration syntax.
-- There is no implied stack magic behind state transitions.
-
-Later chapters build on this by adding states, transitions, typed returns,
-constraints, domains, invariants, traits, and runtime dispatch.
+Data owns fields; machines receive access; state transitions transfer explicit
+values within an activation. Later chapters build on those rules without adding
+hidden storage or ambient authority.

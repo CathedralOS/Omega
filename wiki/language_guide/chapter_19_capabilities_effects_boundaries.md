@@ -43,7 +43,7 @@ Indexing, for example, keeps its caller obligation visible even when the
 physical operation is compiler-provided:
 
 ```omega
-boundary operator [] Slice::index<T>(items: &[T], index: u64) -> T
+boundary operator [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
@@ -395,7 +395,7 @@ guarantees, not blanket claims of generic or native implementation support.
 A freestanding target has no operating-system host below it. Its providers may
 guarantee hardware behavior: a mapping becomes active, an MMIO access reaches
 a device, or an interrupt mask remains in force until restoration. Those accepted
-facts remain explicit trust inputs. [Inline assembly](chapter_23_inline_assembly.md)
+facts remain explicit trust inputs. [Inline assembly](chapter_21_inline_assembly.md)
 is an implementation mechanism, not a bypass around their contracts.
 
 Physical arrival is distinct from semantic authority. UEFI supplies an image

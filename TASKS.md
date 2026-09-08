@@ -48,27 +48,6 @@ tables, schedulers, process tables, timer queues, or drivers as compiler-owned
 Rust models. Compiler validation and code generation may consume general plans;
 they must not acquire customer-shaped semantic types or lifecycle protocols.
 
-## Documentation consolidation
-
-- **DOCUMENTATION-CONSOLIDATION.** Execute the
-  [four-move cleanup plan](wiki/drafts/documentation_cleanup.md), owned by repository
-  documentation. Finish the guide's teaching/specification separation, remove
-  stale historical references and duplicated draft material, and verify the
-  consolidated documentation and its source readers. The
-  [documentation index](wiki/README.md) identifies the current subject owners.
-  Consolidate into guide, specification, proposals, and temporary drafts; keep
-  implementation documentation beside code. Preserve current contracts, not
-  superseded source forms, ledger numbers, or implementation history.
-
-  Acceptance: one authoritative home per current contract, no competing legacy
-  documents or completed-work diaries, honest implementation/formalization status,
-  repaired links and affected source readers, and the plan's finish conditions
-  satisfied. Remove this task and the temporary plan when complete.
-
-  Native integration details extracted during the cleanup remain in the
-  [Terminal realization note](wiki/drafts/terminal_realization.md); implement them
-  under their existing native/borrow/callback owners, not as documentation work.
-
 ## Immediate product closure
 
 These are the next product-level priorities for the maintained Rust
@@ -427,6 +406,13 @@ Owners include
   those claims. Physical optimization replay belongs to
   `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
 
+  Close current-only decoding under the
+  [codec compatibility gap](omega-rust/psi/semantics/terminal-codec/README.md#compatibility-gap);
+  legacy 56/59 acceptance is not a compatibility policy. Complete intrinsic
+  settlement with one exhaustive optional mapping in
+  `compiler/src/compiler/intrinsic_settlements.rs`: new planner variants must
+  require classification, and unsupported identities must refuse explicitly.
+
 - **GENERAL-CYCLIC-EXECUTION.** Implement the
   [settled cyclic control contract](wiki/spec/terminal-psi/control_flow.md)
   and [separate safety/progress rules](wiki/spec/language/termination.md)
@@ -691,6 +677,15 @@ Owners include
   and token era, not row equality, authorize invocation.
 
 ## Parallel language and compiler lanes
+
+- **MATCH-SELECTIVE-LOWERING.** Replace arithmetic expansion in
+  `tokens-to-syntax-trees/src/parser/expression/primary.rs` with retained
+  [value dispatch](wiki/spec/language/patterns.md) through typed checking and
+  Terminal control. Acceptance: evaluate the subject once, execute only the
+  first matching arm, retain compatible nonnumeric/owned results and branch
+  facts, and reject incomplete coverage. Side-effectful subjects, unselected
+  trapping arms, duplicate/overlapping patterns, and nonnumeric results need
+  controls; subtraction/multiplication is not a general match implementation.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Implement the
   [module/name contract](wiki/spec/language/modules.md) through source resolution

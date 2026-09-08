@@ -40,6 +40,13 @@ execution support.
 
 ## Callback custody boundaries
 
+Retained-product callback and checked-scope composition must close through
+actual native publication, not a zero-payload layout or provider-selection check.
+Widening scalar-provider forwarding additionally requires preserved incoming
+ABI homes, complete call/relocation replay, and a genuinely reachable authored
+entry. Use rooted provider and callback controls retaining complete argument,
+result, and resource custody; metadata-only receipt tests do not close the route.
+
 [callback_custody.rs](src/realization/callback_custody.rs) returns the caller's
 opaque companion by value on both success and rejection. That wrapper does not
 admit, lower, fingerprint, or interpret its contents.

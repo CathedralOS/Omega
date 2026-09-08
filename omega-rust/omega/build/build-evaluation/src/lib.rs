@@ -299,7 +299,7 @@ pub struct BuildConfig {
     /// Exact named conformances activated as physical carriers for
     /// boundary-opaque values. The compiler derives shape from each carrier.
     pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
-    /// Chapter 21 channel/store compatibility demands. Each marker names the
+    /// Channel/store compatibility demands. Each marker names the
     /// edge, format lineage, local and peer schemas, and the directional facts
     /// the final build requires.
     pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
@@ -4768,7 +4768,7 @@ fn harvest_root_bindings(
     }
 }
 
-/// Chapter 21: collect the edge-specific wire facts requested by the one
+/// Collect the edge-specific wire facts requested by the one
 /// authoritative build machine. The parser has already validated the closed
 /// fact vocabulary; this pass validates the marker encoding and duplicate
 /// declarations before compatibility evaluation consumes it.

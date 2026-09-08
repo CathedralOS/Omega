@@ -18,10 +18,11 @@ language behavior, not the current compiler's supported expression shapes.
 | Fixed-array literal | Increasing element index. |
 | Record or case literal | Authored field-expression order. |
 | Transition dispatch | Subject once before dispatch; only the selected arm runs. |
+| Value-position `match` | Subject once; first matching arm only. |
 
 Every evaluated child runs exactly once. Unary operations, borrows, casts,
 membership tests, and member access have one immediate runtime child. The
-short-circuit and transition rows are the closed selective set for these forms;
+short-circuit and dispatch rows are the closed selective set for these forms;
 a new selective form needs an explicit schedule, not an implicit lazy exception.
 
 The right operand of `&&` may use the left operand's true-path facts; `||` may

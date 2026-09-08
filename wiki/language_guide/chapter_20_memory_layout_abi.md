@@ -50,7 +50,9 @@ data Command {
     case Say(text: [u8; 256]);
 }
 
-pub domain Command::Inert;
+pub domain Command::Inert
+requires
+    self in Command::None;
 
 pub machine Command::empty() -> command: Command in Command::Inert {
     Command::None
@@ -501,5 +503,58 @@ than an encode.
 
 A codec still owes its agreement and validation contract. Generated code does
 not automatically have derived trust; decoding establishes neither authority nor
-device correspondence. Continue with [Wire Protocols](chapter_21_wire_protocols.md)
-and the [codec contract](../spec/layouts/codecs.md).
+device correspondence. Checked validation establishes its promised predicates;
+routed provenance additionally needs its declared authorized establishment route.
+
+Wire formats and historical migration use ordinary declarations and machines:
+
+```omega
+data CounterDiskV1 {
+    #1 counter: i32;
+}
+
+data CounterDiskV2 {
+    #1 counter: i64;
+    #2 timestamp_seconds: u64;
+}
+
+data CounterDisk {
+}
+
+machine counter_v1_to_v2(
+    old: CounterDiskV1,
+    out: &mut CounterDiskV2
+) satisfies FormatMigration<
+    CounterDisk,
+    CounterDiskV1,
+    CounterDiskV2
+>::migrate {
+    out.counter = old.counter as i64;
+    out.timestamp_seconds = 0;
+}
+```
+
+Stable `#N` identities survive renaming; they are not offsets or runtime
+discriminants. Number every member or none within each record, sum, or payload
+scope; `retired #N;` reserves a removed identity. Erased numbered fields retain
+schema identity but emit no wire bytes. See [schema policies](../spec/layouts/plans.md#policy-evaluation-and-schema).
+
+Published shapes stay immutable. Here the ordinary `CounterDisk` marker selects
+one lineage and the standard `FormatMigration` requirement binds its exact
+conversion. The new timestamp is an authored semantic choice, not an implicit
+wire default. Reverse conversion is separate and may fail. Independent disk,
+network, and snapshot lineages need not share a runtime type's history.
+
+An omitted optional field means `None`; a missing required field is invalid.
+Strict decode rejects unknown members, projecting decode discards them, and
+preserving decode retains exact unknown bytes and ordering in a codec-bound
+opaque remainder. A borrowed remainder retains its input loan; an owned copy
+has allocation obligations. None grants facts about unknown fields.
+
+The [codec contract](../spec/layouts/codecs.md) owns these policies and migration
+requirements. A channel or store separately requests directional reading,
+writing, preservation, canonicalization, or complete peer-to-local migration
+through [build compatibility](../spec/build/configuration.md#directional-wire-compatibility).
+These are package patterns, not intrinsic versions or special migration syntax;
+the example illustrates the contract without promising every codec realization
+is implemented.

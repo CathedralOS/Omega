@@ -52,3 +52,68 @@ store may require stable identity and reader-tolerance guarantees. An ephemeral
 cache may explicitly select a policy without them. Channel/store compatibility
 checks must join published schemas, plans, historical shapes, and migrations;
 they are not implied by one codec round-trip law.
+
+## Presence and representation
+
+A missing required field is invalid. An omitted `Optional<T>` field decodes
+as `None`; omission is its canonical encoding, while `Some(value)` encodes the
+field and value. New required semantic values need an authored migration, not
+an implicit wire default. Exact arrays contain exactly their declared count;
+bounded-live-length, growable owned, and borrowed sequences retain their own
+length, allocation, loan, and work obligations.
+
+Home-layout facts describe runtime discriminants and the meaning of zero
+storage; stable case identities do not select either. A representation-sensitive
+API states the relationship it requires as an ordinary checked obligation.
+The `Optional<T>` home-representation obligation that zero denotes `None` is
+separate from the codec's omission rule. A layout that violates an authored
+representation obligation rejects where that obligation is declared.
+
+## Unknown members and remainder custody
+
+`StrictDecode<Policy, Value>` validates the complete input and rejects unknown
+fields or cases. `ProjectingDecode<Policy, Value>` validates known members and
+discards unknown ones. `PreservingDecode<Policy, Value>` preserves them for relay.
+These are distinct normalized requirements, not an unrecorded decoder option.
+`DecodeResult<T>` is the fail-closed result sum; preserving decode returns
+`DecodeResult<Relayed<T>>`.
+
+`Relayed<T>` separates its validated value from an `OpaqueWireRemainder` binding
+the producing codec identity and a codec-private envelope containing exact
+unknown-member bytes and their relay-ordering sidecar. Facts about `T` describe
+only the known validated value. Opaque means semantically uninterpreted, not
+confidential or unforgeable. A zero-copy remainder or decoded view retains an
+input-buffer loan; an owned copy carries explicit allocation and resource
+obligations. Packed-varint decoding cannot substitute a borrowed scalar view
+for the required owned or caller-provided mutable destination.
+
+## Historical lineages and migration
+
+Published historical shapes are immutable ordinary declarations. Independent
+lineages may share carriers without sharing migration edges. The standard
+`FormatMigration<Lineage, Old, New>::migrate` requirement selects an explicitly
+bound checked conversion for the exact lineage and shapes. It adds no intrinsic
+version identity to either type. Reverse and fallible conversions are separate
+requirements; an upgrade promises neither reversibility nor a downgrade.
+Changing a field's semantic domain is a type change even with the same carrier.
+
+Decode policy handles unknown eras explicitly: reject, preserve, negotiate, or
+another contracted choice. Exhaustive matching checks known cases, but a wildcard
+does not prove that every known era has a migration route. Such completeness
+needs the selected migration evidence. Generators may traverse schemas; they
+do not choose persistent fields, atomic snapshots, or migration meaning.
+
+## Compact binary policy
+
+The `compact_binary` grammar starts with its policy discriminator and emits
+fields in increasing stable-identity order. Integers use canonical minimal
+unsigned LEB128 groups, with zigzag for signed values; Boolean encodings are
+exactly `0` and `1`. Nested records are length-delimited and their decoding must
+finish exactly at the declared sub-region end. Reads are bounds-checked.
+
+Its strict decoder returns `Invalid` on malformed values, unexpected identities,
+truncation, range violations, or noncanonical encoding. That failure verdict is
+authoritative; partially written output fields and consumed-byte count are
+unspecified. `Sound` establishes every destination carrier and declared field
+domain. Generated origin does not independently prove this contract; an
+unverified generated realization remains compiler-admitted.

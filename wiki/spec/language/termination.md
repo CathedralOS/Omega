@@ -100,8 +100,10 @@ ordinary case. That algorithm-visible budget is distinct from
 [logical-work accounting](../resources/logical_work.md) and creates no native
 runtime meter.
 
-Logical failure obligations still reject unless proved or explicitly covered by
-the relevant crash contract. Recoverable errors and cooperative cancellation
+Logical obligations still reject unless proved. An operation whose selected
+semantics explicitly permits a crash must fit the enclosing crash contract;
+declaring that ceiling does not make an unproved Exact operation trapping.
+Recoverable errors and cooperative cancellation
 remain result cases. A crash is not normal return; its frontier is an audit
 lower bound, not proof that unlisted state remains usable. Termination never
 names a crash cause or substitutes for the independent cleanup/control contract.

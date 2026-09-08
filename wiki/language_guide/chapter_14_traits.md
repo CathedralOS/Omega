@@ -32,14 +32,20 @@ data Counter {
     value: i32;
 }
 
-StandardIncrement:
+SaturatingIncrement:
     Counter satisfies Incrementable
 {
     machine increment(&mut self) {
-        self.value = self.value + 1;
+        if self.value < i32::Maximum {
+            self.value = self.value + 1;
+        }
     }
 }
 ```
+
+This trait promises only the callable shape, not a law requiring strict addition
+at the maximum value. This named implementation intentionally saturates; the
+guard proves that its addition fits `i32`.
 
 The implementation remains an ordinary machine. The enclosing conformance
 block gives the compiler and programmer one closed, reviewable unit that binds
@@ -276,9 +282,11 @@ conformance.
 ## Individual Machine Requirements
 
 A local generic requirement may need only one exact machine signature rather
-than a reusable trait name. The general source spelling for that direct
-requirement remains open. Static machine parameters and their constraints are
-covered in [compile-time proofs](chapter_10_compile_time_proofs.md).
+than a reusable trait name. A static machine binder states that structural
+contract, for example `where machine Key(card: &Card) -> u64`. This is distinct
+from an anonymous member requirement such as `where machine T::member(...)`,
+which is not a supported source form. See
+[static machine binders](../spec/language/generics.md#static-machine-binder-categories).
 
 ## Operator Requirements
 
@@ -677,7 +685,7 @@ Code that wants a local dynamic interface over a component owns a local proxy:
 
 ```omega
 data LoggingProxy {
-    service: LoggingService;
+    service: Service<LoggingService> in Bound;
 }
 
 ComponentLogger:

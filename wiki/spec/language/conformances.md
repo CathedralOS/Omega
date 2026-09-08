@@ -7,14 +7,20 @@ satisfaction edge implements one requirement; it does not claim the whole map.
 ## Declaration and selection
 
 ```omega
-pub StandardIncrement:
+pub SaturatingIncrement:
     Counter satisfies Incrementable
 {
     machine increment(&mut self) {
-        self.value = self.value + 1;
+        if self.value < i32::Maximum {
+            self.value = self.value + 1;
+        }
     }
 }
 ```
+
+Here `Counter` has an `i32` value and `Incrementable` requires only the callable
+shape, with no strict-increment law. The named implementation intentionally
+saturates; its guard proves representability of the addition.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
 optional subject, instantiated trait application, complete row map, laws, and
