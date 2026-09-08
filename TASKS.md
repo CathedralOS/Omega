@@ -895,13 +895,57 @@ Owners include
   specialization request. Check source diagnostics, representation, and
   interpreter/native replay for the supported slice before widening it.
 
-  Squalr's 16/32/64-byte comparers and const-rotation bridges motivate follow-up
-  [finite specialization](wiki/spec/language/generics.md#finite-specialization-boundary).
-  Before implementing automatic dispatch or finite generic methods through
-  dynamic interfaces, specify coverage/fallback, target support, dispatch
-  placement, indexed result custody, and code-size control. Existing explicit
-  branches/static calls remain the baseline; the settled binder split is not
-  approval of an implicit dynamic vtable or existential packaging protocol.
+  Squalr's 16/32/64-byte comparers and const-rotation bridges additionally motivate
+  FINITE-GENERIC-DISPATCH below. The initial runtime-binder slice does not depend
+  on completing that dynamic-interface work or general reflection.
+
+- **STRUCTURAL-GENERIC-MATCHING.** Implement
+  [static type equality](wiki/spec/language/generics.md#static-type-equality),
+  [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
+  and [canonical ranges](wiki/spec/language/generics.md#canonical-integer-range-matching)
+  for bounded containers deriving static backing from a declared length type.
+  Psi parser/type-role resolution, generic-data substitution, machine inference,
+  canonical type identity, and checked branch facts own the route; static
+  evaluation/layout and artifact readers must use the same normalizer. Existing
+  const-range substitution is not reverse endpoint extraction. Replace the
+  range-argument exclusion in `generic_data/arguments.rs` only with exact identity
+  and constrained-shell substitution, not a source-display cache key.
+
+  Acceptance: TinyBytes' `Length == u64[0..=Capacity]` binds omitted Capacity from
+  its supplied type before layout; inclusive/exclusive equivalent intervals
+  select identical static capacity without runtime arithmetic overflow. Primitive
+  equality and its static branches check all admitted alternatives. Repeat and
+  explicit binder conflicts, absent/ambiguous endpoints, occurs cycles, and
+  type/value-kind mismatch reject. Range-only call inference selects declared
+  endpoints before ordinary compatibility; explicit larger call bounds remain
+  distinct from exact type equations. Local flow narrowing cannot alter inferred
+  layout; arbitrary domain predicates do not collapse nominal identity. Preserve
+  const staging, initialization, stack supply, and artifact replay. Runtime endpoint
+  applications depend on RUNTIME-VALUE-GENERICS; static matching can proceed first.
+
+- **FINITE-GENERIC-DISPATCH.** Implement the
+  [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
+  and [dynamic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
+  for Squalr-style scanner widths and runtime-selected datatype providers. Psi
+  extracts exact tuple rosters from explicit OR/equality constraints, checks each
+  body and membership edge, and retains requirement/index/result correspondence.
+  Terminal dynamic-call/descriptor owners and Omega native table/replay consumers
+  retain the same family rows and ordinary costs. Begin with one scalar value
+  binder, a common concrete result, and dispatch around a region-sized operation;
+  runtime arguments depend on RUNTIME-VALUE-GENERICS, not generic JIT execution.
+
+  Acceptance: widths 16/32/64 need no handwritten suffix-method family; source
+  alternative order and duplicates normalize deterministically. One selected
+  conformance covers every required tuple; missing, wrong-width, mixed-provider,
+  or shape-substituted rows reject. Const-only calls still reject dynamic inputs
+  without a checked bridge. Short explicit tuple sets preserve correlations and
+  do not enumerate arbitrary ranges; target-ineligible bodies and invented
+  fallbacks reject. Preserve parameter effects, index identity, and once-only
+  moves/cleanup through selection and replay. Escaping variable-shaped results
+  require an explicit sum or eligible owned/borrowed descriptor, not implicit
+  allocation. Retain compile/code-size evidence and scan-loop dispatch placement
+  before claiming an improvement over explicit branches. No new reflection API
+  or arbitrary generic virtual method is needed for this slice.
 
 - **DOMAIN-ISSUER-ROUTES.** Implement the
   [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)

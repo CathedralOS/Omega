@@ -62,10 +62,25 @@ Implement distinct binder kinds, exact runtime-subject substitution, and ordinar
 operand lowering with checked representation/custody under `RUNTIME-VALUE-GENERICS`
 on the [execution board](../../../TASKS.md). Runtime witnesses are not canonical
 static index bytes. Scope/name resolution, parameter modes, contract dependencies,
-and result identity must survive through Terminal and artifact replay. General
-finite dispatch generation and indexed dynamic interfaces require their own
-design; this is not a claim that a generic method on a dynamic value can already
-specialize or that runtime-dependent inline storage is supported.
+and result identity must survive through Terminal and artifact replay.
+
+The [type-equation and range-matching rules](../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
+add source type equality, endpoint extraction, and canonical interval matching.
+Existing const substitution into `u64[0..=N]` does not establish reverse inference
+from a supplied range. `generic_data/arguments.rs` still excludes range-qualified
+arguments from its slug path, and constrained-shell substitution is not general
+decomposition. `STRUCTURAL-GENERIC-MATCHING` tracks migration through source,
+type identity, checking, evaluation, and artifact consumers; preserve unsupported
+rejections until the corresponding representation and evidence are complete.
+
+`FINITE-GENERIC-DISPATCH` implements the
+[explicit family contract](../../../wiki/spec/language/generics.md#finite-specialization-boundary)
+and [dynamic rows](../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
+Current nongeneric dynamic tables do not implement tuple expansion, runtime
+family selection, or indexed result custody. Explicit source disjunctions, not
+integer ranges or current callers, define the roster. Keep const rejection,
+target coverage, and table completeness; no general reflection, implicit boxing,
+or runtime-dependent inline storage is part of this work.
 
 ## Resolution and closed-instance normalization
 
