@@ -7,6 +7,7 @@ use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement
 use legalized_operations::{LegalizedCallUnitSource, LegalizedScalarArgument};
 use machine_code::{
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitCallSource,
+    InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
     SemanticCodeAttribution, SemanticCodeSite, StructuralSourceLocation, UnitParameterHomeRecord,
     UnitParameterRecord,
 };
@@ -14,7 +15,7 @@ use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use selected_instructions::{
     SelectedBoundarySettlement, SelectedFunction, SelectedMemoryAccessRole,
 };
-use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
 use target_operations::CallSiteOwner;
 pub(super) use validation::{
     validate_function, validate_settlement_attributions, validate_settlements,
@@ -44,6 +45,26 @@ fn fragment(
         .iter()
         .find(|row| row.machine == machine)
         .ok_or(Error::Mismatch("missing ordinary function fragment"))
+}
+fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType, Error> {
+    use selected_instructions::VirtualRegisterOrigin;
+    let mut matching = function.virtual_registers.iter().filter(|register| {
+        matches!(register.origin,
+            VirtualRegisterOrigin::EntryParameter { source_value, .. }
+            | VirtualRegisterOrigin::BlockParameter { source_value, .. }
+            | VirtualRegisterOrigin::InstructionResult { source_value, .. }
+            if source_value == value)
+    });
+    let scalar_type = matching
+        .next()
+        .ok_or(Error::Mismatch("Unit call has no scalar source"))?
+        .scalar_type;
+    // ABI copies retain the original SSA identity. They must agree on its type;
+    // selected replay independently establishes each copy and its definition.
+    if matching.any(|register| register.scalar_type != scalar_type) {
+        return Err(Error::Mismatch("Unit call scalar source types disagree"));
+    }
+    Ok(scalar_type)
 }
 fn pointer(placement: &ValuePlacement) -> Result<calling_conventions::MachineRegister, Error> {
     match placement.locations.as_slice() {
@@ -210,7 +231,26 @@ pub(super) fn populate(
         )
         .map_err(|_| Error::Overflow)?;
         let mut arguments = Vec::new();
-        for argument in &call.arguments {
+        let mut scalar_arguments = Vec::new();
+        for (parameter_index, argument) in call.arguments.iter().enumerate() {
+            if let LegalizedScalarArgument::Scalar {
+                source: value,
+                placement,
+            } = argument
+            {
+                scalar_arguments.push(InternalUnitScalarCallArgumentRecord {
+                    parameter_index: u32::try_from(parameter_index).map_err(|_| Error::Overflow)?,
+                    source: InternalUnitScalarArgumentSourceRecord::SelectedCall {
+                        source_value: *value,
+                        scalar_type: scalar_type(selected, *value)?,
+                        instruction: contract.instruction,
+                    },
+                    destination: placement.clone(),
+                    code_offset: host(call_span.offset)?,
+                    byte_count: call_span.bytes.len(),
+                });
+                continue;
+            }
             let LegalizedScalarArgument::Structural { target, .. } = argument else {
                 return Err(Error::Unsupported("Unit call scalar publication"));
             };
@@ -267,7 +307,7 @@ pub(super) fn populate(
             result: None,
             semantic_result: None,
             structural_result: None,
-            scalar_arguments: Vec::new(),
+            scalar_arguments,
             arguments,
             claim_transfers: call.claim_transfers.clone(),
             operation_ordinal: span.operation_ordinal,

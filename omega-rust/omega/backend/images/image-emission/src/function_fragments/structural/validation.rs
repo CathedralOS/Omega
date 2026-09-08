@@ -82,9 +82,14 @@ pub(in crate::function_fragments) fn validate_function(
             || actual.result.is_some()
             || actual.semantic_result.is_some()
             || actual.structural_result.is_some()
-            || !actual.scalar_arguments.is_empty()
+            || actual.scalar_arguments.len()
+                != expected
+                    .arguments
+                    .iter()
+                    .filter(|argument| matches!(argument, LegalizedScalarArgument::Scalar { .. }))
+                    .count()
             || actual.claim_transfers != expected.claim_transfers
-            || actual.arguments.len() != expected.arguments.len()
+            || actual.arguments.len() + actual.scalar_arguments.len() != expected.arguments.len()
             || actual.operation_ordinal != span.operation_ordinal
             || actual.code_offset != host(call_span.offset)?
             || actual.byte_count != call_span.bytes.len()
@@ -116,7 +121,44 @@ pub(in crate::function_fragments) fn validate_function(
                 && completion_receipts == wanted_receipts => {}
             _ => return Err(invalid()),
         }
-        for (actual, expected) in actual.arguments.iter().zip(&expected.arguments) {
+        for (actual_argument, (parameter_index, expected_argument)) in
+            actual.scalar_arguments.iter().zip(
+                expected
+                    .arguments
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, argument)| {
+                        matches!(argument, LegalizedScalarArgument::Scalar { .. })
+                    }),
+            )
+        {
+            let LegalizedScalarArgument::Scalar {
+                source: value,
+                placement,
+            } = expected_argument
+            else {
+                return Err(invalid());
+            };
+            if usize::try_from(actual_argument.parameter_index) != Ok(parameter_index)
+                || actual_argument.source
+                    != (InternalUnitScalarArgumentSourceRecord::SelectedCall {
+                        source_value: *value,
+                        scalar_type: scalar_type(selected, *value)?,
+                        instruction: contract.instruction,
+                    })
+                || actual_argument.destination != *placement
+                || actual_argument.code_offset != actual.code_offset
+                || actual_argument.byte_count != actual.byte_count
+            {
+                return Err(invalid());
+            }
+        }
+        for (actual, expected) in actual.arguments.iter().zip(
+            expected
+                .arguments
+                .iter()
+                .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. })),
+        ) {
             let LegalizedScalarArgument::Structural { target, .. } = expected else {
                 return Err(invalid());
             };

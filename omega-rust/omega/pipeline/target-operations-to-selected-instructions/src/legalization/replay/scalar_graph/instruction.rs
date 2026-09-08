@@ -139,16 +139,28 @@ pub(super) fn validate(
                 ..
             },
         ) => {
-            let ([argument], Some(LegalizedScalarArgument::Structural { semantic, target })) =
-                (structural_arguments.as_slice(), call.arguments.last())
-            else {
+            if structural_arguments.len() > 1
+                || structural_arguments.is_empty()
+                    && !matches!(node.operation, AbstractOperation::CallUnit { .. })
+            {
                 return Err(invalid);
-            };
-            let expected = scalar_graph_input::structural_call::validate_argument(
-                argument, target, operation, optimized, *callee, native, plan, unit,
-            )?;
-            if semantic != argument
-                || call.arguments.len() != scalar_arguments.len() + 1
+            }
+            let expected = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
+            for (argument, actual) in structural_arguments
+                .iter()
+                .zip(call.arguments.iter().skip(scalar_arguments.len()))
+            {
+                let LegalizedScalarArgument::Structural { semantic, target } = actual else {
+                    return Err(invalid);
+                };
+                if semantic != argument {
+                    return Err(invalid);
+                }
+                scalar_graph_input::structural_call::validate_argument(
+                    argument, target, operation, optimized, *callee, native, plan, unit,
+                )?;
+            }
+            if call.arguments.len() != scalar_arguments.len() + structural_arguments.len()
                 || expected.parameters.len() != call.arguments.len()
                 || call
                     .arguments

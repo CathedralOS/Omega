@@ -169,11 +169,9 @@ pub(super) fn validate(
                     }
                     _ => false,
                 };
-                let ([argument], [semantic]) =
-                    (arguments.as_slice(), structural_arguments.as_slice())
-                else {
+                if arguments.len() != structural_arguments.len() || arguments.len() > 1 {
                     return Err(invalid);
-                };
+                }
                 if !result_matches
                     || psi_operation != actual
                     || callee != called
@@ -182,7 +180,7 @@ pub(super) fn validate(
                     || requirement_obligations != requirements
                     || crash_continuations != crashes
                     || scalar_arguments.len() != values.len()
-                    || expected.parameters.len() != values.len() + 1
+                    || expected.parameters.len() != values.len() + arguments.len()
                     || scalar_arguments
                         .iter()
                         .zip(values)
@@ -198,16 +196,18 @@ pub(super) fn validate(
                 {
                     return Err(invalid);
                 }
-                super::super::structural_call::validate_argument(
-                    semantic,
-                    argument,
-                    *psi_operation,
-                    optimized,
-                    *callee,
-                    native,
-                    plan,
-                    unit,
-                )?;
+                for (argument, semantic) in arguments.iter().zip(structural_arguments) {
+                    super::super::structural_call::validate_argument(
+                        semantic,
+                        argument,
+                        *psi_operation,
+                        optimized,
+                        *callee,
+                        native,
+                        plan,
+                        unit,
+                    )?;
+                }
             }
             (
                 TargetUnitOperation::IntegerConstant {

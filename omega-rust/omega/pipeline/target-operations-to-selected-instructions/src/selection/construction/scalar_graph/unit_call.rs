@@ -1,80 +1,85 @@
-//! Independently replay resultless argument transport and the exact Unit call row.
+//! Resultless calls copy scalar arguments and transport original borrowed pointers.
 use super::*;
+use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use selected_instructions::SelectedCallContract;
 
-pub(super) fn validate(
+pub(super) fn emit(
+    function: usize,
     source: &LegalizedScalarFunction,
     operation: &LegalizedScalarInstruction,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    replay: &mut Replay<'_>,
+    builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
-        return Err(replay.invalid());
+        return Err(invalid());
     };
     if operation.result.is_some() || call.result_placement.is_some() {
-        return Err(replay.invalid());
+        return Err(invalid());
     }
     call.validate_source(&operation.ownership)
-        .map_err(|_| replay.invalid())?;
-    let key = replay
+        .map_err(|_| invalid())?;
+    let key = builder
         .constraints
         .keys
         .call_unit
         .get(call.arguments.len())
         .copied()
-        .ok_or_else(|| replay.invalid())?;
-    let constraint = environment
-        .constraint(key)
-        .ok_or_else(|| replay.invalid())?;
+        .ok_or_else(invalid)?;
     crate::selection::scalar_call_abi::validate(
-        replay.function,
+        function,
         source,
         call,
         operation.operation,
         key,
-        constraint,
+        row(builder.catalog, key)?,
         environment,
     )?;
     let mut operands = Vec::new();
     for argument in &call.arguments {
         match argument {
-            LegalizedScalarArgument::Structural { semantic, target } => operands.push(
-                call_pointer(replay, operation, semantic.place, target.source_byte_offset)?,
-            ),
+            LegalizedScalarArgument::Structural { semantic, target } => {
+                operands.push(structural::call_pointer(
+                    builder,
+                    operation,
+                    semantic.place,
+                    target.source_byte_offset,
+                )?)
+            }
             LegalizedScalarArgument::Scalar {
                 source: value,
                 placement,
             } => {
-                let (_, input, site, scalar_type) =
-                    replay.resolve(*value).ok_or_else(|| replay.invalid())?;
-                if !matches!(
-                    (scalar_type, placement.shape.byte_size),
-                    (ScalarType::Boolean, 1) | (ScalarType::Integer(_), 8)
-                ) {
-                    return Err(replay.invalid());
+                let (_, input, site, scalar_type) = builder.resolve(*value).ok_or_else(invalid)?;
+                if crate::selection::scalar_call_abi::scalar_shape(scalar_type)
+                    != Some(placement.shape)
+                {
+                    return Err(invalid());
                 }
-                operands.push(replay.check_copy(input, *value, site, scalar_type)?);
+                operands.push(builder.copy(input, *value, site, scalar_type)?);
             }
         }
     }
-    replay.transport.calls.push(SelectedCallContract {
+    builder.transport.calls.push(SelectedCallContract {
         instruction: SelectedInstructionId(
-            replay
-                .instruction_cursor
+            builder
+                .instructions
+                .len()
                 .try_into()
-                .map_err(|_| replay.invalid())?,
+                .map_err(|_| invalid())?,
         ),
         operation: operation.operation,
         call: call.clone(),
         effect: operation.effect,
         ownership: operation.ownership.clone(),
     });
-    replay.check_instruction(
+    builder.emit(
         SelectedInstructionKind::CallUnit {
             callee: call.callee,
         },
         key,
         &operands,
-        &SelectedInstructionProvenance {
+        SelectedInstructionProvenance {
             operations: vec![operation.operation],
             values: call
                 .arguments

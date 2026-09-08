@@ -77,7 +77,10 @@ pub(super) fn u8_type() -> IntegerType {
 pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
+        ScalarType::Integer(integer)
+            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+        {
             Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
         }
         _ => None,
@@ -260,9 +263,12 @@ pub(super) fn match_input(
         } = &node.operation
         {
             let call = callee_plan(*callee, native, plan, unit)?;
-            let [argument] = structural_arguments.as_slice() else {
+            if structural_arguments.len() > 1
+                || structural_arguments.is_empty()
+                    && !matches!(node.operation, AbstractOperation::CallUnit { .. })
+            {
                 return Err(invalid);
-            };
+            }
             let called = unit
                 .functions
                 .iter()
@@ -273,8 +279,9 @@ pub(super) fn match_input(
                     node.operation,
                     AbstractOperation::CallStructuralScalar { .. }
                 )
-                || call.parameters.len() != arguments.len() + 1
+                || call.parameters.len() != arguments.len() + structural_arguments.len()
                 || called.parameters.len() != arguments.len()
+                || called.structural_parameters.len() != structural_arguments.len()
                 || arguments
                     .iter()
                     .zip(&called.parameters)
@@ -287,15 +294,17 @@ pub(super) fn match_input(
             {
                 return Err(invalid);
             }
-            structural_call::argument(
-                argument,
-                *psi_operation,
-                optimized,
-                *callee,
-                native,
-                plan,
-                unit,
-            )?;
+            for argument in structural_arguments {
+                structural_call::argument(
+                    argument,
+                    *psi_operation,
+                    optimized,
+                    *callee,
+                    native,
+                    plan,
+                    unit,
+                )?;
+            }
         }
     }
     if !ranked && !acyclic(optimized) {
@@ -338,7 +347,12 @@ pub(super) fn callee_plan(
         || !matches!(abstracted.result, AbstractFunctionResult::Unit)
             && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
         || abstracted.parameters.iter().any(|parameter| {
-            ![ScalarType::Integer(u64_type()), ScalarType::Boolean].contains(&parameter.scalar_type)
+            if matches!(abstracted.result, AbstractFunctionResult::Unit) {
+                scalar_shape(parameter.scalar_type).is_none()
+            } else {
+                ![ScalarType::Integer(u64_type()), ScalarType::Boolean]
+                    .contains(&parameter.scalar_type)
+            }
         })
     {
         return Err(LegalizationError::SourceCustodyMismatch);
@@ -369,7 +383,13 @@ pub(super) fn callee_plan(
     Ok(call_plan)
 }
 fn scalar_register(placement: &ValuePlacement) -> bool {
-    [ValueShape::integer(1, 1), ValueShape::integer(8, 8)].contains(&placement.shape)
+    [
+        ValueShape::integer(1, 1),
+        ValueShape::integer(2, 2),
+        ValueShape::integer(4, 4),
+        ValueShape::integer(8, 8),
+    ]
+    .contains(&placement.shape)
         && matches!(placement.locations.as_slice(),
             [ValueLocation::Register {value_byte_offset: 0, byte_size, ..}]
             if *byte_size == placement.shape.byte_size)

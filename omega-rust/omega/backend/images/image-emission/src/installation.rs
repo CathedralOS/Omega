@@ -101,7 +101,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 86;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 87;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1685,7 +1685,8 @@ fn installed_scalar_source_is_exact(
     source: machine_code::InternalUnitScalarArgumentSourceRecord,
 ) -> bool {
     match source {
-        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. } => false,
+        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
+        | machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => false,
         machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,
@@ -3243,7 +3244,45 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         }
         };
         let scalar_count = custody.scalar_arguments.len();
-        let mixed_roster_is_exact = if let Some(abi) = callee_unit_scalar_abi {
+        let selected_scalar_call =
+            custody
+                .scalar_arguments
+                .iter()
+                .find_map(|argument| match argument.source {
+                    machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
+                        instruction,
+                        ..
+                    } => Some(instruction),
+                    _ => None,
+                });
+        // Selected transport is proved by retained physical replay and compared
+        // against the admitted image by validate_installation_record. Its span
+        // is the call instruction, not a legacy contiguous materialization.
+        let mixed_roster_is_exact = if let Some(call_instruction) = selected_scalar_call {
+            callee_unit_scalar_abi.is_some_and(|abi| {
+                callee_mixed_abi.is_none()
+                    && callee_mixed_structural_return.is_none()
+                    && custody.result.is_none()
+                    && custody.semantic_result.is_none()
+                    && custody.structural_result.is_none()
+                    && custody.arguments.is_empty()
+                    && callee_unit_parameters.is_empty()
+                    && custody.claim_transfers.is_empty()
+                    && plan == abi.call_plan
+                    && scalar_count == abi.parameters.len()
+                    && custody.scalar_arguments.iter().zip(&abi.parameters).enumerate().all(|(parameter_index, (argument, parameter))| {
+                        let machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { scalar_type, instruction, .. } = argument.source else {
+                            return false;
+                        };
+                        instruction == call_instruction
+                            && scalar_type == parameter.scalar_type
+                            && argument.destination == parameter.placement
+                            && usize::try_from(argument.parameter_index) == Ok(parameter_index)
+                            && argument.code_offset == custody.code_offset
+                            && argument.byte_count == custody.byte_count
+                    })
+            })
+        } else if let Some(abi) = callee_unit_scalar_abi {
             callee_mixed_abi.is_none()
                 && callee_mixed_structural_return.is_none()
                 && custody.result.is_none()

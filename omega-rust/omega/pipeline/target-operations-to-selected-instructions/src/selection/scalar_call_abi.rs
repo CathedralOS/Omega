@@ -74,7 +74,9 @@ pub(super) fn validate(
                     value_byte_offset: 0,
                     byte_size,
                 },
-            ] if *byte_size == placement.shape.byte_size && matches!(*byte_size, 1 | 8) => register,
+            ] if *byte_size == placement.shape.byte_size && matches!(*byte_size, 1 | 2 | 4 | 8) => {
+                register
+            }
             [
                 ValueLocation::Indirect {
                     pointer: IndirectPointerLocation::Register(register),
@@ -289,10 +291,15 @@ fn exclusive_projection_shape(
         ))
 }
 
-fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     match scalar_type {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::Integer(integer) if integer.bits() == 64 => Some(ValueShape::integer(8, 8)),
+        ScalarType::Integer(integer)
+            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+        {
+            Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
+        }
         _ => None,
     }
 }

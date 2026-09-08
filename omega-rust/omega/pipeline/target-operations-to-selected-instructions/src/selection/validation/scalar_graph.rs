@@ -12,6 +12,7 @@ mod byte_output;
 mod control;
 mod scalar_call;
 mod structural;
+mod unit_call;
 mod zero_compare;
 
 pub(in crate::selection) fn validate(

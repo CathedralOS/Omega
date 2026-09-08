@@ -808,6 +808,9 @@ fn encode_boundary_runtime_source(
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
+        InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => {
+            return Err(InstallationError::UnsupportedInstalledScalarSource);
+        }
         InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
             source_value,
             scalar_type,
