@@ -143,26 +143,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   sample harness bypasses this policy route; independent writer work remains
   actionable.
 
-  The macOS ARM64 outer CLI remains prohibitively slow in preliminary package
-  validation. With production changes in `dcb670edfd`, the already-built binary
-  command above (`--build-dir build/cli-mvp-shared-arrivals`) was interrupted at
-  249.36 seconds without a diagnostic. Boundary target lookup and incoming-state
-  analysis now reuse their immutable inputs, but this is not a completed-route
-  speedup. A one-second profile around 2.5 minutes reaches
-  `flow/builder.rs` → `call_phases/invalidation.rs` →
-  `mutation/summary.rs::build_state_mutation_summaries`. Flow contexts own new
-  summary caches on each fixed-point iteration although program/borrow inputs
-  are unchanged. Before another cache edit, measure phase costs and rebuild
-  counts across the complete package route; two local-cache milestones have not
-  established customer acceptance. Prefer correcting the existing cache lifetime
-  over another cache layer. Acceptance: the unchanged CLI reaches its next real
-  diagnostic promptly, with comparable before/after timings and unchanged checks.
-  This performance investigation does not block the native operand work below.
-  Windows x64 at `a78040898d`: `mbx run -p omega -- --target windows_x86_64
-  --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg` took
-  718 seconds wall time (23.45 seconds reported Rust build) and exited 1 at
-  missing package-root policy. This is a completed slow-route observation,
-  not a timeout or evidence of native execution.
+  The macOS ARM64 outer CLI remains slow. A probe on `feafd58343` with
+  invocation-shared range summaries uses the already-built command above
+  (`--build-dir build/cli-mvp-final`) and exits 1 at missing package acceptance
+  in 205.58 seconds. The paired instrumented comparison on `28ac561b15`
+  took 247.87 versus 208.14 seconds and built 68 versus 24 mutation tables,
+  with byte-identical review output after removing timing lines.
+  Each of four 593-machine preliminary/settled checks still takes about 34
+  seconds; source assembly and the rest of package preparation also remain.
+  Next measure those complete-route phases in `compiler/src/pipeline/` and
+  `packages/manager/src/review/candidate/` before choosing another optimization.
+  Preserve the distinct source/selection snapshots and admission checks; do not
+  reuse a result merely because package names agree. Acceptance: the unchanged
+  CLI reaches its next diagnostic promptly with comparable whole-route timings
+  and unchanged findings. Windows timing remains unverified for this change.
+  This performance work does not block the native operand work below.
 
   The downstream native `cli_mvp` probe with production checkpoint `c235e3df29`
   passes Terminal production but remains red. On macOS ARM64,
