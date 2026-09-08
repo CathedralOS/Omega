@@ -49,6 +49,48 @@ pub fn has_builtin_decomposed_guard_meaning(
     has_builtin_bound_expression_meaning(program, machine, state, expression)
 }
 
+/// Check one binary node's selected meaning; callers own operand traversal.
+/// This grants no value, totality, effect, or lifetime evidence.
+pub fn has_builtin_binary_expression_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    if !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    match binary.operator {
+        BinaryOperator::Equal | BinaryOperator::NotEqual => {
+            builtin_boolean_equality(program, machine, state, expression, binary)
+        }
+        BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual => {
+            builtin_ordering(program, machine, state, expression, binary)
+        }
+        BinaryOperator::Add
+        | BinaryOperator::Subtract
+        | BinaryOperator::Multiply
+        | BinaryOperator::Divide
+        | BinaryOperator::Modulo => {
+            builtin_arithmetic_node(program, machine, state, expression, binary)
+        }
+        // These operations have no overloadable operator spelling.
+        BinaryOperator::And
+        | BinaryOperator::Or
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => true,
+    }
+}
+
 fn bound_subtree_meaning(
     program: &TypedTrees,
     machine: &Machine,
@@ -61,32 +103,8 @@ fn bound_subtree_meaning(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            let meaning = match binary.operator {
-                BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                    builtin_boolean_equality(program, machine, state, expression, binary)
-                }
-                BinaryOperator::Less
-                | BinaryOperator::LessOrEqual
-                | BinaryOperator::Greater
-                | BinaryOperator::GreaterOrEqual => {
-                    builtin_ordering(program, machine, state, expression, binary)
-                }
-                BinaryOperator::Add
-                | BinaryOperator::Subtract
-                | BinaryOperator::Multiply
-                | BinaryOperator::Divide
-                | BinaryOperator::Modulo => {
-                    builtin_arithmetic_node(program, machine, state, expression, binary)
-                }
-                // These operations have no overloadable operator spelling.
-                BinaryOperator::And
-                | BinaryOperator::Or
-                | BinaryOperator::BitwiseAnd
-                | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight => true,
-            };
+            let meaning =
+                has_builtin_binary_expression_meaning(program, machine, state, expression);
             meaning
                 && bound_subtree_meaning(program, machine, state, binary.left, depth + 1)
                 && bound_subtree_meaning(program, machine, state, binary.right, depth + 1)

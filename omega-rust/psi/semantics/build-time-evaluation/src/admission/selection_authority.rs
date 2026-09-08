@@ -5,6 +5,7 @@ use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
+    state::State,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
 };
 
@@ -15,25 +16,27 @@ pub(super) fn selection_authority_violation(
     program: &TypedTrees,
     root: &Machine,
     custody: Option<BuildTimeInvocationCustody>,
-    authority: &dyn BuildTimeSelectionAuthority,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Option<String> {
-    let Some(custody) = custody else {
-        return Some(
-            "package-aware build-time evaluation has no authored invocation custody".to_owned(),
-        );
-    };
-    let requester = match custody {
-        BuildTimeInvocationCustody::Source(source) => package_for_source(program, source),
-        BuildTimeInvocationCustody::Symbol(symbol) => package_for_symbol(program, symbol),
-    };
-    if let Some(violation) = require_selection(
-        program,
-        requester,
-        package_for_symbol(program, root.symbol),
-        authority,
-        &format!("build-time invocation of `{}`", root.name),
-    ) {
-        return Some(violation);
+    if let Some(authority) = authority {
+        let Some(custody) = custody else {
+            return Some(
+                "package-aware build-time evaluation has no authored invocation custody".to_owned(),
+            );
+        };
+        let requester = match custody {
+            BuildTimeInvocationCustody::Source(source) => package_for_source(program, source),
+            BuildTimeInvocationCustody::Symbol(symbol) => package_for_symbol(program, symbol),
+        };
+        if let Some(violation) = require_selection(
+            program,
+            requester,
+            package_for_symbol(program, root.symbol),
+            authority,
+            &format!("build-time invocation of `{}`", root.name),
+        ) {
+            return Some(violation);
+        }
     }
 
     let mut completed = Vec::new();
@@ -51,6 +54,9 @@ pub(super) fn selection_authority_violation(
             .filter(|call| call.source_machine_symbol == source_machine)
         {
             let Some(target_machine) = target_machine_symbol(program, call) else {
+                let Some(authority) = authority else {
+                    continue;
+                };
                 if let Some(operator) = target_operator_symbol(program, call) {
                     let context = format!(
                         "build-time named operator call `{}` -> `{}`",
@@ -78,13 +84,15 @@ pub(super) fn selection_authority_violation(
                 program.symbols.display_path(source_machine, "::"),
                 program.symbols.display_path(target_machine, "::")
             );
-            if let Some(violation) = require_selection(
-                program,
-                package_for_symbol(program, source_machine),
-                package_for_symbol(program, target_machine),
-                authority,
-                &context,
-            ) {
+            if let Some(authority) = authority
+                && let Some(violation) = require_selection(
+                    program,
+                    package_for_symbol(program, source_machine),
+                    package_for_symbol(program, target_machine),
+                    authority,
+                    &context,
+                )
+            {
                 return Some(violation);
             }
             pending.push(target_machine);
@@ -96,25 +104,30 @@ pub(super) fn selection_authority_violation(
 fn machine_selection_violation(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
-    authority: &dyn BuildTimeSelectionAuthority,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Option<String> {
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)?;
-    let mut expressions = Vec::new();
     for state in program.machine_states(machine) {
+        let mut expressions = Vec::new();
         for statement in program.statement_table.statements(state.statement_nodes) {
             collect_statement_expressions(program, statement, &mut expressions);
         }
-    }
 
-    let mut visited = Vec::new();
-    for expression in expressions {
-        if let Some(violation) =
-            expression_selection_violation(program, expression, authority, &mut visited)
-        {
-            return Some(violation);
+        let mut visited = Vec::new();
+        for expression in expressions {
+            if let Some(violation) = expression_selection_violation(
+                program,
+                machine,
+                state,
+                expression,
+                authority,
+                &mut visited,
+            ) {
+                return Some(violation);
+            }
         }
     }
     None
@@ -178,8 +191,10 @@ fn collect_transition_expressions(
 
 fn expression_selection_violation(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
-    authority: &dyn BuildTimeSelectionAuthority,
+    authority: Option<&dyn BuildTimeSelectionAuthority>,
     visited: &mut Vec<ExpressionHandle>,
 ) -> Option<String> {
     if !expression.is_valid() || visited.contains(&expression) {
@@ -187,63 +202,82 @@ fn expression_selection_violation(
     }
     visited.push(expression);
 
-    let occurrences = program
-        .expression_table
-        .authored_selection_occurrences(expression)
-        .collect::<Vec<_>>();
-    for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
-        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
-            return Some(format!(
-                "build-time expression retains unknown authored declaration selection occurrence {}",
-                occurrence.ordinal()
-            ));
-        };
-        let requester = package_for_source(program, selection.source_span());
-        let owner = match selection.target() {
-            typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
-            typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding) => {
-                if binding == typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
-                    && (typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
-                        program, expression,
-                    ) || unresolved_operator_candidates_are_confined(
-                        program, expression, requester, authority,
-                    ))
-                {
-                    continue;
-                } else {
-                    match late_bound_selection_symbol(
-                        program,
-                        expression,
-                        &occurrences[..occurrence_offset],
-                        binding,
-                    ) {
-                        Some(selected) => package_for_symbol(program, selected),
-                        None => {
-                            if unresolved_spelling_is_confined(
-                                program,
-                                program.symbols.source_text(selection.source_span()),
-                                requester,
-                                authority,
-                                binding,
-                            ) {
-                                continue;
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Binary(_)
+    ) && !validation::has_builtin_binary_expression_meaning(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) {
+        return Some(
+            "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator".to_owned(),
+        );
+    }
+
+    if let Some(authority) = authority {
+        let occurrences = program
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .collect::<Vec<_>>();
+        for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
+            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+                return Some(format!(
+                    "build-time expression retains unknown authored declaration selection occurrence {}",
+                    occurrence.ordinal()
+                ));
+            };
+            let requester = package_for_source(program, selection.source_span());
+            let owner = match selection.target() {
+                typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
+                typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding) => {
+                    if binding
+                        == typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
+                        && (typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
+                            program, expression,
+                        ) || unresolved_operator_candidates_are_confined(
+                            program, expression, requester, authority,
+                        ))
+                    {
+                        continue;
+                    } else {
+                        match late_bound_selection_symbol(
+                            program,
+                            expression,
+                            &occurrences[..occurrence_offset],
+                            binding,
+                        ) {
+                            Some(selected) => package_for_symbol(program, selected),
+                            None => {
+                                if unresolved_spelling_is_confined(
+                                    program,
+                                    program.symbols.source_text(selection.source_span()),
+                                    requester,
+                                    authority,
+                                    binding,
+                                ) {
+                                    continue;
+                                }
+                                return Some(format!(
+                                    "build-time expression has unresolved authored {:?} selection `{}` ({binding:?}); package authority must be known before compiler execution",
+                                    selection.kind(),
+                                    program.symbols.source_text(selection.source_span()),
+                                ));
                             }
-                            return Some(format!(
-                                "build-time expression has unresolved authored {:?} selection `{}` ({binding:?}); package authority must be known before compiler execution",
-                                selection.kind(),
-                                program.symbols.source_text(selection.source_span()),
-                            ));
                         }
                     }
                 }
+                typed_trees::AuthoredDeclarationSelectionTarget::Resolved(selected) => {
+                    package_for_symbol(program, selected.selected_symbol())
+                }
+            };
+            let context = format!("build-time authored {:?} selection", selection.kind());
+            if let Some(violation) =
+                require_selection(program, requester, owner, authority, &context)
+            {
+                return Some(violation);
             }
-            typed_trees::AuthoredDeclarationSelectionTarget::Resolved(selected) => {
-                package_for_symbol(program, selected.selected_symbol())
-            }
-        };
-        let context = format!("build-time authored {:?} selection", selection.kind());
-        if let Some(violation) = require_selection(program, requester, owner, authority, &context) {
-            return Some(violation);
         }
     }
 
@@ -299,7 +333,8 @@ fn expression_selection_violation(
         | ExpressionNode::ZeroValue(_) => {}
     }
     for child in children {
-        if let Some(violation) = expression_selection_violation(program, child, authority, visited)
+        if let Some(violation) =
+            expression_selection_violation(program, machine, state, child, authority, visited)
         {
             return Some(violation);
         }

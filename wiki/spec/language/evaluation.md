@@ -37,6 +37,9 @@ Empty reach alone proves none of the other axes. Public trait requirements
 establish the floor; an incompatible conformance rejects at its declaration.
 [Package declaration-selection authority](../packages/boundaries.md#admit-before-execution)
 also applies before evaluation, not only after the resulting value is used.
+Permission to select a declaration does not establish its execution meaning.
+An unresolved authored operator cannot be evaluated using the builtin meaning
+of its token, including when reached through a helper machine.
 
 Admission is invocation-sensitive. A trap-capable division can evaluate at
 `divide(10, 2)` after proving the denominator nonzero. `divide(10, 0)` rejects

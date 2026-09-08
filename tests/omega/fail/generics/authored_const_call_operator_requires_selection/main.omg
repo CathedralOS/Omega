@@ -1,0 +1,8 @@
+data Math {}
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+data Provider {}
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 0 }
+machine count() -> u64 { 7u64 % 2 }
+data Buffer<const N: u64> { values: [u8; N]; }
+data Main { value: Buffer<count()>; }
+machine Main::main(&mut self) {}
