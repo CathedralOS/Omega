@@ -135,6 +135,8 @@ prerequisite to every lower-rung milestone.
 
 - **ALPHA-BOUNDS-HARDENING.** Owners: `bootstrap/0_alpha/` semantics, native
   implementations and audited listings, with `tests/alpha/conformance.sh`.
+  **OWNER-BLOCKED:** [Alpha bounds-failure outcome](OWNER_QUESTIONS.md#q2--alpha-bounds-failure-outcome)
+  must settle reuse of Trap versus a distinct fault/resource observation.
   The [hardening target](bootstrap/0_alpha/README.md) requires deterministic
   bounds/resource failure; [current semantics](bootstrap/0_alpha/SEMANTICS.md)
   still leave out-of-range memory and return-stack behavior undefined. Specify

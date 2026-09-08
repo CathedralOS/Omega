@@ -50,6 +50,10 @@ small enough to audit, record narrow loading/I/O behavior, and update both
 realizations and their conformance evidence together. Do not infer Windows
 runtime validation from source/listing reconstruction.
 
+The [open bounds-failure decision](../../OWNER_QUESTIONS.md#q2--alpha-bounds-failure-outcome)
+separates the proposed reuse of Trap from a distinct fault/resource outcome.
+Neither proposal changes the selected semantics until the owner rules.
+
 ## Owned files
 
 ```text
