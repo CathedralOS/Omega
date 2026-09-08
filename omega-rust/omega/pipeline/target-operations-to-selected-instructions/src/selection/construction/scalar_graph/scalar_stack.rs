@@ -55,7 +55,9 @@ pub(super) fn entry(
         else {
             continue;
         };
-        if scalar_shape(parameter.scalar_type) != Some(parameter.placement.shape)
+        if source.call_plan.result.is_some()
+            || source.ranked.is_some()
+            || scalar_shape(parameter.scalar_type) != Some(parameter.placement.shape)
             || source.call_plan.parameters.get(parameter_index) != Some(&parameter.placement)
         {
             return Err(invalid());

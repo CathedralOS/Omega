@@ -79,6 +79,7 @@ fn plan(format: IeeeFloatFormat, field_store: bool) -> AbstractOperationPlan {
             block_entries: vec![AbstractBlockEntry {
                 block,
                 parameters: Vec::new(),
+                structural_parameters: Vec::new(),
                 operation_offset: 0,
             }],
             operations: vec![

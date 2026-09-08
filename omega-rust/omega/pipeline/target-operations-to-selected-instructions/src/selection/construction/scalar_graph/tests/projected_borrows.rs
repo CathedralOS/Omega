@@ -280,17 +280,41 @@ fn outgoing_projected_pointer_stack_slot_replays_exact_bits_and_call_registers()
             })
             .chain([argument])
             .collect();
+        let with_scalar_stack = build(
+            0,
+            &scalar_stack,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .expect("exact scalar and borrowed-pointer stack fragments coexist");
+        crate::selection::validation::scalar_graph::validate(
+            0,
+            &scalar_stack,
+            &with_scalar_stack,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        assert_eq!(with_scalar_stack.outgoing_arguments.len(), 2);
+        assert_eq!(with_scalar_stack.memory_accesses.len(), 1);
         assert!(
-            build(
-                0,
-                &scalar_stack,
-                target,
-                &constraints,
-                environment.physical(),
-                environment.constraints()
-            )
-            .is_err(),
-            "scalar stack arguments remain outside this slice"
+            with_scalar_stack.blocks[0]
+                .instructions
+                .iter()
+                .any(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        SelectedInstructionKind::Store { byte_size: 8, .. }
+                    )
+                })
+        );
+        assert!(
+            validate(&with_scalar_stack).is_err(),
+            "a new stack actual changes source custody"
         );
         for mutation in 0..6 {
             let mut changed = selected.clone();
