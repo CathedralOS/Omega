@@ -2,6 +2,9 @@ use super::super::{ShapeCollector, build_checked_machine, machine_binders, struc
 use super::{build_structural_scalar_field_store_sequence, frame};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
+mod arithmetic_policies;
+mod computations;
+
 #[test]
 fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
     let source = r#"

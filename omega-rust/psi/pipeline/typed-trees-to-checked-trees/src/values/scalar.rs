@@ -3089,6 +3089,18 @@ fn lower_boolean_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_)
+    ) && let Some((CheckedScalarExpression::Boolean(field), _)) =
+        structural_fields::lower_structural_parameter_field(
+            program,
+            authored_parameters,
+            expression,
+        )
+    {
+        return Some(*field);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
         ExpressionNode::Name(path) => {

@@ -111,7 +111,20 @@ pub(in crate::flow::terminal_unit) fn finish(
     let body_qualifications = facts
         .qualifications
         .for_machine(machine.symbol)
-        .map(|fact| fact.body_committed.clone())
+        .map(|fact| {
+            fact.body_committed
+                .iter()
+                .copied()
+                .filter(|domain| {
+                    !matches!(
+                        *domain,
+                        language_semantics::SemanticDomainTable::WRAPPING
+                            | language_semantics::SemanticDomainTable::SATURATING
+                            | language_semantics::SemanticDomainTable::TRAPPING
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
     if !body_qualifications.is_empty() {
         return None;

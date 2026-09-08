@@ -145,8 +145,10 @@ pub(crate) fn validate_computation_calls(
                     || parameters
                         .iter()
                         .zip(arguments)
-                        .any(|(parameter, argument)| {
+                        .zip(authored_arguments)
+                        .any(|((parameter, argument), authored_argument)| {
                             !plans.nodes.is_valid(*argument)
+                                || plans.nodes.get(*argument).authored_root != *authored_argument
                                 || checked.primitive_type_reference(parameter.type_reference)
                                     != Some(plans.nodes.get(*argument).primitive_type)
                         })
@@ -158,6 +160,13 @@ pub(crate) fn validate_computation_calls(
                 pending.extend(arguments.iter().rev().map(|argument| (*argument, false)));
             }
         }
+    }
+    if source_calls.iter().any(|source| {
+        source.statement_index == statement as usize
+            && expressions.contains(&source.authored_expression)
+            && !calls.contains(&source.authored_expression)
+    }) {
+        return unsupported("computed invocation omitted an authored source call");
     }
     Ok(())
 }
@@ -287,6 +296,121 @@ fn authored_expressions(
 mod tests {
     use super::*;
     use checked_trees::expression::{BinaryOperator, TableBinaryExpression};
+
+    #[test]
+    fn computation_call_coverage_does_not_require_unselected_syntax() {
+        let source = r#"
+            machine identity(value: bool) -> bool { value }
+            machine choose() -> bool { identity(false) && (false && identity(true)) }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let root = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .find(|(_, root)| root.role == CheckedScalarExpressionRole::Return)
+            .map(|(_, root)| root)
+            .unwrap();
+        let authored = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(root.root)
+            .authored_root;
+        let syntax_calls = authored_expressions(&checked, authored)
+            .unwrap()
+            .iter()
+            .filter(|expression| {
+                matches!(
+                    checked.expression_table.expression(**expression),
+                    ExpressionNode::Call(_)
+                )
+            })
+            .count();
+        assert_eq!(syntax_calls, 2);
+        validate_computation_calls(
+            &checked,
+            root.machine,
+            root.state,
+            root.statement_ordinal,
+            root.root,
+            authored,
+        )
+        .expect("only selected source-flow calls need computation custody");
+    }
+
+    #[test]
+    fn computed_field_assignment_rejects_erased_authored_call() {
+        let source = r#"
+            machine identity(value: bool) -> bool { value }
+            data Record { flag: bool; }
+            machine Record::replace(&mut self) { self.flag = identity(true); }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let root = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .find(|(_, root)| root.role == CheckedScalarExpressionRole::AssignmentValue)
+            .map(|(_, root)| root.clone())
+            .unwrap();
+        let authored = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(root.root)
+            .authored_root;
+        validate_computation_calls(
+            &checked,
+            root.machine,
+            root.state,
+            root.statement_ordinal,
+            root.root,
+            authored,
+        )
+        .expect("original exact call custody");
+        checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(root.root)
+            .kind = CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(
+            Box::new(checked_trees::CheckedBooleanExpression::Constant(true)),
+        ));
+        assert!(
+            validate_computation_calls(
+                &checked,
+                root.machine,
+                root.state,
+                root.statement_ordinal,
+                root.root,
+                authored
+            )
+            .is_err(),
+            "same-typed replacement cannot erase the authored call"
+        );
+    }
 
     #[test]
     fn authored_membership_accepts_shared_expression_children() {

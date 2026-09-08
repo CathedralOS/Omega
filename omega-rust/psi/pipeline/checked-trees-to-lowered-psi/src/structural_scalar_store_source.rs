@@ -360,6 +360,9 @@ pub(crate) fn validate_assignment(
     if source.root != parameter.symbol || source.path != path {
         return unsupported("structural scalar store destination drifted from its authored place");
     }
+    if computation_root(checked, machine, state_symbol, store)?.is_some() {
+        return Ok(());
+    }
     let plans = &checked.facts.values.scalar_expressions;
     let role = CheckedScalarExpressionRole::AssignmentValue;
     let expressions = plans
@@ -374,7 +377,7 @@ pub(crate) fn validate_assignment(
     let [expression] = expressions.as_slice() else {
         return unsupported("structural scalar store has no unique selected RHS");
     };
-    if expression.expression != store.value {
+    if Some(&expression.expression) != store.value.as_pure() {
         return unsupported("structural scalar store RHS drifted from its selected expression");
     }
     let bindings = plans
@@ -401,7 +404,8 @@ pub(crate) fn validate_assignment(
     }
     let primitive_type = store
         .value
-        .primitive_type()
+        .as_pure()
+        .and_then(|value| value.primitive_type())
         .ok_or(LoweringError::Unsupported(
             "structural scalar store RHS has no retained primitive carrier",
         ))?;
@@ -410,4 +414,55 @@ pub(crate) fn validate_assignment(
         binding,
         terminal_scalar_type(primitive_type)?,
     )
+}
+
+/// Select a computation only through its exact authored assignment coordinate.
+pub(crate) fn computation_root(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+) -> Result<Option<checked_trees::CheckedScalarComputationHandle>, LoweringError> {
+    let role = CheckedScalarExpressionRole::AssignmentValue;
+    let plans = &checked.facts.values.scalar_computations;
+    let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
+        root.state == state && root.statement_ordinal == store.statement_index && root.role == role
+    });
+    let root = roots.next();
+    if roots.next().is_some() {
+        return unsupported("field assignment has duplicate computation roots");
+    }
+    let checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(handle) = store.value
+    else {
+        return if root.is_none() {
+            Ok(None)
+        } else {
+            unsupported("field assignment replaced its computation with a pure value")
+        };
+    };
+    let root = root.ok_or(LoweringError::Unsupported(
+        "field assignment has no computation root",
+    ))?;
+    if root.machine != machine || root.root != handle || !plans.nodes.is_valid(handle) {
+        return unsupported("field assignment computation root has different custody");
+    }
+    let source = crate::scalar_source_custody::locate(checked, state, store.statement_index, role)?;
+    let node = plans.nodes.get(handle);
+    if source.machine != machine
+        || source.expression != node.authored_root
+        || source.primitive_type != node.primitive_type
+        || node.primitive_type != store.primitive_type
+        || source.destination.is_valid()
+    {
+        return unsupported("field assignment computation differs from its authored RHS");
+    }
+    crate::scalar_source_custody::validate_computation_calls(
+        checked,
+        machine,
+        state,
+        store.statement_index,
+        handle,
+        source.expression,
+    )?;
+    Ok(Some(handle))
 }

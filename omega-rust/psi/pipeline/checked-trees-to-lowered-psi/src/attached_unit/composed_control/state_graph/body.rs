@@ -113,13 +113,16 @@ pub(super) fn validate(
 
 pub(in crate::attached_unit::composed_control) fn emit_store(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
     state: &CheckedComposedUnitControlStatePlan,
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
-    catalogs: &catalogs::ComposedCatalogs,
+    catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
-    evaluation: &crate::attached_unit::argument_evaluation::Evaluation,
-    values: &[ValueDeclaration],
+    evaluation: &mut crate::attached_unit::argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     let destination = parameters
@@ -128,10 +131,6 @@ pub(in crate::attached_unit::composed_control) fn emit_store(
         .ok_or(LoweringError::Unsupported(
             "Unit graph store destination is absent",
         ))?;
-    let types = values
-        .iter()
-        .map(|value| value.scalar_type)
-        .collect::<Vec<_>>();
     let lowered = crate::structural_scalar_store::lower_structural_scalar_store_place(
         store,
         store.statement_index,
@@ -139,25 +138,23 @@ pub(in crate::attached_unit::composed_control) fn emit_store(
         &catalogs.structural_types,
         crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
     )?;
-    let bindings = evaluation
-        .scalar_bindings
-        .as_ref()
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph store has no scalar namespace",
-        ))?;
-    let expression = bindings.expression_at(
+    let mut calls = catalogs.scalar_calls.emission_context();
+    let value = evaluation.field_assignment_value(
         checked,
+        machine,
         state.state,
-        store.statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
+        store,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+        &mut calls,
     )?;
-    if expression.scalar_type() != lowered.scalar_type
-        || direct_expression_contains_short_circuit(&expression)
-    {
-        return unsupported("Unit graph store requires a matching branch-free value");
+    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+    if value.scalar_type != lowered.scalar_type {
+        return unsupported("Unit graph store RHS differs from its field type");
     }
-    validate_direct_parameter_types(&expression, &types)?;
-    let value = emit_direct_expression(&expression, values, next_value, operations);
     let id = operations.allocate();
     operations.push(Operation {
         id,
@@ -166,7 +163,7 @@ pub(in crate::attached_unit::composed_control) fn emit_store(
             destination: destination.place,
             path: lowered.path,
             field: lowered.field,
-            value,
+            value: value.id,
         },
     });
     Ok(())

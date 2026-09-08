@@ -24,7 +24,9 @@ pub(super) fn lower_structural_scalar_store_destination(
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     if !checked_store_source_matches(
-        &store.value,
+        store.value.as_pure().ok_or(LoweringError::Unsupported(
+            "this structural scalar store route requires a pure RHS",
+        ))?,
         store.primitive_type,
         scalar_parameters,
         available_scalar_types,

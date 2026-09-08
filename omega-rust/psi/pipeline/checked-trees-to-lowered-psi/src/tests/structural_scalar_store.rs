@@ -128,7 +128,9 @@ fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
                         }
                     }
                     1 => {
-                        let CheckedScalarExpression::Parameter { position, .. } = &mut store.value
+                        let checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
+                            CheckedScalarExpression::Parameter { position, .. },
+                        ) = &mut store.value
                         else {
                             panic!("runtime IEEE parameter")
                         };
@@ -439,7 +441,10 @@ fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     else {
         panic!("checked projected store")
     };
-    let CheckedScalarExpression::Local { position, .. } = &mut store.value else {
+    let checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
+        CheckedScalarExpression::Local { position, .. },
+    ) = &mut store.value
+    else {
         panic!("projected store reads the scalar result local")
     };
     *position = 1;

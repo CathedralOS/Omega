@@ -421,6 +421,43 @@ fn build_structural_field_store_at(
     {
         return None;
     }
+    let computations = &facts.values.scalar_computations;
+    if let Some(root) = computations.root_at(
+        state.symbol,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentValue,
+    ) {
+        if !exact_sequence_frame
+            || result_local.is_some()
+            || root.machine != machine.symbol
+            || !computations.nodes.is_valid(root.root)
+            || computations.nodes.get(root.root).authored_root != assignment.value
+            || computations.nodes.get(root.root).primitive_type != primitive_type
+            || facts
+                .values
+                .scalar_expressions
+                .expression_at(
+                    state.symbol,
+                    statement_index,
+                    CheckedScalarExpressionRole::AssignmentValue,
+                )
+                .is_some()
+        {
+            return None;
+        }
+        return Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+            CheckedStructuralScalarFieldStorePlan {
+                statement_index,
+                destination_parameter_position: destination.position,
+                carrier_path,
+                field_identity: terminal_field_identity(program, field.symbol)?,
+                primitive_type,
+                value: checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(
+                    root.root,
+                ),
+            },
+        ));
+    }
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
@@ -503,7 +540,7 @@ fn build_structural_field_store_at(
             carrier_path,
             field_identity: terminal_field_identity(program, field.symbol)?,
             primitive_type,
-            value: value.clone(),
+            value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
         },
     ))
 }

@@ -449,6 +449,17 @@ pub(super) fn lower_structural_parameter_field(
         return None;
     }
     let primitive_type = program.primitive_type_reference(type_reference)?;
+    if primitive_type == PrimitiveType::Bool {
+        return Some((
+            CheckedScalarExpression::Boolean(Box::new(
+                CheckedBooleanExpression::StructuralParameterField {
+                    parameter_position,
+                    path,
+                },
+            )),
+            ArithmeticDomain::Exact,
+        ));
+    }
     if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
         return None;
     }
@@ -472,6 +483,42 @@ pub(super) fn structural_parameter_place(
     TypeReferenceHandle,
 )> {
     let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    // Typed member nodes may leave selection to canonical place resolution.
+    // A retained symbol, however, cannot contradict that exact selection.
+    let mut authored = expression;
+    let mut selected_fields = place
+        .segments
+        .iter()
+        .rev()
+        .filter_map(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => Some(*symbol),
+            _ => None,
+        });
+    while let ExpressionNode::Member(member) = program.expression_table.expression(authored) {
+        let selected = selected_fields.next()?;
+        if member.member_symbol.is_valid() && selected != member.member_symbol {
+            // Attached machines retain inherited field symbols; canonical
+            // places identify the original data declaration's storage.
+            let ExpressionNode::Name(receiver) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            let mut machines = program
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == receiver.symbol);
+            let machine = machines.next()?;
+            if machines.next().is_some() {
+                return None;
+            }
+            let field = validation::exact_self_field(program, machine, authored)?;
+            if field.symbol != selected {
+                return None;
+            }
+        }
+        authored = member.receiver;
+    }
     let root = crate::flow::normalized_event_place_root(program, place.root);
     let facts::PlaceRoot::Symbol(_) = root else {
         return None;

@@ -501,8 +501,23 @@ pub struct CheckedDynamicUnitContinuationPlan {
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
 }
 
-/// Checked custody for one literal store into a primitive field below the
-/// structural carrier later selected for a direct named-dynamic call.
+/// Evaluated source of one scalar field replacement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedStructuralScalarFieldStoreValue {
+    Pure(CheckedScalarExpression),
+    Computation(crate::CheckedScalarComputationHandle),
+}
+
+impl CheckedStructuralScalarFieldStoreValue {
+    pub fn as_pure(&self) -> Option<&CheckedScalarExpression> {
+        match self {
+            Self::Pure(expression) => Some(expression),
+            Self::Computation(_) => None,
+        }
+    }
+}
+
+/// Checked custody for one replacement of an exact primitive field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralScalarFieldStorePlan {
     pub statement_index: u32,
@@ -512,5 +527,5 @@ pub struct CheckedStructuralScalarFieldStorePlan {
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     pub field_identity: String,
     pub primitive_type: typed_trees::types::PrimitiveType,
-    pub value: CheckedScalarExpression,
+    pub value: CheckedStructuralScalarFieldStoreValue,
 }

@@ -34,6 +34,23 @@ entry aliases recovered by spelling. Collect cast facts before invalidating old
 destination facts. Final-value postconditions need their own transport; entry
 requirements and crash conditions remain incoming-value contracts.
 
+Scalar field replacements in ordinary and composed Unit bodies retain either
+their pure expression or an exact computation handle. The shared evaluator
+finishes calls, casts, and selected Boolean operands before emitting the field
+store; the assignment does not introduce a source local. Destination path and
+RHS role, type, root, and source-call coverage are checked separately. Replacing
+a call-bearing root with a same-typed value cannot erase its invocation, and
+call-argument roots retain their exact positional authored expressions.
+
+Unsigned runtime wrapping conversions reuse existing arithmetic: identity for
+equal carriers, widening for a larger unsigned carrier, and source-width
+remainder modulo the destination cardinality followed by exact narrowing for a
+smaller carrier. Existing remainder-image and cast certificates establish the
+bound independently. The source operand evaluates once. Signed wrapping and
+trapping conversions still require their own runtime policy realization.
+The three fixed arithmetic policies stay in checked qualification facts but
+are not nominal structural-domain requirements of a Unit body.
+
 Result/literal fixed-integer postconditions retain the actual result occurrence,
 builtin comparison meaning, and checked adjacent-endpoint normalization for
 strict bounds. Calls import those guarantees only after their evaluated actuals

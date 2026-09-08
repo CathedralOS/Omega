@@ -67,6 +67,9 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             .operations
             .iter()
             .all(|operation| match &operation.kind {
+                // Ordinary scalar calls retain their complete signature,
+                // requirement, and crash checks after this eligibility fence.
+                OperationKind::Call { .. } => operation.result.scalar().is_some(),
                 OperationKind::PortWrite { .. } => operation.result == OperationResult::Unit,
                 OperationKind::EstablishPrimitiveLocal { .. } => {
                     primitive_storage::validate_establishment(module, machine, operation).is_ok()

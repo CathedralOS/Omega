@@ -3163,10 +3163,6 @@ fn assemble_unit_closure(
                         .ok_or(LoweringError::Unsupported(
                             "structural scalar store names an unknown parameter",
                         ))?;
-                    let source_types = scalar_result_values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>();
                     let lowered =
                         crate::structural_scalar_store::lower_structural_scalar_store_place(
                             store,
@@ -3175,36 +3171,29 @@ fn assemble_unit_closure(
                             &structural_types,
                             crate::structural_scalar_store::StoreAccessPolicy::Exclusive,
                         )?;
-                    let value =
-                        crate::scalar_bindings::ScalarBindings::new(scalar_result_values.len())
-                            .with_primitive_storage(&evaluation.primitive_storage)
-                            .with_structural_parameters(&evaluation.structural_parameters)
-                            .with_resolved_structural_fields(&evaluation.structural_fields)
-                            .expression_at(
-                                checked,
-                                plan.state,
-                                store.statement_index,
-                                CheckedScalarExpressionRole::AssignmentValue,
-                            )?;
-                    if value.scalar_type() != lowered.scalar_type
-                        || direct_expression_contains_short_circuit(&value)
-                    {
+                    let value = evaluation.field_assignment_value(
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        store,
+                        &mut scalar_result_values,
+                        &mut next_value_identity,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &mut scalar_calls,
+                    )?;
+                    next_call_obligation = scalar_calls.next_obligation_identity;
+                    if value.scalar_type != lowered.scalar_type {
                         return unsupported(
-                            "structural scalar store requires a matching branch-free value",
+                            "structural scalar store RHS differs from its field type",
                         );
                     }
-                    validate_direct_parameter_types(&value, &source_types)?;
-                    let value = emit_direct_expression(
-                        &value,
-                        &scalar_result_values,
-                        &mut next_value_identity,
-                        &mut operations,
-                    );
                     OperationKind::StructuralScalarFieldStore {
                         destination: destination.place,
                         path: lowered.path,
                         field: lowered.field,
-                        value,
+                        value: value.id,
                     }
                 }
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }

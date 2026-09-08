@@ -63,7 +63,16 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             .facts
             .qualifications
             .for_machine(plan.machine)
-            .is_some_and(|fact| !fact.body_committed.is_empty())
+            .is_some_and(|fact| {
+                fact.body_committed.iter().any(|domain| {
+                    !matches!(
+                        *domain,
+                        language_semantics::SemanticDomainTable::WRAPPING
+                            | language_semantics::SemanticDomainTable::SATURATING
+                            | language_semantics::SemanticDomainTable::TRAPPING
+                    )
+                })
+            })
     {
         return unsupported("Unit graph has unsupported qualification or provider custody");
     }

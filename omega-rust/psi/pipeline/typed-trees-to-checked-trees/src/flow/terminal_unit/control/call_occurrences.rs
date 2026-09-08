@@ -69,7 +69,60 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     let mut consumed = Vec::new();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
+    let owner = program
+        .machines()
+        .iter()
+        .find(|owner| owner.symbol == machine)?;
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let StatementNode::Assignment(assignment) = statement else {
+            continue;
+        };
+        if !matches!(
+            program.expression_table.expression(assignment.target),
+            ExpressionNode::Member(_)
+        ) {
+            continue;
+        }
+        let plans = &facts.values.scalar_computations;
+        let Some(root) = plans.root_at(
+            state.symbol,
+            u32::try_from(statement_index).ok()?,
+            CheckedScalarExpressionRole::AssignmentValue,
+        ) else {
+            continue;
+        };
+        let primitive =
+            validation::declared_place_type_raw(program, owner, Some(state), assignment.target)
+                .and_then(|reference| program.primitive_type_reference(reference))?;
+        if root.machine != machine
+            || !plans.nodes.is_valid(root.root)
+            || plans.nodes.get(root.root).authored_root != assignment.value
+            || plans.nodes.get(root.root).primitive_type != primitive
+        {
+            return None;
+        }
+        collect(
+            facts,
+            statement_index,
+            root.root,
+            calls,
+            0,
+            &mut Vec::new(),
+            &mut consumed,
+        )?;
+    }
     for call in calls.iter().filter(|call| call.call_ordinal == 0) {
+        if consumed
+            .iter()
+            .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), call))
+        {
+            continue;
+        }
         if outer.iter().any(|prior: &&checked_trees::FlowCallFact| {
             prior.statement_index == call.statement_index
         }) {
@@ -283,6 +336,7 @@ fn collect_argument_calls(
             call.statement_index,
             root.root,
             calls,
+            1,
             &mut Vec::new(),
             consumed,
         )?;
@@ -295,6 +349,7 @@ fn collect(
     statement: usize,
     handle: CheckedScalarComputationHandle,
     calls: &[checked_trees::FlowCallFact],
+    minimum_call_ordinal: u32,
     active: &mut Vec<CheckedScalarComputationHandle>,
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
@@ -316,7 +371,7 @@ fn collect(
                 return None;
             }
             let call = facts.flow.control.calls.get(*source_call);
-            if *call_ordinal == 0
+            if *call_ordinal < minimum_call_ordinal
                 || call.call_ordinal != *call_ordinal as usize
                 || call.statement_index != statement
                 || call.target_symbol != *target_state
@@ -327,12 +382,28 @@ fn collect(
             }
             consumed.push(*source_call);
             for operand in plans.operands.span(*arguments)? {
-                collect(facts, statement, *operand, calls, active, consumed)?;
+                collect(
+                    facts,
+                    statement,
+                    *operand,
+                    calls,
+                    minimum_call_ordinal,
+                    active,
+                    consumed,
+                )?;
             }
         }
         CheckedScalarComputationKind::Apply { operands, .. } => {
             for operand in plans.operands.span(*operands)? {
-                collect(facts, statement, *operand, calls, active, consumed)?;
+                collect(
+                    facts,
+                    statement,
+                    *operand,
+                    calls,
+                    minimum_call_ordinal,
+                    active,
+                    consumed,
+                )?;
             }
         }
         CheckedScalarComputationKind::Select {
@@ -341,7 +412,15 @@ fn collect(
             when_false,
         } => {
             for operand in [condition, when_true, when_false] {
-                collect(facts, statement, *operand, calls, active, consumed)?;
+                collect(
+                    facts,
+                    statement,
+                    *operand,
+                    calls,
+                    minimum_call_ordinal,
+                    active,
+                    consumed,
+                )?;
             }
         }
     }

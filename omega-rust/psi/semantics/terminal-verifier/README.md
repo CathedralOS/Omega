@@ -80,6 +80,9 @@ byte-length observations. Its preserving-edge subgraph must be acyclic.
 
 [Cyclic eligibility](src/validation/control_flow/unranked_cycles.rs) admits
 scalar work, unrestricted shared byte views, and bounded Unit-effect operations.
+Ordinary scalar `Call` operations retain full callee/result and operand validation,
+invocation requirement evidence, and surviving crash-continuation checks. Their
+admission supplies no termination witness or facts from a preceding iteration.
 Persistent unrestricted mutable record receivers additionally admit independently
 typed integer/Boolean field observations, ordered scalar-field stores, and whole
 mutable `CallUnit` arguments with empty claims, requirements, and crash continuations.
