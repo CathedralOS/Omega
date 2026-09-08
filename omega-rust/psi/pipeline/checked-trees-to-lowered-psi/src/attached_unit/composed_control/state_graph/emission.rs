@@ -486,6 +486,29 @@ pub(in crate::attached_unit::composed_control) fn emit(
         .as_ref()
         .map(|identity| lookup_type_id(&catalogs.type_ids, identity))
         .transpose()?;
+    if let Some(attachment) = attachment {
+        let declaration = catalogs
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == attachment)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph attachment declaration is absent",
+            ))?;
+        let boundaries = catalogs
+            .lowered_boundaries
+            .iter()
+            .map(|boundary| (boundary.source, boundary.id))
+            .collect::<Vec<_>>();
+        structural_places.extend(
+            crate::attached_unit::provider_attachments::lower_provider_attachment_places(
+                attachment,
+                declaration,
+                &plan.provider_attachment_requirements,
+                &boundaries,
+                &mut catalogs.next_place,
+            )?,
+        );
+    }
     let mut machine = TerminalMachine {
         id: terminal_machine,
         attachment,

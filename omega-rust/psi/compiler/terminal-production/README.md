@@ -129,12 +129,23 @@ field reads occur at their expression positions; successor states keep the
 original invocation place rather than copied field values. Scalar expressions
 use the existing checked arithmetic and call-argument evaluation paths.
 
+Provider-field calls retain the same exact attachment requirement roots as
+ordinary Unit bodies, including across backedges and interleaved field writes.
+Each machine retains only its direct boundary requirements; an ordinary callee
+owns its own roots even when it borrows the caller's receiver. Roots are not
+runtime operands. The complete state write frame includes reachable successor
+effects and is replayed through the shared frame resolver, while each body's
+ordered operations are checked separately.
+Provider calls also rejoin their authored receiver root, field, and carrier;
+unchanged target or requirement sets cannot justify a substituted source receiver.
+
 The source publication/reload regression is
 `cargo nextest run -p compiler --test cyclic_receiver_execution --no-fail-fast`.
-It checks computed guards, effectful helper calls, caller-visible updates, and
-every fuel suspension point without a termination claim. Canonical interpreter
+It checks computed guards, effectful helper calls, provider-field attachment
+requirements, caller-visible updates, and every fuel suspension point without
+a termination claim. Canonical interpreter
 tests additionally cover projected receiver calls. General owned cyclic custody,
-projected source helpers, indexed/aggregate mutation, guarded crashes, and native
+ordinary projected source helpers, indexed/aggregate mutation, guarded crashes, and native
 realization remain separate dependencies; this does not make `print_squares`
 an executable native product.
 

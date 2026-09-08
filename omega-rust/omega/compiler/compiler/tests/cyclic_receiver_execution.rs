@@ -22,6 +22,15 @@ impl Drop for Fixture {
 
 #[test]
 fn cyclic_receiver_calls_execute_from_published_terminal_at_every_fuel_pause() {
+    assert_cyclic_receiver_execution(false);
+}
+
+#[test]
+fn cyclic_provider_field_calls_execute_from_published_terminal_at_every_fuel_pause() {
+    assert_cyclic_receiver_execution(true);
+}
+
+fn assert_cyclic_receiver_execution(provider_field: bool) {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -32,9 +41,7 @@ fn cyclic_receiver_calls_execute_from_published_terminal_at_every_fuel_pause() {
     )));
     fs::create_dir(&fixture.0).unwrap();
     let main = fixture.0.join("main.omg");
-    fs::write(
-        &main,
-        r#"
+    let source = r#"
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
@@ -71,9 +78,18 @@ machine Main::record(&mut self) {
     self.total = self.total + self.counter;
     Trace::record(self.total);
 }
-"#,
-    )
-    .unwrap();
+"#;
+    let source = if provider_field {
+        source
+            .replace("data Main {", "data Main { trace: Trace;")
+            .replace(
+                "Trace::record(self.total)",
+                "self.trace.record(self.total as u64)",
+            )
+    } else {
+        source.to_owned()
+    };
+    fs::write(&main, source).unwrap();
     fs::write(
         fixture.0.join("build.omg"),
         r#"

@@ -27,7 +27,6 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
                     .is_some_and(|state| state.structural_parameters.iter().any(|parameter| parameter.is_self))
         })
         && plan.body_qualifications.is_empty()
-        && plan.provider_attachment_requirements.is_empty()
         && plan.states.iter().all(|state| {
             state.entry_claims.is_empty()
                 && state.structural_parameters.iter().all(|parameter| {
@@ -60,7 +59,6 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     super::super::admission::validate_contract(checked, plan)?;
     if plan.states.len() < 2
         || !plan.body_qualifications.is_empty()
-        || !plan.provider_attachment_requirements.is_empty()
         || checked
             .facts
             .qualifications
@@ -83,7 +81,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
         return unsupported("Unit graph requires a closed checked body");
     }
     super::ranking::validate_witness(checked, machine, plan)?;
-    super::super::admission::exact_attachment(checked, plan)?;
+    let attachment = super::super::admission::exact_attachment(checked, plan)?;
     let source_states = checked.machine_states(machine);
     if source_states.len() != plan.states.len() {
         return unsupported("Unit graph state roster drifted");
@@ -258,6 +256,30 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     let states = plan.states.iter().collect::<Vec<_>>();
     let (boundaries, internal_targets) =
         super::super::admission::retain_call_targets(checked, plan.machine, &states)?;
+    if let Some(attachment) = attachment {
+        for state in &plan.states {
+            for operation in &state.operations {
+                crate::attached_unit::provider_attachments::validate_call_source(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    operation,
+                    &plan.provider_attachment_requirements,
+                )?;
+            }
+        }
+        let called = boundaries
+            .iter()
+            .map(|(boundary, _)| boundary.machine)
+            .collect::<Vec<_>>();
+        crate::attached_unit::provider_attachments::validate_provider_attachment_requirements(
+            attachment,
+            &plan.provider_attachment_requirements,
+            &called,
+        )?;
+    } else if !plan.provider_attachment_requirements.is_empty() {
+        return unsupported("free Unit graph cannot retain provider attachment requirements");
+    }
     for (boundary, _) in &boundaries {
         if boundary.attachment_type_identity.is_some()
             || !boundary.domain_requirements.is_empty()

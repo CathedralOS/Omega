@@ -32,21 +32,16 @@ pub(super) fn checked_provider_attachment_requirements(
     let [(field, provider_type_identity)] = provider_fields.as_slice() else {
         return provider_fields.is_empty().then(Vec::new);
     };
-    // These callees own their provider requirements; they do not use this
-    // attachment's provider field or transfer structural custody through it.
-    let independent_unit_call = |operation: &CheckedUnitEffectOperationPlan| {
-        matches!(operation,
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments, claim_transfers, ..
-            } if structural_arguments.is_empty() && claim_transfers.is_empty())
-    };
+    // Ordinary callees own their direct provider requirements, including when
+    // they borrow this receiver. Receiver loans do not forward attachment roots.
     let call_operations = operations
         .iter()
         .filter(|operation| {
-            !independent_unit_call(operation)
-                && !matches!(
+            !matches!(
                 operation,
-                CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                CheckedUnitEffectOperationPlan::CallUnit { .. }
+                    | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
