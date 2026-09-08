@@ -284,20 +284,22 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   writable range; the reader changes neither its extent nor owner live length.
   No resizable output descriptor or allocator feature is a prerequisite.
 
-  Continue from `checked-trees-to-lowered-psi/src/byte_sequence_write.rs` and
-  `terminal-interpreter/src/structural_byte_arrays.rs`: preserve exact source
-  operands, exclusive state transfers, current same-view bounds, and original
-  backing. At `48f62ab8f6` on macOS ARM64 (Cargo fallback),
+  Continue from `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`,
+  its `byte_sequence_write.rs` producer, and
+  `terminal-interpreter/src/structural_byte_arrays.rs`. At `c329201212` on
+  macOS ARM64 (Cargo fallback),
   `cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast
-  --no-tests fail -E 'test(byte_sequence_write) | test(fixed_byte_array)'`
-  covers source-produced repeated writes through initialized raw fixed arrays
-  and bounded fields, untouched tails/siblings, and fuel suspension. Explicit
-  host inputs supply exact array contents; an opaque root supplies none.
-  Next dependencies are source-owned raw-array construction, mutable write-loop
-  admission with multi-arrival extent evidence, payload-bearing line outcomes,
-  and native view/store custody. Zero-length fixed arrays retain their existing
-  Terminal admission fence; empty borrowed views remain supported. Native
-  lowering still rejects these writes; do not substitute owner replacement.
+  --no-tests fail -E 'test(byte_write_loop) | test(fixed_byte_array)'`
+  is covered by the selected source regression run: a fresh guard on every
+  loop iteration proves the indexed write and exact cursor increment; original
+  bytes, sibling storage, and per-site work survive suspension. No general
+  multi-arrival extent equation, termination certificate, or fixed-work bound
+  is needed for this Unit loop. Explicit host inputs supply raw array contents;
+  an opaque root supplies none. Next dependencies are source-owned raw-array
+  construction, payload-bearing line outcomes, and native view/store custody.
+  Zero-length fixed arrays retain their existing Terminal admission fence;
+  empty borrowed views remain supported. Native lowering still rejects at
+  structural successor bindings; do not substitute owner replacement.
 
   Implement shared checked line assembly over `read_byte` with bounded indexed
   writes, or an exact conforming target provider. Preserve source place, path,
@@ -354,7 +356,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution must retain distinct result homes, exactly two sequential reads,
   first-byte output, and zero-status Unit completion. The macOS completion
   adapter is a physical entry mapping, not closure of the canonical root contract.
-  At `1b80ad6b40`, the macOS `cli_mvp` probe above still stops at the missing
+  At `c329201212`, the macOS `cli_mvp` probe above still stops at the missing
   `Console::read_line` catalog identity. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
