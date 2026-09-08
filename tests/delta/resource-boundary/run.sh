@@ -7,8 +7,10 @@ if [ "$#" -ne 0 ]; then
         RESOURCE_BOUNDARY_GROUP=payload
     elif [ "$#" -eq 1 ] && [ "$1" = --generated-environment ]; then
         RESOURCE_BOUNDARY_GROUP=generated-environment
+    elif [ "$#" -eq 1 ] && [ "$1" = --long-name ]; then
+        RESOURCE_BOUNDARY_GROUP=long-name
     else
-        echo "usage: $0 [--payload|--generated-environment]" >&2
+        echo "usage: $0 [--payload|--generated-environment|--long-name]" >&2
         exit 2
     fi
 fi
@@ -51,6 +53,7 @@ from match_coverage import fixtures as match_coverage
 from syntax_storage import fixtures as syntax_storage
 from payload_bytes import fixtures as payload_bytes
 from payload_bytes import accepted_fixtures as accepted_payload_bytes
+from name_storage import accepted_fixtures as accepted_name_storage
 
 directory = Path(os.environ["RESOURCE_BOUNDARY_TMP"])
 compiler = (directory / "compiler.gamma").read_bytes()
@@ -64,6 +67,9 @@ if identity != expected_identity:
     raise SystemExit(f"Delta resource boundary compiler identity changed: {identity}")
 
 group = os.environ["RESOURCE_BOUNDARY_GROUP"]
+# The long-name regression is opt-in: its successful compilation took 691s.
+# This host watchdog is not a compiler capacity or a DCOUT observation.
+diagnostic_timeout = 1200 if group == "long-name" else 300
 function_cases = function_rows() if group == "all" else ()
 constructor_cases = constructor_rows() if group == "all" else ()
 type_cases = type_rows() if group == "all" else ()
@@ -85,7 +91,8 @@ def evaluate(name, program, input_bytes):
     )
     try:
         output, error = process.communicate(
-            struct.pack("<I", len(program)) + program + input_bytes, timeout=300
+            struct.pack("<I", len(program)) + program + input_bytes,
+            timeout=diagnostic_timeout,
         )
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
@@ -118,6 +125,7 @@ for name, source, size, digest, expected in cases:
 accepted_cases = (
     (accepted_payload_bytes() if group in ("all", "payload") else ())
     + (accepted_environment_rows() if group in ("all", "generated-environment") else ())
+    + (accepted_name_storage() if group == "long-name" else ())
 )
 for name, source, size, digest, receipt_size, receipt_digest, sealed_input, expected_output in accepted_cases:
     status, receipt, error, elapsed = compile_source(name, source, size, digest)

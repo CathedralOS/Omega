@@ -14,6 +14,10 @@ evaluator, expected observations, and 300-second allowance as the full gate.
 `sh tests/delta/resource-boundary/run.sh --generated-environment` selects the
 single source-to-receipt validation-environment control described below.
 
+`sh tests/delta/resource-boundary/run.sh --long-name` selects only the expensive
+[name-storage regression](#long-identifier-storage). It is not included in the
+default 40-source gate and has a 1,200-second host watchdog per evaluation.
+
 [`function_rows.py`](function_rows.py) retains the three function-row controls
 at the selected limit of 32,768:
 
@@ -242,10 +246,42 @@ changes; the host constructs source and compares the actual receipt and
 execution. The separate [Gamma environment controls](../../gamma/evaluator-development/README.md)
 exercise the exact new physical limit and adjacent quiet refusal.
 
+## Long identifier storage
+
+[`name_storage.py`](name_storage.py) constructs a 4,000,047-byte ordinary source:
+one unused nullary `Int` function whose identifier is four million `a` bytes,
+then `main : Bytes -> Bytes`. It fits the 4-MiB source provision and uses only
+two functions and one parameter, with shallow syntax. The exact source digest
+and successful receipt identity are pinned; the actual receipt must preserve
+sealed input `00 41 80 ff`. No source or expected Gamma artifact is checked in
+as a multi-megabyte file, and the host performs no semantic translation.
+
+On macOS arm64, the compiler at `b35db7dc1f` failed this full `DCREQ` profile-1
+request with raw evaluator status 252, empty stdout and stderr, after 635.378
+seconds. Its five-pair unary name nodes required at least `5L + L + 5L` pairs
+for construction, resolution ancestors, and reconstruction. For `L = 4,000,000`,
+that exceeds the selected evaluator's 40,265,318 application pairs. This was
+heap exhaustion, not a canonical compiler `Incomplete` response.
+
+The [compact name representation](../../../bootstrap/3_delta/implementation/checking/names/README.md)
+uses one pair for each unary nonterminal node and preserves the existing
+branch/terminal representation. The same request compiled to 4,001,420 bytes
+with SHA256
+`c358648656387d53a38e09c2777309bd6b438d4e00f587d16749279403cb1280`
+in 691.467 seconds, and that receipt executed correctly in 0.991 seconds.
+Both native statuses were zero with empty stderr. Compiler closure SHA256 was
+`84ab380f0d725061d415efa048db3bd2b7c6fe8a525a70207783cb81ce23dda5`;
+the selected Alpha seed and Gamma tape were unchanged. Host-reported peak RSS
+was 488,931,328 bytes, versus 1,513,095,168 at the baseline failure. RSS is not
+the allocator cursor or a whole-producer allocation bound, and a successful
+run versus a failed run is not a speedup comparison. The initial observation
+used a disposable full-request runner; the opt-in gate retains the identical
+source, compiler/evaluator route, receipt, and execution checks.
+
 These controls test the type-, function-, constructor-, and
 active-environment-row boundaries, cumulative syntax storage, full per-match
 coverage behavior, exact/adjacent payload publication, and this generated
-validation-environment gap.
+validation-environment gap, plus the opt-in long-name allocation regression.
 They do not establish all selected capacities, acceptance or emission of every
 in-bound program, or closure of the Delta edge. Other frontend and request
 behavior remains in the

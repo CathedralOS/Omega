@@ -25,12 +25,10 @@
    (common Int) (start Int) (end Int)) Int
   (if (eq depth common)
     (identity_cursor_descend focus depth ancestors start end)
-    (let node Int (first ancestors)
-      (let children Int
-        (name_children_replace (second node)
-          (source_read (+ previous (- depth 1))) focus)
-        (identity_cursor_ascend (pair 1 (pair (first node) children))
-          (- depth 1) (second ancestors) previous common start end)))))
+    (identity_cursor_ascend
+      (name_trie_replace_child (first ancestors)
+        (source_read (+ previous (- depth 1))) focus)
+      (- depth 1) (second ancestors) previous common start end)))
 
 ; Existing edges extend the counted zipper. An absent edge leaves its parent
 ; focused so a successful provision can prepend exactly one fresh child.
@@ -41,9 +39,8 @@
     (let index Int (+ start depth)
       (if (eq index end)
         (identity_cursor depth start focus ancestors)
-        (let node Int (second focus)
-          (let child Int (name_child (second node) (source_read index))
-            (if (first child)
-              (identity_cursor_descend child (+ depth 1)
-                (pair node ancestors) start end)
-              (identity_cursor depth start focus ancestors))))))))
+        (let child Int (name_trie_child focus (source_read index))
+          (if (first child)
+            (identity_cursor_descend child (+ depth 1)
+              (pair focus ancestors) start end)
+            (identity_cursor depth start focus ancestors)))))))

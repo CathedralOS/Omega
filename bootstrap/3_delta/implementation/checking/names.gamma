@@ -35,29 +35,57 @@
                   (name_children_replace
                     (second child_and_rest) byte child))))))))))
 
+; Trie tags: 0 is absent; 1 carries terminal option and child rows; byte+2
+; carries one child directly and has no terminal. Long unbranched names need
+; one pair per byte, including when immutable ancestors are rebuilt.
+(def name_trie_terminal ((trie Int)) Int
+  (if (lt 1 (first trie)) (pair 0 0) (first (second trie))))
+
+; Expand a unary node only when inserting a terminal or a different edge.
+(def name_trie_children ((trie Int)) Int
+  (if (lt 1 (first trie))
+    (name_children_prepend (empty_name_children) (- (first trie) 2) (second trie))
+    (second (second trie))))
+
+(def name_trie_child ((trie Int) (byte Int)) Int
+  (if (lt 1 (first trie))
+    (if (eq (- (first trie) 2) byte) (second trie) (pair 0 0))
+    (name_child (second (second trie)) byte)))
+
+(def name_trie_with_terminal ((trie Int) (payload Int)) Int
+  (pair 1 (pair (pair 1 payload) (name_trie_children trie))))
+
+(def name_trie_with_child ((trie Int) (byte Int) (child Int)) Int
+  (pair 1 (pair (name_trie_terminal trie)
+    (name_children_prepend (name_trie_children trie) byte child))))
+
+(def name_trie_replace_child ((trie Int) (byte Int) (child Int)) Int
+  (if (lt 1 (first trie))
+    (if (eq (- (first trie) 2) byte) (pair (first trie) child) (fail))
+    (let node Int (second trie)
+      (pair 1 (pair (first node)
+        (name_children_replace (second node) byte child))))))
+
 (def name_trie_new_path
   ((end Int) (index Int) (payload Int) (empty Int)) Int
   (name_trie_build_path index end
-    (pair 1 (pair (pair 1 payload) empty)) empty))
+    (pair 1 (pair (pair 1 payload) empty))))
 
 ; Build a fresh suffix from its terminal backward without one Gamma return
 ; context or temporary frame per name byte.
-; Absent terminals and empty child lists share the caller's immutable carrier.
 (def name_trie_build_path
-  ((start Int) (end Int) (child Int) (empty Int)) Int
+  ((start Int) (end Int) (child Int)) Int
   (if (eq start end)
     child
     (let index Int (- end 1)
-      (let children Int
-        (name_children_prepend empty (source_read index) child)
-        (name_trie_build_path start index
-          (pair 1 (pair empty children)) empty)))))
+      (name_trie_build_path start index
+        (pair (+ (source_read index) 2) child)))))
 
 (def name_trie_insert
   ((trie Int) (end Int) (index Int) (payload Int)) Int
   (name_trie_descend trie end index payload 0 0))
 
-; Ancestors are a counted spine of (pair node previous), containing only
+; Ancestors are a counted spine of (pair trie previous), containing only
 ; existing-edge parents. First missing edges are prepended before rebuilding;
 ; every saved ancestor therefore replaces an existing edge in its old position.
 (def name_trie_descend
@@ -66,46 +94,39 @@
   (if (eq (first trie) 0)
     (let inserted Int (name_trie_new_path end index payload trie)
       (name_trie_rebuild inserted index depth ancestors))
-    (let node Int (second trie)
-      (let terminal Int (first node)
-        (let children Int (second node)
-          (if (eq index end)
-            (if (first terminal)
-              (fail)
-              (name_trie_rebuild (pair 1 (pair (pair 1 payload) children))
-                index depth ancestors))
-            (let byte Int (source_read index)
-              (let child Int (name_child children byte)
-                (if (first child)
-                  (name_trie_descend child end (+ index 1) payload
-                    (+ depth 1) (pair node ancestors))
-                  (let inserted Int
-                    (name_trie_new_path end (+ index 1) payload child)
-                    (let next_children Int
-                      (name_children_prepend children byte inserted)
-                      (name_trie_rebuild (pair 1 (pair terminal next_children))
-                        index depth ancestors))))))))))))
+    (if (eq index end)
+      (if (first (name_trie_terminal trie))
+        (fail)
+        (name_trie_rebuild (name_trie_with_terminal trie payload)
+          index depth ancestors))
+      (let byte Int (source_read index)
+        (let child Int (name_trie_child trie byte)
+          (if (first child)
+            (name_trie_descend child end (+ index 1) payload
+              (+ depth 1) (pair trie ancestors))
+            (let inserted Int
+              (name_trie_new_path end (+ index 1) payload child)
+              (name_trie_rebuild (name_trie_with_child trie byte inserted)
+                index depth ancestors))))))))
 
 (def name_trie_rebuild
   ((child Int) (index Int) (depth Int) (ancestors Int)) Int
   (if (eq depth 0)
     child
-    (let node Int (first ancestors)
+    (let parent Int (first ancestors)
       (let previous_index Int (- index 1)
-        (let children Int
-          (name_children_replace (second node) (source_read previous_index) child)
-          (name_trie_rebuild (pair 1 (pair (first node) children))
-            previous_index (- depth 1) (second ancestors)))))))
+        (name_trie_rebuild
+          (name_trie_replace_child parent (source_read previous_index) child)
+          previous_index (- depth 1) (second ancestors))))))
 
 (def name_trie_find_option ((trie Int) (end Int) (index Int)) Int
   (if (eq (first trie) 0)
     trie
-    (let node Int (second trie)
-      (if (eq index end)
-        (first node)
-        (name_trie_find_option
-          (name_child (second node) (source_read index))
-          end (+ index 1))))))
+    (if (eq index end)
+      (name_trie_terminal trie)
+      (name_trie_find_option
+        (name_trie_child trie (source_read index))
+        end (+ index 1)))))
 
 ; Fixed compiler-owned names use the same byte edges and terminal option as
 ; source spans. The explicit length preserves exact-name, not prefix, lookup.
@@ -113,12 +134,11 @@
   ((trie Int) (remaining Int) (packed Int)) Int
   (if (eq (first trie) 0)
     (pair 0 0)
-    (let node Int (second trie)
-      (if (eq remaining 0)
-        (first node)
-        (name_trie_find_packed_option
-          (name_child (second node) (% packed 256))
-          (- remaining 1) (/ packed 256))))))
+    (if (eq remaining 0)
+      (name_trie_terminal trie)
+      (name_trie_find_packed_option
+        (name_trie_child trie (% packed 256))
+        (- remaining 1) (/ packed 256)))))
 
 (def name_trie_find ((trie Int) (end Int) (index Int)) Int
   (let result Int (name_trie_find_option trie end index)
