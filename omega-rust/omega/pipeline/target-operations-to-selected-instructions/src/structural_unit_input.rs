@@ -25,13 +25,17 @@ pub(crate) fn accepts_borrowed_view(
     let Some(scalar_count) = call_plan.parameters.len().checked_sub(1) else {
         return false;
     };
-    let mut shapes = vec![calling_conventions::ValueShape::integer(8, 8); scalar_count];
+    let mut shapes = call_plan.parameters[..scalar_count].iter().map(|placement| placement.shape).collect::<Vec<_>>();
+    if shapes.iter().any(|shape| ![calling_conventions::ValueShape::integer(8, 8), calling_conventions::ValueShape::integer(1, 1)].contains(shape))
+        || call_plan.result.as_ref().is_some_and(|result| result.shape != calling_conventions::ValueShape::integer(8, 8)) {
+        return false;
+    }
     shapes.push(calling_conventions::ValueShape::borrowed_reference(16, 8));
     let expected = calling_conventions::evaluate_call_plan(
         call_plan.policy,
         &calling_conventions::CallSignature {
             parameters: shapes,
-            result: Some(calling_conventions::ValueShape::integer(8, 8)),
+            result: call_plan.result.as_ref().map(|result| result.shape),
         },
     );
     expected

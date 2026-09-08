@@ -117,8 +117,7 @@ fn selected_keys(
         store64: (target.object_format == ObjectFormat::Coff).then_some(crate::X86_64_STORE64),
         frame_address: (target.object_format == ObjectFormat::Coff)
             .then_some(crate::X86_64_FRAME_ADDRESS),
-        call_unit: (target.object_format == ObjectFormat::Coff)
-            .then_some(crate::X86_64_MICROSOFT_CALL_UNIT),
+        call_unit: if target.object_format == ObjectFormat::Elf { crate::x86_64_system_v_register_unit_call_keys() } else { crate::x86_64_microsoft_register_unit_call_keys() },
         call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
             x86_64_system_v_register_call_keys()
         } else {
@@ -624,7 +623,7 @@ mod tests {
                         .declarations
                         .iter()
                         .any(|row| row.semantic == semantic),
-                    semantic == MachineSemanticKind::Load64
+                    matches!(semantic, MachineSemanticKind::Load64 | MachineSemanticKind::CallUnit)
                         || target.object_format == ObjectFormat::Coff
                 );
             }

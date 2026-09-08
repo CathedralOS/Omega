@@ -354,6 +354,8 @@ pub(super) fn operation(
         .constraints
         .keys
         .call_unit
+        .get(call.arguments.len())
+        .copied()
         .ok_or_else(|| replay.invalid())?;
     let constraint = environment
         .constraint(key)

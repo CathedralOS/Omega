@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v10\0"
+    b"omega.target-register-environment-identity.v11\0"
 );
 
 pub(super) fn physical_register_model_identity(
@@ -159,9 +159,12 @@ pub fn target_register_environment_identity(
         selected_keys.load8_indexed,
         selected_keys.store64,
         selected_keys.frame_address,
-        selected_keys.call_unit,
     ] {
         optional_constraint_key(&mut bytes, key);
+    }
+    u64_value(&mut bytes, selected_keys.call_unit.len() as u64);
+    for key in &selected_keys.call_unit {
+        constraint_key(&mut bytes, key.family, key.variant);
     }
     u64_value(&mut bytes, selected_keys.call_i64.len() as u64);
     for key in &selected_keys.call_i64 {

@@ -82,6 +82,16 @@ pub fn aarch64_darwin_register_call_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
+/// Register-only Unit call keys, indexed by argument count.
+pub fn aarch64_aapcs64_register_unit_call_keys() -> Vec<RegisterConstraintKey> {
+    (700..=708).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant }).collect()
+}
+
+/// Register-only Unit call keys, indexed by argument count.
+pub fn aarch64_darwin_register_unit_call_keys() -> Vec<RegisterConstraintKey> {
+    (720..=728).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant }).collect()
+}
+
 /// Arity-ordered keys for the complete register-only U64 call ABI.
 pub fn aarch64_aapcs64_register_call_keys() -> Vec<RegisterConstraintKey> {
     [3, 4, 2, 5, 6, 7, 8, 9, 10]
@@ -188,7 +198,7 @@ pub const AARCH64_LOAD8_INDEXED: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 38] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 56] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -260,6 +270,24 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 38] = [
         family: RegisterConstraintFamily::Call,
         variant: 19,
     },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 700 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 701 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 702 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 703 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 704 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 705 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 706 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 707 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 708 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 720 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 721 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 722 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 723 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 724 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 725 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 726 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 727 },
+    RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 728 },
     AARCH64_AAPCS64_RETURN,
     AARCH64_DARWIN_RETURN,
     AARCH64_AAPCS64_RETURN_UNIT,
@@ -960,6 +988,16 @@ pub fn aarch64_register_constraint_catalog(
         constraints.push(call);
     }
 
+    for (scalar_key, unit_key) in aarch64_aapcs64_register_call_keys().into_iter().zip(aarch64_aapcs64_register_unit_call_keys())
+        .chain(aarch64_darwin_register_call_keys().into_iter().zip(aarch64_darwin_register_unit_call_keys()))
+    {
+        let mut call = constraints.iter().find(|row| row.key == scalar_key).expect("canonical scalar call row").clone();
+        call.key = unit_key;
+        call.operands.pop();
+        // Unit has no result operand; X0 remains caller-clobbered.
+        call.clobbers = sorted_units(call.clobbers.into_iter().chain(view("x0").units.iter().copied()));
+        constraints.push(call);
+    }
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =

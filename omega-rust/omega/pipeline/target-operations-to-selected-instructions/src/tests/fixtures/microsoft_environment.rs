@@ -3,7 +3,7 @@
 use isa_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
     X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL,
-    X86_64_MICROSOFT_CALL_UNIT, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
+    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
     X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
     x86_64_register_constraint_catalog,
@@ -27,7 +27,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
     .unwrap();
     let constraints = SelectedSelectionConstraints {
         keys: SelectedConstraintKeys {
-            call_unit: Some(X86_64_MICROSOFT_CALL_UNIT),
+            call_unit: isa_x86_64::x86_64_microsoft_register_unit_call_keys(),
             load64: Some(isa_x86_64::X86_64_LOAD64),
             load8_indexed: None,
             store64: Some(isa_x86_64::X86_64_STORE64),

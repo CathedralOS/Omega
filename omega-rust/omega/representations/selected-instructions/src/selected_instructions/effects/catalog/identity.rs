@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v14\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v15\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -20,10 +20,10 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.load8_indexed,
         catalog.selected_keys.store64,
         catalog.selected_keys.frame_address,
-        catalog.selected_keys.call_unit,
     ] {
         bytes.push(u8::from(key.is_some()));
     }
+    encode_len(&mut bytes, catalog.selected_keys.call_unit.len());
     encode_len(&mut bytes, catalog.selected_keys.call_i64.len());
     let selected_keys = catalog.selected_keys.in_identity_order();
     encode_len(&mut bytes, selected_keys.len());
@@ -366,10 +366,10 @@ mod tests {
             load8_indexed: Some(instruction(23)),
             store64: Some(instruction(21)),
             frame_address: Some(instruction(22)),
-            call_unit: Some(RegisterConstraintKey {
+            call_unit: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
-            }),
+            }],
             call_i64: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 3,
@@ -481,7 +481,7 @@ mod tests {
         changed.selected_keys.subtract_i64 = instruction(99);
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
         let mut changed = source.clone();
-        changed.selected_keys.call_unit = None;
+        changed.selected_keys.call_unit.clear();
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
         let mut changed = source.clone();
         let call = changed
@@ -522,7 +522,7 @@ mod tests {
         reordered.selected_keys.call_i64.swap(0, 1);
         assert_ne!(baseline, machine_effect_catalog_identity(&reordered));
         let mut relabeled = source.clone();
-        let structural_key = relabeled.selected_keys.call_unit.take().unwrap();
+        let structural_key = relabeled.selected_keys.call_unit.remove(0);
         relabeled.selected_keys.call_i64.insert(0, structural_key);
         assert_eq!(
             source.selected_keys.in_identity_order(),

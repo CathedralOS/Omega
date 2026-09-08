@@ -9,17 +9,22 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let abi = target
-        .mixed_structural_scalar_abi
-        .as_ref()
-        .ok_or(invalid.clone())?;
-    let AbstractFunctionResult::Scalar(result) = &abstracted.result else {
-        return Err(invalid);
+    let (call_plan, scalar_parameters, structural_parameters) = match (&abstracted.result, &target.operation, &target.mixed_structural_scalar_abi) {
+        (AbstractFunctionResult::Unit, TargetOperation::UnitBody(body), None)
+            if optimized.blocks.len() == 1 && body.call_plan.result.is_none() =>
+            (&body.call_plan, &body.scalar_parameters, &body.parameters),
+        (AbstractFunctionResult::Scalar(result), _, Some(abi))
+            if result.scalar_type == ScalarType::Integer(u64_type())
+                && abi.result.value == result.value
+                && abi.result.scalar_type == result.scalar_type
+                && Some(&abi.result.placement) == abi.call_plan.result.as_ref() =>
+            (&abi.call_plan, &abi.scalar_parameters, &abi.structural_parameters),
+        _ => return Err(invalid),
     };
     let parameters = abstracted
         .structural_parameters
         .iter()
-        .zip(&abi.structural_parameters)
+        .zip(structural_parameters)
         .map(|(semantic, target)| crate::structural_unit_input::Parameter { semantic, target })
         .collect::<Vec<_>>();
     if target.machine != abstracted.machine
@@ -29,31 +34,29 @@ pub(super) fn validate(
         || optimized.attachment.is_some()
         || target.scalar_abi.is_some()
         || abstracted.parameters.len() != optimized.parameters.len()
-        || abi.scalar_parameters.len() != abstracted.parameters.len()
-        || abi.call_plan.parameters.len() != abstracted.parameters.len() + 1
-        || abi
-            .scalar_parameters
+        || scalar_parameters.len() != abstracted.parameters.len()
+        || call_plan.parameters.len() != abstracted.parameters.len() + 1
+        || scalar_parameters
             .iter()
             .zip(&abstracted.parameters)
             .zip(&optimized.parameters)
-            .zip(&abi.call_plan.parameters)
-            .any(|(((actual, declared), optimized), placement)| {
+            .zip(&call_plan.parameters)
+            .enumerate()
+            .any(|(position, (((actual, declared), optimized), placement))| {
                 actual.value != declared.value
-                    || actual.scalar_type != ScalarType::Integer(u64_type())
+                    || ![ScalarType::Integer(u64_type()), ScalarType::Boolean].contains(&actual.scalar_type)
                     || declared.scalar_type != actual.scalar_type
                     || optimized.value != declared.value
                     || optimized.scalar_type != declared.scalar_type
+                    || optimized.site != ValueDefinitionSite::FunctionParameter(position as u32)
+                    || scalar_shape(actual.scalar_type) != Some(placement.shape)
                     || actual.placement != *placement
             })
-        || abi.structural_parameters.len() != 1
+        || structural_parameters.len() != 1
         || abstracted.structural_parameters.len() != 1
         || optimized.structural_parameters != abstracted.structural_parameters
         || optimized.result != abstracted.result
-        || result.scalar_type != ScalarType::Integer(u64_type())
-        || abi.result.value != result.value
-        || abi.result.scalar_type != result.scalar_type
-        || Some(&abi.result.placement) != abi.call_plan.result.as_ref()
-        || abi.call_plan.policy != CallingPolicy::native_for_target(native)
+        || call_plan.policy != CallingPolicy::native_for_target(native)
         || !abstracted.entry_claims.is_empty()
         || !optimized.entry_claims.is_empty()
         || !optimized.entry_claim_declarations.is_empty()
@@ -67,7 +70,7 @@ pub(super) fn validate(
                 .map(|place| place.id)
                 .collect()
         || !crate::structural_unit_input::accepts_borrowed_view(
-            &abi.call_plan,
+            call_plan,
             &parameters,
             &plan.structural_types,
         )
@@ -119,7 +122,7 @@ pub(super) fn validate(
             return Err(invalid);
         }
     }
-    Ok(abi.call_plan.clone())
+    Ok(call_plan.clone())
 }
 
 // Whole-unit validation checks the exact producer and dominance. This predicate

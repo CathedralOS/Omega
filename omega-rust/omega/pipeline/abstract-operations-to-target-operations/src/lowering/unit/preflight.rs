@@ -18,6 +18,7 @@ pub(super) fn validate_unit_function_shape(
             || (entry.parameters.is_empty()
                 && (has_parameter_sourced_store_shape(function)
                     || has_parameter_sourced_unit_call_shape(function)
+                    || has_shared_view_call_sequence(function)
                     || has_scalar_unit_leaf_shape(function)))
     });
     if function.block_entries.len() != 1
@@ -27,6 +28,28 @@ pub(super) fn validate_unit_function_shape(
         return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
     }
     Ok(())
+}
+
+fn has_shared_view_call_sequence(function: &AbstractFunction) -> bool {
+    !function.structural_parameters.is_empty()
+        && function.structural_parameters.iter().all(|parameter| {
+            parameter.access == StructuralAccess::SharedBorrow
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && !parameter.is_self
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        })
+        && function.entry_claims.is_empty()
+        && function.published_service_ceiling.is_empty()
+        && function.operations.split_last().is_some_and(|(last, preceding)| {
+            matches!(last, AbstractOperation::ReturnUnit { cleanup_actions, .. }
+                if cleanup_actions.is_empty())
+                && preceding.iter().all(|operation| matches!(operation,
+                    AbstractOperation::CallUnit { .. }
+                        | AbstractOperation::CallStructuralScalar { .. }
+                        | AbstractOperation::IntegerConstant { .. }
+                        | AbstractOperation::BooleanConstant { .. }))
+        })
 }
 
 fn has_scalar_unit_leaf_shape(function: &AbstractFunction) -> bool {

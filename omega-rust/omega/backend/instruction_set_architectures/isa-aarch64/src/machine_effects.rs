@@ -56,8 +56,8 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
-                if semantic == MachineSemanticKind::CallI64 {
-                    scalar_call_declaration(constraint, constraints)
+                if matches!(semantic, MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit) {
+                    scalar_call_declaration(semantic, constraint, constraints)
                 } else {
                     declaration(semantic, &selected_keys)
                 }
@@ -107,7 +107,7 @@ fn selected_keys(
         load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
         store64: None,
         frame_address: None,
-        call_unit: None,
+        call_unit: if target.object_format == ObjectFormat::Elf { crate::aarch64_aapcs64_register_unit_call_keys() } else { crate::aarch64_darwin_register_unit_call_keys() },
         call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
             aarch64_aapcs64_register_call_keys()
         } else {

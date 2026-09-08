@@ -11,6 +11,7 @@ use selected_instructions::{
 };
 
 pub(super) fn declaration(
+    semantic: MachineSemanticKind,
     constraint: RegisterConstraintKey,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
@@ -20,9 +21,10 @@ pub(super) fn declaration(
         .iter()
         .find(|row| row.key == constraint)
         .expect("canonical AArch64 catalog contains its scalar-call constraint");
-    let arity = row.operands.len() - 1;
+    let unit = semantic == MachineSemanticKind::CallUnit;
+    let arity = row.operands.len() - usize::from(!unit);
     MachineEffectDeclaration {
-        semantic: MachineSemanticKind::CallI64,
+        semantic,
         constraint,
         memory: MachineMemoryEffect::NoneV1,
         trap: MachineTrapBehavior::NeverV1,
@@ -33,7 +35,7 @@ pub(super) fn declaration(
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
             key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallI64,
+                family: if unit { MachineAlternativeFamily::CallUnit } else { MachineAlternativeFamily::CallI64 },
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
@@ -41,7 +43,7 @@ pub(super) fn declaration(
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
                 external_operand_reads: (0..arity as u16).collect(),
-                external_operand_writes: vec![arity as u16],
+                external_operand_writes: if unit { Vec::new() } else { vec![arity as u16] },
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),

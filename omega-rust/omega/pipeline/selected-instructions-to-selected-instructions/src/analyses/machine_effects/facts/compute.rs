@@ -110,7 +110,7 @@ fn terminal_selected_keys(
         load8_indexed: keys.load8_indexed,
         store64: keys.store64,
         frame_address: keys.frame_address,
-        call_unit: keys.call_unit,
+        call_unit: keys.call_unit.clone(),
         call_i64: keys.call_i64.clone(),
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
