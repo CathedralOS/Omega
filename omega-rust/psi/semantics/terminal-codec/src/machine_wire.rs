@@ -22,9 +22,7 @@ use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
     encode_integer_value, encode_scalar_type,
 };
-use super::structural_result_wire::{
-    ResultPathWireFormat, decode_function_result, encode_function_result,
-};
+use super::structural_result_wire::{decode_function_result, encode_function_result};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_service_ceiling, encode_structural_parameters,
 };
@@ -38,20 +36,14 @@ use super::{
 #[cfg(test)]
 mod tests;
 
-pub(super) fn encode_machine_for_result_paths(
+pub(super) fn encode_machine(
     writer: &mut Writer,
     machine: &TerminalMachine,
-    result_path_format: ResultPathWireFormat,
 ) -> Result<(), CodecError> {
     writer.id(machine.id);
     encode_optional_id(writer, machine.attachment);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
     encode_structural_parameters(writer, &machine.structural_parameters)?;
-    if result_path_format != ResultPathWireFormat::Current
-        && matches!(machine.ranked_scc, Some(TerminalRankedScc::Natural(_)))
-    {
-        return Err(CodecError::InvalidTag("TerminalRankedScc", 2));
-    }
     encode_ranked_scc(writer, machine.ranked_scc.as_ref())?;
     match &machine.result {
         TerminalMachineResult::Unit => writer.u8(0),
@@ -61,19 +53,11 @@ pub(super) fn encode_machine_for_result_paths(
         }
         TerminalMachineResult::Structural(result) => {
             writer.u8(2);
-            encode_function_result(writer, result, result_path_format)?;
+            encode_function_result(writer, result)?;
         }
     }
     writer.len("structural places", machine.structural_places.len())?;
     for place in &machine.structural_places {
-        if result_path_format != ResultPathWireFormat::Current
-            && matches!(
-                place.kind,
-                semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. }
-            )
-        {
-            return Err(CodecError::InvalidTag("StructuralPlaceKind", 8));
-        }
         writer.id(place.id);
         encode_structural_place_kind(writer, place.kind);
     }
@@ -105,7 +89,7 @@ pub(super) fn encode_machine_for_result_paths(
     writer.id(machine.entry);
     writer.len("blocks", machine.blocks.len())?;
     for block in &machine.blocks {
-        super::block_wire::encode_block_for_result_paths(writer, block, result_path_format)?;
+        super::block_wire::encode_block(writer, block)?;
     }
     encode_contract(writer, &machine.contract)
 }
@@ -127,24 +111,16 @@ pub(super) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclarat
     encode_scalar_type(writer, declaration.scalar_type);
 }
 
-pub(super) fn decode_machine_for_result_paths(
-    reader: &mut Reader<'_>,
-    result_path_format: ResultPathWireFormat,
-) -> Result<TerminalMachine, CodecError> {
+pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
     let attachment = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
     let structural_parameters = decode_structural_parameters(reader)?;
     let ranked_scc = decode_ranked_scc(reader)?;
-    if result_path_format != ResultPathWireFormat::Current
-        && matches!(ranked_scc, Some(TerminalRankedScc::Natural(_)))
-    {
-        return Err(CodecError::InvalidTag("TerminalRankedScc", 2));
-    }
     let result = match reader.u8()? {
         0 => TerminalMachineResult::Unit,
         1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
-        2 => TerminalMachineResult::Structural(decode_function_result(reader, result_path_format)?),
+        2 => TerminalMachineResult::Structural(decode_function_result(reader)?),
         tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
     };
     let count = reader.count()?;
@@ -152,14 +128,6 @@ pub(super) fn decode_machine_for_result_paths(
     for _ in 0..count {
         let id = reader.id("PlaceId")?;
         let kind = decode_structural_place_kind(reader)?;
-        if result_path_format != ResultPathWireFormat::Current
-            && matches!(
-                kind,
-                semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. }
-            )
-        {
-            return Err(CodecError::InvalidTag("StructuralPlaceKind", 8));
-        }
         structural_places.push(StructuralPlaceDeclaration { id, kind });
     }
     let entry_claims = decode_counted(reader, |reader| {
@@ -189,10 +157,7 @@ pub(super) fn decode_machine_for_result_paths(
     let block_count = reader.count()?;
     let mut blocks = Vec::new();
     for _ in 0..block_count {
-        blocks.push(super::block_wire::decode_block_for_result_paths(
-            reader,
-            result_path_format,
-        )?);
+        blocks.push(super::block_wire::decode_block(reader)?);
     }
     let contract = decode_contract(reader)?;
     Ok(TerminalMachine {

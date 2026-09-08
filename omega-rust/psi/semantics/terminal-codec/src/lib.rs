@@ -12,11 +12,11 @@ mod canonical_artifact;
 mod canonical_order;
 mod content_wire;
 mod contract_wire;
+#[cfg(test)]
+mod current_format_tests;
 mod debug_map;
 mod dynamic_dispatch_wire;
 mod integer_math_term_wire;
-#[cfg(test)]
-mod legacy_result_path_wire_tests;
 mod machine_wire;
 mod module_wire;
 mod obligation_ledger;
@@ -33,6 +33,8 @@ mod publication;
 mod quotient_correspondence_wire;
 mod scalar_term_wire;
 mod scalar_wire;
+#[cfg(test)]
+mod structural_block_wire_tests;
 mod structural_field_wire;
 mod structural_result_wire;
 mod structural_signature_wire;
@@ -121,8 +123,6 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
 const FORMAT_MARKER: u16 = 79;
-const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
-const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -142,24 +142,17 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
         return Err(CodecError::InvalidMagic);
     }
     let format_marker = reader.u16()?;
-    if !matches!(
-        format_marker,
-        FORMAT_MARKER | LEGACY_RESULT_PATH_FORMAT_MARKER
-    ) {
+    if format_marker != FORMAT_MARKER {
         return Err(CodecError::UnsupportedFormatMarker(format_marker));
     }
-    let module = decode_module_body(&mut reader, format_marker)?;
+    let module = decode_module_body(&mut reader)?;
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
     validate_module_representation(&module).map_err(CodecError::InvalidModule)?;
-    let canonical = if format_marker == FORMAT_MARKER {
-        encode_raw(&module)?
-    } else {
-        module_wire::encode_legacy_result_path_raw(&module)?
-    };
+    let canonical = encode_raw(&module)?;
     if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);
     }

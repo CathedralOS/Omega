@@ -52,17 +52,13 @@ use super::quotient_correspondence_wire::{
 };
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
-use super::structural_result_wire::ResultPathWireFormat;
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
     encode_content_projection_expression,
 };
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
-use super::{
-    CodecError, FORMAT_MARKER, LEGACY_RESULT_PATH_FORMAT_MARKER,
-    LEGACY_RESULT_PATH_VOCABULARY_MARKER, MAGIC, decode_counted, decode_ids,
-};
+use super::{CodecError, FORMAT_MARKER, MAGIC, decode_counted, decode_ids};
 
 fn encode_carry_policy(writer: &mut Writer, policy: CarryPolicy) {
     writer.u8(match policy.suspension {
@@ -763,29 +759,10 @@ fn decode_reborrow_restored_call_use(
 }
 
 pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
-    encode_raw_for_result_paths(module, ResultPathWireFormat::Current)
-}
-
-pub(super) fn encode_legacy_result_path_raw(
-    module: &TerminalModule,
-) -> Result<Vec<u8>, CodecError> {
-    encode_raw_for_result_paths(module, ResultPathWireFormat::LegacyWithoutResultPaths)
-}
-
-fn encode_raw_for_result_paths(
-    module: &TerminalModule,
-    result_path_format: ResultPathWireFormat,
-) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
-    writer.u16(match result_path_format {
-        ResultPathWireFormat::LegacyWithoutResultPaths => LEGACY_RESULT_PATH_FORMAT_MARKER,
-        ResultPathWireFormat::Current => FORMAT_MARKER,
-    });
-    writer.u16(match result_path_format {
-        ResultPathWireFormat::LegacyWithoutResultPaths => LEGACY_RESULT_PATH_VOCABULARY_MARKER,
-        ResultPathWireFormat::Current => module.vocabulary_marker.get(),
-    });
+    writer.u16(FORMAT_MARKER);
+    writer.u16(module.vocabulary_marker.get());
     writer.id(module.entry);
     writer.len("structural types", module.structural_types.len())?;
     for declaration in &module.structural_types {
@@ -899,18 +876,6 @@ fn encode_raw_for_result_paths(
         module.float_meaning_projections.len(),
     )?;
     for projection in &module.float_meaning_projections {
-        if result_path_format == ResultPathWireFormat::LegacyWithoutResultPaths {
-            let current_only_tag = match &projection.source {
-                FloatMeaningSource::DirectOperationResult(_) => Some(6),
-                FloatMeaningSource::DirectBlockParameter(_) => Some(7),
-                FloatMeaningSource::DirectCallResult(_) => Some(8),
-                FloatMeaningSource::DirectStructuralLeaf(_) => Some(9),
-                _ => None,
-            };
-            if let Some(tag) = current_only_tag {
-                return Err(CodecError::InvalidTag("legacy FloatMeaningSource", tag));
-            }
-        }
         writer.u32(projection.result.id.0);
         writer.u8(match projection.result.value_type {
             ProofOnlyValueType::FloatMeaning => 1,
@@ -1214,37 +1179,26 @@ fn encode_raw_for_result_paths(
         writer.u64(application.report_fingerprint);
         writer.bytes(&application.commitment.as_bytes());
     }
-    if result_path_format == ResultPathWireFormat::Current {
-        encode_dynamic_descriptor_parameters(&mut writer, &module.dynamic_dispatch.parameters)?;
-        encode_dynamic_descriptor_arguments(&mut writer, &module.dynamic_dispatch.arguments)?;
-        encode_dynamic_conformance_selections(&mut writer, &module.dynamic_dispatch.selections)?;
-        encode_rebound_dynamic_descriptors(
-            &mut writer,
-            &module.dynamic_dispatch.rebound_descriptors,
-        )?;
-        encode_stored_dynamic_descriptors(
-            &mut writer,
-            &module.dynamic_dispatch.stored_descriptors,
-        )?;
-        encode_direct_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.direct_dispatches)?;
-        encode_indirect_dynamic_dispatches(
-            &mut writer,
-            &module.dynamic_dispatch.indirect_dispatches,
-        )?;
-        encode_stored_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.stored_dispatches)?;
-        encode_parameter_dynamic_dispatches(
-            &mut writer,
-            &module.dynamic_dispatch.parameter_dispatches,
-        )?;
-        writer.u32(module.suspension_call_plan_count);
-        writer.len("suspension call sites", module.suspension_call_sites.len())?;
-        for site in &module.suspension_call_sites {
-            encode_suspension_call_site(&mut writer, site);
-        }
-        writer.len("suspension call plans", module.suspension_call_plans.len())?;
-        for plan in &module.suspension_call_plans {
-            encode_suspension_call_plan(&mut writer, plan)?;
-        }
+    encode_dynamic_descriptor_parameters(&mut writer, &module.dynamic_dispatch.parameters)?;
+    encode_dynamic_descriptor_arguments(&mut writer, &module.dynamic_dispatch.arguments)?;
+    encode_dynamic_conformance_selections(&mut writer, &module.dynamic_dispatch.selections)?;
+    encode_rebound_dynamic_descriptors(&mut writer, &module.dynamic_dispatch.rebound_descriptors)?;
+    encode_stored_dynamic_descriptors(&mut writer, &module.dynamic_dispatch.stored_descriptors)?;
+    encode_direct_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.direct_dispatches)?;
+    encode_indirect_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.indirect_dispatches)?;
+    encode_stored_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.stored_dispatches)?;
+    encode_parameter_dynamic_dispatches(
+        &mut writer,
+        &module.dynamic_dispatch.parameter_dispatches,
+    )?;
+    writer.u32(module.suspension_call_plan_count);
+    writer.len("suspension call sites", module.suspension_call_sites.len())?;
+    for site in &module.suspension_call_sites {
+        encode_suspension_call_site(&mut writer, site);
+    }
+    writer.len("suspension call plans", module.suspension_call_plans.len())?;
+    for plan in &module.suspension_call_plans {
+        encode_suspension_call_plan(&mut writer, plan)?;
     }
     writer.len(
         "quotient correspondences",
@@ -1255,33 +1209,18 @@ fn encode_raw_for_result_paths(
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
-        super::machine_wire::encode_machine_for_result_paths(
-            &mut writer,
-            machine,
-            result_path_format,
-        )?;
+        super::machine_wire::encode_machine(&mut writer, machine)?;
     }
     Ok(writer.finish())
 }
 
-pub(super) fn decode_module_body(
-    reader: &mut Reader<'_>,
-    format_marker: u16,
-) -> Result<TerminalModule, CodecError> {
+pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecError> {
     let vocabulary_marker_raw = reader.u16()?;
-    let result_path_format = match (format_marker, vocabulary_marker_raw) {
-        (FORMAT_MARKER, raw) if raw == VocabularyMarker::CURRENT.get() => {
-            ResultPathWireFormat::Current
-        }
-        (LEGACY_RESULT_PATH_FORMAT_MARKER, LEGACY_RESULT_PATH_VOCABULARY_MARKER) => {
-            ResultPathWireFormat::LegacyWithoutResultPaths
-        }
-        _ => {
-            return Err(CodecError::UnsupportedVocabularyMarker(
-                vocabulary_marker_raw,
-            ));
-        }
-    };
+    if vocabulary_marker_raw != VocabularyMarker::CURRENT.get() {
+        return Err(CodecError::UnsupportedVocabularyMarker(
+            vocabulary_marker_raw,
+        ));
+    }
     let vocabulary_marker = VocabularyMarker::CURRENT;
     let entry = reader.id("MachineId")?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
@@ -1386,53 +1325,45 @@ pub(super) fn decode_module_body(
                         tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
                     },
                 }),
-                6 if result_path_format == ResultPathWireFormat::Current => {
-                    FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
-                        owner: reader.id("float-meaning direct operation-result owner")?,
-                        producer: reader.id("float-meaning direct operation-result producer")?,
-                        result: reader.id("float-meaning direct operation-result value")?,
-                        format: match reader.u8()? {
-                            1 => IeeeFloatFormat::Binary32,
-                            2 => IeeeFloatFormat::Binary64,
-                            tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                        },
-                    })
-                }
-                7 if result_path_format == ResultPathWireFormat::Current => {
-                    FloatMeaningSource::DirectBlockParameter(DirectBlockFloatParameter {
-                        owner: reader.id("float-meaning direct block-parameter owner")?,
-                        block: reader.id("float-meaning direct block-parameter block")?,
-                        parameter: reader.id("float-meaning direct block-parameter value")?,
-                        format: match reader.u8()? {
-                            1 => IeeeFloatFormat::Binary32,
-                            2 => IeeeFloatFormat::Binary64,
-                            tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                        },
-                    })
-                }
-                8 if result_path_format == ResultPathWireFormat::Current => {
-                    FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
-                        owner: reader.id("float-meaning direct call-result owner")?,
-                        producer: reader.id("float-meaning direct call-result producer")?,
-                        result: reader.id("float-meaning direct call-result value")?,
-                        format: match reader.u8()? {
-                            1 => IeeeFloatFormat::Binary32,
-                            2 => IeeeFloatFormat::Binary64,
-                            tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                        },
-                    })
-                }
-                9 if result_path_format == ResultPathWireFormat::Current => {
-                    FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
-                        owner: reader.id("float-meaning direct structural-leaf owner")?,
-                        field: decode_ieee_float_field(reader)?,
-                        format: match reader.u8()? {
-                            1 => IeeeFloatFormat::Binary32,
-                            2 => IeeeFloatFormat::Binary64,
-                            tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                        },
-                    })
-                }
+                6 => FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
+                    owner: reader.id("float-meaning direct operation-result owner")?,
+                    producer: reader.id("float-meaning direct operation-result producer")?,
+                    result: reader.id("float-meaning direct operation-result value")?,
+                    format: match reader.u8()? {
+                        1 => IeeeFloatFormat::Binary32,
+                        2 => IeeeFloatFormat::Binary64,
+                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                    },
+                }),
+                7 => FloatMeaningSource::DirectBlockParameter(DirectBlockFloatParameter {
+                    owner: reader.id("float-meaning direct block-parameter owner")?,
+                    block: reader.id("float-meaning direct block-parameter block")?,
+                    parameter: reader.id("float-meaning direct block-parameter value")?,
+                    format: match reader.u8()? {
+                        1 => IeeeFloatFormat::Binary32,
+                        2 => IeeeFloatFormat::Binary64,
+                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                    },
+                }),
+                8 => FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
+                    owner: reader.id("float-meaning direct call-result owner")?,
+                    producer: reader.id("float-meaning direct call-result producer")?,
+                    result: reader.id("float-meaning direct call-result value")?,
+                    format: match reader.u8()? {
+                        1 => IeeeFloatFormat::Binary32,
+                        2 => IeeeFloatFormat::Binary64,
+                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                    },
+                }),
+                9 => FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
+                    owner: reader.id("float-meaning direct structural-leaf owner")?,
+                    field: decode_ieee_float_field(reader)?,
+                    format: match reader.u8()? {
+                        1 => IeeeFloatFormat::Binary32,
+                        2 => IeeeFloatFormat::Binary64,
+                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                    },
+                }),
                 tag => return Err(CodecError::InvalidTag("FloatMeaningSource", tag)),
             },
             operation: match reader.u8()? {
@@ -1651,49 +1582,27 @@ pub(super) fn decode_module_body(
         indirect_dynamic_dispatches,
         stored_dynamic_dispatches,
         parameter_dynamic_dispatches,
-    ) = if result_path_format == ResultPathWireFormat::Current {
-        (
-            decode_dynamic_descriptor_parameters(reader)?,
-            decode_dynamic_descriptor_arguments(reader)?,
-            decode_dynamic_conformance_selections(reader)?,
-            decode_rebound_dynamic_descriptors(reader)?,
-            decode_stored_dynamic_descriptors(reader)?,
-            decode_direct_dynamic_dispatches(reader)?,
-            decode_indirect_dynamic_dispatches(reader)?,
-            decode_stored_dynamic_dispatches(reader)?,
-            decode_parameter_dynamic_dispatches(reader)?,
-        )
-    } else {
-        (
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-        )
-    };
-    let (suspension_call_plan_count, suspension_call_sites, suspension_call_plans) =
-        if result_path_format == ResultPathWireFormat::Current {
-            (
-                reader.u32()?,
-                decode_counted(reader, decode_suspension_call_site)?,
-                decode_counted(reader, decode_suspension_call_plan)?,
-            )
-        } else {
-            (0, Vec::new(), Vec::new())
-        };
+    ) = (
+        decode_dynamic_descriptor_parameters(reader)?,
+        decode_dynamic_descriptor_arguments(reader)?,
+        decode_dynamic_conformance_selections(reader)?,
+        decode_rebound_dynamic_descriptors(reader)?,
+        decode_stored_dynamic_descriptors(reader)?,
+        decode_direct_dynamic_dispatches(reader)?,
+        decode_indirect_dynamic_dispatches(reader)?,
+        decode_stored_dynamic_dispatches(reader)?,
+        decode_parameter_dynamic_dispatches(reader)?,
+    );
+    let (suspension_call_plan_count, suspension_call_sites, suspension_call_plans) = (
+        reader.u32()?,
+        decode_counted(reader, decode_suspension_call_site)?,
+        decode_counted(reader, decode_suspension_call_plan)?,
+    );
     let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
-        machines.push(super::machine_wire::decode_machine_for_result_paths(
-            reader,
-            result_path_format,
-        )?);
+        machines.push(super::machine_wire::decode_machine(reader)?);
     }
     Ok(TerminalModule {
         vocabulary_marker,
