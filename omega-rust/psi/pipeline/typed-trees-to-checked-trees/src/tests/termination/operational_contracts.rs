@@ -104,6 +104,35 @@ fn symbol_resolved_service_ceiling_rejects_undeclared_boundary_reach() {
 }
 
 #[test]
+fn intrinsic_boundary_projection_preserves_the_callers_service_ceiling() {
+    let source = r#"
+    pub boundary trait Console { machine write_byte(byte: i32) reaches Console; }
+    boundary trait Queryable {}
+    pub data ConsoleNativeProvider {}
+    boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+        satisfies Console::write_byte;
+    data Main {}
+    machine Main::run() reaches Queryable {
+        ConsoleNativeProvider::write_byte(55);
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("the intrinsic requirement must not bypass the caller's ceiling");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("reaches undeclared service `Console`")
+        }),
+        "expected Console ceiling diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn operational_plans_are_independent_from_service_reach_rows() {
     use language_semantics::{
         BlockingInterface, ServiceReachInterface, ServiceReachRowTable, SuspensionInterface,

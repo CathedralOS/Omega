@@ -1679,8 +1679,7 @@ fn static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call() {
         }
         pub data ConsoleNativeProvider {}
         boundary machine ConsoleNativeProvider::write_byte(byte: i32)
-            satisfies Console::write_byte
-            reaches Console;
+            satisfies Console::write_byte;
         data Root {}
         machine Root::enter<machine Selected>()
         where machine Selected satisfies Console::exit_process;
