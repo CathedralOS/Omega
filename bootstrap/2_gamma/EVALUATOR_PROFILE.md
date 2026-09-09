@@ -218,3 +218,31 @@ complete-D parser customer: the prior evaluator exhausted its immutable heap
 with raw application status 252 before publishing the twelve-invocation result.
 It does not change Gamma meaning, allocate an unbounded heap, or convert an
 outer evaluator failure into an Epsilon observation.
+
+## Expression scanning
+
+Retain structural scanning for the
+[complete-D customer](../../tests/bootstrap/omega-parser/README.md#gamma-scanning-review).
+`skip_expression` has four call sites: declaration census, false tail `if`,
+and the two ordinary `if` paths. Census establishes the syntax-depth bound;
+ordinary evaluation must leave the cursor after the complete expression.
+A true tail `if` already avoids scanning its unused alternative because
+activation return restores the caller's cursor. These scans cannot simply be
+deleted without replacing those obligations.
+
+An expression-end index could eliminate repeated skipping, but function rows
+alone do not describe nested expressions. A dense four-byte offset per possible
+request byte would require 64 MiB; a sparse representation would need its own
+lookup and capacity argument. Either adds initialized-entry, matching-close,
+source-span, and partition-containment obligations, plus changed source/tape
+pins and reconstruction and failure controls. It need not change the Alpha
+seed or add a proof rule, but encoding equality would still not prove Gamma
+semantics. No measured customer failure currently warrants those additions.
+
+Direct one-byte punctuation tests in the existing token-based skip loop are a
+smaller, unmeasured alternative: no index or second lexer, but continued linear
+scanning and changed tape/validation obligations. Retain the existing code
+until a concrete execution or proof-feasibility need justifies that comparison.
+The current measurements establish neither a whole-run scanning fraction nor
+an optimization's benefit; future reconsideration should measure the affected
+phase on the then-current complete customer, not reuse old proportions.
