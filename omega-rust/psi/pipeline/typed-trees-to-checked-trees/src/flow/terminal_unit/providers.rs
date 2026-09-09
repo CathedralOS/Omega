@@ -47,6 +47,7 @@ pub(super) fn checked_provider_attachment_requirements(
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
+                    | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                     | CheckedUnitEffectOperationPlan::ReturnUnit { .. }
             )
         })

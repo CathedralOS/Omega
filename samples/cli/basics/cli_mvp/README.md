@@ -82,9 +82,11 @@ the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
 The compiler-library sample test supplies test-owned acceptance and stops later
-at the incomplete transitive checked Unit-call closure. Neither package acceptance nor that
-failing probe establishes native execution. Current commands, tested revisions,
-and the next implementation step remain on the execution board.
+at provider-candidate admission: the checked line-reader loop is not an affine
+identity-return body. Main's checked call plan retains its line result and
+immediate discard; that source milestone does not establish native execution.
+Current commands, tested revisions, and the next implementation step remain on
+the execution board.
 
 Use `omega audit packages --project samples/cli/basics/cli_mvp
 --target macos_arm64 --details` to inspect the current macOS package findings;

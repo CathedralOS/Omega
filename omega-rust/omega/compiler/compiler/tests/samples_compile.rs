@@ -80,6 +80,8 @@ use std::process::{Command, Stdio};
 mod console_acceptance;
 #[path = "samples_compile/native_acceptance.rs"]
 mod native_acceptance;
+#[path = "samples_compile/unit_closure.rs"]
+mod unit_closure;
 
 fn sample_package_identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("sample package identity is nonzero")

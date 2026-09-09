@@ -118,6 +118,31 @@ pub(in crate::flow::terminal_unit) fn build(
     {
         let statement_index = u32::try_from(index).ok()?;
         let mut structural_result = None;
+        let mut discarded_result = if let StatementNode::Call(call) = statement {
+            if call.discards_result {
+                let return_type =
+                    crate::flow::call_target_return_type(program, call.target_symbol)?;
+                if program.primitive_type_reference(return_type).is_some()
+                    || !validation::has_plain_owned_contents(program, return_type)
+                    || crate::checks::type_multiplicity(program, return_type)
+                        == Multiplicity::Linear
+                    || type_graph_requires_nominal_drop(program, return_type)
+                    || !parameter_qualifications(program, shapes, return_type, &binders)?.is_empty()
+                {
+                    return None;
+                }
+                Some(CheckedUnitStructuralResultBindingPlan {
+                    statement_index,
+                    binding_ordinal: u32::try_from(structural_count).ok()?,
+                    type_identity: shapes.add_type(return_type, &binders, &[])?,
+                    multiplicity: crate::checks::type_multiplicity(program, return_type),
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         let result = match statement {
             StatementNode::Assignment(_) => {
                 let store = stores.next()?;
@@ -309,6 +334,9 @@ pub(in crate::flow::terminal_unit) fn build(
         if let Some((result, _)) = &mut structural_result {
             result.binding_ordinal = u32::try_from(structural_count).ok()?;
         }
+        if let Some(result) = &mut discarded_result {
+            result.binding_ordinal = u32::try_from(structural_count).ok()?;
+        }
         // The existing sole-call partial-return route remains available to
         // native consumers. Wider statement schedules use a dying continuation.
         let partial_temporary = if program
@@ -356,9 +384,53 @@ pub(in crate::flow::terminal_unit) fn build(
                     structural_result
                         .as_ref()
                         .map(|(result, _)| ExpectedCallValueResult::Structural(result))
+                })
+                .or_else(|| {
+                    discarded_result
+                        .as_ref()
+                        .map(ExpectedCallValueResult::Structural)
                 }),
             &structural_results,
         )?;
+        if let Some(result) = discarded_result {
+            // An explicit discard still invokes the value-returning boundary.
+            // Its anonymous result cannot enter the named-local operand roster.
+            // Dispose plain affine contents on this normal continuation, before
+            // the next authored effect, rather than extending custody to return.
+            if !matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+            ) {
+                return None;
+            }
+            operation = bind_structural_call_result(operation, result.clone())?;
+            let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate,
+                discard_result_on_return,
+                ..
+            } = &mut operation
+            else {
+                return None;
+            };
+            *discard_result_on_return = false;
+            let coordinate = *coordinate;
+            consume_results(&mut operations, &operation)?;
+            operations.push(operation);
+            if result.multiplicity == Multiplicity::Affine {
+                operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                    coordinate,
+                    affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
+                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: result.binding_ordinal,
+                        },
+                        path: Vec::new(),
+                        type_identity: result.type_identity,
+                    }],
+                });
+            }
+            structural_count = structural_count.checked_add(1)?;
+            continue;
+        }
         if let Some((result, symbol)) = structural_result {
             operation = bind_structural_call_result(operation, result.clone())?;
             if let facts::PlaceRoot::Symbol(symbol) = symbol {
