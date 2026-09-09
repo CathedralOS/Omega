@@ -11,6 +11,7 @@ use selected_instructions::{
 };
 
 pub(super) fn declaration(
+    semantic: MachineSemanticKind,
     constraint: RegisterConstraintKey,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
@@ -25,9 +26,8 @@ pub(super) fn declaration(
         .view_named("rsp")
         .expect("canonical x86-64 model declares rsp")
         .id;
-    let arity = row.operands.len() - 1;
     MachineEffectDeclaration {
-        semantic: MachineSemanticKind::CallI64,
+        semantic,
         constraint,
         memory: MachineMemoryEffect::NoneV1,
         trap: MachineTrapBehavior::NeverV1,
@@ -38,15 +38,15 @@ pub(super) fn declaration(
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
             key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallI64,
+                family: if semantic == MachineSemanticKind::CallAggregate { MachineAlternativeFamily::CallAggregate } else { MachineAlternativeFamily::CallI64 },
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
             size: MachineSizeKnowledge::ExactBytes(5),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
-                external_operand_reads: (0..arity as u16).collect(),
-                external_operand_writes: vec![arity as u16],
+                external_operand_reads: row.operands.iter().filter(|operand| operand.access == register_model::RegisterOperandAccess::Use).map(|operand| operand.operand).collect(),
+                external_operand_writes: row.operands.iter().filter(|operand| operand.access == register_model::RegisterOperandAccess::Def).map(|operand| operand.operand).collect(),
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),

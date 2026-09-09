@@ -8,8 +8,16 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (&node.operation, &function.result) {
-        (AbstractOperation::StructuralCase { .. }, AbstractFunctionResult::Unit) => {
+        (AbstractOperation::StructuralCase { .. }, _) => {
             super::structural_case::validate(node, function)
+        }
+        (AbstractOperation::ReturnStructural { psi_edge, source, returned_claims,
+            trivial_affine_locals, trivial_affine_discards }, AbstractFunctionResult::Structural(declared)) => {
+            let (_, result) = super::structural_case::source_result(function, *source)?;
+            if result.structural_type != declared.structural_type || result.multiplicity != declared.multiplicity
+                || !returned_claims.is_empty() || !trivial_affine_locals.is_empty() || !trivial_affine_discards.is_empty()
+            { return Err(invalid); }
+            return_edge(node, *psi_edge)
         }
         (
             AbstractOperation::ReturnUnit {
@@ -18,6 +26,8 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Unit,
         ) if cleanup_actions.is_empty()
+            || (super::scalar_sums::cleanup(function, cleanup_actions)
+                && node.ownership == [optimization_unit::OwnershipEvent::Cleanup(cleanup_actions.clone())])
             || (super::read_byte::cleanup(function, cleanup_actions)
                 && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(

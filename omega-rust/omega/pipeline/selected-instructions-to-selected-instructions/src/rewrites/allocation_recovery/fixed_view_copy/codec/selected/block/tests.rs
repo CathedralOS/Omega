@@ -118,10 +118,14 @@ fn successor_role_round_trips_and_unknown_roles_reject() {
         decode_successor(&mut Cursor::new(&encoded)).unwrap(),
         original
     );
-    encoded[0] = 2;
+    original.role = SelectedSuccessorRole::CaseDispatchContinuation;
+    encoded.clear();
+    encode_successor(&mut encoded, &original);
+    assert_eq!(decode_successor(&mut Cursor::new(&encoded)).unwrap(), original);
+    encoded[0] = 3;
     assert_eq!(
         decode_successor(&mut Cursor::new(&encoded)),
-        Err(FixedViewCopyDecodeError::UnknownSuccessorRole(2))
+        Err(FixedViewCopyDecodeError::UnknownSuccessorRole(3))
     );
 }
 
@@ -139,10 +143,16 @@ fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
     let mut cursor = Cursor::new(&encoded);
     assert_eq!(decode_block(&mut cursor).unwrap(), block);
     assert_eq!(cursor.remaining(), 0);
-    encoded[4] = 2;
+    block.origin = SelectedBlockOrigin::CaseDispatch {
+        source: BlockId::new(91).unwrap(), case_ordinal: 2,
+    };
+    encoded.clear();
+    encode_block(&mut encoded, &block);
+    assert_eq!(decode_block(&mut Cursor::new(&encoded)).unwrap(), block);
+    encoded[4] = 3;
     assert_eq!(
         decode_block(&mut Cursor::new(&encoded)),
-        Err(FixedViewCopyDecodeError::UnknownBlockOrigin(2))
+        Err(FixedViewCopyDecodeError::UnknownBlockOrigin(3))
     );
 }
 

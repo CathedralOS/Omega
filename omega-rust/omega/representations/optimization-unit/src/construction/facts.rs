@@ -8,6 +8,9 @@ pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<Optimi
         });
     }
     match operation {
+        AbstractOperation::EstablishScalarCase { psi_operation, fields, .. } => {
+            facts.extend(fields.iter().filter_map(|field| field.range_obligation.map(|obligation| OptimizationFact::OperationObligationReference { obligation, support: *psi_operation })));
+        }
         AbstractOperation::BooleanConstant {
             psi_operation,
             result,

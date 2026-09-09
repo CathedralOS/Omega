@@ -31,6 +31,9 @@ pub(super) fn validate(
         return Err(invalid);
     }
     match optimized.result {
+        _ if super::super::scalar_sums::uses(optimized) => {
+            super::super::scalar_sums::header(function, abstracted, optimized, native.target, plan)?;
+        }
         AbstractFunctionResult::Unit => {}
         AbstractFunctionResult::Scalar(_) if function.mixed_structural_scalar_abi.is_some() => {
             let expected = super::super::byte_views::validate(
@@ -111,6 +114,19 @@ pub(super) fn validate(
         }
         let source_terminator = &source.nodes.last().ok_or(invalid.clone())?.operation;
         let matches = match (&block.terminator, source_terminator) {
+            (TargetControlTerminator::ReturnStructural { psi_edge, source, cleanup_actions },
+                AbstractOperation::ReturnStructural { psi_edge: expected_edge, source: expected_source, returned_claims,
+                    trivial_affine_locals, trivial_affine_discards }) => {
+                psi_edge == expected_edge && cleanup_actions.is_empty() && returned_claims.is_empty()
+                    && trivial_affine_locals.is_empty() && trivial_affine_discards.is_empty()
+                    && super::super::scalar_sums::result_home(optimized, *expected_source, plan).is_ok_and(|expected| expected == *source)
+                    && graph.blocks.iter().any(|producer| (producer.block == block.block || sources::dominates(optimized, producer.block, block.block))
+                        && producer.operations.iter().any(|operation| match operation {
+                            TargetUnitOperation::EstablishScalarCase { result_home, .. }
+                            | TargetUnitOperation::StructuralResultCall { result_home: Some(result_home), .. } => result_home == source,
+                            _ => false,
+                        }))
+            }
             (
                 TargetControlTerminator::ReturnScalar {
                     psi_edge,
@@ -182,6 +198,7 @@ pub(super) fn validate(
                     && cleanup_actions == cleanup
                     && (cleanup.is_empty()
                         || super::super::read_byte::cleanup(optimized, cleanup)
+                        || super::super::scalar_sums::cleanup(optimized, cleanup)
                         || (super::super::unobserved_owned::body(optimized)
                             && super::super::unobserved_owned::cleanup(optimized, cleanup)))
             }

@@ -181,7 +181,7 @@ pub(super) fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOp
     }
 }
 
-fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclaration) {
+pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclaration) {
     bytes.extend_from_slice(&result.place.get().to_le_bytes());
     bytes.extend_from_slice(&result.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, result.multiplicity);

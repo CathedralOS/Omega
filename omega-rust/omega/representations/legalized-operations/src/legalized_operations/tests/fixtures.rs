@@ -87,6 +87,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             call_plan: call_plan.clone(),
             parameters: Vec::new(),
             structural: Some(LegalizedStructuralContract {
+                result: None,
                 structural_types: vec![StructuralTypeDeclaration {
                     id: extent_type,
                     identity: "omega::core::Extent".into(),
@@ -155,6 +156,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     operation: call,
                     result: None,
                     kind: LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                        structural_result: None,
                         call_plan,
                         result_placement: None,
                         source: LegalizedCallUnitSource::AuthoredCallUnit,
@@ -327,6 +329,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     };
     let call = |sources: [ValueId; 2]| {
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            structural_result: None,
             source: LegalizedCallUnitSource::AuthoredCallUnit,
             claim_transfers: Vec::new(),
             callee,

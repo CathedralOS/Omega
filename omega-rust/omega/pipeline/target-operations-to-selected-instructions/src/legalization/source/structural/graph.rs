@@ -45,6 +45,7 @@ pub(super) fn assemble(
         call_plan: body.call_plan.clone(),
         parameters: Vec::new(),
         structural: Some(legalized_operations::LegalizedStructuralContract {
+            result: None,
             structural_types: body.structural_types.clone(),
             parameters,
             structural_places: synthesized_parameter_places(&abstracted.structural_parameters),

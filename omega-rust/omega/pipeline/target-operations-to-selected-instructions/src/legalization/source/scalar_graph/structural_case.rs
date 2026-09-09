@@ -12,7 +12,7 @@ pub(super) fn project(
     };
     let (defining_operation, result) =
         scalar_graph_input::structural_case::source_result(function, *source)?;
-    let layout = scalar_graph_input::read_byte::layout(result, plan)?;
+    let layout = scalar_graph_input::scalar_sums::layout(result, plan)?;
     let declaration = plan
         .structural_types
         .iter()

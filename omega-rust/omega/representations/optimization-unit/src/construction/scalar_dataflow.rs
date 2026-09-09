@@ -163,6 +163,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
 pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
+        O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ByteSequenceWrite {
             index,
@@ -174,6 +175,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             start, end, length, ..
         } => vec![*start, *end, *length],
         O::Call { arguments, .. }
+        | O::CallStructural { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),

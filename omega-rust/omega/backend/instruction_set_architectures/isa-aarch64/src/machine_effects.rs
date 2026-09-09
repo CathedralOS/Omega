@@ -79,9 +79,15 @@ pub fn aarch64_machine_effect_catalog(
                     );
                 }
                 Ok(
-                    if matches!(
+                    if semantic == MachineSemanticKind::ReturnAggregate {
+                        let mut returned = declaration(MachineSemanticKind::ReturnI64, &selected_keys);
+                        returned.semantic = semantic;
+                        returned.constraint = constraint;
+                        returned.alternatives[0].key.family = semantic.into();
+                        returned
+                    } else if matches!(
                         semantic,
-                        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+                        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate
                     ) {
                         scalar_call_declaration(semantic, constraint, constraints)
                     } else {
@@ -176,6 +182,8 @@ fn selected_keys(
             crate::aarch64_darwin_register_call_keys()
         },
         materialize_i64: AARCH64_MATERIALIZE_I64,
+        call_aggregate: crate::aarch64_register_aggregate_call_keys(target.object_format == ObjectFormat::MachO),
+        return_aggregate: crate::aarch64_register_aggregate_return_keys(target.object_format == ObjectFormat::MachO),
         copy_i64: AARCH64_COPY_I64,
         float32_to_bits: Some(crate::AARCH64_FLOAT32_TO_BITS),
         float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
@@ -302,6 +310,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
         | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::Store64 => (vec![0], vec![]),
@@ -313,7 +322,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
-        MachineSemanticKind::CallI64 => {
+        MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate => {
             panic!("scalar calls use their dedicated declaration")
         }
     };
@@ -436,7 +445,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
         }
-        MachineSemanticKind::CallI64 => {
+        MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate => {
             panic!("scalar calls use their dedicated declaration")
         }
         _ => MachineSizeKnowledge::ExactBytes(4),

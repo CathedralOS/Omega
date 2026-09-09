@@ -89,11 +89,14 @@ pub(super) fn prepare_function_signature(
     let signature = StructuralCallSignature::derive(
         &scalar_parameter_shapes,
         &function.structural_parameters,
-        function
-            .result
-            .scalar()
-            .map(|result| super::scalar::scalar_shape(result.value, result.scalar_type, false))
-            .transpose()?,
+        match &function.result {
+            AbstractFunctionResult::Structural(result) => Some(
+                super::control_flow::scalar_sums::result_layout(result, structural_types)?.shape,
+            ),
+            _ => function.result.scalar()
+                .map(|result| super::scalar::scalar_shape(result.value, result.scalar_type, false))
+                .transpose()?,
+        },
         structural_types,
         &mut shape_cache,
         &mut active,

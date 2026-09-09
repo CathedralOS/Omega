@@ -16,6 +16,19 @@ pub(super) fn encode(
     result: &StructuralOperationResult,
     layout: &ConventionalSumLayout,
 ) {
+    encode_result(bytes, result);
+    encode_shape(bytes, layout.shape);
+    bytes.extend_from_slice(&layout.tag_byte_offset.to_le_bytes());
+    encode_shape(bytes, layout.tag_shape);
+    encode_fields(bytes, &layout.common_fields);
+    bytes.extend_from_slice(&layout.payload_byte_offset.to_le_bytes());
+    length(bytes, layout.cases.len());
+    for case in &layout.cases {
+        encode_fields(bytes, &case.fields);
+    }
+}
+
+pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
     bytes.extend_from_slice(&result.place.get().to_le_bytes());
     bytes.extend_from_slice(&result.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, result.multiplicity);
@@ -29,20 +42,11 @@ pub(super) fn encode(
         bytes.extend_from_slice(&claim.claim.get().to_le_bytes());
         encode_path(bytes, &claim.path);
     }
-    encode_shape(bytes, layout.shape);
-    bytes.extend_from_slice(&layout.tag_byte_offset.to_le_bytes());
-    encode_shape(bytes, layout.tag_shape);
-    encode_fields(bytes, &layout.common_fields);
-    bytes.extend_from_slice(&layout.payload_byte_offset.to_le_bytes());
-    length(bytes, layout.cases.len());
-    for case in &layout.cases {
-        encode_fields(bytes, &case.fields);
-    }
 }
 
-pub(super) fn decode(
+pub(super) fn decode_result(
     cursor: &mut Cursor<'_>,
-) -> Result<(StructuralOperationResult, ConventionalSumLayout), FixedViewCopyDecodeError> {
+) -> Result<StructuralOperationResult, FixedViewCopyDecodeError> {
     let place = decode_id(cursor, PlaceId::new)?;
     let structural_type = decode_id(cursor, StructuralTypeId::new)?;
     let multiplicity = decode_multiplicity(cursor)?;
@@ -56,14 +60,20 @@ pub(super) fn decode(
             path: decode_path(cursor)?,
         });
     }
-    let result = StructuralOperationResult {
+    Ok(StructuralOperationResult {
         place,
         structural_type,
         multiplicity,
         qualifications,
         projected_qualifications,
         claims,
-    };
+    })
+}
+
+pub(super) fn decode(
+    cursor: &mut Cursor<'_>,
+) -> Result<(StructuralOperationResult, ConventionalSumLayout), FixedViewCopyDecodeError> {
+    let result = decode_result(cursor)?;
     let shape = decode_shape(cursor)?;
     let tag_byte_offset = cursor.u16()?;
     let tag_shape = decode_shape(cursor)?;

@@ -46,7 +46,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::PrimitiveScalarRead { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
-        | O::EstablishPayloadlessCase { .. }
+        | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }

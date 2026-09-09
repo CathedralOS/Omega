@@ -21,6 +21,11 @@ pub(super) fn validate(
                 return Err(invalid);
             }
             match (&returned.value, source) {
+                (LegalizedScalarReturnValue::Structural { defining_operation, result },
+                    AbstractOperation::ReturnStructural { psi_edge, source, .. }) => {
+                    let (producer, expected) = scalar_graph_input::structural_case::source_result(function, *source)?;
+                    if returned.edge != *psi_edge || *defining_operation != producer || result != expected { return Err(invalid); }
+                }
                 (
                     LegalizedScalarReturnValue::Unit,
                     AbstractOperation::ReturnUnit { psi_edge, .. },

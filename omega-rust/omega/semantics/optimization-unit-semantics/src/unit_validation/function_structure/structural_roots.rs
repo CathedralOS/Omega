@@ -348,7 +348,7 @@ pub(crate) fn validate_structural_root_operations(
                                 .iter()
                                 .flat_map(|block| &block.nodes)
                                 .find_map(|node| match &node.operation {
-                                    O::EstablishPayloadlessCase {
+                                    O::EstablishScalarCase {
                                         psi_operation,
                                         result,
                                         ..

@@ -12,6 +12,7 @@ mod model;
 pub(crate) mod primitive_local_input;
 mod read_result_input;
 mod scalar_call_abi;
+mod scalar_case_input;
 mod shared;
 mod validation;
 pub(crate) mod value_transport;

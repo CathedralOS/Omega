@@ -11,7 +11,7 @@ pub(super) fn provenance(
     instruction: &SelectedInstruction,
 ) -> FunctionFragmentControlProvenance {
     if let SelectedInstructionKind::CallI64 { callee }
-    | SelectedInstructionKind::CallUnit { callee } = instruction.kind
+    | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
     {
         return FunctionFragmentControlProvenance::DirectInternalCall { callee };
     }

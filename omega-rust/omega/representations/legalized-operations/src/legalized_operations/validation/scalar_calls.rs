@@ -37,12 +37,35 @@ impl LegalizedScalarCall {
             || self
                 .result_placement
                 .as_ref()
-                .is_some_and(|placement| !direct_u64_register(placement))
+                .is_some_and(|placement| if self.structural_result.is_some() {
+                    !direct_aggregate_registers(placement)
+                } else { !direct_u64_register(placement) })
+            || self.structural_result.is_some() && self.result_placement.is_none()
         {
             return Err(Error::Result);
         }
         Ok(())
     }
+}
+/// Complete direct integer-bank aggregate result, with no gaps or hidden result pointer.
+fn direct_aggregate_registers(placement: &ValuePlacement) -> bool {
+    if placement.shape.class != calling_conventions::ValueClass::Integer
+        || placement.shape.byte_size == 0 || placement.shape.byte_size > 16
+        || placement.locations.is_empty() || placement.locations.len() > 2 {
+        return false;
+    }
+    let mut offset = 0;
+    let mut registers = Vec::new();
+    for location in &placement.locations {
+        let ValueLocation::Register { register, value_byte_offset, byte_size } = location else { return false; };
+        if *value_byte_offset != offset || *byte_size == 0 || *byte_size > 8 || registers.contains(register) {
+            return false;
+        }
+        let Some(end) = offset.checked_add(*byte_size) else { return false; };
+        offset = end;
+        registers.push(*register);
+    }
+    offset == placement.shape.byte_size
 }
 fn direct_scalar_placement(placement: &ValuePlacement) -> bool {
     let width = placement.shape.byte_size;

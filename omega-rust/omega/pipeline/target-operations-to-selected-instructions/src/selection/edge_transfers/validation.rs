@@ -12,7 +12,7 @@ pub(in crate::selection) fn project(
     let source_count = prepared
         .blocks
         .iter()
-        .take_while(|block| matches!(block.origin, SelectedBlockOrigin::Source(_)))
+        .take_while(|block| !matches!(block.origin, SelectedBlockOrigin::EdgeTransfer { .. }))
         .count();
     if source_count == 0 {
         return Err(error());
@@ -64,6 +64,14 @@ pub(in crate::selection) fn project(
     let mut next_bridge = source_count;
     for source in &mut projected.blocks {
         for successor in successors_mut(&mut source.terminator) {
+            if successor.role == SelectedSuccessorRole::CaseDispatchContinuation {
+                if successor.block.0 as usize >= source_count
+                    || !matches!(prepared.blocks[successor.block.0 as usize].origin, SelectedBlockOrigin::CaseDispatch { .. })
+                    || !successor.fuel.is_empty() || !successor.bindings.is_empty()
+                    || !successor.structural_bindings.is_empty() || successor.structural_case.is_some()
+                { return Err(error()); }
+                continue;
+            }
             if successor.role != SelectedSuccessorRole::Semantic {
                 return Err(error());
             }

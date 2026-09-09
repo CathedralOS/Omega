@@ -316,6 +316,8 @@ fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
 
 pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     match kind {
+        MachineSemanticKind::CallAggregate => 35,
+        MachineSemanticKind::ReturnAggregate => 36,
         MachineSemanticKind::CompareI64Zero => 0,
         MachineSemanticKind::MaterializeI64 => 1,
         MachineSemanticKind::CopyI64 => 2,
@@ -356,6 +358,8 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
 
 pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
     match family {
+        MachineAlternativeFamily::CallAggregate => 35,
+        MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::CompareI64Zero => 0,
         MachineAlternativeFamily::MaterializeI64 => 1,
         MachineAlternativeFamily::CopyI64 => 2,

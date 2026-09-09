@@ -118,22 +118,28 @@ pub(super) fn unit_key(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     let order = register_argument_order(call);
-    let views = order
+    let mut views = order
         .iter()
         .map(|index| {
             environment.fixed_register_view(placement_register(call.arguments[*index].placement())?)
         })
         .collect::<Option<Vec<_>>>()?;
+    let inputs = views.len();
+    if call.structural_result.is_some() {
+        for location in &call.result_placement.as_ref()?.locations {
+            let ValueLocation::Register { register, .. } = location else { return None; };
+            views.push(environment.fixed_register_view(*register)?);
+        }
+    }
     let keys = environment.selected_keys();
-    let mut matches = keys
-        .call_unit
-        .iter()
-        .chain(&keys.call_unit_mixed)
+    let candidate_keys = if call.structural_result.is_some() { keys.call_aggregate.iter().collect::<Vec<_>>() }
+        else { keys.call_unit.iter().chain(&keys.call_unit_mixed).collect() };
+    let mut matches = candidate_keys.into_iter()
         .filter(|key| {
             environment.constraint(**key).is_some_and(|row| {
                 row.operands.len() == views.len()
-                    && row.operands.iter().zip(&views).all(|(operand, view)| {
-                        operand.access == RegisterOperandAccess::Use
+                    && row.operands.iter().zip(&views).enumerate().all(|(position, (operand, view))| {
+                        operand.access == if position < inputs { RegisterOperandAccess::Use } else { RegisterOperandAccess::Def }
                             && operand.fixed_view == Some(*view)
                     })
             })
@@ -166,13 +172,16 @@ pub(super) fn validate(
     let count = call.arguments.len();
     let register_count = register_argument_count(call);
     let result = call.call_plan.result.as_ref();
+    let aggregate = if call.structural_result.is_some() {
+        Some(crate::selection::scalar_case_input::call_result(source, call).ok_or_else(invalid)?.1)
+    } else { None };
     let selected_keys = environment.selected_keys();
     let keys = if result.is_some() {
         &selected_keys.call_i64
     } else {
         &selected_keys.call_unit
     };
-    if (if result.is_some() {
+    if (if aggregate.is_some() { unit_key(call, environment) } else if result.is_some() {
         keys.get(register_count).copied()
     } else {
         unit_key(call, environment)
@@ -180,7 +189,7 @@ pub(super) fn validate(
         || environment.constraint(key) != Some(row)
         || row.key != key
         || call.call_plan.parameters.len() != count
-        || row.operands.len() != register_count + usize::from(result.is_some())
+        || row.operands.len() != register_count + aggregate.map_or(usize::from(result.is_some()), |placement| placement.locations.len())
     {
         return Err(invalid());
     }
@@ -189,6 +198,15 @@ pub(super) fn validate(
     }
     let order = register_argument_order(call);
     for (index, placement) in call.call_plan.parameters.iter().chain(result).enumerate() {
+        if index == count && aggregate.is_some() {
+            for (fragment, location) in placement.locations.iter().enumerate() {
+                let ValueLocation::Register { register, .. } = location else { return Err(invalid()); };
+                let operand = row.operands.get(register_count + fragment).ok_or_else(invalid)?;
+                if operand.access != RegisterOperandAccess::Def || operand.fixed_view.is_none()
+                    || operand.fixed_view != environment.fixed_register_view(*register) { return Err(invalid()); }
+            }
+            continue;
+        }
         if scalar_stack_placement(placement).is_some() {
             if !matches!(call.arguments.get(index), Some(LegalizedScalarArgument::Scalar { source: value, placement: actual })
                 if actual == placement && scalar_value_shape(source, *value) == Some(placement.shape))

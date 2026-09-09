@@ -14,7 +14,7 @@ pub(super) fn emit(
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
         return Err(invalid());
     };
-    if operation.result.is_some() || call.result_placement.is_some() {
+    if operation.result.is_some() || (call.result_placement.is_some() && call.structural_result.is_none()) {
         return Err(invalid());
     }
     call.validate_source(&operation.ownership)
@@ -91,7 +91,7 @@ pub(super) fn emit(
         }
     }
     let order = crate::selection::scalar_call_abi::register_argument_order(call);
-    let operands = order
+    let mut operands = order
         .iter()
         .map(|index| {
             operands
@@ -101,6 +101,15 @@ pub(super) fn emit(
                 .ok_or_else(invalid)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let mut result_registers = Vec::new();
+    if let Some(result) = &call.structural_result {
+        for location in &call.result_placement.as_ref().ok_or_else(invalid)?.locations {
+            let ValueLocation::Register { value_byte_offset, .. } = location else { return Err(invalid()); };
+            let register = super::structural_case::register(builder, result.place, u32::from(*value_byte_offset), 64, false)?;
+            operands.push(register);
+            result_registers.push(register);
+        }
+    }
     builder.transport.calls.push(SelectedCallContract {
         instruction: SelectedInstructionId(
             builder
@@ -115,9 +124,8 @@ pub(super) fn emit(
         ownership: operation.ownership.clone(),
     });
     builder.emit(
-        SelectedInstructionKind::CallUnit {
-            callee: call.callee,
-        },
+        if call.structural_result.is_some() { SelectedInstructionKind::CallAggregate { callee: call.callee } }
+        else { SelectedInstructionKind::CallUnit { callee: call.callee } },
         key,
         &operands,
         SelectedInstructionProvenance {
@@ -132,5 +140,21 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
+    if let Some((result, placement)) = crate::selection::scalar_case_input::call_result(source, call) {
+        use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, FrameStorageSlotId, SelectedMemoryAccessRole};
+        let slot = LocalStorageSlotId::Structural { operation: operation.operation, place: result.place };
+        builder.transport.local_slots.push(SelectedLocalStorageSlot { id: slot, byte_size: u32::from(placement.shape.byte_size), alignment: placement.shape.alignment });
+        let block = source.blocks.iter().find(|block| block.instructions.iter().any(|row| row.operation == operation.operation)).ok_or_else(invalid)?.id;
+        let pointer = super::structural_case::register(builder, result.place, 0, 64, false)?;
+        super::structural_case::memory(builder, block, result.place, 0, u32::from(placement.shape.byte_size), SelectedMemoryAccessRole::AddressLocal { slot })?;
+        builder.emit(SelectedInstructionKind::FrameAddress { slot: FrameStorageSlotId::Local(slot), byte_offset: 0 },
+            builder.constraints.keys.frame_address.ok_or_else(invalid)?, &[pointer], Default::default())?;
+        for (location, value) in placement.locations.iter().zip(result_registers) {
+            let ValueLocation::Register { value_byte_offset, byte_size, .. } = location else { return Err(invalid()); };
+            super::structural_case::memory(builder, block, result.place, u32::from(*value_byte_offset), u32::from(*byte_size), SelectedMemoryAccessRole::WritePlace)?;
+            builder.emit(SelectedInstructionKind::Store { byte_offset: u32::from(*value_byte_offset), byte_size: *byte_size as u8 },
+                builder.constraints.keys.store.ok_or_else(invalid)?, &[pointer, value], Default::default())?;
+        }
+    }
     Ok(())
 }

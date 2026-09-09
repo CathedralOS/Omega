@@ -28,7 +28,10 @@ pub(super) fn matches(
                 TargetUnitOperation::BoundarySettlement {
                     result: TargetBoundaryResult::Structural(home),
                     ..
-                } if home.result.place == expected_source => Some((candidate.block, home)),
+                }
+                | TargetUnitOperation::EstablishScalarCase { result_home: home, .. }
+                | TargetUnitOperation::StructuralResultCall { result_home: Some(home), .. }
+                    if home.result.place == expected_source => Some((candidate.block, home)),
                 _ => None,
             })
     });

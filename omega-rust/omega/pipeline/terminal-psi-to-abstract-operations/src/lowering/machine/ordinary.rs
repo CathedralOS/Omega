@@ -7,7 +7,6 @@ pub(super) fn lower_ordinary_machine(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     closed_conformance_applications: &[terminal_psi::ClosedConformanceApplication],
-    retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractFunction, LoweringError> {
     let result = machine.result.scalar();
     let blocks = machine
@@ -93,7 +92,6 @@ pub(super) fn lower_ordinary_machine(
                 structural_types,
                 dynamic_dispatch,
                 closed_conformance_applications,
-                retain_payloadless_for_optimization,
                 &value_types,
                 &byte_sequence_literals,
                 &unit_affine_locals,
@@ -108,7 +106,6 @@ pub(super) fn lower_ordinary_machine(
             &blocks,
             result,
             &lowered_unit_affine_locals,
-            retain_payloadless_for_optimization,
             &mut operations,
         )?;
     }

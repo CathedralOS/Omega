@@ -13,6 +13,9 @@ pub(in crate::legalization) fn source_result(
         .iter()
         .flat_map(|block| &block.nodes)
         .filter_map(|node| match &node.operation {
+            AbstractOperation::EstablishScalarCase { psi_operation, result, .. }
+            | AbstractOperation::CallStructural { psi_operation, result, .. }
+                if result.place == source => Some((*psi_operation, result)),
             AbstractOperation::BoundaryCall {
                 psi_operation,
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),

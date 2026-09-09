@@ -9,6 +9,7 @@ use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKi
 use semantic_vocabulary::IntegerValue;
 
 mod byte_input;
+mod aggregate_return;
 mod byte_output;
 mod control;
 mod process_exit;
@@ -70,7 +71,7 @@ pub(in crate::selection) fn validate(
     register_entry::validate(source, &environment, catalog, &mut replay)?;
     scalar_stack::entry(source, &mut replay)?;
     // Check the predeclared destination roster before any edge refers to it.
-    for block in &selected.blocks {
+    for block in selected.blocks.iter().filter(|block| matches!(block.origin, selected_instructions::SelectedBlockOrigin::Source(_))) {
         let source_block = source
             .blocks
             .iter()
@@ -95,7 +96,7 @@ pub(in crate::selection) fn validate(
                 .push((parameter.value, id, parameter.site, parameter.scalar_type));
         }
     }
-    for block in &selected.blocks {
+    for block in selected.blocks.iter().filter(|block| matches!(block.origin, selected_instructions::SelectedBlockOrigin::Source(_))) {
         let source_block = source
             .blocks
             .iter()
@@ -361,7 +362,8 @@ pub(in crate::selection) fn validate(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+                LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                 | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::HostedReadByte { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }

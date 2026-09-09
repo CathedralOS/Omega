@@ -108,13 +108,14 @@ pub enum AbstractOperation {
         field: semantic_vocabulary::StructuralFieldId,
         value: AbstractResult,
     },
-    /// Establish one exact payloadless case of a declared structural sum.
+    /// Atomically establish one exact scalar case of a declared structural sum.
     /// Target realization remains deliberately separate from retention in the
     /// optimizer's target-neutral semantic vocabulary.
-    EstablishPayloadlessCase {
+    EstablishScalarCase {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         result_case: StructuralCaseId,
+        fields: Vec<terminal_psi::ScalarCaseField>,
     },
     /// Establish one exact immutable byte payload in a verifier-declared
     /// borrowed-view place. The bytes remain semantic data until target

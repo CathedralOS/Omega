@@ -171,6 +171,11 @@ pub fn selected_instruction_plan_identity(
                     bytes.push(0);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                 }
+                selected_instructions::SelectedBlockOrigin::CaseDispatch { source, case_ordinal } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    bytes.extend_from_slice(&case_ordinal.to_le_bytes());
+                }
                 selected_instructions::SelectedBlockOrigin::EdgeTransfer { edge, target } => {
                     bytes.push(1);
                     bytes.extend_from_slice(&edge.get().to_le_bytes());
@@ -212,6 +217,8 @@ fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
+        SelectedInstructionKind::CallAggregate { .. } => 35,
+        SelectedInstructionKind::ReturnAggregate { .. } => 36,
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::HostedReadByte { .. } => 32,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
@@ -250,6 +257,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
+        SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
+        SelectedInstructionKind::CallAggregate { callee } => bytes.extend_from_slice(&callee.get().to_le_bytes()),
         SelectedInstructionKind::HostedWriteByteI32 { slot }
         | SelectedInstructionKind::HostedReadByte { slot } => {
             contracts::frame_slot(
@@ -401,6 +410,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     bytes.push(match successor.role {
         selected_instructions::SelectedSuccessorRole::Semantic => 0,
         selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation => 1,
+        selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation => 2,
     });
     bytes.extend_from_slice(&successor.psi_edge.get().to_le_bytes());
     bytes.extend_from_slice(&successor.block.0.to_le_bytes());

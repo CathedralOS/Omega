@@ -63,7 +63,7 @@ pub(super) fn validate_layout(
             .any(|instruction| {
                 matches!(
                     instruction.alternative.key.family,
-                    MachineAlternativeFamily::CallI64 | MachineAlternativeFamily::CallUnit
+                    MachineAlternativeFamily::CallI64 | MachineAlternativeFamily::CallUnit | MachineAlternativeFamily::CallAggregate
                 )
             });
         let shadow = if calls && required.abi == FrameAbiPreservationConvention::MicrosoftX64 {

@@ -22,6 +22,7 @@ mod header;
 mod hosted_scalar;
 pub(super) mod read_byte;
 pub(super) mod structural_case;
+pub(super) mod scalar_sums;
 mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_execution;
 mod literals;
@@ -51,7 +52,8 @@ pub(super) fn structural_contract(
         (!optimized.structural_places.is_empty()
             && (literals::roster(optimized)
                 || read_byte::roster(optimized)
-                || primitive_locals::roster(optimized)))
+                || primitive_locals::roster(optimized)
+                || scalar_sums::roster(optimized)))
         .then_some(&[][..])
     }) {
         return Some(legalized_operations::LegalizedStructuralContract {
@@ -70,6 +72,7 @@ pub(super) fn structural_contract(
             structural_places: optimized.structural_places.clone(),
             entry_claims: abstracted.entry_claims.clone(),
             published_service_ceiling: abstracted.published_service_ceiling.clone(),
+            result: abstracted.result.structural().cloned(),
         });
     }
     ranked::structural_contract(target, abstracted, optimized)
@@ -150,6 +153,8 @@ pub(super) fn match_input(
     let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
     let call_plan = if ranked {
         ranked::validate(target, abstracted, optimized, native, plan, unit)?
+    } else if scalar_sums::uses(optimized) {
+        scalar_sums::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
     } else {
@@ -165,7 +170,7 @@ pub(super) fn match_input(
         && (!matches!(
             target.operation,
             TargetOperation::UnitBody(_) | TargetOperation::ControlGraph(_)
-        ) || abstracted.result != AbstractFunctionResult::Unit)
+        ) || !(abstracted.result == AbstractFunctionResult::Unit || abstracted.result.structural().is_some()))
     {
         return Err(invalid);
     }
@@ -231,7 +236,7 @@ pub(super) fn match_input(
                 && !(Some(placement.shape) == (if ranked && parameter.scalar_type == ScalarType::Integer(u32_type()) { Some(ValueShape::integer(4, 4)) } else { scalar_shape(parameter.scalar_type) })
                     && (matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size)
                         || !ranked
-                            && (matches!(abstracted.result, AbstractFunctionResult::Unit)
+                            && (matches!(abstracted.result, AbstractFunctionResult::Unit | AbstractFunctionResult::Structural(_))
                                 || (target.mixed_structural_scalar_abi.is_some()
                                     && matches!(target.operation, TargetOperation::ControlGraph(_))))
                             && scalar_stack(placement)))
@@ -383,7 +388,7 @@ pub(super) fn callee_plan(
     ) else {
         return Err(LegalizationError::SourceCustodyMismatch);
     };
-    if (target.attachment.is_some() && !matches!(abstracted.result, AbstractFunctionResult::Unit))
+    if !scalar_sums::uses(optimized) && ((target.attachment.is_some() && !matches!(abstracted.result, AbstractFunctionResult::Unit))
         || !matches!(abstracted.result, AbstractFunctionResult::Unit)
             && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
         || abstracted.parameters.iter().any(|parameter| {
@@ -393,11 +398,13 @@ pub(super) fn callee_plan(
                 ![ScalarType::Integer(u64_type()), ScalarType::Boolean]
                     .contains(&parameter.scalar_type)
             }
-        })
+        }))
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
-    let call_plan = if structural_parameters(target).is_some() {
+    let call_plan = if scalar_sums::uses(optimized) {
+        scalar_sums::header(target, abstracted, optimized, native.target, plan)?
+    } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
     } else {
         function_abi(native.target, target, abstracted, optimized)?

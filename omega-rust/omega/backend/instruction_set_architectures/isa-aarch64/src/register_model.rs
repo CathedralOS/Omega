@@ -115,6 +115,17 @@ pub fn aarch64_darwin_register_call_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
+/// Complete integer-bank result fragments, ordered by fragment count then input arity.
+pub fn aarch64_register_aggregate_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
+    let first = if darwin { 1020 } else { 1000 };
+    (first..first + 18).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant }).collect()
+}
+
+pub fn aarch64_register_aggregate_return_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
+    let first = if darwin { 12 } else { 10 };
+    (first..first + 2).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Return, variant }).collect()
+}
+
 /// Register-only Unit call keys, indexed by argument count.
 pub fn aarch64_aapcs64_register_unit_call_keys() -> Vec<RegisterConstraintKey> {
     (700..=708)
@@ -1166,6 +1177,26 @@ pub fn aarch64_register_constraint_catalog(
         .find(|row| row.key == AARCH64_DARWIN_CALL)
         .expect("canonical ABI call row")
         .clone();
+    for darwin in [false, true] {
+        for (index, key) in aarch64_register_aggregate_call_keys(darwin).into_iter().enumerate() {
+            let arity = index % 9;
+            let result_count = index / 9 + 1;
+            let mut call = if darwin { abi_call.clone() } else { scalar_call.clone() };
+            call.key = key;
+            call.operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"].into_iter().take(arity).enumerate()
+                .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
+                .chain(["x0", "x1"].into_iter().take(result_count).enumerate().map(|(index, name)| fixed((arity + index) as u16, RegisterOperandAccess::Def, name))).collect();
+            constraints.push(call);
+        }
+        let source_key = if darwin { AARCH64_DARWIN_RETURN } else { AARCH64_AAPCS64_RETURN };
+        let returned = constraints.iter().find(|row| row.key == source_key).expect("canonical return row").clone();
+        for (index, key) in aarch64_register_aggregate_return_keys(darwin).into_iter().enumerate() {
+            let mut row = returned.clone();
+            row.key = key;
+            row.operands = ["x0", "x1"].into_iter().take(index + 1).enumerate().map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name)).collect();
+            constraints.push(row);
+        }
+    }
     for (arity, key) in aarch64_darwin_register_call_keys().into_iter().enumerate() {
         let mut call = abi_call.clone();
         call.key = key;
@@ -1311,6 +1342,10 @@ pub fn aarch64_register_constraint_catalog(
             let mut required = AARCH64_REQUIRED_REGISTER_CONSTRAINTS.to_vec();
             required.extend(aarch64_aapcs64_mixed_unit_call_keys());
             required.extend(aarch64_darwin_mixed_unit_call_keys());
+            for darwin in [false, true] {
+                required.extend(aarch64_register_aggregate_call_keys(darwin));
+                required.extend(aarch64_register_aggregate_return_keys(darwin));
+            }
             required.sort_unstable();
             required
         },

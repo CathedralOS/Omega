@@ -20,6 +20,7 @@ use terminal_psi::StructuralTypeDeclaration;
 /// Current structural signature and ownership declarations, without executable rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralContract {
+    pub result: Option<terminal_psi::StructuralResultDeclaration>,
     pub structural_types: Vec<StructuralTypeDeclaration>,
     pub parameters: Vec<LegalizedCallUnitParameter>,
     pub structural_places: Vec<StructuralPlaceDeclaration>,

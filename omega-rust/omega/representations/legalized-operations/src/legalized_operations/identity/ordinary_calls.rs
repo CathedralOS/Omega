@@ -5,6 +5,13 @@ use super::structural::encode_call_source;
 use super::structural_types::{encode_structural_argument, encode_target_structural_argument};
 
 pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
+    match &call.structural_result {
+        None => bytes.push(0),
+        Some(result) => {
+            bytes.push(1);
+            super::projected_structural_call_return::encode_operation_result(bytes, result);
+        }
+    }
     encode_call_source(bytes, &call.source);
     bytes.extend_from_slice(&call.callee.get().to_le_bytes());
     encode_call_plan(bytes, &call.call_plan);

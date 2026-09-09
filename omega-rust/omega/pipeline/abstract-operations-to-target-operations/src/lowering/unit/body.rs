@@ -126,7 +126,7 @@ pub(super) fn lower_unit_body(
                 &mut operations,
                 &mut provenance,
             )?,
-            AbstractOperation::EstablishPayloadlessCase { .. } => {
+            AbstractOperation::EstablishScalarCase { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
             }
             AbstractOperation::EstablishByteSequenceLiteral { .. } => super::byte_literal::lower(

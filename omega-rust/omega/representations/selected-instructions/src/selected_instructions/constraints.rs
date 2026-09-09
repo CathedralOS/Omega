@@ -26,6 +26,8 @@ pub struct SelectedConstraintKeys {
     /// Register-passed U64 call rows indexed by argument count, including zero.
     /// An empty roster explicitly supplies no scalar-call form on this target.
     pub call_i64: Vec<RegisterConstraintKey>,
+    /// Direct aggregate call rows, matched by their complete ABI operand roster.
+    pub call_aggregate: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub float32_to_bits: Option<RegisterConstraintKey>,
@@ -41,6 +43,7 @@ pub struct SelectedConstraintKeys {
     pub conditional_branch: RegisterConstraintKey,
     pub jump: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
+    pub return_aggregate: Vec<RegisterConstraintKey>,
     pub return_unit: RegisterConstraintKey,
 }
 

@@ -1,5 +1,43 @@
 use super::*;
 
+pub(crate) fn plain_scalar_sum_call(
+    operation: &O,
+    callee: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    let O::CallStructural { result, claim_transfers, returned_claim_transfers, requirement_obligations, crash_continuations, selected_evidence, .. } = operation else { return false; };
+    let Some(signature) = callee.result.structural() else { return false; };
+    let Some(contract) = &callee.verified_contract else { return false; };
+    matches!(signature.multiplicity, terminal_psi::StructuralMultiplicity::Affine | terminal_psi::StructuralMultiplicity::Unrestricted)
+        && signature.qualifications.is_empty()
+        && signature.projected_qualifications.is_empty()
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && claim_transfers.is_empty()
+        && returned_claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && selected_evidence.is_empty()
+        && callee.entry_claim_declarations.is_empty()
+        && callee.content_entry_claims.is_empty()
+        && callee.evidence_contract_lanes.is_empty()
+        && contract.requires.is_empty()
+        && contract.ensures.is_empty()
+        && contract.crash_routes.is_empty()
+        && contract.outcome_specific_ensures.is_empty()
+        && callee.structural_parameters.iter().all(|parameter| {
+            matches!(parameter.access, terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::MutableBorrow)
+                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        })
+        && types.get(&signature.structural_type).is_some_and(|declaration| {
+            matches!(&declaration.shape, terminal_psi::StructuralTypeShape::Sum { cases }
+                if cases.iter().all(|case| case.fields.iter().all(|field| !field.relevance.is_erased() && field.field_type.scalar_type().is_some())))
+        })
+}
+
 pub(crate) fn affine_scalar_record_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
@@ -50,15 +88,16 @@ pub(crate) fn affine_scalar_record_establishment_matches(
         && i64_type.admits(*value)
 }
 
-pub(crate) fn payloadless_establishment_matches(
+pub(crate) fn scalar_case_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::EstablishPayloadlessCase {
+    let O::EstablishScalarCase {
         psi_operation,
         result,
         result_case,
+        fields,
     } = operation
     else {
         return false;
@@ -72,7 +111,7 @@ pub(crate) fn payloadless_establishment_matches(
                     structural_type,
                 } if producer == *psi_operation && structural_type == result.structural_type
             )
-    }) && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+    }) && matches!(result.multiplicity, terminal_psi::StructuralMultiplicity::Unrestricted | terminal_psi::StructuralMultiplicity::Affine)
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
@@ -80,7 +119,17 @@ pub(crate) fn payloadless_establishment_matches(
             matches!(
                 &declaration.shape,
                 terminal_psi::StructuralTypeShape::Sum { cases }
-                    if cases.iter().any(|case| case.id == *result_case && case.fields.is_empty())
+                    if cases.iter().any(|case| case.id == *result_case
+                        && case.fields.len() == fields.len()
+                        && case.fields.iter().zip(fields).all(|(declaration, field)| {
+                            declaration.id == field.field
+                                && !declaration.relevance.is_erased()
+                                && declaration.field_type.scalar_type().is_some_and(|scalar_type| {
+                                    function.parameters.iter().chain(function.blocks.iter().flat_map(|block| block.parameters.iter().chain(block.nodes.iter().flat_map(|node| &node.definitions))))
+                                        .any(|definition| definition.value == field.value && definition.scalar_type == scalar_type)
+                                })
+                                && matches!(declaration.field_type, terminal_psi::StructuralFieldType::BoundedInteger(_)) == field.range_obligation.is_some()
+                        }))
             )
         })
 }
@@ -155,19 +204,20 @@ pub(crate) fn exact_payloadless_case_return_exits(
             .find(|operation| {
                 matches!(
                     operation,
-                    O::EstablishPayloadlessCase { psi_operation, .. }
+                    O::EstablishScalarCase { psi_operation, .. }
                         if *psi_operation == producer
                 )
             })
         else {
             return false;
         };
-        let O::EstablishPayloadlessCase { result, .. } = producer else {
+        let O::EstablishScalarCase { result, fields, .. } = producer else {
             return false;
         };
         if result.place != *source
+            || !fields.is_empty()
             || result.structural_type != signature.structural_type
-            || !payloadless_establishment_matches(callee, producer, types)
+            || !scalar_case_establishment_matches(callee, producer, types)
         {
             return false;
         }

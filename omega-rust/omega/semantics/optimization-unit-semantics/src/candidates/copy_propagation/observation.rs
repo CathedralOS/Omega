@@ -100,11 +100,15 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
     };
 
     match &mut normalized {
+        O::EstablishScalarCase { fields, .. } => {
+            for field in fields { replace(&mut field.value); }
+        }
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
         O::Call { arguments, .. }
+        | O::CallStructural { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => {
@@ -192,7 +196,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         O::Return { value, .. } => replace(value),
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
-        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
@@ -203,7 +206,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::CallDynamicParameterScalar { .. }
         | O::CallDynamicUnit { .. }
         | O::CallDynamicParameterUnit { .. }
-        | O::CallStructural { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }

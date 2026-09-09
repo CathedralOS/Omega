@@ -116,7 +116,6 @@ pub(super) fn project(
             .map_err(|_| error())
     };
     let pointer_type = integer(IntegerSign::Unsigned, 64)?;
-    let payload_type = integer(IntegerSign::Signed, 32)?;
     // Cleanup belongs to the semantic source leg; projection restores that
     // roster, never the deliberately empty implementation continuation roster.
     let mut projected = case.clone();
@@ -133,6 +132,13 @@ pub(super) fn project(
                 argument,
                 parameter,
             } => {
+                let payload_type = payload.semantic.parameter.scalar_type;
+                let ScalarType::Integer(integer) = payload_type else { return Err(error()); };
+                let (load_kind, load_key, byte_count) = match integer.bits() {
+                    32 => (SelectedInstructionKind::Load32 { byte_offset: payload.semantic.field_byte_offset }, constraints.keys.load32, 4),
+                    64 => (SelectedInstructionKind::Load64 { byte_offset: payload.semantic.field_byte_offset }, constraints.keys.load64, 8),
+                    _ => return Err(error()),
+                };
                 let instruction_index =
                     instruction_start.checked_add(used * 2).ok_or_else(error)?;
                 let register_index = register_start.checked_add(used * 2).ok_or_else(error)?;
@@ -160,9 +166,9 @@ pub(super) fn project(
                     || payload
                         .semantic
                         .field_byte_offset
-                        .checked_add(4)
+                        .checked_add(byte_count)
                         .is_none_or(|end| end > slot.byte_size)
-                    || payload.semantic.field_byte_offset % 4 != 0
+                    || payload.semantic.field_byte_offset % byte_count != 0
                     || pointer.id.0 as usize != register_index
                     || loaded.id.0 as usize != register_index + 1
                     || loaded.id != argument
@@ -208,10 +214,8 @@ pub(super) fn project(
                 check_instruction(
                     load,
                     instruction_index + 1,
-                    SelectedInstructionKind::Load32 {
-                        byte_offset: payload.semantic.field_byte_offset,
-                    },
-                    constraints.keys.load32.ok_or_else(error)?,
+                    load_kind,
+                    load_key.ok_or_else(error)?,
                     &[pointer.id, loaded.id],
                     &provenance,
                     function,
@@ -230,7 +234,7 @@ pub(super) fn project(
                         origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
                         place,
                         byte_offset: payload.semantic.field_byte_offset,
-                        byte_count: 4,
+                        byte_count,
                         role: SelectedMemoryAccessRole::ReadPlace,
                     },
                 ]);

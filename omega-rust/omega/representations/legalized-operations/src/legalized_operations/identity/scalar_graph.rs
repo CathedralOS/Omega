@@ -74,6 +74,18 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishScalarCase { result, result_case, fields, layout } => {
+                    bytes.push(21);
+                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                    bytes.extend_from_slice(&result_case.get().to_le_bytes());
+                    encode_len(bytes, fields.len());
+                    for field in fields {
+                        bytes.extend_from_slice(&field.field.get().to_le_bytes());
+                        bytes.extend_from_slice(&field.value.get().to_le_bytes());
+                        encode_option_id(bytes, field.range_obligation.map(|obligation| obligation.get()));
+                    }
+                    super::read_byte::encode_layout(bytes, layout);
+                }
                 LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
                     result,
                     value,
@@ -346,12 +358,17 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
         LegalizedScalarTerminator::Return(returned) => {
             bytes.push(0);
             bytes.extend_from_slice(&returned.edge.get().to_le_bytes());
-            match returned.value {
+            match &returned.value {
                 LegalizedScalarReturnValue::Unit => bytes.push(0),
+                LegalizedScalarReturnValue::Structural { defining_operation, result } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
+                    super::projected_structural_call_return::encode_operation_result(bytes, result);
+                }
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     bytes.push(1);
                     bytes.extend_from_slice(&value.get().to_le_bytes());
-                    encode_integer_type(bytes, scalar_type);
+                    encode_integer_type(bytes, *scalar_type);
                 }
             }
             encode_fuel(bytes, &returned.fuel);

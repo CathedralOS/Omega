@@ -80,6 +80,8 @@ pub(super) fn decode_instruction(
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
+        SelectedInstructionKind::CallAggregate { .. } => 35,
+        SelectedInstructionKind::ReturnAggregate { .. } => 36,
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
@@ -186,9 +188,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
         }
+        SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
         _ => {}
     }
 }
@@ -213,6 +217,12 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
+        35 => SelectedInstructionKind::CallAggregate {
+            callee: decode_id(cursor, MachineId::new)?,
+        },
+        36 => SelectedInstructionKind::ReturnAggregate {
+            fragment_count: cursor.byte()?,
+        },
         24 => SelectedInstructionKind::Store {
             byte_offset: cursor.u32()?,
             byte_size: cursor.byte()?,

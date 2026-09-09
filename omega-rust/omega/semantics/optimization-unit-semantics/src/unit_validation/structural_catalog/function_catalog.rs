@@ -125,7 +125,7 @@ pub(crate) fn validate_function_structural_catalog(
                                 &node.operation,
                                 O::EstablishPrimitiveLocal { psi_operation, result, .. }
                                 | O::ByteSequenceSubslice { psi_operation, result, .. }
-                                | O::EstablishPayloadlessCase {
+                                | O::EstablishScalarCase {
                                     psi_operation,
                                     result,
                                     ..
@@ -196,7 +196,7 @@ pub(crate) fn validate_function_structural_catalog(
         let structural_result = match &node.operation {
             O::EstablishPrimitiveLocal { result, .. }
             | O::ByteSequenceSubslice { result, .. }
-            | O::EstablishPayloadlessCase { result, .. }
+            | O::EstablishScalarCase { result, .. }
             | O::EstablishAffineScalarRecord { result, .. }
             | O::CallStructural { result, .. }
             | O::BoundaryCall {
@@ -236,7 +236,7 @@ pub(crate) fn validate_function_structural_catalog(
                 result,
                 ..
             }
-            | O::EstablishPayloadlessCase {
+            | O::EstablishScalarCase {
                 psi_operation,
                 result,
                 ..

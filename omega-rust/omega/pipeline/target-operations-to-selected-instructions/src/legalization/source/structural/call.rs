@@ -286,6 +286,7 @@ pub(crate) fn derive_structural_call(
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     let call = legalized_operations::LegalizedScalarCall {
+        structural_result: None,
         source: matched.source,
         callee: matched.callee,
         call_plan,

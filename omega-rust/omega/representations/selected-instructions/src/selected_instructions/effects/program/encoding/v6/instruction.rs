@@ -167,6 +167,10 @@ fn decode_kind(
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
         31 => SelectedInstructionKind::HostedExitProcessI32,
         7 => SelectedInstructionKind::ReturnI64,
+        36 => SelectedInstructionKind::ReturnAggregate { fragment_count: cursor.byte()? },
+        35 if allow_scalar_call => SelectedInstructionKind::CallAggregate {
+            callee: MachineId::new(cursor.u64()?).ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         8 => SelectedInstructionKind::ExactSubtractI64Immediate {
             immediate: decode_integer(cursor)?,
             obligation: decode_obligation(cursor)?,
@@ -319,6 +323,8 @@ fn decode_alternative_for_version(
         5 => MachineAlternativeFamily::ExactSubtractI64,
         6 => MachineAlternativeFamily::ConditionalBranchNonZero,
         7 => MachineAlternativeFamily::ReturnI64,
+        35 if allow_scalar_call => MachineAlternativeFamily::CallAggregate,
+        36 => MachineAlternativeFamily::ReturnAggregate,
         8 => MachineAlternativeFamily::ExactSubtractI64Immediate,
         9 => MachineAlternativeFamily::ReturnUnit,
         10 => MachineAlternativeFamily::CompareI64,

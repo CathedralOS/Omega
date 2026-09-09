@@ -28,6 +28,9 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
         .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
     {
         match operation {
+            O::EstablishScalarCase { psi_operation, fields, .. } => {
+                expected.extend(fields.iter().filter_map(|field| field.range_obligation.map(|obligation| OptimizationFact::OperationObligationReference { obligation, support: *psi_operation })));
+            }
             O::ByteSequenceSubslice {
                 psi_operation,
                 obligation,

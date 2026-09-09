@@ -389,7 +389,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     if matches!(
                         instruction.kind,
                         SelectedInstructionKind::CallI64 { .. }
-                            | SelectedInstructionKind::CallUnit { .. }
+                            | SelectedInstructionKind::CallUnit { .. } | SelectedInstructionKind::CallAggregate { .. }
                     ) {
                         if function_frame.is_none() {
                             return Err(WholeFunctionExitContractError::NonReturnControlEffect(

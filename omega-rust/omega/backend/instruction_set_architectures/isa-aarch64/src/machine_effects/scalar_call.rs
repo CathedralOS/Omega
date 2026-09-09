@@ -22,7 +22,7 @@ pub(super) fn declaration(
         .find(|row| row.key == constraint)
         .expect("canonical AArch64 catalog contains its scalar-call constraint");
     let unit = semantic == MachineSemanticKind::CallUnit;
-    let arity = row.operands.len() - usize::from(!unit);
+    let arity = row.operands.iter().take_while(|operand| operand.access == register_model::RegisterOperandAccess::Use).count();
     MachineEffectDeclaration {
         semantic,
         constraint,
@@ -37,6 +37,8 @@ pub(super) fn declaration(
             key: MachineAlternativeKey {
                 family: if unit {
                     MachineAlternativeFamily::CallUnit
+                } else if semantic == MachineSemanticKind::CallAggregate {
+                    MachineAlternativeFamily::CallAggregate
                 } else {
                     MachineAlternativeFamily::CallI64
                 },
@@ -47,7 +49,7 @@ pub(super) fn declaration(
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
                 external_operand_reads: (0..arity as u16).collect(),
-                external_operand_writes: if unit { Vec::new() } else { vec![arity as u16] },
+                external_operand_writes: (arity as u16..row.operands.len() as u16).collect(),
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),

@@ -31,6 +31,7 @@ impl LegalizedScalarFunction {
                 .instructions
                 .iter()
                 .any(|instruction| match &instruction.kind {
+                    LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == value),
                     LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
                     LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. }
@@ -101,6 +102,12 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    EstablishScalarCase {
+        result: terminal_psi::StructuralOperationResult,
+        result_case: semantic_vocabulary::StructuralCaseId,
+        fields: Vec<terminal_psi::ScalarCaseField>,
+        layout: calling_conventions::ConventionalSumLayout,
+    },
     EstablishPrimitiveLocal {
         result: terminal_psi::StructuralOperationResult,
         value: abstract_operations::AbstractResult,
@@ -281,6 +288,7 @@ pub struct LegalizedScalarCall {
     pub call_plan: CallPlan,
     pub arguments: Vec<LegalizedScalarArgument>,
     pub result_placement: Option<ValuePlacement>,
+    pub structural_result: Option<terminal_psi::StructuralOperationResult>,
     pub claim_transfers: Vec<terminal_psi::ClaimTransfer>,
     pub requirement_obligations: Vec<ObligationId>,
     pub crash_continuations: Vec<CrashRouteBucket>,
@@ -313,9 +321,13 @@ impl LegalizedScalarArgument {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarReturnValue {
     Unit,
+    Structural {
+        defining_operation: OperationId,
+        result: terminal_psi::StructuralOperationResult,
+    },
     Value {
         value: ValueId,
         scalar_type: IntegerType,

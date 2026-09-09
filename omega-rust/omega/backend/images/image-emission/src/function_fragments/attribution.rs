@@ -40,6 +40,8 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
                 | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
                 | AbstractOperation::CallStructuralScalar { psi_operation, .. }
+                | AbstractOperation::EstablishScalarCase { psi_operation, .. }
+                | AbstractOperation::CallStructural { psi_operation, .. }
                 | AbstractOperation::Call { psi_operation, .. }
                 | AbstractOperation::CallUnit { psi_operation, .. }
                 | AbstractOperation::BoundaryCall { psi_operation, .. } => {
@@ -47,6 +49,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 }
                 AbstractOperation::Return { psi_edge, .. }
                 | AbstractOperation::ReturnUnit { psi_edge, .. }
+                | AbstractOperation::ReturnStructural { psi_edge, .. }
                 | AbstractOperation::Jump { psi_edge, .. } => {
                     site == SemanticCodeSite::Edge(*psi_edge)
                 }
@@ -115,25 +118,29 @@ pub(super) fn produce(
                 when_fallthrough,
                 ..
             } => {
-                if when_taken.role != SelectedSuccessorRole::Semantic
-                    || when_fallthrough.role != SelectedSuccessorRole::Semantic
+                if [when_taken, when_fallthrough].iter().any(|successor|
+                    successor.role != SelectedSuccessorRole::Semantic
+                        && !(successor.role == SelectedSuccessorRole::CaseDispatchContinuation
+                            && successor.fuel.is_empty() && successor.bindings.is_empty()))
                 {
                     return Err(Error::Mismatch(
                         "conditional successor has nonsemantic attribution role",
                     ));
                 }
-                push(SemanticCodeSite::Edge(when_taken.psi_edge), offset, length)?;
+                if when_taken.role == SelectedSuccessorRole::Semantic {
+                    push(SemanticCodeSite::Edge(when_taken.psi_edge), offset, length)?;
+                }
                 let Some(branch) = instruction.branch.as_deref() else {
                     return Err(Error::Mismatch("conditional has no decoded branch"));
                 };
                 let FunctionFragmentBranchEvidence::Conditional(branch) = branch else {
                     return Err(Error::Mismatch("conditional has jump evidence"));
                 };
-                push(
+                if when_fallthrough.role == SelectedSuccessorRole::Semantic { push(
                     SemanticCodeSite::Edge(when_fallthrough.psi_edge),
                     host(branch.when_fallthrough_offset)?,
                     0,
-                )?;
+                )?; }
             }
             Control::DirectInternalCall { .. } | Control::None => {}
         }
@@ -238,14 +245,18 @@ pub(super) fn validate(
                 when_fallthrough,
                 ..
             } => {
-                if when_taken.role != SelectedSuccessorRole::Semantic
-                    || when_fallthrough.role != SelectedSuccessorRole::Semantic
+                if [when_taken, when_fallthrough].iter().any(|successor|
+                    successor.role != SelectedSuccessorRole::Semantic
+                        && !(successor.role == SelectedSuccessorRole::CaseDispatchContinuation
+                            && successor.fuel.is_empty() && successor.bindings.is_empty()))
                 {
                     return Err(Error::Mismatch(
                         "conditional successor has nonsemantic attribution role",
                     ));
                 }
-                vec![when_taken.psi_edge, when_fallthrough.psi_edge]
+                [when_taken, when_fallthrough].into_iter()
+                    .filter(|successor| successor.role == SelectedSuccessorRole::Semantic)
+                    .map(|successor| successor.psi_edge).collect()
             }
             Control::DirectInternalCall { .. } | Control::None => Vec::new(),
         };

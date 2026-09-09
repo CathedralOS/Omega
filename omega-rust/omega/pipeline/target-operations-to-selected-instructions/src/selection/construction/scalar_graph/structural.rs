@@ -14,6 +14,7 @@ mod literals;
 mod local_storage;
 pub(super) use local_storage::fixed_array_argument;
 mod primitive_locals;
+mod scalar_case;
 pub(super) use primitive_locals::read;
 mod scalar_store;
 mod subslice;
@@ -82,6 +83,7 @@ pub(super) fn entry(
         return if crate::selection::primitive_local_input::accepts(source)
             || crate::selection::literal_storage_input::accepts(source)
             || crate::selection::read_result_input::accepts(source)
+            || crate::selection::scalar_case_input::has_local_sums(source)
         {
             Ok(())
         } else {
@@ -288,6 +290,10 @@ pub(super) fn operation(
             | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
     ) {
         primitive_locals::write(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(row.kind, LegalizedScalarInstructionKind::EstablishScalarCase { .. }) {
+        scalar_case::establish(source, row, builder)?;
         return Ok(true);
     }
     if matches!(

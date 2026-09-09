@@ -571,6 +571,10 @@ fn family_and_operand_count(
             (MachineAlternativeFamily::ExactSubtractI64Immediate, 2)
         }
         SelectedInstructionKind::ReturnI64 => (MachineAlternativeFamily::ReturnI64, 1),
+        SelectedInstructionKind::ReturnAggregate { fragment_count } => {
+            if !(1..=2).contains(&fragment_count) { return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch); }
+            (MachineAlternativeFamily::ReturnAggregate, usize::from(fragment_count))
+        },
         SelectedInstructionKind::ReturnUnit => (MachineAlternativeFamily::ReturnUnit, 0),
         SelectedInstructionKind::ConditionalBranchNonZero => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
@@ -599,7 +603,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
-        | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
@@ -610,6 +614,10 @@ fn validate_return_home(
     registers: &[u8],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     if matches!(kind, SelectedInstructionKind::ReturnI64) && registers != [0] {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    if let SelectedInstructionKind::ReturnAggregate { fragment_count } = kind
+        && (!(1..=2).contains(&fragment_count) || registers != &([0, 1][..usize::from(fragment_count)])) {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(())
@@ -719,7 +727,7 @@ fn encode_unchecked(
                     | u32::from(registers[1]),
             );
         }
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnUnit => {
+        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit => {
             words.push(0xd65f_03c0)
         }
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -745,7 +753,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -1059,7 +1067,7 @@ fn validate_decoded(
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnUnit => {
+        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit => {
             decoded == [DecodedWord::Return]
         }
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -1083,7 +1091,7 @@ fn validate_decoded(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallI64 { .. } => false,
+        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
         Ok(())
@@ -1201,7 +1209,7 @@ fn footprint(
         | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnUnit => {
+        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit => {
             (vec![], vec![], false)
         }
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -1225,13 +1233,13 @@ fn footprint(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
+        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if matches!(
         kind,
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnUnit
+        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit
     ) {
         MachineEncodedEffects {
             external_operand_reads: vec![],

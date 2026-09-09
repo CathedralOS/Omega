@@ -118,7 +118,7 @@ fn source_payloadless_producer_enters_optimizer_while_ordinary_lowering_stays_fe
         .expect("the exact source producer passes optimizer admission");
     assert!(matches!(
         verified.unit().functions[0].blocks[0].nodes[0].operation,
-        AbstractOperation::EstablishPayloadlessCase { .. }
+        AbstractOperation::EstablishScalarCase { .. }
     ));
 }
 
@@ -197,7 +197,7 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
                 .any(|node| {
                     matches!(
                         node.operation,
-                        AbstractOperation::EstablishPayloadlessCase { .. }
+                        AbstractOperation::EstablishScalarCase { .. }
                     )
                 })
         })
@@ -317,11 +317,11 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
         .find(|node| {
             matches!(
                 node.operation,
-                AbstractOperation::EstablishPayloadlessCase { .. }
+                AbstractOperation::EstablishScalarCase { .. }
             )
         })
         .expect("callee retains its case producer");
-    let AbstractOperation::EstablishPayloadlessCase { result_case, .. } = &mut producer.operation
+    let AbstractOperation::EstablishScalarCase { result_case, .. } = &mut producer.operation
     else {
         unreachable!()
     };

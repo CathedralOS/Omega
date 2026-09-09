@@ -235,6 +235,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
 
 fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
     bytes.push(match alternative.key.family {
+        MachineAlternativeFamily::CallAggregate => 35,
+        MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::CompareI64Zero => 0,
         MachineAlternativeFamily::MaterializeI64 => 1,
         MachineAlternativeFamily::CopyI64 => 2,

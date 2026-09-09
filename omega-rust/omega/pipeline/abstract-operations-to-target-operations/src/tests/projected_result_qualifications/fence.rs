@@ -26,7 +26,7 @@ fn unrelated_function_and_operation_result_rosters_fail_closed() {
     let mut operation_result = constant_conditional_plan(true);
     operation_result.functions[0].operations.insert(
         0,
-        AbstractOperation::EstablishPayloadlessCase {
+        AbstractOperation::EstablishScalarCase {
             psi_operation: OperationId::new(900).unwrap(),
             result: terminal_psi::StructuralOperationResult {
                 place: PlaceId::new(901).unwrap(),
@@ -37,6 +37,7 @@ fn unrelated_function_and_operation_result_rosters_fail_closed() {
                 claims: Vec::new(),
             },
             result_case: semantic_vocabulary::StructuralCaseId::new(900).unwrap(),
+            fields: Vec::new(),
         },
     );
     assert_eq!(

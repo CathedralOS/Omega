@@ -54,17 +54,22 @@ pub(super) fn prepare(
             .get(parameter.0 as usize)
             .cloned()
             .ok_or_else(invalid)?;
+        let ScalarType::Integer(integer) = payload.semantic.parameter.scalar_type else {
+            return Err(invalid());
+        };
+        let (load_kind, load_key, byte_count) = match integer.bits() {
+            32 => (SelectedInstructionKind::Load32 { byte_offset: payload.semantic.field_byte_offset }, constraints.keys.load32, 4),
+            64 => (SelectedInstructionKind::Load64 { byte_offset: payload.semantic.field_byte_offset }, constraints.keys.load64, 8),
+            _ => return Err(invalid()),
+        };
         if destination.scalar_type != payload.semantic.parameter.scalar_type
             || destination.definition_site != Some(payload.semantic.parameter.definition_site)
-            || payload.semantic.parameter.scalar_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?,
-                )
             || payload
                 .semantic
                 .field_byte_offset
-                .checked_add(4)
+                .checked_add(byte_count)
                 .is_none_or(|end| end > slot.byte_size)
+            || payload.semantic.field_byte_offset % byte_count != 0
         {
             return Err(invalid());
         }
@@ -127,10 +132,8 @@ pub(super) fn prepare(
         });
         instructions.push(crate::selection::constraints::instruction(
             load_instruction,
-            SelectedInstructionKind::Load32 {
-                byte_offset: payload.semantic.field_byte_offset,
-            },
-            constraints.keys.load32.ok_or_else(invalid)?,
+            load_kind,
+            load_key.ok_or_else(invalid)?,
             &[pointer, loaded],
             provenance(),
             catalog,
@@ -140,7 +143,7 @@ pub(super) fn prepare(
             origin: SelectedMemoryAccessOrigin::Edge(successor.psi_edge),
             place,
             byte_offset: payload.semantic.field_byte_offset,
-            byte_count: 4,
+            byte_count,
             role: SelectedMemoryAccessRole::ReadPlace,
         });
         payload.transport = SelectedCasePayloadTransport::Registers {
