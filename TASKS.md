@@ -263,22 +263,22 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution at `StructuralArgumentTypeMismatch` (operation 5, argument 0,
-  expected type 7, actual type 1; macOS ARM64, `b8c05f5e0f`). The checked reader
-  now enters the shared provider closure. The next gap is `Main.pause`:
-  raw `[u8; 256]` storage presented to the boundary's `&mut [u8]` parameter.
-  `terminal-verifier/src/validation/structural_operations.rs` only applies
-  `terminal-semantics::mutable_fixed_byte_array_extent` to ordinary calls;
-  its boundary helper recognizes bounded byte fields, not raw fixed arrays.
-  A reduced provider-free `Root { buffer: [u8; 256] }` calling
-  `_ = Host::read(&mut self.buffer)` reproduces the same type mismatch, so
-  changing provider discovery again will not resolve it.
+  execution at `native artifact ProgramEntry receiver provisioning failed`
+  (macOS ARM64, `48daf28aa4`). The entry retains `self`, but no root-backed
+  bridge constructs and lends its receiver. Resume `ENTRY-CONTENT-ROOTS` below;
+  retain the rejection in `native-realization/src/realization/native_artifact.rs`
+  until that bridge actually provisions admitted storage and the activation loan.
+  The fixed-array boundary mismatch no longer blocks this command. Its
+  source-free initialized-buffer/provider regression lives in
+  `checked-trees-to-lowered-psi/src/tests/fixed_array_boundary_providers.rs`.
   Preserve the real initialized array, exact field path, exclusive loan, fixed
-  extent, and structural result cleanup through boundary verification and
-  selected-provider transport. Do not substitute bounded-owner replacement,
-  a line intrinsic, or selected direct calls in portable Psi. Exercise the
-  borrowed view in the checked provider and rerun this same native probe;
-  entry provisioning and later native realization remain separate dependencies.
+  extent, and structural result cleanup. Do not substitute bounded-owner
+  replacement, a line intrinsic, or selected direct calls in portable Psi.
+  Later native installed-provider argument replay and borrowed-view/result
+  realization remain separate dependencies in
+  `terminal-psi-to-abstract-operations/src/provider_installation/replay.rs` and
+  `abstract-operations-to-target-operations/src/lowering/unit/boundary_call/installed_provider.rs`;
+  these are source-inspected fences, not the current observed failure.
   The native sample harness now supplies exact test-owned Console acceptance and
   receiving permissions through the shared canary helper. Byte-output and exit
   classification succeed; fixture acceptance does not replace the CLI's package review.
