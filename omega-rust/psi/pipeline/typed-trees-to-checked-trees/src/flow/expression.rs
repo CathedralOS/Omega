@@ -512,10 +512,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .collect();
         *evaluated = HandleSpan::empty();
         for reference in retained {
-            self.context
-                .contexts
-                .semantic_context_refs
-                .append_to_span(evaluated, reference);
+            common::append_flow_reference(
+                &mut self.context.contexts.semantic_context_refs,
+                evaluated,
+                reference,
+            );
         }
         let retained: Vec<_> = self
             .context
@@ -534,10 +535,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .collect();
         *evaluated_constraints = HandleSpan::empty();
         for reference in retained {
-            self.context
-                .contexts
-                .constraint_refs
-                .append_to_span(evaluated_constraints, reference);
+            common::append_flow_reference(
+                &mut self.context.contexts.constraint_refs,
+                evaluated_constraints,
+                reference,
+            );
         }
         *evaluated_constraints = project_constraint_refs_to_active_contexts(
             &mut self.context.contexts.constraint_refs,

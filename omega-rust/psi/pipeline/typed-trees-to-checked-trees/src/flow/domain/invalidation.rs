@@ -19,10 +19,7 @@ pub(crate) fn filter_contexts_after_place_mutations(
         return source;
     }
 
-    let mut filtered = arena::HandleSpan::empty();
-    let mut removed_any = false;
-    let copied: Vec<_> = semantic_context_refs.span_or_empty(source).to_vec();
-    for context_ref in copied {
+    common::filter_flow_references(semantic_context_refs, source, |context_ref| {
         let context = semantic.contexts.get(context_ref.context);
         let mut invalidated_any = false;
         for fact_ref in semantic.refs.span_or_empty(context.facts) {
@@ -33,7 +30,6 @@ pub(crate) fn filter_contexts_after_place_mutations(
                 // retains Unknown explicitly rather than inventing a place.
                 if matches!(fact.payload, FactPayload::StorageDependency { .. }) {
                     invalidated_any = true;
-                    removed_any = true;
                 }
                 continue;
             };
@@ -49,7 +45,6 @@ pub(crate) fn filter_contexts_after_place_mutations(
             };
 
             invalidated_any = true;
-            removed_any = true;
             invalidations.append(FlowInvalidationFact {
                 source: invalidation_source,
                 context: context_ref.context,
@@ -66,10 +61,6 @@ pub(crate) fn filter_contexts_after_place_mutations(
             });
         }
 
-        if !invalidated_any {
-            semantic_context_refs.append_to_span(&mut filtered, context_ref);
-        }
-    }
-
-    if removed_any { filtered } else { source }
+        !invalidated_any
+    })
 }

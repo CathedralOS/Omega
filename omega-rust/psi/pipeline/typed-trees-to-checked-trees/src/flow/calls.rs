@@ -62,9 +62,8 @@ pub(super) fn build_call_flow_fact(
         &mut exit,
     );
     let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);
-    *active_contexts = clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, exit.contexts);
-    *active_constraints =
-        clone_constraint_refs(&mut ctx.contexts.constraint_refs, exit.constraints);
+    *active_contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, exit.contexts);
+    *active_constraints = retained_constraint_refs(&ctx.contexts.constraint_refs, exit.constraints);
 
     FlowCallFact {
         statement_index: borrow_call.statement_index,
@@ -241,9 +240,11 @@ fn append_one_to_one_call_carry_facts(
         semantic.append_ref(&mut refs, fact);
     }
     let context = semantic.append_context(point, refs);
-    ctx.contexts
-        .semantic_context_refs
-        .append_to_span(&mut exit.contexts, FlowSemanticContextRef { context });
+    common::append_flow_reference(
+        &mut ctx.contexts.semantic_context_refs,
+        &mut exit.contexts,
+        FlowSemanticContextRef { context },
+    );
     append_constraint_ref(
         &mut ctx.contexts.constraint_refs,
         &mut exit.constraints,

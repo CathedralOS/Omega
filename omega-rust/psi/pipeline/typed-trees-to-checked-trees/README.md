@@ -69,6 +69,20 @@ It reports allocation requests and requested bytes, not peak memory. Its
 contract-bearing fixtures exercise a nonempty semantic baseline; a chain alone
 does not establish the cost of copying declaration facts.
 
+Flow context and constraint snapshots retain validated arena spans. Unchanged
+and contiguous filtered selections reuse their rows; fragmented selections
+materialize only surviving references, in order, after one predicate visit per
+input. Reference rows are append-only during this construction, not immutable
+by their public arena type. A list extension copies a non-tail selection before
+appending, so earlier snapshots and sibling branches keep their contents. The
+append helper checks the physical tail in constant time; validation happens at
+selection boundaries rather than rescanning the prefix on every append.
+Semantic fact handles, repeated reference occurrences, and event-local evidence
+membership remain intact; private reference-row placement can change. Place
+invalidation no longer appends discarded survivor lists when nothing changes.
+Fragmented selections and non-tail extensions still copy, and expression meets
+and entry-origin rebasing retain separate temporary lists.
+
 Range-state arguments form an entry-rooted all-predecessor fixed point. Rebuild
 edge contributions each pass and withhold unconverged inference. Assignment
 values share semantic contexts and invalidation with domain facts. Exit checking
