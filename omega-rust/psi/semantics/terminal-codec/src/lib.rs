@@ -2138,22 +2138,20 @@ fn validate_structural_arguments(
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };
-        if matches!(presentation, StructuralArgumentPresentation::Ordinary)
-            && machine.structural_parameters.iter().any(|actual| {
-                terminal_semantics::mutable_fixed_byte_array_extent(
-                    module, actual, argument, expected,
-                )
+        // The canonical form retains the real array type at both ordinary and
+        // boundary calls; the shared extent check recognizes the exact loan.
+        if machine.structural_parameters.iter().any(|actual| {
+            terminal_semantics::mutable_fixed_byte_array_extent(module, actual, argument, expected)
                 .is_some()
-                    && !machine
-                        .entry_claims
-                        .iter()
-                        .any(|claim| claim.input == argument.place)
-                    && !machine
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == argument.place)
-            })
-        {
+                && !machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == argument.place)
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == argument.place)
+        }) {
             continue;
         }
         let inline_byte_view = match presentation {

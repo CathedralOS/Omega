@@ -142,6 +142,7 @@ fn check_source(source: &str) {
                 &profile,
                 &[],
                 &[input],
+                &[],
                 installation.psi_installation(),
             )
             .unwrap();

@@ -44,6 +44,7 @@ mod content_conservation;
 mod cyclic_byte_literal_calls;
 mod discarded_boundary_results;
 mod dynamic_composed_unit;
+mod fixed_array_boundary_providers;
 mod fixed_byte_array_views;
 mod guarded_scalar_returns;
 mod literal_byte_extent;

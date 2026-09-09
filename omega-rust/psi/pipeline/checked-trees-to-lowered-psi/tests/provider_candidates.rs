@@ -336,6 +336,7 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
         &proof_admission::AdmissionProfile::default(),
         &[],
         std::slice::from_ref(&argument),
+        &[],
         &installation,
     )
     .expect("structural provider execution starts");
@@ -420,6 +421,7 @@ fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_cl
         &proof_admission::AdmissionProfile::default(),
         &[],
         &arguments,
+        &[],
         &installation,
     )
     .expect("ProgramStorage provider execution starts");

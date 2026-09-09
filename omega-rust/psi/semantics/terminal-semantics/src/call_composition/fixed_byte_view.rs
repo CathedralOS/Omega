@@ -1,4 +1,4 @@
-//! Exact fixed-array extent for ordinary mutable byte-view borrowing.
+//! Exact fixed-array extent for mutable byte-view borrowing at admitted calls.
 
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use terminal_psi::{
@@ -10,7 +10,7 @@ use terminal_psi::{
 /// Rejoin a mutable byte-view argument to initialized fixed-u8-array storage.
 /// This preserves the actual type and field path; the returned length grants
 /// neither new storage nor resize permission. Callers separately check claims,
-/// exclusive aliasing, availability, and the ordinary call site.
+/// exclusive aliasing, availability, and the admitted ordinary/boundary call site.
 pub fn mutable_fixed_byte_array_extent(
     module: &TerminalModule,
     actual: &StructuralParameterDeclaration,

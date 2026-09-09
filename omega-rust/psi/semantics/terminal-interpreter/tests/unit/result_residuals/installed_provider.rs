@@ -114,6 +114,7 @@ fn installed_start_with_arguments(
         &profile,
         &[],
         structural_arguments,
+        &[],
         &installation,
     )
     .unwrap()
@@ -380,6 +381,7 @@ fn installed_structural_provider_rejects_missing_foreign_or_drifted_custody() {
             &profile,
             &[],
             &arguments(),
+            &[],
             &installation,
         ),
         Err(

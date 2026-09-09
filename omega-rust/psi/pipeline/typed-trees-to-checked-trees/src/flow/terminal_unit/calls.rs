@@ -853,7 +853,17 @@ pub(super) fn build_call_operation(
             })?;
             let caller_parameter = caller_parameters.get(source_parameter_index)?;
             let path = if place.segments.is_empty() {
-                if caller_parameter.type_identity != target_identity {
+                // A whole array and its field projection lend the same fixed
+                // range. Absence of a projection does not require a fake view
+                // type identity; access and source custody still replay below.
+                if caller_parameter.type_identity != target_identity
+                    && !(caller_parameter.qualifications.is_empty()
+                        && fixed_byte_array_mutable_view_is_admitted(
+                            program,
+                            source_parameter.type_reference,
+                            parameter.type_reference,
+                        ))
+                {
                     return None;
                 }
                 Vec::new()
