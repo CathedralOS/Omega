@@ -1,4 +1,4 @@
-# Candidate: Named proof-formula syntax
+# 0001: Named proof-formula syntax
 
 Status: unproven ergonomic augmentation, not accepted syntax or an implementation
 prerequisite. Affected subject: [mathematical proof contracts](../spec/proofs/contracts.md).

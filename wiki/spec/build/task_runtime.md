@@ -12,13 +12,6 @@ Root profiles may select default providers and owners may override their slots,
 but starting/controlling a task still requires a held runtime capability.
 Selection does not grant ambient authority.
 
-[Anonymous callable environments](../language/anonymous_machines.md#activation-and-foreign-callbacks)
-may be ordinary arguments to a specialized named entry adapter. The adapter
-retains the exact start requirement, activation description, and transactional
-ownership behavior below. It is library adaptation, not implicit capture/spawn
-inside start or a runtime function-pointer argument. Direct anonymous calls
-remain in the caller's activation.
-
 ## Three owners
 
 | Relationship | Responsibility |

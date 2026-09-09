@@ -40,34 +40,34 @@ data Player {
     speed: f32;
 }
 
-machine inspect_player(player: &Player, output: &mut InspectorOutput) {
-    let show = <Value>[output = &mut output](
-        field: FieldInfo,
-        value: &Value
-    )
-    where Value == u32 || Value == f32;
-    {
-        transition {
-            Value == u32 -> output.show_u32(field.name, value)
-            Value == f32 -> output.show_f32(field.name, value)
-        }
-    };
+machine show_player_field<Value>(
+    output: &mut InspectorOutput,
+    field: FieldInfo,
+    value: &Value
+)
+where Value == u32 || Value == f32;
+{
+    transition {
+        Value == u32 -> output.show_u32(field.name, value)
+        Value == f32 -> output.show_f32(field.name, value)
+    }
+}
 
-    reflect::visit_runtime_fields<Player>(player, &mut show);
+machine inspect_player(player: &Player, output: &mut InspectorOutput) {
+    reflect::visit_runtime_fields<Player, show_player_field>(player, output);
 }
 ```
 
 The compiler selects `health` with `Value = u32`, then `speed` with `Value = f32`.
 It checks the corresponding callback applications and ordinary borrows. At
 runtime those calls use the actual player's values and the same output
-environment. Compilation does not read the player or write to the output.
+context. Compilation does not read the player or write to the output.
 Adding an unsupported field rejects at that member; reflection does not skip it.
 
 An ordinary runtime loop over descriptions cannot give its loop variable a
 different static type on each iteration. Typed visitation supplies that
-per-member specialization. The callback remains an
-[ordinary anonymous machine](../spec/language/anonymous_machines.md); a named
-callback and explicit context follow the same rules.
+per-member specialization. The callback is an ordinary named machine and the
+output context is an ordinary argument. No lambda or capture syntax is needed.
 
 The complete record visit covers each immediate non-erased field once in
 declaration order, including fields with zero runtime size. Erased fields have
@@ -131,7 +131,7 @@ enumerate a private nested type. Recursive inspection uses that type's selected
 owner-authored adapter. Public structural data already publishes its fields;
 reflection does not introduce individually private fields within that model.
 
-Each callback invocation reborrows the environment and field under fresh
+Each callback invocation reborrows the context and field under fresh
 invocation lifetimes. A nonretaining callback cannot save that field borrow in
 a longer-lived context. Retention requires an expressible checked relationship
 that remains compatible with subsequent calls. Borrowing never copies a linear

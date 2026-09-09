@@ -48,40 +48,13 @@ tables, schedulers, process tables, timer queues, or drivers as compiler-owned
 Rust models. Compiler validation and code generation may consume general plans;
 they must not acquire customer-shaped semantic types or lifecycle protocols.
 
-## Anonymous machines
-
-Implement [anonymous ordinary machines](wiki/spec/language/anonymous_machines.md)
-in Psi syntax, resolution, checked data/call construction, and Terminal replay.
-Use generated ordinary environments and selected machine bodies, not a parallel
-closure IR. Named and anonymous callbacks must share exact requirement checking.
-
-Acceptance proceeds in four bounded steps: (1) one-shot named/anonymous equivalence
-for shared, exclusive, and consuming receivers, explicit captures and erased
-evidence, disjoint subplaces, mutation visibility, zero-call linear debt and
-second-call rejection; test recoverable partial construction separately from
-trap abandonment, with no invented rollback; (2) repeated homogeneous traversal
-with fresh invocation lifetimes and universal callback matching, rejecting escapes
-without requiring general outlives syntax; (3) heterogeneous traversal using the
-[semantic reflection](wiki/spec/language/reflection.md) projection implementation,
-diagnosing unsupported members and preserving active-case/loan identity;
-(4) operational forwarding
-after [callback contract forwarding](OWNER_QUESTIONS.md#q2--callback-contract-forwarding)
-is resolved. The latter two dependencies do not block the first two steps.
-
-Keep declaration/substitution identity separate from runtime environment instances;
-reject ambiguous body association, mismatched exact requirements, whole-conformance
-fabrication, runtime capture use during compilation, and invalid erased evidence.
-Keyword-free parsing must distinguish grouping, arrays, and generic heads without
-type-directed guesses. Public opaque results, runtime erasure, and task-adapter
-convenience are not prerequisites. Any task-adapter work must independently test
-rejected-start ownership and actual settlement/cancellation custody.
-
 ## Semantic reflection
 
 Implement [semantic reflection](wiki/spec/language/reflection.md) in Psi schema
 construction, hermetic evaluation, checked per-member calls, and Terminal replay,
-with ordinary library inspector/encoder policies. Share named/anonymous
-callable-family checking; do not add a closure IR or format-specific compiler.
+with ordinary library inspector/encoder policies. Use named callbacks, explicit
+context data, and existing callable-family checking; do not add a closure IR or
+format-specific compiler. Anonymous syntax is not an implementation dependency.
 First deliver owned qualified schema graphs, authorized projections, and scoped
 typed selections frozen into independently checked result snapshots. Continue
 with recursive derivation, explicit runtime metadata/adapters, and authorized

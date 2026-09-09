@@ -25,7 +25,7 @@ facts cannot supply a missing law or select an implementation. Preserve the
 complete telescope, trait application, and normalized row map.
 
 No dedicated formula declaration or authored logical-result machine is required
-by this model. [Optional naming syntax](../../proposals/proof_formula_syntax.md)
+by this model. [Optional naming syntax](../../proposals/0001_proof_formula_syntax.md)
 is an unproven ergonomic proposal, not a prerequisite for general logic.
 
 ## Mathematical values and quantification
@@ -265,7 +265,7 @@ or safe by default. Validation establishes facts about its exact observed
 subjects, not a universal provider promise. A post-call check cannot undo
 external effects or contain arbitrary provider corruption.
 
-The separate [assertion design RFC](../../proposals/assertions_and_build_diagnostics.md)
+The separate [assertion design RFC](../../proposals/0006_assertions_and_build_diagnostics.md)
 compares optional author-invoked diagnostics. It approves no assertion API,
 source syntax, crash cause, build switch, or contract-widening mechanism.
 

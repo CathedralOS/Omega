@@ -21,7 +21,6 @@ beside code; completed work belongs in Git, not current reference material.
   [lifetimes and carried borrows](spec/language/lifetimes.md),
   [concurrency and atomics](spec/language/concurrency.md),
   [machines and refinement](spec/language/machines.md),
-  [anonymous machines and captures](spec/language/anonymous_machines.md),
   [semantic reflection and typed visitation](spec/language/reflection.md),
   [named conformances](spec/language/conformances.md),
   [generic applications](spec/language/generics.md),
@@ -101,7 +100,7 @@ beside code; completed work belongs in Git, not current reference material.
 Bootstrap language and proof contracts live beside the chain; start at
 [edge contracts](../bootstrap/CONTRACT.md) and
 [minimization](../bootstrap/MINIMIZATION.md). Alternative chains remain an
-[open proposal](proposals/bootstrap_chain_alternatives.md).
+[open proposal](proposals/0002_bootstrap_chain_alternatives.md).
 
 [Execution tasks](../TASKS.md) track implementation;
 [owner questions](../OWNER_QUESTIONS.md) hold unresolved decisions.

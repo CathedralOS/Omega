@@ -119,13 +119,6 @@ creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
 
-Checking an anonymous body against an explicitly selected exact requirement
-records the same satisfaction edge as a named body. The literal's environment
-association identifies which body to check; it proves neither compatibility nor
-whole-map completeness. This contextual check does not search visible maps,
-invent a whole-trait conformance, or authorize dynamic dispatch. See
-[callable association](anonymous_machines.md#callable-association-and-exact-requirements).
-
 A signature-free requirement path must resolve to one exact overload, without
 consulting visible or selected satisfiers. If several overloads share that path,
 the reference rejects. There is no general signature-free overload-selection

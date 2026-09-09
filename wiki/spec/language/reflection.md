@@ -99,10 +99,10 @@ their respective access rules.
 
 `reflect::visit_runtime_fields<T, Visitor>` specializes the selected callback for
 each immediate non-erased field of a record. It takes the actual borrowed value
-and the callback's ordinary context/environment. Named and
-[anonymous callbacks](anonymous_machines.md) use the same exact requirement and
-generic-family matching. The following shows the elaboration, not a new runtime
-interpreter:
+and the named callback's ordinary explicit context. Calls use existing exact
+requirement and generic-family matching; no anonymous expression or generated
+capture environment is required. The following shows the elaboration, not a new
+runtime interpreter:
 
 ```text
 Player { health: u32; speed: f32; }
@@ -127,9 +127,9 @@ number order. Recursive descent and alternate order require explicit library
 policy. An unsupported included field rejects with its path and failed obligation.
 
 Each call obtains a valid field subloan and fresh reborrow of the context. These
-invocation loans can end before the next call; the environment's captured loans
-retain their own lifetimes. Shared inspection neither consumes nor copies the
-record or its linear fields. References are not silently dereferenced into
+invocation loans can end before the next call; loans stored in the explicit
+context retain their own lifetimes. Shared inspection neither consumes nor copies
+the record or its linear fields. References are not silently dereferenced into
 recursive traversal. Retention needs a valid declared relationship; ordinary
 escape rejection does not require general outlives-bound syntax.
 
@@ -236,7 +236,7 @@ generating calls. Snapshot manufacture does not grant selection authority.
 
 Policy code, static inputs, selections, target dependencies actually consulted,
 and schema revision participate in retained derivation dependencies. Live runtime
-capture values cannot influence compile-time selection. No general facility for
+context values cannot influence compile-time selection. No general facility for
 returning runtime machine symbols or treating conformance evidence as ordinary
 generic value atoms is introduced.
 

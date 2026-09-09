@@ -99,9 +99,11 @@ work do not depend on this answer.
 
 ### Context
 
-[Anonymous machines](wiki/spec/language/anonymous_machines.md) and named static
-callbacks share ordinary requirement checking. Fixed authored callback ceilings
-already give a coherent language contract. The external customer for forwarding
+Named static callbacks use ordinary requirement checking. Fixed authored callback
+ceilings already give a coherent language contract. Anonymous forms are entirely
+unaccepted under [proposal 0000](wiki/proposals/0000_anonymous_machines.md);
+their ergonomics are not a reason to introduce a contract system. The external
+customer for forwarding
 is a reusable traversal accepting either a pure calculation, a Console-writing
 callback, or a suspending callback without making every use conservatively
 effectful. Existing corpus use is not required to motivate that API.
@@ -118,11 +120,17 @@ How does a generic machine expose a selected callback's permitted reach and
 operational possibilities, and acknowledge the corresponding call crossings,
 without guessing from private bodies or granting unconstrained effects?
 This is general machine-contract work, not a special lambda privilege. It does
-not block fixed-ceiling capture, invocation, or repeated-reborrow implementation.
+not block named fixed-ceiling callbacks or their repeated-reborrow implementation.
 
 ### Proposed solution
 
-Permit typed static projections from a bound machine's public contract, such as
+Keep fixed declared consumer contracts as the baseline. First compare an ordinary
+dedicated machine or a fixed-ceiling generic consumer against the annotation and
+compiler cost of callback-dependent contracts. Declining the extension is a valid
+outcome; no forwarding work is an implementation prerequisite.
+
+If that comparison justifies an extension, one candidate is typed static
+projections from a bound machine's public contract, such as
 `reaches Step.reaches;`, `suspends Step.suspends;`, and `blocks Step.blocks;`.
 Compose service rows by union and suspension/blocking independently by Boolean
 disjunction. Selections must satisfy the binder's authored bounds and retain
@@ -140,7 +148,8 @@ Do not forward a whole contract mechanically. Each call proves its preconditions
 and substitutes its post-state/crash routes; recoverable failure remains result
 data. Termination includes the consumer's traversal argument, and resource
 composition accounts for call count and overlap. The result must support named
-and anonymous callbacks identically, recursive generic checking, and independent
+callbacks and any separately accepted anonymous syntax identically, recursive
+generic checking, and independent
 replay of the same normalized contract dependencies.
 
 ### Alternates
@@ -155,3 +164,44 @@ replay of the same normalized contract dependencies.
 - Inferring public effects from whichever body or instantiations happen to be
   visible, weakening generic ceilings after specialization, or treating
   `invokes Step` as an unspecified all-axis forwarding wildcard is wrong.
+
+## Q3 — Anonymous-machine scope and contracts
+
+### Context
+
+[Proposal 0000](wiki/proposals/0000_anonymous_machines.md) is entirely unaccepted,
+including its simple lambda forms. Named machines and explicit environment data
+already express the behavior. The proposed surface saves local names, data
+declarations, and association boilerplate; it is not needed for reflection.
+
+### Problem statement
+
+Does that saving justify any anonymous surface, and if so, should it stop at simple
+typed bodies and captures or admit full machine clauses, generic families, and
+internal states? Repeating effect and proof headers inside a machine may defeat
+the intended benefit. Inference, contextual permissions, and promised guarantees
+must not be conflated.
+
+### Proposed solution
+
+Start with concrete named-machine/environment versus simple-lambda examples under
+existing fixed callback requirements. Consider only sugar which elaborates to
+ordinary declarations and data, without effect polymorphism or new execution
+semantics. Decide whether custom clauses and state-bearing bodies justify their
+own complexity before admitting them; their inclusion is not the default.
+
+Private-body inference can avoid repeated local effect headers. A receiving
+requirement supplies the contract to satisfy, not an assumed proof. Termination
+must be derived or established for an invocation which promises it. Constructing
+a callable and invoking it have different obligations. Captured loans and linear
+debt remain ordinary obligations regardless of whether the body is ever called.
+
+### Alternates
+
+- No anonymous surface: use named machines and explicit context data.
+- Restricted simple lambdas: accept a precisely bounded sugar without promising
+  later support for full anonymous contracts or states.
+- Full anonymous machines: accept only if their concrete usefulness outweighs
+  the mid-machine annotation burden and implementation cost.
+- Ambient caller authority, inherited termination as an assumption, or a new
+  contract-forwarding system justified solely by lambda convenience are wrong.

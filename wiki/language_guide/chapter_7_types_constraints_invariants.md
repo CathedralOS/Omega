@@ -141,7 +141,7 @@ local facts. A name does not make a fact true or extend its lifetime.
 Use a domain for a reusable qualification, a helper machine to establish a
 guarantee, and an explicit trait conformance to bundle operations and laws.
 General logical-binder syntax remains [foundation work](../spec/proofs/contracts.md#undetermined-foundations);
-optional formula naming is a [proposal](../proposals/proof_formula_syntax.md),
+optional formula naming is a [proposal](../proposals/0001_proof_formula_syntax.md),
 not an extra current declaration category.
 
 ## Type Properties

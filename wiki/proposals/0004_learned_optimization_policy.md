@@ -1,4 +1,4 @@
-# Learned optimization policy
+# 0004: Learned optimization policy
 
 Status: open; not accepted.
 
