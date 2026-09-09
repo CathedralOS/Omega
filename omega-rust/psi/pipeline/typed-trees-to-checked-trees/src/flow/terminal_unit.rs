@@ -1,3 +1,63 @@
+/*
+We build executable source plans from already-checked ownership, control, and
+call facts. A typed body can be legal without fitting a Terminal producer yet;
+these catalogs describe implementation coverage, not additional language rules.
+The lowerer must receive a complete plan, never a partly recognized body.
+
+Start with build_checked_unit_effect_plans below. We first collect boundary
+signatures and ordinary single-state candidates through control.rs. We then
+reconcile their implicit receivers, build composed candidates through
+composed_control/assembly.rs, and reconcile composed calls against the completed
+signatures. The composed builders include specialized control shapes and the
+general state_graph.rs route; their current coverage differs, so a failed
+candidate is not permission to omit its unsupported statements.
+
+Local construction is only the first gate. Ordinary and composed entries share
+one availability roster, and we prune both catalogs until no more callers lose
+their dependencies. If A calls B and B calls an unavailable C, B disappears on
+one pass and A can disappear on the next. Checking only A's own statements, or
+pruning each catalog independently, would leave a seemingly complete root with
+an unlowerable transitive call. Boundary, scalar, and structural-result calls
+still use the particular availability check for their plan family. Only after
+pruning do we retain the referenced structural types and their transitive shapes.
+
+When a downstream error says a checked transitive machine plan is missing,
+look for failure during local construction, receiver reconciliation, or this
+closure pruning before changing lowering. The current Option-based builders do
+not retain which local requirement failed; absence alone does not identify it.
+*/
+
+/*
+Receiver specialization is the non-obvious ordering constraint. An attached
+body can use an ambient attachment without retaining borrowed self, but a callee
+that retains self needs the caller's actual loan. control::build_checked_machine
+retries with self retained when the ambient plan fails; receiver_calls.rs also
+propagates that demand through forwarding callers after signatures exist. We
+rebuild those callers with the ordinary planner rather than manually shifting
+all their parameter, store, claim, and provider coordinates. Inserting the call's
+receiver operand then adjusts existing claim-transfer positions; the loan itself
+is not an ownership transfer.
+
+This is transitional source planning, not native receiver provisioning. Keeping
+self unconditionally depends on the ProgramEntry bridge supplying its loan
+(ENTRY-CONTENT-ROOTS in TASKS.md). A field on that provisioned receiver does not
+require generic source-local array construction merely because it is an array.
+Likewise, publishing one of these plans establishes no native execution claim.
+Partial and nominal cleanup retain separate plan owners below because their
+residual fields and destructor obligations cannot become trivial root discards.
+*/
+
+/*
+Existing source examples are the executable companions to this explanation:
+src/tests/flow/terminal_unit/calls.rs checks mixed case payload/view edges and
+affine return disposal. In the sibling checked-trees-to-lowered-psi crate,
+src/tests/composed_unit_transitive_internal_calls.rs follows Root::enter through
+its helpers and rejects substituted targets and missing plans;
+src/tests/byte_write_loop.rs exercises borrowed buffers and scalar-case returns.
+Read those controls when widening a route. The owning source/Terminal coverage
+contract is ../../compiler/terminal-production/README.md relative to this crate.
+*/
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::{
