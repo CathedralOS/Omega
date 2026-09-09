@@ -58,14 +58,20 @@ do not claim a faster compiler from a smaller helper alone.
 
 - **FLOW-DIRTY-STATES.** In Psi
   `pipeline/typed-trees-to-checked-trees/src/flow/{builder,state_values}.rs`,
-  retain changed-state/dependency information instead of rebuilding every
-  machine/state and cloning the semantic baseline after one late input change.
-  Converge only affected state components with invocation-owned working state.
+  remove the remaining semantic-baseline clones and fresh output allocations
+  between dirty-state sweeps using invocation-owned reusable working storage.
+  Reset derived context-point links as well as arena contents; no scratch handle
+  may escape or resurrect. Preserve the first-pass fast path and final source-order
+  materialization rather than appending stale state evidence into live output.
   Preserve all-predecessor intersection, absorbing unknown, stable evidence and
   conservative nonconvergence fallback. Acceptance: a reverse-ordered/cyclic
-  chain beside many independent machines rebuilds only affected components;
-  facts, rejection and evidence agree with the existing whole-pass reference.
-  Count rebuilt states/allocations and time the complete checking phase. No
+  chain beside many independent machines revisits only affected transfers during
+  convergence, without cloning the baseline per sweep; facts, rejection and
+  evidence agree with the test-only whole-pass reference. Use the builder's
+  `complete_checking_matches_reference_with_reverse_chain_and_cycle` regression
+  through crate-scoped nextest on macOS; it compares complete checking
+  and reports state builds/timing. Add actual allocation counts for the storage
+  change; reduced state builds alone do not establish allocation savings. No
   thread-pool or unrelated IR redesign is part of this task.
 
 - **PACKAGE-PREPARATION-REUSE.** In

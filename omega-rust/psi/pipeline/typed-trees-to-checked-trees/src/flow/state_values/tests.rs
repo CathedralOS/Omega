@@ -101,7 +101,7 @@ fn check(source: &str, accepted: bool) {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    match crate::lower_typed_trees(typed) {
+    match super::super::builder::tests::check_against_whole_pass(typed) {
         Ok(_) => assert!(accepted, "unproved input accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");

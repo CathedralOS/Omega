@@ -66,8 +66,15 @@ fn join(ctx: &mut FlowBuildContext, incoming: StateValues) {
         ctx.new_state_field_input_height += incoming.qualifications.len();
         ctx.state_value_inputs.push(incoming);
     }
-    if changed && ctx.built_state_value_inputs.contains(&state) {
-        ctx.state_value_inputs_changed_after_build = true;
+    #[cfg(test)]
+    if super::builder::tests::WHOLE_PASS_REFERENCE.get() {
+        if changed && ctx.built_state_value_inputs.contains(&state) {
+            ctx.state_value_inputs_changed_after_build = true;
+        }
+        return;
+    }
+    if changed && !ctx.dirty_state_value_inputs.contains(&state) {
+        ctx.dirty_state_value_inputs.push(state);
     }
 }
 

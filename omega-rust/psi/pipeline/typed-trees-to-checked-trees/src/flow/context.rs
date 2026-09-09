@@ -6,7 +6,10 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
     pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
+    pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
+    #[cfg(test)]
     pub(super) built_state_value_inputs: Vec<SymbolHandle>,
+    #[cfg(test)]
     pub(super) state_value_inputs_changed_after_build: bool,
     pub(super) new_state_field_input_height: usize,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
@@ -36,7 +39,10 @@ impl<'plans> FlowBuildContext<'plans> {
             exact_integer_casts,
             call_frames,
             state_value_inputs: Vec::new(),
+            dirty_state_value_inputs: Vec::new(),
+            #[cfg(test)]
             built_state_value_inputs: Vec::new(),
+            #[cfg(test)]
             state_value_inputs_changed_after_build: false,
             new_state_field_input_height: 0,
             state_mutation_summary_cache,

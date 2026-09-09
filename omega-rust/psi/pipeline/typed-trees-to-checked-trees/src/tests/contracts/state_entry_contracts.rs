@@ -1,4 +1,5 @@
 use super::*;
+use crate::flow::check_against_whole_pass as lower_typed_trees;
 
 fn check(source: &str, accepted: bool, rejection: &str) {
     match lower_typed_trees(parse_typed_trees(source)) {

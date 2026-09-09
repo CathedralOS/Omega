@@ -1,4 +1,5 @@
 use super::*;
+use crate::flow::check_against_whole_pass as lower_typed_trees;
 use facts::{FactOrigin, FactPayload};
 use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 
