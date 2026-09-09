@@ -1,4 +1,9 @@
 //! Nominal-cleanup specialization for structural scalar returns.
+//!
+//! Rebase semantic roots and assign each return leaf its cleanup obligations
+//! before generating certificates. Materialized results and branch-local facts
+//! change premise indexes; a proof copied from the provisional Unit closure
+//! would not describe the completed scalar caller's live observations.
 
 use super::*;
 
@@ -238,6 +243,8 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             .iter()
             .map(|parameter| parameter.type_identity.clone()),
     )?;
+    // Cleanup obligations exist before their certificates. Reserve their
+    // semantic identities, not just IDs already present in the proof bundle.
     let operation_identity_base = lowered
         .semantic_module
         .machines
@@ -248,13 +255,8 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .max()
         .unwrap_or(0)
         .max(
-            lowered
-                .proof_bundle
-                .evidence
-                .iter()
-                .map(|evidence| evidence.obligation.get())
-                .max()
-                .unwrap_or(0),
+            terminal_verifier::maximum_registered_obligation_id(&lowered.semantic_module)
+                .map_err(LoweringError::InvalidTerminalModule)?,
         );
     let type_ids = lowered
         .semantic_module
@@ -439,21 +441,14 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .into_iter()
         .map(|(_, proposition)| proposition)
         .collect::<Vec<_>>();
-    let compact_caller_requires = lowered.semantic_module.machines[entry_index]
+    if lowered.semantic_module.machines[entry_index]
         .contract
         .requires
-        .clone();
-    let assumption_rebase = compact_caller_requires
         .iter()
-        .map(|requirement| {
-            full_caller_requires
-                .iter()
-                .position(|full| full == requirement)
-                .ok_or(LoweringError::Unsupported(
-                    "contextual nominal scalar proof assumption is absent from the full caller",
-                ))
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+        .any(|requirement| !full_caller_requires.contains(requirement))
+    {
+        return unsupported("contextual nominal scalar requirement is absent from the full caller");
+    }
     lowered.semantic_module.machines[entry_index]
         .contract
         .requires = full_caller_requires;
@@ -486,24 +481,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                 "contextual nominal scalar cleanup receiver drifted",
             )?;
         }
-    }
-    for evidence in &mut lowered.proof_bundle.evidence {
-        let EvidenceRoute::CertificateDerived(certificate) = &mut evidence.route else {
-            return unsupported("contextual nominal scalar cleanup evidence route drifted");
-        };
-        let ProofRule::Assumption { index } = &mut certificate.proof.rule else {
-            return unsupported("contextual nominal scalar cleanup proof rule drifted");
-        };
-        *index = *assumption_rebase
-            .get(*index)
-            .ok_or(LoweringError::Unsupported(
-                "contextual nominal scalar cleanup proof assumption index drifted",
-            ))?;
-        rebase_direct_boolean_requirement_root(
-            &mut certificate.proof.conclusion,
-            &caller_place_rebase,
-            "contextual nominal scalar cleanup proof conclusion drifted",
-        )?;
     }
     for cleanup in &mut terminal_nominals {
         if let Some(receiver) = cleanup.cleanup_receiver {
@@ -1278,11 +1255,10 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                 cleanup_actions: cleanup_actions.clone(),
             },
         });
-        attach_edge_local_cleanup_proofs(
+        attach_edge_local_cleanup_obligations(
             &mut blocks,
             &cleanup_actions,
             operations.next_identity,
-            &mut lowered.proof_bundle,
         )?;
         blocks
     } else if nominal_short_circuit_return {
@@ -1315,11 +1291,10 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         )?);
         blocks.push(root);
         blocks.append(&mut children);
-        attach_edge_local_cleanup_proofs(
+        attach_edge_local_cleanup_obligations(
             &mut blocks,
             &cleanup_actions,
             operations.next_identity,
-            &mut lowered.proof_bundle,
         )?;
         blocks
     } else {
@@ -1363,27 +1338,22 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     Ok(lowered)
 }
 
-fn attach_edge_local_cleanup_proofs(
+fn attach_edge_local_cleanup_obligations(
     blocks: &mut [Block],
     cleanup_actions: &[TerminalAffineCleanupAction],
     next_operation_identity: u64,
-    proof_bundle: &mut ProofBundle,
 ) -> Result<(), LoweringError> {
     let mut first_return = true;
     // Cleanup obligations are edge-local semantic events. Keep the first
-    // leaf's already-verified stream, then clone its proof for each later leaf
-    // under fresh identities beyond every operation-derived goal.
+    // leaf's identities and allocate fresh ones beyond all operation goals for
+    // later leaves. Finalization proves each site's actual live observations;
+    // cloning another leaf's certificate would also copy its premise indexes.
     let mut next_cleanup_obligation =
         next_operation_identity
             .checked_add(1)
             .ok_or(LoweringError::Unsupported(
                 "nominal scalar Boolean cleanup obligation identity space is exhausted",
             ))?;
-    let original_evidence = proof_bundle
-        .evidence
-        .iter()
-        .map(|evidence| (evidence.obligation, evidence.clone()))
-        .collect::<BTreeMap<_, _>>();
     for block in blocks {
         let Terminator::Return {
             cleanup_actions: leaf_cleanup,
@@ -1402,9 +1372,6 @@ fn attach_edge_local_cleanup_proofs(
                 continue;
             };
             for obligation in &mut cleanup.requirement_obligations {
-                let mut evidence = original_evidence.get(obligation).cloned().ok_or(
-                    LoweringError::Unsupported("nominal scalar Boolean cleanup evidence is absent"),
-                )?;
                 let identity = next_cleanup_obligation;
                 next_cleanup_obligation =
                     next_cleanup_obligation
@@ -1412,17 +1379,7 @@ fn attach_edge_local_cleanup_proofs(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar Boolean cleanup obligation identity space is exhausted",
                         ))?;
-                let leaf_obligation = obligation_id(identity);
-                evidence.obligation = leaf_obligation;
-                let EvidenceRoute::CertificateDerived(certificate) = &mut evidence.route else {
-                    return unsupported("nominal scalar Boolean cleanup evidence route drifted");
-                };
-                certificate.identity =
-                    EvidenceIdentity::new(identity).ok_or(LoweringError::Unsupported(
-                        "nominal scalar Boolean cleanup evidence identity is invalid",
-                    ))?;
-                *obligation = leaf_obligation;
-                proof_bundle.evidence.push(evidence);
+                *obligation = obligation_id(identity);
             }
         }
     }

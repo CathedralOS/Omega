@@ -1202,14 +1202,6 @@ Owners include
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
-  Repair contextual nominal cleanup certificates: `unit_cleanup.rs` and
-  `unit_cleanup/ordered.rs` still index owned-field requirements as permanent
-  assumptions, while Terminal reconstruction retains them as validity-scoped
-  observations. macOS probes fail ten `nominal_affine_source` integration cases
-  with `UnknownAssumption`, plus the Omega `scalar_affine_cleanup` contextual-proof
-  case; the deciding source paths are unchanged from `6a0b299141`. Acceptance: these
-  cases independently verify using current field evidence without restoring
-  stale owned-field assumptions after writes or consuming calls.
   Implement native boundary call-result residual cleanup, including result homes
   and projected copies;
   whole-result disposal does not cover a projected result's residuals.

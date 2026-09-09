@@ -577,7 +577,6 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     }
 
     let mut next_obligation_identity = 0_u64;
-    let mut evidence = Vec::new();
     let mut terminal_cleanups = Vec::with_capacity(nominal.cleanups.len());
     for cleanup in &nominal.cleanups {
         let parameter = plan
@@ -612,16 +611,16 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
             ))?;
         let mut requirement_obligations = Vec::with_capacity(target_clauses.len());
         for (expected, field, _) in target_clauses {
-            let assumption_index = caller_clauses
+            if !caller_clauses
                 .iter()
-                .position(|((caller_expected, root, caller_field), _)| {
+                .any(|((caller_expected, root, caller_field), _)| {
                     caller_expected == expected
                         && *root == terminal_parameter.place
                         && caller_field == field
                 })
-                .ok_or(LoweringError::Unsupported(
-                    "contextual nominal cleanup caller requirement is absent",
-                ))?;
+            {
+                return unsupported("contextual nominal cleanup caller requirement is absent");
+            }
             next_obligation_identity =
                 next_obligation_identity
                     .checked_add(1)
@@ -630,20 +629,6 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                     ))?;
             let obligation = obligation_id(next_obligation_identity);
             requirement_obligations.push(obligation);
-            evidence.push(ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                    identity: EvidenceIdentity::new(next_obligation_identity)
-                        .expect("terminal obligation identity is nonzero"),
-                    proof_system_marker: ProofSystemMarker::CURRENT,
-                    proof: ProofNode {
-                        conclusion: caller_requires[assumption_index].clone(),
-                        rule: ProofRule::Assumption {
-                            index: assumption_index,
-                        },
-                    },
-                }),
-            });
         }
         terminal_cleanups.push(NominalAffineCleanup {
             place: terminal_parameter.place,
@@ -835,6 +820,5 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         edge: *edge,
         cleanups: terminal_cleanups,
     };
-    lowered.proof_bundle.evidence = evidence;
     Ok(lowered)
 }
