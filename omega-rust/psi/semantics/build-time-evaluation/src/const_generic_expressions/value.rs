@@ -5,8 +5,12 @@
 //! its exact selected operator before evaluation; equal canonical results do
 //! not replace the separate authored selection custody retained by the probe.
 //! Equality is strict, so both operands use the existing left-to-right traversal.
-//! Short-circuit Boolean logic cannot use this eager path: it must decide whether
-//! to visit the right operand after evaluating the left one.
+//! Boolean logic defers its right operand until the left result selects it, as
+//! required by the language expression schedule. The enclosing probe already
+//! checked selection and retained custody across both operands: skipping execution
+//! cannot hide a runtime name or unauthorized operator in the unselected branch.
+//! A separate shape pass establishes types and complete anonymous-rational
+//! landings across both operands before selective evaluation runs landed operations.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -45,11 +49,13 @@ pub(super) fn evaluate(
     enum Step {
         Enter(ExpressionHandle),
         Binary(ExpressionHandle, BinaryOperator),
+        LogicalLeft(ExpressionHandle, BinaryOperator, ExpressionHandle),
+        LogicalRight(ExpressionHandle),
     }
     let mut pending = vec![Step::Enter(expression)];
     let mut active = Vec::new();
     let mut values = Vec::new();
-    let mut warnings = Vec::new();
+    let mut warnings = validate_shapes(program, machine, state, expression)?;
     while let Some(step) = pending.pop() {
         match step {
             Step::Enter(expression) => {
@@ -80,11 +86,41 @@ pub(super) fn evaluate(
                             );
                         }
                         active.push(expression);
-                        pending.push(Step::Binary(expression, binary.operator));
-                        pending.push(Step::Enter(binary.right));
+                        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                            pending.push(Step::LogicalLeft(
+                                expression,
+                                binary.operator,
+                                binary.right,
+                            ));
+                        } else {
+                            pending.push(Step::Binary(expression, binary.operator));
+                            pending.push(Step::Enter(binary.right));
+                        }
                         pending.push(Step::Enter(binary.left));
                     }
                     _ => return Err("unsupported node in exact integer constant expression".into()),
+                }
+            }
+            Step::LogicalLeft(expression, operator, right) => {
+                let Some(Value::Boolean(left)) = values.pop() else {
+                    return Err("Boolean logic requires a Boolean left operand".into());
+                };
+                if left == (operator == BinaryOperator::And) {
+                    pending.push(Step::LogicalRight(expression));
+                    pending.push(Step::Enter(right));
+                } else {
+                    if active.pop() != Some(expression) {
+                        return Err("invalid constant expression traversal".into());
+                    }
+                    values.push(Value::Boolean(left));
+                }
+            }
+            Step::LogicalRight(expression) => {
+                if active.pop() != Some(expression) {
+                    return Err("invalid constant expression traversal".into());
+                }
+                if !matches!(values.last(), Some(Value::Boolean(_))) {
+                    return Err("Boolean logic requires a Boolean right operand".into());
                 }
             }
             Step::Binary(expression, operator) => {
@@ -183,6 +219,171 @@ pub(super) fn evaluate(
     ))
 }
 
+// Typed lowering and the ordinary partial operand validators do not establish
+// exact scalar shapes after constant substitution. Visit all operands to retain
+// static type and anonymous-rational landing obligations, even in skipped arms.
+// Only anonymous trees are evaluated here: numeric_values.md requires their
+// compile-time landing before a typed operation and supplies no runtime rational
+// arithmetic. Landed operations are never executed by this pass, so a skipped
+// divide, overflow or shift still follows the selective expression schedule.
+fn validate_shapes(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    root: ExpressionHandle,
+) -> Result<Vec<Diagnostic>, String> {
+    #[derive(Clone, Copy)]
+    enum Shape {
+        Anonymous(ExpressionHandle),
+        Boolean,
+        Integer(LandedIntegerType),
+    }
+    let mut pending = vec![(root, false)];
+    let mut active = Vec::new();
+    let mut shapes = Vec::new();
+    let mut warnings = Vec::new();
+    while let Some((expression, finish)) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression) {
+            return Err("invalid constant expression".into());
+        }
+        if !finish {
+            if active.contains(&expression) {
+                return Err("cyclic constant expression".into());
+            }
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Boolean(_) => shapes.push(Shape::Boolean),
+                ExpressionNode::Integer(literal) if literal.landing().is_some() => {
+                    let Value::Landed(carrier, _) = landed_literal(literal)? else {
+                        unreachable!()
+                    };
+                    shapes.push(Shape::Integer(carrier));
+                }
+                ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
+                    shapes.push(Shape::Anonymous(expression))
+                }
+                ExpressionNode::Binary(binary) => {
+                    if !validation::has_builtin_binary_expression_meaning(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    ) {
+                        return Err(
+                            "constant expression has no selected builtin operator meaning".into(),
+                        );
+                    }
+                    active.push(expression);
+                    pending.push((expression, true));
+                    pending.push((binary.right, false));
+                    pending.push((binary.left, false));
+                }
+                _ => return Err("unsupported node in exact scalar constant expression".into()),
+            }
+            continue;
+        }
+        if active.pop() != Some(expression) {
+            return Err("invalid constant expression traversal".into());
+        }
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+            unreachable!()
+        };
+        let operator = binary.operator;
+        let right = shapes.pop().ok_or("missing right constant operand type")?;
+        let left = shapes.pop().ok_or("missing left constant operand type")?;
+        let shift = matches!(
+            operator,
+            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+        );
+        let (left, right) = match (left, right) {
+            (Shape::Anonymous(_), Shape::Anonymous(_)) => {
+                if !matches!(
+                    operator,
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                ) {
+                    return Err(
+                        "anonymous constant operation requires a selected fixed carrier".into(),
+                    );
+                }
+                shapes.push(Shape::Anonymous(expression));
+                continue;
+            }
+            (Shape::Integer(carrier), Shape::Anonymous(right)) => {
+                let destination = if shift {
+                    PrimitiveType::U64
+                } else {
+                    primitive(carrier)?
+                };
+                let Value::Landed(right_carrier, _) =
+                    land_anonymous(program, machine, state, right, destination, &mut warnings)?
+                else {
+                    unreachable!()
+                };
+                (Shape::Integer(carrier), Shape::Integer(right_carrier))
+            }
+            (Shape::Anonymous(left), Shape::Integer(carrier)) => {
+                if shift {
+                    return Err("shift value requires a selected fixed carrier".into());
+                }
+                land_anonymous(
+                    program,
+                    machine,
+                    state,
+                    left,
+                    primitive(carrier)?,
+                    &mut warnings,
+                )?;
+                (Shape::Integer(carrier), Shape::Integer(carrier))
+            }
+            operands => operands,
+        };
+        let result = match (left, right) {
+            (Shape::Boolean, Shape::Boolean)
+                if matches!(
+                    operator,
+                    BinaryOperator::And
+                        | BinaryOperator::Or
+                        | BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                ) =>
+            {
+                Shape::Boolean
+            }
+            (Shape::Integer(left), Shape::Integer(right)) => {
+                if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
+                    return Err("Boolean logic requires Boolean operands".into());
+                }
+                if !shift && left != right {
+                    return Err(
+                        "constant operands have incompatible landed integer carriers".into(),
+                    );
+                }
+                if matches!(
+                    operator,
+                    BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                        | BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                ) {
+                    Shape::Boolean
+                } else {
+                    Shape::Integer(left)
+                }
+            }
+            _ => return Err("constant operator has incompatible operand types".into()),
+        };
+        shapes.push(result);
+    }
+    if shapes.len() != 1 {
+        return Err("constant expression did not produce one type".into());
+    }
+    Ok(warnings)
+}
+
 fn land_anonymous(
     program: &TypedTrees,
     machine: &Machine,
@@ -205,7 +406,11 @@ fn land_anonymous(
         },
     )
     .ok_or("anonymous constant expression cannot land exactly at the selected integer carrier")?;
-    warnings.extend(warning);
+    if let Some(warning) = warning
+        && !warnings.contains(&warning)
+    {
+        warnings.push(warning);
+    }
     landed_literal(&literal)
 }
 

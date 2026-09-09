@@ -265,3 +265,31 @@ fn aggregate_indices_preserve_static_paths_before_later_local_bindings() {
         );
     }
 }
+
+#[test]
+fn short_circuit_anonymous_landing_warns_once_whether_executed_or_skipped() {
+    for left in [false, true] {
+        let text = format!("machine run() -> bool {{ {left} || (7u8 == (7 / 2 * 2)) }}");
+        let tokens = Lexer::new(&text).tokenize().expect("probe tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("probe syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("probe resolution");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("probe typing");
+        let machine = program.machines().iter().next().expect("probe machine");
+        let state = &program.machine_states(machine)[0];
+        let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");
+        let (canonical, warnings) =
+            super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
+                .expect("valid anonymous landing");
+        assert_eq!(
+            canonical,
+            language_semantics::const_value::CanonicalConstValue::boolean(true)
+        );
+        assert_eq!(
+            warnings.len(),
+            1,
+            "static landing warning must not duplicate during value evaluation"
+        );
+    }
+}

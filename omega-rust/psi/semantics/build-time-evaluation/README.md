@@ -31,7 +31,13 @@ canonical Boolean atom. Fixed-width integer comparisons containing named constan
 produce canonical Boolean results using the shared typed order operation, after
 each operand lands in its selected carrier. Boolean equality and inequality
 compose named Boolean constants and comparison results on the same value path;
-every occurrence still requires its selected builtin meaning. Declaration visibility
+every occurrence still requires its selected builtin meaning. Boolean `&&` and `||`
+selectively evaluate the right operand under the
+[expression schedule](../../../../wiki/spec/language/expressions.md#evaluation-schedule);
+unselected operands still retain declaration admission, lexical custody, static
+operand types and complete anonymous-rational landing. This static pass never
+executes landed arithmetic; valid anonymous landing warnings occur once even
+when the containing landed operation is skipped. Declaration visibility
 and direct package selection are checked before evaluation.
 Existing fixed-integer kernels enforce every node's carrier bounds; anonymous
 arithmetic lands once through the shared rational evaluator,
@@ -45,7 +51,7 @@ entry signatures publish public-interface occurrences; body and internal-state
 annotations retain private implementation exposure. Root scalar constants use
 the same resolved substitution as module constants, while legacy aggregate
 materialization remains separate.
-Open templates, aggregate indices, short-circuit Boolean logic, wholly anonymous
+Open templates, aggregate indices, wholly anonymous
 comparisons, authored operator execution, constrained destinations and
 address-dependent arithmetic need their own complete contexts; the standalone
 probe does not claim those forms.
