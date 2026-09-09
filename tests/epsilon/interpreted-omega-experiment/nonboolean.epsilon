@@ -10,5 +10,8 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+  self.console.write_byte(0);
+  self.console.write_byte(255);
   assert 2;
+  self.console.write_byte(66);
 }

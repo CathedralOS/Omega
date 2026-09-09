@@ -10,5 +10,8 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+  self.console.write_byte(0);
+  self.console.write_byte(255);
   let value: i32 = -2147483648 / -1;
+  self.console.write_byte(66);
 }

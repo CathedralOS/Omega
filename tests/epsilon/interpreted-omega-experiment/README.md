@@ -86,6 +86,28 @@ controls cover computed arguments and traps before the effect. The explicit
 `fixtures.tsv` inventory pins each fixture's bytes, digest, expected observation,
 and sealed input in its trailing `stdin_hex` column. Empty input is written as
 the quoted empty TSV field `""`. The gate rejects missing or unlisted fixtures.
+
+All nine [closed trap identities](../../../bootstrap/4_epsilon/LANGUAGE.md#9-closed-rejection-and-trap-identities)
+have an ordinary-source control that preserves output written before the trap:
+
+| Code | Trap | Prefix control |
+| --- | --- | --- |
+| 1 | Overflow | [`add_overflow.epsilon`](add_overflow.epsilon) |
+| 2 | DivisionByZero | [`state_argument_order.epsilon`](state_argument_order.epsilon) |
+| 3 | SignedDivisionOverflow | [`division_overflow.epsilon`](division_overflow.epsilon) |
+| 4 | ShiftCount | [`shift_count.epsilon`](shift_count.epsilon) |
+| 5 | ByteRange | [`byte_range.epsilon`](byte_range.epsilon) |
+| 6 | Bounds | [`bounds_read.epsilon`](bounds_read.epsilon) |
+| 7 | NonBoolean | [`nonboolean.epsilon`](nonboolean.epsilon) |
+| 8 | Assertion | [`assertion.epsilon`](assertion.epsilon) |
+| 9 | NonExhaustiveTransition | [`state_nonexhaustive.epsilon`](state_nonexhaustive.epsilon) |
+
+The division-overflow, shift-count, and non-Boolean controls require the binary
+prefix `00 ff` and suppress a following write of `B`. Their prior empty-prefix
+observations could not detect dropped output. These cover trap identity,
+prefix preservation, and stopping after the fault, not every route to each
+trap or resource exhaustion.
+
 Call controls cover
 recursive frame isolation, machine-parameter mutation across states, ordinary
 return versus process exit, grouped receiver applications, recursive entry on

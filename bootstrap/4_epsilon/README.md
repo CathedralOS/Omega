@@ -52,10 +52,13 @@ first C tape only when its ordinary `alpha_bootstrap` target is selected.
   first-following-statement terminal flow.
   Bare-state-transfer checks, receiver-only qualified machines, resultless-argument
   anchors, entry diagnostics, and transition-pattern diagnostics are implemented.
-  Final body/control checking,
-  the remaining control/terminal premise DAG, full resource conformance,
-  storage realization, execution, `main`, and composition remain incomplete,
-  so it exposes no final evaluator artifact yet. The
+  Every grammar-level expression, statement, control, and Console form has a
+  staging execution path; there is no private `Unsupported` fallback. This is
+  not complete conformance or checked evaluator refinement. Remaining work is
+  contract-derived checking/runtime conformance, resource-contained storage
+  realization, the final evaluator boundary and `main`, complete D composition,
+  and independently checked refinement. It exposes no final evaluator artifact.
+  The
   current fact pass does enforce contextual receiver/result relation and
   separate array-view extra-call rejection.
   The [execution status](#validation-and-completion) below describes the
