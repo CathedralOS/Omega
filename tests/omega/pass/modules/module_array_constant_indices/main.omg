@@ -1,0 +1,8 @@
+use settings;
+const SIZE: [u64; 2] = [1, 2];
+const OTHER: [u64; 2] = [2, 1];
+data Indexed<const Selected: [u64; 2]> { value: u8; }
+machine keep(value: Indexed<SIZE>) -> Indexed<SIZE> { value }
+machine selected(value: Indexed<settings::SIZE>) -> Indexed<OTHER> { value }
+data Main {}
+machine Main::main(&mut self) {}

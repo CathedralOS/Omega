@@ -1,0 +1,1 @@
+integer literal landing conflicts with declared const component

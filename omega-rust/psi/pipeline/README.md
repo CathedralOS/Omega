@@ -133,8 +133,15 @@ values. The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/fixed_array_machine_indices/main.omg`
 preserves static array identity across root and module machine owners; the same
 command on `tests/omega/fail/modules/runtime_fixed_array_index/main.omg` rejects
-a runtime qualifier. Module-owned aggregates still require namespace-aware
-initializer normalization and materialization.
+a runtime qualifier. Module-owned fixed-array constants with integer/Boolean
+literal leaves use the same exact declaration selector and structural encoder.
+Every such declaration validates its extents and element carriers even when
+private and unused; explicit integer landings cannot be erased during encoding.
+The two-file CLI check
+`cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`
+covers same-leaf root/module constants with different canonical array values.
+Nominal record/sum initializers and type-scoped module constants still need
+namespace-aware normalization. Aggregate body substitution remains separate.
 The comparisons preserve each operand carrier and use the shared typed integer
 order operation; anonymous operands must land exactly in the selected peer carrier.
 Boolean equality and inequality compose named constants and comparison results
@@ -152,7 +159,7 @@ rejects undefined rational values even in unselected comparisons; typed operands
 still require ordinary peer landing. The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/rational_boolean_indices/main.omg`
 covers fractional and decimal comparisons with their canonical Boolean results.
-Open templates, aggregate evaluation, constrained destinations, authored operators
+Open templates, nominal aggregate evaluation, constrained destinations, authored operators
 and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.

@@ -1,4 +1,14 @@
 //! Narrow rejection boundaries for transforms which precede module identity.
+//!
+//! Literal arrays of primitive scalars carry no nominal initializer names to
+//! normalize. They can use the same exact constant-header selection and canonical
+//! value route as scalars; lexical and package custody still precede publication.
+//! Every newly admitted array declaration is also checked by the existing
+//! canonicalizer, including unused private declarations: ordinary substitution
+//! does not retain aggregate initializers for later type checking. Array leaves
+//! therefore stay within its canonical integer/Boolean subset. Type-scoped
+//! declarations and nominal record/case initializers still need their full owners;
+//! permitting an array index does not implement aggregate body substitution.
 
 use diagnostics::Diagnostic;
 use source::SourceId;
@@ -55,13 +65,28 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
                     .map(|name| (name, "module-owned operators require namespace-aware operator home normalization"))
             }
             Item::Const(constant)
-                if module_sources.contains(&constant.name.source_span().source_id)
-                    && !module_scalar_constant(syntax, constant) =>
+                if module_sources.contains(&constant.name.source_span().source_id) =>
             {
-                Some((
-                    &constant.name,
-                    "module-owned type-scoped or aggregate constants require namespace-aware initializer normalization",
-                ))
+                if module_literal_constant(syntax, constant) {
+                    if matches!(
+                        syntax.type_references.type_reference(constant.type_reference),
+                        TypeReferenceNode::FixedArray { .. }
+                    ) {
+                        crate::generic_data::canonicalize_declared_const_definition(syntax, constant)
+                            .map_err(|reason| {
+                                vec![Diagnostic::error(format!(
+                                    "module array constant `{}` is invalid: {reason}",
+                                    constant.name.as_str()
+                                )).with_source_span(constant.name.source_span())]
+                            })?;
+                    }
+                    None
+                } else {
+                    Some((
+                        &constant.name,
+                        "module-owned type-scoped or aggregate constants require namespace-aware initializer normalization",
+                    ))
+                }
             }
             Item::Data(data)
                 if !data.type_parameters.is_empty()
@@ -139,25 +164,61 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
     Ok(())
 }
 
-fn module_scalar_constant(
+fn module_literal_constant(
     syntax: &SyntaxTrees,
     constant: &syntax_trees::item::ConstDefinition,
 ) -> bool {
     use syntax_trees::expression::ExpressionNode;
-    constant.scope.as_str().is_empty()
+    if !constant.scope.as_str().is_empty() || !scalar_literal_tree(syntax, constant.value) {
+        return false;
+    }
+    let mut type_reference = constant.type_reference;
+    let is_array = matches!(
+        syntax.type_references.type_reference(type_reference),
+        TypeReferenceNode::FixedArray { .. }
+    );
+    if !is_array
         && matches!(
             syntax.expressions.expression(constant.value),
-            ExpressionNode::Boolean(_)
-                | ExpressionNode::Integer(_)
-                | ExpressionNode::Float(_)
-                | ExpressionNode::String(_)
+            ExpressionNode::ArrayLiteral(_)
         )
-        && matches!(
-            syntax.type_references.type_reference(constant.type_reference),
-            TypeReferenceNode::Named(name)
-                if matches!(name.as_str(), "bool" | "i8" | "i16" | "i32" | "i64"
-                    | "u8" | "u16" | "u32" | "u64" | "addr" | "f32" | "f64" | "string")
-        )
+    {
+        return false;
+    }
+    loop {
+        match syntax.type_references.type_reference(type_reference) {
+            TypeReferenceNode::Named(name) => {
+                return matches!(
+                    name.as_str(),
+                    "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
+                ) || (!is_array && matches!(name.as_str(), "f32" | "f64" | "string"));
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: syntax_trees::types::FixedArrayLength::Literal(_),
+            } => type_reference = *element_type,
+            _ => return false,
+        }
+    }
+}
+
+fn scalar_literal_tree(
+    syntax: &SyntaxTrees,
+    expression: syntax_trees::expression::ExpressionHandle,
+) -> bool {
+    use syntax_trees::expression::ExpressionNode;
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_) => true,
+        ExpressionNode::ArrayLiteral(elements) => syntax
+            .expressions
+            .expression_handles(*elements)
+            .iter()
+            .all(|element| scalar_literal_tree(syntax, *element)),
+        _ => false,
+    }
 }
 
 fn nominal_argument_has_module_collision(
@@ -206,6 +267,99 @@ mod tests {
         ]);
         crate::normalize_generic_data(syntax.clone()).expect("body substitution follows symbols");
         crate::lower_syntax_trees(&syntax).expect("exact module constant identities");
+    }
+
+    #[test]
+    fn module_array_declarations_are_validated_even_without_uses() {
+        for visibility in ["", "pub "] {
+            for (carrier, value) in [
+                ("[u8; 2]", "[1]"),
+                ("[u8; 2]", "[1, 2, 3]"),
+                ("[u8; 2]", "[1, 256]"),
+                ("[u8; 2]", "[1, true]"),
+                ("[u8; 2]", "[1u64, 2]"),
+                ("[[u8; 2]; 1]", "[[1]]"),
+            ] {
+                let source =
+                    format!("module settings; {visibility}const SIZE: {carrier} = {value};");
+                let diagnostics = crate::normalize_generic_data(parse(&[&source]))
+                    .expect_err("an unused array declaration still owes component conformance");
+                assert!(
+                    diagnostics[0].message.contains("module array constant"),
+                    "{diagnostics:?}"
+                );
+            }
+            for (carrier, value) in [
+                ("[u8; 2]", "[1u8, 2u8]"),
+                ("[[bool; 2]; 1]", "[[true, false]]"),
+                ("[u64; 0]", "[]"),
+            ] {
+                let source =
+                    format!("module settings; {visibility}const SIZE: {carrier} = {value};");
+                crate::normalize_generic_data(parse(&[&source]))
+                    .expect("valid canonical array declaration");
+            }
+        }
+    }
+
+    #[test]
+    fn structural_integer_encoding_retains_exact_landing_domain() {
+        use numerics::arithmetic::ArithmeticDomain;
+        use numerics::literals::{IntegerLanding, LandedIntegerType};
+        use syntax_trees::expression::ExpressionNode;
+        for domain in [
+            ArithmeticDomain::Exact,
+            ArithmeticDomain::Wrapping,
+            ArithmeticDomain::Saturating,
+            ArithmeticDomain::Trapping,
+        ] {
+            let mut syntax = parse(&["module settings; const SIZE: [u8; 1] = [1u8];"]);
+            let (handle, literal) = syntax
+                .expressions
+                .iter_expressions()
+                .find_map(|(handle, node)| {
+                    if let ExpressionNode::Integer(literal) = node {
+                        Some((handle, literal.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .expect("integer array leaf");
+            syntax.expressions.replace_expression(
+                handle,
+                ExpressionNode::Integer(literal.with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::U8,
+                    domain,
+                })),
+            );
+            let result = crate::normalize_generic_data(syntax);
+            if domain == ArithmeticDomain::Exact {
+                result.expect("matching exact component landing");
+            } else {
+                assert!(
+                    result.expect_err("canonical component cannot erase arithmetic policy")[0]
+                        .message
+                        .contains("integer literal landing conflicts")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn module_arrays_with_nominal_or_unchecked_leaf_types_remain_fenced() {
+        for source in [
+            "module settings; data Item { value: u8; } const SIZE: [Item; 0] = [];",
+            "module settings; const SIZE: [f32; 0] = [];",
+            "module settings; const SIZE: [string; 0] = [];",
+            "module settings; data Config {} const Config::SIZE: [u8; 0] = [];",
+        ] {
+            assert!(
+                crate::normalize_generic_data(parse(&[source]))
+                    .expect_err("array shape cannot bypass missing namespace or value owners")[0]
+                    .message
+                    .contains("initializer normalization")
+            );
+        }
     }
 
     #[test]
