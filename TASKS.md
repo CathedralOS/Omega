@@ -392,6 +392,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Ordinary scalar-sum caller transport remains covered by
   `tests/native-differential/tests/scalar_case_results.rs`.
   Windows byte input and indirect aggregate results remain realization dependencies.
+  Concrete `ConsoleNativeProvider::read_byte` composition now has its own resume
+  control: on the checkpoint based on `a6174dd31d`, macOS ARM64,
+  `cargo nextest run -p omega-native-differential-test --test terminal_byte_views
+  --no-fail-fast --no-tests fail -E 'test(concrete_byte_leaf_line_reader)'`
+  passes source custody, three-target publication/replay, and matching macOS
+  line-loop execution. Psi's `validation/src/intrinsic_boundaries.rs` rejoins
+  the exact requirement/result symbol; the checked interpreter consumes each
+  byte once, including case-subject payload extraction, without a global type-name
+  lookup. Preserve its hostile schema/identity and host-effect controls in
+  `checked-interpreter/src/evaluator/host_dispatch/`.
   Next migrate `source/library/std/console.omg`, target provider declarations,
   interpreter line-input handling, and callers together using the shared checked
   loop over `read_byte`, not a line-specific compiler route. The bundled line

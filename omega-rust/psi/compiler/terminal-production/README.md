@@ -68,6 +68,15 @@ adapter or its state edges. General clients still use the ordinary bound Service
 carrier; a private concrete call is not fabricated routed authority or permission
 for arbitrary native calls.
 
+Concrete byte input uses the same exact satisfaction join in
+`validation::exact_compiler_intrinsic_boundary_requirement`. Its zero-argument
+result branch validates the closed byte-result declaration and matches the
+requirement and realization's nominal result symbols. Source custody and reach
+inference consume that join; the interpreter uses it before executing a bodyless
+value callee. This establishes neither package acceptance nor native admission.
+The concrete-byte-leaf line-loop regression exercises source-to-installation
+composition; the bundled line-reader API/provider migration remains separate.
+
 The shared Unit catalog retains free/attached state graphs with immutable byte
 views, scalar parameters, selected-edge subslices, and ordered calls. Preserve
 source states, guards, successor operands, cleanup, and the authored

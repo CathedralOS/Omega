@@ -2,6 +2,37 @@
 use super::*;
 
 #[test]
+fn concrete_byte_leaf_line_reader_preserves_source_custody_and_native_outcomes() {
+    let source = format!(
+        "{}\npub data ConsoleNativeProvider {{}}\n\
+        machine ConsoleNativeProvider::read_byte() -> ByteRead\n\
+        satisfies Console::read_byte via Binding::CompilerIntrinsic;",
+        include_str!("../read_line.omg")
+            .replace("Console::read_byte()", "ConsoleNativeProvider::read_byte()",),
+    );
+    let targets = [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ];
+    for target in targets {
+        let lowered = lower_reader(&source, "read_line");
+        let (image, entry) = publish_reader(target, lowered);
+        assert!(!image.output().final_text_bytes.is_empty());
+        if target == NativeTarget::host() {
+            native_function::assert_c_text(
+                &image.output().final_text_bytes,
+                entry,
+                include_str!("../read_line.c"),
+            );
+        }
+    }
+    if !targets.contains(&NativeTarget::host()) {
+        eprintln!("SKIP: concrete byte-leaf runtime requires a supported matching hosted target");
+    }
+}
+
+#[test]
 fn bounded_line_reader_reaches_terminal_and_native_publication() {
     for target in [
         NativeTarget::linux_x64(),

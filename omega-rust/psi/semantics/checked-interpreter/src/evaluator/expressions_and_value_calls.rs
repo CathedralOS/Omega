@@ -36,6 +36,26 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::String(value) => self.allocate_text(value.to_vec()),
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
             ExpressionNode::Member(member) => {
+                // A destructure-bound payload projects the subject observed by
+                // the guard. Its copied call expression is not another effect.
+                // Ordinary member expressions do not carry this case marker.
+                if member.case_variant.is_some() {
+                    let observed = frame
+                        .guard_call_results
+                        .borrow()
+                        .iter()
+                        .find(|(subject, _)| {
+                            self.program
+                                .expression_table
+                                .expressions_structurally_equal(*subject, member.receiver)
+                        })
+                        .map(|(_, value)| value.clone());
+                    if let Some(observed) = observed {
+                        let receiver = self.allocate_cell(observed)?;
+                        let field = self.field_cell(&receiver, member.member.as_str())?;
+                        return Ok(self.deref_cell(field).borrow().clone());
+                    }
+                }
                 // A member on a PLACE receiver reads through its storage cell,
                 // preserving aliasing. An inline NON-place receiver -- e.g. `.len`
                 // on a subslice literal `(arr[a..b]).len`, whose receiver is a VIEW,
@@ -680,6 +700,22 @@ impl<'program> Evaluator<'program> {
             }
         }
 
+        // A selected concrete input leaf has no authored body to execute.
+        // Resolve its exact satisfaction before ordinary machine execution,
+        // but after guard memoization so one guard subject observes one byte.
+        if self.exact_console_intrinsic_host_method(call.target_symbol) == Some("read_byte") {
+            self.host_boundary_touched = true;
+            self.non_fs_host_boundary_touched = true;
+            let value = self.read_stdin_byte_value(call.target_symbol)?;
+            if self.guard_depth > 0 {
+                frame
+                    .guard_call_results
+                    .borrow_mut()
+                    .push((handle, value.clone()));
+            }
+            return Ok(value);
+        }
+
         // Resolve the value-call. A bare-self receiver naming a SIBLING state of the
         // current machine runs that state; a receiver expression resolving to a contained
         // sub-machine instance runs on that instance; otherwise a free helper machine.
@@ -752,7 +788,14 @@ impl<'program> Evaluator<'program> {
                     // nature (`let r = self.console.read_byte()`).
                     self.host_boundary_touched = true;
                     self.non_fs_host_boundary_touched = true;
-                    return self.read_stdin_byte_value();
+                    let value = self.read_stdin_byte_value(call.target_symbol)?;
+                    if self.guard_depth > 0 {
+                        frame
+                            .guard_call_results
+                            .borrow_mut()
+                            .push((handle, value.clone()));
+                    }
+                    return Ok(value);
                 }
                 if let Some(value) = self.virtual_time_host_value(target) {
                     self.host_boundary_touched = true;
