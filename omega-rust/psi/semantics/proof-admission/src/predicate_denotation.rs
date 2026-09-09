@@ -1,4 +1,4 @@
-//! Checked, non-serialized conversion of fixed Boolean predicate denotations.
+//! Checked, non-serialized predicate conversion and optional value-equality transport.
 //!
 //! Conversion changes no premise's authority. The original inputs remain
 //! borrowed, and only this owner can construct their equivalent proof views.
@@ -10,7 +10,11 @@ use semantic_vocabulary::{
 use crate::{ProofError, ProofNode, check_certificate};
 
 mod budget;
+mod value_equalities;
 use budget::Budget;
+
+#[cfg(test)]
+mod value_equality_tests;
 
 pub struct CheckedPredicateDenotations<'input> {
     original_goal: &'input Proposition,
@@ -87,6 +91,58 @@ pub fn check_predicate_denotations<'input>(
         .iter()
         .map(|proposition| normalize(proposition, &mut budget, 0))
         .collect::<Result<Vec<_>, _>>()?;
+    Ok(CheckedPredicateDenotations {
+        original_goal: goal,
+        original_requirements: requirements,
+        original_semantic_axioms: semantic_axioms,
+        goal: normalized_goal,
+        requirements: normalized_requirements,
+        semantic_axioms: normalized_axioms,
+    })
+}
+
+/// Check predicate conversion under unconditional, typed value equalities from
+/// the original semantic premises. This is contextual equality transport, not
+/// arithmetic simplification: constructors and operand order remain exact.
+/// The original question and premise roster remain authoritative and borrowed.
+pub fn check_predicate_denotations_with_value_equalities<'input>(
+    context: &PropositionContext,
+    goal: &'input Proposition,
+    requirements: &'input [Proposition],
+    semantic_axioms: &'input [Proposition],
+) -> Result<CheckedPredicateDenotations<'input>, PredicateDenotationError> {
+    let mut budget = Budget::new();
+    for proposition in std::iter::once(goal)
+        .chain(requirements)
+        .chain(semantic_axioms)
+    {
+        budget.proposition(proposition, 0)?;
+        context
+            .validate(proposition)
+            .map_err(PredicateDenotationError::Malformed)?;
+    }
+    let equalities = value_equalities::ValueEqualities::from_semantic_axioms(semantic_axioms);
+    let mut convert = |proposition: &Proposition| {
+        let transported = equalities.proposition(proposition, &mut budget, 0)?;
+        context
+            .validate(&transported)
+            .map_err(PredicateDenotationError::Malformed)?;
+        let normalized = normalize(&transported, &mut budget, 0)?;
+        budget.proposition(&normalized, 0)?;
+        context
+            .validate(&normalized)
+            .map_err(PredicateDenotationError::Malformed)?;
+        Ok(normalized)
+    };
+    let normalized_goal = convert(goal)?;
+    let normalized_requirements = requirements
+        .iter()
+        .map(&mut convert)
+        .collect::<Result<Vec<_>, PredicateDenotationError>>()?;
+    let normalized_axioms = semantic_axioms
+        .iter()
+        .map(&mut convert)
+        .collect::<Result<Vec<_>, PredicateDenotationError>>()?;
     Ok(CheckedPredicateDenotations {
         original_goal: goal,
         original_requirements: requirements,
@@ -271,6 +327,7 @@ fn connective(children: Vec<Proposition>, conjunction: bool) -> Proposition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PredicateDenotationError {
     ResourceLimitExceeded,
+    CyclicValueEquality,
     Malformed(PropositionError),
     Proof(ProofError),
 }

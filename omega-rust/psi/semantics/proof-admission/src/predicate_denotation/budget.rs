@@ -116,7 +116,11 @@ impl Budget {
         Ok(())
     }
 
-    fn scalar(&mut self, value: &ScalarTerm, depth: usize) -> Result<(), PredicateDenotationError> {
+    pub(super) fn scalar(
+        &mut self,
+        value: &ScalarTerm,
+        depth: usize,
+    ) -> Result<(), PredicateDenotationError> {
         self.step(depth)?;
         match value {
             ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
