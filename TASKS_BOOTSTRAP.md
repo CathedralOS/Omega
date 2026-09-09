@@ -23,6 +23,13 @@ The Gamma checker sits beside these edges; it is not another language rung.
 Its implementation is a means to explicit, independently rooted proofs, not
 a general-purpose proof-system project or an end in itself.
 
+Prioritize the executable path to Omega and reductions in its human audit burden.
+Proof-checker experimentation is secondary in scheduling; this does not remove
+the required evidence for final chain closure. Retained rung features serve their
+actual next compiler/evaluator customer, not general-purpose language completeness
+beyond the selected contracts. Language or topology changes still require the
+owner decision and whole-chain comparison below.
+
 ## Selection and stopping rules
 
 - Apply [scope checkpoints](AGENTS.md#scope-checkpoints) before each milestone.
