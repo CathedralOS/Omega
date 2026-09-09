@@ -617,14 +617,22 @@ Owners include
   symbol/text/continuation replay and mutation failures for redirected or
   duplicated identities.
 
-  Start with the missing hosted arrival/storage contract, not array construction
-  or an unchecked receiver allocation. At `ca90c1eadb`, hosted
-  `target::TargetProfile::program_entry_slot` leaves physical requirement,
-  contract package, boundary schema and calling conventions absent. The existing
+  Resume with exact hosted contract custody and admitted runtime storage, not
+  array construction or an unchecked receiver allocation. The macOS authored
+  contract is `source/library/std/targets/macos_arm64/entry.omg`: its distinct
+  physical arrival and internal `ProgramStorageEntry` applications retain the
+  actual record shapes and checked AAPCS64 plans. The focused regression is
+  `cargo nextest run -p compiler --test calling_policy_plans macos_entry
+  --no-fail-fast`; this establishes calling applications, not installed roots.
+  Hosted `target::TargetProfile::program_entry_slot` still leaves physical
+  requirement, contract package, boundary schema and calling conventions absent.
+  Join the macOS source/package custody and exact applications through that slot
+  without weakening its independent acceptance checks or using report hashes as
+  identity. The existing
   `program-entry-plan` optimized semantic entry/wrapper accepts receiver-free
   UEFI/Microsoft inputs with visible image/initial-storage parameters; it is not
-  a hosted bridge. Close one hosted profile's exact physical contract and
-  calling/stack plan through the actual `ProgramStorageEntry` root crossing,
+  a hosted bridge. Close the physical adapter and independently backed stack
+  plan through the actual `ProgramStorageEntry` root crossing,
   while retaining zero source-visible arrival parameters. Runtime geometry,
   rights and backing must come from that target's admitted arrival, joined to
   the installed artifact occurrence and lifecycle epoch. Reuse `external-roots`
