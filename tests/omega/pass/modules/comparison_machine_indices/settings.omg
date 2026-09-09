@@ -1,0 +1,6 @@
+module settings;
+const LIMIT: u64 = 2;
+machine keep(value: Flag<(LIMIT == 3)>) -> Flag<false> {
+    let local: Flag<(LIMIT > 3)> = value;
+    local
+}

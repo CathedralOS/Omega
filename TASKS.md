@@ -1003,8 +1003,8 @@ Owners include
   lexical admission coverage in `tests/omega/pass/modules/aggregate_machine_indices`
   and `tests/omega/fail/modules/runtime_aggregate_index`; this does not replace
   the legacy aggregate materializer with namespace-aware evaluation.
-  Computed Boolean expressions need admitted operator evaluation rather than
-  literal substitution. Conformance and static-requirement argument positions
+  Boolean logic and wholly anonymous comparisons still need admitted evaluation.
+  Conformance and static-requirement argument positions
   also need their complete owners, not a standalone root probe.
   Open-template computation, constrained destinations, authored operator execution
   and module-owned domain families also need their complete selection/evaluation

@@ -1,4 +1,4 @@
-//! Typed evaluation of closed integer expressions and named Boolean indices.
+//! Typed evaluation of closed integer expressions and Boolean indices.
 //!
 //! The probe owns no published layout or symbols. Only its canonical result and
 //! exact authored selection custody return to the original syntax forest.
