@@ -173,7 +173,10 @@ resource ledger, representation, or profile.
 A separate source-derived case still requires a whole-producer resource argument.
 Keep the full-width control's declaration, pattern, and identity entry, but change
 `select` to return `Wide` and reconstruct `(Wide field00000 ... field65534)`
-instead of returning only the last field. Its source remains below 2 MiB,
+instead of returning only the last field. Applied to `wide_pattern_source(65535, 5)`,
+this gives 1,704,033 bytes, SHA-256
+`c69598944c34dc0f37187fb67bcf5624b021ac393a8cd8d91f7b967ab84a0945`.
+Its source remains below 2 MiB,
 expression depth is three, and active locals remain 65,536. Parser/grammar
 allocation is conservatively below `(28 * 65,535 + 1,024) * 40 = 73,400,160`
 syntax bytes. This case has not been executed; the following is an allocation
@@ -202,6 +205,28 @@ lists, or earlier phases. The remaining allocation owner is the argument
 continuation, not fresh parameter atoms. Quadratic lookup work remains separate;
 this source-level bound is not a measured exhaustion result or justification for
 a new refusal/profile by itself.
+
+Lookup has an independent cost that frame removal does not address.
+Each helper's `m` distinct free bindings require at least `m * (m - 1) / 2`
+identity comparisons: each first reference misses every previously collected
+binding before it can be added. With `m_j = 65,535 - 254*j`, the first 257 cuts
+therefore require at least
+`sum(j=1..257, m_j * (m_j - 1) / 2) = 183,609,879,296` comparisons.
+These are source-derived operations, not a measured duration. Processing atoms
+without continuation frames leaves this recurrence unchanged; a larger arena
+or longer watchdog does not reduce it either. A slow once-only run can still be
+acceptable: this count is not a new work limit or proof of unacceptable runtime.
+
+Do not add an isolated atomic-argument fast path as the next resource-closure
+milestone. First derive a collection route with joint lookup-work and cumulative
+allocation bounds for this exact source, including ordered parameters/arguments,
+scope restoration, and the exact complete payload count required by refusal.
+Either justify retaining that lookup cost or select a cheaper collection route;
+an index that improves lookup but exceeds cumulative storage is not a solution.
+Include frame removal only if that route needs it; do not replace this source
+with the successful last-field control or add a new refusal from a lower bound.
+This implementation-strategy checkpoint needs no owner ruling and does not
+pause independent bootstrap work.
 
 ### Static validation-environment bound
 
