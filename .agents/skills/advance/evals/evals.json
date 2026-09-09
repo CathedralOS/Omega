@@ -251,6 +251,23 @@
         "Reports the documentation that answered the design question without asserting that unvisited modules were evaluated",
         "Performs the documentation sufficiency check internally and continues without asking the user to assess or approve it"
       ]
+    },
+    {
+      "id": 15,
+      "name": "composition-gap-is-not-another-source-family",
+      "prompt": "Continue the actual CLI customer. The compiler supports scalar assignments and calls separately, but this program assigns between two calls and the planner rejects it. A helper fixture passes if all assignments are moved before the calls. Fix the compiler without rewriting the customer.",
+      "status": "Not run against this revision",
+      "expected_output": "Replace the arrangement-dependent planning restriction with shared ordered operation construction, preserve independent checking, and rerun the unchanged customer.",
+      "files": [],
+      "assertions": [
+        "Traces the missing operation or semantic join instead of adding an interleaved-assignment producer family",
+        "Preserves authored evaluation order and exact value, storage, call, and ownership correspondence",
+        "Does not remove a real proof, effect, ABI, or ownership rejection to make the fixture pass",
+        "Exercises multiple valid compositions plus invalid controls, not just the first source spelling",
+        "Removes the replaced special path where the repair supersedes it",
+        "Reruns the unchanged customer and reports any remaining downstream failure without claiming full closure",
+        "Does not grow the board into one task per source-shape permutation"
+      ]
     }
   ]
 }
