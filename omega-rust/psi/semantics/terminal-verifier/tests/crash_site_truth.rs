@@ -15,6 +15,9 @@ use terminal_verifier::{ModuleError, ProofBundle, VerificationError, verify_modu
 #[path = "crash_site_truth/integer_value_transport.rs"]
 mod integer_value_transport;
 
+#[path = "crash_site_truth/order_chains.rs"]
+mod order_chains;
+
 fn value(identity: u64) -> ValueId {
     ValueId::new(identity).unwrap()
 }

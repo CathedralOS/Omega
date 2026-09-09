@@ -6,7 +6,8 @@ use super::{
     BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
     BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE, DISCRETE_PATH_FACTS_SOURCE,
     LITERAL_FOUNDATION_SOURCE, MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE,
-    PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+    PREDICATE_VALUE_EQUALITIES_SOURCE, PROOF_ADMISSION_RECURSION_SOURCE,
+    PROOF_ADMISSION_STRICT_ORDER_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
     PROOF_CODEC_VALIDATION_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
@@ -58,7 +59,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-30"
+    "root:canonical-proof-calculus-format-31"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -135,6 +136,25 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                 ),
                 ("proof-admission/lib.rs", PROOF_ADMISSION_LIB_SOURCE),
                 ("proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
+                // Bind the actual judgments, not only the module entrance
+                // that dispatches to them. Source-local proof search remains
+                // distinct from these trusted checking decisions.
+                (
+                    "proof-admission/proof/strict_order_transitivity.rs",
+                    PROOF_ADMISSION_STRICT_ORDER_SOURCE,
+                ),
+                (
+                    "proof-admission/predicate_denotation.rs",
+                    PREDICATE_DENOTATION_SOURCE,
+                ),
+                (
+                    "proof-admission/predicate_denotation/budget.rs",
+                    PREDICATE_DENOTATION_BUDGET_SOURCE,
+                ),
+                (
+                    "proof-admission/predicate_denotation/value_equalities.rs",
+                    PREDICATE_VALUE_EQUALITIES_SOURCE,
+                ),
                 (
                     "proof-admission/proof/subtract_order.rs",
                     PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
@@ -199,7 +219,7 @@ fn proof_admission_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust product-local proof admission and judgment checker",
-        "rust-proof-admission-v12",
+        "rust-proof-admission-v13",
         "proof-admission",
         "portable proof bundle acceptance",
         "The current Rust admission checker remains trusted until the independent low-rung checker closes the diamond.",
@@ -228,6 +248,22 @@ fn proof_admission_node() -> TrustDependencyNode {
                 PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
             ),
             ("proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
+            (
+                "proof-admission/proof/strict_order_transitivity.rs",
+                PROOF_ADMISSION_STRICT_ORDER_SOURCE,
+            ),
+            (
+                "proof-admission/predicate_denotation.rs",
+                PREDICATE_DENOTATION_SOURCE,
+            ),
+            (
+                "proof-admission/predicate_denotation/budget.rs",
+                PREDICATE_DENOTATION_BUDGET_SOURCE,
+            ),
+            (
+                "proof-admission/predicate_denotation/value_equalities.rs",
+                PREDICATE_VALUE_EQUALITIES_SOURCE,
+            ),
             (
                 "proof-admission/proof/subtract_order.rs",
                 PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,

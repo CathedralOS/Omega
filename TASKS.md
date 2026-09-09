@@ -114,20 +114,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `tests/native-differential/tests/{terminal_psi_source,pipeline_ownership}`.
   Resume on macOS AArch64 with `cargo nextest run -p omega-native-differential-test
   --test terminal_psi_source --test pipeline_ownership --no-fail-fast --no-tests fail`.
-  Remaining failures include guarded-crash order transitivity,
-  typed-frontend disposal and checked-plan control transport,
+  Remaining failures include typed-frontend disposal and checked-plan control transport,
   scalar body/contract rejection expectations, build-bound progress publication,
-  and two selection-custody expectations. Continue with
-  `admission_crashes_and_native::explicit_source_crash_lowers_to_verified_nonreturning_terminal`:
-  at `2bdd539d38` with checked value-equality transport, its next failure is
-  `terminal_transitive_guarded_trap`: lowering reports `CrashSiteGuardUnproved`
-  at block 2 / edge 5 while proving `left < right` from
-  `left < middle && middle <= right`. The preceding wrapping-expression case
-  reaches codec replay, verification, execution, and target lowering unchanged.
-  `terminal-verifier/src/validation/crash/entry_requirements.rs` lacks order-chain
-  search, and the proof owner's existing `IntegerLessOrEqualTransitivity` rule
-  accepts only nonstrict premises/conclusions. Add checked strict/mixed order
-  derivation; do not weaken the guard or add inferred generator axioms.
+  and two selection-custody expectations.
   Reconcile frontend-disposal expectations with the checked semantic-spine contract
   before changing producer responsibilities. Review stale rejection expectations
   against current admitted structural selection, preserving corruption controls.
