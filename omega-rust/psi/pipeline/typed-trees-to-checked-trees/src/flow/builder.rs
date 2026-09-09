@@ -22,6 +22,8 @@ pub(crate) fn build_flow_facts(
         operational,
         &service_reaches,
         &Default::default(),
+        &Default::default(),
+        &[],
     )
 }
 
@@ -35,6 +37,8 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
+    operators: &checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> FlowFacts {
     // Reuse the ordinary effect/statement transfer once per input revision.
     // Each pass starts from declaration/proof facts, never a prior pass's
@@ -76,6 +80,8 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             proof,
             semantic,
             scalar_expressions,
+            operators,
+            exact_integer_casts,
             call_frames.as_ref(),
             &state_mutation_summary_cache,
         );
@@ -108,6 +114,8 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         proof,
         semantic,
         scalar_expressions,
+        operators,
+        exact_integer_casts,
         call_frames.as_ref(),
         &state_mutation_summary_cache,
     );

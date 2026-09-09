@@ -1272,14 +1272,6 @@ Owners include
   `verification/reconstruction.rs` and checked-to-lowered operation proofs.
   Generalize mixed state signatures and borrowed loop formals through their exact
   ownership and arrival contracts rather than source-state duplication.
-  Align compile-known numeric conditions between flow call capture and scalar
-  computation folding: `((1u64 > 2u64) && enabled) && stamp(&mut slot, number)`
-  retains a flow call that computation folding removes (`omega inspect-terminal
-  --machine enter --target macos_arm64 main.omg`, macOS `b1cff595a4` rejects with
-  `computed invocation omitted an authored source call`). Acceptance:
-  the source publishes with complete call correspondence and never invokes the
-  skipped mutator. Owning paths: `flow/expression.rs` and
-  `values/scalar/computations.rs` in `typed-trees-to-checked-trees`.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
   calls and boundary calls, plus the remaining

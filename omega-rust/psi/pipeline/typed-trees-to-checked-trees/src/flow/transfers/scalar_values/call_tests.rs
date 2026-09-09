@@ -49,6 +49,8 @@ fn preserves_values(checked: &CheckedTrees) -> bool {
         &checked.facts.proof,
         &checked.facts.semantic,
         &checked.facts.values.scalar_expressions,
+        &checked.facts.operators,
+        &[],
         call_frames.as_ref(),
         &state_mutation_summary_cache,
     );
@@ -228,6 +230,8 @@ fn captured_range(checked: &CheckedTrees) -> Option<facts::IntegerRange> {
         &checked.facts.proof,
         &checked.facts.semantic,
         &checked.facts.values.scalar_expressions,
+        &checked.facts.operators,
+        &[],
         call_frames.as_ref(),
         &state_mutation_summary_cache,
     );

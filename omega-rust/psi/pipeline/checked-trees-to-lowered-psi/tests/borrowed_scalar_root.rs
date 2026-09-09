@@ -120,7 +120,7 @@ fn scalar_root_folded_short_circuit_retains_the_selected_source_scope() {
             answer
         }
     "#;
-    for condition in ["false", "true && false", "false || false"] {
+    for condition in ["false", "true && false", "false || false", "1u64 > 2u64"] {
         let source = source.replace("false && enabled", &format!("({condition}) && enabled"));
         execute(
             &source,
@@ -133,6 +133,57 @@ fn scalar_root_folded_short_circuit_retains_the_selected_source_scope() {
                 machines: 2,
             },
         );
+    }
+}
+
+#[test]
+fn scalar_root_comparison_guards_preserve_skipped_and_evaluated_calls() {
+    for (condition, constant) in [
+        ("1u64 > 2u64", false),
+        ("2u64 >= 1u64", true),
+        ("2u64 < 1u64", false),
+        ("1u64 <= 2u64", true),
+        ("1u64 == 2u64", false),
+        ("1u64 != 2u64", true),
+        ("(1u64 as u8) > 2u8", false),
+        ("(1u64 + 1u64) == 2u64", true),
+        ("!((1u64 > 2u64) && enabled)", true),
+        ("!((1u64 < 2u64) || enabled)", false),
+    ] {
+        for conjunction in [false, true] {
+            let operator = if conjunction { "&&" } else { "||" };
+            let source = format!(
+                r#"
+                machine stamp(value: &mut u64, number: u64) -> bool {{ value = number; true }}
+                machine enter(enabled: bool, slot: &mut u64, number: u64) -> bool {{
+                    let answer: bool = (({condition}) {operator} enabled)
+                        {operator} stamp(&mut slot, number);
+                    let written: bool = stamp(&mut slot, number);
+                    answer
+                }}
+                "#,
+            );
+            for enabled in [false, true] {
+                let invokes_first = if conjunction {
+                    constant && enabled
+                } else {
+                    !constant && !enabled
+                };
+                execute(
+                    &source,
+                    &[TerminalScalarValue::Boolean(enabled), unsigned(7)],
+                    ExecutionExpectations {
+                        result: TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
+                            !conjunction || invokes_first,
+                        )),
+                        observations: &[201, 7],
+                        stamp_calls: 1 + usize::from(constant == conjunction),
+                        stamp_invocations: 1 + u64::from(invokes_first),
+                        machines: 2,
+                    },
+                );
+            }
+        }
     }
 }
 

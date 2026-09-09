@@ -3,9 +3,13 @@
 //! Borrow call ordinals identify authored occurrences; their preorder is not
 //! execution order. This traversal owns invocation scheduling, not arithmetic
 //! interpretation or callee execution.
+//! Closed Boolean results reuse selected scalar evaluation after child effects
+//! have been scheduled. Otherwise flow retains calls that computation folding
+//! skips, breaking their exact occurrence correspondence. Runtime storage facts
+//! remain tied to the existing live contexts, never a second operand evaluation.
 
 use super::*;
-use typed_trees::expression::BinaryOperator;
+use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
 
 mod transitions;
@@ -307,6 +311,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     return (right == Some(!evaluate_when)).then_some(!evaluate_when);
                 }
                 self.expression(binary.right, contexts, constraints);
+                return crate::values::evaluate_closed_boolean_expression(
+                    self.program,
+                    self.context.operators,
+                    expression,
+                    self.context.exact_integer_casts,
+                );
             }
             ExpressionNode::Call(call) => {
                 let mut operands = vec![(call.receiver, self.operand_writes.len())];
@@ -354,7 +364,14 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.expression(borrow.target, contexts, constraints);
             }
             ExpressionNode::Unary(unary) => {
-                self.expression(unary.operand, contexts, constraints);
+                let operand = self.expression(unary.operand, contexts, constraints);
+                if unary.operator == UnaryOperator::LogicalNot
+                    && crate::values::operator_is_builtin(self.context.operators, expression)
+                {
+                    // Use the result at its evaluation point, including a
+                    // short-circuit child that contains unresolved runtime names.
+                    return operand.map(|value| !value);
+                }
             }
             ExpressionNode::Float(_)
             | ExpressionNode::Integer(_)
