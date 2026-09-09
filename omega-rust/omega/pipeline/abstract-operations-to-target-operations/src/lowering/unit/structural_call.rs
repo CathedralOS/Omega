@@ -412,6 +412,46 @@ pub(in crate::lowering) fn lower_structural_unit_call(
                         });
                     }
                 };
+            // A fixed byte array lends its existing storage through a fresh
+            // descriptor. The ABI size is the descriptor's, not the array's.
+            let byte_view_length = if argument.access == StructuralAccess::MutableBorrow
+                && callee_parameter.access == StructuralAccess::MutableBorrow
+                && callee_parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && callee_parameter.qualifications.is_empty()
+                && callee_parameter.projected_qualifications.is_empty()
+                && parameters_by_place.get(&argument.place).is_some_and(|source|
+                    source.access == StructuralAccess::MutableBorrow
+                    && source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && source.projected_qualifications.is_empty())
+                && argument.path.iter().all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+                && matches!(structural_types.get(&callee_parameter.structural_type).map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
+            {
+                structural_types.get(&projected_type).and_then(|declaration| {
+                    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else { return None; };
+                    (length > 0 && matches!(structural_types.get(&element).map(|declaration| &declaration.shape),
+                        Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
+                            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
+                        .then_some(length)
+                })
+            } else { None };
+            if let Some(length) = byte_view_length {
+                if shape != ValueShape::borrowed_reference(16, 8)
+                    || u64::from(source_byte_offset).checked_add(length)
+                        .is_none_or(|end| end > u64::from(source_shape.byte_size))
+                {
+                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                        callee: *callee, place: argument.place,
+                    });
+                }
+                return Ok(TargetStructuralArgument {
+                    place: argument.place, access: argument.access, path: argument.path.clone(),
+                    root_structural_type: source_structural_type,
+                    structural_type: callee_parameter.structural_type, shape, source_byte_offset,
+                    fixed_array_length: Some(length), element_stride: Some(1),
+                    source: source_placement.clone().into(), destination: destination.clone(),
+                });
+            }
             let projected_parameter_shape =
                 structural_parameter_shape(projected_shape, callee_parameter.access);
             if projected_type != callee_parameter.structural_type

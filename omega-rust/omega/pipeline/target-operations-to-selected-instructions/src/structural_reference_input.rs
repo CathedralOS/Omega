@@ -97,6 +97,52 @@ pub(crate) fn shape(
     shape_inner(root, declarations, &mut Vec::new())
 }
 
+/// Reconstruct an initialized fixed-array loan, not an existing slice descriptor.
+pub(crate) fn fixed_byte_array_view(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u64)> {
+    if source.place != argument.place
+        || source.access != terminal_psi::StructuralAccess::MutableBorrow
+        || argument.access != terminal_psi::StructuralAccess::MutableBorrow
+        || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !source.qualifications.is_empty()
+        || !source.projected_qualifications.is_empty()
+        || !argument
+            .path
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+        || !declarations.iter().any(|declaration| {
+            declaration.id == view_type
+                && declaration.shape
+                    == StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    )
+        })
+    {
+        return None;
+    }
+    let (array_type, offset) = project(source.structural_type, &argument.path, declarations)?;
+    let StructuralTypeShape::FixedArray { element, length } = declarations
+        .iter()
+        .find(|declaration| declaration.id == array_type)?
+        .shape
+    else {
+        return None;
+    };
+    if length == 0 || !declarations.iter().any(|declaration| declaration.id == element
+        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
+    {
+        return None;
+    }
+    let root = shape(source.structural_type, declarations)?;
+    (u64::from(offset).checked_add(length)? <= u64::from(root.byte_size))
+        .then_some((offset, length))
+}
+
 fn shape_inner(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],

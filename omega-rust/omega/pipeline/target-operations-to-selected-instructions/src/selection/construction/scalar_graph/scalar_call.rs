@@ -16,6 +16,11 @@ pub(super) fn argument_pointer(
         semantic.place,
         target.source_byte_offset,
     )?;
+    let pointer = if let Some(length) = target.fixed_array_length {
+        structural::fixed_array_argument(builder, operation, semantic.place, pointer, length)?
+    } else {
+        pointer
+    };
     let Some(stack_byte_offset) =
         crate::structural_reference_input::stack_pointer_offset(&target.destination)
     else {

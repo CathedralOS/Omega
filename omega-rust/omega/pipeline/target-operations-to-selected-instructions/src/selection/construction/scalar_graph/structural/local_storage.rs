@@ -2,6 +2,40 @@
 use super::*;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 
+/// Stage only the descriptor; its backing remains the caller's original array.
+pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    backing: VirtualRegisterId,
+    length: u64,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let slot = LocalStorageSlotId::Structural {
+        operation: row.operation,
+        place,
+    };
+    builder
+        .transport
+        .local_slots
+        .push(selected_instructions::SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 16,
+            alignment: 8,
+        });
+    store(builder, row, slot, 0, backing)?;
+    let count = transport_register(builder, place, 8)?;
+    builder.emit(
+        SelectedInstructionKind::MaterializeI64 {
+            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+        },
+        builder.constraints.keys.materialize_i64,
+        &[count],
+        provenance(row),
+    )?;
+    store(builder, row, slot, 8, count)?;
+    address(builder, row, slot, 0, 16, false)
+}
+
 pub(super) fn store(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,

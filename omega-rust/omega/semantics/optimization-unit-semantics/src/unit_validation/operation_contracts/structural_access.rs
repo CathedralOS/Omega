@@ -83,8 +83,30 @@ pub(crate) fn structural_arguments_match(
         else {
             return false;
         };
+        let fixed_byte_view = projection == StructuralProjectionPolicy::Unit
+            && (argument.path.is_empty() || is_nonempty_field_path(&argument.path))
+            && source.access == terminal_psi::StructuralAccess::MutableBorrow
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && source.qualifications.is_empty()
+            && source.projected_qualifications.is_empty()
+            && argument.access == terminal_psi::StructuralAccess::MutableBorrow
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && !caller.entry_claim_declarations.iter().any(|claim| claim.input == argument.place)
+            && !caller.content_entry_claims.iter().any(|claim| claim.input.root == argument.place)
+            && matches!(types.get(&parameter.structural_type).map(|declaration| &declaration.shape),
+                Some(terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
+            && types.get(&actual_type).is_some_and(|declaration| {
+                let terminal_psi::StructuralTypeShape::FixedArray { element, length: 1.. } = declaration.shape else {
+                    return false;
+                };
+                matches!(types.get(&element).map(|declaration| &declaration.shape),
+                    Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
+                        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())
+            });
         if !path_shape_matches
-            || actual_type != parameter.structural_type
+            || (actual_type != parameter.structural_type && !fixed_byte_view)
             || argument.access != parameter.access
             || !structural_access_can_supply(source.access, argument.access)
         {

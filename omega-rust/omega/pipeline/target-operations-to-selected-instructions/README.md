@@ -120,6 +120,19 @@ only the store carries the source operation's fuel. Descriptor words and bytes
 outside the selected element remain unchanged. Mutable subslices and bounded-owner
 field replacement remain separate realization work.
 
+Ordinary Unit calls may present an initialized raw fixed-u8 array as a mutable
+byte view, retaining the whole source or exact field-only path. Independent
+receiving checks reconstruct the array extent and offset from declarations;
+scalar-result calls remain excluded. Selection stages only a two-word local
+descriptor containing the original backing pointer and exact static length.
+Existing frame stores/addressing and call transport carry that descriptor,
+including outgoing stack pointers. No backing bytes are copied, and preparing
+the descriptor adds no logical fuel charge. Repeated calls retain the original
+root pointer. Image and installation custody rejoin the semantic path, array
+metadata and selected/frame replay; descriptor shape alone is not authority.
+The `mutable_writes::fixed_arrays` native tests cover whole arrays, nested fields,
+unchanged siblings/padding, repeated calls, stack transport and corrupt metadata.
+
 Structural argument snapshots, loads/stores, frame addresses and calls use
 ordinary virtual instructions with exact slot/access/call metadata. Copying an
 owned referent into a distinct ABI temporary and forwarding a borrowed pointer

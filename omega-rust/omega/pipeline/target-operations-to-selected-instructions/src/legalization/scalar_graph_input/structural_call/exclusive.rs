@@ -36,8 +36,19 @@ pub(super) fn argument(
             .ok_or(invalid.clone())?;
     let referent =
         crate::structural_reference_input::shape(structural_type, types).ok_or(invalid.clone())?;
-    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
-    if semantic.place != source.place
+    let byte_view = crate::structural_reference_input::fixed_byte_array_view(
+        source,
+        semantic,
+        destination.structural_type,
+        types,
+    );
+    let shape = if byte_view.is_some() {
+        ValueShape::borrowed_reference(16, 8)
+    } else {
+        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    };
+    if (byte_view.is_some() && call.result.is_some())
+        || semantic.place != source.place
         || destination.access != semantic.access
         || !matches!(
             (source.access, semantic.access),
@@ -60,7 +71,7 @@ pub(super) fn argument(
         || !source.projected_qualifications.is_empty()
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
-        || structural_type != destination.structural_type
+        || (structural_type != destination.structural_type && byte_view.is_none())
         || parameter.place != source.place
         || parameter.structural_type != source.structural_type
         || parameter.access != source.access
@@ -80,11 +91,15 @@ pub(super) fn argument(
         access: semantic.access,
         path: semantic.path.clone(),
         root_structural_type: source.structural_type,
-        structural_type,
+        structural_type: if byte_view.is_some() {
+            destination.structural_type
+        } else {
+            structural_type
+        },
         shape,
         source_byte_offset,
-        fixed_array_length: None,
-        element_stride: None,
+        fixed_array_length: byte_view.map(|(_, length)| length),
+        element_stride: byte_view.map(|_| 1),
         source: parameter.placement.clone().into(),
         destination: call.parameters[scalar_count].clone(),
     })

@@ -1563,7 +1563,11 @@ pub(super) fn ordinary_projected_call_is_supported(
                     && byte_sequence_carrier(program, parameter.type_reference, &[])
                         == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
             });
-    if caller_source_parameters.len() != 1 && !write_only_subloan_path && !result_projection {
+    if caller_source_parameters.len() != 1
+        && !write_only_subloan_path
+        && !mutable_byte_subloan_path
+        && !result_projection
+    {
         return false;
     }
     if field_path
