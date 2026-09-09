@@ -7,6 +7,12 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
 
+case "$*" in
+    "") NORMALIZATION_FULL_WIDTH=0 ;;
+    --full-width) NORMALIZATION_FULL_WIDTH=1 ;;
+    *) echo "usage: $0 [--full-width]" >&2; exit 2 ;;
+esac
+
 command -v python3 >/dev/null 2>&1 || {
     echo "Delta normalization: skipped (python3 absent)"
     exit 0
@@ -23,6 +29,7 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
 materialize_gamma_evaluator "$NORMALIZATION_TMP/evaluator" >/dev/null
 
 NORMALIZATION_TMP="$NORMALIZATION_TMP" GATE_DIR="$GATE_DIR" \
+    NORMALIZATION_FULL_WIDTH="$NORMALIZATION_FULL_WIDTH" \
     PYTHONPATH="$GATE_DIR" python3 -B - <<'PY'
 import csv
 import hashlib
@@ -39,6 +46,7 @@ with (Path(os.environ["GATE_DIR"]) / "compiler.tsv").open(newline="") as stream:
 if [row["name"] for row in rows] != ["canonical", "diagnostic"]:
     raise SystemExit("Delta normalization: expected canonical and diagnostic identities")
 programs = {}
+full_width = os.environ["NORMALIZATION_FULL_WIDTH"] == "1"
 for row in rows:
     program = (directory / (row["name"] + ".gamma")).read_bytes()
     actual = (len(program.splitlines()), len(program), hashlib.sha256(program).hexdigest())
@@ -55,7 +63,8 @@ def evaluate(name, program, sealed_input):
     )
     try:
         output, error = process.communicate(
-            struct.pack("<I", len(program)) + program + sealed_input, timeout=300
+            struct.pack("<I", len(program)) + program + sealed_input,
+            timeout=1200 if full_width else 300,
         )
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
@@ -66,7 +75,7 @@ def evaluate(name, program, sealed_input):
     return process.returncode, output
 
 
-cases = fixtures()
+cases = fixtures(full_width)
 for name, source, status, output, helpers, count, maximum, digest, capture_maximum in cases:
     diagnostic_status, diagnostic = evaluate(name + " diagnostic", programs["diagnostic"], source)
     if diagnostic_status != 0 or len(diagnostic) != 21 or diagnostic[-1:] != b"\x00":

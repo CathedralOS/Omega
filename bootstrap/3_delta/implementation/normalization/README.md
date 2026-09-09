@@ -31,11 +31,12 @@ the ordinary Gamma constructors. Capture renaming therefore cannot retain a
 stale spelling width, and extracted helper calls retain their own extents.
 Reused immutable nodes preserve both summaries.
 
-At budget one, an over-height fragment is extracted whole. Its replacement is
-a call whose arguments are only references to already-bound values. Those
-arguments have height zero, so the replacement call has height one. The helper
-body is normalized under a fresh budget of 255; further extraction handles any
-remaining over-height structure. The initial program can also contain lowering's
+At budget one, an over-height fragment reserves a helper name and restarts
+normalization under a fresh budget of 255. Descendant helpers finish first.
+Capture then renames the completed, height-bounded body, including arguments
+to those descendant helpers, before appending its definition. The replacement
+call passes only already-bound values. Those arguments have height zero, so
+the replacement call has height one. The initial program can also contain lowering's
 shared projection definition for wide constructors. Its height-three body
 already fits; it is not an extraction helper or an authored Delta function.
 
@@ -66,14 +67,16 @@ by `16*N` for nonempty source, giving the deliberately loose bound
 64-bit overflow. Shared projection prefixes do not increase path height.
 
 For each visit, order `(height, 255 - budget)` lexicographically. Descending
-to an expression child decreases height. Extraction at budget one preserves
-height through capture but restarts at budget 255, decreasing the second
-component. Finite argument lists and pending frames account for the remaining
+to an expression child decreases height. Extraction at budget one retains the
+original fragment but restarts at budget 255, decreasing the second component.
+Finite argument lists and pending frames account for the remaining
 visits. Thus the traversal terminates in an unbounded-resource model. By the
 same induction, each returned body fits its requested budget: a reused node
 already fits, rebuilt children fit budget minus one, and an extracted call has
 height one. A helper body is normalized before its definition is appended,
-so the bound covers all generated helpers, not only authored functions.
+so the bound covers all generated helpers, not only authored functions. Capture
+after normalization changes binding identities, not expression-list structure,
+and therefore preserves the completed body's height.
 
 This is a source-level audit argument, not a machine-checked certificate or
 a guarantee that the selected evaluator has enough allocation/work resources
@@ -128,6 +131,30 @@ while completed helper definitions follow the authored definitions in
 deterministic completion order. A helper extracted inside another helper can
 therefore precede it in the definition list without changing either identity.
 
+### Capture allocation ownership
+
+Capturing before splitting repeatedly rebuilds the still-oversized descendant
+body. The [full-width source control](../../../../tests/delta/normalization/README.md#full-width-allocation-control)
+exposes why that ordering cannot cover the selected Delta profile: one parameter
+and 65,535 pattern binders exactly fill the active-local provision. Its source
+and syntax storage fit their independent provisions.
+
+For a chain of 65,535 binding lets, each fresh 255-level budget can descend at
+most 254 let-body edges before extraction. Ignoring enclosing wrappers only
+weakens the bound. The first 257 extractions therefore recapture at least
+`sum(j=1..257, 65,535 - 254*j) = 8,421,633` lets. Each rebuild allocates two
+payload pairs and four node pairs through `gamma_let` and `gamma_node`:
+50,529,798 pairs, already beyond the selected 40,265,318-pair arena before
+counting capture frames, initializers, checking, or lowering. This is a
+source-level allocation lower bound, not a measured exhaustion observation.
+
+Splitting first removes that repeated descendant rebuild. Each helper captures
+its own completed body and references to deeper helpers, without traversing
+their definitions. This does not establish a whole-producer linear bound:
+height-bounded bodies can still contain broad arguments and large capture sets,
+and all preceding phases still consume cumulative storage. It adds no allocator,
+resource ledger, representation, or profile.
+
 ### Static validation-environment bound
 
 The selected Delta frontend permits at most 65,536 simultaneously active
@@ -145,9 +172,9 @@ Extraction preserves that bound. Its distinct parameters replace a subset of
 the bindings already active outside the fragment; they do not accompany a
 second copy of that environment. Bindings introduced inside the fragment retain
 their scopes and are not parameters. This mapping is injective and composes
-through repeated extraction, including captures of earlier helper parameters.
-An earlier helper's global call head is not captured again; its local arguments
-are handled by the same rule. Sibling scopes and let initializers do not retain
+through nested extraction. An inner helper captures original bindings before
+the outer helper is closed; outer capture rewrites its call arguments, not its
+global head or completed definition. Sibling scopes and let initializers do not retain
 bindings introduced only in another child.
 
 Gamma validates each function independently, restoring the environment after
