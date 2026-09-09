@@ -12,6 +12,105 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Recover a substituted array value's exact declared type, not a storage
+/// origin or permission to borrow it. Indexing and operator matching need the
+/// complete type even when there are no literal leaves from which to infer it.
+pub fn declared_constant_array_type(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !matches!(
+        program.expression_table.expression(value),
+        ExpressionNode::ArrayLiteral(_)
+    ) {
+        return None;
+    }
+    let mut selected_type = None;
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(value)
+    {
+        let selection = program.authored_declaration_selections().get(occurrence)?;
+        let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+            continue;
+        };
+        let Some(declaration) = program
+            .const_declarations()
+            .iter()
+            .find(|declaration| declaration.symbol == selected.selected_symbol())
+        else {
+            continue;
+        };
+        if !matches!(
+            program
+                .type_reference_table
+                .type_reference(declaration.declared_type),
+            TypeReferenceNode::FixedArray { .. }
+        ) {
+            return None;
+        }
+        if selected_type.is_some_and(|previous| previous != declaration.declared_type) {
+            return None;
+        }
+        selected_type = Some(declaration.declared_type);
+    }
+    selected_type
+}
+
+/// Type of a fixed builtin projection from a selected constant value. This
+/// checks operation meaning, not bounds or borrowing. Retaining the projection
+/// type prevents a typed leaf from becoming an anonymous destination literal.
+pub fn builtin_constant_array_projection_type(
+    program: &TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    mut expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let mut projections = Vec::new();
+    while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+        if !matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Integer(_)
+        ) {
+            return None;
+        }
+        projections.push(expression);
+        expression = indexed.collection;
+    }
+    if projections.is_empty() {
+        return None;
+    }
+    let mut reference = declared_constant_array_type(program, expression)?;
+    for projection in projections.into_iter().rev() {
+        let TypeReferenceNode::FixedArray { element_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        // Literal selectors have no declaration type in the checked indexing
+        // selector. A later numeric landing cannot retroactively exclude an
+        // authored overload that still participates at that binding site.
+        let operands = [Some(reference), None];
+        if !typed_trees::operator::resolve_indexed_spelling_for_operands(
+            program,
+            language_core::OperatorSpelling::Index,
+            &operands,
+        )
+        .is_empty()
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                machine_symbol,
+                projection,
+                language_core::OperatorSpelling::Index,
+                &operands,
+            )
+        {
+            return None;
+        }
+        reference = *element_type;
+    }
+    Some(reference)
+}
+
 pub(super) fn validate_declared_array_destination(
     program: &TypedTrees,
     mut value: ExpressionHandle,

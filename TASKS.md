@@ -1018,7 +1018,7 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: the working checkpoint based on `dce409429f`, macOS arm64
+  Resume evidence: the working checkpoint based on `c43cb7b6d6`, macOS arm64
   with Cargo and `RUST_MIN_STACK=33554432`, checks
   `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`:
   root/module arrays and scalar `settings::Sizes::MAX` retain distinct canonical
@@ -1035,14 +1035,16 @@ Owners include
   module admission validates unused array and scoped scalar declarations too.
   Root/module machine scopes
   retain original lexical selection through `build-time-evaluation/src/const_generic_expressions.rs`.
-  Direct array-value projection remains unfinished: the probe
-  `machine projected() -> u8 { settings::Sizes::VALUES[0] }` checks after naive
-  substitution but the evaluator rejects its non-place collection. Keep the
-  explicit `direct_array_constant_projection_retains_the_value_indexing_boundary`
-  integration control until `validation/src/places.rs` projection typing,
-  builtin-coordinate checking and value-based execution agree. Acceptance includes
-  exact element types, bounds rejection, slicing, and checked/Terminal execution;
-  do not turn a constant into addressable storage to bypass this dependency.
+  General array-value projection remains unfinished. Static integer/Boolean
+  constant projections now retain declared element types and builtin selection
+  through checked evaluation and independently decoded Terminal execution; the
+  CLI customer includes a qualified scalar read. Continue with dynamic selectors,
+  nonliteral value collections, borrowed projections and slicing while preserving evaluation order,
+  bounds and view lifetimes. The remaining fence is covered by
+  `dynamic_array_constant_projection_retains_the_value_indexing_boundary`;
+  `values/scalar/constant_array_projection.rs` only selects closed literal leaves.
+  General value projection needs its complete executable representation, not
+  a source rewrite that makes a constant addressable storage.
   Keep the `runtime_aggregate_index` and `runtime_fixed_array_index` rejection
   controls under `tests/omega/fail/modules/` while extending materialization.
   Conformance and static-requirement argument positions

@@ -74,6 +74,8 @@ mod float_landing;
 pub use float_landing::land_float_literal_destinations;
 pub(crate) use float_landing::validate_anonymous_divisions;
 mod constant_arrays;
+pub use constant_arrays::builtin_constant_array_projection_type;
+pub use constant_arrays::declared_constant_array_type;
 mod integer_landing;
 mod integer_remainder;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;

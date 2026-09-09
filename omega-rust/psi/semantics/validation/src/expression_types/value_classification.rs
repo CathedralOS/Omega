@@ -161,6 +161,18 @@ pub(crate) fn report_cross_class_store(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    if let Some(machine) = machine
+        && let Some(actual) =
+            crate::builtin_constant_array_projection_type(program, machine.symbol, value)
+        && let Some(actual) = program.primitive_type_reference(actual)
+        && actual != target
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{slot_context} stores a constant array projection of type `{}` into a `{}` {slot_noun}; use an explicit conversion",
+            actual.name(), target.name(),
+        )));
+        return true;
+    }
     if let ExpressionNode::Call(call) = program.expression_table.expression(value)
         && let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call)
         && let Some(source) = program.primitive_type_reference(operator.return_type)

@@ -16,3 +16,4 @@ machine root_scalar(value: Buffer<Sizes::MAX + 1>) -> Buffer<2> { value }
 machine selected_scalar(value: Buffer<settings::Sizes::MAX + 1>) -> Buffer<3> { value }
 machine root_array() -> [u64; 2] { let value: [u64; 2] = Sizes::SIZE; value }
 machine selected_array() -> [u64; 2] { let value: [u64; 2] = settings::Sizes::SIZE; value }
+machine selected_element() -> u64 { settings::Sizes::SIZE[0] }

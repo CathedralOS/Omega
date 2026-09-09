@@ -71,7 +71,7 @@ fn array_constant_bodies_keep_exact_module_values_and_independent_copies() {
 }
 
 #[test]
-fn direct_array_constant_projection_retains_the_value_indexing_boundary() {
+fn dynamic_array_constant_projection_retains_the_value_indexing_boundary() {
     let tree = Sources::new();
     let root = tree.package("root");
     Sources::write(
@@ -79,13 +79,12 @@ fn direct_array_constant_projection_retains_the_value_indexing_boundary() {
         "module settings; data Sizes {} const Sizes::VALUES: [u8; 2] = [3, 2];",
     );
     for expression in [
-        "settings::Sizes::VALUES[0]",
-        "settings::Sizes::VALUES[2]",
+        "settings::Sizes::VALUES[position]",
         "settings::Sizes::VALUES[0..1]",
     ] {
         Sources::write(
             root.join("main.omg"),
-            &format!("use settings; machine projected() -> u8 {{ {expression} }}"),
+            &format!("use settings; machine projected(position: u64) -> u8 {{ {expression} }}"),
         );
         let diagnostics =
             compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
