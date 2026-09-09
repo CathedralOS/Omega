@@ -265,7 +265,7 @@ or safe by default. Validation establishes facts about its exact observed
 subjects, not a universal provider promise. A post-call check cannot undo
 external effects or contain arbitrary provider corruption.
 
-The separate [assertion design RFC](../../proposals/0006_assertions_and_build_diagnostics.md)
+The separate [assertion proposal](../../proposals/0002_assertions_and_build_diagnostics.md)
 compares optional author-invoked diagnostics. It approves no assertion API,
 source syntax, crash cause, build switch, or contract-widening mechanism.
 

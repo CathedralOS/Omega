@@ -448,7 +448,7 @@ Successful validation establishes the property for that result. It does not
 prove the provider always complies or repair effects already performed.
 The [admission and diagnostics rules](../spec/proofs/contracts.md#admission-and-runtime-diagnostics)
 remain independent of the unapproved
-[assertion design RFC](../proposals/0006_assertions_and_build_diagnostics.md).
+[assertion proposal](../proposals/0002_assertions_and_build_diagnostics.md).
 
 Admitting a false statement can invalidate downstream safety proofs. It does
 not waive the independently checked reach ceiling or establish runtime authority

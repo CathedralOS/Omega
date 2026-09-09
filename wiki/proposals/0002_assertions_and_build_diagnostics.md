@@ -1,4 +1,4 @@
-# 0006: Author-invoked assertions and build diagnostics
+# 0002: Author-invoked assertions and build diagnostics
 
 Status: open design proposal. No assertion spelling, core API, provider scheme,
 build setting, new crash cause, or implementation experiment is approved.
