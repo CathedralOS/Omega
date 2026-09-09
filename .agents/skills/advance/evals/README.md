@@ -15,6 +15,11 @@ a code explanation, and an edit to this skill must not independently select boar
 work or authorize publication. Use the assertions as outcome criteria, not required
 wording. Existing AGENTS.md requirements are controls, not evidence of a skill win.
 
+For reasoning preservation, scenarios 13 and 14 distinguish a missing explanation
+from one already adequate. Inspect the natural source entry and decision site,
+not comment counts: can a fresh editor find the required rationale before making
+the relevant change? These scenario definitions are not executed trial results.
+
 ## Full behavior trials
 
 When a real session trial is warranted, use a fresh independent clone and a local

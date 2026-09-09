@@ -75,7 +75,8 @@ Use an isolated worktree under `<repository>/.codex/worktrees/<short-name>`.
 Keep its name short; if a generated Windows path fails, measure the actual path
 before relocating work or changing compiler architecture.
 
-Trace the shared implementation and callers, preserving the Psi/Omega firewall
+Read the existing module entrance and decision-site explanations before tracing
+the shared implementation and callers, preserving the Psi/Omega firewall
 and proof, custody, and trust checks. Prefer the existing representation and
 provider route. A single bounded change normally needs one agent; delegate only
 independent useful work that justifies its briefing and review cost.
@@ -94,6 +95,33 @@ failures block landing. A new worktree does not require a full baseline. Use
 [testing](../../../tools/testing.md) for coverage and
 [test-cycle measurements](../../../wiki/drafts/test_cycle_measurements.md) for build diagnosis.
 Avoid concurrent host builds and duplicate checks.
+
+## Preserve reasoning on the common reading path
+
+When this change requires reconstructing a non-obvious design decision, preserve
+the verified explanation beside the implementation before landing. Recent commits
+and tests can supply evidence, but check them against current code and the owning
+contract. Keep the problem, relevant constraints, why the mechanism fits, and any
+rejected alternative or revisit condition that would change the next edit. State
+uncertainty honestly; do not invent historical intent or copy deliberation transcripts.
+
+Put the module-wide explanation at the top of its natural entry file, before
+implementation, and a local invariant at the decision site where it matters.
+Explain relationships the code alone does not reveal: why passes run in that
+order, why a reusable primitive is safe here, or why an apparent simplification
+would lose required evidence. Keep critical reasoning inline; a link to deeper
+contracts or existing runnable regression examples supplements the inline
+explanation. This requirement is self-contained and needs no personal skill installation,
+external memory, or special retrieval tool on another developer's machine.
+
+Before landing, ask: **Would an agent opening the obvious file to make this change
+encounter the reasoning it needs before editing?** Check the answer against the
+questions this invocation actually had to reconstruct. Update stale explanations
+and add only missing reasoning in the touched design area. If existing comments
+already answer those questions, leave them alone. Avoid mandatory header templates,
+comment quotas, implementation paraphrases, new trace ledgers, or a repository-wide
+documentation sweep. Durable design rationale belongs in code; current resume
+evidence still belongs on the board and run history in the conversation.
 
 ## Delegate a bounded assignment
 
@@ -161,6 +189,9 @@ is absent from `git worktree list` and the branch is gone before reporting clean
 Judge the workflow by less duplicated work and a clearer path to verified
 acceptance. Repeat steps for a reason; preserve required checks and independent
 scrutiny. Report concrete improvements or friction without inventing a score.
+Name any design question answered by existing documentation, what still required
+reconstruction, and where useful missing reasoning was preserved; an untouched
+module or unencountered explanation supplies no evidence of reduced rediscovery.
 
 Use existing receipts for customer acceptance, revisions, elapsed/validation time,
 and agents used. Timing is supporting context, not a prerequisite for improvement;
