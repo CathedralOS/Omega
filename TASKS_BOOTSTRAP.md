@@ -180,8 +180,14 @@ prerequisite to every lower-rung milestone.
   still cannot reach payload-size refusal: nonfinal-argument capture frames
   alone require at least 50,136,576 pairs, beyond the arena. Original binding
   atoms and bodies are now reused; do not restore capture renaming or its maps.
-  Next account for those argument continuations and the separate quadratic
-  lookup work before claiming a whole-producer bound or increasing provision. The
+  Removing those frames alone still leaves at least 183,609,879,296 binding
+  comparisons on the same source. **Strategy checkpoint:** defer an isolated
+  atomic-argument fast path; first derive a collection route with joint lookup
+  and cumulative-allocation bounds that can reach the exact payload refusal.
+  Preserve this source, parameter/argument correspondence, and lexical scopes;
+  a larger arena, another index, or a passing last-field control alone does not
+  establish that route. This is engineering work, not an owner decision or a
+  block on independent bootstrap tasks. The
   [arithmetic allocation inventory](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
   and [name-storage argument and regression](tests/delta/resource-boundary/README.md#long-identifier-storage)
   bound particular paths, not the whole producer. Neither justifies further
