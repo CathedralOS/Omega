@@ -3,14 +3,16 @@
 Omega is a systems language built around explicit state machines, checked
 contracts, and ownership of memory and resources.
 
-Omega is betting on the following software trends into the future:
-- LLM intelligence will increase, and costs will decrease.
-- Software will permeate every aspect of our lives. Some of these areas are too costly to get wrong, like transportation and medical fields.
-- It will become increasingly critical that software is fast, resource efficient, and 'just works'. No garbage collection, emulation, or bloatware layers.
-- It will be necessary to validate assurances up front. Even intelligent AI can make critical mistakes.
-- "Don't trust, and verify" will become necessary to avoid an onslaught of malicious or buggy code. This means provable claims about performance, capabilities, and stability.
+In essence, Omega eliminates entire classes of bugs while keeping performance on par with C.
 
-Make trust explicit, narrow, and auditable. When this trust holds, the program keeps
+Omega is betting on the following software trends into the future:
+- High assurance, high performance languages will be the default.
+- "Don't trust, and verify" will become necessary to avoid an onslaught of malicious or buggy code. This means provable claims about performance, capabilities, and stability.
+- Software will permeate every aspect of our lives. Some of these areas are too costly to get wrong, like transportation and medical fields.
+- Coding intelligence will continue to increase and become cheap.
+- Software will be expected to be fast, resource efficient, and 'just work'. Wasting compute and storage on garbage collection, emulation, and bloatware layers will be unacceptable.
+
+Make trust explicit, narrow, and auditable. For example, trusting the protocol of a driver, or that an OS API does what it claims. When trust holds, the program keeps
 its promises. There is no `unsafe` escape hatch: even inline assembly must
 satisfy checked contracts.
 
