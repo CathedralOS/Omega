@@ -9,6 +9,7 @@ pub(super) fn build_state_flow_fact(
     ctx: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    declaration_groups: [facts::FactContextGroup; 2],
 ) {
     let Some((borrow_state_handle, borrow_state)) =
         borrow_state_fact(borrow, machine.symbol, state.symbol)
@@ -18,24 +19,46 @@ pub(super) fn build_state_flow_fact(
 
     ctx.built_state_value_inputs.push(state.symbol);
     super::state_values::append_entry_context(program, semantic, ctx, machine, state);
+    let declaration_contexts = declaration_groups
+        .into_iter()
+        .flat_map(|group| semantic.context_handles_in_group(group));
+    // All source-driven checker tests replay the former declaration lookup at
+    // this exact point. This catches accidental new Global/Machine producers
+    // during flow, including on repeated value-input passes.
+    #[cfg(test)]
+    let declaration_contexts = {
+        let retained: Vec<_> = declaration_contexts.collect();
+        let replayed: Vec<_> = semantic
+            .context_handles_at_point(ProgramPoint::Global)
+            .chain(semantic.context_handles_at_point(ProgramPoint::Machine {
+                machine_symbol: machine.symbol,
+            }))
+            .collect();
+        assert_eq!(
+            retained, replayed,
+            "declaration contexts changed during flow"
+        );
+        retained.into_iter()
+    };
     let mut state_contexts = arena::HandleSpan::empty();
     let mut state_constraints = arena::HandleSpan::empty();
+    append_flow_contexts(
+        declaration_contexts,
+        &mut ctx.contexts.semantic_context_refs,
+        &mut state_contexts,
+        &mut ctx.contexts.constraint_refs,
+        &mut state_constraints,
+    );
     append_flow_contexts_for_points(
         semantic,
         &mut ctx.contexts.semantic_context_refs,
         &mut state_contexts,
         &mut ctx.contexts.constraint_refs,
         &mut state_constraints,
-        &[
-            ProgramPoint::Global,
-            ProgramPoint::Machine {
-                machine_symbol: machine.symbol,
-            },
-            ProgramPoint::State {
-                machine_symbol: machine.symbol,
-                state_symbol: state.symbol,
-            },
-        ],
+        &[ProgramPoint::State {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+        }],
     );
     let (rebased_contexts, _) = super::entry_origins::rebase_contexts(
         program,

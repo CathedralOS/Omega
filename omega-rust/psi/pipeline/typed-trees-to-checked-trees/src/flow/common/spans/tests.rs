@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn indexed_flow_lists_match_independent_scans_as_machine_count_grows() {
+fn prepared_flow_lists_match_independent_scans_with_late_state_contexts() {
     for machine_count in [8, 32, 128] {
         let mut semantic = FactPlan::default();
         semantic.append_fact_context(facts::Fact::default());
@@ -36,8 +36,11 @@ fn indexed_flow_lists_match_independent_scans_as_machine_count_grows() {
 
         let mut selected_contexts = 0;
         let mut reference_inspections = 0;
+        let global_contexts = semantic.context_group_at_point(ProgramPoint::Global);
         for index in 1..=machine_count {
             let machine_symbol = SymbolHandle::from_arena_index(index);
+            let machine_contexts =
+                semantic.context_group_at_point(ProgramPoint::Machine { machine_symbol });
             for state_index in 0..4 {
                 let state_symbol =
                     SymbolHandle::from_arena_index(machine_count + index * 4 + state_index);
@@ -59,13 +62,22 @@ fn indexed_flow_lists_match_independent_scans_as_machine_count_grows() {
                 let mut constraints = arena::Arena::default();
                 let mut context_span = HandleSpan::empty();
                 let mut constraint_span = HandleSpan::empty();
+                append_flow_contexts(
+                    semantic
+                        .context_handles_in_group(global_contexts)
+                        .chain(semantic.context_handles_in_group(machine_contexts)),
+                    &mut contexts,
+                    &mut context_span,
+                    &mut constraints,
+                    &mut constraint_span,
+                );
                 append_flow_contexts_for_points(
                     &semantic,
                     &mut contexts,
                     &mut context_span,
                     &mut constraints,
                     &mut constraint_span,
-                    &points,
+                    &[state_point],
                 );
 
                 let mut reference_contexts = arena::Arena::default();

@@ -328,6 +328,20 @@ impl FactPlan {
         self.contexts.handles_at_point(point)
     }
 
+    /// Selects the existing chain once for repeated use in this plan or copies
+    /// preserving that chain. An absent selection does not bind future appends.
+    pub fn context_group_at_point(&self, point: ProgramPoint) -> contexts::FactContextGroup {
+        self.contexts.group_at_point(point)
+    }
+
+    /// Reads a previously selected chain without rediscovering its program point.
+    pub fn context_handles_in_group(
+        &self,
+        group: contexts::FactContextGroup,
+    ) -> impl Iterator<Item = FactContextHandle> + '_ {
+        self.contexts.handles_in_group(group)
+    }
+
     pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {
         self.contexts_at_point(point)
             .flat_map(|context| context.facts())

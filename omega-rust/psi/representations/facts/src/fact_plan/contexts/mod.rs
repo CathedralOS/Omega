@@ -1,6 +1,6 @@
 mod storage;
 pub mod view;
-pub use storage::FactContexts;
+pub use storage::{FactContextGroup, FactContexts};
 
 use crate::FactHandle;
 use arena::{Handle, HandleSpan};

@@ -6,6 +6,127 @@ use symbols::SymbolHandle;
 
 use super::*;
 
+/// Compares the former three-lookups-per-entry route with retained declaration
+/// groups, including preparation and repeated context-store clones. Other flow
+/// checking work is deliberately not simulated or included in these timings.
+#[test]
+#[ignore = "manual prepared entry-group cost measurement"]
+fn prepared_entry_group_cost() {
+    for (machine_count, states_per_machine, declared, passes) in [
+        (1, 1, true, 1),
+        (64, 1, false, 1),
+        (64, 4, true, 20),
+        (1, 512, true, 20),
+        (1024, 4, true, 1),
+        (1024, 4, true, 20),
+        (1024, 4, false, 20),
+    ] {
+        let mut baseline = FactContexts::default();
+        if declared {
+            baseline.append(FactContext::default());
+        }
+        let mut machines = Vec::new();
+        for machine_index in 1..=machine_count {
+            let machine_symbol = SymbolHandle::from_arena_index(machine_index);
+            if declared {
+                baseline.append(FactContext {
+                    point: ProgramPoint::Machine { machine_symbol },
+                    facts: HandleSpan::empty(),
+                });
+            }
+            let mut states = Vec::new();
+            for state_index in 0..states_per_machine {
+                let state_symbol = SymbolHandle::from_arena_index(
+                    machine_count + machine_index * states_per_machine + state_index,
+                );
+                let point = ProgramPoint::State {
+                    machine_symbol,
+                    state_symbol,
+                };
+                for _ in 0..4 {
+                    baseline.append(FactContext {
+                        point,
+                        facts: HandleSpan::empty(),
+                    });
+                }
+                // Keep unrelated per-call groups in the same store, not only
+                // the entry groups selected by this benchmark.
+                for call_ordinal in 0..8 {
+                    baseline.append(FactContext {
+                        point: ProgramPoint::CallEnsures {
+                            machine_symbol,
+                            state_symbol,
+                            statement_index: 1,
+                            call_ordinal,
+                        },
+                        facts: HandleSpan::empty(),
+                    });
+                }
+                states.push(point);
+            }
+            machines.push((machine_symbol, states));
+        }
+        let start = Instant::now();
+        let mut old_count = 0;
+        for _ in 0..passes {
+            let semantic = black_box(baseline.clone());
+            for (machine_symbol, states) in &machines {
+                for state in states {
+                    for point in [
+                        ProgramPoint::Global,
+                        ProgramPoint::Machine {
+                            machine_symbol: *machine_symbol,
+                        },
+                        *state,
+                    ] {
+                        for handle in semantic.handles_at_point(black_box(point)) {
+                            black_box(handle);
+                            old_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        let old_elapsed = start.elapsed();
+        let start = Instant::now();
+        let global = baseline.group_at_point(ProgramPoint::Global);
+        let groups: Vec<_> = machines
+            .iter()
+            .map(|(machine_symbol, _)| {
+                baseline.group_at_point(ProgramPoint::Machine {
+                    machine_symbol: *machine_symbol,
+                })
+            })
+            .collect();
+        let preparation = start.elapsed();
+        let mut new_count = 0;
+        for _ in 0..passes {
+            let semantic = black_box(baseline.clone());
+            for ((_, states), group) in machines.iter().zip(&groups) {
+                for state in states {
+                    for handle in semantic
+                        .handles_in_group(black_box(global))
+                        .chain(semantic.handles_in_group(black_box(*group)))
+                        .chain(semantic.handles_at_point(black_box(*state)))
+                    {
+                        black_box(handle);
+                        new_count += 1;
+                    }
+                }
+            }
+        }
+        let new_elapsed = start.elapsed();
+        assert_eq!(old_count, new_count);
+        let old_lookups = passes * machine_count * states_per_machine * 3;
+        let new_lookups = 1 + machine_count + passes * machine_count * states_per_machine;
+        println!(
+            "machines={machine_count} states_per_machine={states_per_machine} declared={declared} passes={passes} contexts={} old={old_elapsed:?} prepared_including_setup={new_elapsed:?} setup={preparation:?} old_lookups={old_lookups} new_lookups={new_lookups} selector_capacity_bytes={} selected={new_count}",
+            baseline.len(),
+            (groups.capacity() + 1) * size_of::<FactContextGroup>()
+        );
+    }
+}
+
 /// Same-process lookup baseline; timings are reported, never asserted.
 #[test]
 #[ignore = "manual context-index cost measurement"]
