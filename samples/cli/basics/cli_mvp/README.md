@@ -144,8 +144,8 @@ order, and caller continuation. Unguarded head reads and unchanged tails reject.
 The producer's [writer composition notes](../../../../omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
 describe support and acceptance; the [byte-view specification](../../../../wiki/spec/terminal-psi/byte_views.md)
 owns the portable view rules.
-Native byte operations, Windows leaf settlement, receiver provisioning, and
-`read_line` capacity/live-length writeback remain downstream dependencies. These
+Windows leaf settlement, receiver provisioning, and migrating `read_line` to a
+fixed mutable range with explicit line-result/count outcomes remain dependencies. These
 are code-inspected gaps, not claims that this sample has reached each failure.
 
 The [native byte-observation regressions](../../../../tests/native-differential/tests/terminal_byte_views.rs)

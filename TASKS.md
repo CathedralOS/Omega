@@ -206,7 +206,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe at checkpoint `95d162cd33`
+  The downstream native `cli_mvp` probe at checkpoint `024a0cd245`
   passes Terminal and native abstract admission but remains red. On macOS ARM64,
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
@@ -284,22 +284,25 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   writable range; the reader changes neither its extent nor owner live length.
   No resizable output descriptor or allocator feature is a prerequisite.
 
-  Continue from `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`,
-  its `byte_sequence_write.rs` producer, and
-  `terminal-interpreter/src/structural_byte_arrays.rs`. At `c329201212` on
-  macOS ARM64 (Cargo fallback),
-  `cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast
-  --no-tests fail -E 'test(byte_write_loop) | test(fixed_byte_array)'`
-  is covered by the selected source regression run: a fresh guard on every
-  loop iteration proves the indexed write and exact cursor increment; original
-  bytes, sibling storage, and per-site work survive suspension. No general
-  multi-arrival extent equation, termination certificate, or fixed-work bound
-  is needed for this Unit loop. Explicit host inputs supply raw array contents;
-  an opaque root supplies none. Next dependencies are source-owned raw-array
-  construction, payload-bearing line outcomes, and native view/store custody.
-  Zero-length fixed arrays retain their existing Terminal admission fence;
-  empty borrowed views remain supported. Native lowering still rejects at
-  structural successor bindings; do not substitute owner replacement.
+  Resume the native dependency from
+  `tests/native-differential/tests/terminal_byte_views/mutable_writes.rs`.
+  At `024a0cd245` on macOS ARM64 (Cargo fallback),
+  `cargo nextest run -p omega-native-differential-test --test terminal_byte_views
+  --no-fail-fast --no-tests fail -E 'test(mutable_writes)'` passes: fixed-extent
+  fill loops retain exclusive state transfers, exact bounds/source operands,
+  one-byte stores and once-only fuel through artifact publication and replay.
+  Direct and repeated Unit helper calls execute on original caller storage for
+  every octet, empty views and multiple extents without altering descriptor words
+  or neighboring bytes. Publication covers Linux x64/ARM64, macOS ARM64 and
+  Windows x64; only macOS runtime was exercised. No termination certificate or
+  fixed-work bound is claimed. Source proof/interpretation lives in
+  `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs` and
+  `terminal-interpreter/src/structural_byte_arrays.rs`.
+  Next dependencies are source-owned raw-array construction, payload-bearing
+  line outcomes and shared read-byte assembly/provider integration. Explicit host
+  inputs supply raw array contents; an opaque root supplies none. Zero-length
+  fixed arrays retain their Terminal admission fence; empty borrowed views work.
+  Do not substitute owner replacement for the fixed-range writer contract.
 
   Implement shared checked line assembly over `read_byte` with bounded indexed
   writes, or an exact conforming target provider. Preserve source place, path,
@@ -356,7 +359,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution must retain distinct result homes, exactly two sequential reads,
   first-byte output, and zero-status Unit completion. The macOS completion
   adapter is a physical entry mapping, not closure of the canonical root contract.
-  At `c329201212`, the macOS `cli_mvp` probe above still stops at the missing
+  At `024a0cd245`, the macOS `cli_mvp` probe above still stops at the missing
   `Console::read_line` catalog identity. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
