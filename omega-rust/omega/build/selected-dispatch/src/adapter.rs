@@ -1,5 +1,5 @@
-//! PRV4 step (3) consumption: ADAPTER DISPATCH. A call through a field
-//! whose declared type is a BOUNDARY trait rewrites to a direct call to the
+//! PRV4 step (3) consumption: ADAPTER DISPATCH. A call through a boundary-trait
+//! field or borrowed nominal boundary-trait parameter rewrites to a direct call to the
 //! unique checked adapter satisfying that requirement. The rewrite runs only
 //! after semantic checking: the source call must first consume the boundary
 //! requirement (and any admitted qualification receipt), while execution then
@@ -296,7 +296,62 @@ fn plan_selected_boundary_adapter_rewrites(
         }
     }
 
-    // The first parameter rung is admitted only when checked Unit planning
+    // A borrowed nominal boundary-trait parameter uses the same selected
+    // requirement as a boundary field. Its state-local parameter symbol, not
+    // the repeated parameter spelling, identifies the receiver. This is not
+    // routed Service erasure: generic and qualified carriers still require
+    // the checked receipt below and must not enter through this narrow shape.
+    for machine in typed.machines() {
+        for state in typed.machine_states(machine) {
+            for parameter in typed.state_parameters(state) {
+                let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                else {
+                    continue;
+                };
+                let Some(trait_symbol) = named_type_symbol(typed, *referee) else {
+                    continue;
+                };
+                if parameter.is_self
+                    || parameter.is_const
+                    || !typed.traits().iter().any(|definition| {
+                        definition.symbol == trait_symbol && definition.is_boundary
+                    })
+                    || !adapters
+                        .iter()
+                        .any(|adapter| adapter.receiver_trait == trait_symbol)
+                {
+                    continue;
+                }
+                if !parameter.symbol.is_valid() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "borrowed boundary parameter `{}::{}` has no exact typed symbol for adapter dispatch",
+                        machine.name, parameter.name,
+                    )));
+                    continue;
+                }
+                if let Some(existing) = boundary_fields
+                    .iter()
+                    .find(|field| field.symbol == parameter.symbol)
+                {
+                    if existing.trait_symbol != trait_symbol {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "boundary receiver symbol {:?} maps to both trait symbols {:?} and {:?}",
+                            parameter.symbol, existing.trait_symbol, trait_symbol,
+                        )));
+                    }
+                    continue;
+                }
+                boundary_fields.push(BoundaryField {
+                    symbol: parameter.symbol,
+                    trait_symbol,
+                });
+            }
+        }
+    }
+
+    // The first routed-Service parameter rung is admitted only when checked Unit planning
     // retained an exact typed-parameter symbol plus the matching Fused plan
     // digest. Do not rediscover arbitrary Service-looking parameters from
     // names or types here: receipt custody is what authorizes receiver
@@ -877,6 +932,7 @@ fn synthesize_place_expression(
 
 #[cfg(test)]
 mod tests {
+    mod borrowed_parameters;
     mod source_retention;
 
     use super::*;
