@@ -44,28 +44,61 @@ fn argument(module: &mut TerminalModule) -> &mut StructuralArgument {
     &mut structural_arguments[0]
 }
 
+fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
+    let structural_arguments = vec![argument(&mut module).clone()];
+    let callee = module.machines.pop().unwrap();
+    module
+        .boundary_machines
+        .push(terminal_psi::BoundaryMachineDeclaration {
+            id: id(1),
+            identity: "Host::borrow_bytes".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: callee.structural_parameters,
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::BoundaryCall {
+        boundary: id(1),
+        arguments: Vec::new(),
+        structural_arguments,
+        completion_receipts: Vec::new(),
+    };
+    module
+}
+
 #[test]
-fn fixed_byte_array_unit_presentation_round_trips_real_array_and_paths() {
+fn fixed_byte_array_call_presentations_round_trip_real_array_and_paths() {
     for projected in [false, true] {
-        let module = fixture(projected);
-        let bytes = encode_module(&module).unwrap();
-        assert_eq!(decode_module(&bytes), Ok(module.clone()));
-        assert_eq!(
-            encode_module(&decode_module(&bytes).unwrap()).unwrap(),
-            bytes
-        );
-        assert_eq!(
-            module.structural_types[2].shape,
-            StructuralTypeShape::FixedArray {
-                element: id(4),
-                length: 3
-            }
-        );
+        for boundary in [false, true] {
+            let module = fixture(projected);
+            let module = if boundary {
+                boundary_fixture(module)
+            } else {
+                module
+            };
+            let bytes = encode_module(&module).unwrap();
+            assert_eq!(decode_module(&bytes), Ok(module.clone()));
+            assert_eq!(
+                encode_module(&decode_module(&bytes).unwrap()).unwrap(),
+                bytes
+            );
+            assert_eq!(
+                module.structural_types[2].shape,
+                StructuralTypeShape::FixedArray {
+                    element: id(4),
+                    length: 3
+                }
+            );
+        }
     }
 }
 
 #[test]
-fn fixed_byte_array_unit_presentation_hostile_bytes_replay_exact_access_type_and_path() {
+fn fixed_byte_array_call_presentations_hostile_bytes_replay_exact_access_type_and_path() {
     for mutation in 0..7 {
         let mut module = fixture(true);
         let bytes = encode_module(&module).expect("hostile fixture starts lawful");
@@ -100,32 +133,47 @@ fn fixed_byte_array_unit_presentation_hostile_bytes_replay_exact_access_type_and
                 fields[0].relevance = terminal_psi::BindingRelevance::Erased;
             }
         }
-        assert!(
-            encode_module(&module).is_err(),
-            "encode mutation {mutation}"
-        );
-        let changed = crate::module_wire::encode_raw(&module).unwrap();
-        assert!(
-            decode_module(&changed).is_err(),
-            "decode mutation {mutation}"
-        );
+        for (boundary, module) in [(false, module.clone()), (true, boundary_fixture(module))] {
+            assert!(
+                encode_module(&module).is_err(),
+                "encode mutation {mutation}, boundary {boundary}"
+            );
+            let changed = crate::module_wire::encode_raw(&module).unwrap();
+            assert!(
+                decode_module(&changed).is_err(),
+                "decode mutation {mutation}, boundary {boundary}"
+            );
+        }
     }
 }
 
 #[test]
 fn fixed_byte_array_view_ledger_replays_the_exact_array_extent() {
-    let module = fixture(true);
-    let trust = crate::current_terminal_trust_graph().unwrap();
-    let ledger = crate::build_terminal_obligation_ledger(&module, &trust).unwrap();
-    let bytes = crate::encode_terminal_obligation_ledger(&ledger).unwrap();
-    let decoded = crate::decode_terminal_obligation_ledger(&bytes).unwrap();
-    crate::validate_terminal_obligation_ledger(&decoded, &module, &trust).unwrap();
-    let mut changed = module;
-    let StructuralTypeShape::FixedArray { length, .. } = &mut changed.structural_types[2].shape
-    else {
-        unreachable!()
-    };
-    *length = 4;
-    encode_module(&changed).expect("a different array extent remains a lawful independent module");
-    assert!(crate::validate_terminal_obligation_ledger(&decoded, &changed, &trust).is_err());
+    for projected in [false, true] {
+        for boundary in [false, true] {
+            let module = fixture(projected);
+            let module = if boundary {
+                boundary_fixture(module)
+            } else {
+                module
+            };
+            let trust = crate::current_terminal_trust_graph().unwrap();
+            let ledger = crate::build_terminal_obligation_ledger(&module, &trust).unwrap();
+            let bytes = crate::encode_terminal_obligation_ledger(&ledger).unwrap();
+            let decoded = crate::decode_terminal_obligation_ledger(&bytes).unwrap();
+            crate::validate_terminal_obligation_ledger(&decoded, &module, &trust).unwrap();
+            let mut changed = module;
+            let StructuralTypeShape::FixedArray { length, .. } =
+                &mut changed.structural_types[2].shape
+            else {
+                unreachable!()
+            };
+            *length = 4;
+            encode_module(&changed)
+                .expect("a different array extent remains a lawful independent module");
+            assert!(
+                crate::validate_terminal_obligation_ledger(&decoded, &changed, &trust).is_err()
+            );
+        }
+    }
 }

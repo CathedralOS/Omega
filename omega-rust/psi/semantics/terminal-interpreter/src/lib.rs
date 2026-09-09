@@ -777,13 +777,15 @@ impl TerminalExecution {
     }
 
     /// Begin execution with one explicit provider installation previously
-    /// admitted against these exact semantic/proof sections.
+    /// admitted against these exact semantic/proof sections. Fixed-array inputs
+    /// supply exact initialized backing; an installed provider grants no storage.
     pub fn start_artifact_with_provider_installation(
         semantic_bytes: &[u8],
         proof_bytes: &[u8],
         profile: &proof_admission::AdmissionProfile,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
+        byte_arrays: &[TerminalStructuralByteArrayValue],
         installation: &AdmittedProviderInstallation,
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
@@ -792,7 +794,7 @@ impl TerminalExecution {
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let verified = terminal_verifier::verify_module(&module, &proof, profile)
             .map_err(TerminalArtifactInterpretError::Verification)?;
-        Self::start_verified_module(
+        let mut execution = Self::start_verified_module(
             verified.module(),
             scalar_arguments,
             structural_arguments,
@@ -800,7 +802,11 @@ impl TerminalExecution {
             &[],
             Some(installation),
         )
-        .map_err(TerminalArtifactInterpretError::Execution)
+        .map_err(TerminalArtifactInterpretError::Execution)?;
+        execution
+            .bind_byte_arrays(byte_arrays)
+            .map_err(TerminalArtifactInterpretError::Execution)?;
+        Ok(execution)
     }
 
     fn start_verified_module(

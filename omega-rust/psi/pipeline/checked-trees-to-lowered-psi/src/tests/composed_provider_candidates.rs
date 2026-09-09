@@ -166,6 +166,7 @@ fn composed_provider_candidate_preserves_helper_effects_across_every_fuel_pause(
                 &profile,
                 &[TerminalScalarValue::Boolean(flag)],
                 &[],
+                &[],
                 &installation,
             )
             .unwrap();

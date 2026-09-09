@@ -1,4 +1,4 @@
-//! Exact field-loan presentation and separately staged external byte replacement.
+//! Exact array/field loans and separately staged external byte-field replacement.
 
 use super::*;
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
@@ -56,7 +56,7 @@ pub(super) struct BoundaryArguments {
 }
 
 impl BoundaryArguments {
-    /// Provider bodies borrow the live field binding, not the staged external
+    /// Provider bodies borrow the live array/field binding, not the staged external
     /// buffers. Nested boundary calls commit backing; provider return must not
     /// restore the pre-call snapshot.
     pub(super) fn into_call_arguments(
@@ -175,6 +175,19 @@ impl TerminalExecution {
         };
         for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
         {
+            // Reuse the ordinary call's exact initialized-array binding. It can
+            // enter a checked provider and be forwarded again, but never enters
+            // the external field-replacement staging/writeback protocol.
+            if let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
+                self.prepare_array_view_argument(parameter, argument)?
+            {
+                let ByteSequenceBinding::MutableArray { referent, .. } = &binding else {
+                    return Err(invalid());
+                };
+                resolved.values.push(referent.clone());
+                resolved.byte_sequences.push(Some(binding));
+                continue;
+            }
             let declaration = self
                 .structural_types
                 .get(&parameter.structural_type)

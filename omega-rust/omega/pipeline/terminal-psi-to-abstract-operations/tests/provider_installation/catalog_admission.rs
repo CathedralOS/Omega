@@ -109,6 +109,7 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
         &profile,
         &[],
         &[],
+        &[],
         installation.psi_installation(),
     )
     .expect("selected installation starts");
@@ -228,6 +229,7 @@ fn provider_catalog_identity_and_admission_fail_closed_on_tamper_or_reorder() {
             &other_semantic,
             &other_proof,
             &profile,
+            &[],
             &[],
             &[],
             installation.psi_installation(),

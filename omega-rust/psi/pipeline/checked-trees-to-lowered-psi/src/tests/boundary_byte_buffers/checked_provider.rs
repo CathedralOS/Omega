@@ -153,6 +153,7 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool) {
             &profile,
             &[],
             std::slice::from_ref(&argument),
+            &[],
             &installation,
         )
         .unwrap();

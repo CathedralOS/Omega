@@ -1456,7 +1456,11 @@ pub(super) fn validate_structural_arguments(
             || (borrowed_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
             && terminal_semantics::boundary_buffer_capacity(module, root_type, argument, expected)
                 .is_some();
-        let fixed_array_presentation = borrowed_call
+        // A boundary lends the same exact initialized fixed-array range as an
+        // ordinary call. Keep the array's real type and path: presentation
+        // is not a type substitution, storage grant, or permission to resize.
+        let fixed_array_presentation = (borrowed_call
+            || source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals)
             && caller.structural_parameters.iter().any(|actual| {
                 terminal_semantics::mutable_fixed_byte_array_extent(
                     module, actual, argument, expected,

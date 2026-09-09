@@ -147,42 +147,9 @@ impl TerminalExecution {
             // Share only exact referent preparation. External buffer staging and
             // replacement are not part of an ordinary call. Its result form
             // does not change the borrowed input's referent or backing.
-            if machine.structural_parameters.len() != arguments.len() {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-            }
-            let mut values = Vec::with_capacity(arguments.len());
-            let mut byte_sequences = BTreeMap::new();
-            for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
-                if let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
-                    self.prepare_array_view_argument(parameter, argument)?
-                {
-                    let ByteSequenceBinding::MutableArray { referent, .. } = &binding else {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                    };
-                    values.push(referent.clone());
-                    if byte_sequences.insert(parameter.place, binding).is_some() {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                    }
-                } else {
-                    let prepared = self
-                        .prepare_boundary_arguments(
-                            std::slice::from_ref(parameter),
-                            std::slice::from_ref(argument),
-                        )?
-                        .into_call_arguments(std::slice::from_ref(parameter))?;
-                    values.extend(prepared.values);
-                    for (place, binding) in prepared.byte_sequences {
-                        if byte_sequences.insert(place, binding).is_some() {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                    }
-                }
-            }
-            bind_structural_arguments(&machine.structural_parameters, &values)?;
-            return Ok(StructuralCallArguments {
-                values,
-                byte_sequences,
-            });
+            return self
+                .prepare_boundary_arguments(&machine.structural_parameters, arguments)?
+                .into_call_arguments(&machine.structural_parameters);
         }
         let values = resolve_structural_arguments(
             &self.structural_types,

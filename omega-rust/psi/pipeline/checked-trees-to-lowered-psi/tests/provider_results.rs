@@ -147,6 +147,7 @@ fn execute_candidates(
                 &profile,
                 &[],
                 std::slice::from_ref(&argument),
+                &[],
                 &installation,
             )
             .expect("start");
