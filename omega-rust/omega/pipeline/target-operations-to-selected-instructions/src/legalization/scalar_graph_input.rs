@@ -444,7 +444,10 @@ pub(super) fn i64_type() -> IntegerType {
 pub(super) fn integer_type(scalar: ScalarType) -> Option<IntegerType> {
     match scalar {
         ScalarType::Integer(integer)
-            if integer == u64_type() || integer == i64_type() || integer == u32_type() =>
+            if integer == u64_type()
+                || integer == i64_type()
+                || integer == u32_type()
+                || integer == i32_type() =>
         {
             Some(integer)
         }

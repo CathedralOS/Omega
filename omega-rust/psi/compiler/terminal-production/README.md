@@ -127,8 +127,27 @@ results. The shared statement planner retains each authored local and call;
 Terminal emission allocates distinct operation-owned places across states and
 discards only the current leaf's results in reverse establishment order. Source
 replay rejoins local statement, binding ordinal, boundary contract, and return
-disposition. This does not admit later structural consumption, nominal cleanup,
-or general result-bearing state transitions.
+disposition. This leaf-only route does not admit later structural consumption
+or nominal cleanup.
+
+The general state graph additionally inspects a state-local, claim-free affine
+boundary sum and transfers its selected primitive payloads alongside ordinary
+scalar arguments and borrowed views. Source replay rejoins the complete case
+roster, field paths, successor positions, and the local result's exact cleanup
+provenance. Case edges bind payload scalars into small staging blocks, then use
+ordinary jumps for the remaining arguments; no separate Terminal edge format is
+needed. Each selected edge disposes its own completed result before reentry.
+The source state currently begins with that result call and dispatches directly;
+interleaved effects, structural payloads, and loop-carried owned results remain
+outside this producer family.
+
+Raw payload types do not preserve field numeric restrictions. In particular,
+`ByteRead::Byte(value: i32 [0..=255])` can drive comparisons but its exact `as u8`
+conversion still lacks source-free range evidence. Retain those constraints at
+their declaration/establishment boundary and connect selected fields to scalar
+bindings before admitting the conversion. An authored successor parameter range
+is not an independent hypothesis. The byte-input classification fixture exercises
+result/view composition without claiming that the shared line reader is complete.
 
 The general state-graph path also retains one persistent unrestricted mutable
 record receiver. It shares ordinary Unit statement construction for ordered

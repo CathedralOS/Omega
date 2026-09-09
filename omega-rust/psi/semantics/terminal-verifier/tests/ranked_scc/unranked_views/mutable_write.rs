@@ -84,7 +84,7 @@ fn mutable_write_rejects_shared_destination_wrong_witness_and_wrong_byte_type() 
 }
 
 #[test]
-fn mutable_write_does_not_invent_equation_for_multiple_incoming_edges() {
+fn mutable_write_retains_equation_for_same_origin_incoming_edges() {
     let mut module = fixture();
     let machine = &mut module.machines[0];
     let Terminator::Jump {
@@ -116,11 +116,18 @@ fn mutable_write_does_not_invent_equation_for_multiple_incoming_edges() {
     )
     .unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    assert!(obligations[0].semantic_axioms.contains(&Proposition::Equal(
+        ScalarTerm::value(id(10, ValueId::new), scalar_type),
+        ScalarTerm::value(id(21, ValueId::new), scalar_type),
+    )));
     assert!(
-        !obligations[0].semantic_axioms.contains(&Proposition::Equal(
-            ScalarTerm::value(id(10, ValueId::new), scalar_type),
-            ScalarTerm::value(id(21, ValueId::new), scalar_type),
-        ))
+        verify_module_for_interpretation(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .is_err(),
+        "same-origin arrivals establish length equality, not index bounds"
     );
 }
 

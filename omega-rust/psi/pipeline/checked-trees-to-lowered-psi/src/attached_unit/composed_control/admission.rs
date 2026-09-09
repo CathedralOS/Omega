@@ -608,7 +608,8 @@ pub(super) fn retain_call_boundary<'a>(
             ..
         } => {
             let target = unique_unit_boundary(plans, *target_machine)?;
-            if !*discard_result_on_return
+            if (!*discard_result_on_return
+                && !matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { result: selected, .. } if selected == result))
                 || result.binding_ordinal as usize != state.operations.iter().filter(|operation| {
                     matches!(operation, CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                         coordinate: previous, ..

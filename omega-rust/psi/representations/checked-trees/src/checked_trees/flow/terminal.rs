@@ -824,8 +824,7 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedClosedSumCaseSuccessorPlan {
     pub case_identity: String,
-    pub statement_ordinal: u32,
-    pub target_state: SymbolHandle,
+    pub successor: CheckedStructuralControlSuccessorPlan,
     pub payloads: Vec<CheckedClosedSumPayloadTransferPlan>,
 }
 

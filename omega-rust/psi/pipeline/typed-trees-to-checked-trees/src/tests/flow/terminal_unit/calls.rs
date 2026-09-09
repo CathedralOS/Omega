@@ -255,14 +255,126 @@ fn retains_closed_sum_inspection_after_structural_boundary_result() {
     assert_eq!(cases.len(), 2);
     assert!(cases.iter().any(|case| {
         case.case_identity == "Byte"
-            && case.target_state == byte.state
+            && case.successor.target_state == byte.state
             && matches!(case.payloads.as_slice(), [payload]
                 if payload.field_identity == "value"
                     && payload.primitive_type == PrimitiveType::I32)
     }));
     assert!(cases.iter().any(|case| {
-        case.case_identity == "Eof" && case.target_state == eof.state && case.payloads.is_empty()
+        case.case_identity == "Eof"
+            && case.successor.target_state == eof.state
+            && case.payloads.is_empty()
     }));
+}
+
+#[test]
+fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
+    let checked = checked(
+        r#"
+        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        boundary trait Console {
+            machine read_byte() -> ByteRead reaches Console;
+        }
+        machine read_one(out: &mut [u8]) reaches Console {
+            transition out.len > 0 { true -> read(out, 7) false -> done() }
+            state read(out: &mut [u8], count: u64) {
+                let observed: ByteRead = Console::read_byte();
+                transition observed {
+                    ByteRead::Byte { value } -> store(out, count, value)
+                    ByteRead::Eof -> done()
+                }
+            }
+            state store(out: &mut [u8], count: u64, value: i32 [0..=255]) {
+                out[0] = value as u8;
+            }
+            state done() {}
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "read_one"))
+        .expect("boundary payload inspection composes with the ordinary state graph");
+    let read = &plan.states[1];
+    assert!(matches!(
+        read.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            discard_result_on_return: false,
+            ..
+        }]
+    ));
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } = &read.terminator else {
+        panic!("case edge");
+    };
+    let byte = cases
+        .iter()
+        .find(|case| case.case_identity == "Byte")
+        .unwrap();
+    assert_eq!(byte.successor.target_state, plan.states[2].state);
+    assert_eq!(byte.successor.transfers.len(), 1);
+    assert_eq!(byte.successor.transfers[0].target_parameter_index, 0);
+    assert_eq!(byte.successor.scalar_arguments.len(), 1);
+    assert_eq!(
+        byte.successor.scalar_arguments[0].target_scalar_parameter_index,
+        0
+    );
+    assert_eq!(byte.payloads.len(), 1);
+    assert_eq!(byte.payloads[0].target_scalar_parameter_index, 1);
+    assert_eq!(byte.payloads[0].field_identity, "value");
+    let eof = cases
+        .iter()
+        .find(|case| case.case_identity == "Eof")
+        .unwrap();
+    assert!(eof.successor.transfers.is_empty());
+    assert!(eof.successor.scalar_arguments.is_empty());
+    assert!(eof.payloads.is_empty());
+    let mut missing_cleanup = checked.facts.clone();
+    missing_cleanup.flow.terminal_structural_control_cleanups = Default::default();
+    let rejected =
+        crate::flow::build_checked_unit_effect_plans(&checked.typed, &missing_cleanup, &[], &[]);
+    assert!(
+        rejected
+            .composed_for_machine(machine_named(&checked, "read_one"))
+            .is_none(),
+        "case inspection must not bypass independently checked edge cleanup"
+    );
+    for mutation in ["root", "missing", "provenance"] {
+        let mut changed = checked.facts.clone();
+        let handles = changed
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.state_symbol == read.state
+                    && event.source == language_semantics::PermissionEventSource::StateExit
+                    && event.kind == language_semantics::PermissionEventKind::AffineDrop
+            })
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        assert!(!handles.is_empty());
+        for handle in handles {
+            let event = changed.flow.ownership.permissions.get_mut(handle);
+            match mutation {
+                "missing" => event.source = language_semantics::PermissionEventSource::StateEntry,
+                "root" => event.root = facts::PlaceRoot::Unknown,
+                "provenance" => {
+                    event.provenance = language_semantics::PermissionProvenance::Unknown
+                }
+                _ => unreachable!(),
+            }
+        }
+        let rejected =
+            crate::flow::build_checked_unit_effect_plans(&checked.typed, &changed, &[], &[]);
+        assert!(
+            rejected
+                .composed_for_machine(machine_named(&checked, "read_one"))
+                .is_none(),
+            "case result cleanup must be present and retain its exact source root"
+        );
+    }
 }
 
 #[test]

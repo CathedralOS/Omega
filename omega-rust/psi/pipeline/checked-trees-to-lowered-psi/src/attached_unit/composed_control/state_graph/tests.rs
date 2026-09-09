@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "tests/closed_cases.rs"]
+mod closed_cases;
+
 fn fixture() -> CheckedTrees {
     let source = r#"
         data Main { counter: u64 in Wrapping; total: u64 in Wrapping; }

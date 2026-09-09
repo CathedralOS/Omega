@@ -101,8 +101,13 @@ allowing swaps and self-loops without duplication or overwriting a live owner.
 Every arrival, including a backedge, must establish the same structural frontier.
 Disposal follows establishment dominance and parameter order, not serialized
 block IDs. Owned byte descriptors do not gain immutable-view read authority.
-Qualified or partial owned cyclic custody, structural results, projected claims,
-and arbitrary operation families remain unsupported. Eligibility is not dominance,
+Unit loops also admit a claim-free, unqualified affine boundary-result sum with
+relevant scalar payloads when its producer and case inspection share a block.
+Every case edge discards that exact whole result before entering its successor;
+the result is never loop-carried custody. Full frontier equality and proof-loop
+cuts still apply, so no preceding iteration's result or case fact is reused.
+Qualified or partial owned cyclic custody, loop-carried structural results,
+projected claims, and arbitrary operation families remain unsupported. Eligibility is not dominance,
 frontier, or proof authority; all subsequent checks still run.
 
 Mutable-field entry requirements enter the validity-scoped observation set,

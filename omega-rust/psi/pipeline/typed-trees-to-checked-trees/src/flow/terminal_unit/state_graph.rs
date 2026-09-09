@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod closed_sum;
+
 #[cfg(test)]
 mod tests;
 
@@ -78,6 +80,12 @@ pub(super) fn build(
     let mut planned = Vec::new();
     for (state_index, state) in states.iter().enumerate() {
         let (structural, scalar) = &signatures[state_index];
+        if let Some(plan) =
+            closed_sum::build(program, facts, shapes, machine, state_index, &signatures)
+        {
+            planned.push(plan);
+            continue;
+        }
         let statements = program.statement_table.statements(state.statement_nodes);
         let bindings = match crate::flow::terminal_scalar::checked_binding_prefix(
             program,
@@ -336,6 +344,45 @@ fn successor(
     transition: &typed_trees::statement::TableTransition,
     ordinal: u32,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
+    let successor = successor_bindings(
+        program,
+        facts,
+        machine,
+        source_index,
+        signatures,
+        transition,
+        ordinal,
+        &[],
+    )?;
+    let source = &program.machine_states(machine)[source_index];
+    let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+        machine.symbol,
+        source.symbol,
+        ordinal,
+    )?;
+    if cleanup.target_state != successor.target_state
+        || !cleanup
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
+    {
+        return None;
+    }
+    Some(successor)
+}
+
+// Operand identity is shared by ordinary and closed-case edges. The caller
+// separately admits either whole-parameter cleanup or exact result-local
+// cleanup; constructing bindings establishes neither cleanup contract.
+fn successor_bindings(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    source_index: usize,
+    signatures: &[Signature],
+    transition: &typed_trees::statement::TableTransition,
+    ordinal: u32,
+    payload_parameters: &[u32],
+) -> Option<CheckedStructuralControlSuccessorPlan> {
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
@@ -477,6 +524,7 @@ fn successor(
     let scalar_arguments = target_scalar
         .iter()
         .enumerate()
+        .filter(|(index, _)| !payload_parameters.contains(&(*index as u32)))
         .map(|(target_index, target)| {
             let argument = argument_at(target.source_position)?;
             let (custody, expression) = facts.values.scalar_expressions.bound_expression_at(
@@ -518,18 +566,6 @@ fn successor(
             })
         })
         .collect::<Option<Vec<_>>>()?;
-    let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
-        machine.symbol,
-        source.symbol,
-        ordinal,
-    )?;
-    if cleanup.target_state != target.symbol
-        || !cleanup
-            .trivial_affine_discard_parameter_positions
-            .is_empty()
-    {
-        return None;
-    }
     Some(CheckedStructuralControlSuccessorPlan {
         statement_ordinal: ordinal,
         target_state: target.symbol,

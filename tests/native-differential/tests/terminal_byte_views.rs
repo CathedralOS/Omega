@@ -41,6 +41,8 @@ mod subslice_calls;
 #[path = "terminal_byte_views/unit_calls.rs"]
 mod unit_calls;
 
+#[path = "terminal_byte_views/byte_input.rs"]
+mod byte_input;
 #[path = "terminal_byte_views/mutable_writes.rs"]
 mod mutable_writes;
 #[path = "terminal_byte_views/natural_writer.rs"]

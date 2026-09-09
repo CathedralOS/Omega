@@ -1,6 +1,8 @@
 //! Join a length observation to its exact validated producer or incoming view.
 
-use semantic_vocabulary::{Proposition, ScalarTerm, StructuralPlaceKind};
+use std::collections::BTreeSet;
+
+use semantic_vocabulary::{PlaceId, Proposition, ScalarTerm, StructuralPlaceKind};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, TerminalMachine, TerminalModule, Terminator,
 };
@@ -76,8 +78,8 @@ pub(super) fn length_equation(
         .map_err(ModuleError::OperationSemanticSchema)
 }
 
-/// One incoming binding establishes an observation equation, not a generic
-/// parameter extent axiom. Multiple incoming edges establish no equation.
+/// Reconstruct the exact descriptor binding at every arrival. The equation
+/// relates two real observations, never a generic parameter extent or invariant.
 fn block_length_equation(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -86,80 +88,197 @@ fn block_length_equation(
     block: semantic_vocabulary::BlockId,
     position: u32,
 ) -> Option<Proposition> {
-    if !machine.blocks.iter().any(|candidate| {
-        candidate.id == block
-            && candidate
-                .operations
-                .iter()
-                .any(|operation| operation.id == current.id)
-    }) {
-        return None;
-    }
-    let mut incoming = Vec::new();
-    for predecessor in &machine.blocks {
-        match &predecessor.terminator {
-            Terminator::Jump {
-                target,
-                structural_arguments,
-                ..
-            } if *target == block => {
-                incoming.push((predecessor, structural_arguments.as_slice()));
-            }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for edge in [when_true, when_false] {
-                    if edge.target == block {
-                        incoming.push((predecessor, edge.structural_arguments.as_slice()));
-                    }
-                }
-            }
-            Terminator::StructuralCase { cases, .. }
-                if cases.iter().any(|edge| edge.target == block) =>
-            {
-                return None;
-            }
-            _ => {}
-        }
-    }
-    let [(predecessor, arguments)] = incoming.as_slice() else {
-        return None;
-    };
-    let argument = arguments.get(position as usize)?;
     let destination = machine
         .blocks
         .iter()
         .find(|candidate| candidate.id == block)?
         .structural_parameters
         .get(position as usize)?;
-    if destination.place != source
-        || destination.access != StructuralAccess::MutableBorrow
-        || argument.access != StructuralAccess::MutableBorrow
-        || !argument.path.is_empty()
-    {
+    if destination.place != source || destination.access != StructuralAccess::MutableBorrow {
         return None;
     }
-    let producer = predecessor.operations.iter().rev().find(|operation|
-        matches!(operation.kind, OperationKind::ByteSequenceLength { source } if source == argument.place))?;
-    for place in [argument.place, source] {
-        if !crate::validation::view_length_is_current(
-            module,
+    let current_position = operation_position(machine, current.id)?;
+    let dominators = crate::control_graph::dominators(machine);
+    let current_dominators = dominators.get(&machine.blocks[current_position.0].id)?;
+    let mut candidates = Vec::new();
+    for (block_position, candidate_block) in machine.blocks.iter().enumerate() {
+        if !current_dominators.contains(&candidate_block.id) {
+            continue;
+        }
+        for (operation_position, producer) in candidate_block.operations.iter().enumerate() {
+            if matches!(producer.kind, OperationKind::ByteSequenceLength { .. })
+                && (block_position != current_position.0 || operation_position < current_position.1)
+            {
+                candidates.push((block_position, operation_position, producer));
+            }
+        }
+    }
+    // Dominating blocks form a chain. Prefer the nearest observation, retaining
+    // stable identity order independently of the serialized block roster.
+    candidates.sort_by_key(|(block_position, operation_position, _)| {
+        let block = machine.blocks[*block_position].id;
+        (
+            std::cmp::Reverse(dominators[&block].len()),
+            block,
+            std::cmp::Reverse(*operation_position),
+        )
+    });
+    for (block_position, operation_position, producer) in candidates {
+        let OperationKind::ByteSequenceLength { source: measured } = producer.kind else {
+            continue;
+        };
+        if producer.id == current.id {
+            continue;
+        }
+        let Some(aliases) = descriptor_origins(
             machine,
-            producer.id,
-            current.id,
-            place,
-        ) {
+            current_position,
+            source,
+            (block_position, operation_position),
+            measured,
+        ) else {
+            continue;
+        };
+        // Every name encountered along the transfer chain is checked. A
+        // mutation through an intermediate binding cannot hide behind the
+        // destination's new place identity. Checking the union is conservative.
+        if aliases.into_iter().any(|place| {
+            !crate::validation::view_length_is_current(
+                module,
+                machine,
+                producer.id,
+                current.id,
+                place,
+            )
+        }) {
+            continue;
+        }
+        let result = current.result.scalar()?;
+        let previous = producer.result.scalar()?;
+        if result.scalar_type == previous.scalar_type {
+            return Some(Proposition::Equal(
+                ScalarTerm::value(result.id, result.scalar_type),
+                ScalarTerm::value(previous.id, previous.scalar_type),
+            ));
+        }
+    }
+    None
+}
+
+fn operation_position(
+    machine: &TerminalMachine,
+    operation: semantic_vocabulary::OperationId,
+) -> Option<(usize, usize)> {
+    machine
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, declaration)| {
+            declaration
+                .operations
+                .iter()
+                .position(|candidate| candidate.id == operation)
+                .map(|position| (block, position))
+        })
+}
+
+fn descriptor_origins(
+    machine: &TerminalMachine,
+    current: (usize, usize),
+    source: PlaceId,
+    producer: (usize, usize),
+    measured: PlaceId,
+) -> Option<BTreeSet<PlaceId>> {
+    let mut pending = vec![(current.0, current.1, source)];
+    let mut visited = BTreeSet::new();
+    let mut aliases = BTreeSet::new();
+    let mut reached_producer = false;
+    while let Some((block_position, position, tracked)) = pending.pop() {
+        if !visited.insert((block_position, position, tracked)) {
+            continue;
+        }
+        aliases.insert(tracked);
+        let block = &machine.blocks[block_position];
+        if position != 0 {
+            let previous = (block_position, position - 1);
+            if previous == producer {
+                if tracked != measured {
+                    return None;
+                }
+                reached_producer = true;
+                continue;
+            }
+            let operation = &block.operations[position - 1];
+            if operation
+                .result
+                .structural()
+                .is_some_and(|result| result.place == tracked)
+                || matches!(operation.kind, OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == tracked)
+            {
+                return None;
+            }
+            pending.push((block_position, position - 1, tracked));
+            continue;
+        }
+        if block.id == machine.entry {
+            return None;
+        }
+        let parameter_position = block
+            .structural_parameters
+            .iter()
+            .position(|parameter| parameter.place == tracked);
+        let mut incoming_count = 0;
+        let mut incoming = |predecessor_position: usize,
+                            arguments: &[terminal_psi::StructuralArgument]|
+         -> Option<()> {
+            let previous = if let Some(position) = parameter_position {
+                let argument = arguments.get(position)?;
+                if argument.access != StructuralAccess::MutableBorrow || !argument.path.is_empty() {
+                    return None;
+                }
+                argument.place
+            } else {
+                tracked
+            };
+            incoming_count += 1;
+            pending.push((
+                predecessor_position,
+                machine.blocks[predecessor_position].operations.len(),
+                previous,
+            ));
+            Some(())
+        };
+        for (predecessor_position, predecessor) in machine.blocks.iter().enumerate() {
+            match &predecessor.terminator {
+                Terminator::Jump {
+                    target,
+                    structural_arguments,
+                    ..
+                } if *target == block.id => incoming(predecessor_position, structural_arguments)?,
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for edge in [when_true, when_false] {
+                        if edge.target == block.id {
+                            incoming(predecessor_position, &edge.structural_arguments)?;
+                        }
+                    }
+                }
+                Terminator::StructuralCase { cases, .. } => {
+                    for edge in cases {
+                        if edge.target == block.id {
+                            incoming(predecessor_position, &[])?;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if incoming_count == 0 {
             return None;
         }
     }
-    let result = current.result.scalar()?;
-    let previous = producer.result.scalar()?;
-    (result.scalar_type == previous.scalar_type).then(|| {
-        Proposition::Equal(
-            ScalarTerm::value(result.id, result.scalar_type),
-            ScalarTerm::value(previous.id, previous.scalar_type),
-        )
-    })
+    reached_producer.then_some(aliases)
 }

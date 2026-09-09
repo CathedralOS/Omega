@@ -25,6 +25,85 @@ machine fill(out: &mut [u8], byte: u8) {
 "#;
 
 #[test]
+fn byte_input_exact_narrowing_requires_retained_payload_range_evidence() {
+    let checked = checked_source(
+        r#"
+        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        boundary trait Console {
+            machine read_byte() -> ByteRead reaches Console;
+        }
+        machine read_one(out: &mut [u8]) reaches Console {
+            transition out.len > 0 {
+                true -> read(out)
+                false -> done()
+            }
+            state read(out: &mut [u8]) {
+                let observed: ByteRead = Console::read_byte();
+                transition observed {
+                    ByteRead::Byte { value } -> store(out, value)
+                    ByteRead::Eof -> done()
+                }
+            }
+            state store(out: &mut [u8], value: i32 [0..=255]) {
+                out[0] = value as u8;
+            }
+            state done() {}
+        }
+        "#,
+    );
+    assert!(
+        matches!(
+            lower_machine(&checked, "read_one"),
+            Err(LoweringError::OperationProofUnavailable(_))
+        ),
+        "raw i32 payload shape is not evidence of the authored 0..255 restriction"
+    );
+}
+
+#[test]
+fn byte_input_case_payload_and_borrowed_view_compose_in_a_write_cycle() {
+    let checked = checked_source(include_str!(
+        "../../../../../../tests/native-differential/tests/terminal_byte_views/byte_input.omg"
+    ));
+    let _artifact = produce_terminal_artifact(&checked, "classify_bytes")
+        .expect("case payloads, ordinary scalar arguments and mutable views compose in a cycle");
+}
+
+#[test]
+fn byte_input_case_roster_and_multiple_payloads_are_not_console_specific() {
+    let checked = checked_source(
+        r#"
+        data Observation {
+            case Empty;
+            case One(value: u8);
+            case Pair(first: u8, second: u8);
+        }
+        boundary trait Input {
+            machine observe() -> Observation reaches Input;
+        }
+        machine collect(out: &mut [u8]) reaches Input {
+            transition out.len > 0 { true -> read(out) false -> done() }
+            state read(out: &mut [u8]) {
+                let observed: Observation = Input::observe();
+                transition observed {
+                    Observation::Pair { first, second } -> combine(out, second, first)
+                    Observation::One { value } -> store(out, value)
+                    Observation::Empty -> done()
+                }
+            }
+            state combine(out: &mut [u8], right: u8, left: u8) {
+                out[0] = right ^ left;
+            }
+            state store(out: &mut [u8], value: u8) { out[0] = value; }
+            state done() {}
+        }
+    "#,
+    );
+    let _artifact = produce_terminal_artifact(&checked, "collect")
+        .expect("three cases and reversed payload positions use the same checked control path");
+}
+
+#[test]
 fn byte_write_loop_publishes_fresh_guarded_writes() {
     let checked = checked_source(FILL);
     let _artifact = produce_terminal_artifact(&checked, "fill")

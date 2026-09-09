@@ -276,8 +276,13 @@ pub(super) fn build(
         }
         cases.push(CheckedClosedSumCaseSuccessorPlan {
             case_identity,
-            statement_ordinal: u32::try_from(2 + ordinal).ok()?,
-            target_state: target.symbol,
+            successor: CheckedStructuralControlSuccessorPlan {
+                statement_ordinal: u32::try_from(2 + ordinal).ok()?,
+                target_state: target.symbol,
+                transfers: Vec::new(),
+                scalar_arguments: Vec::new(),
+                trivial_affine_discard_parameter_positions: Vec::new(),
+            },
             payloads,
         });
     }

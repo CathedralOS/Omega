@@ -1,6 +1,9 @@
 //! Exact borrowed structural headers for observations, writes and calls.
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn validate(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -164,6 +167,20 @@ pub(super) fn validate(
                 .filter(|node| {
                     matches!(
                         node.operation,
+                        AbstractOperation::BoundaryCall {
+                            result: abstract_operations::AbstractBoundaryResult::Structural(_),
+                            ..
+                        }
+                    )
+                })
+                .count()
+            + optimized
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .filter(|node| {
+                    matches!(
+                        node.operation,
                         AbstractOperation::EstablishPrimitiveLocal { .. }
                     )
                 })
@@ -172,6 +189,21 @@ pub(super) fn validate(
         return Err(invalid);
     }
     for place in &optimized.structural_places {
+        if let Ok((producer, result)) = super::structural_case::source_result(optimized, place.id) {
+            // A borrowed-view activation may also own a completed boundary
+            // result. Keep its producer/type custody separate from descriptors;
+            // target replay still validates the exact selected settlement.
+            super::read_byte::layout(result, plan)?;
+            if place.kind
+                != (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type: result.structural_type,
+                })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
         if let Some((operation, result, _)) = super::primitive_locals::producer(optimized, place.id)
         {
             if !super::primitive_locals::valid_result(optimized, operation, result) {
