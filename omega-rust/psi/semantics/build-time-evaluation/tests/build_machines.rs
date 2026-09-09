@@ -821,6 +821,40 @@ fn case_membership_evaluates_tags_without_comparing_payloads() {
 }
 
 #[test]
+fn case_membership_accepts_temporary_values() {
+    for (subject, case, expected) in [
+        ("(Choice::Ready { value: 37 })", "Ready", true),
+        ("(Choice::Ready { value: 37 })", "Empty", false),
+        ("Choice::Empty", "Empty", true),
+        ("Choice::Empty", "Ready", false),
+    ] {
+        let program = typed(&format!(
+            "data Choice [copy] {{ case Ready(value: u64); case Empty; }}
+             machine member() -> bool {{ {subject} in Choice::{case} }}"
+        ));
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+            .evaluate_const_evaluable_machine(&program, "member", vec![])
+            .expect("membership does not require an otherwise unused local binding");
+        assert_eq!(value, BuildTimeValue::Bool(expected), "{subject} in {case}");
+    }
+}
+
+#[test]
+fn case_membership_requires_a_value_subject_not_a_payload_domain() {
+    let program = typed(
+        "data Choice [copy] { case Ready(value: u64); case Empty; }
+         machine member() -> bool { Choice::Ready in Choice::Ready }",
+    );
+    let error = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program)
+        .evaluate_const_evaluable_machine(&program, "member", vec![])
+        .expect_err("a bare payload case denotes a domain, not a constructed subject value");
+    assert!(
+        error.contains("requires exact authored selection"),
+        "{error}"
+    );
+}
+
+#[test]
 fn case_membership_is_distinct_from_authored_equality() {
     let program = typed(
         "data Choice [copy] { case Ready; case Empty; }
@@ -829,18 +863,21 @@ fn case_membership_is_distinct_from_authored_equality() {
              let choice: Choice = Choice::Ready;
              choice in Choice::Ready
          }
+         machine inline_member() -> bool { Choice::Ready in Choice::Ready }
          machine equal() -> bool {
              let choice: Choice = Choice::Ready;
              choice == Choice::Ready
          }",
     );
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
-    assert_eq!(
-        admission
-            .evaluate_const_evaluable_machine(&program, "member", vec![])
-            .expect("an equality declaration does not redefine membership"),
-        BuildTimeValue::Bool(true)
-    );
+    for machine in ["member", "inline_member"] {
+        assert_eq!(
+            admission
+                .evaluate_const_evaluable_machine(&program, machine, vec![])
+                .expect("an equality declaration does not redefine membership"),
+            BuildTimeValue::Bool(true)
+        );
+    }
     let error = admission
         .evaluate_const_evaluable_machine(&program, "equal", vec![])
         .expect_err("authored equality must not execute as a builtin tag test");
@@ -858,10 +895,14 @@ fn authored_binary_operator_cannot_fall_back_to_builtin_during_evaluation() {
          data Provider {}
          machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { 0 }
          machine count() -> u64 { 7u64 % 2 }
-         machine indirect() -> u64 { count() }",
+         machine indirect() -> u64 { count() }
+         data Choice [copy] { case Ready(value: u64); }
+         machine member() -> bool {
+             (Choice::Ready { value: 7u64 % 2 }) in Choice::Ready
+         }",
     );
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
-    for machine in ["count", "indirect"] {
+    for machine in ["count", "indirect", "member"] {
         let error = admission
             .evaluate_const_evaluable_machine(&program, machine, vec![])
             .expect_err("unresolved authored meaning must not execute builtin remainder");

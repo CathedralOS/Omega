@@ -4,7 +4,7 @@
 
 use crate::places::declared_place_type_raw;
 use language_core::OperatorSpelling;
-use typed_trees::data::DataMember;
+use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -204,46 +204,15 @@ fn has_exact_case_membership_meaning(
     if comparison.operator != BinaryOperator::Equal {
         return false;
     }
+    let Some(owner) = exact_case_reference_owner(program, comparison.right) else {
+        return false;
+    };
+    if !membership_subject_matches_owner(program, machine, state, comparison.left, owner) {
+        return false;
+    }
     let ExpressionNode::Name(case) = program.expression_table.expression(comparison.right) else {
         return false;
     };
-    if !case.head_symbol.is_valid()
-        || !case.symbol.is_valid()
-        || program
-            .expression_table
-            .name_path_members(case.members)
-            .len()
-            != 2
-        || program
-            .expression_table
-            .name_path_member_symbols(case.member_symbols)
-            != [case.head_symbol, case.symbol]
-    {
-        return false;
-    }
-    let Some(owner) = program.data_definitions().iter().find(|owner| {
-        owner.symbol == case.head_symbol
-            && program.data_members(owner).iter().any(|member| {
-                matches!(member, DataMember::Variant(variant) if variant.symbol == case.symbol)
-            })
-    }) else {
-        return false;
-    };
-    let Some(subject_type) = operand_type(program, machine, state, comparison.left)
-        .and_then(|reference| crate::places::unwrapped_type_reference(program, reference))
-    else {
-        return false;
-    };
-    // Only nominal subjects match. In particular, type_symbol() also walks
-    // array/slice element types, which cannot establish a collection's tag.
-    let subject_symbol = match program.type_reference_table.type_reference(subject_type) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-        _ => return false,
-    };
-    if subject_symbol != owner.symbol {
-        return false;
-    }
     let mut has_owner = false;
     let mut has_case = false;
     for occurrence in program
@@ -271,6 +240,80 @@ fn has_exact_case_membership_meaning(
         }
     }
     has_owner && has_case
+}
+
+fn exact_case_reference_owner(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<&DataDefinition> {
+    let ExpressionNode::Name(case) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !case.head_symbol.is_valid()
+        || !case.symbol.is_valid()
+        || program
+            .expression_table
+            .name_path_members(case.members)
+            .len()
+            != 2
+        || program
+            .expression_table
+            .name_path_member_symbols(case.member_symbols)
+            != [case.head_symbol, case.symbol]
+    {
+        return None;
+    }
+    program.data_definitions().iter().find(|owner| {
+        owner.symbol == case.head_symbol
+            && program.data_members(owner).iter().any(|member| {
+                matches!(member, DataMember::Variant(variant) if variant.symbol == case.symbol)
+            })
+    })
+}
+
+fn membership_subject_matches_owner(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    subject: ExpressionHandle,
+    owner: &DataDefinition,
+) -> bool {
+    // Fresh values retain their own nominal identity without a declared place
+    // type. Do not require an artificial local binding or borrow the tested
+    // case's type as evidence for an otherwise unknown subject. Field
+    // construction and default-domain obligations remain separate checks.
+    match program.expression_table.expression(subject) {
+        ExpressionNode::StructLiteral(literal) => {
+            return literal.type_symbol == owner.symbol
+                && program.data_members(owner).iter().any(|member| {
+                    matches!(member, DataMember::Variant(variant)
+                        if literal.case_symbol == Some(variant.symbol))
+                });
+        }
+        ExpressionNode::Name(path) if path.head_symbol != path.symbol => {
+            return exact_case_reference_owner(program, subject)
+                .is_some_and(|subject_owner| subject_owner.symbol == owner.symbol)
+                // A bare case is a value only without a payload. RHS case
+                // domains intentionally do not have this restriction.
+                && program.data_members(owner).iter().any(|member| {
+                    matches!(member, DataMember::Variant(variant)
+                        if variant.symbol == path.symbol && variant.payload.is_empty())
+                });
+        }
+        _ => {}
+    }
+    let Some(subject_type) = operand_type(program, machine, state, subject)
+        .and_then(|reference| crate::places::unwrapped_type_reference(program, reference))
+    else {
+        return false;
+    };
+    // Only nominal subjects match. In particular, type_symbol() also walks
+    // array/slice element types, which cannot establish a collection's tag.
+    match program.type_reference_table.type_reference(subject_type) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol == owner.symbol,
+        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol == owner.symbol,
+        _ => false,
+    }
 }
 
 fn operand_type(
