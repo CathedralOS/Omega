@@ -1,4 +1,12 @@
-//! Exact integer evaluation and comparisons after declaration selection.
+//! Exact scalar evaluation after declaration selection.
+//!
+//! Boolean leaves and comparison results share the same value path so nested
+//! equality keeps its operands' meaning. Each binary node is admitted against
+//! its exact selected operator before evaluation; equal canonical results do
+//! not replace the separate authored selection custody retained by the probe.
+//! Equality is strict, so both operands use the existing left-to-right traversal.
+//! Short-circuit Boolean logic cannot use this eager path: it must decide whether
+//! to visit the right operand after evaluating the left one.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -34,9 +42,6 @@ pub(super) fn evaluate(
     if !program.expression_table.expression_is_valid(expression) {
         return Err("invalid constant expression".to_owned());
     }
-    if let ExpressionNode::Boolean(value) = program.expression_table.expression(expression) {
-        return Ok((CanonicalConstValue::boolean(*value), Vec::new()));
-    }
     enum Step {
         Enter(ExpressionHandle),
         Binary(ExpressionHandle, BinaryOperator),
@@ -54,6 +59,7 @@ pub(super) fn evaluate(
                     return Err("invalid or cyclic constant expression".into());
                 }
                 match program.expression_table.expression(expression) {
+                    ExpressionNode::Boolean(value) => values.push(Value::Boolean(*value)),
                     ExpressionNode::Integer(literal) if literal.landing().is_some() => {
                         values.push(landed_literal(literal)?);
                     }
@@ -229,6 +235,13 @@ fn landed_literal(literal: &IntegerLiteral) -> Result<Value, String> {
 }
 
 fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, String> {
+    if let (Value::Boolean(left), Value::Boolean(right)) = (left, right) {
+        return match operator {
+            BinaryOperator::Equal => Ok(Value::Boolean(left == right)),
+            BinaryOperator::NotEqual => Ok(Value::Boolean(left != right)),
+            _ => Err("unsupported builtin Boolean constant operator".into()),
+        };
+    }
     let (Value::Landed(left_carrier, left), Value::Landed(right_carrier, right)) = (left, right)
     else {
         return Err("integer operation requires landed operands".into());
