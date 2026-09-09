@@ -1,6 +1,6 @@
 use super::{
-    extract_external_binding_rows, selected_source_boundary_entry_plan,
-    settle_external_binding_rows,
+    extract_external_binding_rows, extract_native_external_binding_rows,
+    selected_source_boundary_entry_plan, settle_external_binding_rows,
 };
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use calling_conventions::{
@@ -331,6 +331,61 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
 }
 
 #[test]
+fn native_external_projection_retains_syscall_custody_without_unrelated_abi_planning() {
+    let mut fixture = fixture(false);
+    add_bootstrap_row(&mut fixture);
+    fixture.plans[0].target = "linux_x86_64".to_owned();
+    fixture.plans[0].rows[0].binding = ProviderBinding::Syscall { number: 231 };
+    let expected = extract_external_binding_rows(
+        Some("linux_x86_64"),
+        target::NativeTarget::linux_x64(),
+        &fixture.plans,
+        &fixture.realizations,
+        &fixture.typed,
+    )
+    .expect("reference syscall projection");
+
+    // These mechanisms have separate consumers. They must not demand a
+    // compatibility calling plan merely because the same provider also has
+    // a syscall; deliberately absent schema methods make that observable.
+    for binding in [
+        ProviderBinding::VtableField {
+            table: "RetainedProvider".to_owned(),
+            field: "grant".to_owned(),
+        },
+        ProviderBinding::StringBackedImportBootstrap {
+            library: "legacy".to_owned(),
+            symbol: "entry".to_owned(),
+        },
+    ] {
+        fixture.plans[0].rows.push(ProviderPlanRow {
+            method: "separate_route".to_owned(),
+            requirement_identity: "separate_route".to_owned(),
+            requirement_lifetime_partition: Vec::new(),
+            binding,
+        });
+    }
+    let actual = extract_native_external_binding_rows(
+        Some("linux_x86_64"),
+        target::NativeTarget::linux_x64(),
+        &fixture.plans,
+        &fixture.realizations,
+        &fixture.typed,
+    )
+    .expect("native handoff retains only supported external mechanisms");
+    assert_eq!(actual, expected);
+    let [row] = actual.as_slice() else {
+        panic!("one exact syscall row")
+    };
+    assert_eq!(row.requirement_identity, fixture.requirement_identity);
+    assert_eq!(row.boundary_entry_plan, Some(fixture.expected));
+    assert_eq!(
+        row.binding,
+        calling_conventions::ExternalBindingKind::Syscall { number: 231 }
+    );
+}
+
+#[test]
 fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
     let source = r#"
         pub data Counter [copy] { value: u64; }
@@ -385,6 +440,17 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         "the requirement's semantic `self` carrier and ordinary value parameter both cross the external ABI",
     );
     assert!(entry.call.result.is_none());
+    assert_eq!(
+        extract_native_external_binding_rows(
+            Some("linux_x86_64"),
+            target::NativeTarget::linux_x64(),
+            std::slice::from_ref(plan),
+            &[],
+            &typed,
+        )
+        .expect("native syscall handoff preserves the same top-level carrier ABI"),
+        rows,
+    );
 }
 
 #[test]
