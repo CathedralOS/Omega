@@ -1,22 +1,119 @@
+; Ended flow suppresses control admission, not independent spelling resolution.
+; Known states/machines need no arity or result fact here; other names retain
+; ordinary local lookup, including its exact UnknownName anchor.
+(def epsilon_resolve_suppressed_continuation_name ((source EpsilonSourceView)
+  (expressionValue EpsilonExpression) (name EpsilonName)
+  (active EpsilonLocalBindingList) (machineValue EpsilonDeclaration)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (match (epsilon_catalog_find_state source machineValue name)
+    ((OneEpsilonCatalogState stateValue) scan)
+    (NoEpsilonCatalogState
+      (match scan
+        ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+          stateApplications types candidate)
+          (match catalog
+            ((EpsilonResolutionCatalogSyntax rows)
+              (match (epsilon_catalog_find_unqualified_machine source name rows)
+                ((OneEpsilonCatalogMachine targetMachine) scan)
+                (NoEpsilonCatalogMachine
+                  (epsilon_resolve_local_value_name source expressionValue name
+                    active NoEpsilonLocalBindings scan))))))))))
+
+; Qualification selects the same owner/member namespace before admission.
+; A known wrong kind contributes no dependent control or arity judgment.
+(def epsilon_resolve_suppressed_qualified_name ((source EpsilonSourceView)
+  (owner EpsilonName) (member EpsilonName) (scan EpsilonLocalResolutionScan))
+  EpsilonLocalResolutionScan
+  (match scan
+    ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+      stateApplications types candidate)
+      (match catalog
+        ((EpsilonResolutionCatalogSyntax rows)
+          (match (epsilon_catalog_find_owner source owner rows)
+            (NoEpsilonCatalogOwner
+              (epsilon_local_scan_add_candidate UnknownName
+                (epsilon_name_start owner) scan))
+            ((OneEpsilonCatalogBoundaryOwner declaration)
+              (match (epsilon_catalog_find_boundary_member source owner member rows)
+                (NoEpsilonCatalogBoundaryMember
+                  (epsilon_local_scan_add_candidate UnknownName
+                    (epsilon_name_start member) scan))
+                ((OneEpsilonCatalogBoundaryMember memberValue) scan)))
+            ((OneEpsilonCatalogDataOwner declaration shape)
+              (match (epsilon_catalog_find_data_member source owner member rows)
+                (NoEpsilonCatalogDataMember
+                  (epsilon_local_scan_add_candidate UnknownName
+                    (epsilon_name_start member) scan))
+                ((OneEpsilonCatalogCase caseOwner caseValue) scan)
+                ((OneEpsilonCatalogField fieldOwner fieldValue) scan)))))))))
+
+; Receiver identity depends on its complete value type, not on the suppressed
+; application's result, place, or argument join. Contextual members are known
+; spellings even when their type/category relation cannot be admitted here.
+(def epsilon_resolve_suppressed_receiver_name ((source EpsilonSourceView)
+  (receiver EpsilonExpression) (member EpsilonName)
+  (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
+  (if (epsilon_name_is_contextual_field source member)
+    scan
+    (match scan
+      ((EpsilonLocalResolutionScanSyntax catalog references fields callables
+        stateApplications types candidate)
+        (match (epsilon_find_expression_result receiver types)
+          (NoEpsilonExpressionResult scan)
+          ((OneEpsilonExpressionResult resultValue)
+            (match resultValue
+              (EpsilonResultlessExpressionResult scan)
+              (EpsilonNeverExpressionResult scan)
+              ((EpsilonValueExpressionResult typeValue placeType)
+                (match typeValue
+                  ((EpsilonNamedType start end owner)
+                    (match catalog
+                      ((EpsilonResolutionCatalogSyntax rows)
+                        (match (epsilon_catalog_find_qualified_data_machine
+                          source owner member rows)
+                          ((OneEpsilonCatalogDataMachine ownerValue machineValue)
+                            scan)
+                          (NoEpsilonCatalogDataMachine
+                            (epsilon_resolve_suppressed_qualified_name source
+                              owner member scan))))))
+                  ((EpsilonI32Type start end)
+                    (epsilon_local_scan_add_candidate UnknownName
+                      (epsilon_name_start member) scan))
+                  ((EpsilonU8Type start end)
+                    (epsilon_local_scan_add_candidate UnknownName
+                      (epsilon_name_start member) scan))
+                  ((EpsilonNeverType start end) scan)
+                  ((EpsilonArrayType start end element lengthValue)
+                    (epsilon_local_scan_add_candidate UnknownName
+                      (epsilon_name_start member) scan))
+                  ((EpsilonViewType start end element)
+                    (epsilon_local_scan_add_candidate UnknownName
+                      (epsilon_name_start member) scan)))))))))))
 
 (def epsilon_resolve_suppressed_continuation_call_base ((source EpsilonSourceView)
   (base EpsilonExpression) (active EpsilonLocalBindingList)
+  (machineValue EpsilonDeclaration)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match base
-    ((EpsilonNameExpression start end name) scan)
+    ((EpsilonNameExpression start end name)
+      (epsilon_resolve_suppressed_continuation_name source base name active
+        machineValue scan))
     ((EpsilonQualifiedExpression start end owner name argumentsValue)
       (match argumentsValue
-        (NoEpsilonArguments scan)
+        (NoEpsilonArguments
+          (epsilon_resolve_suppressed_qualified_name source owner name scan))
         ((SomeEpsilonArguments openStart closeEnd values)
-          (epsilon_local_scan_argument_terminal_candidates values
-            (epsilon_resolve_local_expression_list source values active
-              NoEpsilonLocalBindings scan)))))
+          (epsilon_resolve_suppressed_qualified_name source owner name
+            (epsilon_local_scan_argument_terminal_candidates values
+              (epsilon_resolve_local_expression_list source values active
+                NoEpsilonLocalBindings scan))))))
     ((EpsilonGroupedExpression start end inner)
       (epsilon_resolve_suppressed_continuation_call_base source inner active
-        scan))
+        machineValue scan))
     ((EpsilonFieldExpression start end receiver member)
-      (epsilon_resolve_local_expression source receiver active
-        NoEpsilonLocalBindings scan))
+      (epsilon_resolve_suppressed_receiver_name source receiver member
+        (epsilon_resolve_local_expression source receiver active
+          NoEpsilonLocalBindings scan)))
     ((EpsilonCallExpression start end innerBase arguments)
       (epsilon_resolve_local_expression source base active
         NoEpsilonLocalBindings scan))
@@ -51,24 +148,27 @@
 
 (def epsilon_resolve_suppressed_continuation_expression ((source EpsilonSourceView)
   (expressionValue EpsilonExpression) (active EpsilonLocalBindingList)
+  (machineValue EpsilonDeclaration)
   (scan EpsilonLocalResolutionScan)) EpsilonLocalResolutionScan
   (match expressionValue
     ((EpsilonGroupedExpression start end inner)
       (epsilon_resolve_suppressed_continuation_expression source inner active
-        scan))
+        machineValue scan))
     ((EpsilonQualifiedExpression start end owner name argumentsValue)
       (match argumentsValue
-        (NoEpsilonArguments scan)
+        (NoEpsilonArguments
+          (epsilon_resolve_suppressed_qualified_name source owner name scan))
         ((SomeEpsilonArguments openStart closeEnd values)
-          (epsilon_local_scan_argument_terminal_candidates values
-            (epsilon_resolve_local_expression_list source values active
-              NoEpsilonLocalBindings scan)))))
+          (epsilon_resolve_suppressed_qualified_name source owner name
+            (epsilon_local_scan_argument_terminal_candidates values
+              (epsilon_resolve_local_expression_list source values active
+                NoEpsilonLocalBindings scan))))))
     ((EpsilonCallExpression start end base arguments)
       (epsilon_local_scan_argument_terminal_candidates arguments
         (epsilon_resolve_local_expression_list source arguments active
           NoEpsilonLocalBindings
           (epsilon_resolve_suppressed_continuation_call_base source base active
-            scan))))
+            machineValue scan))))
     ((EpsilonIntegerExpression start end literal)
       (epsilon_resolve_local_expression source expressionValue active
         NoEpsilonLocalBindings scan))
@@ -84,7 +184,9 @@
     ((EpsilonFalseExpression start end)
       (epsilon_resolve_local_expression source expressionValue active
         NoEpsilonLocalBindings scan))
-    ((EpsilonNameExpression start end name) scan)
+    ((EpsilonNameExpression start end name)
+      (epsilon_resolve_suppressed_continuation_name source expressionValue name
+        active machineValue scan))
     ((EpsilonFieldExpression start end base member)
       (epsilon_resolve_local_expression source expressionValue active
         NoEpsilonLocalBindings scan))
@@ -115,10 +217,10 @@
             expressionValue active machineValue start scan))
         (EpsilonStatementSequenceEndedByNever
           (epsilon_resolve_suppressed_continuation_expression source
-            expressionValue active scan))
+            expressionValue active machineValue scan))
         (EpsilonStatementSequenceInvalidAfterNever
           (epsilon_resolve_suppressed_continuation_expression source
-            expressionValue active scan))))
+            expressionValue active machineValue scan))))
     ((EpsilonReturnContinuation start end expressionValue)
       (let expressionScan EpsilonLocalResolutionScan
         (epsilon_resolve_local_optional_expression source expressionValue active

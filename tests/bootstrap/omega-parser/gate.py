@@ -47,8 +47,8 @@ def main():
     # These are whole source closures and an unchanged ordinary Delta adapter.
     # The host frames and compares bytes; the lower chain checks and runs D.
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon", epsilon, 611524,
-                     "4a9d1e2fd1719705763057080b163506e92c2b2355327938f82235740185ec47")
+    require_identity("Epsilon", epsilon, 617354,
+                     "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e")
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
@@ -66,8 +66,8 @@ def main():
     request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject)) + subject
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
                        request, 300, "Epsilon receipt reconstruction")
-    require_identity("Epsilon execution receipt", receipt, 713259,
-                     "de5ed0d307a218a6b99f0618f722eaeafa0d51a88b1aacadbdc51e3458a16c9a")
+    require_identity("Epsilon execution receipt", receipt, 719826,
+                     "dd4985c0eb6e1f30bc2178f90dd30e25ae7b842fb544137f606a44e622000f22")
 
     observation = evaluate(directory, receipt,
                            struct.pack("<I", len(customer)) + customer,

@@ -153,8 +153,10 @@ prerequisite to every lower-rung milestone.
   `84ab380f0d725061d415efa048db3bd2b7c6fe8a525a70207783cb81ce23dda5`
   and the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
-  `sh tests/epsilon/checking/run.sh` reconstructs the 709,645-byte
-  receipt and checks 70 exact judgments with the selected evaluator.
+  `sh tests/epsilon/checking/run.sh` reconstructs the
+  [pinned checking receipt](tests/epsilon/checking/receipt.tsv) and checks its
+  exact [judgment inventory](tests/epsilon/checking/fixtures.tsv) with the
+  selected evaluator.
   Follow the [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
   Alpha local-slot/label/fixup resources have zero use here, and match coverage
   is bounded by admitted constructors. Do not implement fictitious tables or
@@ -212,8 +214,8 @@ prerequisite to every lower-rung milestone.
   120.518 seconds without a new index or profile. Run
   `sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D lexer'`.
   Retain `sh tests/bootstrap/omega-parser/run.sh` as the complete-source parser
-  regression. Its [current time/allocation comparison](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
-  passes, but does not close final checking, resource/entry conformance, or
+  regression. Its [recorded time/allocation comparison](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
+  passed, but does not close final checking, resource/entry conformance, or
   whole-D compilation. Do not replace those remaining requirements with more
   parser-only controls.
   Final acceptance depends on complete D: that exact source executes through

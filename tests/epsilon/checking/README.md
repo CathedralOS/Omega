@@ -93,8 +93,20 @@ the same start. Grouped receiver calls still accept; field and local value heads
 unknown ordinary calls, arity errors before unknown arguments, and independent
 argument errors retain their authored diagnostic coordinates.
 
-`receipt.tsv` records the measured 709,645-byte checker receipt with SHA-256
-`16bfdf8fcf1ea3776e5696c8a2002312c4409c14cc36d32e25e36c06adf733f3`.
-Every gate run reconstructs this exact receipt before comparing the 70 complete
+Sixteen continuation-name controls separate independent identity resolution
+from control admission after a successful `never` statement. Missing bare and
+grouped names, callees, qualified owners or cases, and receiver members retain
+`UnknownName` at the missing spelling, including an earlier callee before an
+unknown argument. A missing receiver remains independently rejected. Paired
+known states, machines, a state/machine collision, a constructor, and a receiver
+method retain `InvalidTerminal` at the transition's closing brace; blocked
+control admission cannot introduce arity, result-type, or target-kind failures.
+These are unused probe machines, so runtime reachability cannot suppress their
+authored name judgments. The retained pre-repair checker fails nine of these
+16 observations and already preserves the other seven.
+
+`receipt.tsv` records the measured 716,212-byte checker receipt with SHA-256
+`a6d49f0f7b2eca2c66e985daeb9380d0285a160ce468803ee5ce74dce9ac690c`.
+Every gate run reconstructs this exact receipt before comparing the 86 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.
