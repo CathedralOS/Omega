@@ -56,8 +56,12 @@ the same resolved substitution as module constants. Aggregate arguments,
 including fixed-array destinations, pass the same original-owner lexical check
 before the separate legacy materializer can erase their names. Destination shape
 only chooses the value evaluator; it cannot authorize a runtime binding.
-Open templates, aggregate indices, authored operator execution, constrained
-destinations and address-dependent arithmetic need their own complete contexts;
+Module-owned literal integer/Boolean arrays can use the existing structural
+index canonicalizer after original lexical selection; they do not need a scalar
+probe. Namespace admission validates even unused array declarations before their
+initializers disappear. Nominal aggregate normalization, open templates, authored
+operator execution, constrained destinations and address-dependent arithmetic need
+their own complete contexts;
 the standalone probe does not claim those forms.
 
 ## Semantic admission boundary

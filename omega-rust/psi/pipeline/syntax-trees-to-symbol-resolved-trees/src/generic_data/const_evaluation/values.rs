@@ -1,4 +1,9 @@
 //! Constant evaluation: values.
+//!
+//! Structural encoding recursively lands anonymous scalar leaves at the declared
+//! component type. A suffixed leaf has already landed: erasing that carrier or
+//! arithmetic domain would equate a differently typed value with this component,
+//! even when its numeric payload fits. Check the landing before encoding it.
 
 use super::*;
 
@@ -270,6 +275,14 @@ pub(in crate::generic_data) fn canonicalize_const_expression(
             let ExpressionNode::Integer(literal) = syntax.expressions.expression(expression) else {
                 return Err(format!("expected an integer literal for `{type_name}`"));
             };
+            if literal.landing().is_some_and(|landing| {
+                landing.landed_type.name() != type_name.as_str()
+                    || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+            }) {
+                return Err(format!(
+                    "integer literal landing conflicts with declared const component `{type_name}`"
+                ));
+            }
             let value = integer_literal_value(literal)
                 .ok_or_else(|| "integer literal exceeds the const-value envelope".to_owned())?;
             validate_syntax_integer_range(type_name.as_str(), value)?;

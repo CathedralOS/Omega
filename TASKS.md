@@ -988,24 +988,18 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: `3dce740da0`, macOS arm64 with Cargo and
-  `RUST_MIN_STACK=33554432`. Run
-  `cargo run -p omega -- --check tests/omega/pass/modules/boolean_machine_indices/main.omg`:
-  two files check with root/module machine parameters, results and locals
-  selecting distinct `Flag<true>` and `Flag<false>` identities. The same command
-  on `tests/omega/fail/modules/runtime_boolean_index/main.omg` rejects the runtime
-  parameter with `machine index operand must select a constant in its original lexical scope`.
-  Original lexical selection in
-  `build-time-evaluation/src/const_generic_expressions.rs` precedes the typed
-  scalar probe. Next acceptance: aggregate indices must preserve their lexical
-  owner through namespace-aware materialization; module-owned aggregate constants
-  remain fenced by initializer normalization. Root-scoped record and fixed-array
-  arguments already retain lexical selection; continue from the
-  `aggregate_machine_indices` and `fixed_array_machine_indices` cases under
-  `tests/omega/pass/modules/`, with matching `runtime_aggregate_index` and
-  `runtime_fixed_array_index` rejection controls under `tests/omega/fail/modules/`.
-  The remaining work is namespace-aware aggregate materialization, not another
-  destination-shape exception in lexical admission.
+  Resume evidence: the working checkpoint based on `94284b0131`, macOS arm64
+  with Cargo and `RUST_MIN_STACK=33554432`, checks
+  `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`:
+  same-leaf root/module integer arrays retain distinct canonical values and exact
+  declaration custody. Continue from that customer: nominal record/sum initializers,
+  type-scoped module constants and aggregate body substitution still need their
+  namespace-aware owners in `syntax-trees-to-symbol-resolved-trees`.
+  Literal integer/Boolean arrays already use the canonical structural index path;
+  module admission validates unused declarations too. Root/module machine scopes
+  retain original lexical selection through `build-time-evaluation/src/const_generic_expressions.rs`.
+  Keep the `runtime_aggregate_index` and `runtime_fixed_array_index` rejection
+  controls under `tests/omega/fail/modules/` while extending materialization.
   Conformance and static-requirement argument positions
   also need their complete owners, not a standalone root probe.
   Open-template computation, constrained destinations, authored operator execution
