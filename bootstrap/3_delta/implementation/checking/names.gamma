@@ -140,10 +140,6 @@
         (name_trie_child trie (% packed 256))
         (- remaining 1) (/ packed 256)))))
 
-(def name_trie_find ((trie Int) (end Int) (index Int)) Int
-  (let result Int (name_trie_find_option trie end index)
-    (if (first result) (second result) 0)))
-
 ; Type metadata is (pair owner (pair constructor-count has-payload)).
 ; Constructor metadata is
 ; (pair type-metadata

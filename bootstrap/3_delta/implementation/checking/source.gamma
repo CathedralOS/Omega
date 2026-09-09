@@ -61,18 +61,6 @@
               index
               (token_word_end (+ index 1)))))))))
 
-(def same_span ((left Int) (left_end Int) (right Int) (right_end Int)) Int
-  (if (eq (- left_end left) (- right_end right))
-    (same_span_bytes left right (- left_end left))
-    0))
-
-(def same_span_bytes ((left Int) (right Int) (remaining Int)) Int
-  (if (eq remaining 0)
-    1
-    (if (eq (source_read left) (source_read right))
-      (same_span_bytes (+ left 1) (+ right 1) (- remaining 1))
-      0)))
-
 (def packed_span_equal ((index Int) (remaining Int) (packed Int)) Int
   (if (eq remaining 0)
     1
