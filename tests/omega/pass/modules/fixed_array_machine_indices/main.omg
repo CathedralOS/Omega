@@ -1,0 +1,12 @@
+use settings;
+data Sizes {}
+const Sizes::SIZE: [u64; 2] = [1, 2];
+const Sizes::SAME: [u64; 2] = [1, 2];
+data Indexed<const Selected: [u64; 2]> { value: u8; }
+machine keep(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SAME> {
+    let local: Indexed<Sizes::SIZE> = value;
+    let Sizes: u64 = 0;
+    local
+}
+data Main {}
+machine Main::main(&mut self) {}

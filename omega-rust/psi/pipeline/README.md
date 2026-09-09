@@ -125,10 +125,16 @@ signatures retain public exposure independently of body and internal-state uses.
 Root scalar references also use resolved substitution, so locals and explicit
 receiver fields can share a constant's spelling without changing its selection.
 Named aggregate indices in those machine owners also resolve their lexical
-paths before legacy materialization: a runtime-qualified root cannot acquire
-a same-spelled static aggregate. The selection prepass retains declaration
-custody without materializing aggregate values. Module-owned aggregates still
-require namespace-aware initializer normalization and materialization.
+paths before legacy materialization, including fixed-array destinations: a
+runtime-qualified root cannot acquire a same-spelled static aggregate. Destination
+syntax chooses the value route, never permission to skip lexical selection. The
+selection prepass retains declaration custody without materializing aggregate
+values. The two-file CLI check
+`cargo run -p omega -- --check tests/omega/pass/modules/fixed_array_machine_indices/main.omg`
+preserves static array identity across root and module machine owners; the same
+command on `tests/omega/fail/modules/runtime_fixed_array_index/main.omg` rejects
+a runtime qualifier. Module-owned aggregates still require namespace-aware
+initializer normalization and materialization.
 The comparisons preserve each operand carrier and use the shared typed integer
 order operation; anonymous operands must land exactly in the selected peer carrier.
 Boolean equality and inequality compose named constants and comparison results

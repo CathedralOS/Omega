@@ -52,8 +52,10 @@ a constant there, and the standalone probe must retain exactly that selection;
 runtime parameters and locals cannot become same-spelled constants. Only public
 entry signatures publish public-interface occurrences; body and internal-state
 annotations retain private implementation exposure. Root scalar constants use
-the same resolved substitution as module constants, while legacy aggregate
-materialization remains separate.
+the same resolved substitution as module constants. Aggregate arguments,
+including fixed-array destinations, pass the same original-owner lexical check
+before the separate legacy materializer can erase their names. Destination shape
+only chooses the value evaluator; it cannot authorize a runtime binding.
 Open templates, aggregate indices, authored operator execution, constrained
 destinations and address-dependent arithmetic need their own complete contexts;
 the standalone probe does not claim those forms.
