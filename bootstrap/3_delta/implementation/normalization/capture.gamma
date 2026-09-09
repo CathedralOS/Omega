@@ -1,43 +1,38 @@
-; Capture one helper body without evaluating it. The caller supplies the next
-; globally unused generated identity; source and existing generated identities
-; remain unchanged except at free reference occurrences inside the helper.
-(def capture_expression ((node Int) (next_identity Int)) Int
-  (capture_visit node 0 0 (capture_state next_identity 0 0) 0 0))
+; Collect one helper body's free bindings without evaluating or rebuilding it.
+; Original atoms serve both as parameters and as already-bound call arguments.
+(def capture_expression ((node Int)) Int
+  (capture_visit node 0 0 0 0 0 0))
 
 ; Frames are counted (pair kind (pair payload previous)). Kind 1 continues
-; call arguments, kind 2 enters a let body, and kind 3 rebuilds its let.
+; call arguments and kind 2 enters a let body. No reconstruction frame is needed.
 (def capture_frame ((kind Int) (payload Int) (previous Int)) Int
   (pair kind (pair payload previous)))
 
 (def capture_visit
-  ((node Int) (bound_count Int) (bound Int) (state Int)
+  ((node Int) (bound_count Int) (bound Int) (count Int) (captures Int)
    (depth Int) (frames Int)) Int
   (let kind Int (gamma_kind node)
     (if (eq kind 7)
       (let arguments Int (second (gamma_payload node))
-        (capture_call_arguments node (first arguments) (second arguments) 0
-          bound_count bound state depth frames))
+        (capture_call_arguments (first arguments) (second arguments)
+          bound_count bound count captures depth frames))
       (if (eq kind 8)
-        (capture_let node bound_count bound state depth frames)
+        (capture_let node bound_count bound count captures depth frames)
         (if (if (eq kind 2) 1 (eq kind 4))
-          (capture_reference node bound_count bound state depth frames)
-          (capture_resume node state depth frames))))))
+          (capture_reference node bound_count bound count captures depth frames)
+          (capture_resume count captures depth frames))))))
 
 (def capture_resume
-  ((value Int) (state Int) (depth Int) (frames Int)) Int
+  ((count Int) (captures Int) (depth Int) (frames Int)) Int
   (if (eq depth 0)
-    (capture_finish value state)
+    (capture_finish count captures)
     (let kind Int (first frames)
       (let retained Int (second frames)
         (let payload Int (first retained)
           (let previous Int (second retained)
             (let next_depth Int (- depth 1)
               (if (eq kind 1)
-                (capture_argument_done value payload state next_depth previous)
+                (capture_argument_done payload count captures next_depth previous)
                 (if (eq kind 2)
-                  (capture_initializer_done value payload state next_depth previous)
-                  (if (eq kind 3)
-                    (capture_resume
-                      (gamma_let (first payload) (second payload) value)
-                      state next_depth previous)
-                    (fail)))))))))))
+                  (capture_initializer_done payload count captures next_depth previous)
+                  (fail))))))))))

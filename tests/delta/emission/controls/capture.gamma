@@ -1,6 +1,5 @@
-; Production capture reconstructs every visited call/let. The changed spelling
-; $v3 -> $c100 changes byte extent while unary cache eligibility remains intact.
-(def emission_test_rebuilt ((mode Int)) Int
+; Capture retains the original body, spelling, and serialization summaries.
+(def emission_test_capture ((mode Int)) Int
   (let free Int (gamma_generated 'v' 3)
     (let original Int
       (if (eq mode 16)
@@ -8,7 +7,9 @@
         (let binder Int (gamma_generated 'z' 7)
           (gamma_let binder (gamma_first free)
             (gamma_pair binder (gamma_second free)))))
-      (let captured Int (capture_expression original 100)
+      (let captured Int (capture_expression original)
         (if (eq (capture_count captured) 1)
-          (capture_body captured)
+          (if (capture_same_binding free (first (capture_bindings captured)))
+            original
+            (fail))
           (fail))))))

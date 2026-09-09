@@ -7,7 +7,7 @@ checks identities, and compares authored bytes. `fixtures.py` is an exact byte
 inventory, not a host serializer or lowering implementation.
 
 Start at `controls/main.gamma`: it routes to fixed-word cases, ordinary call
-fallbacks, expression ordering, and production capture reconstruction.
+fallbacks, expression ordering, and production capture preservation.
 `observation.gamma` measures the node with production count-only serialization,
 then publishes it through production expression serialization. Both running
 counts start at 11. Each observation contains little-endian u32 extent and
@@ -19,9 +19,9 @@ change the exact observation.
 Eighteen publication controls cover fixed-word lengths 1 and 7 versus fallback
 lengths 0 and 8, ignored packed high bytes, source-span and generated heads,
 nullary/binary calls, mixed unary chains, siblings, and let initializers/bodies.
-Production capture rebuilds a call and a let while replacing `$v3` with `$c100`;
-the changed spelling requires a new extent, and reconstructed unary calls must
-retain their cache. An assertion checks that the maximum positive packed input
+Production capture collects `$v3` once from a call and a let without rewriting
+them; the original extents and unary caches remain valid. An assertion checks
+that the maximum positive packed input
 at length 7 produces exactly `2^59 - 1` cache metadata. The NUL word checks that
 a cached zero byte remains distinguishable from absent metadata.
 

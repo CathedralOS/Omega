@@ -8,7 +8,7 @@
         (if (lt mode 8) (emission_test_words mode)
           (if (lt mode 12) (emission_test_calls mode)
             (if (lt mode 16) (emission_test_ordering mode)
-              (emission_test_rebuilt mode))))
+              (emission_test_capture mode))))
         (emission_test_observe node)))))
 
 (def source_length () Int (- (input) 1))

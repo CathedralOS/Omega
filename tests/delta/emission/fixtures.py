@@ -19,6 +19,6 @@ CASES = [
     ("cached_siblings", 13, b"", b"(pair (first 1) (second 2))", 27, 0),
     ("let_initializer_and_body", 14, b"", b"(let $z7 Int (first 1) (x (second $z7)))", 40, 0),
     ("let_before_sibling", 15, b"", b"(pair (let $z7 Int (first 1) (x (second $z7))) (first 2))", 57, 0),
-    ("capture_rebuilt_call", 16, b"", b"(first $c100)", 13, 1),
-    ("capture_rebuilt_let", 17, b"", b"(let $z7 Int (first $c100) (pair $z7 (second $c100)))", 53, 0),
+    ("capture_retained_call", 16, b"", b"(first $v3)", 11, 1),
+    ("capture_retained_let", 17, b"", b"(let $z7 Int (first $v3) (pair $z7 (second $v3)))", 49, 0),
 ]

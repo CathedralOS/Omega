@@ -132,20 +132,21 @@ points. A reference crosses at most `L` ancestor cuts, giving
 `C <= R*L <= 512*N*N` without assuming the old capture order. This bounds retained
 and intermediate capture incidences, not the work of looking them up or the
 cumulative allocation of traversal frames. These counts also bound the
-program-wide fresh-identity counter:
-`J + C <= 576*N*N < 2^54`; generated names consequently fit within 21 bytes,
+program-wide fresh-identity counter, which now advances only for helper names:
+`J <= 64*N*N <= 2^50`; generated names consequently fit within 21 bytes,
 without assuming that counter arithmetic was already safe.
 
 Long source names need a weighted bound, not `N` bytes for every generated
 atom. Original source-span spellings total at most `N`: a local reference reuses
 its declaration's spelling, but its equal-length use also occupies source bytes.
-Across extraction cuts, added long-name argument copies total at most `N*L`.
-Other generated atoms are short; replaced reference spellings are included in
-the original-occurrence allowance below. Counting fixed syntax generously gives
+Across extraction cuts, the original binding spelling is printed as both a
+helper parameter and a call argument. Added long-name copies therefore total
+at most `2*N*L`. Other generated atoms are short; unchanged body references are
+included in the original-occurrence allowance below. Counting fixed syntax generously gives
 the following complete-payload envelope:
 
 ```text
-64*M + 128*J + 128*C + N*L + N + 4,096 < 2^18 * N^2 <= 2^62
+64*M + 128*J + 128*C + 2*N*L + N + 4,096 < 2^18 * N^2 <= 2^62
 ```
 
 The 64-byte allowance covers each original occurrence's short atom spelling,
@@ -156,8 +157,8 @@ are included in the original inventory. Fixed marker, byte runtime, adapter,
 and final LF total less than 4,096 bytes. This is deliberately not a tight size
 estimate or a proposed payload provision.
 
-Lowered and capture-rebuilt bodies have the same original occurrences with
-renamed atoms; partially normalized programs add subsets of the helper/capture
+Capture retains normalized bodies and their original atoms unchanged;
+partially normalized programs add subsets of the helper/capture
 incidences above. The envelope therefore covers intermediate cached extents as
 well as final payloads, not the cumulative sizes of all discarded immutable
 copies. Counts are nonnegative sums of those extents and syntax
@@ -193,7 +194,7 @@ durable Gamma plan nodes belong under `representation/`.
 
 The [emission gate](../../../../tests/delta/emission/README.md) exercises
 count/publication agreement, prefix eligibility and fallback, continuation
-ordering, and capture reconstruction on private Gamma-plan controls. These
+ordering, and capture preservation on private Gamma-plan controls. These
 controls do not claim source admission or executable program semantics.
 
 The staged gate compares exact receipts, executes generated programs, and

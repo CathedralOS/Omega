@@ -24,7 +24,7 @@ match cases require both source bindings and compiler-generated bindings to
 retain their values across helper extraction.
 The payload cases check first and middle integer fields and the pair-bearing
 last `Bytes` field, rather than only exercising the tail case.
-Two 600-level controls require outer capture to forward its fresh parameters
+Two 600-level controls require outer capture to forward original bindings
 correctly to already-extracted inner helpers. Repeated free references must use exactly one
 parameter per helper. A same-spelling binder inside an outer let's initializer
 retains its independent scope across extraction.
@@ -34,22 +34,21 @@ captures must remain singular, and 1,023 nested checked additions must produce
 compilation and execution, complementing the frontend's adjacent-depth refusal
 controls rather than replacing them.
 
-The 28,797-byte, 2,048-field source pins its complete 91,746-byte receipt.
+The 28,797-byte, 2,048-field source pins its complete 95,402-byte receipt,
+SHA-256 `6c7956785ddd24ff99c344bb2f12ae011fe45a7d35c6c1dda8ca94af1eef6cfc`.
 Its unused wide function must still compile and validate before the identity
-entry returns binary input. On macOS arm64 the previous compiler exceeded a
-300-second watchdog; preparation/lowering alone completed in 6.7 seconds.
-Shared projection lowering completed the unchanged source in 134.6 seconds.
-At `f1334144ec`, a new isolated baseline compilation took 130.764 seconds and
-produced the same pinned receipt. Consulting existing free-capture mappings
-before the local-bound spine reduced that command to 15.960 seconds on the same
-macOS arm64 host; executing the unchanged receipt returned `41 00 80 ff` in
-0.055 seconds. These are single-run observations, not a statistical benchmark.
+entry returns binary input. With compiler SHA-256
+`94775f52b7fa012c2e9ad654c362f40854f5a7e529c59014747b8e44492581bd`,
+canonical compilation took 14.220 seconds on macOS arm64 and the receipt
+returned `41 00 80 ff`, status zero, and empty stderr. Reusing original capture
+names instead of fresh parameters increases this receipt from 91,746 bytes;
+it removes compiler allocations, not necessarily printed bytes. Other gates
+were running concurrently, so this is completion evidence, not a speedup claim.
+
+The earlier capture-lookup comparison at `f1334144ec` measured 130.764 seconds
+before checking existing free captures first and 15.960 seconds after it.
 The [capture invariant](../../../bootstrap/3_delta/implementation/normalization/README.md#captured-bindings)
-explains why repeated references need no second bound-spine scan after mapping.
-Those measurements preceded capture-after-splitting. That ordering now produces
-the pinned 91,746-byte receipt; its changed helper identities account for the
-byte change. It compiled and executed on macOS arm64 in a focused probe, with
-15.588 seconds for compilation. This is not a controlled speedup comparison.
+explains why repeated references need no second bound-spine scan after collection.
 These observations witness compiler completion, not measured heap exhaustion
 or a claim that runtime traversal of every wide field is now linear.
 
@@ -96,7 +95,7 @@ The [capture allocation argument](../../../bootstrap/3_delta/implementation/norm
 shows why capture-before-splitting cannot finish within the selected pair arena.
 It is not inferred from a watchdog expiration.
 
-With canonical compiler SHA-256
+With the preceding canonical compiler SHA-256
 `67b578fd34cb9188e66def82c70bd5f489b70962b4eeacbdbbfd259f1f68a86a`,
 a disposable canonical DCREQ/profile-1 run on macOS arm64 compiled this source
 in 511.187 seconds to 3,102,098 bytes, SHA-256
@@ -113,3 +112,14 @@ compilations matching that receipt, and generated execution. The outer
 and 4.73 system. This is one full test invocation, not a bootstrap-chain timing
 or a controlled speedup comparison. It does not cover the separate
 [wide-reconstruction allocation obstruction](../../../bootstrap/3_delta/implementation/normalization/README.md#remaining-wide-capture-obstruction).
+
+Free-binding collection, canonical compiler SHA-256
+`94775f52b7fa012c2e9ad654c362f40854f5a7e529c59014747b8e44492581bd`,
+compiled the same source on macOS arm64 in 469.156 seconds to 3,292,851 bytes,
+SHA-256 `15e856f8acd6429be8a1e25f516c68d3e6f06259bc368bf25e74695a99c3a668`.
+That exact receipt returned `41 00 80 ff`, status zero, and empty stderr.
+Original binding spellings and helper-only numbering explain the new receipt.
+Concurrent gates make this a completion observation, not a controlled timing
+comparison. The full opt-in diagnostic/repeated-compilation sequence above has
+not been rerun for this compiler; its canonical compilation and generated
+execution were checked in a disposable probe.

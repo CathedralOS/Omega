@@ -150,7 +150,7 @@ prerequisite to every lower-rung milestone.
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
   Resume evidence on macOS arm64, canonical Delta closure SHA-256
-  `67b578fd34cb9188e66def82c70bd5f489b70962b4eeacbdbbfd259f1f68a86a`
+  `94775f52b7fa012c2e9ad654c362f40854f5a7e529c59014747b8e44492581bd`
   and the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
   `sh tests/epsilon/checking/run.sh` reconstructs the
@@ -165,9 +165,10 @@ prerequisite to every lower-rung milestone.
   gives source-level height, static-environment, and capture-allocation arguments;
   `sh tests/delta/normalization/run.sh` exercises source depth 1,024 and payload
   width 2,048. The [full-width control](tests/delta/normalization/README.md#full-width-allocation-control)
-  covers 65,535 pattern bindings plus one parameter through normalization
-  diagnostics, repeated canonical compilation, and generated execution under
-  the unchanged profile. Capture follows descendant splitting, removing the
+  targets 65,535 pattern bindings plus one parameter. The current compiler's
+  canonical compilation and generated execution pass under the unchanged
+  profile; the complete opt-in gate retains earlier-compiler evidence only.
+  Capture follows descendant splitting, removing the
   demonstrated repeated-tail allocation obstruction. This is neither a
   whole-producer allocation bound nor a checked edge certificate.
   The [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
@@ -176,10 +177,11 @@ prerequisite to every lower-rung milestone.
   Next acceptance: account for remaining compiler-execution allocation against
   the selected profile. The source-derived, unrun
   [wide-reconstruction case](bootstrap/3_delta/implementation/normalization/README.md#remaining-wide-capture-obstruction)
-  exposes a distinct obstruction: fresh capture parameters exceed the pair
-  arena before normalization can reach the required payload-size refusal.
-  Investigate removing unnecessary capture renaming first; that alone does not
-  establish the exact refusal or a whole-producer allocation bound. The
+  still cannot reach payload-size refusal: nonfinal-argument capture frames
+  alone require at least 50,136,576 pairs, beyond the arena. Original binding
+  atoms and bodies are now reused; do not restore capture renaming or its maps.
+  Next account for those argument continuations and the separate quadratic
+  lookup work before claiming a whole-producer bound or increasing provision. The
   [arithmetic allocation inventory](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
   and [name-storage argument and regression](tests/delta/resource-boundary/README.md#long-identifier-storage)
   bound particular paths, not the whole producer. Neither justifies further
