@@ -368,6 +368,8 @@ Use that exact local copy; these repository contracts take precedence.
 - Lowered representations should prefer `Handle<T>` and `HandleSpan<T>` over owned `Vec<T>` fields for repeated child lists.
 - `Vec<T>` is fine for parser output, temporary builders, and local scratch data. It should not become the default long-lived representation shape.
 - Prefer arena/vector-backed symbol tables over local hash maps. Dense lookups should collapse toward ids/handles as phases mature; hash maps need a specific sparsity or boundary reason.
+- Before adding an index, ask whether ownership, dense handles, ordered spans, or the producing stage can carry the relationship directly. A map keyed by compiler-owned objects is a review trigger for missing representation structure, not automatically a defect. Eliminating repeated lookup is preferable to accelerating unnecessary lookup.
+- Compare total construction, lookup, mutation, cloning, and retained-storage costs on relevant workloads. Beating a whole-arena scan alone does not establish the best framing. Hash maps remain valid for sparse, irregular associations; do not replace them with oversized sparse arrays, repeated sorting, or more bookkeeping merely to avoid hashing.
 - Prefer parent-owned `HandleSpan` child ranges for symbol lookup. Linear sibling scans over `HierarchyArena` child ranges are the default because real scopes are usually small and cache-friendly; global hash maps are an optimization for measured pathological scopes, not the baseline design.
 - Use paged arenas for shared or eventually-parallel compiler data where growth should not move existing pages or require locking one giant `Vec`.
 - Paged arenas use generational handles so reclaimed page storage cannot resurrect stale references.
