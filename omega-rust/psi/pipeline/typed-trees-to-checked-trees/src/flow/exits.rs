@@ -32,15 +32,6 @@ pub(super) fn append_state_exit_facts(
             semantic,
             &mut ctx.contexts.semantic_context_refs,
             &mut ensures_contexts,
-            &[ProgramPoint::Exit {
-                machine_symbol,
-                state_symbol,
-                statement_index: contract_exit.statement_index,
-                transition_target,
-            }],
-        );
-        append_semantic_constraints_for_points(
-            semantic,
             &mut ctx.contexts.constraint_refs,
             &mut ensures_constraints,
             &[ProgramPoint::Exit {

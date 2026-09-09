@@ -1,5 +1,8 @@
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn clone_flow_contexts(
     semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,
     source: arena::HandleSpan<FlowSemanticContextRef>,
@@ -47,11 +50,20 @@ pub(crate) fn append_flow_contexts_for_points(
     semantic: &FactPlan,
     semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,
     refs: &mut arena::HandleSpan<FlowSemanticContextRef>,
+    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     points: &[ProgramPoint],
 ) {
+    // Both lists describe the same selected contexts. Keep their arena order
+    // while querying each point once, including facts appended by this pass.
     for point in points {
         for context in semantic.context_handles_at_point(*point) {
             semantic_context_refs.append_to_span(refs, FlowSemanticContextRef { context });
+            append_constraint_ref(
+                constraint_refs,
+                constraints,
+                FlowConstraintKind::SemanticContext { context },
+            );
         }
     }
 }
@@ -74,23 +86,6 @@ pub(crate) fn append_constraint_ref(
     kind: FlowConstraintKind,
 ) {
     constraint_refs.append_to_span(refs, FlowConstraintRef { kind });
-}
-
-pub(crate) fn append_semantic_constraints_for_points(
-    semantic: &FactPlan,
-    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
-    refs: &mut arena::HandleSpan<FlowConstraintRef>,
-    points: &[ProgramPoint],
-) {
-    for point in points {
-        for context in semantic.context_handles_at_point(*point) {
-            append_constraint_ref(
-                constraint_refs,
-                refs,
-                FlowConstraintKind::SemanticContext { context },
-            );
-        }
-    }
 }
 
 pub(crate) fn project_constraint_refs_to_active_contexts(

@@ -1,4 +1,6 @@
+mod storage;
 pub mod view;
+pub use storage::FactContexts;
 
 use crate::FactHandle;
 use arena::{Handle, HandleSpan};
@@ -7,7 +9,7 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeConstraintNode;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum ProgramPoint {
     #[default]
     Global,

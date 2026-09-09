@@ -56,16 +56,6 @@ Source inspection identified the costs below; it did not establish their share
 of whole-compilation time. Record compared inputs, work counts and timings;
 do not claim a faster compiler from a smaller helper alone.
 
-- **FLOW-CONTEXT-LOOKUP.** In Psi `representations/facts/src/fact_plan.rs` and
-  `pipeline/typed-trees-to-checked-trees/src/flow/common/spans.rs`, replace repeated
-  whole-context-arena searches at each state entry with owner/point-indexed
-  handle groups. Reuse selected groups for contexts and constraints. Keep
-  appended contexts visible, stable ordering, generation checks and ZII; this
-  is not a replacement for small lexical-scope sibling scans. Acceptance:
-  growing independent machine/state fixtures no longer multiply global context
-  scans per state, with identical facts and diagnostics, including contexts
-  appended during flow construction. Measure index setup and retained storage.
-
 - **FLOW-DIRTY-STATES.** In Psi
   `pipeline/typed-trees-to-checked-trees/src/flow/{builder,state_values}.rs`,
   retain changed-state/dependency information instead of rebuilding every

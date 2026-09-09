@@ -39,7 +39,7 @@ pub struct FactPlan {
     pub data_definition_facts: Arena<DataDefinitionFactRecord>,
     pub instantiated_expressions: Arena<InstantiatedExpression>,
     pub refs: Arena<FactRef>,
-    pub contexts: Arena<FactContext>,
+    pub contexts: contexts::FactContexts,
     pub symbol_sets: Arena<SymbolFactSet>,
 }
 
@@ -56,7 +56,7 @@ impl FactPlan {
             data_definition_facts: Arena::with_capacity(fact_capacity),
             instantiated_expressions: Arena::with_capacity(fact_capacity),
             refs: Arena::with_capacity(fact_capacity),
-            contexts: Arena::with_capacity(context_capacity),
+            contexts: contexts::FactContexts::with_capacity(context_capacity),
             symbol_sets: Arena::with_capacity(fact_capacity),
         }
     }
@@ -317,20 +317,15 @@ impl FactPlan {
         &self,
         point: ProgramPoint,
     ) -> impl Iterator<Item = FactContextView<'_>> {
-        self.contexts
-            .iter()
-            .filter(move |(_, context)| context.point == point)
-            .map(move |(_, context)| self.context_view(context))
+        self.context_handles_at_point(point)
+            .map(move |handle| self.context_view(self.contexts.get(handle)))
     }
 
     pub fn context_handles_at_point(
         &self,
         point: ProgramPoint,
     ) -> impl Iterator<Item = FactContextHandle> + '_ {
-        self.contexts
-            .iter()
-            .filter(move |(_, context)| context.point == point)
-            .map(|(handle, _)| handle)
+        self.contexts.handles_at_point(point)
     }
 
     pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {

@@ -24,19 +24,6 @@ pub(super) fn build_state_flow_fact(
         semantic,
         &mut ctx.contexts.semantic_context_refs,
         &mut state_contexts,
-        &[
-            ProgramPoint::Global,
-            ProgramPoint::Machine {
-                machine_symbol: machine.symbol,
-            },
-            ProgramPoint::State {
-                machine_symbol: machine.symbol,
-                state_symbol: state.symbol,
-            },
-        ],
-    );
-    append_semantic_constraints_for_points(
-        semantic,
         &mut ctx.contexts.constraint_refs,
         &mut state_constraints,
         &[

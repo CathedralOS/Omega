@@ -69,10 +69,6 @@ pub(super) fn append_state_statement_flow_facts(
                 semantic,
                 &mut ctx.contexts.semantic_context_refs,
                 active_contexts,
-                &[point],
-            );
-            append_semantic_constraints_for_points(
-                semantic,
                 &mut ctx.contexts.constraint_refs,
                 active_constraints,
                 &[point],
@@ -329,10 +325,6 @@ fn append_proof_output_ensures(
         semantic,
         &mut ctx.contexts.semantic_context_refs,
         active_contexts,
-        &[point],
-    );
-    append_semantic_constraints_for_points(
-        semantic,
         &mut ctx.contexts.constraint_refs,
         active_constraints,
         &[point],
