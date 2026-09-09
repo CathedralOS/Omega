@@ -1,3 +1,10 @@
+//! Type-reference syntax retains value arguments that require semantic admission.
+//!
+//! A generic argument's destination and operator selections are unavailable here.
+//! In particular, literal Boolean expressions cannot use the integer-only parser
+//! fold: retain their trees so the typed evaluator can check operand carriers,
+//! preserve operator custody and choose the logical evaluation schedule.
+
 use crate::parser::expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
 };
@@ -358,8 +365,10 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 }
 
 /// Shifts and bitwise operations need declared width; remainder needs operand
-/// type admission. Preserve these expressions for the semantic owner rather
-/// than erasing the operation while parsing a constant argument.
+/// type admission. Boolean expressions need their own result identity and exact
+/// operator selection, even when every operand is a literal. Preserve these
+/// expressions for the semantic owner; the integer-only parser fold cannot
+/// establish their meaning or decide which logical operand executes.
 fn const_expression_requires_semantic_admission(
     syntax_trees: &SyntaxTrees,
     expression: syntax_trees::expression::ExpressionHandle,
@@ -368,7 +377,7 @@ fn const_expression_requires_semantic_admission(
     // declaration requests integer landing. The parser must not render them.
     if matches!(
         syntax_trees.expressions.expression(expression),
-        ExpressionNode::Float(_)
+        ExpressionNode::Float(_) | ExpressionNode::Boolean(_)
     ) {
         return true;
     }
@@ -377,7 +386,15 @@ fn const_expression_requires_semantic_admission(
     };
     matches!(
         binary.operator,
-        BinaryOperator::Divide
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::And
+            | BinaryOperator::Or
+            | BinaryOperator::Divide
             | BinaryOperator::Modulo
             | BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight

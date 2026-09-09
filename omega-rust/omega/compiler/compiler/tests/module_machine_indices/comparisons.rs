@@ -494,3 +494,116 @@ fn boolean_logic_indices_check_the_complete_static_operand_roster() {
         assert_same_machine_types(&checked, "keep", "oracle");
     }
 }
+
+#[test]
+fn literal_boolean_indices_keep_canonical_identity_and_operator_occurrences() {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (expression, result, operator_count) in [
+        ("(true)", true, 0),
+        ("(false)", false, 0),
+        ("(1u64 == 1u64)", true, 1),
+        ("(1u64 != 1u64)", false, 1),
+        ("(1u64 < 2u64)", true, 1),
+        ("(2u64 <= 1u64)", false, 1),
+        ("(2u64 > 1u64)", true, 1),
+        ("(1u64 >= 2u64)", false, 1),
+        ("(-1i64 < 0)", true, 1),
+        ("(18446744073709551615u64 > 9223372036854775807)", true, 1),
+        ("(6 / 2 == 3u8)", true, 2),
+        ("(true == false)", false, 1),
+        ("(true != false)", true, 1),
+        ("(true && false)", false, 1),
+        ("(false || true)", true, 1),
+        ("(false && (1u8 / 0 == 0))", false, 3),
+        ("(true || (255u8 + 1 == 0))", true, 3),
+        ("((1u8 < 2) == (true || false))", true, 3),
+    ] {
+        Sources::write(
+            root.join("settings.omg"),
+            &format!("module settings; {}", keep("keep", expression)),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use settings; {FLAG} {} {}",
+                keep("keep", expression),
+                keep("oracle", if result { "true" } else { "false" })
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+        assert_same_machine_types(&checked, "settings::keep", "oracle");
+        let operators = checked
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+            .collect::<Vec<_>>();
+        assert_eq!(operators.len(), 6 * operator_count, "{expression}");
+        for (position, selection) in operators.iter().enumerate() {
+            assert!(
+                operators[..position]
+                    .iter()
+                    .all(|prior| prior.source_span() != selection.source_span())
+            );
+        }
+    }
+}
+
+#[test]
+fn literal_boolean_indices_retain_selection_types_and_evaluated_failures() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (declarations, expression, expected) in [
+        (
+            "",
+            "(true && (1u8 / 0 == 0))",
+            "Exact integer constant operation",
+        ),
+        (
+            "",
+            "(false || (255u8 + 1 == 0))",
+            "Exact integer constant operation",
+        ),
+        ("", "(true || 1u8)", "incompatible operand types"),
+        ("", "(true || (1u8 == 1u64))", "incompatible"),
+        ("", "(true || (1u8 == 256))", "land"),
+        (
+            "operator == u8::equal(left: u8, right: u8) -> bool;",
+            "(true || (1u8 == 1))",
+            "requires exact authored selection",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!("{FLAG} {declarations} {}", keep("keep", expression)),
+        );
+        let diagnostics =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err(
+                    "literal indices must satisfy the same admission and scalar obligations",
+                );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{expression}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn literal_boolean_data_fields_use_the_same_canonical_instance() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "{FLAG} data Holder {{ value: Flag<(1u64 < 2)>; }}
+         machine read(holder: &Holder) -> Flag<true> {{ holder.value }}"
+        ),
+    );
+    compile(&root, root_inputs(&root));
+}
