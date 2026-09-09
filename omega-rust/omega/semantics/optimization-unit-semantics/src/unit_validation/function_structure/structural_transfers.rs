@@ -103,14 +103,14 @@ pub(super) fn validate(
 fn plain(parameter: &StructuralParameterDeclaration) -> bool {
     !parameter.is_self
         && match parameter.access {
-            StructuralAccess::SharedBorrow => {
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
                 parameter.multiplicity == StructuralMultiplicity::Unrestricted
             }
             StructuralAccess::Owned => matches!(
                 parameter.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
             ),
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => false,
+            StructuralAccess::WriteOnlyBorrow => false,
         }
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()

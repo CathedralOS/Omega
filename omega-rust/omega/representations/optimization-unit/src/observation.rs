@@ -415,6 +415,7 @@ fn operation_observations(
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
         | O::WriteOnlyPrimitiveStore { .. }
+        | O::ByteSequenceWrite { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishPayloadlessCase { .. }

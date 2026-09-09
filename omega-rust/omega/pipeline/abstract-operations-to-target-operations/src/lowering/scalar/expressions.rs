@@ -437,6 +437,7 @@ pub(super) fn conditional_provenance(
             | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
             | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
             | AbstractOperation::ByteSequenceRead { psi_operation, .. }
+            | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
             | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
             | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
             | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }

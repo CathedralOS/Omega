@@ -6,6 +6,22 @@ use super::*;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::ByteSequenceWrite {
+            psi_operation,
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+        } => {
+            bytes.u8(68);
+            bytes.id(*psi_operation);
+            bytes.id(*destination);
+            bytes.id(*index);
+            bytes.id(*value);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
         O::ByteSequenceRead {
             psi_operation,
             result,

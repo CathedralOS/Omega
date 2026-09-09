@@ -269,6 +269,39 @@ pub(super) fn validate(
             }
         }
         (
+            LegalizedScalarInstructionKind::ByteSequenceWrite {
+                destination,
+                index,
+                value,
+                length,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::ByteSequenceWrite {
+                destination: expected_destination,
+                index: expected_index,
+                value: expected_value,
+                length: expected_length,
+                obligation: expected_obligation,
+                ..
+            },
+        ) => {
+            if destination != expected_destination
+                || index != expected_index
+                || value != expected_value
+                || length != expected_length
+                || obligation != expected_obligation
+                || !unit.accepted_obligation_facts.iter().any(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == operation
+                        && fact.obligation == *obligation
+                        && fact.identity == *accepted_fact
+                })
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::ByteSequenceRead {
                 source,
                 index,

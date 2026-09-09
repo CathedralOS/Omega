@@ -57,7 +57,16 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
-    /// Observe the byte count of one verifier-approved immutable view.
+    /// Write one byte through the exact mutable view and verified bounds.
+    ByteSequenceWrite {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Observe the byte count of one verifier-approved view.
     ByteSequenceLength {
         psi_operation: OperationId,
         result: AbstractResult,

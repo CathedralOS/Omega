@@ -1,5 +1,5 @@
 //! Native byte observations start from encoded, independently verified Terminal.
-//! The complete source writer closure remains outside these fixtures.
+//! Source-authored fixed-extent fill loops exercise caller-visible byte writes.
 
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
@@ -41,6 +41,8 @@ mod subslice_calls;
 #[path = "terminal_byte_views/unit_calls.rs"]
 mod unit_calls;
 
+#[path = "terminal_byte_views/mutable_writes.rs"]
+mod mutable_writes;
 #[path = "terminal_byte_views/natural_writer.rs"]
 mod natural_writer;
 

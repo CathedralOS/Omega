@@ -109,6 +109,14 @@ pub struct SelectedCallContract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedMemoryAccessRole {
+    /// Exactly one written byte at the checked dynamic index in the current mutable view.
+    WriteByteSequence {
+        index: semantic_vocabulary::ValueId,
+        value: semantic_vocabulary::ValueId,
+        length: semantic_vocabulary::ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     /// Dynamic byte offset; the row's fixed byte offset is additive only.
     ReadByteSequence {
         index: semantic_vocabulary::ValueId,

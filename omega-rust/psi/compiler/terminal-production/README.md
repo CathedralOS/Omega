@@ -154,8 +154,12 @@ bounds obligation. Artifact interpretation changes the caller's original
 field-backed bytes without resizing the field or changing untouched bytes.
 Ordinary field-to-view calls currently admit field-only paths from an
 unrestricted mutable record parameter; indexed owner paths remain fenced.
-Raw fixed-array introduction, mutable write loops and multi-arrival extent
-proofs, and native `ByteSequenceWrite` realization remain separate dependencies;
+Fresh per-iteration guards support mutable fill loops and exact cursor increments.
+Completed ordinary byte-view calls preserve the caller's reference carrier, so
+it can be passed again; they do not restore a still-live descendant loan or
+preserve arbitrary content facts. Whole mutable views now reach ordinary native
+indexed stores. Source-owned raw-array construction, payload-bearing line
+outcomes, and general multi-arrival invariants remain separate dependencies;
 this primitive does not establish the shared line-reader contract.
 
 Provider-field calls retain the same exact attachment requirement roots as

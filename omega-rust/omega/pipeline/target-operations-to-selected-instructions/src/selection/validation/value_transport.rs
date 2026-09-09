@@ -95,6 +95,12 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         Instruction::ByteSequenceSubslice {
             start, end, length, ..
         } => [*start, *end, *length].contains(&value),
+        Instruction::ByteSequenceWrite {
+            index,
+            value: stored,
+            length,
+            ..
+        } => [*index, *stored, *length].contains(&value),
         Instruction::ByteSequenceRead { index, length, .. } => [*index, *length].contains(&value),
         Instruction::BooleanNot { operand } | Instruction::IntegerWiden { operand, .. } => {
             *operand == value

@@ -1,6 +1,90 @@
 //! Independently replay byte observations from descriptor and derived value homes.
 use super::*;
 
+// Store through the original backing pointer; the descriptor itself is unchanged.
+pub(super) fn write(
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<(), SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ByteSequenceWrite {
+        destination,
+        index,
+        value,
+        length,
+        obligation,
+        accepted_fact,
+    } = row.kind
+    else {
+        return Err(replay.invalid());
+    };
+    let (_, index_register, _, index_type) =
+        replay.resolve(index).ok_or_else(|| replay.invalid())?;
+    let (_, value_register, _, value_type) =
+        replay.resolve(value).ok_or_else(|| replay.invalid())?;
+    if row.result.is_some()
+        || index_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?,
+            )
+        || value_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| replay.invalid())?,
+            )
+        || replay
+            .transport
+            .views
+            .iter()
+            .any(|view| view.place == destination)
+    {
+        return Err(replay.invalid());
+    }
+    let pointer = backing_pointer(replay, row, destination)?;
+    let address = result(replay, destination, 0)?;
+    replay.check_instruction(
+        SelectedInstructionKind::ByteViewAddress,
+        replay.constraints.keys.add_i64,
+        &[pointer, index_register, address],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    memory(
+        replay,
+        row,
+        destination,
+        0,
+        1,
+        SelectedMemoryAccessRole::WriteByteSequence {
+            index,
+            value,
+            length,
+            obligation,
+            accepted_fact,
+        },
+    )?;
+    replay.check_instruction(
+        SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 1,
+        },
+        replay
+            .constraints
+            .keys
+            .store
+            .ok_or_else(|| replay.invalid())?,
+        &[address, value_register],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, value, length],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )
+}
+
 pub(in crate::selection) fn byte_observation(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,

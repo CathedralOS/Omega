@@ -57,6 +57,7 @@ pub(super) fn lower_unit_function(
             matches!(
                 operation,
                 AbstractOperation::ByteSequenceLength { .. }
+                    | AbstractOperation::ByteSequenceWrite { .. }
                     | AbstractOperation::ByteSequenceRead { .. }
                     | AbstractOperation::ByteSequenceSubslice { .. }
             )
@@ -64,7 +65,7 @@ pub(super) fn lower_unit_function(
         && !bounded_conditional_exit
         && !dynamic_descriptor_join
         && (function.structural_parameters.iter().all(|parameter| {
-            super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
+            super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
         }) || !continuation::has_shape(function))
     {
         return super::control_flow::lower(

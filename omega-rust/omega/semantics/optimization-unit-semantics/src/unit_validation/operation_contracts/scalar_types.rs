@@ -1,5 +1,7 @@
 use super::*;
 
+mod byte_views;
+
 pub(crate) fn operation_scalar_types_match(
     function: &PsiOptimizationFunction,
     operation: &O,
@@ -18,30 +20,10 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
-        O::ByteSequenceSubslice {
-            start, end, length, ..
-        } => {
-            matches!(scalar(*start), Some(ScalarType::Integer(integer))
-                if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
-                && scalar(*start) == scalar(*end)
-                && scalar(*start) == scalar(*length)
-        }
-        O::ByteSequenceRead {
-            result,
-            index,
-            length,
-            ..
-        } => {
-            matches!(result.scalar_type, ScalarType::Integer(integer)
-                if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8))
-                && matches!(scalar(*index), Some(ScalarType::Integer(integer))
-                    if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
-                && scalar(*index) == scalar(*length)
-        }
-        O::ByteSequenceLength { result, .. } => {
-            matches!(result.scalar_type, ScalarType::Integer(integer)
-                if Ok(integer) == IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
-        }
+        O::ByteSequenceWrite { .. }
+        | O::ByteSequenceRead { .. }
+        | O::ByteSequenceLength { .. }
+        | O::ByteSequenceSubslice { .. } => byte_views::types_match(operation, definitions),
         O::DynamicDescriptorParameter { parameter } => {
             parameter.owner == function.machine
                 && !parameter.trait_identity.is_empty()

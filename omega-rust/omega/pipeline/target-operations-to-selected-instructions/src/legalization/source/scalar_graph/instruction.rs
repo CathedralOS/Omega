@@ -196,6 +196,32 @@ pub(super) fn project(
                 crash_continuations: crash_continuations.clone(),
             })
         }
+        AbstractOperation::ByteSequenceWrite {
+            psi_operation,
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+        } => {
+            let fact = unit
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == *psi_operation
+                        && fact.obligation == *obligation
+                })
+                .ok_or(Error::SourceCustodyMismatch)?;
+            LegalizedScalarInstructionKind::ByteSequenceWrite {
+                destination: *destination,
+                index: *index,
+                value: *value,
+                length: *length,
+                obligation: *obligation,
+                accepted_fact: fact.identity,
+            }
+        }
         AbstractOperation::ByteSequenceRead {
             psi_operation,
             source,

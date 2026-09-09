@@ -39,6 +39,11 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
+        | O::ByteSequenceWrite {
+            psi_operation,
+            obligation,
+            ..
+        }
         | O::ByteSequenceRead {
             psi_operation,
             obligation,

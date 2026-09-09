@@ -83,6 +83,19 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
         bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
         bytes.extend_from_slice(&row.byte_count.to_le_bytes());
         match row.role {
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index,
+                value,
+                length,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(7);
+                for identity in [index.get(), value.get(), length.get(), obligation.get()] {
+                    bytes.extend_from_slice(&identity.to_le_bytes());
+                }
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::ReadByteSequence {
                 index,
                 length,

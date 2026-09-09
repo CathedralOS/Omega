@@ -11,6 +11,30 @@ impl Checker<'_> {
         source: PlaceId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        self.byte_view_access(
+            view,
+            source,
+            aliases,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        )
+    }
+
+    pub(super) fn mutable_byte_view(&self, view: &TargetByteView, source: PlaceId) -> bool {
+        self.byte_view_access(
+            view,
+            source,
+            &[],
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )
+    }
+
+    fn byte_view_access(
+        &self,
+        view: &TargetByteView,
+        source: PlaceId,
+        aliases: &[(ValueId, ValueId)],
+        access: terminal_psi::StructuralAccess,
+    ) -> bool {
         match view {
             TargetByteView::BlockParameter {
                 block,
@@ -24,8 +48,7 @@ impl Checker<'_> {
                             && owner.structural_parameters.iter().any(|parameter| {
                                 parameter.place == *place
                                     && parameter.structural_type == *structural_type
-                                    && parameter.access
-                                        == terminal_psi::StructuralAccess::SharedBorrow
+                                    && parameter.access == access
                                     && parameter.multiplicity
                                         == terminal_psi::StructuralMultiplicity::Unrestricted
                                     && parameter.qualifications.is_empty()
@@ -38,7 +61,9 @@ impl Checker<'_> {
                     && super::super::structural_parameters(self.function).is_some_and(
                         |parameters| {
                             parameters.iter().any(|parameter| {
-                                parameter.place == source && &parameter.placement == placement
+                                parameter.place == source
+                                    && parameter.access == access
+                                    && &parameter.placement == placement
                             })
                         },
                     )
@@ -52,7 +77,8 @@ impl Checker<'_> {
                 length,
                 obligation,
             } => {
-                *place == source
+                access == terminal_psi::StructuralAccess::SharedBorrow
+                    && *place == source
                     && self
                         .optimized
                         .blocks

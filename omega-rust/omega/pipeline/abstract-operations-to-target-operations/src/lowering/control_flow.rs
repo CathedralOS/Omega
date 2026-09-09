@@ -1,6 +1,7 @@
 //! Ordinary control graphs; available definitions belong to dominating blocks.
 use super::shared::*;
 use super::unit::scalar_call::KnownUnitInteger;
+mod byte_write;
 mod dominance;
 mod observations;
 mod operations;
@@ -53,7 +54,7 @@ pub(super) fn lower(
         AbstractFunctionResult::Unit | AbstractFunctionResult::Scalar(_)
     ) || (!unobserved_owned
         && !function.structural_parameters.iter().all(|parameter| {
-            super::scalar::byte_views::is_immutable_byte_parameter(parameter, structural_types)
+            super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
                 || (primitive_storage::is_primitive_reference(parameter, structural_types))
         }))
         || !function.entry_claims.is_empty()
@@ -106,10 +107,7 @@ pub(super) fn lower(
             if entry.block == function.entry
                 || parameter.position as usize != position
                 || (!unobserved_owned
-                    && !super::scalar::byte_views::is_immutable_byte_parameter(
-                        parameter,
-                        structural_types,
-                    ))
+                    && !super::scalar::byte_views::is_byte_parameter(parameter, structural_types))
                 || !places.insert(parameter.place)
             {
                 return Err(invalid());
@@ -248,7 +246,12 @@ pub(super) fn lower(
                 entries[position]
                     .structural_parameters
                     .iter()
-                    .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+                    .filter(|parameter| {
+                        matches!(
+                            parameter.access,
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        )
+                    })
                     .map(|parameter| parameter.place),
             );
             live.owned_arrivals.extend(

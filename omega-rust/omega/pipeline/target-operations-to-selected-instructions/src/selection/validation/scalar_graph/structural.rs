@@ -282,6 +282,13 @@ pub(super) fn operation(
 ) -> Result<bool, SelectedInstructionError> {
     if matches!(
         node.kind,
+        LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
+    ) {
+        byte_views::write(replay, node)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
         LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
             | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
     ) {

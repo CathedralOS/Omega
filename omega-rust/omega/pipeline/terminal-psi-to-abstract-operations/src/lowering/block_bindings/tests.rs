@@ -134,6 +134,9 @@ fn shared_view_block_parameters_retain_their_declarations() {
     let mut module = fixture();
     assert_eq!(validate_structural_block_bindings(&module), Ok(()));
     module.machines[0].blocks[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    assert_eq!(validate_structural_block_bindings(&module), Ok(()));
+    module.machines[0].blocks[1].structural_parameters[0].access =
+        StructuralAccess::WriteOnlyBorrow;
     module.machines[0].blocks.swap(0, 1);
     assert_eq!(
         validate_structural_block_bindings(&module),
@@ -161,7 +164,7 @@ fn each_conditional_arm_is_checked_even_without_byte_operations() {
             .push(StructuralArgument {
                 place: PlaceId::new(1).unwrap(),
                 path: Vec::new(),
-                access: StructuralAccess::MutableBorrow,
+                access: StructuralAccess::WriteOnlyBorrow,
             });
         let expected_edge = successors[selected_arm].edge;
         let [when_true, when_false] = successors;

@@ -10,6 +10,7 @@ use super::*;
 mod byte_views;
 mod control_flow;
 mod fact_index;
+mod mutable_views;
 mod parameters;
 mod provenance;
 mod results;
@@ -61,6 +62,7 @@ pub(crate) fn validate_function(
         &control_flow.predecessors,
     )?;
     structural_roots::validate_structural_root_operations(function, unit_entry, structural_types)?;
+    mutable_views::validate(function, structural_types)?;
     provenance::validate_provenance_fuel_effects(function)?;
     fact_index::validate_fact_index(function)?;
     validate_values_and_bindings(

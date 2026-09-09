@@ -439,6 +439,7 @@ pub(super) fn build(
                 | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
                 | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
+                | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {

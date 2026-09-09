@@ -164,6 +164,12 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::ByteSequenceWrite {
+            index,
+            value,
+            length,
+            ..
+        } => vec![*index, *value, *length],
         O::ByteSequenceSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],

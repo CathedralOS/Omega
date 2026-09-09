@@ -196,7 +196,9 @@ pub(super) fn validate(
                         block: *block,
                         position: parameter.position,
                     })
-                && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                && (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                    || (parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && abstracted.result == AbstractFunctionResult::Unit))
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && !parameter.is_self
                 && parameter.qualifications.is_empty()
@@ -234,6 +236,29 @@ pub(super) fn validate(
         }
     }
     Ok(call_plan.clone())
+}
+
+pub(super) fn mutable_parameter(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+    function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| {
+            parameter.place == place
+                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && !parameter.is_self
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        })
 }
 
 // Whole-unit validation checks the exact producer and dominance. This predicate

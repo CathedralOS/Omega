@@ -248,6 +248,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         )).count() == 1)
                 }
                 AbstractOperation::ByteSequenceLength { .. }
+                | AbstractOperation::ByteSequenceWrite { .. }
                 | AbstractOperation::ByteSequenceRead { .. }
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
                 AbstractOperation::Call {
@@ -370,6 +371,13 @@ fn byte_operation_retained(
         .iter()
         .flat_map(|block| &block.operations)
         .filter(|node| match (operation, node) {
+            (
+                AbstractOperation::ByteSequenceWrite { psi_operation, .. },
+                TargetUnitOperation::ByteSequenceWrite {
+                    psi_operation: retained,
+                    ..
+                },
+            ) => psi_operation == retained,
             (
                 AbstractOperation::ByteSequenceLength { psi_operation, .. },
                 TargetUnitOperation::ScalarDefinition {

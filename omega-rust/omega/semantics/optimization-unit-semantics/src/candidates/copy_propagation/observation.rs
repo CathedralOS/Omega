@@ -211,6 +211,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::BooleanStructuralField { .. }
         | O::PrimitiveScalarRead { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequenceWrite { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }

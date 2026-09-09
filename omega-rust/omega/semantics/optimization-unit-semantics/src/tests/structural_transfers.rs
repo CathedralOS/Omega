@@ -7,6 +7,7 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+mod mutable;
 mod owned;
 mod owned_authority;
 

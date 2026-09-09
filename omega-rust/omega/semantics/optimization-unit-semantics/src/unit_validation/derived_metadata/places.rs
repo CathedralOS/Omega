@@ -170,6 +170,10 @@ pub(crate) fn validate_operation_places(
         O::PrimitiveScalarRead { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceRead { source, .. }
+        | O::ByteSequenceWrite {
+            destination: source,
+            ..
+        }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {

@@ -76,6 +76,45 @@ pub(super) fn validate_operation(
     };
     match (target, abstracted) {
         (
+            TargetUnitOperation::ByteSequenceWrite {
+                psi_operation,
+                destination,
+                view,
+                index,
+                value,
+                length,
+                obligation,
+            },
+            AbstractOperation::ByteSequenceWrite {
+                psi_operation: expected_operation,
+                destination: expected_destination,
+                index: expected_index,
+                value: expected_value,
+                length: expected_length,
+                obligation: expected_obligation,
+            },
+        ) if psi_operation == expected_operation
+            && destination.place == *expected_destination
+            && length == expected_length
+            && obligation == expected_obligation
+            && optimized
+                .structural_parameters
+                .iter()
+                .chain(
+                    optimized
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.structural_parameters),
+                )
+                .any(|parameter| parameter == destination)
+            && checker.mutable_byte_view(view, *expected_destination)
+            && sources
+                .iter()
+                .any(|(identity, source)| identity == expected_index && source == index)
+            && sources
+                .iter()
+                .any(|(identity, source)| identity == expected_value && source == value) => {}
+        (
             TargetUnitOperation::EstablishPrimitiveLocal {
                 psi_operation,
                 result,

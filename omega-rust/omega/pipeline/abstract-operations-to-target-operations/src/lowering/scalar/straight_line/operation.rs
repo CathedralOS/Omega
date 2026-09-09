@@ -32,6 +32,9 @@ pub(super) fn lower_operation(
                 operation: *psi_operation,
             });
         }
+        AbstractOperation::ByteSequenceWrite { .. } => {
+            return Err(LoweringError::UnsupportedControlFlow(function.machine));
+        }
         AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
             return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
                 machine: function.machine,

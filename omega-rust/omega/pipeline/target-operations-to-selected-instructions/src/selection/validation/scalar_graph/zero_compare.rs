@@ -59,6 +59,12 @@ pub(super) fn folded_zero<'a>(
                         || *end == definition.value
                         || *length == definition.value
                 }
+                LegalizedScalarInstructionKind::ByteSequenceWrite {
+                    index,
+                    value,
+                    length,
+                    ..
+                } => [*index, *value, *length].contains(&definition.value),
                 LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => {
                     *index == definition.value || *length == definition.value
                 }

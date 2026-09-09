@@ -182,6 +182,12 @@ pub(crate) fn expected_uses(
     use abstract_operations::AbstractOperation as O;
     let values = match operation {
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::ByteSequenceWrite {
+            index,
+            value,
+            length,
+            ..
+        } => vec![*index, *value, *length],
         O::ByteSequenceSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],

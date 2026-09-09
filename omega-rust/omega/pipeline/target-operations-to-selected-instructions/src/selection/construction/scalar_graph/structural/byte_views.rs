@@ -1,6 +1,84 @@
 //! Select byte observations from descriptor and derived value homes.
 use super::*;
 
+// Store through the original backing pointer; the descriptor itself is unchanged.
+pub(super) fn write(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<(), SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ByteSequenceWrite {
+        destination,
+        index,
+        value,
+        length,
+        obligation,
+        accepted_fact,
+    } = row.kind
+    else {
+        return Err(invalid());
+    };
+    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(invalid)?;
+    let (_, value_register, _, value_type) = builder.resolve(value).ok_or_else(invalid)?;
+    if row.result.is_some()
+        || index_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+            )
+        || value_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+            )
+        || builder
+            .transport
+            .views
+            .iter()
+            .any(|view| view.place == destination)
+    {
+        return Err(invalid());
+    }
+    let pointer = backing_pointer(builder, row, destination)?;
+    let address = transport_register(builder, destination, 0)?;
+    builder.emit(
+        SelectedInstructionKind::ByteViewAddress,
+        builder.constraints.keys.add_i64,
+        &[pointer, index_register, address],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    memory(
+        builder,
+        row,
+        destination,
+        0,
+        1,
+        SelectedMemoryAccessRole::WriteByteSequence {
+            index,
+            value,
+            length,
+            obligation,
+            accepted_fact,
+        },
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Store {
+            byte_offset: 0,
+            byte_size: 1,
+        },
+        builder.constraints.keys.store.ok_or_else(invalid)?,
+        &[address, value_register],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, value, length],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )
+}
+
 pub(in crate::selection) fn byte_observation(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,

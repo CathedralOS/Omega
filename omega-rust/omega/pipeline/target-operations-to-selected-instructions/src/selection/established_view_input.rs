@@ -63,8 +63,11 @@ pub(super) fn view_type(
         )
         .find(|parameter| parameter.place == place);
     let identity = if let Some(parameter) = parameter {
-        if parameter.access != terminal_psi::StructuralAccess::SharedBorrow
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
@@ -118,7 +121,11 @@ pub(super) fn accepts(
         let signature = source.structural.as_ref()?;
         return (place == target.place
             && parameter.structural_type == target.structural_type
-            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+            && matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
             && parameter.multiplicity == StructuralMultiplicity::Unrestricted
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()

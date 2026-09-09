@@ -53,6 +53,10 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         }
         O::PrimitiveScalarRead { source, .. }
         | O::ByteSequenceRead { source, .. }
+        | O::ByteSequenceWrite {
+            destination: source,
+            ..
+        }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }

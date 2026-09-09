@@ -68,7 +68,7 @@ impl Checker<'_> {
             }
             Expression::ByteSequenceLength { psi_operation, source_value, source, view, length_byte_offset } => {
                 *length_byte_offset == 8 && *source_value == resolved
-                    && self.byte_view(view, *source, aliases)
+                    && (self.byte_view(view, *source, aliases) || self.mutable_byte_view(view, *source))
                     && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))

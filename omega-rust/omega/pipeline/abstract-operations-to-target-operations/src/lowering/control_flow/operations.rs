@@ -70,6 +70,15 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
+        AbstractOperation::ByteSequenceWrite { .. } => super::byte_write::lower(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
             crate::lowering::unit::write_only_primitive_store::lower_write_only_primitive_store(
                 operation,
