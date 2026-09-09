@@ -13,7 +13,7 @@
             (lowering_constructor node 0 0 globals)
             (if (if (is_digit byte) 1 (eq byte 45))
               (gamma_literal node)
-              (lowering_local node (first locals) (second locals))))
+              (lowering_local node locals)))
           (lowering_resume value depth frames globals))))
     (let head Int (syntax_child node 0)
       (let start Int (syntax_start head)

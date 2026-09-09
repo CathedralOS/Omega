@@ -37,20 +37,15 @@ controls rather than replacing them.
 The 28,797-byte, 2,048-field source pins its complete 95,402-byte receipt,
 SHA-256 `6c7956785ddd24ff99c344bb2f12ae011fe45a7d35c6c1dda8ca94af1eef6cfc`.
 Its unused wide function must still compile and validate before the identity
-entry returns binary input. With compiler SHA-256
-`94775f52b7fa012c2e9ad654c362f40854f5a7e529c59014747b8e44492581bd`,
-canonical compilation took 14.220 seconds on macOS arm64 and the receipt
-returned `41 00 80 ff`, status zero, and empty stderr. Reusing original capture
-names instead of fresh parameters increases this receipt from 91,746 bytes;
-it removes compiler allocations, not necessarily printed bytes. Other gates
-were running concurrently, so this is completion evidence, not a speedup claim.
-
-The earlier capture-lookup comparison at `f1334144ec` measured 130.764 seconds
-before checking existing free captures first and 15.960 seconds after it.
+entry returns binary input. Canonical compiler SHA-256
+`7b39266be43a7459a717f6624cc6e128579869398eae3e3ecef5a08006183df5`
+passes the complete default gate on macOS arm64, including repeated compilation
+of this exact receipt and its `41 00 80 ff`, status-zero execution.
 The [capture invariant](../../../bootstrap/3_delta/implementation/normalization/README.md#captured-bindings)
-explains why repeated references need no second bound-spine scan after collection.
-These observations witness compiler completion, not measured heap exhaustion
-or a claim that runtime traversal of every wide field is now linear.
+explains sorted-unique helper batches and identity-based scope subtraction.
+Lookup in lowering reuses the existing name trie. These changes do not make
+runtime traversal of every wide field linear or establish whole-producer
+allocation containment.
 
 The fitting height-255 program pins its entire 3,729-byte canonical receipt by
 SHA256. That receipt was measured with the preceding 111,464-byte compiler
@@ -92,8 +87,8 @@ one nominal type, one constructor, two functions, and expression depth two.
 The source-derived parser and grammar allocation is respectively 655,529 and
 524,324 pairs: 47,194,120 syntax bytes, below 114,294,752.
 The [capture allocation argument](../../../bootstrap/3_delta/implementation/normalization/README.md#capture-allocation-ownership)
-shows why capture-before-splitting cannot finish within the selected pair arena.
-It is not inferred from a watchdog expiration.
+tracks splitting and collection's retained allocation owners. This control
+checks completion, not a measured arena peak or whole-producer resource proof.
 
 With the preceding canonical compiler SHA-256
 `67b578fd34cb9188e66def82c70bd5f489b70962b4eeacbdbbfd259f1f68a86a`,
@@ -111,7 +106,7 @@ compilations matching that receipt, and generated execution. The outer
 `/usr/bin/time -p` measurement was 1,404.26 seconds wall time, 1,399.84 user,
 and 4.73 system. This is one full test invocation, not a bootstrap-chain timing
 or a controlled speedup comparison. It does not cover the separate
-[wide-reconstruction allocation obstruction](../../../bootstrap/3_delta/implementation/normalization/README.md#remaining-wide-capture-obstruction).
+[wide-reconstruction payload refusal](../../../bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal).
 
 Free-binding collection, canonical compiler SHA-256
 `94775f52b7fa012c2e9ad654c362f40854f5a7e529c59014747b8e44492581bd`,

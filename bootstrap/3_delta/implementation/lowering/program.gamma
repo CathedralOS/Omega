@@ -34,15 +34,18 @@
 
 (def lowering_definition ((node Int) (globals Int)) Int
   (let parameters Int (syntax_child node 2)
-    (let locals Int
+    (let bindings Int
       (lowering_parameters (syntax_count parameters) (syntax_children parameters)
-        (pair 0 0))
-      (let body Int (lowering_visit (syntax_child node 4) locals 0 0 globals)
-        (gamma_definition (gamma_function (syntax_child node 1)) (first locals)
-          (syntax_reverse_nodes (first locals) (second locals) 0) body)))))
+        (empty_name_trie) 0)
+      (let body Int (lowering_visit (syntax_child node 4) (first bindings) 0 0 globals)
+        (gamma_definition (gamma_function (syntax_child node 1)) (syntax_count parameters)
+          (syntax_reverse_nodes (syntax_count parameters) (second bindings) 0) body)))))
 
-(def lowering_parameters ((count Int) (parameters Int) (locals Int)) Int
+; Only parameters retain a declaration-order spine; local scope needs the trie.
+(def lowering_parameters
+  ((count Int) (parameters Int) (locals Int) (reversed Int)) Int
   (if (eq count 0)
-    locals
-    (lowering_parameters (- count 1) (second parameters)
-      (lowering_bind locals (gamma_binding (syntax_child (first parameters) 0))))))
+    (pair locals reversed)
+    (let binding Int (gamma_binding (syntax_child (first parameters) 0))
+      (lowering_parameters (- count 1) (second parameters)
+        (lowering_bind locals binding) (pair binding reversed)))))

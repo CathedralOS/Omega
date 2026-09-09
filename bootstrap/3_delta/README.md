@@ -409,7 +409,7 @@ Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution
 ## Measurements
 
 ```text
-3,400-line / 155,875-byte canonical entry plus shared Gamma implementation
+3,460-line / 159,044-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

@@ -1,18 +1,13 @@
-; A counted lexical spine contains already-established source binding atoms.
+; The existing exact-name trie retains already-established source binding atoms.
 ; This phase recovers binding custody for the Gamma plan; it does not validate
 ; names/types or choose among conflicting declarations after static checking.
 (def lowering_bind ((locals Int) (binding Int)) Int
-  (pair (+ (first locals) 1) (pair binding (second locals))))
+  (let declaration Int (gamma_payload binding)
+    (name_trie_insert locals (syntax_after declaration) (syntax_start declaration) binding)))
 
-(def lowering_local ((node Int) (count Int) (bindings Int)) Int
-  (if (eq count 0)
-    (fail)
-    (let binding Int (first bindings)
-      (let declaration Int (gamma_payload binding)
-        (if (same_span (syntax_start node) (syntax_after node)
-              (syntax_start declaration) (syntax_after declaration))
-          binding
-          (lowering_local node (- count 1) (second bindings)))))))
+(def lowering_local ((node Int) (locals Int)) Int
+  (let found Int (name_trie_find_option locals (syntax_after node) (syntax_start node))
+    (if (first found) (second found) (fail))))
 
 (def lowering_let
   ((node Int) (locals Int) (depth Int) (frames Int) (globals Int)) Int

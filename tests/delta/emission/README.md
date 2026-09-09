@@ -25,8 +25,13 @@ that the maximum positive packed input
 at length 7 produces exactly `2^59 - 1` cache metadata. The NUL word checks that
 a cached zero byte remains distinguishable from absent metadata.
 
-The nineteenth control checks negative packed metadata without invoking its
-byte writer. All 19 controls run twice, requiring 38 exact observations with
+Five additional capture controls check generated/source identity ordering,
+equal spellings in disjoint scopes, overlapping helper batches, owned bindings
+inside those batches, and an empty batch. Their synthetic helper arguments
+obey the producer's sorted-unique contract.
+
+One control checks negative packed metadata without invoking its
+byte writer. All 24 controls run twice, requiring 48 exact observations with
 status zero and empty stderr under unchanged 30-second watchdogs.
 
 These are synthetic internal Gamma-plan controls, not Delta admissions or

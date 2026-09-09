@@ -52,3 +52,24 @@ def fixtures():
              16777212, 16777212, 16777213,
          ))),
     )
+
+
+def reconstructed_wide_fixtures():
+    fields = b" ".join(f"field{index:05}".encode() for index in range(65535))
+    source = (b"(data Wide (Wide" + b" Int" * 65535 + b"))\n"
+              b"(def select ((value Wide)) Wide (match value ((Wide "
+              + fields + b") (Wide " + fields + b"))))\n"
+              b"(def main ((source Bytes)) Bytes source)\n")
+    # Closed-form serialization, not a count harvested from compiler output:
+    # original payload 4,446,892; 774 helper wrappers; helper-ID digits 2,212;
+    # 516 payload captures (8-byte names); 16,909,062 field captures (10 bytes).
+    # Each helper adds 16 + 2*name_length + 2*sum(binding_lengths) + 8*arity.
+    assert 4446892 + 774 * 20 + 2 * 2212 + 516 * 24 + 16909062 * 28 == 477932916
+    return (
+        ("full-width reconstruction reaches exact payload refusal", source,
+         1704033, "c69598944c34dc0f37187fb67bcf5624b021ac393a8cd8d91f7b967ab84a0945",
+         (2, struct.pack(
+             "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", 2, 2, 0, 12,
+             16777212, 16777212, 477932916,
+         ))),
+    )

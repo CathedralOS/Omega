@@ -18,6 +18,26 @@ single source-to-receipt validation-environment control described below.
 [name-storage regression](#long-identifier-storage). It is not included in the
 default 40-source gate and has a 1,200-second host watchdog per evaluation.
 
+`sh tests/delta/resource-boundary/run.sh --reconstructed-wide` selects one
+65,535-field pattern that reconstructs its whole `Wide` value. The 1,704,033-byte
+source has SHA-256
+`c69598944c34dc0f37187fb67bcf5624b021ac393a8cd8d91f7b967ab84a0945`.
+It remains outside the default gate, with a 7,200-second host watchdog. This is
+one exact refusal control, not profiling infrastructure or a language limit.
+It must return status 2, empty stderr, and only the 40-byte DCOUT resource-12
+frame: payload coordinate and limit 16,777,212, requested 477,932,916.
+The [source-level count and capture argument](../../../bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
+derives that complete requested count independently of compiler output.
+This case tests whether compilation reaches canonical refusal within the
+selected evaluator, not whether the oversized artifact should be published.
+
+With canonical compiler SHA-256
+`7b39266be43a7459a717f6624cc6e128579869398eae3e3ecef5a08006183df5`,
+the exact fixture passed a direct canonical DCREQ/profile-1 run on macOS arm64
+in 4,855.704 seconds. The new shell selection was syntax-checked; it was not
+separately rerun after that identical-input observation. This is one stress
+control's completion time, not a bootstrap-chain timing or a speedup claim.
+
 [`function_rows.py`](function_rows.py) retains the three function-row controls
 at the selected limit of 32,768:
 

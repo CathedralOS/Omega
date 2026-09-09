@@ -28,7 +28,9 @@ exactly one frame before dispatch; handlers receive the decreased depth and
 previous stack. Payload owners retain completed child values and the lexical
 environment needed for the next child. Counts govern pair-spine projections.
 
-[bindings.gamma](bindings.gamma) owns the counted lexical binding spine. A let
+[bindings.gamma](bindings.gamma) reuses the existing exact-name trie, storing
+original Gamma binding atoms rather than types. Immutable snapshots preserve
+lexical scopes; only parameters retain a separate declaration-order spine. A let
 initializer is lowered in its outer environment; only the body receives the
 new source binding atom. Parameter and pattern references likewise reuse their
 established atoms. Looking up that custody does not introduce a second conflict

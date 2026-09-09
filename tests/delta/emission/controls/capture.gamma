@@ -13,3 +13,35 @@
             original
             (fail))
           (fail))))))
+
+; These synthetic $h calls obey the producer invariant: their arguments are
+; sorted unique original atoms. No global helper definition is traversed.
+(def emission_test_capture_sets ((mode Int)) Int
+  (let first_binding Int (gamma_binding (syntax_node 0 1 -1 0))
+    (let middle_binding Int (gamma_binding (syntax_node 2 3 -1 0))
+      (let last_binding Int (gamma_binding (syntax_node 4 5 -1 0))
+        (let node Int
+          (if (eq mode 19)
+            (let generated Int (gamma_generated 112 0)
+              (gamma_pair middle_binding
+                (gamma_pair (gamma_generated 112 1)
+                  (gamma_pair generated (gamma_pair first_binding generated)))))
+            (if (eq mode 20)
+              ; Equal spelling in disjoint initializer/body scopes is not identity.
+              (gamma_let middle_binding
+                (gamma_let first_binding (gamma_integer 7) first_binding) middle_binding)
+              (if (eq mode 23)
+                (gamma_call (gamma_generated 104 0) 0 0)
+                (let batches Int
+                  (gamma_pair
+                    (gamma_call (gamma_generated 104 0) 2
+                      (pair first_binding (pair last_binding 0)))
+                    (gamma_pair last_binding
+                      (gamma_call (gamma_generated 104 1) 2
+                        (pair middle_binding (pair last_binding 0)))))
+                  (if (eq mode 22)
+                    (gamma_let middle_binding (gamma_integer 7) batches)
+                    batches)))))
+          (let captured Int (capture_expression node)
+            (gamma_call (gamma_word 120 1)
+              (capture_count captured) (capture_bindings captured))))))))
