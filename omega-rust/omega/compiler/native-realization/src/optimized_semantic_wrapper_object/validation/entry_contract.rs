@@ -6,11 +6,12 @@ pub(crate) fn replay_settlement(
     source: &StagedValidatedOptimizedObjectArtifact,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
     let calling_plans = match (
-        settlement.semantic_boundary_entry_plan(),
+        settlement.semantic_calling_application(),
+        settlement.physical_calling_application(),
         settlement.storage_entry(),
     ) {
-        (Some(semantic), Some(storage)) => Some((semantic, storage)),
-        (None, None) => None,
+        (Some(semantic), Some(physical), Some(storage)) => Some((semantic, physical, storage)),
+        (None, None, None) => None,
         _ => {
             return Err(
                 OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans,

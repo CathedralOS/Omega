@@ -112,10 +112,13 @@ pub(super) fn realize(
             },
         )
         .collect::<Vec<_>>();
-    let calling_plans = admission
-        .program_entry
-        .calling_plans()
-        .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
+    let calling_plans = admission.program_entry.calling_plans().map(|plans| {
+        (
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+            &plans.storage_entry,
+        )
+    });
     let program_entry = native_realization::NativeProgramEntrySettlement::new(
         admission.program_entry.source_signature(),
         calling_plans,

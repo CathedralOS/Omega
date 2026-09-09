@@ -30,6 +30,7 @@ object-file = { path = "../../backend/object/object-file" }
 optimization-core = { path = "../../representations/optimization-core" }
 optimization-unit = { path = "../../representations/optimization-unit" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+provider-planning = { path = "../../build/provider-planning" }
 target = { path = "../../representations/target" }
 task-plans = { path = "../../representations/task-plans" }
 abstract-operations = { path = "../../representations/abstract-operations" }
@@ -58,7 +59,6 @@ sha2 = "0.10.9"
 image-emission = { path = "../../backend/images/image-emission", features = ["test-support"] }
 machine-emission = { path = "../../backend/machine-emission", features = ["test-support"] }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
-provider-planning = { path = "../../build/provider-planning" }
 selected-dispatch = { path = "../../build/selected-dispatch" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
