@@ -745,6 +745,13 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
             parameter.type_reference,
             diagnostics,
         );
+        crate::literals::validate_constant_projection_destination(
+            program,
+            current_machine.symbol,
+            *argument,
+            parameter.type_reference,
+            diagnostics,
+        );
         let expected_access = declared_reference_access(program, parameter.type_reference);
         let supplied_access = match program.expression_table.expression(*argument) {
             ExpressionNode::Borrow(borrow) => Some(borrow.access),
@@ -1079,6 +1086,13 @@ fn validate_value_call_argument_classes_with_receiver(
     ) {
         crate::literals::validate_suffix_landing(
             program,
+            *argument,
+            parameter.type_reference,
+            diagnostics,
+        );
+        crate::literals::validate_constant_projection_destination(
+            program,
+            current_machine.symbol,
             *argument,
             parameter.type_reference,
             diagnostics,

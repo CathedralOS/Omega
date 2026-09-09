@@ -160,6 +160,84 @@ pub(super) fn validate_declared_array_destination(
     }
 }
 
+/// Check projected constant values before permissive computed-value shape
+/// fallbacks. Empty rows still have exact element types, and nesting the read
+/// in a new array literal cannot erase them. Operator selection supplies the
+/// projected type; bounds and loan validation remain independent obligations.
+/// Recurse for scalar projections too: value-position call arguments do not
+/// otherwise run the statement path's per-element array validation.
+pub(crate) fn validate_constant_projection_destination(
+    program: &TypedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    value: ExpressionHandle,
+    destination: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let mut pending = vec![(value, destination)];
+    let mut conflict = false;
+    while let Some((value, mut destination)) = pending.pop() {
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(destination)
+        {
+            destination = *base_type;
+        }
+        let shared_lending = matches!(
+            program.type_reference_table.type_reference(destination),
+            TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared,
+                ..
+            }
+        );
+        let Some(destination) = crate::places::unwrapped_type_reference(program, destination)
+        else {
+            continue;
+        };
+        if let Some(declared) =
+            builtin_constant_array_projection_type(program, machine_symbol, value)
+        {
+            // Shared array-to-slice lending forgets only the outer extent.
+            // Its element identity is still exact; this type comparison grants
+            // neither a loan nor permission for the resulting view to escape.
+            let matches = match (
+                program.type_reference_table.type_reference(declared),
+                program.type_reference_table.type_reference(destination),
+            ) {
+                (
+                    TypeReferenceNode::FixedArray {
+                        element_type: actual,
+                        ..
+                    },
+                    TypeReferenceNode::Slice {
+                        element_type: expected,
+                    },
+                ) if shared_lending => same_array_carrier(program, *actual, *expected),
+                _ => same_array_carrier(program, declared, destination),
+            };
+            if !matches {
+                diagnostics.push(Diagnostic::error(format!(
+                    "constant array projection of type `{}` conflicts with destination `{}`; declared dimensions and element carriers must agree",
+                    program.display_type_reference_with_constraints(declared),
+                    program.display_type_reference_with_constraints(destination),
+                )));
+                conflict = true;
+            }
+        }
+        if let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value)
+            && let TypeReferenceNode::FixedArray { element_type, .. } =
+                program.type_reference_table.type_reference(destination)
+        {
+            pending.extend(
+                program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .iter()
+                    .map(|element| (*element, *element_type)),
+            );
+        }
+    }
+    conflict
+}
+
 fn same_array_carrier(
     program: &TypedTrees,
     mut declared: TypeReferenceHandle,

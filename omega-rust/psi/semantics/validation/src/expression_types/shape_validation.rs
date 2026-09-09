@@ -50,6 +50,15 @@ pub(crate) fn report_array_scalar_shape_mismatch(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    if crate::literals::validate_constant_projection_destination(
+        program,
+        machine.symbol,
+        value,
+        target_type,
+        diagnostics,
+    ) {
+        return true;
+    }
     // TEXT is `&[u8]`-backed, so a `String`, a byte slice, and a `[u8; N]` are one
     // shape family and values flow between them freely (`write_line([u8])` takes a
     // String; a byte-slice value fills a String param). The array-vs-scalar

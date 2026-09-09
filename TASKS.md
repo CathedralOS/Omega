@@ -1023,7 +1023,7 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: the working checkpoint based on `c43cb7b6d6`, macOS arm64
+  Resume evidence: the working checkpoint based on `4535ed88e8`, macOS arm64
   with Cargo and `RUST_MIN_STACK=33554432`, checks
   `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`:
   root/module arrays and scalar `settings::Sizes::MAX` retain distinct canonical
@@ -1050,6 +1050,15 @@ Owners include
   `values/scalar/constant_array_projection.rs` only selects closed literal leaves.
   General value projection needs its complete executable representation, not
   a source rewrite that makes a constant addressable storage.
+  Array-valued constant projections preserve exact destination dimensions and
+  element carriers, including empty rows, through checked evaluation. Terminal
+  array-result construction is still missing: `flow/terminal_unit/returns.rs`
+  currently forwards existing structural values, while `terminal_unit/types.rs`
+  also excludes zero-length array shapes. Continue with a complete initialized
+  array construction path and its source custody in `checked-trees-to-lowered-psi`,
+  then execute the customer's `selected_row` and `selected_empty_row` from
+  decoded Terminal artifacts. Do not count their successful `--check` as that
+  executable acceptance.
   Keep the `runtime_aggregate_index` and `runtime_fixed_array_index` rejection
   controls under `tests/omega/fail/modules/` while extending materialization.
   Conformance and static-requirement argument positions
