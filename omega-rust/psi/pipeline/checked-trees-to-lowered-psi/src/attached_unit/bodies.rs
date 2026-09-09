@@ -23,6 +23,12 @@ pub(crate) struct UnitEntry<'a> {
 }
 
 impl<'a> UnitBody<'a> {
+    pub(crate) fn result(self) -> checked_trees::CheckedControlResultPlan {
+        match self {
+            Self::Ordinary(_) => checked_trees::CheckedControlResultPlan::Unit,
+            Self::Composed(plan) => plan.result.clone(),
+        }
+    }
     pub(crate) fn find(
         plans: &'a checked_trees::CheckedUnitEffectPlans,
         symbol: symbols::SymbolHandle,

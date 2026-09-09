@@ -83,6 +83,7 @@ fn lower_composed_services(
 }
 
 pub(crate) struct LoweredComposedInternalTarget {
+    pub(super) result: checked_trees::CheckedControlResultPlan,
     pub(super) source: symbols::SymbolHandle,
     pub(super) id: MachineId,
     pub(super) scalar_parameters: Vec<ScalarType>,

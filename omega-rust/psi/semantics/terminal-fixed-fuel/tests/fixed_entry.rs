@@ -122,7 +122,10 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishPayloadlessCase { result_case },
+        kind: OperationKind::EstablishScalarCase {
+            result_case,
+            fields: Vec::new(),
+        },
     }];
     machine.blocks[0].terminator = Terminator::ReturnStructural {
         edge: edge_id(910),

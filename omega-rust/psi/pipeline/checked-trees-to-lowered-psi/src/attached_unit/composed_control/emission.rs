@@ -468,7 +468,8 @@ pub(super) fn emit_call_operations(
                     operations,
                 )?
             }
-            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
+            CheckedUnitEffectOperationPlan::CallUnit { .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
                 internal_calls::emission::emit_call_operation(
                     state,
                     operation,
@@ -478,6 +479,8 @@ pub(super) fn emit_call_operations(
                     &catalogs.structural_types,
                     arguments.as_deref(),
                     &byte_argument_places,
+                    &mut catalogs.next_place,
+                    &mut catalogs.result_places,
                     operations,
                 )?
             }

@@ -223,6 +223,68 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         });
                     }
                     StatementNode::Expression(expression) => {
+                        if let ExpressionNode::StructLiteral(literal) =
+                            program.expression_table.expression(*expression)
+                            && let Some(case_symbol) = literal.case_symbol
+                            && let Some(data) = program
+                                .data_definitions()
+                                .iter()
+                                .find(|data| data.symbol == literal.type_symbol)
+                            && let Some(typed_trees::data::DataMember::Variant(variant)) =
+                                program.data_members(data).iter().find(|member| {
+                                    matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == case_symbol)
+                                })
+                        {
+                            for (field_index, field) in program
+                                .expression_table
+                                .struct_fields(literal.fields)
+                                .iter()
+                                .enumerate()
+                            {
+                                let Some(primitive_type) = program
+                                    .data_payload_fields(variant)
+                                    .iter()
+                                    .find(|declaration| declaration.symbol == field.field_symbol)
+                                    .and_then(|declaration| program.primitive_type_reference(declaration.type_reference))
+                                else {
+                                    continue;
+                                };
+                                let Ok(field_ordinal) = u32::try_from(field_index) else {
+                                    continue;
+                                };
+                                let Some(value) = lower_return_expression(
+                                    program,
+                                    operators,
+                                    field.value,
+                                    &scalar_parameters,
+                                    parameters,
+                                    &parameter_types,
+                                    &locals,
+                                    primitive_type,
+                                    exact_integer_casts,
+                                ) else {
+                                    continue;
+                                };
+                                let role = CheckedScalarExpressionRole::ReturnCaseField { field_ordinal };
+                                source_bindings.append(CheckedScalarExpressionBindings {
+                                    destination: symbols::SymbolHandle::invalid(),
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role,
+                                    expression: field.value,
+                                    symbols: binding_symbols.insert_many(
+                                        scalar_parameters.iter().map(|parameter| parameter.symbol)
+                                            .chain(locals.iter().filter(|local| !local.is_mutable).map(|local| local.symbol)),
+                                    ),
+                                });
+                                expressions.push(CheckedLocatedScalarExpression {
+                                    state: state.symbol,
+                                    statement_ordinal,
+                                    role,
+                                    expression: value,
+                                });
+                            }
+                        }
                         let unit_statement = validation::unit_statement_call_is_supported(
                             program,
                             machine,

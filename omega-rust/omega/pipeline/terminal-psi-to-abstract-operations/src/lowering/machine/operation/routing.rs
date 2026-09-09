@@ -138,7 +138,7 @@ pub(super) fn lower(
                 )?,
             })
         }
-        OperationKind::EstablishPayloadlessCase { .. }
+        OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishAffineScalarRecord { .. } => structural_establishment::lower(

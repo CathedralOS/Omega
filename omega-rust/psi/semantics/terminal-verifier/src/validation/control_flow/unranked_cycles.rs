@@ -6,11 +6,19 @@ use super::*;
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, and frontier checks after this fence.
 pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bool {
+    let scalar_case_result = machine.result.structural().is_some_and(|result| {
+        matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        ) && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && super::super::scalar_case::plain_type(module, result.structural_type)
+    });
     if machine
         .ranked_scc
         .as_ref()
         .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
-        || machine.result.structural().is_some()
+        || (machine.result.structural().is_some() && !scalar_case_result)
         || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()
         || !machine.content_identity_reshuffles.is_empty()
@@ -34,7 +42,8 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     || !(persistent_receiver(module, parameter)
                         || ((parameter.access == StructuralAccess::SharedBorrow
                             || (parameter.access == StructuralAccess::MutableBorrow
-                                && machine.result == TerminalMachineResult::Unit))
+                                && (machine.result == TerminalMachineResult::Unit
+                                    || scalar_case_result)))
                             && module.structural_types.iter().any(|declaration| {
                                 declaration.id == parameter.structural_type
                                     && matches!(
@@ -46,20 +55,20 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                             }))))
         })
         || machine.structural_places.iter().any(|place| {
-            !matches!(
+            !(matches!(
                 place.kind,
                 StructuralPlaceKind::Parameter { .. }
                     | StructuralPlaceKind::BlockParameter { .. }
                     | StructuralPlaceKind::OperationResult { .. }
                     | StructuralPlaceKind::ByteSequenceLiteral { .. }
                     | StructuralPlaceKind::ProviderAttachment { .. }
-            )
+            ) || scalar_case_result && place.kind == StructuralPlaceKind::Result)
         })
     {
         return false;
     }
     machine.blocks.iter().all(|block| {
-        let case_source = local_case_result(module, machine, block);
+        let case_source = local_case_result(module, block);
         let terminator_eligible =
             matches!(
                 block.terminator,
@@ -69,12 +78,29 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     | Terminator::ReturnUnit { .. }
                     | Terminator::Crash { .. }
             ) || matches!(block.terminator, Terminator::StructuralCase { .. })
-                && case_source.is_some();
+                && case_source.is_some()
+                || scalar_case_result && matches!(&block.terminator,
+                    Terminator::ReturnStructural { source, returned_claims, .. }
+                    if returned_claims.is_empty()
+                        && super::super::scalar_case::plain_return_source(module, machine, *source));
         terminator_eligible
             && block
                 .operations
                 .iter()
                 .all(|operation| match &operation.kind {
+                    OperationKind::EstablishScalarCase { .. } => {
+                        super::super::scalar_case::fields(module, machine, operation).is_ok()
+                            && operation.result.structural().is_some_and(|result|
+                                matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
+                                    if *source == result.place) || case_source == Some(result.place))
+                    }
+                    OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. } => {
+                        operation.result.structural().is_some_and(|result|
+                            case_source == Some(result.place)
+                                || matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
+                                    if *source == result.place))
+                    }
                     // Ordinary scalar calls retain their complete signature,
                     // requirement, and crash checks after this eligibility fence.
                     OperationKind::Call { .. } => operation.result.scalar().is_some(),
@@ -226,12 +252,8 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
 /// Ordinary operation formation, dominance and frontier replay remain required.
 fn local_case_result(
     module: &TerminalModule,
-    machine: &TerminalMachine,
     block: &terminal_psi::Block,
 ) -> Option<semantic_vocabulary::PlaceId> {
-    if machine.result != TerminalMachineResult::Unit {
-        return None;
-    }
     let Terminator::StructuralCase { source, cases } = &block.terminator else {
         return None;
     };
@@ -243,10 +265,16 @@ fn local_case_result(
         return None;
     }
     let result = block.operations.iter().find_map(|operation| {
-        matches!(operation.kind, OperationKind::BoundaryCall { .. })
-            .then(|| operation.result.structural())
-            .flatten()
-            .filter(|result| result.place == *source)
+        matches!(
+            operation.kind,
+            OperationKind::BoundaryCall { .. }
+                | OperationKind::EstablishScalarCase { .. }
+                | OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. }
+        )
+        .then(|| operation.result.structural())
+        .flatten()
+        .filter(|result| result.place == *source)
     })?;
     if result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()

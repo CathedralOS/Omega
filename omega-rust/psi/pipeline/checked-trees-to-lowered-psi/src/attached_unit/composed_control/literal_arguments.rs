@@ -53,6 +53,12 @@ pub(super) fn evaluate(
             target_machine,
             scalar_arguments,
             ..
+        }
+        | CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            target_machine,
+            scalar_arguments,
+            ..
         } => {
             let target = catalogs
                 .internal_targets

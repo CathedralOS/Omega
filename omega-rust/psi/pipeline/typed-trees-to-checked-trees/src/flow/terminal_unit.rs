@@ -400,6 +400,11 @@ pub(crate) fn build_checked_unit_effect_plans(
                             target_machine,
                             target_state,
                             ..
+                        }
+                        | CheckedUnitEffectOperationPlan::StructuralCall {
+                            target_machine,
+                            target_state,
+                            ..
                         } => unique_entries.contains(&(*target_machine, *target_state)),
                         CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
                             boundary_symbols.contains(target_machine)
@@ -468,6 +473,12 @@ pub(crate) fn build_checked_unit_effect_plans(
             plan.attachment_type_identity
                 .as_deref()
                 .into_iter()
+                .chain(match &plan.result {
+                    checked_trees::CheckedControlResultPlan::Unit => None,
+                    checked_trees::CheckedControlResultPlan::Structural(result) => {
+                        Some(result.type_identity.as_str())
+                    }
+                })
                 .chain(
                     plan.states
                         .iter()
@@ -486,7 +497,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                             CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                                 result,
                                 ..
-                            } => Some(result.type_identity.as_str()),
+                            }
+                            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } => {
+                                Some(result.type_identity.as_str())
+                            }
                             _ => None,
                         })
                 }))

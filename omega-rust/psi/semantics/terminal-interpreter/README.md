@@ -130,7 +130,18 @@ Opaque structural entry inputs and host results recursively containing bounded
 integer fields reject. Their type identities do not supply complete field or
 selected-payload values with which to validate the restrictions. Result preflight
 rejects before the handler runs; this fence does not prohibit independently
-valid payloadless construction or supported exact internal transfers.
+valid selected scalar-case construction or supported exact internal transfers.
+
+`EstablishScalarCase` materializes the declared selected payload from existing
+typed scalar values, including independently proved restricted integers. The
+interpreter carries its exact case and field identities through structural
+return and internal-call suspension; case inspection stages the selected scalar
+parameters before whole-result disposal. Empty payloads share this representation.
+Affine case results support ordinary whole-root cleanup on returns and edges.
+Opaque host values still cannot supply case observations. Passing an internally
+constructed case as a structural call argument remains unsupported by the
+interpreter's argument presentation; scalar and borrowed-view inputs with a
+scalar-case result use the existing call path.
 
 Host response validation is not allocation or freshness verification. The host
 must return a legitimate owned value. Rejection preserves interpreter bookkeeping,

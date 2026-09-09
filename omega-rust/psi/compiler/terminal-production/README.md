@@ -131,7 +131,8 @@ disposition. This leaf-only route does not admit later structural consumption
 or nominal cleanup.
 
 The general state graph additionally inspects a state-local, claim-free affine
-boundary sum and transfers its selected primitive payloads alongside ordinary
+sum returned by a boundary or an ordinary graph call and transfers its selected
+primitive payloads alongside ordinary
 scalar arguments and borrowed views. Source replay rejoins the complete case
 roster, field paths, successor positions, and the local result's exact cleanup
 provenance. Case edges bind payload scalars into small staging blocks, then use
@@ -140,6 +141,24 @@ needed. Each selected edge disposes its own completed result before reentry.
 The source state currently begins with that result call and dispatches directly;
 interleaved effects, structural payloads, and loop-carried owned results remain
 outside this producer family.
+
+The same graph retains its normal result explicitly: Unit or a closed,
+claim-free affine/unrestricted scalar sum. Free and attached constructors and
+returning state leaves retain each selected field's authored occurrence and
+independently checked scalar expression. Admission rejoins nominal result/case,
+the complete field roster, and operand identities before emission evaluates
+fields once in authored order and emits `EstablishScalarCase` in declaration
+order. The construction place and machine result place remain distinct.
+Borrowed-view arguments and ordinary scalar state transfers use the existing
+graph bindings, including loops before a returning leaf. Internal scalar-case
+calls share the ordinary closure's predeclared signatures. This source call
+route currently requires an empty callee precondition list. Selected
+case edges dispose the returned affine root using the existing checked cleanup
+evidence. Bounded fields receive independent declaration-range obligations;
+missing proofs reject artifact production. Call-bearing or short-circuit
+constructor operands, structural payloads, and loop-carried owned sum results
+are not admitted by this producer. Native realization still rejects nonempty
+scalar-case construction rather than erasing its payload.
 
 Closed integer field restrictions retain their exact carrier and inclusive
 bounds through the checked catalog and Terminal declaration. The selected case

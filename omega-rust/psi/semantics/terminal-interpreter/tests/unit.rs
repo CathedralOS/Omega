@@ -12,7 +12,7 @@ use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalF
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
-    TerminalPayloadlessCaseResult, TerminalPayloadlessCaseValue, TerminalScalarValue,
+    TerminalScalarCaseResult, TerminalScalarCaseValue, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured, interpret_terminal_artifact_with_effect_handler_measured,
     interpret_terminal_artifact_with_structural_primitive_values_measured,
@@ -56,6 +56,8 @@ mod affine_identity_calls;
 mod boundary_borrows;
 #[path = "unit/bounded_fields.rs"]
 mod bounded_fields;
+#[path = "unit/scalar_cases.rs"]
+mod scalar_cases;
 
 #[path = "unit/byte_sequence_forwarding.rs"]
 mod byte_sequence_forwarding;
@@ -190,10 +192,11 @@ fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
 
     assert_eq!(
         measured.value(),
-        TerminalExecutionResult::PayloadlessCase(TerminalPayloadlessCaseResult {
-            value: TerminalPayloadlessCaseValue {
+        TerminalExecutionResult::ScalarCase(TerminalScalarCaseResult {
+            value: TerminalScalarCaseValue {
                 structural_type,
                 result_case,
+                fields: vec![],
             },
         })
     );
@@ -231,11 +234,12 @@ fn payloadless_structural_call_returns_exact_case_in_four_resumable_units() {
     meter.replenish(1).unwrap();
     assert_eq!(
         execution.resume(&mut meter).unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
-            TerminalPayloadlessCaseResult {
-                value: TerminalPayloadlessCaseValue {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
+            TerminalScalarCaseResult {
+                value: TerminalScalarCaseValue {
                     structural_type: structural_type_id(1),
                     result_case: structural_case_id(1),
+                    fields: vec![],
                 },
             }
         ))
@@ -3184,7 +3188,10 @@ fn payloadless_case_module() -> TerminalModule {
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishPayloadlessCase { result_case },
+        kind: OperationKind::EstablishScalarCase {
+            result_case,
+            fields: vec![],
+        },
     }];
     machine.blocks[0].terminator = Terminator::ReturnStructural {
         edge: edge_id(1),

@@ -122,7 +122,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 85;
+const FORMAT_MARKER: u16 = 86;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1396,15 +1396,19 @@ fn validate_operation_foundation(
                 return malformed("scalar structural field has invalid source custody");
             }
         }
-        OperationKind::EstablishPayloadlessCase { result_case } => {
+        OperationKind::EstablishScalarCase {
+            result_case,
+            fields,
+        } => {
             let Some(result) = operation.result.structural() else {
-                return malformed("payloadless case establishment has no structural result");
+                return malformed("scalar case establishment has no structural result");
             };
-            if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                 || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
             {
-                return malformed("payloadless case establishment has an invalid result surface");
+                return malformed("scalar case establishment has an invalid result surface");
             }
             if !matches!(
                 machine.structural_places.iter().find(|place| place.id == result.place),
@@ -1413,26 +1417,38 @@ fn validate_operation_foundation(
                     ..
                 }) if *producer == operation.id && *structural_type == result.structural_type
             ) {
-                return malformed("payloadless case establishment has no matching result place");
+                return malformed("scalar case establishment has no matching result place");
             }
             let Some(declaration) = module
                 .structural_types
                 .iter()
                 .find(|declaration| declaration.id == result.structural_type)
             else {
-                return malformed("payloadless case establishment has an unknown structural type");
+                return malformed("scalar case establishment has an unknown structural type");
             };
             let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                return malformed("payloadless case establishment requires a sum type");
+                return malformed("scalar case establishment requires a sum type");
             };
-            if !cases
-                .iter()
-                .any(|case| case.id == *result_case && case.fields.is_empty())
-            {
-                return malformed(
-                    "payloadless case establishment requires an exact payloadless member",
-                );
+            let Some(selected) = cases.iter().find(|case| case.id == *result_case) else {
+                return malformed("scalar case establishment requires an exact member");
+            };
+            if selected.fields.len() != fields.len() {
+                return malformed("scalar case establishment requires every selected field");
             }
+            for (declaration, field) in selected.fields.iter().zip(fields) {
+                if declaration.id != field.field
+                    || declaration.relevance.is_erased()
+                    || declaration.field_type.scalar_type().is_none()
+                    || matches!(
+                        declaration.field_type,
+                        StructuralFieldType::BoundedInteger(_)
+                    ) != field.range_obligation.is_some()
+                {
+                    return malformed("scalar case establishment has an invalid field binding");
+                }
+            }
+            // Full module validation independently checks exact operand types,
+            // dominance and declaration-derived obligations before acceptance.
         }
         OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
             if operation.result != OperationResult::Unit {
@@ -1573,8 +1589,11 @@ fn validate_operation_foundation(
                 || !actual_result.claims.is_empty()
                 || !claim_transfers.is_empty()
                 || !returned_claim_transfers.is_empty()
-                || !requirement_obligations.is_empty()
-                || !crash_continuations.is_empty()
+                || if is_plain_scalar_case_call(module, actual_result, callee) {
+                    requirement_obligations.len() != callee.contract.requires.len()
+                } else {
+                    !requirement_obligations.is_empty() || !crash_continuations.is_empty()
+                }
             {
                 return malformed("mixed structural-result call exceeds its bounded signature");
             }
@@ -1652,9 +1671,16 @@ fn validate_operation_foundation(
                 && expected_result.qualifications.is_empty()
                 && actual_result.claims.is_empty()
                 && callee_exact_payloadless_return(callee);
+            let plain_scalar_case = is_plain_scalar_case_call(module, actual_result, callee)
+                && selected_evidence.is_empty()
+                && claim_transfers.is_empty()
+                && returned_claim_transfers.is_empty()
+                && requirement_obligations.len() == callee.contract.requires.len();
             if !callee.parameters.is_empty()
+                || structural_arguments.len() != callee.structural_parameters.len()
                 || (!selected_evidence.is_empty() && !exact_payloadless)
                 || (!exact_payloadless
+                    && !plain_scalar_case
                     && (structural_arguments.len() != 1 || callee.structural_parameters.len() != 1))
                 || actual_result.structural_type != expected_result.structural_type
                 || actual_result.multiplicity != expected_result.multiplicity
@@ -1697,6 +1723,15 @@ fn validate_operation_foundation(
             }
             if exact_payloadless {
                 return Ok(());
+            }
+            if plain_scalar_case {
+                return validate_structural_arguments(
+                    module,
+                    machine,
+                    structural_arguments,
+                    &callee.structural_parameters,
+                    StructuralArgumentPresentation::Ordinary,
+                );
             }
             if actual_result.claims.is_empty()
                 || claim_transfers.is_empty()
@@ -1992,6 +2027,28 @@ fn validate_operation_foundation(
     Ok(())
 }
 
+fn is_plain_scalar_case_call(
+    module: &TerminalModule,
+    result: &terminal_psi::StructuralOperationResult,
+    callee: &TerminalMachine,
+) -> bool {
+    matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+    ) && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && callee.entry_claims.is_empty()
+        && callee.content_entry_claims.is_empty()
+        && callee.contract.outcome_specific_ensures.is_empty()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                    if cases.iter().all(|case| case.fields.iter().all(|field|
+                        !field.relevance.is_erased() && field.field_type.scalar_type().is_some())))
+        })
+}
+
 fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
     let Some(result) = callee.result.structural() else {
         return false;
@@ -2031,20 +2088,18 @@ fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
         else {
             return false;
         };
-        if !matches!(
-            operation.kind,
-            OperationKind::EstablishPayloadlessCase { .. }
-        ) || !operation
-            .result
-            .structural()
-            .is_some_and(|operation_result| {
-                operation_result.place == *source
-                    && operation_result.structural_type == result.structural_type
-                    && operation_result.multiplicity
-                        == terminal_psi::StructuralMultiplicity::Unrestricted
-                    && operation_result.qualifications.is_empty()
-                    && operation_result.claims.is_empty()
-            })
+        if !matches!(&operation.kind, OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty())
+            || !operation
+                .result
+                .structural()
+                .is_some_and(|operation_result| {
+                    operation_result.place == *source
+                        && operation_result.structural_type == result.structural_type
+                        && operation_result.multiplicity
+                            == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && operation_result.qualifications.is_empty()
+                        && operation_result.claims.is_empty()
+                })
         {
             return false;
         }

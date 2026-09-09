@@ -177,7 +177,10 @@ fn payloadless_structural_call_imports_guarded_rows_only_as_case_implications() 
     }];
     assert_eq!(
         validate_module(&widened).unwrap_err(),
-        ModuleError::StructuralResultMustBeOwned(machine_id(1)),
+        ModuleError::StructuralCallTargetMismatch {
+            operation: operation_id(1),
+            callee: machine_id(2)
+        },
         "the first caller-import rung remains guarded-contract-only"
     );
 
@@ -225,7 +228,10 @@ fn payloadless_structural_call_imports_guarded_rows_only_as_case_implications() 
     });
     assert_eq!(
         validate_module(&forwarded).unwrap_err(),
-        ModuleError::StructuralResultMustBeOwned(machine_id(1)),
+        ModuleError::StructuralCallTargetMismatch {
+            operation: operation_id(1),
+            callee: machine_id(2)
+        },
         "a bare structural call cannot satisfy a forwarded erased evidence input"
     );
 }
@@ -1224,8 +1230,9 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                             projected_qualifications: Vec::new(),
                             claims: Vec::new(),
                         }),
-                        kind: OperationKind::EstablishPayloadlessCase {
+                        kind: OperationKind::EstablishScalarCase {
                             result_case: success,
+                            fields: vec![],
                         },
                     }],
                     terminator: Terminator::ReturnStructural {

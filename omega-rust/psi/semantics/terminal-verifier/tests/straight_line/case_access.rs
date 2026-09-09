@@ -126,8 +126,9 @@ fn owned_operation_result_keeps_structural_case_dispatch() {
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishPayloadlessCase {
+        kind: OperationKind::EstablishScalarCase {
             result_case: StructuralCaseId::new(1).expect("first case"),
+            fields: vec![],
         },
     });
     verify_module(

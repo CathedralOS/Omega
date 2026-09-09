@@ -14,6 +14,7 @@ mod edges;
 mod emission;
 mod parameters;
 mod ranking;
+mod returns;
 mod scalars;
 mod subslices;
 #[cfg(test)]

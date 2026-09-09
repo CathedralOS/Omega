@@ -801,8 +801,8 @@ pub(super) fn validate_structural_frontier(
                         })
                         .is_some_and(|operation| {
                             (matches!(
-                                operation.kind,
-                                OperationKind::EstablishPayloadlessCase { .. }
+                                &operation.kind,
+                                OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty()
                             ) || super::structural_operations::exact_payloadless_structural_call(
                                 module, operation, machines,
                             )) && operation.result.structural().is_some_and(|result| {
@@ -852,7 +852,8 @@ pub(super) fn validate_structural_frontier(
                     );
                 if (returned_claims.is_empty()
                     && !exact_payloadless_claim_free_return
-                    && !exact_affine_parameter_return)
+                    && !exact_affine_parameter_return
+                    && !super::scalar_case::plain_return_source(module, machine, *source))
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
                     return Err(ModuleError::NonCanonicalStructuralReturnClaims {
@@ -1111,6 +1112,20 @@ fn validate_scalar_cleanup_actions(
     let mut frontier = frontier.clone();
     let max_residuals = actions.len();
     let mut actions = actions.iter();
+
+    // Scalar-case temporaries follow the same reverse producer order as
+    // ordinary edge and Unit-return disposal, before older named roots.
+    for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
+        if !super::scalar_case::plain_return_source(module, machine, place) {
+            continue;
+        }
+        if frontier.partial_custody_paths.contains_key(&place)
+            || actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place))
+        {
+            return Err(mismatch());
+        }
+        frontier.owned_places.remove(&place);
+    }
 
     let mut locals = machine
         .structural_places

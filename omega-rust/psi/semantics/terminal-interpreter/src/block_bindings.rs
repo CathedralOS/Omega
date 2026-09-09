@@ -51,9 +51,19 @@ impl BlockBindings {
     ) -> Result<(), TerminalInterpretError> {
         let mut discarded = BTreeSet::new();
         for place in trivial {
-            let value = execution.structural_values.get(place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(*place),
-            )?;
+            let structural_type = execution
+                .structural_values
+                .get(place)
+                .map(|value| value.structural_type)
+                .or_else(|| {
+                    execution
+                        .scalar_case_values
+                        .get(place)
+                        .map(|value| value.structural_type)
+                })
+                .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                    *place,
+                ))?;
             if !discarded.insert(*place)
                 || self.affine_sources.contains(place)
                 || execution
@@ -67,7 +77,7 @@ impl BlockBindings {
                     .ne(std::iter::once(&StructuralAffineDiscard {
                         place: *place,
                         path: Vec::new(),
-                        structural_type: value.structural_type,
+                        structural_type,
                     }))
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);

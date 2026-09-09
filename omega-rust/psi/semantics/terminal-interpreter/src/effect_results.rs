@@ -19,7 +19,7 @@ impl TerminalExecution {
         if let OperationResult::Structural(result) = result
             && (contains_bounded_integer(&self.structural_types, result.structural_type)
                 || self.structural_values.contains_key(&result.place)
-                || self.payloadless_case_values.contains_key(&result.place)
+                || self.scalar_case_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
                     .iter()

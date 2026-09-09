@@ -341,7 +341,7 @@ operation_semantic_rows! {
     StructuralByteSequenceFieldStore => ("schema:operation:structural-byte-sequence-field-store", LeafDenotation, None),
     StructuralByteSequenceFieldLength => ("schema:operation:structural-byte-sequence-field-length", LeafDenotation, None),
     StructuralByteSequenceFieldByteStore => ("schema:operation:structural-byte-sequence-field-byte-store", LeafDenotation, None),
-    EstablishPayloadlessCase => ("schema:operation:establish-payloadless-case", LeafDenotation, None),
+    EstablishScalarCase => ("schema:operation:establish-scalar-case", LeafDenotation, None),
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     ByteSequenceLength => ("schema:operation:byte-sequence-length", LeafDenotation, None),
     ByteSequenceWrite => ("schema:operation:byte-sequence-write", LeafDenotation, None),

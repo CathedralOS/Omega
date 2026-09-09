@@ -309,30 +309,30 @@ pub(super) fn compose_call_operation(
         (
             CallResultRule::StructuralCalleeResult,
             OperationKind::CallStructuralWithScalarArguments {
+                callee,
                 structural_arguments,
                 requirement_obligations,
-                crash_continuations,
                 ..
             },
-        ) => {
-            debug_assert!(requirement_obligations.is_empty());
-            debug_assert!(crash_continuations.is_empty());
-            // The first mixed structural-result lane admits only an empty
-            // callee contract, so there are no propositions to substitute or
-            // import. Scalar and structural ABI custody remains explicit in
-            // the operation and is validated independently.
-            invalidate_mutated_arguments(axioms, structural_arguments);
-        }
-        (
+        )
+        | (
             CallResultRule::StructuralCalleeResult,
             OperationKind::CallStructural {
                 callee,
                 structural_arguments,
                 requirement_obligations,
-                selected_evidence,
                 ..
             },
         ) => {
+            let (arguments, selected_evidence) = match &operation.kind {
+                OperationKind::CallStructuralWithScalarArguments { arguments, .. } => {
+                    (arguments.as_slice(), &[][..])
+                }
+                OperationKind::CallStructural {
+                    selected_evidence, ..
+                } => (&[][..], selected_evidence.as_slice()),
+                _ => return Err(ModuleError::ScalarCaseResultMismatch(operation.id)),
+            };
             let callee = machines
                 .get(callee)
                 .copied()
@@ -363,6 +363,27 @@ pub(super) fn compose_call_operation(
                 })
                 .collect::<BTreeMap<_, _>>();
             substitutions.insert(callee_result.place, (call_result.place, Vec::new()));
+            let scalar_substitutions = callee
+                .parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.id, value_term(*argument, value_types)))
+                .collect::<BTreeMap<_, _>>();
+            let instantiate = |proposition: &Proposition| {
+                substitute_proposition_values(
+                    &substitute_proposition_structural_places(proposition, &substitutions),
+                    &scalar_substitutions,
+                )
+            };
+            // This operation establishes a fresh result. Prior observations
+            // of its storage cannot justify this invocation's requirements.
+            // Versioned content identities retain their independent meaning.
+            axioms.retain(|proposition| {
+                !crate::validation::proposition_observes_unversioned_places(
+                    proposition,
+                    &[call_result.place],
+                )
+            });
             for (requirement_position, (required, obligation)) in callee
                 .contract
                 .requires
@@ -379,10 +400,7 @@ pub(super) fn compose_call_operation(
                     },
                     obligation: Obligation {
                         id: *obligation,
-                        proposition: substitute_proposition_structural_places(
-                            required,
-                            &substitutions,
-                        ),
+                        proposition: instantiate(required),
                         class: ObligationClass::Derivable,
                     },
                     semantic_axioms: axioms.clone(),
@@ -391,13 +409,7 @@ pub(super) fn compose_call_operation(
             }
             invalidate_mutated_arguments(axioms, structural_arguments);
             for guarantee in &callee.contract.ensures {
-                push_unique(
-                    axioms,
-                    substitute_proposition_structural_places(
-                        &guarantee.proposition,
-                        &substitutions,
-                    ),
-                );
+                push_unique(axioms, instantiate(&guarantee.proposition));
             }
             for guarantee in &callee.contract.outcome_specific_ensures {
                 let proposition = selected_evidence
@@ -409,12 +421,7 @@ pub(super) fn compose_call_operation(
                                 == Proposition::Atom(binding.callee_proposition)
                     })
                     .map(|binding| Proposition::Atom(binding.instantiated_proposition))
-                    .unwrap_or_else(|| {
-                        substitute_proposition_structural_places(
-                            &guarantee.proposition,
-                            &substitutions,
-                        )
-                    });
+                    .unwrap_or_else(|| instantiate(&guarantee.proposition));
                 push_unique(
                     axioms,
                     Proposition::Implication {

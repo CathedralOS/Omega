@@ -49,6 +49,232 @@ const READ_ONE: &str = r#"
         "#;
 
 #[test]
+fn line_result_constructor_retains_runtime_count_in_terminal() {
+    let checked = checked_source(
+        r#"
+        data LineReadResult {
+            case Invalid;
+            case LineComplete(count: u64);
+            case EndOfInput(count: u64);
+            case Full(count: u64);
+        }
+        machine full(count: u64) -> LineReadResult {
+            LineReadResult::Full { count: count }
+        }
+        "#,
+    );
+    let artifact = produce_terminal_artifact(&checked, "full")
+        .expect("a returned line outcome retains its runtime count");
+    for count in [0, 7, u64::MAX] {
+        let argument = terminal_interpreter::TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            value: IntegerValue::Unsigned(count as u128),
+        };
+        let mut execution = TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[argument],
+        )
+        .unwrap();
+        let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(result)) =
+            execution
+                .resume(&mut TerminalFuelMeter::with_allowance(100))
+                .unwrap()
+        else {
+            panic!("case return did not complete");
+        };
+        assert_eq!(result.value.fields.len(), 1);
+        assert_eq!(result.value.fields[0].1, argument);
+    }
+}
+
+#[test]
+fn scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_drift() {
+    let checked = checked_source(
+        r#"
+        data PairResult { case Empty; case Pair(left: u64, right: u64); }
+        machine pair(left: u64, right: u64) -> PairResult {
+            PairResult::Pair { right: right, left: left }
+        }
+    "#,
+    );
+    let artifact = produce_terminal_artifact(&checked, "pair").unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let selected = module
+        .structural_types
+        .iter()
+        .find_map(|declaration| match &declaration.shape {
+            StructuralTypeShape::Sum { cases } => cases.iter().find(|case| case.identity == "Pair"),
+            _ => None,
+        })
+        .unwrap();
+    let arguments = [11, 29].map(|value| terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        value: IntegerValue::Unsigned(value),
+    });
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &arguments,
+    )
+    .unwrap();
+    let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(result)) = execution
+        .resume(&mut TerminalFuelMeter::with_allowance(100))
+        .unwrap()
+    else {
+        panic!("pair did not return");
+    };
+    for (identity, expected) in [("left", arguments[0]), ("right", arguments[1])] {
+        let field = selected
+            .fields
+            .iter()
+            .find(|field| field.identity == identity)
+            .unwrap();
+        assert!(result.value.fields.contains(&(field.id, expected)));
+    }
+    for corruption in 0..6 {
+        let mut changed = checked.clone();
+        let plan = &mut changed.facts.flow.terminal_unit_effects.composed_machines[0];
+        let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnCase {
+            fields,
+            case_identity,
+            ..
+        } = &mut plan.states[0].terminator
+        else {
+            panic!("case plan missing");
+        };
+        match corruption {
+            0 => fields.swap(0, 1),
+            1 => fields[0].field_identity = fields[1].field_identity.clone(),
+            2 => fields[0].expression = fields[1].expression.clone(),
+            3 => *case_identity = "Empty".to_owned(),
+            4 => {
+                fields.pop();
+            }
+            _ => plan.result = checked_trees::CheckedControlResultPlan::Unit,
+        }
+        assert!(
+            produce_terminal_artifact(&changed, "pair").is_err(),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
+fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
+    let source = r#"
+        data Bounded { case Empty; case Count(value: u64 [0..=7]); }
+        machine bounded() -> Bounded { Bounded::Count { value: 7 } }
+    "#;
+    let checked = checked_source(source);
+    let artifact = produce_terminal_artifact(&checked, "bounded")
+        .expect("literal proves the exact declaration range");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert!(module.machines.iter().flat_map(|machine| &machine.blocks).flat_map(|block| &block.operations)
+        .any(|operation| matches!(&operation.kind, OperationKind::EstablishScalarCase { fields, .. }
+            if fields.len() == 1 && fields[0].range_obligation.is_some())));
+    let invalid = source.replace("value: 7", "value: 8");
+    let syntax = parse_syntax_trees(&Lexer::new(&invalid).tokenize().unwrap()).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    if let Ok(checked) = lower_typed_trees(typed) {
+        assert!(
+            produce_terminal_artifact(&checked, "bounded").is_err(),
+            "out-of-range construction must not publish an artifact"
+        );
+    }
+}
+
+#[test]
+fn scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count() {
+    let checked = checked_source(
+        r#"
+        data Outcome { case Empty; case Full(count: u64); }
+        machine make(out: &mut [u8], count: u64, full: bool) -> Outcome {
+            transition full { true -> scan(out, count) false -> empty(out) }
+            state scan(out: &mut [u8], count: u64) -> Outcome {
+                transition count < 7 { true -> advance(out, count) false -> filled(out, count) }
+            }
+            state advance(out: &mut [u8], count: u64) -> Outcome {
+                transition { _ -> scan(out, count + 1) }
+            }
+            state filled(out: &mut [u8], count: u64) -> Outcome { Outcome::Full { count: count } }
+            state empty(out: &mut [u8]) -> Outcome {
+                transition out.len > 0 { true -> empty_store(out) false -> empty_return() }
+            }
+            state empty_store(out: &mut [u8]) -> Outcome {
+                out[0] = 41;
+                Outcome::Empty
+            }
+            state empty_return() -> Outcome { Outcome::Empty }
+        }
+        machine collect(out: &mut [u8], full: bool) {
+            transition out.len > 0 { true -> read(out, full) false -> done() }
+            state read(out: &mut [u8], full: bool) {
+                let observed: Outcome = make(out, 0, full);
+                transition observed {
+                    Outcome::Full { count } -> observed_count(out, count)
+                    Outcome::Empty -> done()
+                }
+            }
+            state observed_count(out: &mut [u8], count: u64) {
+                transition count == 7 { true -> writable(out) false -> done() }
+            }
+            state writable(out: &mut [u8]) {
+                transition out.len > 0 { true -> store(out) false -> done() }
+            }
+            state store(out: &mut [u8]) { out[0] = 67; }
+            state done() {}
+        }
+        data Record { out: [u8; 1]; }
+        machine Record::run(&mut self, full: bool) { collect(&mut self.out, full); }
+    "#,
+    );
+    let artifact = produce_terminal_artifact(&checked, "Record::run")
+        .expect("ordinary scalar-case call composes with view and count transfers");
+    for full in [false, true] {
+        let path = vec![StructuralPathSegment::Field("out".into())];
+        let mut execution =
+            TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[terminal_interpreter::TerminalScalarValue::Boolean(full)],
+                &[entry_argument(&artifact)],
+                &[TerminalStructuralByteArrayValue {
+                    argument_index: 0,
+                    path: path.clone(),
+                    bytes: vec![19],
+                }],
+            )
+            .unwrap();
+        let mut fuel = TerminalFuelMeter::with_allowance(0);
+        let mut completed = false;
+        for _ in 0..512 {
+            match execution.resume(&mut fuel).unwrap() {
+                TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
+                TerminalExecutionStatus::Complete(result) => {
+                    assert_eq!(result, TerminalExecutionResult::Unit);
+                    completed = true;
+                    break;
+                }
+                other => panic!("unexpected execution {other:?}"),
+            }
+        }
+        assert!(
+            completed,
+            "returning counter loop must finish within the fixture fuel bound"
+        );
+        assert_eq!(
+            execution.structural_byte_array(73, &path),
+            Some([if full { 67 } else { 41 }].as_slice())
+        );
+    }
+}
+
+#[test]
 fn byte_input_exact_narrowing_uses_retained_payload_range_evidence() {
     let checked = checked_source(READ_ONE);
     let artifact = produce_terminal_artifact(&checked, "read_one")

@@ -10,7 +10,7 @@ artifact envelope/manifest, debug map, installation payload, optimization
 execution, obligation ledger, and observation profile have distinct owners.
 Do not infer one section's identity from another section's current version.
 
-Current implementation markers are semantic format/vocabulary `85/91`, proof
+Current implementation markers are semantic format/vocabulary `86/92`, proof
 format `30`, artifact envelope `2`, and manifest `3`. The image-emission owner
 maintains the separately encoded installation payload (currently `93`).
 These are current codec facts, not a chronology or a promise of older acceptance.
@@ -19,6 +19,14 @@ Bounded integer fields retain the fixed carrier and both full-width inclusive
 endpoints. Invalid carrier/endpoints, reversed bounds, and erased bounded fields
 reject. Their declaration bytes participate in semantic identity; an identical
 physical layout does not make different numeric restrictions interchangeable.
+
+Scalar case construction encodes the selected case and its complete field roster
+in declaration order. Each field binds an already evaluated scalar value and,
+for a bounded integer field, its declaration-derived range obligation. The case,
+operand identities, and obligation identities all participate in semantic identity;
+an empty roster is the payloadless case of the same operation. Encoding a module
+does not establish its proofs. Artifact acceptance independently verifies the
+range obligations before treating the constructed payload as valid.
 
 ## Observation-profile implementation
 

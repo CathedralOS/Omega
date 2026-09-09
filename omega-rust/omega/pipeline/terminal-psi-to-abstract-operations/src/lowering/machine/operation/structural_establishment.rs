@@ -20,7 +20,13 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
-        OperationKind::EstablishPayloadlessCase { result_case } => {
+        OperationKind::EstablishScalarCase {
+            result_case,
+            fields,
+        } => {
+            if !fields.is_empty() {
+                return Err(LoweringError::UnsupportedScalarCase(operation.id));
+            }
             if !retain_payloadless_for_optimization {
                 return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
             }

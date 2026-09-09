@@ -117,11 +117,13 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::BooleanStructuralField { .. }
-        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
         | O::PortWrite { .. } => {}
+        O::EstablishScalarCase { fields, .. } => {
+            values.extend(fields.iter().map(|field| field.value));
+        }
         O::BooleanNot { operand }
         | O::IntegerBitwiseNot { operand }
         | O::IntegerWiden { operand }
@@ -200,6 +202,29 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
 mod tests {
     use super::*;
     use semantic_vocabulary::{ObligationId, PlaceId, StructuralFieldId};
+
+    #[test]
+    fn scalar_case_construction_demands_each_payload_operand() {
+        let payloads = [ValueId::new(2).unwrap(), ValueId::new(1).unwrap()];
+        let operation = O::EstablishScalarCase {
+            result_case: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+            fields: payloads
+                .iter()
+                .enumerate()
+                .map(|(position, value)| terminal_psi::ScalarCaseField {
+                    field: StructuralFieldId::new(position as u64 + 1).unwrap(),
+                    value: *value,
+                    range_obligation: None,
+                })
+                .collect(),
+        };
+        let mut pending = Vec::new();
+        assert!(inputs(&operation, &mut pending));
+        assert_eq!(pending, payloads);
+        assert!(!terminal_semantics::is_unconditionally_total_scalar(
+            &operation
+        ));
+    }
 
     #[test]
     fn indexed_byte_store_demands_all_scalar_operands() {

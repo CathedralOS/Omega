@@ -251,14 +251,15 @@ pub struct TerminalStructuralValue {
     pub path: Vec<StructuralPathSegment>,
 }
 
-/// Exact target-neutral runtime carrier for a payloadless structural sum case.
+/// Exact target-neutral runtime carrier for a selected scalar sum case.
 ///
 /// This is deliberately distinct from an opaque host structural value: a
 /// producer-created case has no host identity to preserve or invent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TerminalPayloadlessCaseValue {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalScalarCaseValue {
     pub structural_type: StructuralTypeId,
     pub result_case: StructuralCaseId,
+    pub fields: Vec<(semantic_vocabulary::StructuralFieldId, TerminalScalarValue)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -473,7 +474,7 @@ pub enum TerminalExecutionResult {
     Unit,
     Scalar(TerminalScalarValue),
     Structural(TerminalStructuralResult),
-    PayloadlessCase(TerminalPayloadlessCaseResult),
+    ScalarCase(TerminalScalarCaseResult),
 }
 
 /// A structural value returned with the exact live claims transferred into it.
@@ -483,11 +484,10 @@ pub struct TerminalStructuralResult {
     pub claims: Vec<ClaimId>,
 }
 
-/// A returned payloadless sum case. Such a value carries no runtime payload
-/// and therefore cannot carry structural claims.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TerminalPayloadlessCaseResult {
-    pub value: TerminalPayloadlessCaseValue,
+/// A returned selected case whose primitive payload carries no structural claims.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalScalarCaseResult {
+    pub value: TerminalScalarCaseValue,
 }
 
 impl TerminalScalarValue {
@@ -534,7 +534,7 @@ pub struct TerminalExecution {
     /// parameter. Immutable backing implements a logical copy of the live prefix.
     structural_byte_sequence_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
     structural_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
-    payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
+    scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
     /// not supply either byte contents or permission to mutate a field.
@@ -569,7 +569,7 @@ struct SuspendedCall {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
-    payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
+    scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
     live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
@@ -1050,7 +1050,7 @@ impl TerminalExecution {
             structural_scalar_fields,
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_arrays: BTreeMap::new(),
-            payloadless_case_values: BTreeMap::new(),
+            scalar_case_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
             live_affine_frontier,
             live_claims,
@@ -1306,7 +1306,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1408,7 +1408,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1448,17 +1448,26 @@ impl TerminalExecution {
         let Some(callee_result) = callee.result.structural() else {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
-        let exact_payloadless_call = scalar_arguments.is_empty()
-            && structural_arguments.is_empty()
-            && callee.parameters.is_empty()
-            && callee.structural_parameters.is_empty()
-            && callee.entry_claims.is_empty()
+        let exact_scalar_case_call = callee.entry_claims.is_empty()
             && callee.content_entry_claims.is_empty()
             && claim_transfers.is_empty()
             && returned_claim_transfers.is_empty()
-            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
             && result.qualifications.is_empty()
-            && result.claims.is_empty();
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && self
+                .structural_types
+                .get(&result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                    if cases.iter().all(|case| case.fields.iter().all(|field|
+                        field.relevance == terminal_psi::BindingRelevance::Relevant
+                            && field.field_type.scalar_type().is_some())))
+                });
         if structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -1476,9 +1485,9 @@ impl TerminalExecution {
             || result.multiplicity != callee_result.multiplicity
             || result.qualifications != callee_result.qualifications
             || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                && !exact_payloadless_call)
+                && !exact_scalar_case_call)
             || self.structural_values.contains_key(&result.place)
-            || self.payloadless_case_values.contains_key(&result.place)
+            || self.scalar_case_values.contains_key(&result.place)
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
@@ -1537,7 +1546,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: remaining_claims,
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1589,7 +1598,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1636,7 +1645,7 @@ impl TerminalExecution {
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1697,15 +1706,23 @@ impl TerminalExecution {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                     }
-                    OperationKind::EstablishPayloadlessCase { result_case } => {
+                    OperationKind::EstablishScalarCase {
+                        result_case,
+                        fields,
+                    } => {
                         let terminal_psi::OperationResult::Structural(result) = &operation.result
                         else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
                         if self.structural_values.contains_key(&result.place)
-                            || self.payloadless_case_values.contains_key(&result.place)
-                            || result.multiplicity != StructuralMultiplicity::Unrestricted
+                            || self.scalar_case_values.contains_key(&result.place)
+                            || !matches!(
+                                result.multiplicity,
+                                StructuralMultiplicity::Unrestricted
+                                    | StructuralMultiplicity::Affine
+                            )
                             || !result.qualifications.is_empty()
+                            || !result.projected_qualifications.is_empty()
                             || !result.claims.is_empty()
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -1717,19 +1734,50 @@ impl TerminalExecution {
                         else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
-                        if !cases
-                            .iter()
-                            .any(|case| case.id == result_case && case.fields.is_empty())
-                        {
+                        let Some(selected) = cases.iter().find(|case| case.id == result_case)
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if selected.fields.len() != fields.len() {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                        self.payloadless_case_values.insert(
+                        let mut payload = Vec::with_capacity(fields.len());
+                        for (declaration, binding) in selected.fields.iter().zip(&fields) {
+                            let value = self.values.get(&binding.value).copied().ok_or(
+                                TerminalInterpretError::VerifiedValueMissing(binding.value),
+                            )?;
+                            if declaration.id != binding.field
+                                || declaration.field_type.scalar_type() != Some(value.scalar_type())
+                            {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) =
+                                declaration.field_type
+                            {
+                                let TerminalScalarValue::Integer { value, .. } = value else {
+                                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                                };
+                                if !bounds.contains(value) {
+                                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                                }
+                            }
+                            payload.push((binding.field, value));
+                        }
+                        self.scalar_case_values.insert(
                             result.place,
-                            TerminalPayloadlessCaseValue {
+                            TerminalScalarCaseValue {
                                 structural_type: result.structural_type,
                                 result_case,
+                                fields: payload,
                             },
                         );
+                        if result.multiplicity == StructuralMultiplicity::Affine {
+                            self.live_affine_frontier.insert(StructuralAffineDiscard {
+                                place: result.place,
+                                path: Vec::new(),
+                                structural_type: result.structural_type,
+                            });
+                        }
                     }
                     OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
                         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
@@ -2311,9 +2359,7 @@ impl TerminalExecution {
                             values: std::mem::take(&mut self.values),
                             structural_values: std::mem::take(&mut self.structural_values),
                             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-                            payloadless_case_values: std::mem::take(
-                                &mut self.payloadless_case_values,
-                            ),
+                            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -3226,7 +3272,7 @@ impl TerminalExecution {
                         values: std::mem::take(&mut self.values),
                         structural_values: std::mem::take(&mut self.structural_values),
                         byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-                        payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+                        scalar_case_values: std::mem::take(&mut self.scalar_case_values),
                         live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                         live_claims: std::mem::take(&mut self.live_claims),
                         dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -3269,13 +3315,22 @@ impl TerminalExecution {
                     // be approximated by deleting its root-addressed carrier.
                     let mut expected_frontier = BTreeSet::new();
                     for place in trivial_affine_discards {
-                        let value = self.structural_values.get(place).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(*place),
-                        )?;
+                        let structural_type = self
+                            .structural_values
+                            .get(place)
+                            .map(|value| value.structural_type)
+                            .or_else(|| {
+                                self.scalar_case_values
+                                    .get(place)
+                                    .map(|value| value.structural_type)
+                            })
+                            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                *place,
+                            ))?;
                         if !expected_frontier.insert(StructuralAffineDiscard {
                             place: *place,
                             path: Vec::new(),
-                            structural_type: value.structural_type,
+                            structural_type,
                         }) {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
                         }
@@ -3308,6 +3363,7 @@ impl TerminalExecution {
                     // exact semantic paths and leaves the opaque root untouched.
                     for place in trivial_affine_discards {
                         self.structural_values.remove(place);
+                        self.scalar_case_values.remove(place);
                         self.live_affine_frontier.remove(&StructuralAffineDiscard {
                             place: *place,
                             path: Vec::new(),
@@ -3331,7 +3387,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
-                        self.payloadless_case_values = caller.payloadless_case_values;
+                        self.scalar_case_values = caller.scalar_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -3403,7 +3459,9 @@ impl TerminalExecution {
                         self.structural_values.remove(&first.place);
                     }
                     for place in trivial_affine_discards {
-                        if self.structural_values.remove(place).is_none() {
+                        if self.structural_values.remove(place).is_none()
+                            && self.scalar_case_values.remove(place).is_none()
+                        {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                                 *place,
                             ));
@@ -3438,7 +3496,9 @@ impl TerminalExecution {
                     )?;
                     bindings.validate_discards(self, &successor.trivial_affine_discards, &[])?;
                     for place in &successor.trivial_affine_discards {
-                        if self.structural_values.remove(place).is_none() {
+                        if self.structural_values.remove(place).is_none()
+                            && self.scalar_case_values.remove(place).is_none()
+                        {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                                 *place,
                             ));
@@ -3449,12 +3509,58 @@ impl TerminalExecution {
                     self.current = successor.target;
                     self.next_operation = 0;
                 }
-                // Payload-bearing boundary results are opaque to the current
-                // target-neutral host carrier. Native execution owns this
-                // closed-sum inspection lane; the interpreter fails closed
-                // until its embedding API can supply an exact case/payload.
-                Terminator::StructuralCase { .. } => {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                Terminator::StructuralCase { source, cases } => {
+                    // Only internally established values carry a discriminator
+                    // and scalar payload. Opaque host roots remain unsupported.
+                    let value = self.scalar_case_values.get(source).ok_or(
+                        TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
+                    )?;
+                    let successor = cases
+                        .iter()
+                        .find(|successor| successor.case == value.result_case)
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                    let target = self
+                        .blocks
+                        .get(&successor.target)
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                    if target.parameters.len() != successor.payload_fields.len() {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    let mut bindings = Vec::with_capacity(target.parameters.len());
+                    for (parameter, field) in
+                        target.parameters.iter().zip(&successor.payload_fields)
+                    {
+                        let scalar = value
+                            .fields
+                            .iter()
+                            .find(|(identity, _)| identity == field)
+                            .map(|(_, scalar)| *scalar)
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        if scalar.scalar_type() != parameter.scalar_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        bindings.push((parameter.id, scalar));
+                    }
+                    for place in &successor.trivial_affine_discards {
+                        if !self.structural_values.contains_key(place)
+                            && !self.scalar_case_values.contains_key(place)
+                        {
+                            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                                *place,
+                            ));
+                        }
+                    }
+                    if let Err(error) = meter.charge_edge(successor.edge, &terminator) {
+                        return meter_status(error);
+                    }
+                    for place in &successor.trivial_affine_discards {
+                        self.structural_values.remove(place);
+                        self.scalar_case_values.remove(place);
+                        remove_affine_root(&mut self.live_affine_frontier, *place);
+                    }
+                    self.values.extend(bindings);
+                    self.current = successor.target;
+                    self.next_operation = 0;
                 }
                 Terminator::Return {
                     value,
@@ -3505,6 +3611,7 @@ impl TerminalExecution {
                         &self.structural_types,
                         &self.machines,
                         &mut self.structural_values,
+                        &mut self.scalar_case_values,
                         &mut self.live_affine_frontier,
                         &mut self.live_claims,
                         cleanup_actions,
@@ -3521,9 +3628,7 @@ impl TerminalExecution {
                             values: std::mem::take(&mut self.values),
                             structural_values: std::mem::take(&mut self.structural_values),
                             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-                            payloadless_case_values: std::mem::take(
-                                &mut self.payloadless_case_values,
-                            ),
+                            scalar_case_values: std::mem::take(&mut self.scalar_case_values),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -3556,7 +3661,7 @@ impl TerminalExecution {
                         self.values.insert(result_value, result);
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
-                        self.payloadless_case_values = caller.payloadless_case_values;
+                        self.scalar_case_values = caller.scalar_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -3587,7 +3692,9 @@ impl TerminalExecution {
                         return meter_status(error);
                     }
                     for place in trivial_affine_discards {
-                        if self.structural_values.remove(place).is_none() {
+                        if self.structural_values.remove(place).is_none()
+                            && self.scalar_case_values.remove(place).is_none()
+                        {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                                 *place,
                             ));
@@ -3600,7 +3707,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
-                        self.payloadless_case_values = caller.payloadless_case_values;
+                        self.scalar_case_values = caller.scalar_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -3644,8 +3751,8 @@ impl TerminalExecution {
                                         byte_sequence_values: std::mem::take(
                                             &mut self.byte_sequence_values,
                                         ),
-                                        payloadless_case_values: std::mem::take(
-                                            &mut self.payloadless_case_values,
+                                        scalar_case_values: std::mem::take(
+                                            &mut self.scalar_case_values,
                                         ),
                                         live_affine_frontier: std::mem::take(
                                             &mut self.live_affine_frontier,
@@ -3691,7 +3798,7 @@ impl TerminalExecution {
                                     self.values.insert(result_value, returned);
                                     self.retire_primitive_locals();
                                     self.structural_values = caller.structural_values;
-                                    self.payloadless_case_values = caller.payloadless_case_values;
+                                    self.scalar_case_values = caller.scalar_case_values;
                                     self.byte_sequence_values = caller.byte_sequence_values;
                                     self.live_affine_frontier = caller.live_affine_frontier;
                                     self.live_claims = caller.live_claims;
@@ -3733,11 +3840,11 @@ impl TerminalExecution {
                     let Some(signature) = machine.result.structural() else {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     };
-                    if let Some(value) = self.payloadless_case_values.get(source).copied() {
+                    if let Some(value) = self.scalar_case_values.get(source).cloned() {
                         let internal_result = match self.call_stack.last() {
                             Some(SuspendedCall {
                                 structural_values,
-                                payloadless_case_values,
+                                scalar_case_values,
                                 live_affine_frontier,
                                 result:
                                     SuspendedCallResult::Structural {
@@ -3745,12 +3852,12 @@ impl TerminalExecution {
                                         returned_claim_transfers,
                                     },
                                 ..
-                            }) if result.multiplicity == StructuralMultiplicity::Unrestricted
+                            }) if result.multiplicity == signature.multiplicity
                                 && result.qualifications.is_empty()
                                 && result.claims.is_empty()
                                 && returned_claim_transfers.is_empty()
                                 && !structural_values.contains_key(&result.place)
-                                && !payloadless_case_values.contains_key(&result.place)
+                                && !scalar_case_values.contains_key(&result.place)
                                 && live_affine_frontier
                                     .iter()
                                     .all(|entry| entry.place != result.place) =>
@@ -3769,7 +3876,7 @@ impl TerminalExecution {
                             || trivial_affine_discards.iter().any(|place| {
                                 *place == *source
                                     || (!self.structural_values.contains_key(place)
-                                        && !self.payloadless_case_values.contains_key(place))
+                                        && !self.scalar_case_values.contains_key(place))
                             })
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -3777,35 +3884,42 @@ impl TerminalExecution {
                         if let Err(error) = meter.charge_terminator(&terminator) {
                             return meter_status(error);
                         }
-                        self.payloadless_case_values.remove(source);
+                        self.scalar_case_values.remove(source);
                         remove_affine_root(&mut self.live_affine_frontier, *source);
                         for place in trivial_affine_discards {
                             self.structural_values.remove(place);
-                            self.payloadless_case_values.remove(place);
+                            self.scalar_case_values.remove(place);
                             remove_affine_root(&mut self.live_affine_frontier, *place);
                         }
                         if let Some(result) = internal_result {
                             let caller = self
                                 .call_stack
                                 .pop()
-                                .expect("an internal payloadless return has a caller frame");
+                                .expect("an internal scalar-case return has a caller frame");
                             let SuspendedCallResult::Structural { .. } = caller.result else {
-                                unreachable!("payloadless return preflight matched its caller")
+                                unreachable!("scalar-case return preflight matched its caller")
                             };
                             self.blocks = caller.blocks;
                             self.values = caller.values;
                             self.retire_primitive_locals();
                             self.structural_values = caller.structural_values;
-                            self.payloadless_case_values = caller.payloadless_case_values;
+                            self.scalar_case_values = caller.scalar_case_values;
                             self.byte_sequence_values = caller.byte_sequence_values;
                             if self
-                                .payloadless_case_values
+                                .scalar_case_values
                                 .insert(result.place, value)
                                 .is_some()
                             {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
                             }
                             self.live_affine_frontier = caller.live_affine_frontier;
+                            if result.multiplicity == StructuralMultiplicity::Affine {
+                                self.live_affine_frontier.insert(StructuralAffineDiscard {
+                                    place: result.place,
+                                    path: Vec::new(),
+                                    structural_type: result.structural_type,
+                                });
+                            }
                             self.live_claims = caller.live_claims;
                             self.dynamic_parameters = caller.dynamic_parameters;
                             self.current_machine = caller.current_machine;
@@ -3813,9 +3927,8 @@ impl TerminalExecution {
                             self.next_operation = caller.next_operation;
                             continue;
                         }
-                        let result = TerminalExecutionResult::PayloadlessCase(
-                            TerminalPayloadlessCaseResult { value },
-                        );
+                        let result =
+                            TerminalExecutionResult::ScalarCase(TerminalScalarCaseResult { value });
                         self.retire_primitive_locals();
                         self.result = Some(result.clone());
                         return Ok(TerminalExecutionStatus::Complete(result));
@@ -3901,6 +4014,7 @@ impl TerminalExecution {
                     }
                     for place in trivial_affine_discards {
                         self.structural_values.remove(place);
+                        self.scalar_case_values.remove(place);
                         remove_affine_root(&mut self.live_affine_frontier, *place);
                     }
                     if let Some((result, rebound_claims)) = internal_return {
@@ -3915,7 +4029,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
-                        self.payloadless_case_values = caller.payloadless_case_values;
+                        self.scalar_case_values = caller.scalar_case_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         if self.structural_values.insert(result.place, value).is_some() {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -3976,6 +4090,7 @@ fn commit_cleanup_actions(
     structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: &BTreeMap<MachineId, ExecutableMachine>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    scalar_case_values: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
     actions: &[TerminalAffineCleanupAction],
@@ -3984,7 +4099,8 @@ fn commit_cleanup_actions(
     for action in actions {
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place) => {
-                if structural_values.remove(place).is_none()
+                if (structural_values.remove(place).is_none()
+                    && scalar_case_values.remove(place).is_none())
                     || !remove_affine_root(frontier, *place)
                 {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
