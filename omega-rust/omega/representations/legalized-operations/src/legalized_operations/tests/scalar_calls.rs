@@ -119,6 +119,84 @@ fn fixed_scalar_argument_widths_require_exact_register_geometry() {
 }
 
 #[test]
+fn narrow_scalar_stack_arguments_require_exact_payload_geometry() {
+    for policy in [
+        CallingPolicy::SystemVAMD64,
+        CallingPolicy::MicrosoftX64,
+        CallingPolicy::Aapcs64,
+    ] {
+        for width in [1, 2] {
+            let mut plan = scalar_call_unit_plan();
+            let call = call(&mut plan);
+            let source = call.arguments[0].scalar_source().unwrap();
+            call.call_plan = evaluate_call_plan(
+                policy,
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(width, width); 9],
+                    result: None,
+                },
+            )
+            .unwrap();
+            call.result_placement = None;
+            call.arguments = call
+                .call_plan
+                .parameters
+                .iter()
+                .map(|placement| LegalizedScalarArgument::Scalar {
+                    source,
+                    placement: placement.clone(),
+                })
+                .collect();
+            assert!(matches!(
+                call.call_plan.parameters[8].locations.as_slice(),
+                [calling_conventions::ValueLocation::Stack {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                }] if *byte_size == width
+            ));
+            assert_eq!(call.validate_shape(), Ok(()));
+            for mutation in 0..12 {
+                let mut changed = call.clone();
+                let placement = &mut changed.call_plan.parameters[8];
+                let calling_conventions::ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset,
+                    byte_size,
+                    alignment,
+                } = &mut placement.locations[0]
+                else {
+                    panic!("ninth scalar argument must be on the stack");
+                };
+                match mutation {
+                    0 => *byte_size = 0,
+                    1 => *byte_size = width - 1,
+                    2 => *byte_size = 4,
+                    3 => *value_byte_offset = 1,
+                    4 => *alignment = 0,
+                    5 => *alignment = 3,
+                    6 => *alignment = width - 1,
+                    7 => {
+                        *alignment = 2;
+                        *stack_byte_offset = 1;
+                    }
+                    8 => placement.shape = ValueShape::float(width),
+                    9 => placement.shape.alignment = width * 2,
+                    10 => placement.locations.clear(),
+                    _ => placement.locations.push(placement.locations[0]),
+                }
+                // Keep both rosters equal so rejection exercises raw geometry.
+                *scalar_argument_mut(&mut changed.arguments[8]).1 = placement.clone();
+                assert!(
+                    changed.validate_shape().is_err(),
+                    "policy {policy:?}, width {width}, mutation {mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn boolean_argument_shape_preserves_width_and_unit_result_absence() {
     for policy in [CallingPolicy::SystemVAMD64, CallingPolicy::MicrosoftX64] {
         let mut plan = scalar_call_unit_plan();

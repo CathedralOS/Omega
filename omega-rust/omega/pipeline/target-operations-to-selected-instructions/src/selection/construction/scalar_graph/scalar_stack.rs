@@ -87,6 +87,14 @@ pub(super) fn entry(
             parameter.scalar_type,
         )?;
         let (kind, key) = match byte_size {
+            1 => (
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                builder.constraints.keys.load8,
+            ),
+            2 => (
+                SelectedInstructionKind::Load16 { byte_offset: 0 },
+                builder.constraints.keys.load16,
+            ),
             4 => (
                 SelectedInstructionKind::Load32 { byte_offset: 0 },
                 builder.constraints.keys.load32,

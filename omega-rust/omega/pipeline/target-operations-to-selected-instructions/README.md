@@ -190,6 +190,14 @@ format, placement, width, and call order again. Runtime preservation spills keep
 the payload's IEEE type and use integer-typed slot addresses; they do not admit
 floating-register residents into GPR spill instructions.
 
+Integer and Boolean stack arguments use the same transport. Incoming loads and
+outgoing stores preserve the exact 1/2/4/8-byte payload width independently of
+the target's stack-slot spacing and alignment. Narrow loads retain signedness
+and Boolean type on the SSA value; zero-extension into GPR storage is not a
+semantic widening. Replay rejects substituted widths, ABI offsets, argument
+homes, and source identities, including when a borrowed pointer follows the
+stack-passed scalars.
+
 IEEE field-store and Unit-call literals retain their exact defining operation,
 SSA value, format and raw bits in the ordinary scalar-source vocabulary.
 Independent receiving replay establishes availability only after matching the

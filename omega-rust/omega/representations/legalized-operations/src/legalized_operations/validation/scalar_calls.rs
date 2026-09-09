@@ -58,7 +58,7 @@ fn direct_scalar_placement(placement: &ValuePlacement) -> bool {
             }] if *byte_size == width
         ) || matches!(placement.locations.as_slice(),
             [ValueLocation::Stack { stack_byte_offset, value_byte_offset: 0, byte_size, alignment }]
-                if matches!(width, 4 | 8) && *byte_size == width
+                if *byte_size == width
                     && *alignment >= placement.shape.alignment && alignment.is_power_of_two()
                     && stack_byte_offset.is_multiple_of(u32::from(*alignment))))
 }

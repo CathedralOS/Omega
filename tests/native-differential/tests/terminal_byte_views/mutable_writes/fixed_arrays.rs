@@ -44,13 +44,13 @@ fn fixed_array_loans_publish_whole_and_nested_fields_on_hosted_targets() {
 fn fixed_array_descriptor_crosses_outgoing_stack_arguments() {
     let fill = FILL.replacen(
         "out: &mut [u8], byte: u8",
-        "out: &mut [u8], byte: u8, first: u64, second: u64, third: u64, fourth: u64, fifth: u64, sixth: u64, seventh: u64, eighth: u64",
+        "out: &mut [u8], first: u64, second: u64, third: u64, fourth: u64, fifth: u64, sixth: u64, seventh: u64, eighth: u64, byte: u8",
         1,
     );
     let source = format!(
         "{fill}\n machine run(bytes: &mut [u8; 3], byte: u8) {{\n\
-        fill(bytes, byte, 1, 2, 3, 4, 5, 6, 7, 8);\n\
-        fill(bytes, byte, 1, 2, 3, 4, 5, 6, 7, 8);\n\
+        fill(bytes, 1, 2, 3, 4, 5, 6, 7, 8, byte);\n\
+        fill(bytes, 1, 2, 3, 4, 5, 6, 7, 8, byte);\n\
     }}"
     );
     let lowered = lower_writer(&source, "run");
@@ -80,10 +80,13 @@ fn fixed_array_descriptor_crosses_outgoing_stack_arguments() {
                 int main(void) {
                     alarm(10);
                     uint8_t bytes[] = {0xa5, 0, 0, 0, 0x5a};
-                    const uint8_t expected[] = {0xa5, 0xff, 0xff, 0xff, 0x5a};
-                    omega_entry(0xff, bytes + 1);
-                    omega_entry(0xff, bytes + 1);
-                    return memcmp(bytes, expected, sizeof(bytes)) != 0;
+                    for (unsigned byte = 0; byte <= 255; ++byte) {
+                        uint8_t expected[] = {0xa5, byte, byte, byte, 0x5a};
+                        omega_entry(byte, bytes + 1);
+                        omega_entry(byte, bytes + 1);
+                        if (memcmp(bytes, expected, sizeof(bytes)) != 0) return 1;
+                    }
+                    return 0;
                 }
             "#,
             );
