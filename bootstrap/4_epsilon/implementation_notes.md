@@ -459,6 +459,12 @@ derives neither transition-subject admission nor sum coverage: those parent
 judgments require an open statement sequence. A complete record-valued subject
 cannot displace the transition's `InvalidTerminal` with a parent `TypeMismatch`;
 an independent unknown child name still contributes its own `UnknownName`.
+Suppressed continuation heads still resolve unqualified spellings and qualified
+owners/members. Receiver-member lookup requires a complete receiver value type.
+Known states, machines, constructors, fields, and contextual spellings retain
+no dependent control-admission or arity judgment; a missing spelling retains
+its exact `UnknownName` anchor. Groups do not suppress that lookup, and all
+authored argument expressions remain independently checked.
 The five-effect carrier settles local
 falloff, explicit returns, machine continuations, `never` calls, and state
 transfers without a reachability/fixed-point pass. Remaining transition/control

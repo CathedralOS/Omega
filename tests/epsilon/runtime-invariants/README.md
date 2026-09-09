@@ -45,6 +45,6 @@ not a test of the production final observation adapter or a RunEpsilon envelope.
 [`expected.hex`](expected.hex) independently specifies 183 bytes for the 45
 outcomes, in source order. The exact test source membership is recorded in
 [`runtime_invariants.delta.sources`](runtime_invariants.delta.sources).
-[`receipt.tsv`](receipt.tsv) binds the measured 721,800-byte Gamma receipt;
+[`receipt.tsv`](receipt.tsv) binds the measured 728,367-byte Gamma receipt;
 reconstruction must match its exact length and digest before execution.
 Generated source and receipts remain outside the repository.
