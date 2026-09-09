@@ -92,6 +92,28 @@ pub(super) fn locate(
     let absent = symbols::SymbolHandle::invalid();
     let selected = match (authored, role) {
         (
+            StatementNode::LocalData(local),
+            CheckedScalarExpressionRole::ArrayElement { element_ordinal },
+        ) if !local.is_mutable => validation::scalar_array_elements(
+            program,
+            machine.symbol,
+            local.initial_value,
+            local.type_reference,
+        )
+        .and_then(|array| array.elements.get(element_ordinal as usize).copied())
+        .map(|(expression, primitive)| (expression, local.symbol, primitive)),
+        (
+            StatementNode::Expression(expression),
+            CheckedScalarExpressionRole::ArrayElement { element_ordinal },
+        ) if statement as usize + 1 == statements.len() => validation::scalar_array_elements(
+            program,
+            machine.symbol,
+            *expression,
+            state.return_type,
+        )
+        .and_then(|array| array.elements.get(element_ordinal as usize).copied())
+        .map(|(expression, primitive)| (expression, absent, primitive)),
+        (
             StatementNode::Transition(transition),
             CheckedScalarExpressionRole::TransitionSubsliceStart { argument_ordinal }
             | CheckedScalarExpressionRole::TransitionSubsliceEnd { argument_ordinal },

@@ -26,7 +26,7 @@ pub(super) fn has_structural_result(
         return false;
     }
     if validation::is_closed_primitive_array_type(program, local.type_reference) {
-        return validation::closed_constant_array_elements(
+        return validation::scalar_array_elements(
             program,
             machine.symbol,
             local.initial_value,
@@ -189,6 +189,8 @@ pub(in crate::flow::terminal_unit) fn build(
                         program,
                         facts,
                         machine.symbol,
+                        state.symbol,
+                        statement_index,
                         local.initial_value,
                         local.type_reference,
                     )?;
@@ -531,6 +533,8 @@ pub(in crate::flow::terminal_unit) fn build(
                     program,
                     facts,
                     machine.symbol,
+                    state.symbol,
+                    statement_index,
                     *expression,
                     state.return_type,
                 )?;

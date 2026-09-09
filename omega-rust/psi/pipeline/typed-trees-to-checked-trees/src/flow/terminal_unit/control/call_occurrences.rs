@@ -79,6 +79,47 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         .iter()
         .enumerate()
     {
+        let array_destination = match statement {
+            StatementNode::LocalData(local) if !local.is_mutable => {
+                Some((local.initial_value, local.type_reference))
+            }
+            StatementNode::Expression(expression) => Some((*expression, state.return_type)),
+            _ => None,
+        };
+        if let Some((expression, expected)) = array_destination
+            && let Some(elements) =
+                validation::scalar_array_elements(program, machine, expression, expected)
+        {
+            let plans = &facts.values.scalar_computations;
+            for (element_index, (expression, primitive_type)) in
+                elements.elements.into_iter().enumerate()
+            {
+                let role = CheckedScalarExpressionRole::ArrayElement {
+                    element_ordinal: u32::try_from(element_index).ok()?,
+                };
+                let Some(root) =
+                    plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
+                else {
+                    continue;
+                };
+                if root.machine != machine
+                    || !plans.nodes.is_valid(root.root)
+                    || plans.nodes.get(root.root).authored_root != expression
+                    || plans.nodes.get(root.root).primitive_type != primitive_type
+                {
+                    return None;
+                }
+                collect(
+                    facts,
+                    statement_index,
+                    root.root,
+                    calls,
+                    0,
+                    &mut Vec::new(),
+                    &mut consumed,
+                )?;
+            }
+        }
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };

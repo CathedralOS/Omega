@@ -904,14 +904,6 @@ impl CheckedStructuralReturnPlans {
     }
 }
 
-/// A checked primitive constructor leaf. Anonymous integers have already landed
-/// at their exact declared element carrier; source syntax is not executable input.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedScalarArrayLiteral {
-    Integer(numerics::literals::IntegerLiteral),
-    Boolean(bool),
-}
-
 /// Source-handle-free checked plan for one exact whole owned-affine parameter
 /// returned without claims, projections, services, or cleanup. Fixed-width
 /// scalar parameters retain their authored positions for mixed ABI planning.
@@ -1264,11 +1256,11 @@ pub struct CheckedUnitCallCoordinate {
     pub call_ordinal: u32,
 }
 
-/// One scalar operand of an ordinary Unit or boundary invocation.
+/// One scalar operand of an invocation or array construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedCallScalarArgument {
     Pure(CheckedScalarExpression),
-    /// Exact node selected by the call coordinate's checked computation root.
+    /// Exact node selected by the operand coordinate's checked computation root.
     Computation(crate::CheckedScalarComputationHandle),
 }
 
@@ -1625,7 +1617,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// leaf order. Empty dimensions remain in the exact structural result type.
     EstablishScalarArray {
         result: CheckedUnitStructuralResultBindingPlan,
-        elements: Vec<CheckedScalarArrayLiteral>,
+        elements: Vec<CheckedCallScalarArgument>,
     },
     /// Establish initialized mutable storage at its authored declaration.
     /// Later reads and borrows name the symbol, never the initializer value.

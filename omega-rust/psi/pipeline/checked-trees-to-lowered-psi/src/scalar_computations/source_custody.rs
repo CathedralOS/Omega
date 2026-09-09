@@ -19,6 +19,7 @@ pub(super) fn validate(
         role,
         CheckedScalarExpressionRole::StorageInitializer
             | CheckedScalarExpressionRole::AssignmentValue
+            | CheckedScalarExpressionRole::ArrayElement { .. }
     ) {
         source.destination
     } else {

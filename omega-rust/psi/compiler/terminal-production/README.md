@@ -229,9 +229,14 @@ The ordinary effect sequence retains immutable array locals and structural retur
 alongside scalar stores and calls. Source replay checks the declaration, selected
 constant indices, contextual numeric landings, and exact returned binding. The
 decoded interpreter returns the actual payload and preserves it across suspended
-calls. Source production currently accepts closed integer/Boolean literal leaves;
-computed leaves, array transport through calls/state arguments, and native array
-construction still need their complete value and storage paths.
+calls. Integer/Boolean leaves use the existing pure scalar and computation owners,
+including ordered calls and selective Boolean evaluation. Completed leaves survive
+later control joins in private scalar slots; they never enter the authored local
+namespace. Source replay checks literal and selected operation meaning in addition
+to the shared read/call custody. Array transport through calls/state arguments and
+native array construction still need their complete value and storage paths.
+General slice-backed `.len` operands require retained view formation and bounds
+evidence; endpoint subtraction alone cannot justify eliminating the view operation.
 
 Provider-field calls retain the same exact attachment requirement roots as
 ordinary Unit bodies, including across backedges and interleaved field writes.

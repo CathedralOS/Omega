@@ -362,6 +362,33 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                 ) {
                     continue;
                 }
+                // Range inclusion is not a representation conversion. Typed
+                // integer leaves must already have the destination carrier;
+                // anonymous expressions receive their contextual landing here.
+                // Statement arithmetic validation owns the query's diagnostics;
+                // this check consumes only its selected result carrier.
+                let mut arithmetic_diagnostics = Vec::new();
+                let (_, source_primitive) = crate::arithmetic_domains::validate_value_range(
+                    program,
+                    machine,
+                    Some(state),
+                    *element,
+                    &ValueEnv::new(),
+                    Some(element_primitive),
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    &owner,
+                    &mut arithmetic_diagnostics,
+                );
+                if let Some(source_primitive) = source_primitive
+                    && source_primitive != element_primitive
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "array literal element has type `{}`, expected `{}`; use an explicit conversion",
+                        source_primitive.name(),
+                        element_primitive.name(),
+                    )));
+                    continue;
+                }
                 // Narrowing check: the element must fit the element type's width.
                 validate_anonymous_element_landing(
                     program,

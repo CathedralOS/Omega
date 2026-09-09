@@ -185,6 +185,36 @@ impl<'a> Expansion<'a> {
         )
     }
 
+    /// Preserve the input prefix while a pure operand's selective expression
+    /// completes through the ordinary scalar block emitter.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn retained_pure_value(
+        &mut self,
+        state: symbols::SymbolHandle,
+        statement: u32,
+        role: CheckedScalarExpressionRole,
+        bindings: &storage::ScalarBindings,
+        source_types: &[ScalarType],
+        result_type: ScalarType,
+        target: usize,
+    ) -> Result<usize, LoweringError> {
+        let expression = bindings.expression_at(self.checked, state, statement, role)?;
+        if expression.scalar_type() != result_type {
+            return unsupported("retained scalar operand disagrees with its destination type");
+        }
+        self.argument(
+            &Argument::Value(expression),
+            source_types,
+            target,
+            &Site {
+                state,
+                statement,
+                bindings,
+            },
+            &mut Vec::new(),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn retained_value(
         &mut self,

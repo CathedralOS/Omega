@@ -1112,14 +1112,22 @@ Owners include
   element carriers, including empty rows, through checked evaluation. The customer's
   `selected_row`, `selected_empty_row`, `root_array`, and `selected_array` also
   execute from independently decoded Terminal artifacts through ordinary ordered
-  construction and structural return. The outer inspection command is
-  `cargo run -p omega -- inspect-terminal --machine selected_row tests/omega/pass/modules/module_array_constant_indices/main.omg`;
-  repeat with `selected_empty_row` for the empty shape. The source correspondence owner is
+  construction and structural return. Computed integer/Boolean elements reuse
+  ordinary scalar expressions and computation graphs, preserving earlier leaves
+  across mutating calls and selective Boolean control. On macOS AArch64, the outer command
+  `cargo run -p omega -- inspect-terminal --machine computed_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
+  publishes a verified runtime-parameter/addition/constructor/return artifact;
+  decoded execution with input `42u8` returns `[42u8, 9u8]`.
+  Repeat with `selected_row` and `selected_empty_row` for selected and empty shapes.
+  The source correspondence owner is
   `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
-  Continue with computed scalar elements, array argument/result transport through
+  Continue with array argument/result transport through
   calls and state transfers, and native construction; exact value/type custody and
   initialized backing must survive those boundaries. The current native consumer
   explicitly rejects `EstablishScalarArray`, including empty payloads.
+  General slice-backed `.len` operands also need retained view formation and bounds
+  obligations before folding; a known endpoint difference alone cannot erase that
+  operation. The array operand correspondence owner rejects missing view evidence.
   Keep the `runtime_aggregate_index` and `runtime_fixed_array_index` rejection
   controls under `tests/omega/fail/modules/` while extending materialization.
   Conformance and static-requirement argument positions

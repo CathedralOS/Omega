@@ -16,6 +16,7 @@ use typed_trees::{
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
     types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
+use validation::integer_widen_is_total;
 
 mod call_arguments;
 mod computations;
@@ -84,6 +85,71 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
+                let array_destination = match statement {
+                    StatementNode::LocalData(local) if !local.is_mutable => {
+                        Some((local.initial_value, local.type_reference, local.symbol))
+                    }
+                    StatementNode::Expression(expression) => Some((
+                        *expression,
+                        state.return_type,
+                        symbols::SymbolHandle::invalid(),
+                    )),
+                    _ => None,
+                };
+                if let Some((expression, expected, destination)) = array_destination
+                    && let Some(elements) = validation::scalar_array_elements(
+                        program,
+                        machine.symbol,
+                        expression,
+                        expected,
+                    )
+                {
+                    for (element_index, (element, primitive_type)) in
+                        elements.elements.into_iter().enumerate()
+                    {
+                        let Ok(element_ordinal) = u32::try_from(element_index) else {
+                            break;
+                        };
+                        let Some(value) = lower_return_expression(
+                            program,
+                            operators,
+                            element,
+                            &scalar_parameters,
+                            parameters,
+                            &parameter_types,
+                            &locals,
+                            primitive_type,
+                            exact_integer_casts,
+                        ) else {
+                            continue;
+                        };
+                        let role = CheckedScalarExpressionRole::ArrayElement { element_ordinal };
+                        source_bindings.append(CheckedScalarExpressionBindings {
+                            destination,
+                            state: state.symbol,
+                            statement_ordinal,
+                            role,
+                            expression: element,
+                            symbols: binding_symbols.insert_many(
+                                scalar_parameters
+                                    .iter()
+                                    .map(|parameter| parameter.symbol)
+                                    .chain(
+                                        locals
+                                            .iter()
+                                            .filter(|local| !local.is_mutable)
+                                            .map(|local| local.symbol),
+                                    ),
+                            ),
+                        });
+                        expressions.push(CheckedLocatedScalarExpression {
+                            state: state.symbol,
+                            statement_ordinal,
+                            role,
+                            expression: value,
+                        });
+                    }
+                }
                 match statement {
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                         if !local.is_mutable
@@ -3564,31 +3630,6 @@ fn is_integer(primitive: PrimitiveType) -> bool {
         primitive,
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
     )
-}
-
-fn integer_widen_is_total(source: PrimitiveType, target: PrimitiveType) -> bool {
-    fn shape(primitive: PrimitiveType) -> Option<(bool, u8)> {
-        Some(match primitive {
-            PrimitiveType::I8 => (true, 8),
-            PrimitiveType::I16 => (true, 16),
-            PrimitiveType::I32 => (true, 32),
-            PrimitiveType::I64 => (true, 64),
-            PrimitiveType::U8 => (false, 8),
-            PrimitiveType::U16 => (false, 16),
-            PrimitiveType::U32 => (false, 32),
-            PrimitiveType::U64 => (false, 64),
-            PrimitiveType::Addr | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
-                return None;
-            }
-        })
-    }
-    let Some((source_signed, source_bits)) = shape(source) else {
-        return false;
-    };
-    let Some((target_signed, target_bits)) = shape(target) else {
-        return false;
-    };
-    source_bits < target_bits && (!source_signed || target_signed)
 }
 
 pub(crate) fn operator_is_builtin(

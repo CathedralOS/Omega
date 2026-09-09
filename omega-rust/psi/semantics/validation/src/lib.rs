@@ -150,7 +150,8 @@ pub use literals::land_anonymous_integer_expression_with_warning;
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use literals::land_float_literal_destinations;
 pub use literals::{
-    closed_constant_array_elements, closed_literal_array_elements, is_closed_primitive_array_type,
+    ScalarArrayElements, closed_constant_array_elements, closed_literal_array_elements,
+    is_closed_primitive_array_type, scalar_array_elements,
 };
 pub use machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, closed_static_call_type_bindings,
@@ -209,6 +210,7 @@ pub use arithmetic_domains::arrival_integer_expression_bounds;
 pub use arithmetic_domains::builtin_monotonic_integer_update_bounds;
 pub use arithmetic_domains::enforced_integer_type_bounds;
 pub use arithmetic_domains::immutable_integer_expression_bounds;
+pub use arithmetic_domains::integer_widen_is_total;
 pub use arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use contract_entailment::integer_embedding_sources_equal;
 pub use contract_entailment::is_arm_pattern_marker;

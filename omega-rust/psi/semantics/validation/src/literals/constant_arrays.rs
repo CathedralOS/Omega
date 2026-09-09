@@ -12,8 +12,9 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// A closed primitive array has no qualifications, ownership authority, or
-/// effectful children. Validate its complete shape even below empty dimensions.
+/// A concrete primitive array type has no qualifications or ownership authority.
+/// Validate its complete shape even below empty dimensions; operand evaluation
+/// and effects remain separate expression obligations.
 pub fn is_closed_primitive_array_type(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
@@ -132,6 +133,98 @@ pub fn closed_constant_array_elements(
         return None;
     }
     closed_literal_array_elements(program, selected, reference)
+}
+
+/// Temporary source-shape result; expressions remain owned by the typed tree.
+pub struct ScalarArrayElements {
+    pub elements: Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>,
+    /// Array-valued projections eliminated only after closed literal validation.
+    /// Scalar-valued indexing remains with each ordinary scalar operand owner.
+    pub projections: Vec<ExpressionHandle>,
+}
+
+/// Resolve the exact shape and authored row-major scalar operands of an array.
+/// Direct constructors evaluate every leaf normally. Selecting a substituted
+/// constant row still requires all unselected siblings to be closed literals;
+/// this query never makes an effectful sibling disappear.
+pub fn scalar_array_elements(
+    program: &TypedTrees,
+    machine: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> Option<ScalarArrayElements> {
+    if !is_closed_primitive_array_type(program, expected) {
+        return None;
+    }
+    let mut leaves = Vec::new();
+    let mut projections = Vec::new();
+    let mut active = Vec::new();
+    let mut pending = vec![(expression, expected, false)];
+    while let Some((expression, reference, exiting)) = pending.pop() {
+        if exiting {
+            active.pop();
+            continue;
+        }
+        if active.contains(&expression) || !program.expression_table.expression_is_valid(expression)
+        {
+            return None;
+        }
+        active.push(expression);
+        pending.push((expression, reference, true));
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(length),
+            } => {
+                if matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Indexed(_)
+                ) || program
+                    .expression_table
+                    .authored_selection_occurrences(expression)
+                    .next()
+                    .is_some()
+                {
+                    leaves.extend(closed_constant_array_elements(
+                        program, machine, expression, reference,
+                    )?);
+                    let mut selected = expression;
+                    let mut selected_projections = Vec::new();
+                    while let ExpressionNode::Indexed(indexed) =
+                        program.expression_table.expression(selected)
+                    {
+                        selected_projections.push(selected);
+                        selected = indexed.collection;
+                    }
+                    projections.extend(selected_projections.into_iter().rev());
+                    continue;
+                }
+                let ExpressionNode::ArrayLiteral(elements) =
+                    program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let elements = program.expression_table.expression_handles(*elements);
+                if elements.len() != *length {
+                    return None;
+                }
+                pending.extend(
+                    elements
+                        .iter()
+                        .rev()
+                        .map(|element| (*element, *element_type, false)),
+                );
+            }
+            TypeReferenceNode::Named { .. } => {
+                leaves.push((expression, program.primitive_type_reference(reference)?))
+            }
+            _ => return None,
+        }
+    }
+    Some(ScalarArrayElements {
+        elements: leaves,
+        projections,
+    })
 }
 
 pub fn closed_literal_array_elements(
