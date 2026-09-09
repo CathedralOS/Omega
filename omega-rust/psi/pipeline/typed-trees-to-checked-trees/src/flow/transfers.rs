@@ -460,13 +460,15 @@ pub(super) fn propagate_statement_transfers(
         refs,
     );
     let mut next_contexts =
-        clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, *active_contexts);
-    ctx.contexts
-        .semantic_context_refs
-        .append_to_span(&mut next_contexts, FlowSemanticContextRef { context });
+        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+    common::append_flow_reference(
+        &mut ctx.contexts.semantic_context_refs,
+        &mut next_contexts,
+        FlowSemanticContextRef { context },
+    );
     *active_contexts = next_contexts;
     let mut next_constraints =
-        clone_constraint_refs(&mut ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
     append_constraint_ref(
         &mut ctx.contexts.constraint_refs,
         &mut next_constraints,

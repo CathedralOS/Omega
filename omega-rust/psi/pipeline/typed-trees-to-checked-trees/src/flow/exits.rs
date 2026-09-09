@@ -23,9 +23,9 @@ pub(super) fn append_state_exit_facts(
             .then_some(exit)
     }) {
         let entry_exit_contexts =
-            clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, active_contexts);
+            retained_flow_contexts(&ctx.contexts.semantic_context_refs, active_contexts);
         let entry_constraints =
-            clone_constraint_refs(&mut ctx.contexts.constraint_refs, active_constraints);
+            retained_constraint_refs(&ctx.contexts.constraint_refs, active_constraints);
         let mut ensures_contexts = arena::HandleSpan::empty();
         let mut ensures_constraints = arena::HandleSpan::empty();
         append_flow_contexts_for_points(
@@ -140,12 +140,12 @@ pub(super) fn append_transition_flow_facts(
         if !target.is_valid() {
             continue;
         }
-        let mut branch_contexts = clone_flow_contexts(
-            &mut execution.context.contexts.semantic_context_refs,
+        let mut branch_contexts = retained_flow_contexts(
+            &execution.context.contexts.semantic_context_refs,
             guard_contexts,
         );
-        let mut branch_constraints = clone_constraint_refs(
-            &mut execution.context.contexts.constraint_refs,
+        let mut branch_constraints = retained_constraint_refs(
+            &execution.context.contexts.constraint_refs,
             guard_constraints,
         );
         guards::append_guard_context(

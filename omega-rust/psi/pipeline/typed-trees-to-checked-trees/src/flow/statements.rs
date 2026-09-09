@@ -62,9 +62,9 @@ pub(super) fn append_state_statement_flow_facts(
                 statement_index,
             };
             *active_contexts =
-                clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, *active_contexts);
+                retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
             *active_constraints =
-                clone_constraint_refs(&mut ctx.contexts.constraint_refs, *active_constraints);
+                retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
             append_flow_contexts_for_points(
                 semantic,
                 &mut ctx.contexts.semantic_context_refs,
@@ -312,9 +312,9 @@ fn append_proof_output_ensures(
         return;
     }
     *active_contexts =
-        clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
-        clone_constraint_refs(&mut ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
     let point = ProgramPoint::CallEnsures {
         machine_symbol,
         state_symbol,

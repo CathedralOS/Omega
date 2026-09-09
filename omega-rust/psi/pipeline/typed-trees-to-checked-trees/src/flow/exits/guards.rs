@@ -94,12 +94,14 @@ pub(in crate::flow) fn append_predicate_context(
     }
     let context = semantic.append_context(point, refs);
     *active_contexts =
-        clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
-        clone_constraint_refs(&mut ctx.contexts.constraint_refs, *active_constraints);
-    ctx.contexts
-        .semantic_context_refs
-        .append_to_span(active_contexts, FlowSemanticContextRef { context });
+        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+    common::append_flow_reference(
+        &mut ctx.contexts.semantic_context_refs,
+        active_contexts,
+        FlowSemanticContextRef { context },
+    );
     append_constraint_ref(
         &mut ctx.contexts.constraint_refs,
         active_constraints,

@@ -109,9 +109,9 @@ pub(super) fn build_state_flow_fact(
         borrow_state.writable_roots,
     );
     let mut active_contexts =
-        clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, state_contexts);
+        retained_flow_contexts(&ctx.contexts.semantic_context_refs, state_contexts);
     let mut active_constraints =
-        clone_constraint_refs(&mut ctx.contexts.constraint_refs, state_constraints);
+        retained_constraint_refs(&ctx.contexts.constraint_refs, state_constraints);
     let state_invalidations_start = ctx.invalidations.events.len();
     let state_borrow_activations_start = ctx.borrow_lifetimes.activations.len();
     let state_borrow_weakenings_start = ctx.borrow_lifetimes.weakenings.len();

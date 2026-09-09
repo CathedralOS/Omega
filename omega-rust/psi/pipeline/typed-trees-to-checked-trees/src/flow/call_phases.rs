@@ -16,9 +16,9 @@ pub(super) fn build_call_entry_contexts(
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> CallFlowContexts {
-    let contexts = clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, active_contexts);
+    let contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, active_contexts);
     let mut constraints =
-        clone_constraint_refs(&mut ctx.contexts.constraint_refs, active_constraints);
+        retained_constraint_refs(&ctx.contexts.constraint_refs, active_constraints);
     if let Some((borrow_call_handle, _)) = borrow.calls.iter().find(|(_, call)| {
         call.statement_index == borrow_call.statement_index
             && call.call_ordinal == borrow_call.call_ordinal
@@ -73,9 +73,8 @@ pub(super) fn build_call_exit_contexts(
     post_contexts: HandleSpan<FlowSemanticContextRef>,
     post_constraints: HandleSpan<FlowConstraintRef>,
 ) -> CallFlowContexts {
-    let mut contexts = clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, post_contexts);
-    let mut constraints =
-        clone_constraint_refs(&mut ctx.contexts.constraint_refs, post_constraints);
+    let mut contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, post_contexts);
+    let mut constraints = retained_constraint_refs(&ctx.contexts.constraint_refs, post_constraints);
     append_call_contract_contexts(
         semantic,
         ctx,

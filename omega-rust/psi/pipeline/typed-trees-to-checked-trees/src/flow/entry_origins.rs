@@ -344,9 +344,11 @@ pub(super) fn rebase_contexts(
             // Global and already state-local contexts are immutable shared
             // evidence. Republishing them at their original point makes the
             // next sibling collect every previous copy again.
-            ctx.contexts
-                .semantic_context_refs
-                .append_to_span(&mut rebased, source);
+            common::append_flow_reference(
+                &mut ctx.contexts.semantic_context_refs,
+                &mut rebased,
+                source,
+            );
             continue;
         }
         let scoped_point = if assumptions {
@@ -437,9 +439,11 @@ pub(super) fn rebase_contexts(
         }
         if complete || !assumptions {
             let context = semantic.append_context(scoped_point, refs);
-            ctx.contexts
-                .semantic_context_refs
-                .append_to_span(&mut rebased, FlowSemanticContextRef { context });
+            common::append_flow_reference(
+                &mut ctx.contexts.semantic_context_refs,
+                &mut rebased,
+                FlowSemanticContextRef { context },
+            );
         }
     }
     (rebased, parameter_origins)
