@@ -30,11 +30,23 @@ pub(super) fn lower_operation(
     }
     match operation {
         AbstractOperation::EstablishScalarCase { .. } => super::scalar_sums::establish(
-            operation, function, structural_types, live, operations, provenance,
+            operation,
+            function,
+            structural_types,
+            live,
+            operations,
+            provenance,
         ),
         AbstractOperation::CallStructural { .. } => super::scalar_sums::call(
-            operation, function, target, functions, structural_types, prepared, live,
-            operations, provenance,
+            operation,
+            function,
+            target,
+            functions,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
         ),
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }

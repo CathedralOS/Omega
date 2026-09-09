@@ -52,7 +52,9 @@ pub(super) fn lower(
     let unobserved_owned = super::unobserved_owned::accepts(function, structural_types);
     if !matches!(
         function.result,
-        AbstractFunctionResult::Unit | AbstractFunctionResult::Scalar(_) | AbstractFunctionResult::Structural(_)
+        AbstractFunctionResult::Unit
+            | AbstractFunctionResult::Scalar(_)
+            | AbstractFunctionResult::Structural(_)
     ) || (!unobserved_owned
         && !function.structural_parameters.iter().all(|parameter| {
             super::scalar::byte_views::is_byte_parameter(parameter, structural_types)

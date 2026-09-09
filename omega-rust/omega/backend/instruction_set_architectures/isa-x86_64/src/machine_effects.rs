@@ -667,7 +667,8 @@ mod tests {
                         MachineBarrier::ControlFlow
                     } else if matches!(
                         row.semantic,
-                        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+                        MachineSemanticKind::CallI64
+                            | MachineSemanticKind::CallUnit
                             | MachineSemanticKind::CallAggregate
                     ) {
                         MachineBarrier::Call

@@ -167,12 +167,17 @@ fn scalar_case_borrowed_callee_loop_preserves_storage_and_result() {
             native_function::assert_c_text(&image.output().final_text_bytes, offset, &driver);
         }
         #[cfg(not(any(
-            all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
             all(target_os = "macos", target_arch = "aarch64")
         )))]
         {
             let _ = (image, offset);
-            eprintln!("SKIP: borrowed aggregate-result runtime requires a matching direct-return host; cross-target publication was checked");
+            eprintln!(
+                "SKIP: borrowed aggregate-result runtime requires a matching direct-return host; cross-target publication was checked"
+            );
         }
     }
 }

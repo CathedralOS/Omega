@@ -47,14 +47,25 @@ pub(super) fn lower_machine(
     )
 }
 
-fn plain_scalar_sum_result(machine: &TerminalMachine, types: &[terminal_psi::StructuralTypeDeclaration]) -> bool {
+fn plain_scalar_sum_result(
+    machine: &TerminalMachine,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
     machine.result.structural().is_some_and(|result| {
-        matches!(result.multiplicity, terminal_psi::StructuralMultiplicity::Affine | terminal_psi::StructuralMultiplicity::Unrestricted)
-            && result.qualifications.is_empty() && result.projected_qualifications.is_empty()
-            && types.iter().find(|declaration| declaration.id == result.structural_type)
-                .is_some_and(|declaration| matches!(&declaration.shape, terminal_psi::StructuralTypeShape::Sum { cases }
+        matches!(
+            result.multiplicity,
+            terminal_psi::StructuralMultiplicity::Affine
+                | terminal_psi::StructuralMultiplicity::Unrestricted
+        ) && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(&declaration.shape, terminal_psi::StructuralTypeShape::Sum { cases }
                     if cases.iter().all(|case| case.fields.iter().all(|field|
                         field.relevance == terminal_psi::BindingRelevance::Relevant
-                            && field.field_type.scalar_type().is_some()))))
+                            && field.field_type.scalar_type().is_some())))
+                })
     })
 }

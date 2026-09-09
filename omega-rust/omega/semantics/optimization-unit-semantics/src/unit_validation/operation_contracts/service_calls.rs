@@ -223,7 +223,11 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
-                if plain_scalar_sum_call(operation, callee, types) { StructuralProjectionPolicy::Unit } else { StructuralProjectionPolicy::EmptyOnly },
+                if plain_scalar_sum_call(operation, callee, types) {
+                    StructuralProjectionPolicy::Unit
+                } else {
+                    StructuralProjectionPolicy::EmptyOnly
+                },
                 plain_scalar_sum_call(operation, callee, types),
             ) && validate_internal_claim_transfers(
                 caller,

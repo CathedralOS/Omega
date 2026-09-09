@@ -84,7 +84,9 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CompareI64 => self.compare_i64,
             MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
             MachineSemanticKind::ConditionalBranchI64LessThan => self.conditional_branch,
-            MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate | MachineSemanticKind::ReturnAggregate => return None,
+            MachineSemanticKind::CallI64
+            | MachineSemanticKind::CallAggregate
+            | MachineSemanticKind::ReturnAggregate => return None,
             MachineSemanticKind::Jump => self.jump,
         })
     }
@@ -96,7 +98,10 @@ impl SelectedConstraintKeys {
             .flat_map(|semantic| {
                 if matches!(
                     semantic,
-                    MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate | MachineSemanticKind::ReturnAggregate
+                    MachineSemanticKind::CallI64
+                        | MachineSemanticKind::CallUnit
+                        | MachineSemanticKind::CallAggregate
+                        | MachineSemanticKind::ReturnAggregate
                 ) {
                     (if semantic == MachineSemanticKind::CallAggregate {
                         &self.call_aggregate

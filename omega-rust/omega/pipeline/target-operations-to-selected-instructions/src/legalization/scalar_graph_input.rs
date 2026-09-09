@@ -48,12 +48,14 @@ pub(super) fn structural_contract(
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
+    // A matching place roster alone must not replace ranked parameter custody
+    // with an empty local-only signature; the sum fallback needs an actual producer.
     if let Some(parameters) = structural_parameters(target).or_else(|| {
         (!optimized.structural_places.is_empty()
             && (literals::roster(optimized)
                 || read_byte::roster(optimized)
                 || primitive_locals::roster(optimized)
-                || scalar_sums::roster(optimized)))
+                || (scalar_sums::uses(optimized) && scalar_sums::roster(optimized))))
         .then_some(&[][..])
     }) {
         return Some(legalized_operations::LegalizedStructuralContract {

@@ -167,9 +167,12 @@ fn decode_kind(
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
         31 => SelectedInstructionKind::HostedExitProcessI32,
         7 => SelectedInstructionKind::ReturnI64,
-        36 => SelectedInstructionKind::ReturnAggregate { fragment_count: cursor.byte()? },
+        36 => SelectedInstructionKind::ReturnAggregate {
+            fragment_count: cursor.byte()?,
+        },
         35 if allow_scalar_call => SelectedInstructionKind::CallAggregate {
-            callee: MachineId::new(cursor.u64()?).ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            callee: MachineId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
         },
         8 => SelectedInstructionKind::ExactSubtractI64Immediate {
             immediate: decode_integer(cursor)?,

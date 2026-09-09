@@ -65,7 +65,9 @@ pub(super) fn derive(
                     .any(|instruction| {
                         matches!(
                             instruction.alternative.key.family,
-                            MachineAlternativeFamily::CallI64 | MachineAlternativeFamily::CallUnit | MachineAlternativeFamily::CallAggregate
+                            MachineAlternativeFamily::CallI64
+                                | MachineAlternativeFamily::CallUnit
+                                | MachineAlternativeFamily::CallAggregate
                         )
                     });
                 let callee_save_slots = storage_function

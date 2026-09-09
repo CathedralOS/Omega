@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v21\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v21\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [

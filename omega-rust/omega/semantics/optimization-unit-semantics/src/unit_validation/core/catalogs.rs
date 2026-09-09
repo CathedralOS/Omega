@@ -126,23 +126,60 @@ fn validate_scalar_case_range_authority(
 ) -> Result<(), OptimizationUnitValidationError> {
     use semantic_vocabulary::{Proposition, ScalarTerm};
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        let abstract_operations::AbstractOperation::EstablishScalarCase { psi_operation, result, result_case, fields } = &node.operation else { continue; };
-        let Some(terminal_psi::StructuralTypeDeclaration { shape: terminal_psi::StructuralTypeShape::Sum { cases }, .. }) = types.get(&result.structural_type).copied() else { continue; };
-        let Some(case) = cases.iter().find(|case| case.id == *result_case) else { continue; };
+        let abstract_operations::AbstractOperation::EstablishScalarCase {
+            psi_operation,
+            result,
+            result_case,
+            fields,
+        } = &node.operation
+        else {
+            continue;
+        };
+        let Some(terminal_psi::StructuralTypeDeclaration {
+            shape: terminal_psi::StructuralTypeShape::Sum { cases },
+            ..
+        }) = types.get(&result.structural_type).copied()
+        else {
+            continue;
+        };
+        let Some(case) = cases.iter().find(|case| case.id == *result_case) else {
+            continue;
+        };
         for (declaration, binding) in case.fields.iter().zip(fields) {
-            let terminal_psi::StructuralFieldType::BoundedInteger(bounds) = declaration.field_type else { continue; };
+            let terminal_psi::StructuralFieldType::BoundedInteger(bounds) = declaration.field_type
+            else {
+                continue;
+            };
             let integer_type = bounds.integer_type();
             let value = ScalarTerm::value(binding.value, ScalarType::Integer(integer_type));
-            let endpoint = |value| ScalarTerm::Integer { scalar_type: integer_type, value };
-            let mut clauses = vec![Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()), Proposition::LessOrEqual(value, endpoint(bounds.maximum()))];
+            let endpoint = |value| ScalarTerm::Integer {
+                scalar_type: integer_type,
+                value,
+            };
+            let mut clauses = vec![
+                Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()),
+                Proposition::LessOrEqual(value, endpoint(bounds.maximum())),
+            ];
             clauses.sort();
-            let proposition = terminal_codec::canonical_proposition_order_key(&Proposition::Conjunction(clauses))
-                .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-            if unit.accepted_obligation_facts.iter().filter(|fact| {
-                fact.machine == function.machine && fact.operation == *psi_operation
-                    && Some(fact.obligation) == binding.range_obligation
-                    && fact.proposition == proposition && fact.psi == unit.psi && fact.has_canonical_identity()
-            }).count() != 1 {
+            let proposition =
+                terminal_codec::canonical_proposition_order_key(&Proposition::Conjunction(clauses))
+                    .map_err(|_| {
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch
+                    })?;
+            if unit
+                .accepted_obligation_facts
+                .iter()
+                .filter(|fact| {
+                    fact.machine == function.machine
+                        && fact.operation == *psi_operation
+                        && Some(fact.obligation) == binding.range_obligation
+                        && fact.proposition == proposition
+                        && fact.psi == unit.psi
+                        && fact.has_canonical_identity()
+                })
+                .count()
+                != 1
+            {
                 return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
             }
         }

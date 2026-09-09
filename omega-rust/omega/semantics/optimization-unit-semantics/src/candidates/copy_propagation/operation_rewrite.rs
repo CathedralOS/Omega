@@ -22,7 +22,9 @@ pub(crate) fn rewrite_block_parameter_operation(
     };
     match operation {
         O::EstablishScalarCase { fields, .. } => {
-            for field in fields { replace(&mut field.value); }
+            for field in fields {
+                replace(&mut field.value);
+            }
         }
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }

@@ -13,7 +13,9 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
     };
     match operation {
         O::EstablishScalarCase { fields, .. } => {
-            for field in fields { replace(&mut field.value); }
+            for field in fields {
+                replace(&mut field.value);
+            }
         }
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }

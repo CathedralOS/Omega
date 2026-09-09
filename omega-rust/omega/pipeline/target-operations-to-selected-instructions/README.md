@@ -82,9 +82,9 @@ descriptor homes and changed binding transports.
 Target-input correspondence also checks `StructuralCase` terminators in
 `TargetControlGraph` against the validated abstract graph: the exact dominating
 result home, declared case order/tag, relevant field offset, destination
-block/value/type, and edge cleanup must agree. The admitted two-case Linux byte
-result lowers through ordinary frame-address, tag-load, compare and branch
-instructions. Used i32 payloads load only in the chosen edge's implementation
+block/value/type, and edge cleanup must agree. Hosted byte results and ordinary
+scalar sums lower through frame-address, tag-load, compare and branch
+instructions. Used integer payloads load only in the chosen edge's implementation
 block, before destination binding; unused payloads retain semantic metadata
 without a load or bridge. Structural observations have no fabricated source
 value or definition site. The semantic edge alone retains no-code affine cleanup
@@ -95,7 +95,7 @@ Returning blocks retain exact no-code discards of their own affine byte-read
 results. Current-unit ownership replay reconstructs each live frontier; target
 and legalized replay preserve its ordered actions, return edge, and fuel. A
 function-wide result roster cannot substitute for branch-local ownership.
-Other case layouts and executable or residual return cleanup remain separate
+Non-scalar case layouts and executable or residual return cleanup remain separate
 admission limits; no new ISA case opcode or physical route is introduced.
 Computed Boolean comparisons remain branch predicates until value materialization
 is implemented.

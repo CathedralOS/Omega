@@ -19,8 +19,8 @@ use target::NativeTarget;
 use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit,
-    lower_artifact_sections, lower_artifact_sections_for_optimization,
+    build_verified_psi_optimization_unit, lower_artifact_sections,
+    lower_artifact_sections_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -104,8 +104,10 @@ fn source_payloadless_producer_retains_ordinary_and_optimizer_custody() {
             .expect("optimizer-only lowering retains the exact producer");
     let targeted = lower_to_target_operations(optimizer_input.plan(), NativeTarget::linux_x64())
         .expect("payloadless results use the same ordinary aggregate path");
-    assert!(targeted.functions.iter().all(|function|
-        matches!(function.operation, target_operations::TargetOperation::ControlGraph(_))));
+    assert!(targeted.functions.iter().all(|function| matches!(
+        function.operation,
+        target_operations::TargetOperation::ControlGraph(_)
+    )));
 
     let verified = optimizer_unit(&lowered);
     validate_verified_psi_optimization_unit(&verified)
@@ -153,19 +155,38 @@ fn source_scalar_payload_constructor_retains_exact_abstract_fields() {
             .map(|input| input.plan().clone()),
     ] {
         let result = result.expect("ordinary scalar payload reaches the shared abstract graph");
-        let retained = result.functions.iter().flat_map(|function| &function.operations)
+        let retained = result
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
             .find_map(|operation| match operation {
-                AbstractOperation::EstablishScalarCase { psi_operation, fields, .. }
-                    if *psi_operation == producer => Some(fields),
+                AbstractOperation::EstablishScalarCase {
+                    psi_operation,
+                    fields,
+                    ..
+                } if *psi_operation == producer => Some(fields),
                 _ => None,
-            }).unwrap();
-        let authored = lowered.semantic_module.machines.iter().flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations).find_map(|operation| match &operation.kind {
+            })
+            .unwrap();
+        let authored = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match &operation.kind {
                 terminal_psi::OperationKind::EstablishScalarCase { fields, .. }
-                    if operation.id == producer => Some(fields),
+                    if operation.id == producer =>
+                {
+                    Some(fields)
+                }
                 _ => None,
-            }).unwrap();
-        assert_eq!(retained, authored, "field and SSA identities survive abstraction");
+            })
+            .unwrap();
+        assert_eq!(
+            retained, authored,
+            "field and SSA identities survive abstraction"
+        );
     }
 }
 

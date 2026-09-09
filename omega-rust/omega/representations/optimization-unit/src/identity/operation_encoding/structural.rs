@@ -91,7 +91,10 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 bytes.id(field.field);
                 bytes.id(field.value);
                 match field.range_obligation {
-                    Some(obligation) => { bytes.u8(1); bytes.id(obligation); }
+                    Some(obligation) => {
+                        bytes.u8(1);
+                        bytes.id(obligation);
+                    }
                     None => bytes.u8(0),
                 }
             });

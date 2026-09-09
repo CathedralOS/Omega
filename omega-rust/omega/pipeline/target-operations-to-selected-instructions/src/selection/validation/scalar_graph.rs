@@ -116,7 +116,7 @@ pub(in crate::selection) fn validate(
         if block.id != SelectedBlockId(0) {
             replay.block_cursor = 0;
         }
-        if source.ranked.is_none() && !crate::unobserved_owned_input::accepts(source) {
+        if !crate::unobserved_owned_input::accepts(source) {
             structural::block_entry(source_block, &mut replay)?;
         }
         for (operation_index, operation) in source_block.instructions.iter().enumerate() {

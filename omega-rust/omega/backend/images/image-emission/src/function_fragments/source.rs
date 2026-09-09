@@ -173,7 +173,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         if (unit && !abstracted.parameters.is_empty() || aggregate_result) && ranked.is_none() {
             let (call_plan, scalar_parameters, structural_parameters) = parameter_abi(targeted)
                 .ok_or(Error::Mismatch(
-                    "parameterized Unit function has no retained scalar ABI",
+                    "shared function has no retained parameter/result ABI",
                 ))?;
             if scalar_parameters.len() != abstracted.parameters.len()
                 || call_plan.parameters.len()
@@ -203,11 +203,11 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     })
             {
                 return Err(Error::Mismatch(
-                    "Unit scalar ABI differs from current source",
+                    "parameter/result ABI differs from current source",
                 ));
             }
         } else if parameter_abi(targeted).is_some() {
-            return Err(Error::Mismatch("unexpected Unit scalar ABI"));
+            return Err(Error::Mismatch("unexpected parameter/result ABI"));
         }
         for operation in &abstracted.operations {
             let admitted = match operation {

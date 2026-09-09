@@ -89,14 +89,17 @@ fn translate_fixup(
     let Some(fixup) = row.internal_machine_fixup else {
         if matches!(
             instruction.kind,
-            SelectedInstructionKind::CallI64 { .. } | SelectedInstructionKind::CallUnit { .. } | SelectedInstructionKind::CallAggregate { .. }
+            SelectedInstructionKind::CallI64 { .. }
+                | SelectedInstructionKind::CallUnit { .. }
+                | SelectedInstructionKind::CallAggregate { .. }
         ) {
             return Err(ResolvedFragmentEmissionError::RootMismatch);
         }
         return Ok(None);
     };
     let (SelectedInstructionKind::CallI64 { callee }
-    | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
+    | SelectedInstructionKind::CallUnit { callee }
+    | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
     else {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     };
