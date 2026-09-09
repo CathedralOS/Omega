@@ -43,3 +43,13 @@ responsibility of their existing gates. This gate makes no performance claim.
 `controls/emission.gamma.sources` pins every authored Gamma control member;
 `compiler.tsv` pins the complete diagnostic-plus-implementation identity, checked
 before any observation runs.
+
+The same gate first runs `python3 -B tests/delta/emission/packed_text_test.py`.
+This diagnostic checks all 169 fixed runtime publication chunks against their
+adjacent `ascii:` comments and rejects missing, changed, malformed, or empty
+annotations, changed lengths, and words extending past their byte count. It
+neither emits compiler source nor participates in bootstrap admission. The
+readable comments use JSON string escaping solely for this test; Gamma treats
+them as ordinary comments and gains no string-literal form. Runtime meaning is
+still checked by the existing staged compiler's exact emitted-text and execution
+controls, not by annotation agreement.
