@@ -82,9 +82,11 @@ the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
 The compiler-library sample test supplies test-owned acceptance and stops later
-at provider-candidate admission: the checked line-reader loop is not an affine
-identity-return body. Main's checked call plan retains its line result and
-immediate discard; that source milestone does not establish native execution.
+at canonical boundary-argument validation: `Main.pause` is a raw fixed byte array,
+while `read_line` receives a mutable byte view. The source plan retains that
+argument, but the verifier's fixed-array presentation currently applies only to
+ordinary Unit calls. Checked state-graph provider discovery now retains the
+line-reader body; this does not establish the missing boundary loan or native execution.
 Current commands, tested revisions, and the next implementation step remain on
 the execution board.
 

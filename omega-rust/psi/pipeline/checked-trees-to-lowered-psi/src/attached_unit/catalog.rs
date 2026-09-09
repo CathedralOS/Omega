@@ -712,13 +712,7 @@ pub(super) fn lower_unit_services_including(
             .iter()
             .find(|candidate| candidate.candidate == *symbol)
         {
-            collect_provider_candidate_services(
-                &facts.rows,
-                plans,
-                provider,
-                body.ordinary()?,
-                &mut selected,
-            )?;
+            collect_provider_candidate_services(&facts.rows, plans, provider, body, &mut selected)?;
         } else {
             collect_installation_machine_contract_services(
                 checked,
@@ -1024,11 +1018,12 @@ fn collect_provider_candidate_services(
     rows: &language_semantics::ServiceReachRowTable,
     plans: &checked_trees::CheckedUnitEffectPlans,
     provider: &CheckedUnitProviderCandidate,
-    candidate: &CheckedUnitEffectMachinePlan,
+    candidate: UnitBody<'_>,
     selected: &mut Vec<ServiceReachId>,
 ) -> Result<(), LoweringError> {
-    collect_service_summary(rows, candidate.service_reach, selected)?;
-    if candidate.contract_service_reach.checked_inferred != candidate.service_reach.transitive {
+    let reach = candidate.service_reach();
+    collect_service_summary(rows, reach, selected)?;
+    if candidate.entry()?.contract_service_reach.checked_inferred != reach.transitive {
         return unsupported(
             "checked provider adapter contract reach does not match its transitive reach",
         );
@@ -1041,7 +1036,7 @@ fn collect_provider_candidate_services(
         }
     };
     if rows
-        .services(candidate.service_reach.transitive)
+        .services(reach.transitive)
         .iter()
         .any(|service| !rows.services(ceiling).contains(service))
     {
@@ -1059,7 +1054,13 @@ pub(super) fn lower_provider_candidate_service_ceiling(
 ) -> Result<Vec<ServiceId>, LoweringError> {
     let rows = &checked.facts.service_reaches.rows;
     let mut selected = Vec::new();
-    collect_provider_candidate_services(rows, plans, provider, candidate, &mut selected)?;
+    collect_provider_candidate_services(
+        rows,
+        plans,
+        provider,
+        UnitBody::Ordinary(candidate),
+        &mut selected,
+    )?;
     let source = rows.services(candidate.service_reach.transitive);
     let mut lowered = source
         .iter()

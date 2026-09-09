@@ -2167,10 +2167,7 @@ impl TerminalExecution {
                                 &boundary_arguments.values,
                             )?;
                             let supported_result = match &operation.result {
-                                terminal_psi::OperationResult::Unit => {
-                                    scalar_argument_ids.is_empty()
-                                        && boundary_declaration.scalar_parameters.is_empty()
-                                }
+                                terminal_psi::OperationResult::Unit => true,
                                 terminal_psi::OperationResult::Structural(result) => {
                                     result.multiplicity == StructuralMultiplicity::Affine
                                         && result.qualifications.is_empty()
@@ -2201,7 +2198,10 @@ impl TerminalExecution {
                             match &operation.result {
                                 terminal_psi::OperationResult::Unit => self.begin_unit_call(
                                     callee_id,
-                                    &[],
+                                    // Boundary binding and installed conformance preserve
+                                    // this ordered scalar lane; the ordinary call binder
+                                    // validates it again against the selected callee.
+                                    &scalar_arguments,
                                     &structural_arguments,
                                     prepared_arguments,
                                     &claim_transfers,

@@ -316,11 +316,10 @@ fn assemble_unit_closure(
         let candidates = checked_unit_provider_candidates(checked, &closure)?;
         for candidate in candidates
             .iter()
-            .filter(|candidate| candidate.body == ProviderBody::Unit)
+            .filter(|candidate| candidate.body == ProviderBody::Callable)
         {
-            if unique_unit_machine(plans, candidate.candidate)?
-                .operations
-                .iter()
+            if UnitBody::find(plans, candidate.candidate)?
+                .operations()
                 .any(|operation| {
                     matches!(
                         operation,
@@ -335,7 +334,7 @@ fn assemble_unit_closure(
         }
         let new_roots = candidates
             .iter()
-            .filter(|candidate| candidate.body == ProviderBody::Unit)
+            .filter(|candidate| candidate.body == ProviderBody::Callable)
             .map(|candidate| candidate.candidate)
             .filter(|candidate| {
                 !retained_roots.contains(candidate) && Some(*candidate) != ordinary_entry
