@@ -384,11 +384,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Resume result/view composition in `terminal_byte_views/byte_input.omg` and
   `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`. The original
-  guarded `read_one` probe now reaches exact narrowing but rejects with
+  guarded `read_one` probe at `92aeeff816` reaches exact narrowing but rejects with
   `OperationProofUnavailable`: Terminal retains the payload's raw `i32`, not its
   declared `[0..=255]` constraint. Preserve numeric field constraints through
-  declaration identity and construction/provider-return validation, then bind
-  selected payload facts to case-edge scalars. Do not assume a target state
+  declaration identity and construction/provider-return validation, then combine
+  retained bounds with selected payload equalities at case-edge scalars. Do not assume a target state
   parameter's range or add a provider-name shortcut. This is an implementation
   dependency, not an owner decision. The separate classification fixture keeps
   raw byte reads, case payloads, borrowed destination writes, and loop reentry
@@ -396,6 +396,15 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   construction and ordinary return/call realization for `LineReadResult` also
   remain required; payloadless construction and whole-root identity returns do
   not cover them.
+
+  Range retention starts at `typed-trees-to-checked-trees/src/flow/terminal_unit/types.rs`:
+  `structural_field_plan` currently strips constrained wrappers through
+  `scalar_type`. Carry supported closed intervals through the checked field plan,
+  both structural catalog emitters, Terminal field identity and the codec before
+  using them as premises. Existing wire-range normalization is width-limited;
+  an unsupported authored range must not become an unrestricted carrier. Check
+  every supported constructor/provider establishment route against the retained
+  bounds, including rejection of a native provider with a narrower result promise.
 
   Recheck the dependency with `cargo nextest run -p omega-native-differential-test
   --test terminal_byte_views --no-fail-fast -E 'test(bounded_byte_input)'` (use

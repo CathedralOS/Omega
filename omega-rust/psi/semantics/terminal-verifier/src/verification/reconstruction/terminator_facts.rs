@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use proof_admission::{Obligation, ObligationClass};
 use semantic_vocabulary::{
-    BlockId, EdgeId, MachineId, Proposition, ScalarTerm, StructuralCaseSubject, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, MachineId, Proposition, ScalarTerm,
+    ScalarType, StructuralCaseSubject, ValueId,
 };
 use terminal_psi::OutcomeSpecificGuard;
 use terminal_psi::{Block, TerminalMachine, Terminator};
@@ -116,6 +117,26 @@ pub(super) fn append_terminator(
                     subject: StructuralCaseSubject::new(*source, Vec::new()),
                     case: successor.case,
                 });
+                let target = blocks
+                    .get(&successor.target)
+                    .expect("validated structural case target");
+                for (field, parameter) in successor.payload_fields.iter().zip(&target.parameters) {
+                    let path = vec![
+                        CanonicalStructuralPathSegment::Case(successor.case),
+                        CanonicalStructuralPathSegment::Field(*field),
+                    ];
+                    // These are current-storage observations. The ordinary root
+                    // mutation invalidation and iteration cuts govern their lifetime.
+                    let field_term = match parameter.scalar_type {
+                        ScalarType::Boolean => ScalarTerm::boolean_field_path(*source, path),
+                        ScalarType::Integer(integer) => {
+                            ScalarTerm::integer_field_path(*source, path, integer)
+                        }
+                        // The proposition vocabulary has no IEEE field term.
+                        ScalarType::IeeeFloat(_) => continue,
+                    };
+                    arm_axioms.push(Proposition::Equal(value_term(parameter.id), field_term));
+                }
                 incoming
                     .entry(successor.target)
                     .or_default()

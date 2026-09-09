@@ -510,6 +510,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
     assert_eq!(obligations.len(), 1);
     assert_eq!(obligations[0].obligation.id, obligation_id(1));
     assert_eq!(obligations[0].obligation.proposition, expected);
+    assert_eq!(obligations[0].semantic_axioms[0], expected);
 
     assert!(matches!(
         verify_module(
@@ -531,7 +532,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: expected,
-                    rule: ProofRule::Assumption { index: 0 },
+                    rule: ProofRule::SemanticAxiom { index: 0 },
                 },
             }),
         }],
@@ -550,7 +551,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: Proposition::Falsehood,
-                    rule: ProofRule::Assumption { index: 0 },
+                    rule: ProofRule::SemanticAxiom { index: 0 },
                 },
             }),
         }],
@@ -667,15 +668,16 @@ fn scalar_return_contextual_cleanups_require_reverse_root_order() {
                     proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion: reconstructed.obligation.proposition.clone(),
-                        rule: ProofRule::Assumption {
-                            index: module.machines[0]
-                                .contract
-                                .requires
+                        rule: ProofRule::SemanticAxiom {
+                            index: reconstructed
+                                .semantic_axioms
                                 .iter()
                                 .position(|requirement| {
                                     requirement == &reconstructed.obligation.proposition
                                 })
-                                .expect("scalar cleanup goal is a caller premise"),
+                                .expect(
+                                    "unchanged owned field remains available at scalar cleanup",
+                                ),
                         },
                     },
                 }),
@@ -721,6 +723,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_false_receiver_
     assert_eq!(obligations.len(), 1);
     assert_eq!(obligations[0].obligation.id, obligation_id(1));
     assert_eq!(obligations[0].obligation.proposition, caller_requirement);
+    assert_eq!(obligations[0].semantic_axioms[0], caller_requirement);
 
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
@@ -733,7 +736,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_false_receiver_
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: caller_requirement,
-                    rule: ProofRule::Assumption { index: 0 },
+                    rule: ProofRule::SemanticAxiom { index: 0 },
                 },
             }),
         }],
@@ -776,6 +779,7 @@ fn contextual_nominal_affine_cleanup_orders_mixed_polarities_before_field_bytes(
     assert_eq!(obligations.len(), 2);
     for (index, expected) in caller_requirements.into_iter().enumerate() {
         assert_eq!(obligations[index].obligation.proposition, expected);
+        assert_eq!(obligations[index].semantic_axioms[index], expected);
     }
 
     let bundle = ProofBundle {
@@ -792,7 +796,7 @@ fn contextual_nominal_affine_cleanup_orders_mixed_polarities_before_field_bytes(
                     proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion: reconstructed.obligation.proposition,
-                        rule: ProofRule::Assumption { index },
+                        rule: ProofRule::SemanticAxiom { index },
                     },
                 }),
             })
@@ -843,6 +847,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_finite_ordered_requirements() 
     for (index, obligation) in obligations.iter().enumerate() {
         assert_eq!(obligation.obligation.id, obligation_id(index as u64 + 1));
         assert_eq!(obligation.obligation.proposition, expected[index]);
+        assert_eq!(obligation.semantic_axioms[index], expected[index]);
     }
 
     let bundle = ProofBundle {
@@ -859,7 +864,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_finite_ordered_requirements() 
                     proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion,
-                        rule: ProofRule::Assumption { index },
+                        rule: ProofRule::SemanticAxiom { index },
                     },
                 }),
             })
@@ -1145,15 +1150,14 @@ fn distinct_contextual_cleanup_targets_use_distinct_receivers_and_reconstruct_ea
                     proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
                         conclusion: reconstructed.obligation.proposition.clone(),
-                        rule: ProofRule::Assumption {
-                            index: module.machines[0]
-                                .contract
-                                .requires
+                        rule: ProofRule::SemanticAxiom {
+                            index: reconstructed
+                                .semantic_axioms
                                 .iter()
                                 .position(|requirement| {
                                     requirement == &reconstructed.obligation.proposition
                                 })
-                                .expect("reconstructed requirement is a caller premise"),
+                                .expect("unchanged owned field remains available at its cleanup"),
                         },
                     },
                 }),

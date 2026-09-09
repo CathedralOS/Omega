@@ -12,6 +12,17 @@ pub(crate) fn proposition_observes_places(proposition: &Proposition, places: &[P
         .any(|root| places.contains(&root))
 }
 
+/// Field and case observations have no entry/current revision. Content terms
+/// retain their separate revision and conservation rules across ownership moves.
+pub(crate) fn proposition_observes_unversioned_places(
+    proposition: &Proposition,
+    places: &[PlaceId],
+) -> bool {
+    proposition_boolean_field_roots(proposition)
+        .into_iter()
+        .any(|root| places.contains(&root))
+}
+
 pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
     match proposition {
         Proposition::ContentConservation(_) => true,
