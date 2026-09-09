@@ -1,14 +1,16 @@
-//! Invocation-local descriptor destinations; addresses do not read their contents.
+//! Form descriptor addresses in their owning blocks, not at invocation entry.
+//! Edge bridges write the destination slot directly. Delaying this pure address
+//! calculation avoids keeping every future descriptor pointer live across calls;
+//! it neither moves the slot nor reads its not-yet-initialized contents.
 use super::*;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
 };
 
-pub(super) fn entry(
-    source: &LegalizedScalarFunction,
+pub(in crate::selection::construction) fn block_entry(
+    block: &legalized_operations::LegalizedScalarBlock,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    for block in &source.blocks {
         for parameter in &block.structural_parameters {
             let slot = LocalStorageSlotId::StructuralBlockParameter {
                 block: block.id,
@@ -48,6 +50,5 @@ pub(super) fn entry(
             )?;
             builder.transport.pointers.push((parameter.place, pointer));
         }
-    }
     Ok(())
 }

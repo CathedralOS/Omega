@@ -1044,6 +1044,11 @@ pub fn x86_64_register_constraint_catalog(
             .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name))
             .chain(["rax", "rdx"].into_iter().take(fragments).enumerate()
                 .map(|(position, name)| fixed((arity + position) as u16, RegisterOperandAccess::Def, name))).collect();
+        // Result fragments are explicit definitions. The remaining volatile
+        // units still clobber live caller values, including rdx for one fragment.
+        for name in ["rax", "rdx"].into_iter().take(fragments) {
+            call.clobbers.retain(|unit| !view(name).write_units.contains(unit));
+        }
         constraints.push(call);
     }
     let returned = constraints.iter().find(|row| row.key == X86_64_SYSTEM_V_RETURN).expect("canonical return row").clone();
@@ -1405,6 +1410,26 @@ mod tests {
             .iter_mut()
             .find(|row| row.key == key)
             .unwrap()
+    }
+
+    #[test]
+    fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let catalog = x86_64_register_constraint_catalog(&model);
+        let second = model.model().view_named("rdx").unwrap();
+        let scratch = model.model().view_named("rcx").unwrap();
+        for (ordinal, key) in x86_64_system_v_aggregate_call_keys().into_iter().enumerate() {
+            let fragments = ordinal % 14 / 7 + 1;
+            let call = row(&catalog, key);
+            assert_eq!(call.operands.iter().filter(|operand| operand.access == RegisterOperandAccess::Def).count(), fragments);
+            for unit in &second.write_units {
+                assert_eq!(call.clobbers.contains(unit), fragments == 1, "{key:?}");
+            }
+            assert!(scratch.write_units.iter().all(|unit| call.clobbers.contains(unit)));
+            let mut altered = catalog.clone();
+            row_mut(&mut altered, key).clobbers.retain(|unit| !scratch.write_units.contains(unit));
+            assert!(validate_x86_64_register_constraint_catalog(altered, &model).is_err());
+        }
     }
 
     #[test]

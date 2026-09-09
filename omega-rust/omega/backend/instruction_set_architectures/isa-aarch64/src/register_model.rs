@@ -1186,6 +1186,12 @@ pub fn aarch64_register_constraint_catalog(
             call.operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"].into_iter().take(arity).enumerate()
                 .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
                 .chain(["x0", "x1"].into_iter().take(result_count).enumerate().map(|(index, name)| fixed((arity + index) as u16, RegisterOperandAccess::Def, name))).collect();
+            // Each returned fragment is an explicit post-call definition, not
+            // an unknown architectural clobber competing for the same point.
+            // Keep all caller-saved units outside the actual result untouched.
+            for name in ["x0", "x1"].into_iter().take(result_count) {
+                call.clobbers.retain(|unit| !view(name).write_units.contains(unit));
+            }
             constraints.push(call);
         }
         let source_key = if darwin { AARCH64_DARWIN_RETURN } else { AARCH64_AAPCS64_RETURN };
@@ -1465,6 +1471,26 @@ mod tests {
             .iter_mut()
             .find(|row| row.key == key)
             .unwrap()
+    }
+
+    #[test]
+    fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
+        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let catalog = aarch64_register_constraint_catalog(&model);
+        let second = model.model().view_named("x1").unwrap();
+        let scratch = model.model().view_named("x2").unwrap();
+        for (ordinal, key) in [false, true].into_iter().flat_map(aarch64_register_aggregate_call_keys).enumerate() {
+            let fragments = ordinal % 18 / 9 + 1;
+            let call = row(&catalog, key);
+            assert_eq!(call.operands.iter().filter(|operand| operand.access == RegisterOperandAccess::Def).count(), fragments);
+            for unit in &second.write_units {
+                assert_eq!(call.clobbers.contains(unit), fragments == 1, "{key:?}");
+            }
+            assert!(scratch.write_units.iter().all(|unit| call.clobbers.contains(unit)));
+            let mut altered = catalog.clone();
+            row_mut(&mut altered, key).clobbers.retain(|unit| !scratch.write_units.contains(unit));
+            assert!(validate_aarch64_register_constraint_catalog(altered, &model).is_err());
+        }
     }
 
     #[test]

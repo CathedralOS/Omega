@@ -19,6 +19,9 @@ int main(void) {
                     for (size_t byte = 0; byte < sizeof(backing); ++byte) {
                         uint8_t expected = length && byte == 1
                             ? (selector < 3 ? (uint8_t)(selector * 11) : 33) : 0xa7;
+#ifdef CALLEE_FILLS_VIEW
+                        if (byte > 1 && byte <= length) expected = 37;
+#endif
                         if (backing[byte] != expected) return 2;
                     }
                 }

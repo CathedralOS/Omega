@@ -9,6 +9,7 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 mod block_views;
+pub(super) use block_views::block_entry;
 mod byte_views;
 mod literals;
 mod local_storage;
@@ -75,7 +76,6 @@ pub(super) fn entry(
     if crate::unobserved_owned_input::accepts(source) {
         return Ok(());
     }
-    block_views::entry(source, builder)?;
     let Some(signature) = &source.structural else {
         return Ok(());
     };
