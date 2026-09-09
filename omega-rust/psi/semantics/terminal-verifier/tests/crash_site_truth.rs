@@ -12,6 +12,9 @@ use terminal_psi::{
 };
 use terminal_verifier::{ModuleError, ProofBundle, VerificationError, verify_module};
 
+#[path = "crash_site_truth/integer_value_transport.rs"]
+mod integer_value_transport;
+
 fn value(identity: u64) -> ValueId {
     ValueId::new(identity).unwrap()
 }

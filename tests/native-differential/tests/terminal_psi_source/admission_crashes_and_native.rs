@@ -439,6 +439,23 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     for (value, limit, expected) in [
         (1, 2, expected_crash(&integer_guarded_semantic_module)),
         (
+            i128::from(i32::MAX),
+            i128::from(i32::MIN),
+            expected_crash(&integer_guarded_semantic_module),
+        ),
+        // MAX + 1 wraps to MIN. Equality transport must not reinterpret this
+        // source expression as exact or saturating arithmetic at replay.
+        (
+            i128::from(i32::MAX),
+            0,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                TerminalScalarValue::Integer {
+                    scalar_type: i32_type,
+                    value: IntegerValue::Signed(0),
+                },
+            )),
+        ),
+        (
             1,
             3,
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(

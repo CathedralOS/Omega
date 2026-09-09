@@ -1,7 +1,11 @@
-//! A sufficient caller ceiling proved solely from invocation-entry requirements.
-//! Callee continuations retain their independently reconstructed exact routes.
+//! Bounded crash proofs from entry requirements and reconstructed site facts.
+//! Call-ceiling coverage supplies only entry requirements; callee continuations
+//! retain their independently reconstructed exact routes.
 
-use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, check_predicate_denotations};
+use proof_admission::{
+    PrimitiveJudgment, ProofNode, ProofRule, check_predicate_denotations,
+    check_predicate_denotations_with_value_equalities,
+};
 use semantic_vocabulary::{Proposition, PropositionContext, StructuralPlaceKind};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard, TerminalMachine};
 
@@ -19,21 +23,34 @@ pub(super) fn establishes(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    let Ok(denotations) = check_predicate_denotations(context, goal, requirements, semantic_axioms)
-    else {
-        return false;
-    };
-    let mut remaining = MAXIMUM_SEARCH_STEPS;
-    let Some(proof) = prove(
-        denotations.goal(),
-        denotations.requirements(),
-        denotations.semantic_axioms(),
-        &mut remaining,
-        0,
-    ) else {
-        return false;
-    };
-    denotations.check_certificate(context, &proof).is_ok()
+    // Prefer the smaller Boolean-only question. Nested SSA expressions need
+    // contextual equality transport, checked by the proof owner from the
+    // original local equations. Do not substitute a symbolic summary into the
+    // reconstructed axiom roster or use a claimed guard to define its values.
+    // Keeping the direct attempt also avoids making an already provable guard
+    // depend on expansion of unrelated equations or its extra work budget.
+    for convert in [
+        check_predicate_denotations,
+        check_predicate_denotations_with_value_equalities,
+    ] {
+        let Ok(denotations) = convert(context, goal, requirements, semantic_axioms) else {
+            continue;
+        };
+        let mut remaining = MAXIMUM_SEARCH_STEPS;
+        let Some(proof) = prove(
+            denotations.goal(),
+            denotations.requirements(),
+            denotations.semantic_axioms(),
+            &mut remaining,
+            0,
+        ) else {
+            continue;
+        };
+        if denotations.check_certificate(context, &proof).is_ok() {
+            return true;
+        }
+    }
+    false
 }
 
 fn prove(
