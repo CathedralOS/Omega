@@ -1454,7 +1454,7 @@ impl TerminalExecution {
         let Some(callee_result) = callee.result.structural() else {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
-        let exact_scalar_case_call = callee.entry_claims.is_empty()
+        let exact_primitive_structural_call = callee.entry_claims.is_empty()
             && callee.content_entry_claims.is_empty()
             && claim_transfers.is_empty()
             && returned_claim_transfers.is_empty()
@@ -1465,7 +1465,7 @@ impl TerminalExecution {
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
-            && self
+            && (self
                 .structural_types
                 .get(&result.structural_type)
                 .is_some_and(|declaration| {
@@ -1473,7 +1473,13 @@ impl TerminalExecution {
                     if cases.iter().all(|case| case.fields.iter().all(|field|
                         field.relevance == terminal_psi::BindingRelevance::Relevant
                             && field.field_type.scalar_type().is_some())))
-                });
+                })
+                || (result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && terminal_semantics::scalar_array_leaf_shape(
+                        self.structural_types.values(),
+                        result.structural_type,
+                    )
+                    .is_some()));
         if structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -1491,9 +1497,10 @@ impl TerminalExecution {
             || result.multiplicity != callee_result.multiplicity
             || result.qualifications != callee_result.qualifications
             || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                && !exact_scalar_case_call)
+                && !exact_primitive_structural_call)
             || self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
+            || self.scalar_array_values.contains_key(&result.place)
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
@@ -3862,45 +3869,11 @@ impl TerminalExecution {
                     let Some(signature) = machine.result.structural() else {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     };
-                    if let Some(value) = self.scalar_array_values.get(source) {
-                        if !self.call_stack.is_empty()
-                            || value.structural_type != signature.structural_type
-                            || signature.multiplicity != StructuralMultiplicity::Unrestricted
-                            || !signature.qualifications.is_empty()
-                            || !signature.projected_qualifications.is_empty()
-                            || !returned_claims.is_empty()
-                            || !self.live_claims.is_empty()
-                            || trivial_affine_discards.iter().any(|place| {
-                                *place == *source
-                                    || (!self.structural_values.contains_key(place)
-                                        && !self.scalar_case_values.contains_key(place))
-                            })
-                            || self.live_affine_frontier.iter().any(|entry| {
-                                !entry.path.is_empty()
-                                    || !trivial_affine_discards.contains(&entry.place)
-                            })
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    if self.scalar_array_values.contains_key(source) {
+                        if let Some(status) = self.return_scalar_array(&terminator, meter)? {
+                            return Ok(status);
                         }
-                        if let Err(error) = meter.charge_terminator(&terminator) {
-                            return meter_status(error);
-                        }
-                        let value = self
-                            .scalar_array_values
-                            .remove(source)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        for place in trivial_affine_discards {
-                            self.structural_values.remove(place);
-                            self.scalar_case_values.remove(place);
-                            remove_affine_root(&mut self.live_affine_frontier, *place);
-                        }
-                        let result =
-                            TerminalExecutionResult::ScalarArray(TerminalScalarArrayResult {
-                                value,
-                            });
-                        self.retire_primitive_locals();
-                        self.result = Some(result.clone());
-                        return Ok(TerminalExecutionStatus::Complete(result));
+                        continue;
                     }
                     if let Some(value) = self.scalar_case_values.get(source).cloned() {
                         let internal_result = match self.call_stack.last() {

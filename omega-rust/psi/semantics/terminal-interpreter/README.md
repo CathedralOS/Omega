@@ -38,6 +38,17 @@ replays the exact signatures; fuel suspension retains the same selected frame.
 Fixed-work composition distinguishes normal return bounds from crash bounds:
 only a normal return composes the caller's remaining work.
 
+## Primitive array results
+
+[scalar_array.rs](src/scalar_array.rs) owns complete primitive-array construction
+and return. Ordinary structural calls return the exact unrestricted payload into
+their saved caller's fresh result place. Earlier caller arrays survive alongside
+that result. Return preflight precedes fuel charging and frame restoration, so
+exhaustion cannot publish a partial result or repeat a completed invocation.
+Nested and empty dimensions, Boolean values, and IEEE payload bits are retained.
+Array argument and state-transfer transport remain unsupported; this result path
+does not imply source-call lowering or native array realization.
+
 ## Primitive local storage
 
 [primitive_storage.rs](src/primitive_storage.rs) establishes fresh referents on

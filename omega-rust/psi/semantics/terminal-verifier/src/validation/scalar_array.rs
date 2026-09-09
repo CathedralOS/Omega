@@ -1,4 +1,4 @@
-//! Current executable admission for complete primitive-array construction.
+//! Complete primitive-array construction and call-result return sources.
 
 use super::operations::require_defined;
 use super::*;
@@ -13,12 +13,28 @@ pub(super) fn plain_return_source(
         .iter()
         .flat_map(|block| &block.operations)
         .any(|operation| {
-            matches!(operation.kind, OperationKind::EstablishScalarArray { .. })
-                && operation
-                    .result
-                    .structural()
-                    .is_some_and(|result| result.place == source)
-                && shape(module, machine, operation).is_ok()
+            operation.result.structural().is_some_and(|result| {
+                result.place == source
+                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+                    && terminal_semantics::scalar_array_leaf_shape(
+                        module.structural_types.iter(),
+                        result.structural_type,
+                    )
+                    .is_some()
+            }) && match operation.kind {
+                OperationKind::EstablishScalarArray { .. } => {
+                    shape(module, machine, operation).is_ok()
+                }
+                // The complete call and its live result are validated by the
+                // operation and frontier walks. Do not recursively inspect
+                // callee source shapes or invent another call graph here.
+                OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. } => true,
+                _ => false,
+            }
         })
 }
 
