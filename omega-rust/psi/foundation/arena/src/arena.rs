@@ -3,7 +3,7 @@ use std::ops::Range;
 
 use crate::{Handle, HandleSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Arena<T> {
     dummy: T,
     items: Vec<T>,
@@ -11,6 +11,62 @@ pub struct Arena<T> {
     occupied: Vec<bool>,
     free_indices: Vec<u32>,
     active_count: usize,
+}
+
+impl<T: Clone> Clone for Arena<T> {
+    fn clone(&self) -> Self {
+        Self {
+            dummy: self.dummy.clone(),
+            items: self.items.clone(),
+            generations: self.generations.clone(),
+            occupied: self.occupied.clone(),
+            free_indices: self.free_indices.clone(),
+            active_count: self.active_count,
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.dummy.clone_from(&source.dummy);
+        self.generations.clone_from(&source.generations);
+        self.occupied.clone_from(&source.occupied);
+        self.free_indices.clone_from(&source.free_indices);
+        self.active_count = source.active_count;
+
+        // Vec clones may unwind after truncating or partially extending the
+        // payload. Keep the metadata for exactly that initialized prefix; a
+        // failed clone need not preserve values, but the arena must stay usable.
+        struct PayloadCloneGuard<'arena, T> {
+            arena: &'arena mut Arena<T>,
+            complete: bool,
+        }
+
+        impl<T> Drop for PayloadCloneGuard<'_, T> {
+            fn drop(&mut self) {
+                if self.complete {
+                    return;
+                }
+                let length = self.arena.items.len();
+                self.arena.generations.truncate(length);
+                self.arena.occupied.truncate(length);
+                self.arena
+                    .free_indices
+                    .retain(|arena_index| storage_index_from_arena_index(*arena_index) < length);
+                self.arena.active_count = self
+                    .arena
+                    .occupied
+                    .iter()
+                    .filter(|occupied| **occupied)
+                    .count();
+            }
+        }
+
+        let mut guard = PayloadCloneGuard {
+            arena: self,
+            complete: false,
+        };
+        guard.arena.items.clone_from(&source.items);
+        guard.complete = true;
+    }
 }
 
 pub struct ArenaSpanInserter<'arena, T> {
@@ -806,5 +862,199 @@ mod tests {
         assert_ne!(reused.generation(), first.generation());
         assert_eq!(arena.get(first).as_str(), "");
         assert_eq!(arena.get(reused).as_str(), "beta");
+    }
+
+    #[test]
+    fn clone_from_preserves_free_slots_generations_and_later_operations() {
+        let mut source = Arena::new();
+        let first = source.insert("alpha".to_owned());
+        let retired = source.insert("beta".to_owned());
+        let free = source.insert("gamma".to_owned());
+        assert!(source.free(retired));
+        let replacement = source.insert("replacement".to_owned());
+        assert_ne!(replacement.generation(), retired.generation());
+        assert!(source.free(free));
+        *source.get_mut(Handle::invalid()) = "source dummy".to_owned();
+
+        let mut copied = Arena::new();
+        copied.insert("old".to_owned());
+        copied.clone_from(&source);
+        let mut expected = source.clone();
+        assert_eq!(copied, expected);
+        assert!(!copied.is_valid(retired));
+        assert!(!copied.is_valid(free));
+        assert_eq!(copied.get(replacement), source.get(replacement));
+        assert_eq!(copied.get(retired), source.dummy());
+
+        assert_eq!(
+            copied.insert("reuse".to_owned()),
+            expected.insert("reuse".to_owned())
+        );
+        assert_eq!(
+            copied.append("append".to_owned()),
+            expected.append("append".to_owned())
+        );
+        assert_eq!(copied.free(first), expected.free(first));
+        assert_eq!(copied, expected);
+
+        copied.get_mut(replacement).push_str(" changed");
+        assert_eq!(source.get(replacement), "replacement");
+        copied.clone_from(&Arena::default());
+        assert_eq!(copied, Arena::default());
+        copied.clone_from(&source);
+        assert_eq!(copied, source.clone());
+    }
+
+    #[test]
+    fn clone_from_reuses_storage_and_nested_payload_capacity_when_source_fits() {
+        let mut source = Arena::new();
+        source.append(vec!["short".to_owned()]);
+        let free = source.append(vec!["unused".to_owned()]);
+        assert!(source.free(free));
+        *source.get_mut(Handle::invalid()) = vec!["dummy".to_owned()];
+
+        let mut copied = Arena::with_capacity(8);
+        copied.free_indices.reserve(8);
+        for _ in 0..4 {
+            copied.append(vec!["longer destination payload".to_owned()]);
+        }
+        *copied.get_mut(Handle::invalid()) = vec!["longer destination dummy".to_owned()];
+        let storage_pointers = (
+            copied.items.as_ptr(),
+            copied.generations.as_ptr(),
+            copied.occupied.as_ptr(),
+            copied.free_indices.as_ptr(),
+        );
+        let capacities = (
+            copied.items.capacity(),
+            copied.generations.capacity(),
+            copied.occupied.capacity(),
+            copied.free_indices.capacity(),
+        );
+        let nested_pointer = copied.items[0].as_ptr();
+        let payload_pointer = copied.items[0][0].as_ptr();
+        let dummy_pointer = copied.dummy[0].as_ptr();
+
+        copied.clone_from(&source);
+
+        assert_eq!(copied, source.clone());
+        assert_eq!(
+            storage_pointers,
+            (
+                copied.items.as_ptr(),
+                copied.generations.as_ptr(),
+                copied.occupied.as_ptr(),
+                copied.free_indices.as_ptr(),
+            )
+        );
+        assert_eq!(
+            capacities,
+            (
+                copied.items.capacity(),
+                copied.generations.capacity(),
+                copied.occupied.capacity(),
+                copied.free_indices.capacity(),
+            )
+        );
+        assert_eq!(nested_pointer, copied.items[0].as_ptr());
+        assert_eq!(payload_pointer, copied.items[0][0].as_ptr());
+        assert_eq!(dummy_pointer, copied.dummy[0].as_ptr());
+        copied.items[0][0].push_str(" changed");
+        assert_eq!(source.items[0][0], "short");
+    }
+
+    #[derive(Debug, Default, PartialEq, Eq)]
+    struct PanicOnClone {
+        value: u32,
+        panic_on_clone: bool,
+    }
+
+    impl Clone for PanicOnClone {
+        fn clone(&self) -> Self {
+            assert!(!self.panic_on_clone, "requested payload clone panic");
+            Self {
+                value: self.value,
+                panic_on_clone: false,
+            }
+        }
+    }
+
+    fn assert_usable_after_clone_panic(arena: &mut Arena<PanicOnClone>) {
+        assert_eq!(arena.items.len(), arena.generations.len());
+        assert_eq!(arena.items.len(), arena.occupied.len());
+        assert_eq!(arena.len(), arena.iter().count());
+        for arena_index in &arena.free_indices {
+            let index = super::storage_index_from_arena_index(*arena_index);
+            assert!(!arena.occupied[index]);
+        }
+        for (handle, value) in arena.iter() {
+            assert!(arena.is_valid(handle));
+            assert_eq!(arena.get(handle), value);
+        }
+        let count = arena.len();
+        let inserted = arena.insert(PanicOnClone {
+            value: 100,
+            ..Default::default()
+        });
+        let appended = arena.append(PanicOnClone {
+            value: 101,
+            ..Default::default()
+        });
+        assert_eq!(arena.len(), count + 2);
+        assert_eq!(arena.get(inserted).value, 100);
+        assert_eq!(arena.get(appended).value, 101);
+        assert!(arena.free(inserted));
+        assert!(!arena.is_valid(inserted));
+        assert_eq!(arena.len(), count + 1);
+        assert_eq!(arena.len(), arena.iter().count());
+    }
+
+    #[test]
+    fn clone_from_payload_panic_after_shrinking_preserves_arena_structure() {
+        let mut source = Arena::new();
+        source.append(PanicOnClone::default());
+        source.append(PanicOnClone {
+            value: 1,
+            panic_on_clone: true,
+        });
+        let free = source.append(PanicOnClone::default());
+        assert!(source.free(free));
+        let mut copied = Arena::new();
+        for _ in 0..6 {
+            copied.append(PanicOnClone::default());
+        }
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            copied.clone_from(&source);
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(copied.items.len(), 3);
+        assert_eq!(copied.generations, source.generations);
+        assert_eq!(copied.free_indices, source.free_indices);
+        assert_usable_after_clone_panic(&mut copied);
+    }
+
+    #[test]
+    fn clone_from_payload_panic_after_partial_growth_preserves_arena_structure() {
+        let mut source = Arena::new();
+        for value in 0..6 {
+            source.append(PanicOnClone {
+                value,
+                panic_on_clone: value == 2,
+            });
+        }
+        assert!(source.free(Handle::from_arena_index(5)));
+        let mut copied = Arena::new();
+        copied.append(PanicOnClone::default());
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            copied.clone_from(&source);
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(copied.items.len(), 2);
+        assert!(copied.free_indices.is_empty());
+        assert_usable_after_clone_panic(&mut copied);
     }
 }

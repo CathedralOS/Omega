@@ -19,11 +19,29 @@ mod measurements;
 /// lookup uses hashing; contexts and group links retain arena handles. Hash
 /// iteration never determines fact order. Appends maintain the index eagerly,
 /// including facts introduced during flow construction.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct FactContexts {
     contexts: Arena<FactContext>,
     links: Arena<ContextLink>,
     groups: HashMap<ProgramPoint, ContextGroup>,
+}
+
+impl Clone for FactContexts {
+    fn clone(&self) -> Self {
+        Self {
+            contexts: self.contexts.clone(),
+            links: self.links.clone(),
+            groups: self.groups.clone(),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        // Replacing only visible contexts would leave divergent tail links and
+        // point groups live. Restore the complete derived index with its owner.
+        self.contexts.clone_from(&source.contexts);
+        self.links.clone_from(&source.links);
+        self.groups.clone_from(&source.groups);
+    }
 }
 
 #[derive(Clone, Default)]

@@ -57,10 +57,17 @@ declaration selection is not a reservation for a future group. Statement, call
 and exit construction still use exact point lookup. Both entry lists preserve
 point order and within-point append order. Late input changes revisit only dirty
 state transfers, then materialize complete flow evidence once in source order.
-A first-pass fixed point needs no replay. Each sweep still clones the semantic
-baseline, including its lookup index; reusable scratch storage remains separate
-work. The builder documents why provisional state contexts cannot be rebuilt
-into the live output.
+A first-pass fixed point needs no replay. Later sweeps reuse unpublished output
+arenas and restore the complete semantic baseline with allocation-reusing
+`clone_from`, including its context links and lookup index. Baseline contents
+still copy; this is whole-output replacement, not a partial rollback that keeps
+old scratch handles valid. The builder and context document the lifetime boundary.
+The manual `checking_allocations` example measures complete checking without
+test-only reference replay; run it with
+`cargo run -p typed-trees-to-checked-trees --example checking_allocations`.
+It reports allocation requests and requested bytes, not peak memory. Its
+contract-bearing fixtures exercise a nonempty semantic baseline; a chain alone
+does not establish the cost of copying declaration facts.
 
 Range-state arguments form an entry-rooted all-predecessor fixed point. Rebuild
 edge contributions each pass and withhold unconverged inference. Assignment

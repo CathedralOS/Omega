@@ -58,8 +58,9 @@ do not claim a faster compiler from a smaller helper alone.
 
 - **FLOW-DIRTY-STATES.** In Psi
   `pipeline/typed-trees-to-checked-trees/src/flow/{builder,state_values}.rs`,
-  remove the remaining semantic-baseline clones and fresh output allocations
-  between dirty-state sweeps using invocation-owned reusable working storage.
+  assess and remove remaining semantic-baseline content copies between dirty-state
+  sweeps where measured checking cost warrants it. Output arenas and whole-plan
+  replacement already reuse allocations; copying baseline contents remains.
   Reset derived context-point links as well as arena contents; no scratch handle
   may escape or resurrect. Preserve the first-pass fast path and final source-order
   materialization rather than appending stale state evidence into live output.
@@ -70,9 +71,16 @@ do not claim a faster compiler from a smaller helper alone.
   evidence agree with the test-only whole-pass reference. Use the builder's
   `complete_checking_matches_reference_with_reverse_chain_and_cycle` regression
   through crate-scoped nextest on macOS; it compares complete checking
-  and reports state builds/timing. Add actual allocation counts for the storage
-  change; reduced state builds alone do not establish allocation savings. No
-  thread-pool or unrelated IR redesign is part of this task.
+  and reports state builds/timing. Measure with
+  `cargo run -p typed-trees-to-checked-trees --example checking_allocations`:
+  macOS comparison against `14e9fd8173` reduced requested bytes from 10,178,523 to
+  8,177,845 (12 reverse states/64 contract machines) and 83,801,017 to 63,158,867
+  (32/256), without establishing a timing win. Direct baseline-restoration probes
+  were a small share of checking time on these fixtures. Before a suffix-reset
+  design, establish a customer-sized copying bottleneck that justifies repairing
+  prefix context links and preserving generation/span invariants; do not add a
+  rewind framework solely to close this item. No thread-pool or unrelated IR
+  redesign is part of this task.
 
 - **PACKAGE-PREPARATION-REUSE.** In
   `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and its compiler
