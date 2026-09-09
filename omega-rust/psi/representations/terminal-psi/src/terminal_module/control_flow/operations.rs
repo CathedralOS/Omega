@@ -130,6 +130,13 @@ impl OperationResult {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Atomically establish an owned, unrestricted fixed array whose recursive
+    /// elements end in a primitive scalar. Operands are the complete scalar
+    /// leaf roster in outer-index-first order; the result type retains every
+    /// dimension, including zero extents. No claims or qualifications arise.
+    EstablishScalarArray {
+        elements: Vec<ValueId>,
+    },
     /// Establish initialized, unrestricted primitive storage as this operation's
     /// structural result. Later borrows name this place, not a copied SSA value.
     EstablishPrimitiveLocal {

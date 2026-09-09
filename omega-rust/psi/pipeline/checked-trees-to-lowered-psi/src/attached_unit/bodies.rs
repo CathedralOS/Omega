@@ -25,7 +25,18 @@ pub(crate) struct UnitEntry<'a> {
 impl<'a> UnitBody<'a> {
     pub(crate) fn result(self) -> checked_trees::CheckedControlResultPlan {
         match self {
-            Self::Ordinary(_) => checked_trees::CheckedControlResultPlan::Unit,
+            Self::Ordinary(plan) => plan.structural_result.as_ref().map_or(
+                checked_trees::CheckedControlResultPlan::Unit,
+                |result| {
+                    checked_trees::CheckedControlResultPlan::Structural(
+                        checked_trees::CheckedStructuralResultPlan {
+                            type_identity: result.type_identity.clone(),
+                            multiplicity: result.multiplicity,
+                            qualifications: Vec::new(),
+                        },
+                    )
+                },
+            ),
             Self::Composed(plan) => plan.result.clone(),
         }
     }

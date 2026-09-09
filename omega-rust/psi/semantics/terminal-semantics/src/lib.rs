@@ -16,10 +16,12 @@ use terminal_psi::{Operation, OperationKind};
 
 mod call_composition;
 mod proof_bearing_scalar;
+mod scalar_array;
 mod structural_effect;
 
 pub use call_composition::*;
 pub use proof_bearing_scalar::*;
+pub use scalar_array::scalar_array_leaf_shape;
 pub use structural_effect::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -342,6 +344,7 @@ operation_semantic_rows! {
     StructuralByteSequenceFieldLength => ("schema:operation:structural-byte-sequence-field-length", LeafDenotation, None),
     StructuralByteSequenceFieldByteStore => ("schema:operation:structural-byte-sequence-field-byte-store", LeafDenotation, None),
     EstablishScalarCase => ("schema:operation:establish-scalar-case", LeafDenotation, None),
+    EstablishScalarArray => ("schema:operation:establish-scalar-array", LeafDenotation, None),
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     ByteSequenceLength => ("schema:operation:byte-sequence-length", LeafDenotation, None),
     ByteSequenceWrite => ("schema:operation:byte-sequence-write", LeafDenotation, None),
@@ -768,14 +771,14 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 63);
-        assert_eq!(OperationSemanticRow::ALL.len(), 63);
+        assert_eq!(OperationSemanticTag::ALL.len(), 64);
+        assert_eq!(OperationSemanticRow::ALL.len(), 64);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            53,
+            54,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -797,7 +800,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            63,
+            64,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -805,7 +808,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            63,
+            64,
         );
         assert!(
             OperationSemanticRow::ALL

@@ -528,6 +528,7 @@ pub enum ModuleError {
     TrivialAffineLocalEstablishmentMismatch(MachineId),
     NonCanonicalTrivialAffineLocals(MachineId),
     ScalarCaseResultMismatch(OperationId),
+    ScalarArrayResultMismatch(OperationId),
     ScalarCaseRequiresSum {
         operation: OperationId,
         structural_type: semantic_vocabulary::StructuralTypeId,

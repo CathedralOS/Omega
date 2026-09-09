@@ -104,6 +104,8 @@ const TERMINAL_FIXED_BYTE_VIEW_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/call_composition/fixed_byte_view.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect.rs");
+const TERMINAL_SCALAR_ARRAY_SOURCE: &[u8] =
+    include_bytes!("../../terminal-semantics/src/scalar_array.rs");
 const TERMINAL_BYTE_EXTENT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect/byte_extent.rs");
 const PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE: &[u8] =
@@ -582,7 +584,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            18
+            19
         );
         assert_eq!(
             graph
@@ -592,7 +594,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 63);
+        assert_eq!(OperationSemanticRow::ALL.len(), 64);
         for (tag, identity) in [
             (
                 OperationSemanticTag::EstablishPrimitiveLocal,
@@ -646,7 +648,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            53
+            54
         );
         assert_eq!(
             OperationSemanticRow::ALL

@@ -319,7 +319,7 @@ fn later_boundary_structural_results_keep_operand_roots_and_scalar_namespace() {
                 discard_result_on_return,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = plan.operations.as_slice()
         else {
             panic!("one scalar prefix and one structural result")

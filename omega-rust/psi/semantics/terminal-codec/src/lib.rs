@@ -1396,6 +1396,29 @@ fn validate_operation_foundation(
                 return malformed("scalar structural field has invalid source custody");
             }
         }
+        OperationKind::EstablishScalarArray { elements } => {
+            let Some(result) = operation.result.structural() else {
+                return malformed("scalar array establishment has no structural result");
+            };
+            if result.multiplicity != StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !matches!(
+                    machine.structural_places.iter().find(|place| place.id == result.place),
+                    Some(StructuralPlaceDeclaration {
+                        kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
+                    }) if *producer == operation.id && *structural_type == result.structural_type
+                )
+                || terminal_semantics::scalar_array_leaf_shape(
+                    module.structural_types.iter(),
+                    result.structural_type,
+                )
+                .is_none_or(|(_, count)| u64::try_from(elements.len()).ok() != Some(count))
+            {
+                return malformed("scalar array establishment has an invalid result shape");
+            }
+        }
         OperationKind::EstablishScalarCase {
             result_case,
             fields,

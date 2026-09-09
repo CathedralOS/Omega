@@ -1527,7 +1527,7 @@ mod tests {
                         primitive_type: typed_trees::types::PrimitiveType::I32,
                     },
                 },
-                CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2, .. },
+                CheckedUnitEffectOperationPlan::Complete { statement_index: 2, .. },
             ] if result.statement_index == 0 && result.binding_ordinal == 0
         ));
         validate_selected_operator_terminal_custody(&settled, &selected)
@@ -1587,7 +1587,7 @@ mod tests {
                 result: selected, ..
             },
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = operations.as_slice()
         else {
             panic!("selected Unit plan did not retain the exact scalar-local sequence")

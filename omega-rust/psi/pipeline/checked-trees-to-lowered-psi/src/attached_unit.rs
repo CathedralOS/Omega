@@ -20,6 +20,7 @@ mod parameters;
 pub(crate) mod primitive_locals;
 mod provider_attachments;
 mod providers;
+mod scalar_arrays;
 mod scalar_boundaries;
 mod scalar_locals;
 mod scalar_structural_calls;
@@ -543,6 +544,16 @@ fn assemble_unit_closure(
             );
         }
         validate_unit_operation_sequence(machine)?;
+        // The nominal-cleanup owner validates a synthetic empty completion for
+        // its entry, then installs the actual scalar result and full contract.
+        // Ordinary entries and every transitive helper retain authored results.
+        let synthetic_cleanup_entry = requirements_owner == RuntimeRequirementOwner::NominalCleanup
+            && machine.machine == entry
+            && machine.structural_result.is_none()
+            && matches!(machine.operations.as_slice(), [CheckedUnitEffectOperationPlan::Complete { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty());
+        if !synthetic_cleanup_entry {
+            scalar_arrays::validate_result(checked, machine)?;
+        }
         crate::structural_scalar_store_source::validate(checked, machine)?;
         crate::call_source_custody::validate_store_and_initializer_calls(checked, machine)?;
         for (operation_index, operation) in machine.operations.iter().enumerate() {
@@ -561,6 +572,9 @@ fn assemble_unit_closure(
                 &machine.structural_parameters,
             )?;
             match operation {
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, elements } => {
+                    scalar_arrays::validate(checked, machine, result, elements)?;
+                }
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
                     structural_calls::validate_cleanup(checked, machine, operation_index)?;
                 }
@@ -584,6 +598,12 @@ fn assemble_unit_closure(
                     ..
                 } => {
                     let body = UnitBody::find(plans, *target_machine)?;
+                    if matches!(body, UnitBody::Ordinary(plan) if plan.structural_result.is_some())
+                    {
+                        return unsupported(
+                            "ordinary calls returning constructed arrays require structural result transport",
+                        );
+                    }
                     structural_calls::validate_body_result(checked, operation, body.result())?;
                     let target = body.entry()?;
                     if target.state != *target_state
@@ -895,7 +915,7 @@ fn assemble_unit_closure(
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
+                | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }
         }
     }
@@ -1751,6 +1771,21 @@ fn assemble_unit_closure(
                         local.scalar_type,
                     ));
                     primitive_local_places.push(local);
+                    continue;
+                }
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, elements } => {
+                    if result.binding_ordinal as usize != structural_result_places.len() {
+                        return unsupported("array result binding is not dense");
+                    }
+                    let declaration = scalar_arrays::emit(
+                        result,
+                        elements,
+                        &type_ids,
+                        &mut next_place,
+                        &mut next_value_identity,
+                        &mut operations,
+                    )?;
+                    structural_result_places.push((declaration, false));
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
@@ -3408,7 +3443,7 @@ fn assemble_unit_closure(
                     }
                 }
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
+                | CheckedUnitEffectOperationPlan::Complete { .. } => {
                     return unsupported("Unit return is not the final checked operation");
                 }
             };
@@ -3446,7 +3481,7 @@ fn assemble_unit_closure(
         }
         next_operation = operations.next_identity;
         next_value = next_value_identity;
-        let CheckedUnitEffectOperationPlan::ReturnUnit {
+        let CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..
@@ -3483,6 +3518,31 @@ fn assemble_unit_closure(
             }))
             .collect::<Result<Vec<_>, _>>()?;
         let block = evaluation.current;
+        let structural_return = plan
+            .structural_result
+            .as_ref()
+            .map(|result| {
+                let source = structural_result_places
+                    .get(result.binding_ordinal as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "returned structural binding is absent",
+                    ))?
+                    .0
+                    .id;
+                let place = place_id(allocate_dense(&mut next_place)?);
+                let structural_type = lookup_type_id(&type_ids, &result.type_identity)?;
+                Ok::<_, LoweringError>((
+                    source,
+                    terminal_psi::StructuralResultDeclaration {
+                        place,
+                        structural_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    },
+                ))
+            })
+            .transpose()?;
         let edge = edge_id(allocate_dense(&mut next_edge)?);
         let crash_routes =
             if let Some(contract_plan) = checked.facts.contract_plans.for_machine(plan.machine) {
@@ -3512,9 +3572,18 @@ fn assemble_unit_closure(
             id: block,
             parameters: evaluation.parameters,
             operations: operations[evaluation.operation_start..].to_vec(),
-            terminator: Terminator::ReturnUnit {
-                edge,
-                trivial_affine_discards,
+            terminator: if let Some((source, _)) = &structural_return {
+                Terminator::ReturnStructural {
+                    edge,
+                    source: *source,
+                    returned_claims: Vec::new(),
+                    trivial_affine_discards,
+                }
+            } else {
+                Terminator::ReturnUnit {
+                    edge,
+                    trivial_affine_discards,
+                }
             },
         });
         evaluation.blocks.sort_by_key(|block| block.id);
@@ -3545,13 +3614,21 @@ fn assemble_unit_closure(
         // Argument-time view producers interleave with reserved call results.
         // Declaration order is canonical identity order, not execution order.
         structural_places.sort_by_key(|place| place.id);
+        if let Some((_, result)) = &structural_return {
+            structural_places.push(StructuralPlaceDeclaration {
+                id: result.place,
+                kind: StructuralPlaceKind::Result,
+            });
+        }
         machines.push(TerminalMachine {
             id: terminal_machine,
             attachment,
             parameters: scalar_parameters.clone(),
             structural_parameters: parameters.clone(),
             ranked_scc: None,
-            result: TerminalMachineResult::Unit,
+            result: structural_return.map_or(TerminalMachineResult::Unit, |(_, result)| {
+                TerminalMachineResult::Structural(result)
+            }),
             structural_places,
             entry_claims: entry_claims.clone(),
             published_service_ceiling: if let Some(provider) = provider_candidate_plans

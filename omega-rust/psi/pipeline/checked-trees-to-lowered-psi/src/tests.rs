@@ -797,7 +797,7 @@ fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
             structural_arguments: mutation_arguments,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = exercise.operations.as_slice()
     else {
         panic!("one observation call, one restored mutation, and Unit return")
@@ -881,7 +881,7 @@ fn terminal_reborrow_restored_call_use_lowers_exact_three_member_shared_cohort()
             structural_arguments: mutation_arguments,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = exercise.operations.as_slice()
     else {
         panic!("one observation call, one restored mutation, and Unit return")

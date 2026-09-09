@@ -56,7 +56,7 @@ fn direct_write_only_aliases_preserve_parameters_and_sequential_receivers() {
         assert_eq!(plan.operations.len(), 3);
         assert!(matches!(
             plan.operations[2],
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+            CheckedUnitEffectOperationPlan::Complete { .. }
         ));
         for (statement_index, operation) in plan.operations[..2].iter().enumerate() {
             let CheckedUnitEffectOperationPlan::CallUnit {

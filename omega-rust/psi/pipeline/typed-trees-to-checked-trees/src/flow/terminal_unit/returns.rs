@@ -2591,7 +2591,7 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
     let Some((cleanup_return, cleanup_calls)) = cleanup_target.operations.split_last() else {
         return false;
     };
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         statement_index,
         trivial_affine_local_discard_ordinals,
         trivial_affine_discards,
@@ -2665,7 +2665,7 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
                 && service_reach_plan_is_empty(facts, helper.contract_service_reach)
                 && matches!(
                     helper.operations.as_slice(),
-                    [CheckedUnitEffectOperationPlan::ReturnUnit {
+                    [CheckedUnitEffectOperationPlan::Complete {
                         statement_index: 0,
                         trivial_affine_local_discard_ordinals,
                         trivial_affine_discards,

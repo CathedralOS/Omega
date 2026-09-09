@@ -393,7 +393,7 @@ fn assert_receiver_store_with_access(
     assert_eq!(receiver.access, checked_access);
     let [
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("one source store followed by Unit return")

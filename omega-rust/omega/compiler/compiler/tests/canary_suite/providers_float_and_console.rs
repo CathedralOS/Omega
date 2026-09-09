@@ -1391,7 +1391,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
             claim_transfers,
             ..
         },
-        checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        checked_trees::CheckedUnitEffectOperationPlan::Complete { .. },
     ] = caller.operations.as_slice()
     else {
         panic!("forwarding caller should retain one internal call and return")

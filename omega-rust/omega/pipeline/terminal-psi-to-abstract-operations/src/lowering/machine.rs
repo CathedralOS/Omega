@@ -30,6 +30,16 @@ pub(super) fn lower_machine(
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractFunction, LoweringError> {
+    // Reject before structural-result routing can erase constructor payloads
+    // or classify an empty array as an identity-only result.
+    if let Some(operation) = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::EstablishScalarArray { .. }))
+    {
+        return Err(LoweringError::UnsupportedScalarArray(operation.id));
+    }
     // Scalar sums use the ordinary graph; their physical result convention
     // remains a checked downstream decision, not a separate machine family.
     if let Some(result) = machine.result.structural()

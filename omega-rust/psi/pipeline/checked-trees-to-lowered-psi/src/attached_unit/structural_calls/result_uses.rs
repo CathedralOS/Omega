@@ -235,7 +235,7 @@ pub(crate) fn validate_usage(
             && !disposed
             && !matches!(
                 caller.operations.as_slice(),
-                [_, _, CheckedUnitEffectOperationPlan::ReturnUnit { .. }]
+                [_, _, CheckedUnitEffectOperationPlan::Complete { .. }]
             ))
     {
         return unsupported(

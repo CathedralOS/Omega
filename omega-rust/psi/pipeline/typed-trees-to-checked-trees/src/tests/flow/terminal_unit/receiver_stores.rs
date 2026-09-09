@@ -23,7 +23,7 @@ fn projected_mutable_receiver_call_retains_its_exact_field_path() {
             structural_arguments,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("one retained receiver call and return")
@@ -90,7 +90,7 @@ fn retains_mutable_receiver_field_stores() {
         );
         let [
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = plan.operations.as_slice()
         else {
             panic!("{name} retains one exact store and return")
@@ -121,7 +121,7 @@ fn receiver_store_sequence_accounts_for_each_authored_write() {
     let [
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(first),
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(second),
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 2, ..
         },
     ] = plan.operations.as_slice()

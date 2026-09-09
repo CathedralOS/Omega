@@ -46,7 +46,7 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
                     primitive_type: PrimitiveType::U64,
                 },
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 3, ..
         },
     ] = plan.operations.as_slice()
@@ -219,7 +219,7 @@ fn primitive_local_mutations_preserve_input_snapshot_and_returned_binding_namesp
                 },
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("separate namespaces: {:?}", plan.operations);
@@ -418,7 +418,7 @@ fn primitive_local_store_sequence_without_calls_retains_parameter_store() {
                     primitive_type: PrimitiveType::U64,
                 },
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("ordinary store sequence: {:?}", plan.operations);

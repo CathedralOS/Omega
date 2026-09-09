@@ -116,7 +116,7 @@ pub(super) fn assert_projected_receiver(
                     claim_transfers,
                     ..
                 },
-                CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+                CheckedUnitEffectOperationPlan::Complete { .. },
             ] = caller.operations.as_slice()
             else {
                 panic!("one projected receiver call and return: {source}")

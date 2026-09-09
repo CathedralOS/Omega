@@ -11,6 +11,51 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    // Structural calls do not yet transport primitive-array payloads. Reject
+    // an exact constructor occurrence before ordinary opaque-place binding
+    // could mistake type/custody metadata for initialized array contents.
+    let structural_arguments = match &operation.kind {
+        OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments.as_slice(),
+        _ => &[],
+    };
+    for argument in structural_arguments {
+        if machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|producer| {
+                matches!(producer.kind, OperationKind::EstablishScalarArray { .. })
+                    && producer
+                        .result
+                        .structural()
+                        .is_some_and(|result| result.place == argument.place)
+            })
+        {
+            return Err(ModuleError::ScalarArrayResultMismatch(operation.id));
+        }
+    }
+    if matches!(operation.kind, OperationKind::EstablishScalarArray { .. }) {
+        return super::scalar_array::operands(module, machine, operation, value_types, defined);
+    }
     if matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
         return super::scalar_case::operands(module, machine, operation, value_types, defined);
     }
@@ -705,6 +750,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::CallStructural { .. }
         | OperationKind::CallStructuralWithScalarArguments { .. }
         | OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishScalarArray { .. }
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }

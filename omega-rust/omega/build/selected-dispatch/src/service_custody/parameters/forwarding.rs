@@ -21,7 +21,7 @@ pub(super) fn validate(
         || plan.operations.len() != 2
         || !matches!(
             plan.operations.last(),
-            Some(CheckedUnitEffectOperationPlan::ReturnUnit { .. })
+            Some(CheckedUnitEffectOperationPlan::Complete { .. })
         )
     {
         return Err("the caller widened beyond one free owned Service hop");
@@ -109,7 +109,7 @@ pub(super) fn validate(
     };
     if !matches!(
         target_return,
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        CheckedUnitEffectOperationPlan::Complete { .. }
     ) || target_body.is_empty()
         || target_body.iter().any(|operation| {
             !matches!(operation,

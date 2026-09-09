@@ -884,7 +884,7 @@ fn unit_wrapper_cannot_substitute_a_same_typed_local_and_its_cleanup() {
                     };
                 changed_call = true;
             }
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 trivial_affine_local_discard_ordinals,
                 ..
             } => {

@@ -28,7 +28,7 @@ fn composes_one_call_internal_target_and_retains_its_empty_callee() {
     assert!(matches!(
         relay_plan.operations.as_slice(),
         [CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. }]
+            CheckedUnitEffectOperationPlan::Complete { .. }]
             if *target_machine == quiet
     ));
     assert!(
@@ -74,7 +74,7 @@ fn retains_a_depth_two_internal_target_chain() {
         assert!(matches!(
             plan.operations.as_slice(),
             [CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. },
-                CheckedUnitEffectOperationPlan::ReturnUnit { .. }]
+                CheckedUnitEffectOperationPlan::Complete { .. }]
                 if *target_machine == callee
         ));
     }

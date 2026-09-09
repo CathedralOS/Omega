@@ -72,7 +72,7 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_is_exact() {
             structural_arguments,
             ..
         },
-        checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+        checked_trees::CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_local_discard_ordinals,
             ..
         },
@@ -236,7 +236,7 @@ fn specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift() {
             .expect("hosted consuming call");
         match drift {
             Drift::RestoredDiscard => {
-                let Some(checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+                let Some(checked_trees::CheckedUnitEffectOperationPlan::Complete {
                     trivial_affine_local_discard_ordinals,
                     ..
                 }) = plan.operations.last_mut()
@@ -318,7 +318,7 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_canary_compiles()
             structural_arguments,
             ..
         },
-        checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+        checked_trees::CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards,
             ..
         },
@@ -447,7 +447,7 @@ fn specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift() {
             .expect("checked structural Unit plan");
         match drift {
             Drift::RestoredDiscard => {
-                let Some(checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+                let Some(checked_trees::CheckedUnitEffectOperationPlan::Complete {
                     trivial_affine_discards,
                     ..
                 }) = plan.operations.last_mut()
@@ -565,7 +565,7 @@ fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
             structural_arguments,
             ..
         },
-        checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+        checked_trees::CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards,
             ..
         },
@@ -643,7 +643,7 @@ fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
                 structural_arguments,
                 ..
             },
-            checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+            checked_trees::CheckedUnitEffectOperationPlan::Complete {
                 trivial_affine_local_discard_ordinals,
                 ..
             },
@@ -776,7 +776,7 @@ fn specialized_mixed_structural_result_operator_has_exact_checked_custody() {
             discard_result_on_return,
             ..
         },
-        checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+        checked_trees::CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards,
             ..
         },

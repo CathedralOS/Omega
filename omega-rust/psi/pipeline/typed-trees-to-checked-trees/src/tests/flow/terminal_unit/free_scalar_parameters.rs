@@ -38,7 +38,7 @@ fn free_unit_parameters_preserve_positions_and_authored_call_order() {
             coordinate,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("the authored call and Unit return remain complete");

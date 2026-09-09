@@ -1,8 +1,13 @@
 //! Authored-order scalar bindings, primitive storage, and structural bindings.
+//! Constructors and calls share structural binding ordinals. Completion selects
+//! one existing result or constructs its final expression in this same sequence;
+//! surrounding supported effects do not select a different producer family.
 
 use super::*;
 
 pub(in crate::flow::terminal_unit) struct StatementSequence {
+    pub(in crate::flow::terminal_unit) structural_result:
+        Option<CheckedUnitStructuralResultBindingPlan>,
     pub(in crate::flow::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
     pub(in crate::flow::terminal_unit) local_count: usize,
     pub(in crate::flow::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
@@ -19,6 +24,15 @@ pub(super) fn has_structural_result(
     };
     if !local.initial_value.is_valid() {
         return false;
+    }
+    if validation::is_closed_primitive_array_type(program, local.type_reference) {
+        return validation::closed_constant_array_elements(
+            program,
+            machine.symbol,
+            local.initial_value,
+            local.type_reference,
+        )
+        .is_some();
     }
     let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
     else {
@@ -58,6 +72,12 @@ pub(super) fn has_statement_shape(
             StatementNode::Call(_) | StatementNode::Assignment(_) => true,
             StatementNode::Expression(_) => {
                 call_occurrences::tail_call(program, state, index).is_some()
+                    || (index + 1
+                        == program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len()
+                        && validation::is_closed_primitive_array_type(program, state.return_type))
             }
             StatementNode::LocalData(local) => {
                 program
@@ -88,6 +108,7 @@ pub(in crate::flow::terminal_unit) fn build(
     let mut scalar_count = 0_usize;
     let mut structural_count = 0_usize;
     let mut structural_local_symbols = Vec::new();
+    let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
     // Only whole claim-free affine results participate in move custody.
     // Unrestricted boundary results keep their separate non-moving route.
     let mut structural_results = Vec::new();
@@ -154,6 +175,32 @@ pub(in crate::flow::terminal_unit) fn build(
                     return None;
                 }
                 local_count = local_count.checked_add(1)?;
+                if validation::is_closed_primitive_array_type(program, local.type_reference) {
+                    if local.is_mutable {
+                        return None;
+                    }
+                    let result = CheckedUnitStructuralResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(structural_count).ok()?,
+                        type_identity: shapes.add_type(local.type_reference, &binders, &[])?,
+                        multiplicity: Multiplicity::Unrestricted,
+                    };
+                    let elements = super::scalar_arrays::elements(
+                        program,
+                        facts,
+                        machine.symbol,
+                        local.initial_value,
+                        local.type_reference,
+                    )?;
+                    structural_count = structural_count.checked_add(1)?;
+                    array_bindings.push((local.symbol, result.clone()));
+                    structural_local_symbols.push(local.symbol);
+                    operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        result,
+                        elements,
+                    });
+                    continue;
+                }
                 if let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
                 {
                     if local.is_mutable {
@@ -462,7 +509,48 @@ pub(in crate::flow::terminal_unit) fn build(
             shapes.types.insert(plan.identity.clone(), plan.clone());
         }
     }
+    let structural_result =
+        if validation::is_closed_primitive_array_type(program, state.return_type) {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let StatementNode::Expression(expression) = statements.last()? else {
+                return None;
+            };
+            let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+            if let ExpressionNode::Name(path) = program.expression_table.expression(*expression) {
+                let (_, binding) = array_bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == path.symbol)?;
+                if binding.type_identity
+                    != program.normalized_type_identity(state.return_type).as_str()
+                {
+                    return None;
+                }
+                Some(binding.clone())
+            } else {
+                let elements = super::scalar_arrays::elements(
+                    program,
+                    facts,
+                    machine.symbol,
+                    *expression,
+                    state.return_type,
+                )?;
+                let result = CheckedUnitStructuralResultBindingPlan {
+                    statement_index,
+                    binding_ordinal: u32::try_from(structural_count).ok()?,
+                    type_identity: shapes.add_type(state.return_type, &binders, &[])?,
+                    multiplicity: Multiplicity::Unrestricted,
+                };
+                operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                    result: result.clone(),
+                    elements,
+                });
+                Some(result)
+            }
+        } else {
+            None
+        };
     (call_count == calls.len()).then_some(StatementSequence {
+        structural_result,
         operations,
         local_count,
         structural_local_symbols,

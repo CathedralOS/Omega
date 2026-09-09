@@ -96,7 +96,7 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
             realization_state,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = caller.operations.as_slice()
     else {
         panic!("unused initializer retains one selected call and one return");

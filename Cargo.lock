@@ -2106,6 +2106,7 @@ dependencies = [
  "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-verifier",
 ]
 

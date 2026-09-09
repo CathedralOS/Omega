@@ -83,7 +83,7 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
                 completion_receipts,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = plan.operations.as_slice()
         else {
             panic!(
@@ -289,7 +289,7 @@ fn nested_ordinary_results_keep_postorder_and_exact_boundary_operand_roles() {
                 completion_receipts,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = plan.operations.as_slice()
         else {
             panic!("two producers execute before their boundary consumer")

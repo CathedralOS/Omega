@@ -124,6 +124,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::EstablishScalarCase { fields, .. } => {
             values.extend(fields.iter().map(|field| field.value));
         }
+        O::EstablishScalarArray { elements } => values.extend(elements),
         O::BooleanNot { operand }
         | O::IntegerBitwiseNot { operand }
         | O::IntegerWiden { operand }
@@ -202,6 +203,120 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
 mod tests {
     use super::*;
     use semantic_vocabulary::{ObligationId, PlaceId, StructuralFieldId};
+
+    #[test]
+    fn scalar_array_construction_retains_its_elements_and_removes_unrelated_values() {
+        use semantic_vocabulary::{
+            BlockId, ContractId, EdgeId, MachineId, OperationId, ScalarType, StructuralTypeId,
+        };
+        use terminal_psi::{
+            Block, MachineContract, Operation, OperationResult, StructuralMultiplicity,
+            StructuralOperationResult, StructuralResultDeclaration, TerminalMachineResult,
+            ValueDeclaration,
+        };
+
+        let array_type = StructuralTypeId::new(1).unwrap();
+        let array_place = PlaceId::new(1).unwrap();
+        let result_place = PlaceId::new(2).unwrap();
+        for elements in [
+            vec![],
+            vec![ValueId::new(3).unwrap(), ValueId::new(2).unwrap()],
+        ] {
+            let mut operations = (1..=3)
+                .map(|ordinal| Operation {
+                    id: OperationId::new(ordinal).unwrap(),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: ValueId::new(ordinal).unwrap(),
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    kind: O::BooleanConstant {
+                        value: ordinal == 2,
+                    },
+                })
+                .collect::<Vec<_>>();
+            operations.push(Operation {
+                id: OperationId::new(4).unwrap(),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: array_place,
+                    structural_type: array_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: O::EstablishScalarArray {
+                    elements: elements.clone(),
+                },
+            });
+            let mut machine = TerminalMachine {
+                id: MachineId::new(1).unwrap(),
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                ranked_scc: None,
+                result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    place: result_place,
+                    structural_type: array_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                }),
+                structural_places: vec![
+                    terminal_psi::StructuralPlaceDeclaration {
+                        id: array_place,
+                        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer: OperationId::new(4).unwrap(),
+                            structural_type: array_type,
+                        },
+                    },
+                    terminal_psi::StructuralPlaceDeclaration {
+                        id: result_place,
+                        kind: semantic_vocabulary::StructuralPlaceKind::Result,
+                    },
+                ],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: BlockId::new(1).unwrap(),
+                blocks: vec![Block {
+                    structural_parameters: Vec::new(),
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    operations,
+                    terminator: Terminator::ReturnStructural {
+                        edge: EdgeId::new(1).unwrap(),
+                        source: array_place,
+                        returned_claims: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(1).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            };
+            eliminate(&mut machine, &[], &[]);
+            let retained = &machine.blocks[0].operations;
+            assert_eq!(retained.len(), elements.len() + 1);
+            for element in &elements {
+                assert!(retained.iter().any(|operation| {
+                    operation
+                        .result
+                        .scalar()
+                        .is_some_and(|result| result.id == *element)
+                }));
+            }
+            assert_eq!(
+                retained.last().unwrap().kind,
+                O::EstablishScalarArray { elements }
+            );
+        }
+    }
 
     #[test]
     fn scalar_case_construction_demands_each_payload_operand() {

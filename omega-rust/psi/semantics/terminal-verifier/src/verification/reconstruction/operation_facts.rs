@@ -58,6 +58,12 @@ pub(super) fn append_operation(
     if matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
         return scalar_case::append(module, machine, operation, axioms, operation_obligations);
     }
+    if matches!(operation.kind, OperationKind::EstablishScalarArray { .. }) {
+        crate::validation::scalar_array::shape(module, machine, operation)?;
+        // Type and complete initialization are total validation judgments.
+        // No scalar equality or extra proof authority is asserted here.
+        return Ok(());
+    }
     if let OperationKind::EstablishPrimitiveLocal { .. } = &operation.kind
         && let Some(result) = operation.result.structural()
     {
@@ -251,6 +257,7 @@ pub(super) fn append_operation(
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishAffineScalarRecord { .. }
         | OperationKind::PortWrite { .. }

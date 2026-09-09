@@ -127,7 +127,7 @@ fn anonymous_projection_permissions_name_exact_producer_and_residual() {
         assert_eq!(plan.machine.operations.len(), 3);
         assert!(matches!(
             plan.machine.operations.last(),
-            Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+            Some(CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
                 ..
             })

@@ -107,7 +107,7 @@ fn assert_input_rejoin(authored_uses_result: bool) {
     } else {
         ArgumentSource::StructuralResult { binding_ordinal: 0 }
     };
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards,
         ..
     } = cleanup

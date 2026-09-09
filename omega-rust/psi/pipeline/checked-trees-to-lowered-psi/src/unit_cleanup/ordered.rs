@@ -41,7 +41,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         return unsupported("ordered nominal cleanup requires matched actions");
     }
     let [
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 0,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -236,7 +236,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 .ok_or(LoweringError::Unsupported(
                     "ordered nominal cleanup target operations are empty",
                 ))?;
-        let CheckedUnitEffectOperationPlan::ReturnUnit {
+        let CheckedUnitEffectOperationPlan::Complete {
             statement_index,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -352,7 +352,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
             || !service_plan_is_empty(helper.contract_service_reach)
             || !matches!(
                 helper.operations.as_slice(),
-                [CheckedUnitEffectOperationPlan::ReturnUnit {
+                [CheckedUnitEffectOperationPlan::Complete {
                     statement_index: 0,
                     trivial_affine_local_discard_ordinals,
                     trivial_affine_discards,

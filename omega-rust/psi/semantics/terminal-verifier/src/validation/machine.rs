@@ -210,6 +210,7 @@ pub(super) fn validate_machine(
             if matches!(
                 operation.kind,
                 OperationKind::EstablishAffineScalarRecord { .. }
+                    | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }
             ) {
                 validate_unit_operation_static(module, machine, machines, operation)?;
@@ -375,6 +376,7 @@ pub(super) fn validate_machine(
                 | OperationKind::CallStructural { .. }
                 | OperationKind::CallStructuralWithScalarArguments { .. }
                 | OperationKind::EstablishScalarCase { .. }
+                | OperationKind::EstablishScalarArray { .. }
                 | OperationKind::ByteSequenceSubslice { .. }
                 | OperationKind::EstablishAffineScalarRecord { .. }
                 | OperationKind::EstablishPrimitiveLocal { .. }
@@ -441,8 +443,9 @@ pub(super) fn validate_machine(
                         &crash_continuations,
                         operation.id,
                     )?;
-                    if !callee.structural_places.is_empty()
-                        || !callee.content_entry_claims.is_empty()
+                    if callee.structural_places.iter().any(|place| {
+                        !super::scalar_array::plain_return_source(module, callee, place.id)
+                    }) || !callee.content_entry_claims.is_empty()
                         || !callee.content_identity_reshuffles.is_empty()
                         || !callee.content_partition_compositions.is_empty()
                         || callee

@@ -216,7 +216,7 @@ fn attached_unit_ordinary_scalar_result_reaches_later_call_in_terminal_psi() {
                 scalar_arguments: consumer_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if result.binding_ordinal == 0
             && matches!(
                 scalar_arguments.as_slice(),
@@ -358,7 +358,7 @@ fn attached_unit_ordinary_scalar_result_reaches_a_direct_write_only_store() {
                 },
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2, .. },
+            CheckedUnitEffectOperationPlan::Complete { statement_index: 2, .. },
         ] if result.binding_ordinal == 0
     ));
 
@@ -412,7 +412,7 @@ fn attached_unit_scalar_expression_local_reaches_later_call_in_terminal_psi() {
             CheckedUnitEffectOperationPlan::BoundaryScalarCall { result: measured, .. },
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
             CheckedUnitEffectOperationPlan::BoundaryCall { scalar_arguments, .. },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if measured.binding_ordinal == 0
             && result.binding_ordinal == 1
             && matches!(
@@ -576,7 +576,7 @@ fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row(
         panic!("second operation should consume the scalar result")
     };
     coordinate.statement_index = 3;
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         statement_index, ..
     } = &mut operations[2]
     else {

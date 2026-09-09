@@ -94,7 +94,7 @@ fn unit_tail_keeps_expression_identity_and_one_outer_operation() {
         assert_eq!(calls.len(), 2, "outer call plus its nested operand call");
         assert_eq!(plan.operations.len(), statement_index + 2);
         assert!(
-            matches!(plan.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: actual, .. }) if *actual == statement_index as u32 + 1)
+            matches!(plan.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete { statement_index: actual, .. }) if *actual == statement_index as u32 + 1)
         );
     }
 }
@@ -111,7 +111,7 @@ fn unit_tail_preserves_affine_local_cleanup() {
     assert!(matches!(plan.operations.as_slice(), [
         CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { declaration_ordinal: 0, .. },
         CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, scalar_arguments, .. },
-        CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 2, trivial_affine_local_discard_ordinals, .. },
+        CheckedUnitEffectOperationPlan::Complete { statement_index: 2, trivial_affine_local_discard_ordinals, .. },
     ] if coordinate.statement_index == 1 && coordinate.call_ordinal == 0
         && matches!(scalar_arguments.as_slice(), [CheckedCallScalarArgument::Computation(_)])
         && trivial_affine_local_discard_ordinals == &[0]));

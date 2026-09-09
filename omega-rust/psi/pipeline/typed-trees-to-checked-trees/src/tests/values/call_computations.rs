@@ -53,7 +53,7 @@ fn statement_call_computations_keep_nested_occurrences_and_mixed_namespaces() {
         let [
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
             operation,
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = plan.operations.as_slice()
         else {
             panic!(

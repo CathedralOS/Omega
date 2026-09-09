@@ -219,9 +219,19 @@ Fresh per-iteration guards support mutable fill loops and exact cursor increment
 Completed ordinary byte-view calls preserve the caller's reference carrier, so
 it can be passed again; they do not restore a still-live descendant loan or
 preserve arbitrary content facts. Whole mutable views now reach ordinary native
-indexed stores, including before scalar-sum line outcomes. Source-owned raw-array
-construction and general multi-arrival invariants remain separate dependencies;
+indexed stores, including before scalar-sum line outcomes. Lending constructed
+owned arrays as mutable backing and general multi-arrival invariants remain separate dependencies;
 the writer primitive alone does not establish the shared line-reader contract.
+
+Owned primitive-array values use `EstablishScalarArray`: already evaluated scalar
+leaves initialize the exact recursive fixed-array type, including empty dimensions.
+The ordinary effect sequence retains immutable array locals and structural return
+alongside scalar stores and calls. Source replay checks the declaration, selected
+constant indices, contextual numeric landings, and exact returned binding. The
+decoded interpreter returns the actual payload and preserves it across suspended
+calls. Source production currently accepts closed integer/Boolean literal leaves;
+computed leaves, array transport through calls/state arguments, and native array
+construction still need their complete value and storage paths.
 
 Provider-field calls retain the same exact attachment requirement roots as
 ordinary Unit bodies, including across backedges and interleaved field writes.

@@ -380,7 +380,7 @@ fn attached_unit_affine_argument_lowers_as_an_owned_transfer_without_a_claim_row
             CheckedUnitEffectOperationPlan::BoundaryCall { .. }
         )
     });
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards,
         ..
     } = plans[1].operations.last_mut().unwrap()

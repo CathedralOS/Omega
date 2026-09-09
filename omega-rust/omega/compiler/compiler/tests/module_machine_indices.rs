@@ -25,6 +25,9 @@ mod array_projection;
 #[path = "module_machine_indices/array_projection_destinations.rs"]
 mod array_projection_destinations;
 
+#[path = "module_machine_indices/array_construction.rs"]
+mod array_construction;
+
 #[path = "module_machine_indices/comparisons.rs"]
 mod comparisons;
 

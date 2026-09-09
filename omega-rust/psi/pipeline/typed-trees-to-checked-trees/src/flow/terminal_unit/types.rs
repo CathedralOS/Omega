@@ -61,6 +61,7 @@ pub(super) fn return_unit_affine_discards(
                 .filter_map(|argument| argument.source_parameter_index())
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
@@ -73,7 +74,7 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-            | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
+            | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();
     let events = facts
@@ -1116,7 +1117,7 @@ impl<'program> ShapeCollector<'program> {
         for _ in 0..self.program.type_reference_table.type_reference_count() {
             let TypeReferenceNode::FixedArray {
                 element_type,
-                length: typed_trees::types::FixedArrayLength::Literal(1..),
+                length: typed_trees::types::FixedArrayLength::Literal(_),
             } = self
                 .program
                 .type_reference_table
@@ -1234,7 +1235,8 @@ impl<'program> ShapeCollector<'program> {
                 self.is_unrestricted_material_record(*element_type);
             let unrestricted_nested_primitive_array_element =
                 self.is_literal_array_of_unrestricted_primitive(*element_type);
-            if *length == 0
+            if (*length == 0
+                && !validation::is_closed_primitive_array_type(self.program, type_reference))
                 || (!plain_owned_array
                     && !owned_affine_array
                     && (!substitutions.is_empty()

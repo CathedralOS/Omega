@@ -128,7 +128,7 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
                 structural_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = caller.operations.as_slice()
         else {
             panic!("caller retains exactly its Unit call and return: {source}")

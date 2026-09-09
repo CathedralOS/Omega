@@ -40,7 +40,7 @@ fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
                 structural_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 trivial_affine_local_discard_ordinals,
                 ..
             }
@@ -160,7 +160,7 @@ fn retains_owned_structural_result_for_static_bodyless_boundary() {
                 discard_result_on_return: true,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+            CheckedUnitEffectOperationPlan::Complete { .. }
         ] if result.type_identity.contains("ByteRead")
             && result.multiplicity == Multiplicity::Affine
     ));
@@ -193,7 +193,7 @@ fn retains_owned_structural_result_for_attached_bodyless_boundary() {
         root.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+            CheckedUnitEffectOperationPlan::Complete { .. }
         ]
     ));
 }
@@ -860,7 +860,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: CheckedScalarExpression::IntegerLiteral { literal },
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
                 ..
             },
@@ -929,7 +929,7 @@ fn retains_one_direct_mutable_primitive_literal_store() {
                 value: CheckedScalarExpression::IntegerLiteral { literal },
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if literal.value_i64() == Some(2)
     ));
 }
@@ -975,7 +975,7 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
 
     let [
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(direct_store),
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = direct.operations.as_slice()
     else {
         panic!("direct field store must retain one checked store and return")
@@ -992,7 +992,7 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
 
     let [
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(nested_store),
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = nested.operations.as_slice()
     else {
         panic!("nested field store must retain one checked store and return")
@@ -1014,7 +1014,7 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
         indexed.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if matches!(
             store.carrier_path.as_slice(),
             [
@@ -1038,7 +1038,7 @@ fn retains_direct_and_nested_write_only_record_field_literal_stores() {
         mutable.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if store.carrier_path.is_empty()
             && store.primitive_type == PrimitiveType::U16
             && matches!(store.value.as_pure().unwrap(),
@@ -1078,7 +1078,7 @@ fn retains_one_scalar_result_before_a_projected_write_only_store() {
         [
             CheckedUnitEffectOperationPlan::ScalarCall { result, .. },
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 2,
                 ..
             },
@@ -1126,7 +1126,7 @@ fn retains_only_certificate_backed_restored_reference_alias_call() {
                 structural_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if coordinate.statement_index == 2
             && coordinate.call_ordinal == 0
             && matches!(structural_arguments.as_slice(), [argument]
@@ -1183,7 +1183,7 @@ fn retains_only_certificate_backed_sole_shared_freeze_alias_call() {
                 structural_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if coordinate.statement_index == 2
             && coordinate.call_ordinal == 0
             && matches!(structural_arguments.as_slice(), [argument]
@@ -1248,7 +1248,7 @@ fn retains_one_direct_write_only_boolean_literal_store() {
                 destination: checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 value: CheckedScalarExpression::Boolean(expression),
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
                 ..
             },
@@ -1300,7 +1300,7 @@ fn retains_one_direct_write_only_ieee_float_literal_store() {
                     value: semantic_vocabulary::IeeeFloatValue::Binary32(0x3fa0_0000),
                 },
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
                 ..
             },
@@ -1342,7 +1342,7 @@ fn retains_a_later_direct_write_only_fixed_integer_parameter_store() {
                     primitive_type: PrimitiveType::I32,
                 },
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 1,
                 ..
             },
@@ -1393,7 +1393,7 @@ fn scalar_store_planning_retains_computed_sources_and_multiple_stores_in_order()
             .unwrap_or_else(|| panic!("missing ordinary store sequence: {case}"));
         let (last, stores) = plan.operations.split_last().unwrap();
         assert!(
-            matches!(last, CheckedUnitEffectOperationPlan::ReturnUnit { statement_index, .. }
+            matches!(last, CheckedUnitEffectOperationPlan::Complete { statement_index, .. }
             if *statement_index as usize == stores.len())
         );
         assert_eq!(stores.len(), if case_index == 2 { 2 } else { 1 });
@@ -1978,7 +1978,7 @@ fn selected_console_exit_intrinsic_projects_the_exact_boundary_requirement() {
                 structural_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if *target_machine == requirement.machine
             && scalar_arguments.len() == 1
             && structural_arguments.is_empty()
@@ -2054,7 +2054,7 @@ fn selected_console_write_byte_intrinsic_projects_the_exact_boundary_requirement
                 structural_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] if *target_machine == requirement_symbol
             && scalar_arguments.len() == 1
             && structural_arguments.is_empty()
@@ -2209,7 +2209,7 @@ fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
             scalar_arguments: consumer_arguments,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 2, ..
         },
     ] = main.operations.as_slice()
@@ -2279,7 +2279,7 @@ fn retains_branch_free_scalar_local_after_boundary_scalar_result() {
             CheckedUnitEffectOperationPlan::BoundaryScalarCall { result: measured, .. },
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
             CheckedUnitEffectOperationPlan::BoundaryCall { scalar_arguments, .. },
-            CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 3, .. },
+            CheckedUnitEffectOperationPlan::Complete { statement_index: 3, .. },
         ] if measured.binding_ordinal == 0
             && result.statement_index == 1
             && result.binding_ordinal == 1
@@ -2385,7 +2385,7 @@ fn retains_provider_attached_boundary_scalar_result_and_exact_requirements() {
             scalar_arguments,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = main.operations.as_slice()
     else {
         panic!("provider-attached scalar flow retained the wrong operation sequence")
@@ -2587,7 +2587,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     }
     assert!(matches!(
         root.operations[1],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 1,
             ..
         }
@@ -2629,7 +2629,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     }
     assert!(matches!(
         helper.operations[2],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 2,
             ..
         }
@@ -3042,7 +3042,7 @@ fn retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_cus
             root.entry_claims[index].claim_identity
         );
     }
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards,
         ..
     } = &root.operations[2]
@@ -3274,7 +3274,7 @@ fn retains_reverse_declaration_affine_discards_on_unit_return() {
     assert_eq!(root.structural_parameters.len(), 2);
     assert!(root.entry_claims.is_empty());
     let [
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards,
             ..
         },
@@ -3306,14 +3306,14 @@ fn transferred_affine_parameter_is_not_also_discarded_on_return() {
     let helper = plans
         .for_machine(machine_named(&checked, "run"))
         .expect("affine transfer helper plan");
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards: root_discards,
         ..
     } = root.operations.last().unwrap()
     else {
         unreachable!()
     };
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards: helper_discards,
         ..
     } = helper.operations.last().unwrap()
