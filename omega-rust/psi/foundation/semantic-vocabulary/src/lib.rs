@@ -8,10 +8,12 @@
 
 #![forbid(unsafe_code)]
 
+mod bounded_integer_type;
 mod content;
 mod identity;
 mod proposition;
 
+pub use bounded_integer_type::BoundedIntegerType;
 pub use content::{
     AffineConstructionElement, ContentAlgebra, ContentAlgebraKind, ContentConservation,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,

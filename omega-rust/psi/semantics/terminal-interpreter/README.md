@@ -126,6 +126,12 @@ projected qualifications, and sum discriminator/payload inspection remain
 unsupported. Preflight rejects unsupported result requirements before the host
 effect; validate the response before committing result/claim custody.
 
+Opaque structural entry inputs and host results recursively containing bounded
+integer fields reject. Their type identities do not supply complete field or
+selected-payload values with which to validate the restrictions. Result preflight
+rejects before the handler runs; this fence does not prohibit independently
+valid payloadless construction or supported exact internal transfers.
+
 Host response validation is not allocation or freshness verification. The host
 must return a legitimate owned value. Rejection preserves interpreter bookkeeping,
 not effects the host already performed. Completion followed by budget suspension

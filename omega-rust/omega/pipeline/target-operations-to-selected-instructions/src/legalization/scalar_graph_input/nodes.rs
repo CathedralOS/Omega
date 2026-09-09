@@ -157,6 +157,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Option<(OperationId, ValueId)>
             result,
             ..
         } => Some((*psi_operation, *result)),
+        AbstractOperation::IntegerExactCast {
+            psi_operation,
+            result,
+            ..
+        } => Some((*psi_operation, *result)),
         _ => None,
     }
 }
@@ -411,6 +416,19 @@ pub(super) fn validate(
                     || target_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
                     || !matches!(target_type.bits(), 16 | 32 | 64)
                     || !source_type.can_widen_to(*target_type)
+                    || value_type(optimized, *operand) != Some(ScalarType::Integer(*source_type))
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*target_type)
+            }
+            AbstractOperation::IntegerExactCast {
+                operand,
+                source_type,
+                target_type,
+                ..
+            } => {
+                if !exact_cast_has_native_carriers(*source_type, *target_type)
                     || value_type(optimized, *operand) != Some(ScalarType::Integer(*source_type))
                 {
                     return Err(invalid);

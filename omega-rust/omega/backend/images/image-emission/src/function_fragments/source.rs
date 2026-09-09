@@ -291,6 +291,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerLessOrEqual { .. }
                 | AbstractOperation::BooleanNot { .. }
                 | AbstractOperation::IntegerWiden { .. }
+                | AbstractOperation::IntegerExactCast { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerSubtract { .. } => true,
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }

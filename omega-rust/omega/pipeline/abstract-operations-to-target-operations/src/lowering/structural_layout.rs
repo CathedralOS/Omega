@@ -251,6 +251,11 @@ fn structural_field_shape(
             let size = integer.bits().div_ceil(8);
             Ok(ValueShape::integer(size, size.next_power_of_two().min(16)))
         }
+        StructuralFieldType::BoundedInteger(bounds) => {
+            let integer = bounds.integer_type();
+            let size = integer.bits().div_ceil(8);
+            Ok(ValueShape::integer(size, size.next_power_of_two().min(16)))
+        }
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
@@ -293,6 +298,11 @@ pub(super) fn resolve_structural_field_path(
             let field_shape = match field.field_type {
                 StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
                 StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                    let size = integer.bits().div_ceil(8);
+                    ValueShape::integer(size, size.next_power_of_two().min(16))
+                }
+                StructuralFieldType::BoundedInteger(bounds) => {
+                    let integer = bounds.integer_type();
                     let size = integer.bits().div_ceil(8);
                     ValueShape::integer(size, size.next_power_of_two().min(16))
                 }

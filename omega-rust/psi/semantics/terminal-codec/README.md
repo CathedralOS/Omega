@@ -10,10 +10,15 @@ artifact envelope/manifest, debug map, installation payload, optimization
 execution, obligation ledger, and observation profile have distinct owners.
 Do not infer one section's identity from another section's current version.
 
-Current implementation markers are semantic format/vocabulary `84/90`, proof
+Current implementation markers are semantic format/vocabulary `85/91`, proof
 format `30`, artifact envelope `2`, and manifest `3`. The image-emission owner
-maintains the separately encoded installation payload (currently `85`).
+maintains the separately encoded installation payload (currently `93`).
 These are current codec facts, not a chronology or a promise of older acceptance.
+
+Bounded integer fields retain the fixed carrier and both full-width inclusive
+endpoints. Invalid carrier/endpoints, reversed bounds, and erased bounded fields
+reject. Their declaration bytes participate in semantic identity; an identical
+physical layout does not make different numeric restrictions interchangeable.
 
 ## Observation-profile implementation
 

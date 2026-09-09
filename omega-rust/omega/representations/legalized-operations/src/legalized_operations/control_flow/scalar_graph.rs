@@ -47,7 +47,8 @@ impl LegalizedScalarFunction {
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
                     LegalizedScalarInstructionKind::BooleanNot { operand }
-                    | LegalizedScalarInstructionKind::IntegerWiden { operand, .. } => {
+                    | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
+                        | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {
                         *operand == value
                     }
                     LegalizedScalarInstructionKind::Call(call) => call
@@ -184,6 +185,12 @@ pub enum LegalizedScalarInstructionKind {
     IntegerWiden {
         operand: ValueId,
         source_type: IntegerType,
+    },
+    IntegerExactCast {
+        operand: ValueId,
+        source_type: IntegerType,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     Call(LegalizedScalarCall),
     BoundarySettlement(crate::LegalizedBoundarySettlement),

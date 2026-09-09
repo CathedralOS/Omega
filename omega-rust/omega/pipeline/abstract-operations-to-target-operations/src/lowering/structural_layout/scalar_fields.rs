@@ -49,6 +49,11 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
                 let size = integer.bits().div_ceil(8);
                 ValueShape::integer(size, size.next_power_of_two().min(16))
             }
+            StructuralFieldType::BoundedInteger(bounds) => {
+                let integer = bounds.integer_type();
+                let size = integer.bits().div_ceil(8);
+                ValueShape::integer(size, size.next_power_of_two().min(16))
+            }
             StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
                 ValueShape::float(4)
             }

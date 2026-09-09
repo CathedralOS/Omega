@@ -55,8 +55,12 @@ impl StructuralScalarFieldBinding {
                 continue;
             };
             for field in fields {
-                let StructuralFieldType::Scalar(scalar_type) = field.field_type else {
-                    continue;
+                let scalar_type = match field.field_type {
+                    StructuralFieldType::Scalar(scalar_type) => scalar_type,
+                    StructuralFieldType::BoundedInteger(integer) => {
+                        ScalarType::Integer(integer.integer_type())
+                    }
+                    _ => continue,
                 };
                 if field.relevance.is_erased() {
                     continue;

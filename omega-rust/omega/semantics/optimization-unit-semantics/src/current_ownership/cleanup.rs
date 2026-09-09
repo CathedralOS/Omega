@@ -297,7 +297,8 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::ByteSequence(_)
                 | StructuralFieldType::Structural(_)
-                | StructuralFieldType::Erased { .. } => false,
+                | StructuralFieldType::Erased { .. }
+                | StructuralFieldType::BoundedInteger(_) => false,
             }
     })
 }

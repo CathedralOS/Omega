@@ -2624,7 +2624,7 @@ fn lower_realization_operations(
             .iter()
             .filter(|field| {
                 field.identity == *field_identity
-                    && field.field_type == terminal_psi::StructuralFieldType::Scalar(expected)
+                    && field.field_type.scalar_type() == Some(expected)
             })
             .collect::<Vec<_>>();
         let [field] = matching.as_slice() else {

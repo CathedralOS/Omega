@@ -104,6 +104,11 @@ impl Checker<'_> {
                     AbstractOperation::IntegerWiden { psi_operation: operation, result, source_type: actual_type, operand: source, .. }
                     if operation == psi_operation && *result == resolved && actual_type == source_type && self.expression(operand, *source, aliases)))
             }
+            Expression::IntegerExactCast { psi_operation, obligation, source_type, operand } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::IntegerExactCast { psi_operation: operation, obligation: expected_obligation, result, source_type: actual_type, operand: source, .. }
+                    if operation == psi_operation && expected_obligation == obligation && *result == resolved && actual_type == source_type && self.expression(operand, *source, aliases)))
+            }
             _ => false,
         }
     }

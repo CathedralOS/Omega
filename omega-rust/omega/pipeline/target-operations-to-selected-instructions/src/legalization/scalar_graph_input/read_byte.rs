@@ -39,8 +39,17 @@ pub(in crate::legalization) fn layout(
     if declarations.next().is_some()
         || !empty.fields.is_empty()
         || field.relevance.is_erased()
-        || field.field_type
-            != terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(i32_type()))
+        || !match field.field_type {
+            terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                integer == i32_type()
+            }
+            terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
+                bounds.integer_type() == i32_type()
+                    && bounds.contains(semantic_vocabulary::IntegerValue::Signed(0))
+                    && bounds.contains(semantic_vocabulary::IntegerValue::Signed(255))
+            }
+            _ => false,
+        }
     {
         return Err(invalid);
     }

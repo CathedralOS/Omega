@@ -988,6 +988,14 @@ impl TerminalExecution {
             .get(&module.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
+        for parameter in &machine.structural_parameters {
+            if effect_results::contains_bounded_integer(
+                &structural_types,
+                parameter.structural_type,
+            ) {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+        }
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
         let (structural_primitive_storage, structural_primitive_entry_places) =
@@ -4549,6 +4557,9 @@ fn direct_scalar_field_type(
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
                 terminal_psi::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                terminal_psi::StructuralFieldType::BoundedInteger(bounded) => {
+                    Some(ScalarType::Integer(bounded.integer_type()))
+                }
                 terminal_psi::StructuralFieldType::IeeeFloat(format) => {
                     Some(ScalarType::IeeeFloat(*format))
                 }

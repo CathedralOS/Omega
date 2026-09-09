@@ -24,10 +24,7 @@ machine fill(out: &mut [u8], byte: u8) {
 }
 "#;
 
-#[test]
-fn byte_input_exact_narrowing_requires_retained_payload_range_evidence() {
-    let checked = checked_source(
-        r#"
+const READ_ONE: &str = r#"
         data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
         boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
@@ -49,15 +46,80 @@ fn byte_input_exact_narrowing_requires_retained_payload_range_evidence() {
             }
             state done() {}
         }
-        "#,
-    );
+        "#;
+
+#[test]
+fn byte_input_exact_narrowing_uses_retained_payload_range_evidence() {
+    let checked = checked_source(READ_ONE);
+    let artifact = produce_terminal_artifact(&checked, "read_one")
+        .expect("the selected declaration-bound payload proves exact byte narrowing");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     assert!(
-        matches!(
-            lower_machine(&checked, "read_one"),
-            Err(LoweringError::OperationProofUnavailable(_))
-        ),
-        "raw i32 payload shape is not evidence of the authored 0..255 restriction"
+        module.structural_types.iter().any(|declaration| {
+            let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                return false;
+            };
+            cases.iter().flat_map(|case| &case.fields).any(|field| {
+                matches!(
+                    field.field_type,
+                    terminal_psi::StructuralFieldType::BoundedInteger(bounds)
+                        if bounds.minimum() == semantic_vocabulary::IntegerValue::Signed(0)
+                            && bounds.maximum() == semantic_vocabulary::IntegerValue::Signed(255)
+                )
+            })
+        }),
+        "canonical artifact retains the exact field range"
     );
+}
+
+#[test]
+fn byte_input_exact_narrowing_rejects_a_state_annotation_without_field_bounds() {
+    let source = READ_ONE.replace("case Byte(value: i32 [0..=255]);", "case Byte(value: i32);");
+    let tokens = Lexer::new(&source).tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("state annotation cannot establish missing payload bounds");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("not provably within its declared range")
+    }));
+    assert!(diagnostics.iter().any(
+        |diagnostic| diagnostic.message.contains("Exact integer cast")
+            && diagnostic.message.contains("not provably representable")
+    ));
+}
+
+#[test]
+fn byte_input_exact_narrowing_preserves_forwarded_and_reordered_field_ranges() {
+    let checked = checked_source(
+        r#"
+        data PairRead {
+            case Eof;
+            case Pair(low: i32 [0..=255], high: i32 [256..=511]);
+        }
+        boundary trait Input { machine read_pair() -> PairRead reaches Input; }
+        machine read_one(out: &mut [u8]) reaches Input {
+            transition out.len > 0 { true -> read(out) false -> done() }
+            state read(out: &mut [u8]) {
+                let observed: PairRead = Input::read_pair();
+                transition observed {
+                    PairRead::Pair { low, high } -> forward(out, high, low)
+                    PairRead::Eof -> done()
+                }
+            }
+            state forward(out: &mut [u8], high: i32, low: i32) {
+                transition { _ -> store(out, low) }
+            }
+            state store(out: &mut [u8], value: i32) { out[0] = value as u8; }
+            state done() {}
+        }
+    "#,
+    );
+    let _artifact = produce_terminal_artifact(&checked, "read_one")
+        .expect("exact low-field bounds survive reversed case bindings and ordinary forwarding");
 }
 
 #[test]

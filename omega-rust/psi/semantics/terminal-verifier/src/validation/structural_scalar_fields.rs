@@ -29,6 +29,7 @@ fn direct_relevant_scalar_field(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
+    permit_bounded_read: bool,
 ) -> Option<ScalarType> {
     let declaration = module
         .structural_types
@@ -42,6 +43,10 @@ fn direct_relevant_scalar_field(
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
                 StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                StructuralFieldType::BoundedInteger(bounded) if permit_bounded_read => {
+                    Some(ScalarType::Integer(bounded.integer_type()))
+                }
+                StructuralFieldType::BoundedInteger(_) => None,
                 StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
                 StructuralFieldType::ByteSequence(_)
                 | StructuralFieldType::Structural(_)
@@ -105,7 +110,7 @@ pub(super) fn structural_scalar_field_store_type(
     }
     let parent_type =
         resolve_structural_path(module, parameter.structural_type, path).ok_or_else(invalid)?;
-    direct_relevant_scalar_field(module, parent_type, field).ok_or_else(invalid)
+    direct_relevant_scalar_field(module, parent_type, field, false).ok_or_else(invalid)
 }
 
 pub(super) fn validate_integer_structural_field(
@@ -135,7 +140,9 @@ pub(super) fn validate_integer_structural_field(
             operation,
         ));
     };
-    if direct_relevant_scalar_field(module, parameter.structural_type, field) != Some(result_type) {
+    if direct_relevant_scalar_field(module, parameter.structural_type, field, true)
+        != Some(result_type)
+    {
         return Err(invalid());
     }
     Ok(())
@@ -162,7 +169,7 @@ pub(super) fn validate_boolean_structural_field(
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
     ) || !has_readable_structural_access(parameter.access)
         || !has_empty_structural_custody(machine, source)
-        || direct_relevant_scalar_field(module, parameter.structural_type, field)
+        || direct_relevant_scalar_field(module, parameter.structural_type, field, true)
             != Some(ScalarType::Boolean)
     {
         return Err(invalid());

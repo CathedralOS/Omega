@@ -79,7 +79,7 @@ pub(super) fn lower(
             let shape = crate::lowering::scalar_abi::fixed_native_integer_shape(integer_type)
                 .ok_or_else(invalid)?;
             let field_layout = layout.cases[case_ordinal].fields[field_ordinal];
-            if field.field_type != StructuralFieldType::Scalar(payload.scalar_type)
+            if field.field_type.scalar_type() != Some(payload.scalar_type)
                 || field_layout.shape != shape
                 || parameter.value != payload.parameter
                 || parameter.scalar_type != payload.scalar_type

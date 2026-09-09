@@ -68,6 +68,330 @@ fn payload_module() -> TerminalModule {
     module
 }
 
+fn bounded_payload_module() -> TerminalModule {
+    let mut module = payload_module();
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum fixture")
+    };
+    cases[0].fields[1].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            integer(),
+            IntegerValue::Signed(0),
+            IntegerValue::Signed(255),
+        )
+        .unwrap(),
+    );
+    module.machines[0].contract.ensures.clear();
+    let mut receiver = unit_module().machines.remove(0);
+    receiver.id = MachineId::new(901).unwrap();
+    receiver.contract.id = ContractId::new(901).unwrap();
+    receiver.entry = BlockId::new(901).unwrap();
+    receiver.blocks[0].id = receiver.entry;
+    receiver.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: EdgeId::new(901).unwrap(),
+        trivial_affine_discards: Vec::new(),
+    };
+    receiver.parameters = vec![ValueDeclaration {
+        id: ValueId::new(1).unwrap(),
+        scalar_type: ScalarType::Integer(integer()),
+    }];
+    receiver.contract.requires = payload_bounds(1);
+    module.machines[0].blocks[1].operations.push(Operation {
+        id: OperationId::new(1).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: receiver.id,
+            arguments: vec![ValueId::new(10).unwrap()],
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: vec![
+                ObligationId::new(1).unwrap(),
+                ObligationId::new(2).unwrap(),
+            ],
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(receiver);
+    module
+}
+
+fn payload_bounds(value: u64) -> Vec<Proposition> {
+    vec![
+        Proposition::LessOrEqual(
+            ScalarTerm::integer(integer(), IntegerValue::Signed(0)).unwrap(),
+            term(value),
+        ),
+        Proposition::LessOrEqual(
+            term(value),
+            ScalarTerm::integer(integer(), IntegerValue::Signed(255)).unwrap(),
+        ),
+    ]
+}
+
+fn bounded_payload_bundle(module: &TerminalModule) -> ProofBundle {
+    let reconstructed = reconstruct_terminal_obligations(module).unwrap();
+    ProofBundle {
+        evidence: reconstructed
+            .obligations()
+            .iter()
+            .map(|site| {
+                let conclusion = site.obligation.proposition.clone();
+                let index = site
+                    .semantic_axioms
+                    .iter()
+                    .position(|fact| fact == &conclusion)
+                    .expect("selected payload declares this exact bound");
+                ObligationEvidence {
+                    obligation: site.obligation.id,
+                    route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                        identity: EvidenceIdentity::new(site.obligation.id.get()).unwrap(),
+                        proof_system_marker: ProofSystemMarker::CURRENT,
+                        proof: ProofNode {
+                            conclusion,
+                            rule: ProofRule::SemanticAxiom { index },
+                        },
+                    }),
+                }
+            })
+            .collect(),
+        ..ProofBundle::default()
+    }
+}
+
+#[test]
+fn selected_bounded_payload_supplies_both_checked_call_requirements() {
+    let module = bounded_payload_module();
+    verify_module(
+        &module,
+        &bounded_payload_bundle(&module),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn selected_bounded_boundary_result_supplies_both_checked_call_requirements() {
+    let mut module = bounded_payload_module();
+    let machine = &mut module.machines[0];
+    let source = machine.structural_parameters.remove(0);
+    let producer = OperationId::new(2).unwrap();
+    let boundary = BoundaryMachineId::new(1).unwrap();
+    machine.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type: source.structural_type,
+    };
+    machine.blocks[0].operations.push(Operation {
+        id: producer,
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: source.place,
+            structural_type: source.structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::BoundaryCall {
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    });
+    let Terminator::StructuralCase { cases, .. } = &mut machine.blocks[0].terminator else {
+        panic!("case")
+    };
+    cases[0].trivial_affine_discards.push(source.place);
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: boundary,
+        identity: "Input::observe".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: terminal_psi::BoundaryMachineResult::Structural(
+            terminal_psi::BoundaryStructuralResultDeclaration {
+                structural_type: source.structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+            },
+        ),
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    });
+    verify_module(
+        &module,
+        &bounded_payload_bundle(&module),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn selected_bounded_payload_cannot_borrow_sibling_bounds_or_widened_declaration() {
+    let original = bounded_payload_module();
+    let bundle = bounded_payload_bundle(&original);
+    for swap in [false, true] {
+        let mut module = original.clone();
+        if swap {
+            let Terminator::StructuralCase { cases, .. } =
+                &mut module.machines[0].blocks[0].terminator
+            else {
+                panic!("case")
+            };
+            cases[0].payload_fields.reverse();
+        } else {
+            let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+                panic!("sum")
+            };
+            cases[0].fields[1].field_type = StructuralFieldType::BoundedInteger(
+                semantic_vocabulary::BoundedIntegerType::new(
+                    integer(),
+                    IntegerValue::Signed(-1),
+                    IntegerValue::Signed(256),
+                )
+                .unwrap(),
+            );
+        }
+        validate_module(&module).unwrap();
+        assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+    }
+}
+
+#[test]
+fn selected_bounded_payload_does_not_leak_across_an_unrestricted_case_join() {
+    let mut module = bounded_payload_module();
+    let bundle = bounded_payload_bundle(&module);
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum")
+    };
+    let mut other = cases[0].clone();
+    other.id = StructuralCaseId::new(2).unwrap();
+    other.identity = "Other".into();
+    other.fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Integer(integer()));
+    cases.push(other);
+    let Terminator::StructuralCase { cases, .. } = &mut module.machines[0].blocks[0].terminator
+    else {
+        panic!("case")
+    };
+    let mut other = cases[0].clone();
+    other.case = StructuralCaseId::new(2).unwrap();
+    other.edge = EdgeId::new(11).unwrap();
+    cases.push(other);
+    validate_module(&module).unwrap();
+    assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+}
+
+#[test]
+fn selected_bounded_payload_uses_the_actual_root_declaration() {
+    let mut module = bounded_payload_module();
+    let bundle = bounded_payload_bundle(&module);
+    let mut unrelated = module.structural_types[0].clone();
+    unrelated.id = StructuralTypeId::new(2).unwrap();
+    unrelated.identity = "UnrestrictedLookalike".into();
+    let StructuralTypeShape::Sum { cases } = &mut unrelated.shape else {
+        panic!("sum")
+    };
+    cases[0].fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Integer(integer()));
+    module.machines[0].structural_parameters[0].structural_type = unrelated.id;
+    module.structural_types.push(unrelated);
+    validate_module(&module).unwrap();
+    assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+}
+
+#[test]
+fn selected_bounded_payload_is_a_snapshot_after_mutation_and_forwarding() {
+    let mut module = forwarded_call_module();
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum")
+    };
+    cases[0].fields[1].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            integer(),
+            IntegerValue::Signed(0),
+            IntegerValue::Signed(255),
+        )
+        .unwrap(),
+    );
+    let reconstructed = reconstruct_terminal_obligations(&module).unwrap();
+    let axioms = &reconstructed.obligations()[0].semantic_axioms;
+    for bound in payload_bounds(12) {
+        assert!(axioms.contains(&bound));
+    }
+    assert!(!axioms.contains(&Proposition::Equal(term(12), field(1, 1, 2))));
+}
+
+#[test]
+fn bounded_integer_record_constructor_remains_fail_closed() {
+    let mut module = unit_module();
+    let integer = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let structural_type = StructuralTypeId::new(1).unwrap();
+    let place = PlaceId::new(1).unwrap();
+    let operation = OperationId::new(1).unwrap();
+    let field = StructuralFieldId::new(1).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "BoundedRecord".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "value".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Integer(integer)),
+            }],
+        },
+    });
+    let machine = &mut module.machines[0];
+    machine
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type,
+            },
+        });
+    machine.blocks[0].operations.push(Operation {
+        id: operation,
+        result: OperationResult::Structural(StructuralOperationResult {
+            place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishAffineScalarRecord {
+            field,
+            value: IntegerValue::Signed(0),
+        },
+    });
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        panic!("Unit fixture")
+    };
+    trivial_affine_discards.push(place);
+    validate_module(&module).expect("raw i64 construction is the unchanged supported route");
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("record")
+    };
+    fields[0].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            integer,
+            IntegerValue::Signed(0),
+            IntegerValue::Signed(255),
+        )
+        .unwrap(),
+    );
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::AffineScalarRecordRequiresSingleI64Field { .. })
+    ));
+}
+
 fn bundle() -> ProofBundle {
     payload_return_bundle(term(30), term(10), field(1, 1, 2))
 }

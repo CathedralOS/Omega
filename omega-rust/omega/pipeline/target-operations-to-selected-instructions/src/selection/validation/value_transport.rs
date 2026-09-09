@@ -102,9 +102,9 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
             ..
         } => [*index, *stored, *length].contains(&value),
         Instruction::ByteSequenceRead { index, length, .. } => [*index, *length].contains(&value),
-        Instruction::BooleanNot { operand } | Instruction::IntegerWiden { operand, .. } => {
-            *operand == value
-        }
+        Instruction::BooleanNot { operand }
+        | Instruction::IntegerWiden { operand, .. }
+        | Instruction::IntegerExactCast { operand, .. } => *operand == value,
         Instruction::Call(call) => call
             .arguments
             .iter()

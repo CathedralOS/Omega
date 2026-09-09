@@ -61,6 +61,8 @@ pub struct StructuralFieldDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralFieldType {
     Scalar(ScalarType),
+    /// A scalar field whose declaration retains an inclusive integer restriction.
+    BoundedInteger(semantic_vocabulary::BoundedIntegerType),
     /// Relevant IEEE leaf retained for structural identity and predicates.
     IeeeFloat(IeeeFloatFormat),
     ByteSequence(ByteSequenceCarrier),
@@ -70,6 +72,19 @@ pub enum StructuralFieldType {
     Erased {
         type_identity: String,
     },
+}
+
+impl StructuralFieldType {
+    /// The scalar carrier used for observation and representation. This does
+    /// not discharge restricted-field construction or mutation requirements.
+    pub fn scalar_type(&self) -> Option<ScalarType> {
+        match self {
+            Self::Scalar(scalar_type) => Some(*scalar_type),
+            Self::BoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
+            Self::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
+            Self::ByteSequence(_) | Self::Structural(_) | Self::Erased { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

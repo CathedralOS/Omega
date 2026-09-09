@@ -425,6 +425,12 @@ pub(super) fn encode_structural_field(
         BindingRelevance::Erased => 2,
     });
     match &field.field_type {
+        StructuralFieldType::BoundedInteger(bounds) => {
+            bytes.u8(6);
+            encode_integer_type(bytes, bounds.integer_type());
+            encode_integer_value(bytes, bounds.minimum());
+            encode_integer_value(bytes, bounds.maximum());
+        }
         StructuralFieldType::Scalar(value) => {
             bytes.u8(1);
             encode_scalar_type(bytes, *value);

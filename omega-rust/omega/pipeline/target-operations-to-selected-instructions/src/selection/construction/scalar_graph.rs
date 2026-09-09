@@ -9,6 +9,7 @@ use semantic_vocabulary::IntegerValue;
 mod byte_input;
 mod byte_output;
 mod control;
+mod integer_conversion;
 mod process_exit;
 mod scalar_call;
 mod scalar_stack;
@@ -323,36 +324,9 @@ pub(super) fn build(
                     }
                     continue;
                 }
-                LegalizedScalarInstructionKind::IntegerWiden {
-                    operand,
-                    source_type,
-                } => {
-                    let (_, input, _, actual_type) =
-                        builder.resolve(*operand).ok_or_else(invalid)?;
-                    if actual_type != ScalarType::Integer(*source_type)
-                        || source_type.sign() != IntegerSign::Unsigned
-                        || source_type.bits() != 8
-                        || !matches!(scalar_type, ScalarType::Integer(integer)
-                            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                && matches!(integer.bits(), 16 | 32 | 64)
-                                && source_type.can_widen_to(integer))
-                    {
-                        return Err(invalid());
-                    }
-                    let output =
-                        builder.register(result.value, result.definition_site, scalar_type)?;
-                    builder.emit(
-                        SelectedInstructionKind::CopyI64,
-                        constraints.keys.copy_i64,
-                        &[input, output],
-                        SelectedInstructionProvenance {
-                            operations: vec![operation.operation],
-                            values: vec![*operand, result.value],
-                            fuel: operation.fuel.clone(),
-                            ..Default::default()
-                        },
-                    )?;
-                    output
+                LegalizedScalarInstructionKind::IntegerWiden { .. }
+                | LegalizedScalarInstructionKind::IntegerExactCast { .. } => {
+                    integer_conversion::emit(operation, &mut builder, function)?
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
                     if matches!(

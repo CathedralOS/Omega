@@ -245,6 +245,26 @@ fn admits_scalar_store_observed_through_projected_structural_call() {
 }
 
 #[test]
+fn bounded_integer_field_store_requires_an_establishment_proof_not_a_carrier_match() {
+    let mut module = structural_scalar_field_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        panic!("record fixture")
+    };
+    let ScalarType::Integer(integer) = integer_type() else {
+        panic!("integer")
+    };
+    fields[0].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            integer,
+            IntegerValue::Signed(0),
+            IntegerValue::Signed(255),
+        )
+        .unwrap(),
+    );
+    assert_invalid_scalar_store(&module);
+}
+
+#[test]
 fn rejects_nonexistent_integer_field_in_an_unused_entry_requirement() {
     let mut module = structural_scalar_field_module();
     let ScalarType::Integer(integer_type) = integer_type() else {

@@ -54,6 +54,8 @@ mod affine_identity_calls;
 
 #[path = "unit/boundary_borrows.rs"]
 mod boundary_borrows;
+#[path = "unit/bounded_fields.rs"]
+mod bounded_fields;
 
 #[path = "unit/byte_sequence_forwarding.rs"]
 mod byte_sequence_forwarding;
@@ -4263,6 +4265,8 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
         (obligation_id(1), place_id(1), first),
         (obligation_id(2), place_id(1), second),
     ];
+    let reconstructed = terminal_verifier::reconstruct_terminal_obligations(&module)
+        .expect("contextual cleanup obligations reconstruct");
     let mut evidence = goals
         .into_iter()
         .enumerate()
@@ -4271,20 +4275,37 @@ fn contextual_scalar_return_materializes_then_executes_reverse_ordered_cleanups(
                 ScalarTerm::boolean(true),
                 ScalarTerm::boolean_field(root, field),
             );
+            let site = reconstructed
+                .obligations()
+                .iter()
+                .find(|site| site.obligation.id == obligation)
+                .expect("exact cleanup obligation exists");
+            assert_eq!(site.obligation.proposition, conclusion);
+            assert_eq!(
+                site.owner,
+                terminal_verifier::ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                    machine: module.machines[0].id,
+                    edge,
+                    cleanup_position: (index / 2) as u32,
+                    requirement_position: (index % 2) as u32,
+                }
+            );
+            assert!(
+                !site.requirements.contains(&conclusion),
+                "owned storage is not a permanent entry snapshot"
+            );
+            let axiom_index = site
+                .semantic_axioms
+                .iter()
+                .position(|fact| fact == &conclusion)
+                .expect("unchanged owned field observation reaches this cleanup");
             ObligationEvidence {
                 obligation,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: EvidenceIdentity::new(index as u64 + 1).expect("certificate"),
                     proof_system_marker: ProofSystemMarker::CURRENT,
                     proof: ProofNode {
-                        rule: ProofRule::Assumption {
-                            index: module.machines[0]
-                                .contract
-                                .requires
-                                .iter()
-                                .position(|requirement| requirement == &conclusion)
-                                .expect("cleanup goal is a caller premise"),
-                        },
+                        rule: ProofRule::SemanticAxiom { index: axiom_index },
                         conclusion,
                     },
                 }),

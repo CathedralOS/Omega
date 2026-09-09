@@ -230,6 +230,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::IntegerLessThan { .. }
             | AbstractOperation::IntegerLessOrEqual { .. }
             | AbstractOperation::ExactIntegerAdd { .. }
+            | AbstractOperation::IntegerExactCast { .. }
             | AbstractOperation::ExactIntegerSubtract { .. },
         ) => {
             super::scalar_definitions::observation(target, abstracted, &checker)?;

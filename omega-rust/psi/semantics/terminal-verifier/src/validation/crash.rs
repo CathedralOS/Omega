@@ -688,6 +688,10 @@ fn validate_boolean_field_terms(
                     structural_leaf_type(module, machine, *root, path),
                     Some(StructuralFieldType::Scalar(ScalarType::Integer(actual)))
                         if actual == scalar_type
+                ) && !matches!(
+                    structural_leaf_type(module, machine, *root, path),
+                    Some(StructuralFieldType::BoundedInteger(bounded))
+                        if bounded.integer_type() == *scalar_type
                 ) {
                     return Err(ModuleError::InvalidIntegerFieldTerm {
                         machine: machine.id,

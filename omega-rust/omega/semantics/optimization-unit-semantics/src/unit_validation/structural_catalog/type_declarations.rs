@@ -50,12 +50,14 @@ pub(crate) fn validate_structural_fields(
             ) => return Err(invalid_erased()),
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
+                | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::Structural(_),
                 terminal_psi::BindingRelevance::Erased,
             ) => return Err(invalid_erased()),
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
+                | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::ByteSequence(_)
                 | terminal_psi::StructuralFieldType::Structural(_),

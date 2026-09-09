@@ -229,3 +229,37 @@ fn selected_case_payload_facts_do_not_cross_iteration_cuts() {
         "a previous Value iteration cannot describe the fresh Done result at exit"
     );
 }
+
+#[test]
+fn selected_bounded_payload_range_does_not_cross_iteration_cuts() {
+    let mut module = fixture();
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum")
+    };
+    cases[0].fields[0].field_type = StructuralFieldType::BoundedInteger(
+        semantic_vocabulary::BoundedIntegerType::new(
+            integer,
+            IntegerValue::Signed(0),
+            IntegerValue::Signed(255),
+        )
+        .unwrap(),
+    );
+    module.machines[0]
+        .contract
+        .ensures
+        .push(terminal_psi::ContractClause {
+            obligation: id(1, ObligationId::new),
+            proposition: Proposition::Truth,
+        });
+    let reconstructed = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    let upper = Proposition::LessOrEqual(
+        ScalarTerm::value(id(1, ValueId::new), ScalarType::Integer(integer)),
+        ScalarTerm::integer(integer, IntegerValue::Signed(255)).unwrap(),
+    );
+    assert!(
+        !reconstructed.obligations()[0]
+            .semantic_axioms
+            .contains(&upper)
+    );
+}

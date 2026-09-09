@@ -3,8 +3,8 @@ boundary trait Input {
     machine read_byte() -> ByteRead reaches Input;
 }
 
-// Classify without narrowing the i32 payload: range-evidence transport remains
-// a separate prerequisite for copying it into a u8 destination.
+// Keep classification and cyclic borrowed-view transport independently covered;
+// read_one.omg separately covers exact payload narrowing and byte copying.
 machine classify_bytes(out: &mut [u8], expected: i32) reaches Input {
     transition { _ -> scan(out, 0, expected) }
     state scan(out: &mut [u8], position: u64, expected: i32) {

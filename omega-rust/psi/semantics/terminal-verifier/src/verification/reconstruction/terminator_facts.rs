@@ -17,6 +17,7 @@ use super::{
 };
 
 pub(super) fn append_terminator(
+    module: &terminal_psi::TerminalModule,
     terminator: &Terminator,
     block: BlockId,
     machine: &TerminalMachine,
@@ -125,6 +126,23 @@ pub(super) fn append_terminator(
                         CanonicalStructuralPathSegment::Case(successor.case),
                         CanonicalStructuralPathSegment::Field(*field),
                     ];
+                    if let Some(bounded) =
+                        selected_payload_bound(module, machine, *source, successor.case, *field)
+                    {
+                        let payload = value_term(parameter.id);
+                        let lower = ScalarTerm::Integer {
+                            scalar_type: bounded.integer_type(),
+                            value: bounded.minimum(),
+                        };
+                        let upper = ScalarTerm::Integer {
+                            scalar_type: bounded.integer_type(),
+                            value: bounded.maximum(),
+                        };
+                        // The copied SSA payload keeps its declared range even
+                        // after its former storage root is mutated or consumed.
+                        arm_axioms.push(Proposition::LessOrEqual(lower, payload.clone()));
+                        arm_axioms.push(Proposition::LessOrEqual(payload, upper));
+                    }
                     // These are current-storage observations. The ordinary root
                     // mutation invalidation and iteration cuts govern their lifetime.
                     let field_term = match parameter.scalar_type {
@@ -249,6 +267,48 @@ pub(super) fn append_terminator(
                 semantic_axioms: axioms,
             });
         }
+    }
+}
+
+fn selected_payload_bound(
+    module: &terminal_psi::TerminalModule,
+    machine: &TerminalMachine,
+    source: semantic_vocabulary::PlaceId,
+    selected_case: semantic_vocabulary::StructuralCaseId,
+    selected_field: semantic_vocabulary::StructuralFieldId,
+) -> Option<semantic_vocabulary::BoundedIntegerType> {
+    // Formation and full-graph dominance have already validated this exact
+    // source. Contract field paths deliberately have a narrower parameter scope.
+    let structural_type = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == source)
+                .map(|result| result.structural_type)
+        })?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)?;
+    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return None;
+    };
+    let field = cases
+        .iter()
+        .find(|case| case.id == selected_case)?
+        .fields
+        .iter()
+        .find(|field| field.id == selected_field)?;
+    match field.field_type {
+        terminal_psi::StructuralFieldType::BoundedInteger(bounded) => Some(bounded),
+        _ => None,
     }
 }
 

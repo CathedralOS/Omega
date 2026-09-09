@@ -36,9 +36,9 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 Instruction::ByteSequenceRead { index, length, .. } => {
                     pending.extend([*index, *length])
                 }
-                Instruction::BooleanNot { operand } | Instruction::IntegerWiden { operand, .. } => {
-                    pending.push(*operand)
-                }
+                Instruction::BooleanNot { operand }
+                | Instruction::IntegerWiden { operand, .. }
+                | Instruction::IntegerExactCast { operand, .. } => pending.push(*operand),
                 Instruction::Call(call) => pending.extend(
                     call.arguments
                         .iter()

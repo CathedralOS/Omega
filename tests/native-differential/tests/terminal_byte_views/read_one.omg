@@ -1,0 +1,21 @@
+data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+boundary trait Console {
+    machine read_byte() -> ByteRead reaches Console;
+}
+machine read_one(out: &mut [u8]) reaches Console {
+    transition out.len > 0 {
+        true -> read(out)
+        false -> done()
+    }
+    state read(out: &mut [u8]) {
+        let observed: ByteRead = Console::read_byte();
+        transition observed {
+            ByteRead::Byte { value } -> store(out, value)
+            ByteRead::Eof -> done()
+        }
+    }
+    state store(out: &mut [u8], value: i32 [0..=255]) {
+        out[0] = value as u8;
+    }
+    state done() {}
+}

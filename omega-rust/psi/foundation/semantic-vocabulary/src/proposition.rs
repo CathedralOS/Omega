@@ -2919,6 +2919,11 @@ fn require_same_integer_type(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PropositionError {
     InvalidIntegerWidth(u16),
+    InvalidIntegerRange {
+        integer_type: IntegerType,
+        minimum: IntegerValue,
+        maximum: IntegerValue,
+    },
     NegativeZeroIntegerMathLiteral,
     AddressIntegerMathValue(IntegerType),
     NonCanonicalIntegerMathEqualityOperands,
