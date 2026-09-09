@@ -103,6 +103,8 @@ pub(crate) fn build_check_facts(
         &operational,
         &service_reach_inference,
         &values.scalar_expressions,
+        &operators,
+        &validation_facts.exact_integer_casts,
     );
     crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
     crate::values::retain_nested_structural_call_arguments(

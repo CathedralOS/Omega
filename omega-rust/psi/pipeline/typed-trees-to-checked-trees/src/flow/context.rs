@@ -2,6 +2,8 @@ use super::*;
 
 pub(super) struct FlowBuildContext<'plans> {
     pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
+    pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
+    pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
     pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) built_state_value_inputs: Vec<SymbolHandle>,
@@ -17,16 +19,21 @@ pub(super) struct FlowBuildContext<'plans> {
 }
 
 impl<'plans> FlowBuildContext<'plans> {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         borrow: &BorrowFacts,
         proof: &ProofFacts,
         semantic: &FactPlan,
         scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
+        operators: &'plans checked_trees::CheckedOperatorFacts,
+        exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
         Self {
             scalar_expressions,
+            operators,
+            exact_integer_casts,
             call_frames,
             state_value_inputs: Vec::new(),
             built_state_value_inputs: Vec::new(),

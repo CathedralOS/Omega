@@ -3143,6 +3143,36 @@ fn landed_for_primitive(primitive_type: PrimitiveType) -> Option<LandedIntegerTy
     })
 }
 
+/// Recover a normal-return Boolean using the same selected operations as
+/// scalar computation folding, without assumptions about any runtime binding.
+/// Callers still evaluate the expression's children: a known result (such as a
+/// fixed extent) does not establish that evaluating its source is effect-free.
+pub(crate) fn evaluate_closed_boolean_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<bool> {
+    let selected = lower_boolean_expression(
+        program,
+        operators,
+        expression,
+        &[],
+        &[],
+        &[],
+        &[],
+        exact_integer_casts,
+    )?;
+    let facts::ScalarValue::Boolean(value) = crate::values::evaluate_checked_scalar(
+        &CheckedScalarExpression::Boolean(Box::new(selected)),
+        &mut |_| None,
+    )?
+    else {
+        return None;
+    };
+    Some(value)
+}
+
 fn lower_boolean_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -3526,7 +3556,10 @@ fn integer_widen_is_total(source: PrimitiveType, target: PrimitiveType) -> bool 
     source_bits < target_bits && (!source_signed || target_signed)
 }
 
-fn operator_is_builtin(operators: &CheckedOperatorFacts, expression: ExpressionHandle) -> bool {
+pub(crate) fn operator_is_builtin(
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+) -> bool {
     operators
         .expression_use(expression)
         .is_none_or(|operator_use| {
