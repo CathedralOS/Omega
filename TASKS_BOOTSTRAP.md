@@ -196,9 +196,16 @@ prerequisite to every lower-rung milestone.
 
 - **EPSILON-EVALUATOR.** Complete the closure selected by
   `bootstrap/4_epsilon/epsilon_compiler.delta.sources` against the
-  [Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md): remaining checking,
-  fixed-storage realization, deterministic outcomes, execution, and evaluator
-  entry. Justify retained features by the Epsilon-written D source.
+  [Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md). Grammar-level execution
+  forms already have staging implementations; do not treat an unspecified
+  missing construct as authorization for another implementation layer.
+  Remaining obligations are witnessed checking/runtime conformance gaps,
+  resource-contained fixed-storage realization and evaluator entry, complete
+  D composition, and independent `RunEpsilon` refinement. For the entry, derive
+  one explicit resource/request/observation profile against the selected lower
+  chain and test exact/adjacent refusals without publishing an Epsilon
+  observation. The private diagnostic adapter is not that boundary.
+  Justify retained features by the Epsilon-written D source.
   Use concrete existing D slices for intermediate acceptance; do not invent
   speculative language facilities while D is incomplete.
   The [whole-member D customers](tests/epsilon/interpreted-omega-experiment/README.md)

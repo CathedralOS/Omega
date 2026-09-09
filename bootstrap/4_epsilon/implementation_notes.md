@@ -186,12 +186,17 @@ payload arity, and coverage follows completed pattern premises. Bare-state
 judgment and resultless-argument anchor are implemented within the language's
 premise-DAG composition. Five local block-exit effects, exact after-`never`
 delimiters, falloff checks, and machine-continuation categories are implemented;
-the remaining body/control judgments stay open.
+full body/control conformance remains unclosed.
 Source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented. Its execution route
 retains only a place-backed full view, as described above.
-Complete execution, the final evaluator `main`, and exact composition with
-Omega D remain implementation gaps. The entry-diagnostic subjudgment is implemented. Profile-
+All grammar-level execution forms have staging implementations. This does not
+prove their semantics: contract-derived conformance and independent refinement
+remain required. The final evaluator boundary and `main`, resource containment,
+and complete Omega D composition remain implementation gaps. New execution work
+must name a concrete failing program or required conformance/refinement
+obligation, not assume an unspecified syntax form is unimplemented.
+The entry-diagnostic subjudgment is implemented. Profile-
 independent structural type-formation judgment is now implemented; its
 physical storage realization remains later than complete checking, with the
 [resource contract](LANGUAGE.md#10-resource-classification) fixing its over-`Int` demand representation. The existing source is
@@ -601,9 +606,8 @@ observation.
 
 - complete the evaluator closure selected by `epsilon_compiler.delta.sources` against
   [`LANGUAGE.md`](LANGUAGE.md);
-- complete every Epsilon expression, statement, state, trap, and Console
-  execution rule without turning a private `Unsupported` result into an
-  observation;
+- validate every Epsilon expression, statement, state, trap, and Console
+  execution rule; implemented dispatch paths do not establish refinement;
 - define one exact physical evaluator request and observation profile binding
   evaluator source, Epsilon source, stdin, resources, and maximal execution;
 - compile the evaluator through the selected Delta and Gamma route;
