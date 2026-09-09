@@ -286,14 +286,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Resume the native dependency from
   `tests/native-differential/tests/terminal_byte_views/mutable_writes.rs`.
-  At `024a0cd245` on macOS ARM64 (Cargo fallback),
+  At `b5aadc0600` on macOS ARM64 (Cargo fallback),
   `cargo nextest run -p omega-native-differential-test --test terminal_byte_views
   --no-fail-fast --no-tests fail -E 'test(mutable_writes)'` passes: fixed-extent
   fill loops retain exclusive state transfers, exact bounds/source operands,
   one-byte stores and once-only fuel through artifact publication and replay.
   Direct and repeated Unit helper calls execute on original caller storage for
   every octet, empty views and multiple extents without altering descriptor words
-  or neighboring bytes. Publication covers Linux x64/ARM64, macOS ARM64 and
+  or neighboring bytes. Whole raw fixed arrays and nested field-only array loans
+  now reach the same native writer using a call-local descriptor over original
+  backing, including stack-passed descriptors and runtime scalar arguments.
+  Resume those controls in `mutable_writes/fixed_arrays.rs`; scalar-result and
+  indexed array presentations remain excluded. Publication covers Linux x64/ARM64, macOS ARM64 and
   Windows x64; only macOS runtime was exercised. No termination certificate or
   fixed-work bound is claimed. Source proof/interpretation lives in
   `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs` and
@@ -359,7 +363,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution must retain distinct result homes, exactly two sequential reads,
   first-byte output, and zero-status Unit completion. The macOS completion
   adapter is a physical entry mapping, not closure of the canonical root contract.
-  At `024a0cd245`, the macOS `cli_mvp` probe above still stops at the missing
+  At `b5aadc0600`, the macOS `cli_mvp` probe above still stops at the missing
   `Console::read_line` catalog identity. Preserve exact operation/result identity,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
