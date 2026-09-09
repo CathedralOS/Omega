@@ -4,10 +4,10 @@ Omega is a systems language built around explicit state machines, checked
 contracts, and ownership of memory and resources.
 
 Omega is betting on the following software trends into the future:
-- The cost of code and intelligence are going to zero as the quality increases.
-- It will become increasingly critical that software performs well, and 'just works'.
-- It will be necessary to validate assurances up front. Even intelligent AI can make critical mistakes.
+- LLM intelligence will increase, and costs will decrease.
 - Software will permeate every aspect of our lives. Some of these areas are too costly to get wrong, like transportation and medical fields.
+- It will become increasingly critical that software is fast, resource efficient, and 'just works'. No garbage collection, emulation, or bloatware layers.
+- It will be necessary to validate assurances up front. Even intelligent AI can make critical mistakes.
 - "Don't trust, and verify" will become necessary to avoid an onslaught of malicious or buggy code. This means provable claims about performance, capabilities, and stability.
 
 Make trust explicit, narrow, and auditable. When this trust holds, the program keeps
