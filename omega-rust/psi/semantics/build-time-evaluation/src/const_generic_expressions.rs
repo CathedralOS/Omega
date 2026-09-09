@@ -2,6 +2,11 @@
 //!
 //! The probe owns no published layout or symbols. Only its canonical result and
 //! exact authored selection custody return to the original syntax forest.
+//! Named operands need this probe to preserve selected carriers and declarations.
+//! Boolean destinations also need it without names: the syntax-only arithmetic
+//! normalizer cannot produce Boolean identity or establish operator meaning.
+//! Destination spelling only routes the probe; exact typed identity, admission
+//! and operand checks still precede evaluation and publication of the result.
 
 mod lexical_selection;
 mod value;
@@ -100,22 +105,23 @@ pub(super) fn evaluate(
                 .replace_type_reference(argument, original);
         }
     }
-    let pending = arguments
-        .iter()
-        .filter_map(|(argument, destination, public)| {
-            let TypeReferenceNode::ConstExpression(expression) =
-                syntax.type_references.type_reference(*argument)
-            else {
-                return None;
-            };
-            contains_constant_reference(&syntax, *expression).then_some((
-                *argument,
-                *expression,
-                *destination,
-                *public,
-            ))
-        })
-        .collect::<Vec<_>>();
+    let pending =
+        arguments
+            .iter()
+            .filter_map(|(argument, destination, public)| {
+                let TypeReferenceNode::ConstExpression(expression) =
+                    syntax.type_references.type_reference(*argument)
+                else {
+                    return None;
+                };
+                let boolean_destination = matches!(
+                    syntax.type_references.type_reference(*destination),
+                    TypeReferenceNode::Named(name) if name.as_str() == "bool"
+                );
+                (boolean_destination || contains_constant_reference(&syntax, *expression))
+                    .then_some((*argument, *expression, *destination, *public))
+            })
+            .collect::<Vec<_>>();
     if pending.is_empty() {
         return Ok(syntax);
     }

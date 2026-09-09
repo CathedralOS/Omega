@@ -1,0 +1,8 @@
+use settings;
+data Flag<const Value: bool> { value: u8; }
+machine keep(value: Flag<(1u64 < 2u64)>) -> Flag<true> {
+    let local: Flag<(false || true)> = value;
+    local
+}
+data Main {}
+machine Main::main(&mut self) {}

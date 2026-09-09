@@ -116,7 +116,9 @@ package selection are checked before fixed-width arithmetic. Each argument retai
 one canonical result, every selected constant occurrence and its builtin operator
 occurrences. Nongeneric machine parameters, results, locals and casts resolve
 named integer or Boolean indices and compound expressions containing named
-constants in their original lexical scope before using the same probe. Fixed-width
+constants in their original lexical scope before using the same probe. Boolean
+destinations also route literal expressions through the probe; parsing retains
+comparisons and logical operations instead of folding them as integers. Fixed-width
 integer comparisons can produce Boolean indices. Runtime bindings cannot be
 captured as constants. Public entry
 signatures retain public exposure independently of body and internal-state uses.
@@ -135,8 +137,11 @@ Boolean `&&` and `||` evaluate only the selected right operand, while the probe
 retains admission and authored custody for both operands. The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/boolean_logic_indices/main.omg`
 covers root and module selection under that schedule.
-Open templates, aggregate evaluation, wholly anonymous
-comparisons, constrained destinations, authored operators and module-owned domain
+The two-file CLI check
+`cargo run -p omega -- --check tests/omega/pass/modules/literal_boolean_indices/main.omg`
+covers literal Boolean expressions and fixed-integer comparisons in both scopes.
+Open templates, aggregate evaluation, comparisons between two wholly anonymous
+numeric operands, constrained destinations, authored operators and module-owned domain
 families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.

@@ -1,0 +1,2 @@
+module settings;
+machine keep(value: Flag<(true == false)>) -> Flag<false> { value }
