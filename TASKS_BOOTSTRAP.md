@@ -69,21 +69,6 @@ prerequisite to every lower-rung milestone.
 
 ## Next decision - measured complexity follow-through
 
-- **GAMMA-RUNTIME-SCANNING-REVIEW.** Reassess
-  repeated expression scanning in `bootstrap/2_gamma/gamma_evaluator.beta`
-  against the [complete D customer](tests/bootstrap/omega-parser/README.md#field-identity-comparison)
-  after compact field identities. Its exact current source passes; remeasure
-  remaining costs before changing Gamma rather than transferring old sample
-  proportions to the new executor. At `844e450838`, two short D-runtime windows
-  found expression skipping in 37/160 stacks; an independent OS sample placed 6077/6907 native PCs in
-  Alpha dispatch. These overlap interpreter layers, not additive costs or a
-  promised speedup. Prefer OS sampling and disposable diagnostics; retain no
-  profiling subsystem. Acceptance: decide whether measured remaining cost
-  justifies a bounded simplification after counting evaluator, seed, proof,
-  storage, and validation costs together. Leaving the run-once chain slow is
-  acceptable. Jets and native replacement evaluators are not authorized by
-  this task; any compelling replacement-rung case goes to OWNER_QUESTIONS.md.
-
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
   [measured cost review](wiki/drafts/bootstrap_cost_review.md) before
   expanding infrastructure. Owners remain Delta normalization,

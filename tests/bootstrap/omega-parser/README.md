@@ -101,3 +101,44 @@ is measured above. Keeping syntax payloads and destructuring them directly
 remains an unmeasured simpler-layout alternative, not a demonstrated improvement
 over this result. The successful comparison closes this optimization's customer
 check, not final Epsilon conformance, complete D, or any proof edge.
+
+## Gamma scanning review
+
+Retain the current Gamma scanner without an expression-end index. The complete
+customer passes after compact field identities; the evidence below does not
+demonstrate a need for more low-level state in this run-once chain. This is a
+decision against additional machinery now, not a claim that scanning is cheap
+or that a local optimization cannot help. The
+[evaluator rationale](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md#expression-scanning)
+compares the implementation and audit obligations.
+
+On 2026-09-08 UTC at `9a658149720c5afbba5dc3011759f659cc752306`, a disposable
+macOS arm64 probe reused the exact 713,259-byte compact-field receipt and
+470,766-byte customer identified above, with the unchanged selected Gamma tape
+and Alpha seed. It used the gate's framing and result comparison but did not
+repeat receipt reconstruction. The process completed all twelve checks in
+2,762.885 seconds (46.048 minutes), returning outer status zero, exact
+`000000000041`, and empty stderr. Debugger pauses and OS sampling are included;
+this is another successful execution, not a new optimization or speedup.
+
+Three short LLDB windows read the Alpha program counter/return stack and Gamma
+activation rows, with 120 snapshots per window at randomized 0.12–0.26-second
+running intervals. A snapshot counted as skipping when its current Beta label
+or an Alpha return-stack label belonged to `skip_expression`:
+
+| Observed phase of the same complete customer | Skipping snapshots |
+| --- | ---: |
+| Epsilon lexical precheck of D source | 20 / 120 |
+| Epsilon checking D expressions and continuations | 40 / 120 |
+| Epsilon checking D names and transitions | 27 / 120 |
+
+These are phase-local observations, not a whole-process cost distribution.
+A later single snapshot reached D execution through Epsilon's runtime field
+reader; the sustained runtime window was missed during an interruption and
+supplies no runtime percentage. The older 37/160 D-runtime observation used
+the pre-compact-field receipt and is not a current-runtime estimate.
+Separately, macOS `sample <pid> 10` during the early source phase placed
+6,712 of 7,807 top native PCs in Alpha's `next` dispatch. Native dispatch and
+Gamma skipping overlap interpreter layers; their counts cannot be added or
+read as a promised speedup. The probes were disposable, not repository tooling
+or proof evidence. No Windows profiling result is claimed.
