@@ -7,12 +7,19 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 159,044 bytes, SHA-256
-`7b39266be43a7459a717f6624cc6e128579869398eae3e3ecef5a08006183df5`.
+closure: 162,740 bytes, SHA-256
+`79649a72f55d9b6d12352995dc62d1f124b5e092754fc93f9b8c91d2bb70224c`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
 argument; a new source manifest digest alone does not preserve this evidence.
+
+The packed runtime annotations add comments and rename `ignoredN` to equal-length
+`writtenN` binders without changing executable structure. The fixed-source counts
+and recursive call edges below therefore remain unchanged. Removing those
+annotations and reversing the binder renames recovers the prior emitter exactly;
+direct baseline/candidate checks also preserve all three emitters' publication
+bytes and counts. No storage provision or bound is increased for this revision.
 
 ## Fixed source and call inventory
 

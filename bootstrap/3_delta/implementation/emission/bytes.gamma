@@ -1,178 +1,182 @@
+; Fixed Gamma text, packed least-significant byte first. Each ascii annotation
+; states the exact emitted bytes; tests/delta/emission/packed_text_test.py checks
+; their correspondence. The writtenN bindings carry the byte count through both
+; count-only and publication calls; they do not discard an effect or result.
 (def emit_bytes_runtime ((publish Int) (written Int)) Int
-  (let ignored0 Int (emit_ascii 7089831434963477544 8 publish written)
-  (let ignored1 Int (emit_ascii 8389723558316089445 8 publish ignored0)
-  (let ignored2 Int (emit_ascii 3467897510007154720 8 publish ignored1)
-  (let ignored3 Int (emit_ascii 3467897510007154720 8 publish ignored2)
-  (let ignored4 Int (emit_ascii 7217029574761721888 8 publish ignored3)
-  (let ignored5 Int (emit_ascii 2338320813777774181 8 publish ignored4)
-  (let ignored6 Int (emit_ascii 2987133713209763880 8 publish ignored5)
-  (let ignored7 Int (emit_ascii 7577342057489440809 8 publish ignored6)
-  (let ignored8 Int (emit_ascii 2339092740868415590 8 publish ignored7)
-  (let ignored9 Int (emit_ascii 2319670669981264176 8 publish ignored8)
-  (let ignored10 Int (emit_ascii 2891423562602654000 8 publish ignored9)
-  (let ignored11 Int (emit_ascii 3906083366815954028 8 publish ignored10)
-  (let ignored12 Int (emit_ascii 2338047023773130793 8 publish ignored11)
-  (let ignored13 Int (emit_ascii 2338047023773130801 8 publish ignored12)
-  (let ignored14 Int (emit_ascii 3398001280012394545 8 publish ignored13)
-  (let ignored15 Int (emit_ascii 2965947086477996320 8 publish ignored14)
-  (let ignored16 Int (emit_ascii 7215928127114192906 8 publish ignored15)
-  (let ignored17 Int (emit_ascii 5269341478867463266 8 publish ignored16)
-  (let ignored18 Int (emit_ascii 8389723558316176494 8 publish ignored17)
-  (let ignored19 Int (emit_ascii 2338621041743898656 8 publish ignored18)
-  (let ignored20 Int (emit_ascii 7378413687648364918 8 publish ignored19)
-  (let ignored21 Int (emit_ascii 2893598371810124832 8 publish ignored20)
-  (let ignored22 Int (emit_ascii 2891356540815089772 8 publish ignored21)
-  (let ignored23 Int (emit_ascii 2317429063302062194 8 publish ignored22)
-  (let ignored24 Int (emit_ascii 8387228800646409801 8 publish ignored23)
-  (let ignored25 Int (emit_ascii 2338615366867774496 8 publish ignored24)
-  (let ignored26 Int (emit_ascii 7791355394540529192 8 publish ignored25)
-  (let ignored27 Int (emit_ascii 8223700898533613609 8 publish ignored26)
-  (let ignored28 Int (emit_ascii 7361169275375657068 8 publish ignored27)
-  (let ignored29 Int (emit_ascii 2317508966977073769 8 publish ignored28)
-  (let ignored30 Int (emit_ascii 5269332649694293032 8 publish ignored29)
-  (let ignored31 Int (emit_ascii 7812654823309866094 8 publish ignored30)
-  (let ignored32 Int (emit_ascii 7379473583022305824 8 publish ignored31)
-  (let ignored33 Int (emit_ascii 7791348441022212128 8 publish ignored32)
-  (let ignored34 Int (emit_ascii 2319670669981264236 8 publish ignored33)
-  (let ignored35 Int (emit_ascii 8244227727215831344 8 publish ignored34)
-  (let ignored36 Int (emit_ascii 8244227727215848992 8 publish ignored35)
-  (let ignored37 Int (emit_ascii 8244227727215833632 8 publish ignored36)
-  (let ignored38 Int (emit_ascii 2965947087585307680 8 publish ignored37)
-  (let ignored39 Int (emit_ascii 7306008519607134505 8 publish ignored38)
-  (let ignored40 Int (emit_ascii 2891424633056403558 8 publish ignored39)
-  (let ignored41 Int (emit_ascii 2317511500280919592 8 publish ignored40)
-  (let ignored42 Int (emit_ascii 2966029846622267688 8 publish ignored41)
-  (let ignored43 Int (emit_ascii 7379473584280717600 8 publish ignored42)
-  (let ignored44 Int (emit_ascii 3467887301188397088 8 publish ignored43)
-  (let ignored45 Int (emit_ascii 3467825727375155241 8 publish ignored44)
-  (let ignored46 Int (emit_ascii 7793514779387633705 8 publish ignored45)
-  (let ignored47 Int (emit_ascii 8244232915406889076 8 publish ignored46)
-  (let ignored48 Int (emit_ascii 2891356218824094835 8 publish ignored47)
-  (let ignored49 Int (emit_ascii 2339092693543707684 8 publish ignored48)
-  (let ignored50 Int (emit_ascii 2319670669981264233 8 publish ignored49)
-  (let ignored51 Int (emit_ascii 7217029574761720112 8 publish ignored50)
-  (let ignored52 Int (emit_ascii 7595147478825985637 8 publish ignored51)
-  (let ignored53 Int (emit_ascii 8389723559607937056 8 publish ignored52)
-  (let ignored54 Int (emit_ascii 8389723559389831209 8 publish ignored53)
-  (let ignored55 Int (emit_ascii 2891438977793927465 8 publish ignored54)
-  (let ignored56 Int (emit_ascii 7946918674834941292 8 publish ignored55)
-  (let ignored57 Int (emit_ascii 7957688353961812084 8 publish ignored56)
-  (let ignored58 Int (emit_ascii 7308260413915144292 8 publish ignored57)
-  (let ignored59 Int (emit_ascii 2338615366868279412 8 publish ignored58)
-  (let ignored60 Int (emit_ascii 7935470582616385064 8 publish ignored59)
-  (let ignored61 Int (emit_ascii 7289111621122138153 8 publish ignored60)
-  (let ignored62 Int (emit_ascii 2891356251746476145 8 publish ignored61)
-  (let ignored63 Int (emit_ascii 7935452968904779123 8 publish ignored62)
-  (let ignored64 Int (emit_ascii 7289111621122138153 8 publish ignored63)
-  (let ignored65 Int (emit_ascii 2891356256041443441 8 publish ignored64)
-  (let ignored66 Int (emit_ascii 7946918627590301036 8 publish ignored65)
-  (let ignored67 Int (emit_ascii 7957688353961812084 8 publish ignored66)
-  (let ignored68 Int (emit_ascii 7308260413914620004 8 publish ignored67)
-  (let ignored69 Int (emit_ascii 2338615366867755124 8 publish ignored68)
-  (let ignored70 Int (emit_ascii 7142837048199177768 8 publish ignored69)
-  (let ignored71 Int (emit_ascii 8800161650837037097 8 publish ignored70)
-  (let ignored72 Int (emit_ascii 7594801941464369440 8 publish ignored71)
-  (let ignored73 Int (emit_ascii 2891356505149567858 8 publish ignored72)
-  (let ignored74 Int (emit_ascii 7575182581115676265 8 publish ignored73)
-  (let ignored75 Int (emit_ascii 7089831468144884256 8 publish ignored74)
-  (let ignored76 Int (emit_ascii 2317499071232764263 8 publish ignored75)
-  (let ignored77 Int (emit_ascii 2891426853525136424 8 publish ignored76)
-  (let ignored78 Int (emit_ascii 7142819434487571827 8 publish ignored77)
-  (let ignored79 Int (emit_ascii 8800149258799423529 8 publish ignored78)
-  (let ignored80 Int (emit_ascii 2891356217532819753 8 publish ignored79)
-  (let ignored81 Int (emit_ascii 2965947116275441711 8 publish ignored80)
-  (let ignored82 Int (emit_ascii 170469673 4 publish ignored81)
-    ignored82))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+  (let written0 Int (emit_ascii 7089831434963477544 8 publish written) ; ascii: "(def $db"
+  (let written1 Int (emit_ascii 8389723558316089445 8 publish written0) ; ascii: "e () Int"
+  (let written2 Int (emit_ascii 3467897510007154720 8 publish written1) ; ascii: " (pair 0"
+  (let written3 Int (emit_ascii 3467897510007154720 8 publish written2) ; ascii: " (pair 0"
+  (let written4 Int (emit_ascii 7217029574761721888 8 publish written3) ; ascii: " 0)))\n(d"
+  (let written5 Int (emit_ascii 2338320813777774181 8 publish written4) ; ascii: "ef $dbs "
+  (let written6 Int (emit_ascii 2987133713209763880 8 publish written5) ; ascii: "((v Int)"
+  (let written7 Int (emit_ascii 7577342057489440809 8 publish written6) ; ascii: ") Int (i"
+  (let written8 Int (emit_ascii 2339092740868415590 8 publish written7) ; ascii: "f (lt v "
+  (let written9 Int (emit_ascii 2319670669981264176 8 publish written8) ; ascii: "0) (/ 1 "
+  (let written10 Int (emit_ascii 2891423562602654000 8 publish written9) ; ascii: "0) (if ("
+  (let written11 Int (emit_ascii 3906083366815954028 8 publish written10) ; ascii: "lt v 256"
+  (let written12 Int (emit_ascii 2338047023773130793 8 publish written11) ; ascii: ") (pair "
+  (let written13 Int (emit_ascii 2338047023773130801 8 publish written12) ; ascii: "1 (pair "
+  (let written14 Int (emit_ascii 3398001280012394545 8 publish written13) ; ascii: "1 v)) (/"
+  (let written15 Int (emit_ascii 2965947086477996320 8 publish written14) ; ascii: " 1 0))))"
+  (let written16 Int (emit_ascii 7215928127114192906 8 publish written15) ; ascii: "\n(def $d"
+  (let written17 Int (emit_ascii 5269341478867463266 8 publish written16) ; ascii: "bl ((v I"
+  (let written18 Int (emit_ascii 8389723558316176494 8 publish written17) ; ascii: "nt)) Int"
+  (let written19 Int (emit_ascii 2338621041743898656 8 publish written18) ; ascii: " (first "
+  (let written20 Int (emit_ascii 7378413687648364918 8 publish written19) ; ascii: "v))\n(def"
+  (let written21 Int (emit_ascii 2893598371810124832 8 publish written20) ; ascii: " $dbc (("
+  (let written22 Int (emit_ascii 2891356540815089772 8 publish written21) ; ascii: "l Int) ("
+  (let written23 Int (emit_ascii 2317429063302062194 8 publish written22) ; ascii: "r Int)) "
+  (let written24 Int (emit_ascii 8387228800646409801 8 publish written23) ; ascii: "Int (let"
+  (let written25 Int (emit_ascii 2338615366867774496 8 publish written24) ; ascii: " ll Int "
+  (let written26 Int (emit_ascii 7791355394540529192 8 publish written25) ; ascii: "(first l"
+  (let written27 Int (emit_ascii 8223700898533613609 8 publish written26) ; ascii: ") (let r"
+  (let written28 Int (emit_ascii 7361169275375657068 8 publish written27) ; ascii: "l Int (f"
+  (let written29 Int (emit_ascii 2317508966977073769 8 publish written28) ; ascii: "irst r) "
+  (let written30 Int (emit_ascii 5269332649694293032 8 publish written29) ; ascii: "(let n I"
+  (let written31 Int (emit_ascii 7812654823309866094 8 publish written30) ; ascii: "nt (+ ll"
+  (let written32 Int (emit_ascii 7379473583022305824 8 publish written31) ; ascii: " rl) (if"
+  (let written33 Int (emit_ascii 7791348441022212128 8 publish written32) ; ascii: " (lt n l"
+  (let written34 Int (emit_ascii 2319670669981264236 8 publish written33) ; ascii: "l) (/ 1 "
+  (let written35 Int (emit_ascii 8244227727215831344 8 publish written34) ; ascii: "0) (pair"
+  (let written36 Int (emit_ascii 8244227727215848992 8 publish written35) ; ascii: " n (pair"
+  (let written37 Int (emit_ascii 8244227727215833632 8 publish written36) ; ascii: " 2 (pair"
+  (let written38 Int (emit_ascii 2965947087585307680 8 publish written37) ; ascii: " l r))))"
+  (let written39 Int (emit_ascii 7306008519607134505 8 publish written38) ; ascii: "))))\n(de"
+  (let written40 Int (emit_ascii 2891424633056403558 8 publish written39) ; ascii: "f $dbg ("
+  (let written41 Int (emit_ascii 2317511500280919592 8 publish written40) ; ascii: "(v Int) "
+  (let written42 Int (emit_ascii 2966029846622267688 8 publish written41) ; ascii: "(i Int))"
+  (let written43 Int (emit_ascii 7379473584280717600 8 publish written42) ; ascii: " Int (if"
+  (let written44 Int (emit_ascii 3467887301188397088 8 publish written43) ; ascii: " (lt i 0"
+  (let written45 Int (emit_ascii 3467825727375155241 8 publish written44) ; ascii: ") (/ 1 0"
+  (let written46 Int (emit_ascii 7793514779387633705 8 publish written45) ; ascii: ") (if (l"
+  (let written47 Int (emit_ascii 8244232915406889076 8 publish written46) ; ascii: "t i (fir"
+  (let written48 Int (emit_ascii 2891356218824094835 8 publish written47) ; ascii: "st v)) ("
+  (let written49 Int (emit_ascii 2339092693543707684 8 publish written48) ; ascii: "$dbgi v "
+  (let written50 Int (emit_ascii 2319670669981264233 8 publish written49) ; ascii: "i) (/ 1 "
+  (let written51 Int (emit_ascii 7217029574761720112 8 publish written50) ; ascii: "0))))\n(d"
+  (let written52 Int (emit_ascii 7595147478825985637 8 publish written51) ; ascii: "ef $dbgi"
+  (let written53 Int (emit_ascii 8389723559607937056 8 publish written52) ; ascii: " ((v Int"
+  (let written54 Int (emit_ascii 8389723559389831209 8 publish written53) ; ascii: ") (i Int"
+  (let written55 Int (emit_ascii 2891438977793927465 8 publish written54) ; ascii: ")) Int ("
+  (let written56 Int (emit_ascii 7946918674834941292 8 publish written55) ; ascii: "let n In"
+  (let written57 Int (emit_ascii 7957688353961812084 8 publish written56) ; ascii: "t (secon"
+  (let written58 Int (emit_ascii 7308260413915144292 8 publish written57) ; ascii: "d v) (le"
+  (let written59 Int (emit_ascii 2338615366868279412 8 publish written58) ; ascii: "t t Int "
+  (let written60 Int (emit_ascii 7935470582616385064 8 publish written59) ; ascii: "(first n"
+  (let written61 Int (emit_ascii 7289111621122138153 8 publish written60) ; ascii: ") (if (e"
+  (let written62 Int (emit_ascii 2891356251746476145 8 publish written61) ; ascii: "q t 1) ("
+  (let written63 Int (emit_ascii 7935452968904779123 8 publish written62) ; ascii: "second n"
+  (let written64 Int (emit_ascii 7289111621122138153 8 publish written63) ; ascii: ") (if (e"
+  (let written65 Int (emit_ascii 2891356256041443441 8 publish written64) ; ascii: "q t 2) ("
+  (let written66 Int (emit_ascii 7946918627590301036 8 publish written65) ; ascii: "let c In"
+  (let written67 Int (emit_ascii 7957688353961812084 8 publish written66) ; ascii: "t (secon"
+  (let written68 Int (emit_ascii 7308260413914620004 8 publish written67) ; ascii: "d n) (le"
+  (let written69 Int (emit_ascii 2338615366867755124 8 publish written68) ; ascii: "t l Int "
+  (let written70 Int (emit_ascii 7142837048199177768 8 publish written69) ; ascii: "(first c"
+  (let written71 Int (emit_ascii 8800161650837037097 8 publish written70) ; ascii: ") (let z"
+  (let written72 Int (emit_ascii 7594801941464369440 8 publish written71) ; ascii: " Int (fi"
+  (let written73 Int (emit_ascii 2891356505149567858 8 publish written72) ; ascii: "rst l) ("
+  (let written74 Int (emit_ascii 7575182581115676265 8 publish written73) ; ascii: "if (lt i"
+  (let written75 Int (emit_ascii 7089831468144884256 8 publish written74) ; ascii: " z) ($db"
+  (let written76 Int (emit_ascii 2317499071232764263 8 publish written75) ; ascii: "gi l i) "
+  (let written77 Int (emit_ascii 2891426853525136424 8 publish written76) ; ascii: "($dbgi ("
+  (let written78 Int (emit_ascii 7142819434487571827 8 publish written77) ; ascii: "second c"
+  (let written79 Int (emit_ascii 8800149258799423529 8 publish written78) ; ascii: ") (- i z"
+  (let written80 Int (emit_ascii 2891356217532819753 8 publish written79) ; ascii: ")))))) ("
+  (let written81 Int (emit_ascii 2965947116275441711 8 publish written80) ; ascii: "/ 1 0)))"
+  (let written82 Int (emit_ascii 170469673 4 publish written81) ; ascii: ")))\n"
+    written82))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 
 (def emit_conformance_runtime ((publish Int) (written Int)) Int
-    (let ignored0 Int (emit_ascii 7093209134684005416 8 publish written)
-    (let ignored1 Int (emit_ascii 7946918709323898983 8 publish ignored0)
-    (let ignored2 Int (emit_ascii 7946918653488802164 8 publish ignored1)
-    (let ignored3 Int (emit_ascii 2338615366863366516 8 publish ignored2)
-    (let ignored4 Int (emit_ascii 2338613026110204200 8 publish ignored3)
-    (let ignored5 Int (emit_ascii 2319116451714179177 8 publish ignored4)
-    (let ignored6 Int (emit_ascii 7379473583018352689 8 publish ignored5)
-    (let ignored7 Int (emit_ascii 2891426548884973600 8 publish ignored6)
-    (let ignored8 Int (emit_ascii 2987611087332075878 8 publish ignored7)
-    (let ignored9 Int (emit_ascii 7595147530366099497 8 publish ignored8)
-    (let ignored10 Int (emit_ascii 3398001281080522272 8 publish ignored9)
-    (let ignored11 Int (emit_ascii 2965947086477996320 8 publish ignored10)
-    (let ignored12 Int (emit_ascii 8080619255569328138 8 publish ignored11)
-    (let ignored13 Int (emit_ascii 2339101209273132898 8 publish ignored12)
-    (let ignored14 Int (emit_ascii 2335442000367873609 8 publish ignored13)
-    (let ignored15 Int (emit_ascii 7946918378633195081 8 publish ignored14)
-    (let ignored16 Int (emit_ascii 7935470522381901940 8 publish ignored15)
-    (let ignored17 Int (emit_ascii 7310230740009896224 8 publish ignored16)
-    (let ignored18 Int (emit_ascii 2317513364754820963 8 publish ignored17)
-    (let ignored19 Int (emit_ascii 5269339246764059688 8 publish ignored18)
-    (let ignored20 Int (emit_ascii 8318827349187523694 8 publish ignored19)
-    (let ignored21 Int (emit_ascii 7379473583022415988 8 publish ignored20)
-    (let ignored22 Int (emit_ascii 3539956989803440160 8 publish ignored21)
-    (let ignored23 Int (emit_ascii 7957688353961812009 8 publish ignored22)
-    (let ignored24 Int (emit_ascii 7379473583022415972 8 publish ignored23)
-    (let ignored25 Int (emit_ascii 3612014583841368096 8 publish ignored24)
-    (let ignored26 Int (emit_ascii 7142836987964694569 8 publish ignored25)
-    (let ignored27 Int (emit_ascii 7310230740009896224 8 publish ignored26)
-    (let ignored28 Int (emit_ascii 2317504568661798755 8 publish ignored27)
-    (let ignored29 Int (emit_ascii 5269330450671037480 8 publish ignored28)
-    (let ignored30 Int (emit_ascii 8318827349187523694 8 publish ignored29)
-    (let ignored31 Int (emit_ascii 7308260413913899124 8 publish ignored30)
-    (let ignored32 Int (emit_ascii 2338615366868672628 8 publish ignored31)
-    (let ignored33 Int (emit_ascii 7791355394540529192 8 publish ignored32)
-    (let ignored34 Int (emit_ascii 7793514779387633705 8 publish ignored33)
-    (let ignored35 Int (emit_ascii 2891356565278367860 8 publish ignored34)
-    (let ignored36 Int (emit_ascii 2336277943776604196 8 publish ignored35)
-    (let ignored37 Int (emit_ascii 7449640034218551657 8 publish ignored36)
-    (let ignored38 Int (emit_ascii 7957688353961812073 8 publish ignored37)
-    (let ignored39 Int (emit_ascii 2318553501764100196 8 publish ignored38)
-    (let ignored40 Int (emit_ascii 2965947086366449769 8 publish ignored39)
-    (let ignored41 Int (emit_ascii 7289111621122138153 8 publish ignored40)
-    (let ignored42 Int (emit_ascii 2891356260336410737 8 publish ignored41)
-    (let ignored43 Int (emit_ascii 2317499071102805362 8 publish ignored42)
-    (let ignored44 Int (emit_ascii 2965954744421461800 8 publish ignored43)
-    (let ignored45 Int (emit_ascii 7217029574761720105 8 publish ignored44)
-    (let ignored46 Int (emit_ascii 2335506115550275173 8 publish ignored45)
-    (let ignored47 Int (emit_ascii 2891438977793927464 8 publish ignored46)
-    (let ignored48 Int (emit_ascii 7955934336550265200 8 publish ignored47)
-    (let ignored49 Int (emit_ascii 7021155937670165872 8 publish ignored48)
-    (let ignored50 Int (emit_ascii 2965954744455033449 8 publish ignored49)
-    (let ignored51 Int (emit_ascii 2603193170278222377 8 publish ignored50)
-    (let ignored52 Int (emit_ascii 2339101209274049136 8 publish ignored51)
-    (let ignored53 Int (emit_ascii 2335442000367873609 8 publish ignored52)
-    (let ignored54 Int (emit_ascii 2336849375251426889 8 publish ignored53)
-    (let ignored55 Int (emit_ascii 7946918378633195081 8 publish ignored54)
-    (let ignored56 Int (emit_ascii 7289111621122138228 8 publish ignored55)
-    (let ignored57 Int (emit_ascii 2891356513738760305 8 publish ignored56)
-    (let ignored58 Int (emit_ascii 3539882223029805424 8 publish ignored57)
-    (let ignored59 Int (emit_ascii 8656046462761181225 8 publish ignored58)
-    (let ignored60 Int (emit_ascii 8248105362409802016 8 publish ignored59)
-    (let ignored61 Int (emit_ascii 7093209167869342825 8 publish ignored60)
-    (let ignored62 Int (emit_ascii 2317429014751748199 8 publish ignored61)
-    (let ignored63 Int (emit_ascii 2339092753590264872 8 publish ignored62)
-    (let ignored64 Int (emit_ascii 2317437498531261224 8 publish ignored63)
-    (let ignored65 Int (emit_ascii 11171900500334 6 publish ignored64)
-      ignored65)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (let written0 Int (emit_ascii 7093209134684005416 8 publish written) ; ascii: "(def $pb"
+    (let written1 Int (emit_ascii 7946918709323898983 8 publish written0) ; ascii: "g ((v In"
+    (let written2 Int (emit_ascii 7946918653488802164 8 publish written1) ; ascii: "t) (i In"
+    (let written3 Int (emit_ascii 2338615366863366516 8 publish written2) ; ascii: "t)) Int "
+    (let written4 Int (emit_ascii 2338613026110204200 8 publish written3) ; ascii: "(if (lt "
+    (let written5 Int (emit_ascii 2319116451714179177 8 publish written4) ; ascii: "i 0) (/ "
+    (let written6 Int (emit_ascii 7379473583018352689 8 publish written5) ; ascii: "1 0) (if"
+    (let written7 Int (emit_ascii 2891426548884973600 8 publish written6) ; ascii: " (lt i ("
+    (let written8 Int (emit_ascii 2987611087332075878 8 publish written7) ; ascii: "first v)"
+    (let written9 Int (emit_ascii 7595147530366099497 8 publish written8) ; ascii: ") ($pbgi"
+    (let written10 Int (emit_ascii 3398001281080522272 8 publish written9) ; ascii: " v i) (/"
+    (let written11 Int (emit_ascii 2965947086477996320 8 publish written10) ; ascii: " 1 0))))"
+    (let written12 Int (emit_ascii 8080619255569328138 8 publish written11) ; ascii: "\n(def $p"
+    (let written13 Int (emit_ascii 2339101209273132898 8 publish written12) ; ascii: "bgi ((v "
+    (let written14 Int (emit_ascii 2335442000367873609 8 publish written13) ; ascii: "Int) (i "
+    (let written15 Int (emit_ascii 7946918378633195081 8 publish written14) ; ascii: "Int)) In"
+    (let written16 Int (emit_ascii 7935470522381901940 8 publish written15) ; ascii: "t (let n"
+    (let written17 Int (emit_ascii 7310230740009896224 8 publish written16) ; ascii: " Int (se"
+    (let written18 Int (emit_ascii 2317513364754820963 8 publish written17) ; ascii: "cond v) "
+    (let written19 Int (emit_ascii 5269339246764059688 8 publish written18) ; ascii: "(let t I"
+    (let written20 Int (emit_ascii 8318827349187523694 8 publish written19) ; ascii: "nt (firs"
+    (let written21 Int (emit_ascii 7379473583022415988 8 publish written20) ; ascii: "t n) (if"
+    (let written22 Int (emit_ascii 3539956989803440160 8 publish written21) ; ascii: " (eq t 1"
+    (let written23 Int (emit_ascii 7957688353961812009 8 publish written22) ; ascii: ") (secon"
+    (let written24 Int (emit_ascii 7379473583022415972 8 publish written23) ; ascii: "d n) (if"
+    (let written25 Int (emit_ascii 3612014583841368096 8 publish written24) ; ascii: " (eq t 2"
+    (let written26 Int (emit_ascii 7142836987964694569 8 publish written25) ; ascii: ") (let c"
+    (let written27 Int (emit_ascii 7310230740009896224 8 publish written26) ; ascii: " Int (se"
+    (let written28 Int (emit_ascii 2317504568661798755 8 publish written27) ; ascii: "cond n) "
+    (let written29 Int (emit_ascii 5269330450671037480 8 publish written28) ; ascii: "(let l I"
+    (let written30 Int (emit_ascii 8318827349187523694 8 publish written29) ; ascii: "nt (firs"
+    (let written31 Int (emit_ascii 7308260413913899124 8 publish written30) ; ascii: "t c) (le"
+    (let written32 Int (emit_ascii 2338615366868672628 8 publish written31) ; ascii: "t z Int "
+    (let written33 Int (emit_ascii 7791355394540529192 8 publish written32) ; ascii: "(first l"
+    (let written34 Int (emit_ascii 7793514779387633705 8 publish written33) ; ascii: ") (if (l"
+    (let written35 Int (emit_ascii 2891356565278367860 8 publish written34) ; ascii: "t i z) ("
+    (let written36 Int (emit_ascii 2336277943776604196 8 publish written35) ; ascii: "$pbgi l "
+    (let written37 Int (emit_ascii 7449640034218551657 8 publish written36) ; ascii: "i) ($pbg"
+    (let written38 Int (emit_ascii 7957688353961812073 8 publish written37) ; ascii: "i (secon"
+    (let written39 Int (emit_ascii 2318553501764100196 8 publish written38) ; ascii: "d c) (- "
+    (let written40 Int (emit_ascii 2965947086366449769 8 publish written39) ; ascii: "i z)))))"
+    (let written41 Int (emit_ascii 7289111621122138153 8 publish written40) ; ascii: ") (if (e"
+    (let written42 Int (emit_ascii 2891356260336410737 8 publish written41) ; ascii: "q t 3) ("
+    (let written43 Int (emit_ascii 2317499071102805362 8 publish written42) ; ascii: "read i) "
+    (let written44 Int (emit_ascii 2965954744421461800 8 publish written43) ; ascii: "(/ 1 0))"
+    (let written45 Int (emit_ascii 7217029574761720105 8 publish written44) ; ascii: ")))))\n(d"
+    (let written46 Int (emit_ascii 2335506115550275173 8 publish written45) ; ascii: "ef $pbi "
+    (let written47 Int (emit_ascii 2891438977793927464 8 publish written46) ; ascii: "() Int ("
+    (let written48 Int (emit_ascii 7955934336550265200 8 publish written47) ; ascii: "pair (in"
+    (let written49 Int (emit_ascii 7021155937670165872 8 publish written48) ; ascii: "put) (pa"
+    (let written50 Int (emit_ascii 2965954744455033449 8 publish written49) ; ascii: "ir 3 0))"
+    (let written51 Int (emit_ascii 2603193170278222377 8 publish written50) ; ascii: ")\n(def $"
+    (let written52 Int (emit_ascii 2339101209274049136 8 publish written51) ; ascii: "pbw ((v "
+    (let written53 Int (emit_ascii 2335442000367873609 8 publish written52) ; ascii: "Int) (i "
+    (let written54 Int (emit_ascii 2336849375251426889 8 publish written53) ; ascii: "Int) (n "
+    (let written55 Int (emit_ascii 7946918378633195081 8 publish written54) ; ascii: "Int)) In"
+    (let written56 Int (emit_ascii 7289111621122138228 8 publish written55) ; ascii: "t (if (e"
+    (let written57 Int (emit_ascii 2891356513738760305 8 publish written56) ; ascii: "q i n) ("
+    (let written58 Int (emit_ascii 3539882223029805424 8 publish written57) ; ascii: "pair 0 1"
+    (let written59 Int (emit_ascii 8656046462761181225 8 publish written58) ; ascii: ") (let x"
+    (let written60 Int (emit_ascii 8248105362409802016 8 publish written59) ; ascii: " Int (wr"
+    (let written61 Int (emit_ascii 7093209167869342825 8 publish written60) ; ascii: "ite ($pb"
+    (let written62 Int (emit_ascii 2317429014751748199 8 publish written61) ; ascii: "g v i)) "
+    (let written63 Int (emit_ascii 2339092753590264872 8 publish written62) ; ascii: "($pbw v "
+    (let written64 Int (emit_ascii 2317437498531261224 8 publish written63) ; ascii: "(+ i 1) "
+    (let written65 Int (emit_ascii 11171900500334 6 publish written64) ; ascii: "n))))\n"
+      written65)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 (def emit_conformance_adapter ((publish Int) (written Int)) Int
-    (let ignored0 Int (emit_ascii 7593470432647668776 8 publish written)
-    (let ignored1 Int (emit_ascii 8389723558316089454 8 publish ignored0)
-    (let ignored2 Int (emit_ascii 8389124325506623520 8 publish ignored1)
-    (let ignored3 Int (emit_ascii 3760561988245206048 8 publish ignored2)
-    (let ignored4 Int (emit_ascii 2987141578602653728 8 publish ignored3)
-    (let ignored5 Int (emit_ascii 2338047023773130793 8 publish ignored4)
-    (let ignored6 Int (emit_ascii 2891356247447254322 8 publish ignored5)
-    (let ignored7 Int (emit_ascii 7946918709194679660 8 publish ignored6)
-    (let ignored8 Int (emit_ascii 7881128233702793332 8 publish ignored7)
-    (let ignored9 Int (emit_ascii 7093209167869929825 8 publish ignored8)
-    (let ignored10 Int (emit_ascii 8387228800641476969 8 publish ignored9)
-    (let ignored11 Int (emit_ascii 2891438977793945120 8 publish ignored10)
-    (let ignored12 Int (emit_ascii 2987611087332075878 8 publish ignored11)
-    (let ignored13 Int (emit_ascii 8389124325506623520 8 publish ignored12)
-    (let ignored14 Int (emit_ascii 3760561988245206048 8 publish ignored13)
-    (let ignored15 Int (emit_ascii 7593473764363955744 8 publish ignored14)
-    (let ignored16 Int (emit_ascii 2967907563040022642 8 publish ignored15)
-    (let ignored17 Int (emit_ascii 8511934560402155552 8 publish ignored16)
-    (let ignored18 Int (emit_ascii 2965947087518183456 8 publish ignored17)
-    (let ignored19 Int (emit_ascii 10537 2 publish ignored18)
-      ignored19)))))))))))))))))))))
+    (let written0 Int (emit_ascii 7593470432647668776 8 publish written) ; ascii: "(def mai"
+    (let written1 Int (emit_ascii 8389723558316089454 8 publish written0) ; ascii: "n () Int"
+    (let written2 Int (emit_ascii 8389124325506623520 8 publish written1) ; ascii: " (if (lt"
+    (let written3 Int (emit_ascii 3760561988245206048 8 publish written2) ; ascii: " 4194304"
+    (let written4 Int (emit_ascii 2987141578602653728 8 publish written3) ; ascii: " (input)"
+    (let written5 Int (emit_ascii 2338047023773130793 8 publish written4) ; ascii: ") (pair "
+    (let written6 Int (emit_ascii 2891356247447254322 8 publish written5) ; ascii: "253 0) ("
+    (let written7 Int (emit_ascii 7946918709194679660 8 publish written6) ; ascii: "let v In"
+    (let written8 Int (emit_ascii 7881128233702793332 8 publish written7) ; ascii: "t (__d_m"
+    (let written9 Int (emit_ascii 7093209167869929825 8 publish written8) ; ascii: "ain ($pb"
+    (let written10 Int (emit_ascii 8387228800641476969 8 publish written9) ; ascii: "i)) (let"
+    (let written11 Int (emit_ascii 2891438977793945120 8 publish written10) ; ascii: " n Int ("
+    (let written12 Int (emit_ascii 2987611087332075878 8 publish written11) ; ascii: "first v)"
+    (let written13 Int (emit_ascii 8389124325506623520 8 publish written12) ; ascii: " (if (lt"
+    (let written14 Int (emit_ascii 3760561988245206048 8 publish written13) ; ascii: " 4194304"
+    (let written15 Int (emit_ascii 7593473764363955744 8 publish written14) ; ascii: " n) (pai"
+    (let written16 Int (emit_ascii 2967907563040022642 8 publish written15) ; ascii: "r 254 0)"
+    (let written17 Int (emit_ascii 8511934560402155552 8 publish written16) ; ascii: " ($pbw v"
+    (let written18 Int (emit_ascii 2965947087518183456 8 publish written17) ; ascii: " 0 n))))"
+    (let written19 Int (emit_ascii 10537 2 publish written18) ; ascii: "))"
+      written19)))))))))))))))))))))

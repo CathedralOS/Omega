@@ -42,6 +42,15 @@ pipeline's existing runtime selection remains separate from generic expression
 serialization. These helpers, definition order, whitespace, hygienic spellings,
 and the final publication byte retain the established receipt format.
 
+Each packed runtime chunk has an adjacent exact ASCII annotation, checked by the
+[emission gate](../../../../tests/delta/emission/README.md). Running byte-count
+bindings are named `writtenN`, not ignored results. This keeps the emitted text
+visible on the implementation reading path without adding Gamma literal syntax
+or a host source generator. The annotation checker is diagnostic; byte agreement
+does not prove that the runtime implements Delta. Packing and its limited
+readability remain candidates for whole-chain comparison, not a reason to retain
+the representation permanently.
+
 Emission entrypoints receive a count/publication flag and running byte count.
 The expression entrance chooses cached counting or publication once; recursive
 publication does not carry or recheck that flag. Byte loops only write, and
