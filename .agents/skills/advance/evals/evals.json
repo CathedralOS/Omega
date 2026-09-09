@@ -218,6 +218,37 @@
         "Keeps timing secondary and adds no telemetry or scoring work",
         "Continues locally if dispatch is unavailable instead of repeatedly trying alternative routes"
       ]
+    },
+    {
+      "id": 13,
+      "name": "reconstructed-reasoning-stays-on-reading-path",
+      "prompt": "Advance the selected compiler customer. Its module entrance names the operations but does not explain their order. Investigation establishes why an existing comparison primitive is safe and why anonymous operands must land exactly before comparison. The rationale is currently only in a commit discussion. This machine has no personal documentation skills installed.",
+      "status": "Not run against this revision",
+      "expected_output": "Deliver the bounded improvement and preserve verified missing reasoning at the natural module entrance or decision site, with relevant regression references.",
+      "files": [],
+      "assertions": [
+        "Checks the historical rationale against current code and governing semantics before treating it as fact",
+        "Places critical explanation where the next editor naturally encounters it, not only in a README, commit message, board, or separate trace ledger",
+        "Explains constraints and relationships rather than paraphrasing operations or copying a deliberation transcript",
+        "Uses existing runnable examples where relevant without inventing historical intent or validation evidence",
+        "Does not require a personal skill, external memory, or special retrieval tool",
+        "Preserves normal customer acceptance, scoped validation, and landing requirements",
+        "Reports what was reconstructed and where the explanation now lives without claiming an unmeasured speedup"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "adequate-reasoning-needs-no-comment-churn",
+      "prompt": "Advance the selected customer with a small boundary fix. The module entrance and decision-site comments already explain the relevant invariant, rejected shortcut, and regression example accurately.",
+      "status": "Not run against this revision",
+      "expected_output": "Deliver the fix while retaining adequate existing explanations; no documentation expansion merely to satisfy a quota.",
+      "files": [],
+      "assertions": [
+        "Reads and uses the existing explanation before editing",
+        "Does not add redundant headers, templates, trace files, or unrelated documentation changes",
+        "Updates prose only if the resulting implementation makes it stale or exposes a real missing explanation",
+        "Reports the documentation that answered the design question without asserting that unvisited modules were evaluated"
+      ]
     }
   ]
 }
