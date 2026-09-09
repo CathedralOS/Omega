@@ -203,6 +203,7 @@ fn terminal_fixture() -> TerminalModule {
     let block = BlockId::new(0x7201).expect("block identity");
     let final_block = BlockId::new(0x7202).expect("final block identity");
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -304,6 +305,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
     let return_edge = core_id(0x7425, EdgeId::new);
 
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

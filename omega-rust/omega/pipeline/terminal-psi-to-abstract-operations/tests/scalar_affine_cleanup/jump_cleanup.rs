@@ -24,6 +24,7 @@ use super::support::{
 fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     let place = place_id(1);
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![StructuralTypeDeclaration {

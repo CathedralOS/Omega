@@ -775,6 +775,7 @@ fn provider_candidates_bind_the_exact_scalar_signature() {
 
 fn boundary_call_module() -> TerminalModule {
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -938,6 +939,7 @@ fn call_module() -> TerminalModule {
     let callee_parameter = value_id(4);
     let callee_result = value_id(5);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -1067,6 +1069,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
     let call_operation = operation_id(1);
     let constructor_operation = operation_id(2);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![StructuralTypeDeclaration {

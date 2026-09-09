@@ -26,6 +26,7 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
     let length = ValueId::new(5).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: vec![StructuralTypeDeclaration {

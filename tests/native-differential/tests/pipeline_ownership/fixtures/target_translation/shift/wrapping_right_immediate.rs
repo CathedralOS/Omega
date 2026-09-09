@@ -14,6 +14,7 @@ pub(crate) fn wrapping_integer_shift_right_immediate_return_artifact(
     let count_result = ValueId::new(83_006).unwrap();
     let shift_result = ValueId::new(83_008).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

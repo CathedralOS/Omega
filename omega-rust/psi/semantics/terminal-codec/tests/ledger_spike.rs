@@ -267,6 +267,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
     };
 
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
         structural_types: vec![StructuralTypeDeclaration {
@@ -490,6 +491,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
     };
 
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![
@@ -962,6 +964,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
     };
 
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),

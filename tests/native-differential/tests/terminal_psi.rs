@@ -100,6 +100,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         },
     };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         structural_types: Vec::new(),
@@ -399,6 +400,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         },
     };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         structural_types: Vec::new(),
@@ -515,6 +517,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         },
     };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         structural_types: Vec::new(),

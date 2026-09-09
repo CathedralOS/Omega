@@ -30,6 +30,7 @@ pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<
     let constant = ValueId::new(68_004).unwrap();
     let boolean_not = ValueId::new(68_006).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -126,6 +127,7 @@ pub(crate) fn integer_bitwise_not_immediate_return_artifact(
     let constant = ValueId::new(67_004).unwrap();
     let bitwise_not = ValueId::new(67_006).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -221,6 +223,7 @@ pub(crate) fn integer_widen_immediate_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let constant = ValueId::new(65_004).unwrap();
     let widened = ValueId::new(65_006).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -317,6 +320,7 @@ pub(crate) fn integer_exact_cast_immediate_operand_return_artifact() -> (Vec<u8>
     let cast = ValueId::new(66_006).unwrap();
     let obligation = ObligationId::new(66_009).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

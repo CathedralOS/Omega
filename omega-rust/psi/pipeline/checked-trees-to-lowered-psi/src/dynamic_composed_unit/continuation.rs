@@ -308,6 +308,7 @@ pub(super) fn lower(
     let source_machine_ids = catalogs.scalar_calls.machine_ids.clone();
     let mut lowered = catalogs.shared_units.take().unwrap_or_else(|| LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
             structural_types: catalogs.structural_types,

@@ -23,6 +23,12 @@ pub struct AcceptedObligationFact {
 /// becoming interchangeable optimizer authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProofQuestionOwner {
+    ScalarRangeInvariant {
+        machine: MachineId,
+        header: BlockId,
+        parameter: ValueId,
+        edge: EdgeId,
+    },
     Operation {
         machine: MachineId,
         operation: OperationId,
@@ -48,7 +54,8 @@ pub enum ProofQuestionOwner {
 impl ProofQuestionOwner {
     pub const fn machine(self) -> MachineId {
         match self {
-            Self::Operation { machine, .. }
+            Self::ScalarRangeInvariant { machine, .. }
+            | Self::Operation { machine, .. }
             | Self::CallRequires { machine, .. }
             | Self::NominalCleanupRequires { machine, .. }
             | Self::ContractEnsures { machine, .. } => machine,
@@ -242,6 +249,18 @@ pub fn proof_question_identity(
 
 fn encode_proof_question_owner(bytes: &mut Vec<u8>, owner: ProofQuestionOwner) {
     match owner {
+        ProofQuestionOwner::ScalarRangeInvariant {
+            machine,
+            header,
+            parameter,
+            edge,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&machine.get().to_le_bytes());
+            bytes.extend_from_slice(&header.get().to_le_bytes());
+            bytes.extend_from_slice(&parameter.get().to_le_bytes());
+            bytes.extend_from_slice(&edge.get().to_le_bytes());
+        }
         ProofQuestionOwner::Operation { machine, operation } => {
             bytes.push(1);
             bytes.extend_from_slice(&machine.get().to_le_bytes());

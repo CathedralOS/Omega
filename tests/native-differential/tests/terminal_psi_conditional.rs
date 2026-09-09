@@ -80,6 +80,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
         scalar_type,
     };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker,
         entry: MachineId::new(1).unwrap(),
         structural_types: Vec::new(),

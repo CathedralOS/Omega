@@ -3,7 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::Obligation;
-use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition};
+use semantic_vocabulary::{
+    BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition, ValueId,
+};
 use terminal_psi::{OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator};
 
 use crate::validation::exact_payloadless_case_return_exits;
@@ -15,6 +17,7 @@ mod machine_context;
 mod machine_flow;
 mod operation_facts;
 mod path_facts;
+mod scalar_range_invariants;
 mod terminator_facts;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +32,12 @@ pub struct ReconstructedOperationObligation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReconstructedTerminalObligationOwner {
+    ScalarRangeInvariant {
+        machine: MachineId,
+        header: BlockId,
+        parameter: ValueId,
+        edge: EdgeId,
+    },
     Operation {
         machine: MachineId,
         operation: OperationId,
@@ -54,7 +63,8 @@ pub enum ReconstructedTerminalObligationOwner {
 impl ReconstructedTerminalObligationOwner {
     pub const fn machine(self) -> MachineId {
         match self {
-            Self::Operation { machine, .. }
+            Self::ScalarRangeInvariant { machine, .. }
+            | Self::Operation { machine, .. }
             | Self::CallRequires { machine, .. }
             | Self::NominalCleanupRequires { machine, .. }
             | Self::ContractEnsures { machine, .. } => machine,
@@ -354,7 +364,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
         .filter_map(|ranking| ranking.as_unsigned_countdown())
         .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
         .collect::<BTreeSet<_>>();
-    let iteration_entries = if machine
+    let mut iteration_entries = if machine
         .ranked_scc
         .as_ref()
         .is_none_or(|ranking| ranking.as_unsigned_countdown().is_none())
@@ -365,6 +375,15 @@ fn reconstruct_machine_semantics_with_crash_facts(
     } else {
         BTreeSet::new()
     };
+    if !crash_facts {
+        iteration_entries.extend(
+            module
+                .scalar_range_invariants
+                .iter()
+                .filter(|invariant| invariant.machine == machine.id)
+                .map(|invariant| invariant.header),
+        );
+    }
     let block_order = machine_flow::deterministic_block_order(machine, &ignored_backedges);
     if block_order.len() != context.blocks.len() {
         return Err(ModuleError::ControlCycle(machine.entry));
@@ -376,11 +395,17 @@ fn reconstruct_machine_semantics_with_crash_facts(
             .expect("validated module contains every reached block");
         let mut axioms = if iteration_entries.contains(&current) {
             // Treat every arrival at a cut target as an arbitrary iteration.
-            // Facts from its first arrival are not invariants. Operations and
-            // guards after this reset establish current-iteration facts on the
-            // remaining acyclic paths, without assuming a backedge premise.
+            // Facts from its first arrival are not invariants. Declared scalar
+            // ranges are induction hypotheses: every actual arrival becomes
+            // a proof goal, and the complete verification transaction checks
+            // those goals and operation safety before returning authority.
+            // Private crash reconstruction retains its conservative empty cut.
             incoming.remove(&current);
-            Vec::new()
+            if crash_facts {
+                Vec::new()
+            } else {
+                scalar_range_invariants::header_axioms(module, machine.id, current)
+            }
         } else {
             machine_flow::take_guaranteed_incoming(&mut incoming, current)
         };
@@ -411,6 +436,16 @@ fn reconstruct_machine_semantics_with_crash_facts(
                     crash_field_origins::retains_entry_meaning(proposition, machine)
                 });
             }
+        }
+        if !crash_facts {
+            scalar_range_invariants::append_arrival_obligations(
+                module,
+                machine,
+                &block.terminator,
+                &|value| context.value_term(value),
+                &axioms,
+                &mut operation_obligations,
+            );
         }
         if matches!(
             machine.ranked_scc,

@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use proof_admission::{AdmissionKind, AuthorizedAdmission, Obligation, ObligationClass};
 use semantic_vocabulary::{
-    AdmissionSiteId, ContractId, EdgeId, EvidenceIdentity, MachineId, OperationId,
+    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, OperationId, ValueId,
 };
 use sha2::{Digest, Sha256};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
@@ -24,7 +24,7 @@ use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, terminal_psi_identity};
 
 const MAGIC: &[u8; 8] = b"PSIOBLG\0";
-const FORMAT_MARKER: u16 = 1;
+const FORMAT_MARKER: u16 = 2;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-obligation-ledger-fingerprint\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -234,6 +234,18 @@ fn decode_obligation(
 
 fn encode_owner(writer: &mut Writer, owner: ReconstructedTerminalObligationOwner) {
     match owner {
+        ReconstructedTerminalObligationOwner::ScalarRangeInvariant {
+            machine,
+            header,
+            parameter,
+            edge,
+        } => {
+            writer.u8(5);
+            writer.id(machine);
+            writer.id(header);
+            writer.id(parameter);
+            writer.id(edge);
+        }
         ReconstructedTerminalObligationOwner::Operation { machine, operation } => {
             writer.u8(1);
             writer.id(machine);
@@ -297,6 +309,12 @@ fn decode_owner(
             machine: reader.id::<MachineId>("MachineId")?,
             contract: reader.id::<ContractId>("ContractId")?,
             clause_position: reader.u32()?,
+        },
+        5 => ReconstructedTerminalObligationOwner::ScalarRangeInvariant {
+            machine: reader.id::<MachineId>("MachineId")?,
+            header: reader.id::<BlockId>("BlockId")?,
+            parameter: reader.id::<ValueId>("ValueId")?,
+            edge: reader.id::<EdgeId>("EdgeId")?,
         },
         tag => return Err(CodecError::InvalidTag("TerminalObligationOwner", tag)),
     })
@@ -390,6 +408,7 @@ mod tests {
 
     fn fixture() -> TerminalModule {
         TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: MachineId::new(1).unwrap(),
             structural_types: Vec::new(),

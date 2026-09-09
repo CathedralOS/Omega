@@ -387,6 +387,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
     let callee_parameter = value_id(4);
     let callee_result = value_id(5);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),

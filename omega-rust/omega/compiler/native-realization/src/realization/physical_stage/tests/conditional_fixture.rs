@@ -151,6 +151,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         operation.id = OperationId::new(u64::try_from(index + 1).unwrap()).unwrap();
     }
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         structural_types: Vec::new(),

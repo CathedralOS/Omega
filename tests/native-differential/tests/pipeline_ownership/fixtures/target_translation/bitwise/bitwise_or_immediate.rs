@@ -13,6 +13,7 @@ pub(crate) fn integer_bitwise_or_immediate_return_artifact(
     let right = ValueId::new(78_006).unwrap();
     let bitwise_or = ValueId::new(78_008).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

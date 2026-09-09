@@ -135,6 +135,18 @@ fn encode_proof_question(bytes: &mut CanonicalBytes, question: &ProofQuestion) {
     bytes.bytes(question.terminal_psi.program_fingerprint.as_bytes());
     bytes.bytes(&question.proof_bundle_fingerprint);
     match question.owner {
+        ProofQuestionOwner::ScalarRangeInvariant {
+            machine,
+            header,
+            parameter,
+            edge,
+        } => {
+            bytes.u8(5);
+            bytes.id(machine);
+            bytes.id(header);
+            bytes.id(parameter);
+            bytes.id(edge);
+        }
         ProofQuestionOwner::Operation { machine, operation } => {
             bytes.u8(1);
             bytes.id(machine);

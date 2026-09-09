@@ -54,6 +54,7 @@ mod quotient_correspondence;
 mod ranked_scc;
 mod root_service_reach;
 pub(crate) mod scalar_case;
+mod scalar_range_invariants;
 mod structural_byte_sequence_fields;
 mod structural_byte_sequence_store;
 mod structural_operations;
@@ -832,7 +833,19 @@ fn is_canonical_hermetic_identity(identity: &str) -> bool {
 /// This remains a distinct entry point so canonical representation checks do
 /// not themselves confer an execution-grade `ValidatedTerminalModule`.
 pub fn validate_module_representation(module: &TerminalModule) -> Result<(), ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::Representation)
+    validate_module_with_policy(module, ValidationPolicy::Representation).map(|_| ())
+}
+
+/// Return the largest obligation identity registered by full representation
+/// validation, or zero when the module declares none. This includes obligations
+/// whose evidence is retained outside the ordinary reconstructed site list.
+/// The result supports fresh producer allocation and grants no proof authority.
+pub fn maximum_registered_obligation_id(module: &TerminalModule) -> Result<u64, ModuleError> {
+    let registry = validate_module_with_policy(module, ValidationPolicy::Representation)?;
+    Ok(registry
+        .obligations
+        .last()
+        .map_or(0, |obligation| obligation.get()))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -847,7 +860,7 @@ enum ValidationPolicy {
 fn validate_module_with_policy(
     module: &TerminalModule,
     policy: ValidationPolicy,
-) -> Result<(), ModuleError> {
+) -> Result<IdRegistry, ModuleError> {
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
@@ -903,6 +916,7 @@ fn validate_module_with_policy(
     for machine in &module.machines {
         machine::validate_machine(module, machine, &machines, &mut registry, policy)?;
     }
+    scalar_range_invariants::validate(module, &machines, &mut registry)?;
     suspension_call_plan::validate_suspension_call_plans(module)?;
     validate_call_graph(module)?;
     if !registry.machines.contains(&module.entry) {
@@ -921,7 +935,7 @@ fn validate_module_with_policy(
     }
 
     crash::validate_site_guard_truth(module)?;
-    Ok(())
+    Ok(registry)
 }
 
 fn validate_native_ranked_countdown_module(module: &TerminalModule) -> Result<(), ModuleError> {

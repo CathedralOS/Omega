@@ -134,6 +134,7 @@ mod scalar_call_closure;
 mod scalar_computations;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
+mod scalar_range_invariants;
 mod scalar_source_custody;
 mod shared_runtime_parameters;
 mod structural_byte_sequence_index_store;
@@ -1285,6 +1286,9 @@ pub fn lower_machine(
         &mut lowered.semantic_module,
         &mut lowered.proof_bundle,
     )?;
+    if route == SelectedMachineRoute::ScalarGraph {
+        scalar_range_invariants::retain_provable(&mut lowered)?;
+    }
     // Unit closures can be provisional inputs to cleanup/borrow assembly.
     // Discharge operand obligations only after the selected module is complete.
     if matches!(
@@ -1292,6 +1296,7 @@ pub fn lower_machine(
         SelectedMachineRoute::UnitEffect
             | SelectedMachineRoute::NominalAffineUnitCleanup
             | SelectedMachineRoute::PartialAffineUnitCleanup
+            | SelectedMachineRoute::ScalarGraph
     ) {
         finalize_operation_proofs(&mut lowered)?;
     } else if lowered

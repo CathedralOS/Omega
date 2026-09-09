@@ -390,6 +390,7 @@ mod tests {
         let machine = id(1, MachineId::new);
         let block = id(1, BlockId::new);
         TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine,
             structural_types: Vec::new(),

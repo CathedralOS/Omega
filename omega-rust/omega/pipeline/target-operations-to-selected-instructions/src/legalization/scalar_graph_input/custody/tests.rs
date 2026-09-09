@@ -15,6 +15,7 @@ fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
     let entry = BlockId::new(1).unwrap();
     let header = BlockId::new(2).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

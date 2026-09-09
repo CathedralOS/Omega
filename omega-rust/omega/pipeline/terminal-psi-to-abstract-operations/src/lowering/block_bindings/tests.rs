@@ -27,6 +27,7 @@ fn fixture() -> TerminalModule {
         projected_qualifications: Vec::new(),
     };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: vec![StructuralTypeDeclaration {

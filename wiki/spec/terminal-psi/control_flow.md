@@ -40,6 +40,21 @@ Proof scheduling may cut edges only in its working graph, not executable
 semantics, and must not assume the omitted incoming facts at those targets.
 General invariant evidence must be checked before importing its conclusions.
 
+A scalar range invariant is a semantic row identifying a machine, cyclic header,
+integer block parameter, inclusive bounds, and one obligation for every actual
+incoming edge. Entry edges establish the range without assuming it; internal
+arrivals preserve it using the invariant as an induction hypothesis at the
+header and the actual successor substitution. The complete group is checked
+before its bounds become available downstream. Missing or duplicate arrivals,
+wrong parameters or carriers, and stale edge coordinates reject. Certificates
+use the existing flat proof bundle; their presence cannot select the roster.
+
+Invariant induction is distinct from ranking. A decreasing rank does not grant
+an arithmetic safety bound. Each partial operation still proves its own safety
+from facts available before it executes; its result equation is available only
+after that obligation. Invariant preservation cannot use an operation's result
+to establish that same operation's safety.
+
 A termination certificate binds a well-founded relation, block ranks, and
 every derived in-component edge. Source measures normalize to this relation
 and decrease evidence; the verifier checks evidence rather than searching for

@@ -60,6 +60,7 @@ pub(super) fn scalar_terminal_artifact(
         _ => panic!("scalar fixture must return a value or crash"),
     };
     let mut module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

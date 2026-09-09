@@ -165,7 +165,7 @@ pub(super) fn lower_scalar_graph_machine(
     let prepared = prepare_standalone_scalar_graph_machine(checked, machine, graph)?;
     let machine_ids = [(machine, machine_id(1))];
     let requirement_counts = [(machine, prepared.contract.requirement_count())];
-    let mut lowered = build_scalar_graph_module(
+    let lowered = build_scalar_graph_module(
         &prepared.states,
         prepared.result_type,
         prepared.contract,
@@ -178,7 +178,8 @@ pub(super) fn lower_scalar_graph_machine(
         &requirement_counts,
         prepared.loop_plan.as_ref(),
     )?;
-    finalize_operation_proofs(&mut lowered)?;
+    // The root assembler installs the complete proof vocabulary before
+    // allocating invariant obligations and finalizing executable certificates.
     Ok(lowered)
 }
 

@@ -21,6 +21,8 @@ mod contract_fields;
 mod owned_integer_fields;
 #[path = "canonical/scalar_case_fields.rs"]
 mod scalar_case_fields;
+#[path = "canonical/scalar_range_invariants.rs"]
+mod scalar_range_invariants;
 use terminal_psi::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
@@ -83,7 +85,7 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
     module.suspension_call_plans = vec![plan];
 
     let bytes = encode_module(&module).expect("suspension plan encodes");
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -113,7 +115,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -121,7 +123,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "2d53ebca7d75d24dee5a57b78955ae1a10b5e09a9411e56e5f367eb1f8fa86e7"
+        "c1037ce5cda4b6d6daaa8f458a5d9ca2264fc6cb969c86f47eec0fc1c409b8a6"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -134,7 +136,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -238,7 +240,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -299,7 +301,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     };
     module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
-    assert_eq!(&bytes[8..12], &[86, 0, 92, 0]);
+    assert_eq!(&bytes[8..12], &[87, 0, 93, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(semantic_fingerprint(&module).unwrap(), countdown_identity);
     let mut stale = bytes;
@@ -1086,7 +1088,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1099,7 +1101,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1134,7 +1136,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1575,6 +1577,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         },
     };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,
         structural_types: vec![
@@ -2966,10 +2969,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&87_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&88_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(87))
+        Err(CodecError::UnsupportedFormatMarker(88))
     );
 
     let mut stale_format = bytes.clone();
@@ -3100,6 +3103,7 @@ fn partial_affine_fixture() -> TerminalModule {
     let pair_place = place_id(1);
     let token_place = place_id(2);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![
@@ -3367,6 +3371,7 @@ fn nominal_affine_fixture() -> TerminalModule {
     let owner_type = structural_type_id(2);
     let source_place = place_id(1);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![
@@ -3511,6 +3516,7 @@ fn structural_effect_fixture() -> TerminalModule {
             projected_qualifications: Vec::new(),
         };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(100),
         structural_types: vec![
@@ -3745,7 +3751,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 86_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 87_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -4379,6 +4385,7 @@ fn proof_recursive_component_fixture() -> TerminalProofRecursiveComponent {
 
 fn unit_fixture() -> TerminalModule {
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
         structural_types: Vec::new(),
@@ -4613,6 +4620,7 @@ fn fixture() -> TerminalModule {
         |value| ScalarTerm::integer(unsigned_type, IntegerValue::Unsigned(value)).unwrap();
 
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -4770,6 +4778,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         ContentTerm::separate([right, left]).expect("canonical separation"),
     ));
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker,
         entry: machine_id(80),
         structural_types: Vec::new(),
@@ -5003,6 +5012,7 @@ fn call_fixture() -> TerminalModule {
         scalar_type: ScalarType::Boolean,
     };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(100),
         structural_types: Vec::new(),

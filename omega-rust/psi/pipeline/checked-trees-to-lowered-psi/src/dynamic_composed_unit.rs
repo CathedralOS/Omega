@@ -301,6 +301,7 @@ fn lower_dynamic_composed_unit_machine(
 
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
             structural_types,

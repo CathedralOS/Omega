@@ -5,7 +5,7 @@
 //! structural payloads remain in their dedicated sibling wire modules.
 
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-use semantic_vocabulary::{ContentProjectionIdentity, IeeeFloatFormat};
+use semantic_vocabulary::{BoundedIntegerType, ContentProjectionIdentity, IeeeFloatFormat};
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
@@ -50,7 +50,10 @@ use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_
 use super::quotient_correspondence_wire::{
     decode_quotient_correspondence, encode_quotient_correspondence,
 };
-use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::scalar_wire::{
+    decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
+    encode_integer_value, encode_scalar_type,
+};
 use super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
@@ -1207,6 +1210,23 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for correspondence in &module.quotient_correspondences {
         encode_quotient_correspondence(&mut writer, correspondence)?;
     }
+    writer.len(
+        "scalar range invariants",
+        module.scalar_range_invariants.len(),
+    )?;
+    for invariant in &module.scalar_range_invariants {
+        writer.id(invariant.machine);
+        writer.id(invariant.header);
+        writer.id(invariant.parameter);
+        encode_integer_type(&mut writer, invariant.bounds.integer_type());
+        encode_integer_value(&mut writer, invariant.bounds.minimum());
+        encode_integer_value(&mut writer, invariant.bounds.maximum());
+        writer.len("scalar range invariant arrivals", invariant.arrivals.len())?;
+        for arrival in &invariant.arrivals {
+            writer.id(arrival.edge);
+            writer.id(arrival.obligation);
+        }
+    }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
         super::machine_wire::encode_machine(&mut writer, machine)?;
@@ -1599,12 +1619,32 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, decode_suspension_call_plan)?,
     );
     let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
+    let scalar_range_invariants = decode_counted(reader, |reader| {
+        Ok(terminal_psi::ScalarRangeInvariant {
+            machine: reader.id("MachineId")?,
+            header: reader.id("BlockId")?,
+            parameter: reader.id("ValueId")?,
+            bounds: BoundedIntegerType::new(
+                decode_integer_type(reader)?,
+                decode_integer_value(reader)?,
+                decode_integer_value(reader)?,
+            )
+            .map_err(CodecError::MalformedProposition)?,
+            arrivals: decode_counted(reader, |reader| {
+                Ok(terminal_psi::ScalarRangeInvariantArrival {
+                    edge: reader.id("EdgeId")?,
+                    obligation: reader.id("ObligationId")?,
+                })
+            })?,
+        })
+    })?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
         machines.push(super::machine_wire::decode_machine(reader)?);
     }
     Ok(TerminalModule {
+        scalar_range_invariants,
         vocabulary_marker,
         entry,
         structural_types,
