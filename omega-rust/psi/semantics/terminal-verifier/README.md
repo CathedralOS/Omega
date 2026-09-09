@@ -18,6 +18,14 @@ terminator facts, and deterministic control-flow scheduling. All-incoming and
 all-return intersections cannot be replaced by a union. An operation's
 pre-result premise snapshot excludes its own later result equation.
 
+Selected Boolean and integer case payloads retain their exact source, case,
+field and successor parameter identities. Their scalar binding equation is an
+edge observation, not a declaration of numeric bounds or an entry snapshot. Only the selected
+arrival may use it; the ordinary mutation invalidation, all-arrival intersection
+and cycle cuts still govern its lifetime. Numeric payload restrictions require
+separate retained declaration and establishment evidence. IEEE payloads retain
+their existing transfer behavior without an integer/Boolean field equation.
+
 Leaf schemas and call-composition policies belong to terminal-semantics.
 Call validation proves concrete signature, clause, substitution, movement,
 outcome, crash, and lifetime conditions before reconstruction imports guarantees.
@@ -110,17 +118,20 @@ Qualified or partial owned cyclic custody, loop-carried structural results,
 projected claims, and arbitrary operation families remain unsupported. Eligibility is not dominance,
 frontier, or proof authority; all subsequent checks still run.
 
-Mutable-field entry requirements enter the validity-scoped observation set,
+Owned/mutable-field entry requirements enter the validity-scoped observation set,
 not the permanent assumption list. Unchanged paths retain them; stores, mutating
 calls, and loop cuts cannot reuse them as current-field facts. This is conservative
 invalidation, not an entry-snapshot or general loop-invariant representation.
 
-Stores forget semantic axioms observing their destination root. Ordinary Unit
-and structural-scalar calls capture requirement premises first, forget observations
-of their mutable arguments, then import verified guarantees. Mutable boundary
-arguments also invalidate observations. This conservatively forgets the entire written
-root until checked write frames can preserve individual paths. Captured SSA values
-remain values, but an earlier field equality cannot describe a later observation.
+Stores forget semantic axioms observing their destination root. Ordinary
+structural calls capture requirement premises first, forget observations of
+their mutable arguments, then import verified guarantees. Consuming owned
+arguments also forget unversioned field and case observations: the recipient may
+mutably reborrow its value. Separately versioned content evidence keeps its
+existing conservation rules. Boundary arguments follow the same invalidation.
+This conservatively forgets the entire affected root until checked write frames
+can preserve individual paths. Captured SSA values remain values, but an earlier
+field equality cannot describe a later observation.
 
 [Proof scheduling](src/control_graph.rs) cuts DFS ancestor edges in its working
 graph. Cut targets start without incoming semantic axioms; every normal return

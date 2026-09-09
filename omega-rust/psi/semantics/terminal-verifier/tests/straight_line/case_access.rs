@@ -1,7 +1,7 @@
 use super::*;
 use terminal_psi::StructuralCaseSuccessorEdge;
 
-fn dispatch_module(access: StructuralAccess) -> TerminalModule {
+pub(super) fn dispatch_module(access: StructuralAccess) -> TerminalModule {
     let mut module = unit_module();
     let structural_type = StructuralTypeId::new(1).expect("sum type");
     let source = PlaceId::new(1).expect("source place");

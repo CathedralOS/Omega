@@ -192,3 +192,40 @@ fn unranked_case_result_cannot_reuse_a_preheader_value() {
     });
     assert!(validate_module_for_interpretation(&module).is_err());
 }
+
+#[test]
+fn selected_case_payload_facts_do_not_cross_iteration_cuts() {
+    let mut module = fixture();
+    module.machines[0]
+        .contract
+        .ensures
+        .push(terminal_psi::ContractClause {
+            obligation: id(1, ObligationId::new),
+            proposition: Proposition::Truth,
+        });
+    let reconstructed = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let previous_payload = Proposition::Equal(
+        ScalarTerm::value(id(1, ValueId::new), ScalarType::Integer(integer)),
+        ScalarTerm::integer_field_path(
+            id(1, PlaceId::new),
+            vec![
+                semantic_vocabulary::CanonicalStructuralPathSegment::Case(id(
+                    1,
+                    StructuralCaseId::new,
+                )),
+                semantic_vocabulary::CanonicalStructuralPathSegment::Field(id(
+                    1,
+                    StructuralFieldId::new,
+                )),
+            ],
+            integer,
+        ),
+    );
+    assert!(
+        !reconstructed.obligations()[0]
+            .semantic_axioms
+            .contains(&previous_payload),
+        "a previous Value iteration cannot describe the fresh Done result at exit"
+    );
+}

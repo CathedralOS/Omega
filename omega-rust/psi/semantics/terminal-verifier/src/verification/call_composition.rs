@@ -309,6 +309,7 @@ pub(super) fn compose_call_operation(
         (
             CallResultRule::StructuralCalleeResult,
             OperationKind::CallStructuralWithScalarArguments {
+                structural_arguments,
                 requirement_obligations,
                 crash_continuations,
                 ..
@@ -320,6 +321,7 @@ pub(super) fn compose_call_operation(
             // callee contract, so there are no propositions to substitute or
             // import. Scalar and structural ABI custody remains explicit in
             // the operation and is validated independently.
+            invalidate_mutated_arguments(axioms, structural_arguments);
         }
         (
             CallResultRule::StructuralCalleeResult,
@@ -387,6 +389,7 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
+            invalidate_mutated_arguments(axioms, structural_arguments);
             for guarantee in &callee.contract.ensures {
                 push_unique(
                     axioms,
@@ -551,9 +554,22 @@ fn invalidate_mutated_arguments(axioms: &mut Vec<Proposition>, arguments: &[Stru
         })
         .map(|argument| argument.place)
         .collect::<Vec<_>>();
-    if !written.is_empty() {
+    // An owned argument may be changed by its recipient too. Forget current
+    // field observations without erasing separately versioned content evidence.
+    let consumed = arguments
+        .iter()
+        .filter(|argument| argument.access == StructuralAccess::Owned)
+        .map(|argument| argument.place)
+        .collect::<Vec<_>>();
+    if !written.is_empty() || !consumed.is_empty() {
         axioms.retain(|proposition| {
-            !crate::validation::proposition_observes_places(proposition, &written)
+            (written.is_empty()
+                || !crate::validation::proposition_observes_places(proposition, &written))
+                && (consumed.is_empty()
+                    || !crate::validation::proposition_observes_unversioned_places(
+                        proposition,
+                        &consumed,
+                    ))
         });
     }
 }
