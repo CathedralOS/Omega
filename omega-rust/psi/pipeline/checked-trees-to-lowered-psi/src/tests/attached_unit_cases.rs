@@ -3,6 +3,30 @@
 use super::*;
 
 #[test]
+fn array_call_numeric_requirements_use_completed_argument_facts() {
+    let checked = checked_source(
+        "machine read() -> [u8; 1] { bounded(7u8 + 2u8) }
+         machine bounded(value: u8 [0..=9]) -> [u8; 1] { [value + 1u8] }",
+    );
+    let entry = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "read")
+        .unwrap()
+        .symbol;
+    let mut closure =
+        crate::attached_unit::lower_shared_unit_closure(&checked, entry, &[entry], None).unwrap();
+    finalize_operation_proofs(&mut closure.lowered)
+        .expect("callee arithmetic uses its ranged parameter requirement");
+    terminal_verifier::verify_module(
+        &closure.lowered.semantic_module,
+        &closure.lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent replay checks both caller requirements and callee arithmetic");
+}
+
+#[test]
 fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() {
     let checked = hard_root_checked_fixture();
     let root_plan = &checked.facts.flow.terminal_unit_effects.machines[0];

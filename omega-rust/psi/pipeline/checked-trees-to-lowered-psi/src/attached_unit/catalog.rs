@@ -200,7 +200,7 @@ pub(super) fn lower_unit_structural_types_including(
                     target_state,
                     result,
                     ..
-                } if plans.composed_for_machine(*target_machine).is_some() => {
+                } if UnitBody::contains(plans, *target_machine) => {
                     let target = UnitBody::find(plans, *target_machine)?;
                     let checked_trees::CheckedControlResultPlan::Structural(signature) =
                         target.result()

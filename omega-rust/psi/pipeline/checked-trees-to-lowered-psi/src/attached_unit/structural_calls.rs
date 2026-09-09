@@ -45,7 +45,10 @@ pub(super) fn validate_body_result(
                 || result.statement_index != coordinate.statement_index
                 || result.type_identity != signature.type_identity
                 || result.multiplicity != signature.multiplicity
-                || result.multiplicity != Multiplicity::Affine
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
                 || !signature.qualifications.is_empty()
             {
                 return unsupported("structural call result or commitment disagrees with its body");

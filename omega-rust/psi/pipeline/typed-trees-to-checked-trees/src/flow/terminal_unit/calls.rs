@@ -941,6 +941,7 @@ pub(super) fn build_call_operation(
                         )
                         && !routed_service_parameter_receiver)
             }
+            || validation::is_closed_primitive_array_type(program, signature.return_type)
             || match expected_call_result {
                 None => !is_unit(program, signature.return_type),
                 Some(ref expected) => {
@@ -1001,6 +1002,11 @@ pub(super) fn build_call_operation(
     })?;
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let boundary = target_machine.supply_mode.is_boundary_declaration();
+    // Boundary results currently carry identity/claims, not an array payload.
+    // Ordinary calls get their payload from the independently checked body.
+    if boundary && validation::is_closed_primitive_array_type(program, target_state.return_type) {
+        return None;
+    }
     if if boundary {
         match expected_call_result {
             None => !is_unit(program, target_state.return_type),
@@ -1141,28 +1147,37 @@ pub(super) fn build_call_operation(
             completion_receipts: transfers,
         })
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
-        // A closed graph's result signature is available before its body plan.
+        // A result signature is available before its ordinary or graph body plan.
         // The closure pass below retains this call only when that complete body
         // was produced, avoiding an authored machine-order dependency.
         if structural_arguments.iter().all(|argument| {
             (argument.source_parameter_index().is_some()
-                || argument.byte_sequence_literal().is_some())
+                || argument.byte_sequence_literal().is_some()
+                || matches!(
+                    argument.source,
+                    CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+                ))
                 && matches!(
                     argument.access,
                     CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
                 )
         }) && transfers.is_empty()
-            && result.multiplicity == Multiplicity::Affine
-            && validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                target_state.return_type,
-            )
-            && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(target_state.return_type),
-                TypeReferenceNode::Named { .. }
-            )
+            && ((result.multiplicity == Multiplicity::Affine
+                && validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    target_state.return_type,
+                )
+                && matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(target_state.return_type),
+                    TypeReferenceNode::Named { .. }
+                ))
+                || (result.multiplicity == Multiplicity::Unrestricted
+                    && validation::is_closed_primitive_array_type(
+                        program,
+                        target_state.return_type,
+                    )))
             && program
                 .machine_states(target_machine)
                 .first()
@@ -1180,7 +1195,7 @@ pub(super) fn build_call_operation(
                 service_reach: call.service_reach,
                 scalar_arguments,
                 structural_arguments,
-                discard_result_on_return: true,
+                discard_result_on_return: result.multiplicity == Multiplicity::Affine,
             });
         }
         let target = facts

@@ -468,7 +468,7 @@ fn assemble_unit_closure(
                     ..
                 } => Some(*realization_machine),
                 CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if plans.composed_for_machine(*target_machine).is_none() =>
+                    if !UnitBody::contains(plans, *target_machine) =>
                 {
                     Some(*target_machine)
                 }
@@ -579,7 +579,7 @@ fn assemble_unit_closure(
                     structural_calls::validate_cleanup(checked, machine, operation_index)?;
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if plans.composed_for_machine(*target_machine).is_none() =>
+                    if !UnitBody::contains(plans, *target_machine) =>
                 {
                     structural_calls::validate(checked, machine, operation)?;
                 }
@@ -598,12 +598,6 @@ fn assemble_unit_closure(
                     ..
                 } => {
                     let body = UnitBody::find(plans, *target_machine)?;
-                    if matches!(body, UnitBody::Ordinary(plan) if plan.structural_result.is_some())
-                    {
-                        return unsupported(
-                            "ordinary calls returning constructed arrays require structural result transport",
-                        );
-                    }
                     structural_calls::validate_body_result(checked, operation, body.result())?;
                     let target = body.entry()?;
                     if target.state != *target_state
@@ -1916,7 +1910,7 @@ fn assemble_unit_closure(
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if plans.composed_for_machine(*target_machine).is_none() =>
+                    if !UnitBody::contains(plans, *target_machine) =>
                 {
                     let result = structural_calls::emit(
                         checked,
@@ -2146,7 +2140,11 @@ fn assemble_unit_closure(
                             result: OperationResult::Structural(StructuralOperationResult {
                                 place,
                                 structural_type,
-                                multiplicity: StructuralMultiplicity::Affine,
+                                multiplicity: match result.multiplicity {
+                                    Multiplicity::Affine => StructuralMultiplicity::Affine,
+                                    Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                                    Multiplicity::Linear => return unsupported("ordinary structural result has unsupported linear custody"),
+                                },
                                 qualifications: Vec::new(),
                                 projected_qualifications: Vec::new(),
                                 claims: Vec::new(),
