@@ -124,7 +124,7 @@ impl<'program> Evaluator<'program> {
                 // zero case; sentinel spellings vetoed).
                 // No CRLF normalization: byte-level readers see the stream
                 // as-is.
-                Ok(Some(self.read_stdin_byte_value()?))
+                Ok(Some(self.read_stdin_byte_value(call.target_symbol)?))
             }
             "write_byte" => {
                 // Append one byte (the argument's low 8 bits) to stdout.
@@ -201,7 +201,7 @@ impl<'program> Evaluator<'program> {
     /// Rejoin a concrete Console leaf to its satisfied requirement before
     /// selecting host behavior. Other external realizations retain their own
     /// execution path, even when their method spelling matches a host method.
-    fn exact_console_intrinsic_host_method(
+    pub(super) fn exact_console_intrinsic_host_method(
         &self,
         target_symbol: SymbolHandle,
     ) -> Option<&'static str> {
@@ -225,12 +225,17 @@ impl<'program> Evaluator<'program> {
             .flat_map(|definition| self.program.trait_machine_signatures(definition))
             .find(|requirement| requirement.symbol == requirement_symbol)?;
         match (realization.name.as_str(), requirement.name.as_str()) {
+            ("ConsoleNativeProvider::read_byte", "read_byte") => Some("read_byte"),
             ("ConsoleNativeProvider::write_byte", "write_byte") => Some("write_byte"),
             ("ConsoleNativeProvider::exit_process", "exit_process") => Some("exit_process"),
             _ => None,
         }
     }
 }
+
+#[cfg(test)]
+#[path = "host_dispatch/byte_input_rejection_tests.rs"]
+mod byte_input_rejection_tests;
 
 #[cfg(test)]
 mod tests {
@@ -241,7 +246,7 @@ mod tests {
     use tokens_to_syntax_trees::parse_syntax_trees;
     use typed_trees_to_checked_trees::lower_typed_trees;
 
-    fn checked(source: &str) -> CheckedTrees {
+    pub(super) fn checked(source: &str) -> CheckedTrees {
         let tokens = Lexer::new(source).tokenize().expect("host-call tokens");
         let syntax = parse_syntax_trees(&tokens).expect("host-call syntax");
         let resolved = lower_syntax_trees(&syntax).expect("host-call symbols");
@@ -275,6 +280,93 @@ mod tests {
             assert!(evaluator.host_boundary_touched, "{declaration}");
             assert!(evaluator.non_fs_host_boundary_touched, "{declaration}");
         }
+    }
+
+    #[test]
+    fn direct_console_byte_input_preserves_octets_eof_and_host_backstops() {
+        let source = "pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+            pub boundary trait Console {
+                machine read_byte() -> ByteRead reaches Console;
+                machine write_byte(byte: i32) reaches Console;
+            }
+            pub data ConsoleNativeProvider {}
+            machine ConsoleNativeProvider::read_byte() -> ByteRead
+                satisfies Console::read_byte via Binding::CompilerIntrinsic;
+            boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+                satisfies Console::write_byte;
+            machine main() reaches Console {
+                let observed: ByteRead = ConsoleNativeProvider::read_byte();
+                transition observed {
+                    ByteRead::Byte { value } -> emit(value)
+                    ByteRead::Eof -> done()
+                }
+                state emit(value: i32) { ConsoleNativeProvider::write_byte(value); }
+                state done() {}
+            }";
+        let guarded = source.replace(
+            "let observed: ByteRead = ConsoleNativeProvider::read_byte();\n                transition observed {\n                    ByteRead::Byte { value } -> emit(value)\n                    ByteRead::Eof -> done()",
+            "transition ConsoleNativeProvider::read_byte() {\n                    ByteRead::Eof -> done()\n                    ByteRead::Byte { value } -> emit(value)",
+        );
+        for source in [source.to_owned(), guarded] {
+            let checked = checked(&source);
+            let input = (0..=255).collect::<Vec<u8>>();
+            let mut evaluator = Evaluator::new_checked(&checked, &input);
+            for consumed in 1..=input.len() {
+                let result = evaluator.run_entry("main");
+                assert!(result.is_ok(), "byte {consumed}");
+                assert_eq!(evaluator.stdin_cursor, consumed);
+                assert_eq!(evaluator.stdout, input[..consumed]);
+                assert!(evaluator.host_boundary_touched);
+                assert!(evaluator.non_fs_host_boundary_touched);
+            }
+            for _ in 0..2 {
+                evaluator.host_boundary_touched = false;
+                evaluator.non_fs_host_boundary_touched = false;
+                assert!(evaluator.run_entry("main").is_ok());
+                assert_eq!(evaluator.stdin_cursor, input.len());
+                assert_eq!(evaluator.stdout, input);
+                assert!(
+                    evaluator.host_boundary_touched,
+                    "EOF is an input observation"
+                );
+                assert!(evaluator.non_fs_host_boundary_touched);
+            }
+        }
+    }
+
+    #[test]
+    fn byte_input_guard_does_not_memoize_a_separately_authored_successor_call() {
+        let checked = checked(
+            "pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+            pub boundary trait Console {
+                machine read_byte() -> ByteRead reaches Console;
+                machine write_byte(byte: i32) reaches Console;
+            }
+            pub data ConsoleNativeProvider {}
+            machine ConsoleNativeProvider::read_byte() -> ByteRead
+                satisfies Console::read_byte via Binding::CompilerIntrinsic;
+            boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+                satisfies Console::write_byte;
+            machine sample() -> i32 reaches Console {
+                transition ConsoleNativeProvider::read_byte() {
+                    ByteRead::Eof -> end()
+                    ByteRead::Byte { value } -> found(value)
+                }
+                state end() -> i32 { -1 }
+                state found(value: i32) -> i32 { value }
+            }
+            machine main() reaches Console {
+                transition sample() == 0 {
+                    true -> emit(sample())
+                    false -> emit(99)
+                }
+                state emit(value: i32) { ConsoleNativeProvider::write_byte(value); }
+            }",
+        );
+        let mut evaluator = Evaluator::new_checked(&checked, &[0, 42]);
+        assert!(evaluator.run_entry("main").is_ok());
+        assert_eq!(evaluator.stdin_cursor, 2);
+        assert_eq!(evaluator.stdout, [42]);
     }
 
     #[test]

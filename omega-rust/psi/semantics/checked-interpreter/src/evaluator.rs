@@ -1134,7 +1134,8 @@ struct Frame {
     /// a later arm must reuse the first arm's result (matching the native lowering)
     /// instead of re-running the callee's side effects. Copies have distinct handles, so
     /// lookups compare structurally. The frame is rebuilt for every state (re)entry, so
-    /// loops re-evaluate naturally.
+    /// loops re-evaluate naturally. Destructure-marked case payload projections
+    /// reuse this subject too; separately authored successor calls do not.
     guard_call_results: RefCell<Vec<(ExpressionHandle, Value)>>,
 }
 

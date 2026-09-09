@@ -69,18 +69,32 @@ impl<'program> Evaluator<'program> {
             })
     }
 
-    /// Consume the next line from the remaining stdin (without the line terminator). CRLF
-    /// and LF are both handled; returns an empty string at end of input.
-    /// One raw stdin byte as a std `ByteRead` value: `Byte { value }` while
-    /// input remains, `Eof` after (ordinal 0 -- the ZII zero case; sentinel
-    /// spellings vetoed). The declaring type resolves by
-    /// name from std/console.omg (invalid + name-global fallback when a
-    /// program shadows or lacks it, the WireVerdict precedent).
-    pub(super) fn read_stdin_byte_value(&mut self) -> EvalResult<Value> {
+    /// Validate the exact requirement's byte result before advancing input.
+    /// A same-spelled declaration or invalid result symbol supplies no identity.
+    pub(super) fn read_stdin_byte_value(&mut self, target: SymbolHandle) -> EvalResult<Value> {
+        let requirement =
+            validation::exact_compiler_intrinsic_boundary_requirement(self.program, target)
+                .map_or(target, |(requirement, _)| requirement);
         let type_symbol = self
-            .find_data_by_name("ByteRead")
-            .map(|data| data.symbol)
-            .unwrap_or_else(SymbolHandle::invalid);
+            .program
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary && definition.name.as_str() == "Console")
+            .flat_map(|definition| self.program.trait_machine_signatures(definition))
+            .find(|signature| {
+                signature.symbol == requirement
+                    && signature.name.as_str() == "read_byte"
+                    && self
+                        .program
+                        .state_signature_parameters(signature)
+                        .is_empty()
+            })
+            .and_then(|signature| {
+                validation::exact_byte_read_result_type(self.program, signature.return_type)
+            })
+            .ok_or_else(|| {
+                Halt::Unsupported("byte input has no exact supported result declaration".to_owned())
+            })?;
         if self.stdin_cursor < self.stdin.len() {
             let byte = self.stdin[self.stdin_cursor];
             self.stdin_cursor += 1;
