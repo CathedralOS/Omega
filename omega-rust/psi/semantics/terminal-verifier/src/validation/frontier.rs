@@ -853,6 +853,7 @@ pub(super) fn validate_structural_frontier(
                 if (returned_claims.is_empty()
                     && !exact_payloadless_claim_free_return
                     && !exact_affine_parameter_return
+                    && !super::scalar_array::plain_return_source(module, machine, *source)
                     && !super::scalar_case::plain_return_source(module, machine, *source))
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
@@ -1112,6 +1113,13 @@ fn validate_scalar_cleanup_actions(
     let mut frontier = frontier.clone();
     let max_residuals = actions.len();
     let mut actions = actions.iter();
+
+    // An unrestricted primitive array carries no disposal obligation. Its
+    // initialized local contents expire with this activation on scalar return.
+    frontier.owned_places.retain(|place, multiplicity| {
+        *multiplicity != StructuralMultiplicity::Unrestricted
+            || !super::scalar_array::plain_return_source(module, machine, *place)
+    });
 
     // Scalar-case temporaries follow the same reverse producer order as
     // ordinary edge and Unit-return disposal, before older named roots.

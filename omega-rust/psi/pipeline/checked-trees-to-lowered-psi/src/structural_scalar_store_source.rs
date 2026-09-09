@@ -281,7 +281,7 @@ pub(super) fn validate(
     }
     if (!stores.is_empty() || !byte_stores.is_empty() || has_indexed_stores)
         && !matches!(plan.operations.last(),
-        Some(CheckedUnitEffectOperationPlan::ReturnUnit { statement_index, .. })
+        Some(CheckedUnitEffectOperationPlan::Complete { statement_index, .. })
             if usize::try_from(*statement_index).ok() == Some(statements.len()))
     {
         return unsupported("structural scalar store return lost its authored statement boundary");

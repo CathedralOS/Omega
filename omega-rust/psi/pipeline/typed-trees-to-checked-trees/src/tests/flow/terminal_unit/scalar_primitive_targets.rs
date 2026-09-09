@@ -44,7 +44,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
                 checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("call establishes scalar result before the caller store");
@@ -274,7 +274,7 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
                     primitive_type: PrimitiveType::U64,
                 },
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("the caller stores the completed result, not its scalar input");

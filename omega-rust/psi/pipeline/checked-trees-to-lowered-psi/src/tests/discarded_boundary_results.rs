@@ -52,7 +52,7 @@ fn discarded_boundary_result_replays_immediate_cleanup_and_canonical_artifact() 
             affine_discards,
         },
         CheckedUnitEffectOperationPlan::BoundaryCall { .. },
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!(

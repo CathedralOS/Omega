@@ -48,7 +48,7 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
                     structural_arguments,
                     ..
                 },
-                CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+                CheckedUnitEffectOperationPlan::Complete { .. },
             ] = pair[0].operations.as_slice()
             else {
                 panic!("forwarding plan retains its exact call and return: {order:?}")
@@ -225,7 +225,7 @@ fn empty_shared_receiver_callee_keeps_provisional_self_erased() {
                 structural_arguments,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+            CheckedUnitEffectOperationPlan::Complete { .. },
         ] = caller.operations.as_slice()
         else {
             panic!("shared noop call and return")

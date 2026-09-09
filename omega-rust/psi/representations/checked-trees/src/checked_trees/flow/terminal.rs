@@ -904,6 +904,14 @@ impl CheckedStructuralReturnPlans {
     }
 }
 
+/// A checked primitive constructor leaf. Anonymous integers have already landed
+/// at their exact declared element carrier; source syntax is not executable input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarArrayLiteral {
+    Integer(numerics::literals::IntegerLiteral),
+    Boolean(bool),
+}
+
 /// Source-handle-free checked plan for one exact whole owned-affine parameter
 /// returned without claims, projections, services, or cleanup. Fixed-width
 /// scalar parameters retain their authored positions for mixed ABI planning.
@@ -1528,9 +1536,9 @@ pub struct CheckedUnitScalarResultBindingPlan {
     pub primitive_type: PrimitiveType,
 }
 
-/// Exact immutable local that receives one whole structural operation result.
-/// The first admitted family is claim-free owned-affine and therefore carries
-/// neither a fabricated claim binding nor a projected path.
+/// Exact whole structural operation result in the shared dense value namespace.
+/// Its statement may bind an immutable local or directly supply completion.
+/// Claim-free construction carries neither a fabricated claim nor a projected path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralResultBindingPlan {
     pub statement_index: u32,
@@ -1613,6 +1621,12 @@ pub enum CheckedPrimitiveStoreDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
+    /// Construct an unrestricted primitive fixed array in authored row-major
+    /// leaf order. Empty dimensions remain in the exact structural result type.
+    EstablishScalarArray {
+        result: CheckedUnitStructuralResultBindingPlan,
+        elements: Vec<CheckedScalarArrayLiteral>,
+    },
     /// Establish initialized mutable storage at its authored declaration.
     /// Later reads and borrows name the symbol, never the initializer value.
     EstablishPrimitiveLocal {
@@ -1840,7 +1854,9 @@ pub enum CheckedUnitEffectOperationPlan {
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ByteSequenceWrite(CheckedByteSequenceWritePlan),
-    ReturnUnit {
+    /// Finish the body after cleanup, yielding the machine's retained structural
+    /// binding when present and Unit otherwise.
+    Complete {
         statement_index: u32,
         /// Exact local declaration coordinates cleaned before parameters, in
         /// reverse declaration order.
@@ -1853,6 +1869,8 @@ pub enum CheckedUnitEffectOperationPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitEffectMachinePlan {
+    /// Optional unrestricted structural value returned after ordinary sequencing.
+    pub structural_result: Option<CheckedUnitStructuralResultBindingPlan>,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     /// Exact attached data carrier, or `None` for an ordinary free machine.

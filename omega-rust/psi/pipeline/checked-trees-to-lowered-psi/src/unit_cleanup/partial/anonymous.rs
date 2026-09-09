@@ -14,7 +14,7 @@ pub(super) fn validate(
     let [
         producer,
         consumer,
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         return unsupported("anonymous partial permissions have no exact call schedule");

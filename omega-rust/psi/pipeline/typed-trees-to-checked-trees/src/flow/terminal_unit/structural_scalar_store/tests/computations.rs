@@ -141,7 +141,7 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
     let [
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(pure),
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(computed),
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        CheckedUnitEffectOperationPlan::Complete { .. },
     ] = plan.operations.as_slice()
     else {
         panic!("ordered stores and return");

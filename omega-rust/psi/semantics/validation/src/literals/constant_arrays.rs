@@ -12,6 +12,201 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// A closed primitive array has no qualifications, ownership authority, or
+/// effectful children. Validate its complete shape even below empty dimensions.
+pub fn is_closed_primitive_array_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> bool {
+    let mut array = false;
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(_),
+            } => {
+                array = true;
+                reference = *element_type;
+            }
+            TypeReferenceNode::Named { .. } => {
+                return array
+                    && matches!(
+                        program.primitive_type_reference(reference),
+                        Some(
+                            typed_trees::types::PrimitiveType::Bool
+                                | typed_trees::types::PrimitiveType::I8
+                                | typed_trees::types::PrimitiveType::I16
+                                | typed_trees::types::PrimitiveType::I32
+                                | typed_trees::types::PrimitiveType::I64
+                                | typed_trees::types::PrimitiveType::U8
+                                | typed_trees::types::PrimitiveType::U16
+                                | typed_trees::types::PrimitiveType::U32
+                                | typed_trees::types::PrimitiveType::U64
+                        )
+                    );
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Rejoin an exact declaration and every selected builtin index before
+/// extracting row-major literals. Unselected siblings must also be closed:
+/// projection may not suppress an evaluation, failure, or effect.
+/// Each leaf retains its exact destination carrier so anonymous integer literals
+/// can be rendered by the numeric landing owner without rewriting authored trees.
+pub fn closed_constant_array_elements(
+    program: &TypedTrees,
+    machine: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> Option<Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>> {
+    if !is_closed_primitive_array_type(program, expected) {
+        return None;
+    }
+    let mut root = expression;
+    let mut indices = Vec::new();
+    let mut projections = Vec::new();
+    while let ExpressionNode::Indexed(indexed) = program.expression_table.expression(root) {
+        if projections.contains(&root) {
+            return None;
+        }
+        projections.push(root);
+        indices.push(indexed.index);
+        root = indexed.collection;
+    }
+    let mut reference = declared_constant_array_type(program, root).or_else(|| {
+        (indices.is_empty()
+            && program
+                .expression_table
+                .authored_selection_occurrences(root)
+                .next()
+                .is_none())
+        .then_some(expected)
+    })?;
+    if !is_closed_primitive_array_type(program, reference) {
+        return None;
+    }
+    closed_literal_array_elements(program, root, reference)?;
+    if !indices.is_empty() {
+        let projected = builtin_constant_array_projection_type(program, machine, expression)?;
+        if program.normalized_type_identity(projected) != program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+    }
+    let mut selected = root;
+    for index in indices.into_iter().rev() {
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(length),
+        } = program.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        let ExpressionNode::Integer(literal) = program.expression_table.expression(index) else {
+            return None;
+        };
+        if literal.landing().is_some_and(|landing| {
+            landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                || landing.landed_type == numerics::literals::LandedIntegerType::Addr
+        }) {
+            return None;
+        }
+        let index = usize::try_from(literal.value_u64()?).ok()?;
+        if index >= *length {
+            return None;
+        }
+        let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(selected)
+        else {
+            return None;
+        };
+        selected = *program
+            .expression_table
+            .expression_handles(*elements)
+            .get(index)?;
+        reference = *element_type;
+    }
+    if program.normalized_type_identity(reference) != program.normalized_type_identity(expected) {
+        return None;
+    }
+    closed_literal_array_elements(program, selected, reference)
+}
+
+pub fn closed_literal_array_elements(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<(ExpressionHandle, typed_trees::types::PrimitiveType)>> {
+    let mut leaves = Vec::new();
+    let mut pending = vec![(expression, reference, false)];
+    let mut active = Vec::new();
+    while let Some((expression, reference, exiting)) = pending.pop() {
+        if exiting {
+            active.pop();
+            continue;
+        }
+        if active.contains(&expression) {
+            return None;
+        }
+        active.push(expression);
+        pending.push((expression, reference, true));
+        match (
+            program.expression_table.expression(expression),
+            program.type_reference_table.type_reference(reference),
+        ) {
+            (
+                ExpressionNode::ArrayLiteral(elements),
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                },
+            ) => {
+                let elements = program.expression_table.expression_handles(*elements);
+                if elements.len() != *length {
+                    return None;
+                }
+                pending.extend(
+                    elements
+                        .iter()
+                        .rev()
+                        .map(|element| (*element, *element_type, false)),
+                );
+            }
+            (ExpressionNode::Integer(literal), TypeReferenceNode::Named { .. }) => {
+                let primitive = program.primitive_type_reference(reference)?;
+                if let Some(landing) = literal.landing() {
+                    if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                        || Some(primitive)
+                            != typed_trees::types::PrimitiveType::from_name(
+                                landing.landed_type.name(),
+                            )
+                    {
+                        return None;
+                    }
+                } else {
+                    super::land_anonymous_integer_expression(
+                        program,
+                        expression,
+                        primitive,
+                        |_| false,
+                    )?;
+                }
+                leaves.push((expression, primitive));
+            }
+            (ExpressionNode::Boolean(_), TypeReferenceNode::Named { .. })
+                if program.primitive_type_reference(reference)
+                    == Some(typed_trees::types::PrimitiveType::Bool) =>
+            {
+                leaves.push((expression, typed_trees::types::PrimitiveType::Bool))
+            }
+            _ => return None,
+        }
+    }
+    Some(leaves)
+}
+
 /// Recover a substituted array value's exact declared type, not a storage
 /// origin or permission to borrow it. Indexing and operator matching need the
 /// complete type even when there are no literal leaves from which to infer it.

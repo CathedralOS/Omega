@@ -149,6 +149,9 @@ pub use literals::land_anonymous_integer_expression_with_warning;
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use literals::land_float_literal_destinations;
+pub use literals::{
+    closed_constant_array_elements, closed_literal_array_elements, is_closed_primitive_array_type,
+};
 pub use machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, closed_static_call_type_bindings,
     validate_static_machine_selections, validate_static_machine_selections_with_facts,

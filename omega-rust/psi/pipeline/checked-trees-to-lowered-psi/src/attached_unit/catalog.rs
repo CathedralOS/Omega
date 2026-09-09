@@ -138,10 +138,8 @@ pub(super) fn lower_unit_structural_types_including(
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
-        if let UnitBody::Composed(plan) = body
-            && let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result
-        {
-            roots.push(result.type_identity.clone());
+        if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result() {
+            roots.push(result.type_identity);
         }
         roots.extend(body.attachment().map(str::to_owned));
         roots.extend(
@@ -159,6 +157,9 @@ pub(super) fn lower_unit_structural_types_including(
         }
         for operation in body.operations() {
             match operation {
+                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+                    roots.push(result.type_identity.clone());
+                }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     type_identity, ..
                 }
@@ -748,6 +749,7 @@ pub(super) fn lower_unit_services_including(
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
@@ -758,7 +760,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
+                | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }
         }
     }

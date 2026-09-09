@@ -41,7 +41,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal affine Unit cleanup requires one structural parameter");
     };
     let [
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -214,7 +214,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup target operation sequence is empty",
             ))?;
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         statement_index,
         trivial_affine_local_discard_ordinals,
         trivial_affine_discards,
@@ -316,7 +316,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
             || !service_plan_is_empty(helper.contract_service_reach)
             || !matches!(
                 helper.operations.as_slice(),
-                [CheckedUnitEffectOperationPlan::ReturnUnit {
+                [CheckedUnitEffectOperationPlan::Complete {
                     statement_index: 0,
                     trivial_affine_local_discard_ordinals,
                     trivial_affine_discards,

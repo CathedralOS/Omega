@@ -171,6 +171,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             "nominal scalar return is missing its checked flow state",
         ))?;
     let synthetic = CheckedUnitEffectMachinePlan {
+        structural_result: None,
         machine: plan.machine,
         state: plan.state,
         attachment_type_identity: plan.attachment_type_identity.clone(),
@@ -190,7 +191,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                 "nominal scalar return is missing its checked service-reach plan",
             ))?,
         service_reach: flow.service_reach,
-        operations: vec![CheckedUnitEffectOperationPlan::ReturnUnit {
+        operations: vec![CheckedUnitEffectOperationPlan::Complete {
             statement_index: 0,
             trivial_affine_local_discard_ordinals: Vec::new(),
             trivial_affine_discards: Vec::new(),

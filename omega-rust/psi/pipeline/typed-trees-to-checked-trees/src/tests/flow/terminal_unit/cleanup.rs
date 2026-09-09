@@ -51,7 +51,7 @@ fn retains_exact_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 1,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 3,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -114,7 +114,7 @@ fn retains_three_element_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 2,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 4,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -183,7 +183,7 @@ fn retains_four_element_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 3,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 5,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -258,7 +258,7 @@ fn retains_five_element_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 4,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 6,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -339,7 +339,7 @@ fn retains_six_element_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 5,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 7,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -426,7 +426,7 @@ fn retains_seven_element_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 6,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 8,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -519,7 +519,7 @@ fn retains_eight_element_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 7,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 9,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -618,7 +618,7 @@ fn retains_nine_element_fixed_array_construction_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 8,
                 ..
             },
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 10,
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
@@ -688,7 +688,7 @@ fn retains_ten_element_fixed_array_construction_prefix_and_reverse_cleanup() {
     );
     assert!(matches!(
         &plan.operations[10],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 11,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -758,7 +758,7 @@ fn retains_eleven_element_fixed_array_construction_prefix_and_reverse_cleanup() 
     );
     assert!(matches!(
         &plan.operations[11],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 12,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -829,7 +829,7 @@ fn retains_twelve_element_fixed_array_construction_prefix_and_reverse_cleanup() 
     );
     assert!(matches!(
         &plan.operations[12],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 13,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -901,7 +901,7 @@ fn retains_thirteen_element_fixed_array_construction_prefix_and_reverse_cleanup(
     );
     assert!(matches!(
         &plan.operations[13],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 14,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -975,7 +975,7 @@ fn retains_fourteen_element_fixed_array_construction_prefix_and_reverse_cleanup(
     );
     assert!(matches!(
         &plan.operations[14],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 15,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1050,7 +1050,7 @@ fn retains_fifteen_element_fixed_array_construction_prefix_and_reverse_cleanup()
     );
     assert!(matches!(
         &plan.operations[15],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 16,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1126,7 +1126,7 @@ fn retains_sixteen_element_fixed_array_construction_prefix_and_reverse_cleanup()
     );
     assert!(matches!(
         &plan.operations[16],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 17,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1203,7 +1203,7 @@ fn retains_seventeen_element_fixed_array_construction_prefix_and_reverse_cleanup
     );
     assert!(matches!(
         &plan.operations[17],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 18,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1281,7 +1281,7 @@ fn retains_eighteen_element_fixed_array_construction_prefix_and_reverse_cleanup(
     );
     assert!(matches!(
         &plan.operations[18],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 19,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1360,7 +1360,7 @@ fn retains_nineteen_element_fixed_array_construction_prefix_and_reverse_cleanup(
     );
     assert!(matches!(
         &plan.operations[19],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 20,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1440,7 +1440,7 @@ fn retains_twenty_element_fixed_array_construction_prefix_and_reverse_cleanup() 
     );
     assert!(matches!(
         &plan.operations[20],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 21,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1521,7 +1521,7 @@ fn retains_twenty_one_element_fixed_array_construction_prefix_and_reverse_cleanu
     );
     assert!(matches!(
         &plan.operations[21],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 22,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1603,7 +1603,7 @@ fn retains_twenty_two_element_fixed_array_construction_prefix_and_reverse_cleanu
     );
     assert!(matches!(
         &plan.operations[22],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 23,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1686,7 +1686,7 @@ fn retains_twenty_three_element_fixed_array_construction_prefix_and_reverse_clea
     );
     assert!(matches!(
         &plan.operations[23],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 24,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1770,7 +1770,7 @@ fn retains_twenty_four_element_fixed_array_construction_prefix_and_reverse_clean
     );
     assert!(matches!(
         &plan.operations[24],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 25,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -1855,7 +1855,7 @@ fn retains_twenty_five_element_fixed_array_construction_prefix_and_reverse_clean
     );
     assert!(matches!(
         &plan.operations[25],
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 26,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -2867,7 +2867,7 @@ fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_clea
     );
     assert!(matches!(
         plan.machine.operations.last(),
-        Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        Some(CheckedUnitEffectOperationPlan::Complete {
             statement_index: 2,
             trivial_affine_discards,
             ..
@@ -3054,7 +3054,7 @@ fn assert_token_cleanup_partition(
         );
         assert_eq!(argument.type_identity, "named(name(Token))", "{machine}");
     }
-    let Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+    let Some(CheckedUnitEffectOperationPlan::Complete {
         statement_index,
         trivial_affine_local_discard_ordinals,
         trivial_affine_discards,
@@ -3426,7 +3426,7 @@ fn two_element_affine_array_may_move_both_elements_without_residual_cleanup() {
         );
         assert!(matches!(
             plan.machine.operations[2],
-            CheckedUnitEffectOperationPlan::ReturnUnit {
+            CheckedUnitEffectOperationPlan::Complete {
                 ref trivial_affine_local_discard_ordinals,
                 ref trivial_affine_discards,
                 ..
@@ -4621,7 +4621,7 @@ fn unit_body_retains_empty_affine_local_prefix_and_reverse_cleanup() {
                 declaration_ordinal: 1,
                 ..
             },
-            checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+            checked_trees::CheckedUnitEffectOperationPlan::Complete {
                 trivial_affine_local_discard_ordinals,
                 trivial_affine_discards,
                 ..
@@ -4763,7 +4763,7 @@ fn scalar_return_retains_one_exact_nominal_cleanup_after_result_materialization(
         target.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::CallUnit { .. },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+            CheckedUnitEffectOperationPlan::Complete { .. }
         ]
     ));
 }
@@ -5379,7 +5379,7 @@ fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discar
     assert!(plan.machine.entry_claims.is_empty());
     assert!(matches!(
         plan.machine.operations.as_slice(),
-        [CheckedUnitEffectOperationPlan::ReturnUnit {
+        [CheckedUnitEffectOperationPlan::Complete {
             statement_index: 0,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -5633,7 +5633,7 @@ fn retains_five_call_executable_drop_body_in_source_order() {
     );
     assert!(matches!(
         target.operations[5],
-        CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+        CheckedUnitEffectOperationPlan::Complete { .. }
     ));
 }
 
@@ -5675,7 +5675,7 @@ fn retains_one_relevant_primitive_scalar_whole_root_nominal_cleanup() {
     assert!(plan.machine.entry_claims.is_empty());
     assert!(matches!(
         plan.machine.operations.as_slice(),
-        [CheckedUnitEffectOperationPlan::ReturnUnit {
+        [CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..
@@ -5952,7 +5952,7 @@ fn retains_contextual_requirements_with_an_executable_cleanup_body() {
         target.operations.as_slice(),
         [
             CheckedUnitEffectOperationPlan::CallUnit { .. },
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+            CheckedUnitEffectOperationPlan::Complete { .. }
         ]
     ));
 }
@@ -6191,7 +6191,7 @@ fn retains_wide_flat_mixed_primitive_record_for_whole_root_nominal_cleanup() {
     assert!(plan.machine.entry_claims.is_empty());
     assert!(matches!(
         plan.machine.operations.as_slice(),
-        [CheckedUnitEffectOperationPlan::ReturnUnit {
+        [CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..

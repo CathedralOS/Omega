@@ -26,7 +26,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     let Some((return_operation, call_operations)) = plan.operations.split_last() else {
         return unsupported("partial affine Unit cleanup operation sequence drifted");
     };
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
+    let CheckedUnitEffectOperationPlan::Complete {
         statement_index,
         trivial_affine_local_discard_ordinals,
         trivial_affine_discards,

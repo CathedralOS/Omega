@@ -53,7 +53,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             || caller.operations.len() != 2
             || !matches!(
                 caller.operations.last(),
-                Some(checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit { .. })
+                Some(checked_trees::CheckedUnitEffectOperationPlan::Complete { .. })
             )
             || caller_parameter.position != 0
             || caller_parameter.multiplicity != Multiplicity::Affine
@@ -122,7 +122,7 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
         };
         if !matches!(
             target_return,
-            checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+            checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
         ) || target_body.is_empty()
             || target_body.iter().any(|operation| {
                 !matches!(operation,

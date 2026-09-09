@@ -7,6 +7,7 @@ use checked_trees::{
 };
 
 mod call_occurrences;
+mod scalar_arrays;
 pub(super) mod statement_sequence;
 pub(super) mod structural_operands;
 pub(super) use call_occurrences::{outer_calls, tail_call};
@@ -1084,7 +1085,9 @@ pub(super) fn build_checked_machine_with(
                         .any(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_)))
                 })
             });
-    if !is_unit(program, state.return_type) {
+    if !is_unit(program, state.return_type)
+        && !validation::is_closed_primitive_array_type(program, state.return_type)
+    {
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1584,6 +1587,12 @@ pub(super) fn build_checked_machine_with(
         );
     }
     operations.reserve(calls.len() + 1);
+    let structural_result = statement_sequence
+        .as_ref()
+        .and_then(|sequence| sequence.structural_result.clone());
+    if !is_unit(program, state.return_type) && structural_result.is_none() {
+        return None;
+    }
     if let Some(sequence) = statement_sequence {
         operations.extend(sequence.operations);
     } else if let Some(store) = write_only_store {
@@ -1847,6 +1856,7 @@ pub(super) fn build_checked_machine_with(
                 })
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
@@ -1859,10 +1869,10 @@ pub(super) fn build_checked_machine_with(
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-            | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
+            | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();
-    operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
+    operations.push(CheckedUnitEffectOperationPlan::Complete {
         statement_index: u32::try_from(statements.len()).ok()?,
         trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len()
             + usize::from(affine_scalar_record_local.is_some()))
@@ -1921,6 +1931,7 @@ pub(super) fn build_checked_machine_with(
     };
 
     Some(CheckedUnitEffectMachinePlan {
+        structural_result,
         machine: machine.symbol,
         state: state.symbol,
         attachment_type_identity,

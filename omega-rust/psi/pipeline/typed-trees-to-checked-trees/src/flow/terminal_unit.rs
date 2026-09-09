@@ -441,6 +441,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         ..
                     } => true,
                     CheckedUnitEffectOperationPlan::PortWrite { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -451,7 +452,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                    | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
+                    | CheckedUnitEffectOperationPlan::Complete { .. } => true,
                 })
         });
         composed_machines.retain(|plan| {
@@ -693,7 +694,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                     .insert(realization.structural_parameter.type_identity.as_str());
                 retained_type_identities.insert(result.type_identity.as_str());
             }
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
             }
             _ => {}

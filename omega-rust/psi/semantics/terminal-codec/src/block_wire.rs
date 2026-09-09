@@ -174,6 +174,13 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.id(field);
                 writer.id(value);
             }
+            OperationKind::EstablishScalarArray { elements } => {
+                writer.u8(64);
+                writer.len("scalar array elements", elements.len())?;
+                for element in elements {
+                    writer.id(element);
+                }
+            }
             OperationKind::EstablishScalarCase {
                 result_case,
                 fields,
@@ -956,6 +963,9 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 path: decode_structural_path(reader)?,
                 field: reader.id("StructuralFieldId")?,
                 value: reader.id("ValueId")?,
+            },
+            64 => OperationKind::EstablishScalarArray {
+                elements: decode_counted(reader, |reader| reader.id("ValueId"))?,
             },
             42 => OperationKind::EstablishScalarCase {
                 result_case: reader.id("StructuralCaseId")?,
@@ -1974,10 +1984,10 @@ mod tests {
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
         let mut unknown = bytes.clone();
-        unknown[position] = 64;
+        unknown[position] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&unknown)),
-            Err(CodecError::InvalidTag("OperationKind", 64))
+            Err(CodecError::InvalidTag("OperationKind", 255))
         );
         for length in 0..bytes.len() {
             assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());
@@ -2024,10 +2034,10 @@ mod tests {
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
         let mut unknown = bytes.clone();
-        unknown[position] = 64;
+        unknown[position] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&unknown)),
-            Err(CodecError::InvalidTag("OperationKind", 64))
+            Err(CodecError::InvalidTag("OperationKind", 255))
         );
         for length in 0..bytes.len() {
             assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());

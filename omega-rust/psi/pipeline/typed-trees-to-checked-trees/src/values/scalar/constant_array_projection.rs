@@ -10,7 +10,7 @@ use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn selected_leaf(
     program: &TypedTrees,
@@ -77,45 +77,7 @@ fn closed_literal_array(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> bool {
-    let mut pending = vec![(expression, reference)];
-    while let Some((expression, reference)) = pending.pop() {
-        match (
-            program.expression_table.expression(expression),
-            program.type_reference_table.type_reference(reference),
-        ) {
-            (
-                ExpressionNode::ArrayLiteral(elements),
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: FixedArrayLength::Literal(length),
-                },
-            ) => {
-                let elements = program.expression_table.expression_handles(*elements);
-                if elements.len() != *length {
-                    return false;
-                }
-                pending.extend(elements.iter().map(|element| (*element, *element_type)));
-            }
-            (ExpressionNode::Integer(literal), _) => {
-                let Some(landing) = literal.landing() else {
-                    return false;
-                };
-                if landing.domain != ArithmeticDomain::Exact
-                    || program.primitive_type_reference(reference)
-                        != PrimitiveType::from_name(landing.landed_type.name())
-                {
-                    return false;
-                }
-            }
-            (ExpressionNode::Boolean(_), _) => {
-                if program.primitive_type_reference(reference) != Some(PrimitiveType::Bool) {
-                    return false;
-                }
-            }
-            _ => return false,
-        }
-    }
-    true
+    validation::closed_literal_array_elements(program, expression, reference).is_some()
 }
 
 #[cfg(test)]

@@ -160,9 +160,15 @@ Literal scalar indexing of these constants retains its declared element type,
 bounds and selected indexing meaning through checking. The checked interpreter
 evaluates the copied value; Terminal production selects its closed literal leaf
 without creating constant storage. Nested scalar integer/Boolean projections execute
-from independently decoded semantic/proof bytes. Array-valued projections preserve
-their complete destination shape, including empty rows, in checked evaluation;
-executable Terminal array construction remains unfinished. Dynamic selectors, slicing and
+from independently decoded semantic/proof bytes. Closed integer/Boolean arrays and
+array-valued constant projections construct actual owned Terminal payloads,
+including nested and empty dimensions. Construction and return use the ordinary
+ordered-operation path, including immutable array locals among scalar stores and
+ordinary calls; replay checks their exact source statements, values, and types.
+`cargo run -p omega -- inspect-terminal --machine selected_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
+publishes the material row; selecting `selected_empty_row` retains its exact empty
+array type. Array argument/result transport through calls, computed array elements,
+and native construction remain separate executable dependencies. Dynamic selectors, slicing and
 explicitly borrowed projections still reject pending general value projection
 and view-lifetime support; an ordinary typed-local copy already supports indexing.
 Nominal aggregate body substitution remains separate. The `module_machine_indices` integration target covers distinct

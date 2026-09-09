@@ -153,6 +153,7 @@ fn execution() -> (TerminalExecution, Operation) {
         structural_byte_sequence_fields: BTreeMap::new(),
         structural_byte_arrays: BTreeMap::new(),
         scalar_case_values: BTreeMap::new(),
+        scalar_array_values: BTreeMap::new(),
         byte_sequence_values: BTreeMap::from([(
             place(1),
             crate::ByteSequenceBinding::Immutable(crate::ByteSequenceView::new(vec![

@@ -27,6 +27,9 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::EstablishScalarArray { .. } => {
+            Err(LoweringError::UnsupportedScalarArray(operation.id))
+        }
         OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::PrimitiveScalarRead { .. } => {
             super::primitive_storage::lower(operation, machine, structural_types, value_types)

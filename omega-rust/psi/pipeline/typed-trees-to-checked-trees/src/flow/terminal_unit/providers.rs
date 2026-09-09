@@ -48,7 +48,7 @@ pub(super) fn checked_provider_attachment_requirements(
                     | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
                     | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                     | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-                    | CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+                    | CheckedUnitEffectOperationPlan::Complete { .. }
             )
         })
         .collect::<Vec<_>>();

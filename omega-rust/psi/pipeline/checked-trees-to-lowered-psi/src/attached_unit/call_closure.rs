@@ -142,7 +142,7 @@ pub(crate) fn checked_unit_boundary_identity(
 pub(super) fn validate_unit_operation_sequence(
     machine: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
-    let Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+    let Some(CheckedUnitEffectOperationPlan::Complete {
         statement_index, ..
     }) = machine.operations.last()
     else {
@@ -158,6 +158,12 @@ pub(super) fn validate_unit_operation_sequence(
         .enumerate()
     {
         let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: result.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
                 if !matches!(operation_index.checked_sub(1).and_then(|previous| machine.operations.get(previous)),
                     Some(CheckedUnitEffectOperationPlan::CallUnit { coordinate: call, .. }
@@ -321,13 +327,14 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
-            CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
+            CheckedUnitEffectOperationPlan::Complete { .. } => {
                 return unsupported("Unit machine contains a nonfinal Unit return");
             }
         };
         if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { result, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } = operation
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } = operation
         {
             if result.binding_ordinal != next_structural_binding {
                 return unsupported("Unit structural result is not the next dense source binding");

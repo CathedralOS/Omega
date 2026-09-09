@@ -193,7 +193,12 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         } else if matches!(
             declaration.shape,
             StructuralTypeShape::FixedArray { length: 0, .. }
-        ) {
+        ) && terminal_semantics::scalar_array_leaf_shape(
+            module.structural_types.iter(),
+            declaration.id,
+        )
+        .is_none()
+        {
             return Err(ModuleError::InvalidStructuralArrayLength(declaration.id));
         }
     }
@@ -916,6 +921,26 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                             });
                 if result.multiplicity == StructuralMultiplicity::Unrestricted
                     && !exact_unrestricted_payloadless_result
+                    && !(result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && terminal_semantics::scalar_array_leaf_shape(
+                            module.structural_types.iter(),
+                            result.structural_type,
+                        )
+                        .is_some()
+                        && machine.blocks.iter().all(|block| match &block.terminator {
+                            Terminator::ReturnStructural {
+                                source,
+                                returned_claims,
+                                ..
+                            } => {
+                                returned_claims.is_empty()
+                                    && super::scalar_array::plain_return_source(
+                                        module, machine, *source,
+                                    )
+                            }
+                            _ => true,
+                        }))
                     && !(result.qualifications.is_empty()
                         && result.projected_qualifications.is_empty()
                         && super::scalar_case::plain_type(module, result.structural_type)

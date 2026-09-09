@@ -35,6 +35,16 @@ pub(super) fn validate_store_and_initializer_calls(
                 Some(local.initial_value)
             }
             StatementNode::Assignment(_) | StatementNode::LocalData(_) => continue,
+            // A final value expression remains a completion value when stores
+            // precede it. Only actual call syntax owes a call occurrence here.
+            StatementNode::Expression(expression)
+                if !matches!(
+                    checked.expression_table.expression(*expression),
+                    checked_trees::expression::ExpressionNode::Call(_)
+                ) =>
+            {
+                continue;
+            }
             StatementNode::Call(call) if call.discards_result => None,
             _ if !has_stores => continue,
             _ => None,

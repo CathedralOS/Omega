@@ -511,7 +511,7 @@ fn scalar_boundary_wrapper_retains_structural_call_custody() {
     assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
     assert!(claim_transfers.is_empty());
     assert!(
-        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards, ..
     }) if trivial_affine_discards.is_empty()),
         "transferred affine parameter is not discarded twice"
@@ -572,7 +572,7 @@ fn scalar_boundary_wrapper_transfers_exact_linear_claim_with_mixed_signature() {
         wrapper.entry_claims[0].claim_identity
     );
     assert!(
-        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards, trivial_affine_local_discard_ordinals, ..
     }) if trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty())
     );
@@ -647,7 +647,7 @@ fn scalar_boundary_wrapper_consumes_established_affine_result_once() {
     );
     assert!(claim_transfers.is_empty());
     assert!(
-        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_discards, trivial_affine_local_discard_ordinals, ..
     }) if trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty())
     );
@@ -727,7 +727,7 @@ fn scalar_boundary_wrapper_consumes_existing_constructed_local_kinds() {
         }
         assert!(claim_transfers.is_empty());
         assert!(
-            matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+            matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
             trivial_affine_discards, trivial_affine_local_discard_ordinals, ..
         }) if trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty())
         );
@@ -770,7 +770,7 @@ fn scalar_wrapper_transfer_keeps_unconsumed_empty_prefix_cleanup() {
         .for_machine(root)
         .unwrap();
     assert!(
-        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::Complete {
         trivial_affine_local_discard_ordinals, ..
     }) if trivial_affine_local_discard_ordinals == &[0])
     );

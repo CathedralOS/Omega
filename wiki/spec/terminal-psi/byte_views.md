@@ -75,7 +75,8 @@ Descriptors may share immutable backing; deriving a view does not require copyin
 its bytes.
 
 An admitted ordinary helper or boundary can receive a mutable view of an
-initialized raw `FixedArray(PrimitiveScalar(u8), N)`. The source is either the whole mutable
+initialized raw `FixedArray(PrimitiveScalar(u8), N)` with `N > 0`.
+The source is either the whole mutable
 parameter or a relevant field-only projection from it; both ends are
 unrestricted, unqualified, and claim-free. The array remains a fixed array:
 its borrowed extent is exactly `N`, and writes retain the
@@ -85,9 +86,10 @@ Missing initialized backing rejects even when an opaque referent is supplied.
 The boundary retains its requirement identity and result custody; an installed
 checked provider borrows the original backing through its ordinary call frame.
 The external whole-field replacement callback cannot consume this array loan.
-Indexed projection paths are not admitted by this presentation. The existing
-Terminal zero-length fixed-array admission fence remains; it does not forbid
-empty borrowed views.
+Indexed projection paths are not admitted by this presentation.
+Empty primitive arrays retain their complete types
+under [owned array construction](calls_and_outcomes.md#primitive-array-construction);
+that construction does not by itself supply this borrowed backing presentation.
 
 A block's ordered structural parameters each bind one
 `BlockParameter { block, position }` place. Structural positions are dense

@@ -170,10 +170,27 @@ pub(super) fn validate_unit_operation_static(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
+    if matches!(
+        operation.kind,
+        OperationKind::CallStructural { .. }
+            | OperationKind::CallStructuralWithScalarArguments { .. }
+    ) && operation.result.structural().is_some_and(|result| {
+        result.multiplicity == StructuralMultiplicity::Unrestricted
+            && terminal_semantics::scalar_array_leaf_shape(
+                module.structural_types.iter(),
+                result.structural_type,
+            )
+            .is_some()
+    }) {
+        return Err(ModuleError::ScalarArrayResultMismatch(operation.id));
+    }
     if validate_scalar_case_call(module, machine, machines, operation)? {
         return Ok(());
     }
     match &operation.kind {
+        OperationKind::EstablishScalarArray { .. } => {
+            super::scalar_array::shape(module, machine, operation)?;
+        }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
             super::primitive_storage::store_type(module, machine, operation.id, *destination)?;
         }

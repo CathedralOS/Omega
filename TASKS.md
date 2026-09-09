@@ -1074,7 +1074,7 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: the working checkpoint based on `4535ed88e8`, macOS arm64
+  Resume evidence: the working checkpoint based on `408bff9fa4`, macOS arm64
   with Cargo and `RUST_MIN_STACK=33554432`, checks
   `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`:
   root/module arrays and scalar `settings::Sizes::MAX` retain distinct canonical
@@ -1102,14 +1102,17 @@ Owners include
   General value projection needs its complete executable representation, not
   a source rewrite that makes a constant addressable storage.
   Array-valued constant projections preserve exact destination dimensions and
-  element carriers, including empty rows, through checked evaluation. Terminal
-  array-result construction is still missing: `flow/terminal_unit/returns.rs`
-  currently forwards existing structural values, while `terminal_unit/types.rs`
-  also excludes zero-length array shapes. Continue with a complete initialized
-  array construction path and its source custody in `checked-trees-to-lowered-psi`,
-  then execute the customer's `selected_row` and `selected_empty_row` from
-  decoded Terminal artifacts. Do not count their successful `--check` as that
-  executable acceptance.
+  element carriers, including empty rows, through checked evaluation. The customer's
+  `selected_row`, `selected_empty_row`, `root_array`, and `selected_array` also
+  execute from independently decoded Terminal artifacts through ordinary ordered
+  construction and structural return. The outer inspection command is
+  `cargo run -p omega -- inspect-terminal --machine selected_row tests/omega/pass/modules/module_array_constant_indices/main.omg`;
+  repeat with `selected_empty_row` for the empty shape. The source correspondence owner is
+  `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
+  Continue with computed scalar elements, array argument/result transport through
+  calls and state transfers, and native construction; exact value/type custody and
+  initialized backing must survive those boundaries. The current native consumer
+  explicitly rejects `EstablishScalarArray`, including empty payloads.
   Keep the `runtime_aggregate_index` and `runtime_fixed_array_index` rejection
   controls under `tests/omega/fail/modules/` while extending materialization.
   Conformance and static-requirement argument positions

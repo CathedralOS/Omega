@@ -12,7 +12,9 @@ mod byte_sequence_subslice;
 use byte_sequence_binding::{ByteSequenceBinding, StructuralCallArguments};
 mod byte_sequence_view;
 mod byte_sequence_write;
+mod scalar_array;
 mod structural_byte_arrays;
+pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
 pub use structural_byte_arrays::TerminalStructuralByteArrayValue;
 mod effect_results;
 mod primitive_storage;
@@ -475,6 +477,7 @@ pub enum TerminalExecutionResult {
     Scalar(TerminalScalarValue),
     Structural(TerminalStructuralResult),
     ScalarCase(TerminalScalarCaseResult),
+    ScalarArray(TerminalScalarArrayResult),
 }
 
 /// A structural value returned with the exact live claims transferred into it.
@@ -535,6 +538,7 @@ pub struct TerminalExecution {
     structural_byte_sequence_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
     structural_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
     scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
+    scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
     /// not supply either byte contents or permission to mutate a field.
@@ -570,6 +574,7 @@ struct SuspendedCall {
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
+    scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
     live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
@@ -1049,6 +1054,7 @@ impl TerminalExecution {
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_arrays: BTreeMap::new(),
             scalar_case_values: BTreeMap::new(),
+            scalar_array_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
             live_affine_frontier,
             live_claims,
@@ -1305,6 +1311,7 @@ impl TerminalExecution {
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1407,6 +1414,7 @@ impl TerminalExecution {
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1545,6 +1553,7 @@ impl TerminalExecution {
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: remaining_claims,
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1597,6 +1606,7 @@ impl TerminalExecution {
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1644,6 +1654,7 @@ impl TerminalExecution {
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -1689,6 +1700,9 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::EstablishScalarArray { elements } => {
+                        self.execute_scalar_array_establishment(&operation, &elements)?;
+                    }
                     OperationKind::EstablishPrimitiveLocal { value } => {
                         self.execute_primitive_establishment(&operation, value)?;
                     }
@@ -2358,6 +2372,7 @@ impl TerminalExecution {
                             structural_values: std::mem::take(&mut self.structural_values),
                             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+                            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -3271,6 +3286,7 @@ impl TerminalExecution {
                         structural_values: std::mem::take(&mut self.structural_values),
                         byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                         scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+                        scalar_array_values: std::mem::take(&mut self.scalar_array_values),
                         live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                         live_claims: std::mem::take(&mut self.live_claims),
                         dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -3386,6 +3402,7 @@ impl TerminalExecution {
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
+                        self.scalar_array_values = caller.scalar_array_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -3627,6 +3644,7 @@ impl TerminalExecution {
                             structural_values: std::mem::take(&mut self.structural_values),
                             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
+                            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -3660,6 +3678,7 @@ impl TerminalExecution {
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
+                        self.scalar_array_values = caller.scalar_array_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -3706,6 +3725,7 @@ impl TerminalExecution {
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
+                        self.scalar_array_values = caller.scalar_array_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -3752,6 +3772,9 @@ impl TerminalExecution {
                                         scalar_case_values: std::mem::take(
                                             &mut self.scalar_case_values,
                                         ),
+                                        scalar_array_values: std::mem::take(
+                                            &mut self.scalar_array_values,
+                                        ),
                                         live_affine_frontier: std::mem::take(
                                             &mut self.live_affine_frontier,
                                         ),
@@ -3797,6 +3820,7 @@ impl TerminalExecution {
                                     self.retire_primitive_locals();
                                     self.structural_values = caller.structural_values;
                                     self.scalar_case_values = caller.scalar_case_values;
+                                    self.scalar_array_values = caller.scalar_array_values;
                                     self.byte_sequence_values = caller.byte_sequence_values;
                                     self.live_affine_frontier = caller.live_affine_frontier;
                                     self.live_claims = caller.live_claims;
@@ -3838,6 +3862,46 @@ impl TerminalExecution {
                     let Some(signature) = machine.result.structural() else {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     };
+                    if let Some(value) = self.scalar_array_values.get(source) {
+                        if !self.call_stack.is_empty()
+                            || value.structural_type != signature.structural_type
+                            || signature.multiplicity != StructuralMultiplicity::Unrestricted
+                            || !signature.qualifications.is_empty()
+                            || !signature.projected_qualifications.is_empty()
+                            || !returned_claims.is_empty()
+                            || !self.live_claims.is_empty()
+                            || trivial_affine_discards.iter().any(|place| {
+                                *place == *source
+                                    || (!self.structural_values.contains_key(place)
+                                        && !self.scalar_case_values.contains_key(place))
+                            })
+                            || self.live_affine_frontier.iter().any(|entry| {
+                                !entry.path.is_empty()
+                                    || !trivial_affine_discards.contains(&entry.place)
+                            })
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        if let Err(error) = meter.charge_terminator(&terminator) {
+                            return meter_status(error);
+                        }
+                        let value = self
+                            .scalar_array_values
+                            .remove(source)
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        for place in trivial_affine_discards {
+                            self.structural_values.remove(place);
+                            self.scalar_case_values.remove(place);
+                            remove_affine_root(&mut self.live_affine_frontier, *place);
+                        }
+                        let result =
+                            TerminalExecutionResult::ScalarArray(TerminalScalarArrayResult {
+                                value,
+                            });
+                        self.retire_primitive_locals();
+                        self.result = Some(result.clone());
+                        return Ok(TerminalExecutionStatus::Complete(result));
+                    }
                     if let Some(value) = self.scalar_case_values.get(source).cloned() {
                         let internal_result = match self.call_stack.last() {
                             Some(SuspendedCall {
@@ -3902,6 +3966,7 @@ impl TerminalExecution {
                             self.retire_primitive_locals();
                             self.structural_values = caller.structural_values;
                             self.scalar_case_values = caller.scalar_case_values;
+                            self.scalar_array_values = caller.scalar_array_values;
                             self.byte_sequence_values = caller.byte_sequence_values;
                             if self
                                 .scalar_case_values
@@ -4028,6 +4093,7 @@ impl TerminalExecution {
                         self.retire_primitive_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
+                        self.scalar_array_values = caller.scalar_array_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         if self.structural_values.insert(result.place, value).is_some() {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);

@@ -82,7 +82,7 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
                 first.value = replacement;
             }
             6 => {
-                let CheckedUnitEffectOperationPlan::ReturnUnit {
+                let CheckedUnitEffectOperationPlan::Complete {
                     statement_index, ..
                 } = plan.operations.last_mut().unwrap()
                 else {

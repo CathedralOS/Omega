@@ -50,7 +50,7 @@ fn scalar_sequence_keeps_source_statement_and_dense_binding_coordinates() {
             coordinate: send_fourth,
             ..
         },
-        CheckedUnitEffectOperationPlan::ReturnUnit {
+        CheckedUnitEffectOperationPlan::Complete {
             statement_index: 6, ..
         },
     ] = plan.operations.as_slice()

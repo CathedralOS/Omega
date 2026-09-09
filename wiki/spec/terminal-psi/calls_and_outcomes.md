@@ -35,6 +35,35 @@ places remain distinct through lowering, assignment, emission, and installation.
 A result's qualifications and claims are semantic metadata, not additional ABI
 words.
 
+### Primitive array construction
+
+`EstablishScalarArray { elements }` establishes one complete owned structural
+value. Its exact result type is a fixed array, recursively containing fixed
+arrays or a primitive scalar. Operands are the already evaluated scalar leaves
+in row-major index order. Their count must equal the product of all dimensions,
+and every operand must dominate the operation and have the exact leaf carrier.
+Construction performs no conversion, arithmetic, or floating-point rounding.
+
+Dimensions remain in the structural type even when any dimension is zero.
+An empty payload does not erase its element carrier or inner dimensions. Type
+declarations must still exist and be acyclic below an empty dimension; an empty
+array cannot hide an unknown, recursive, or nonprimitive element shape.
+
+The result is unrestricted, unqualified, and claim-free. Construction establishes
+neither borrowed storage nor content or qualification evidence. Formation and
+operand-availability checks decide this total operation; it introduces no new
+proof obligation or authorized admission. The ordinary structural frontier and
+return rules still check result availability and exact producer/consumer custody.
+It may occur among other ordered operations, not only at a machine's return.
+
+Execution retains the actual typed leaf payload, not just an opaque place
+identity. One logical operation unit is charged before the complete array is
+established; insufficient fuel establishes nothing. A later return charges its
+own edge. Suspension or calls must preserve an already completed construction
+without replaying it. Consumers that cannot carry the payload through an argument,
+result, transfer, or native realization reject that use explicitly; recognizing
+the structural type alone does not establish executable support.
+
 ## Call contracts
 
 A call names its exact callee and positional actuals. Each published callee

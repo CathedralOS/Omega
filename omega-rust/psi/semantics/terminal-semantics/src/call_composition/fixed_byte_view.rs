@@ -60,7 +60,7 @@ pub fn mutable_fixed_byte_array_extent(
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
         return None;
     };
-    // Preserve the current Terminal fixed-array declaration admission floor.
+    // This borrowed-backing presentation currently requires a positive extent.
     if length == 0 {
         return None;
     }

@@ -213,7 +213,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         }
         let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
         let (cleanup_return, cleanup_calls) = cleanup_target.operations.split_last()?;
-        let CheckedUnitEffectOperationPlan::ReturnUnit {
+        let CheckedUnitEffectOperationPlan::Complete {
             statement_index,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
@@ -286,7 +286,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                 || !helper.body_qualifications.is_empty()
                 || !service_reach_is_empty(facts, helper.service_reach)
                 || !service_reach_plan_is_empty(facts, helper.contract_service_reach)
-                || !matches!(helper.operations.as_slice(), [CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty())
+                || !matches!(helper.operations.as_slice(), [CheckedUnitEffectOperationPlan::Complete { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty())
             {
                 return None;
             }
@@ -303,6 +303,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
 
     Some(CheckedNominalAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
+            structural_result: None,
             machine: machine.symbol,
             state: state.symbol,
             attachment_type_identity: Some(attachment_type_identity),
@@ -316,7 +317,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             contract_commitment: contract.commitment,
             contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
             service_reach: state_flow.service_reach,
-            operations: vec![CheckedUnitEffectOperationPlan::ReturnUnit {
+            operations: vec![CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 0,
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),
@@ -1157,7 +1158,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
             || !service_reach_plan_is_empty(facts, target.contract_service_reach)
             || !matches!(
                 target.operations.as_slice(),
-                [CheckedUnitEffectOperationPlan::ReturnUnit {
+                [CheckedUnitEffectOperationPlan::Complete {
                     trivial_affine_local_discard_ordinals,
                     trivial_affine_discards,
                     ..
@@ -1269,13 +1270,14 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     {
         return None;
     }
-    operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
+    operations.push(CheckedUnitEffectOperationPlan::Complete {
         statement_index: u32::try_from(statements.len()).ok()?,
         trivial_affine_local_discard_ordinals: Vec::new(),
         trivial_affine_discards: Vec::new(),
     });
     Some(CheckedPartialAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
+            structural_result: None,
             machine: machine.symbol,
             state: state.symbol,
             attachment_type_identity,
