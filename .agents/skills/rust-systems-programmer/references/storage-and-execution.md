@@ -4,6 +4,29 @@
 
 Choose data structures by how work is partitioned, written, and consumed. Allocation behavior, memory traffic, and serial work are architectural concerns, not cleanup after the algorithm is finished. Preserve layouts that let independent workers produce useful final storage directly.
 
+### Reduce the work domain before speeding up the loop
+
+Ask what changed and why unchanged input is being processed again. Prefer an
+immutable input snapshot with compact selections or local changes when the next
+consumer can use them directly. A filter need not copy its payload; an unchanged
+selection may reuse its input. A fixed-point update should revisit affected
+dependencies where they can be tracked soundly, not unrelated owners. Retain
+required invalidation, failure and evidence behavior; an unchecked revision
+counter is not a substitute for establishing that input stayed unchanged.
+
+Choose the representation for the selection's geometry: a contiguous span,
+several runs, a bitset, or explicit handles. RLE is useful for clustered results,
+not a universal compiler representation. Account for fragmentation, retained
+backing storage, and consumer costs. Sharing a span requires stable membership
+and contents: audit append, mutation, freeing and handle reuse before replacing
+an independent copy with a view.
+
+Measure useful work as well as time: owners revisited, rows copied, bytes hashed,
+allocations, and the serial work after independent processing. Prefer removing
+that work to building a cache, scheduler or indexing layer around it. If the
+supposed simplification needs more lifecycle bookkeeping than the work it avoids,
+compare retaining the straightforward implementation instead.
+
 ### Start with Squalr's coupled decisions
 
 For performance architecture work, read [the scan pipeline's deep patterns](squalr-scan-pipeline.md). Trace how one representation eliminates work in the next stage, then transfer the applicable relationship:
@@ -33,6 +56,13 @@ Reuse an existing executor when its stack size, blocking, thread-affinity, isola
 
 Inspect the entire path after the parallel loop: merging, sorting, counting, serialization, and publication can become the serial bottleneck. Preserve partitions through subsequent stages where possible, and reduce only the metadata that actually needs aggregation.
 
+Prepare for parallelism even when executing sequentially: share immutable inputs
+and give independent work units their own scratch and outputs. Decide handle
+identity and deterministic publication order before adding workers. Paged storage
+alone does not establish independent mutation, and globally allocating handles
+or remapping every result afterward may restore the serial bottleneck. Do not
+introduce threads or a new executor solely to demonstrate this ownership shape.
+
 ### Eliminate lookup before choosing an index
 
 Trace where the association becomes known and where it is lost. A consumer
@@ -54,6 +84,13 @@ or a more complicated ownership model without evidence of a net benefit.
 ### Minimize allocations and repeated work
 
 Reuse input, output, and scratch buffers across repeated operations when ownership permits. Retain useful capacity, reserve from realistic size information, and avoid allocating an object per match. Balance reuse against retained RAM; do not reserve worst-case capacity for every worker without a reason.
+
+When output cardinality is known cheaply, allocate once and fill directly.
+When it is not, retain independently produced batches rather than first counting
+expensive work twice or flattening every result into another allocation. Iterator
+`collect()` can use size information, but its spelling is not evidence of one
+allocation; inspect the iterator and destination behavior. Neither exact sizing
+nor nested vectors are goals independent of total work and retained memory.
 
 Store spans, ranges, or offsets when they represent many results compactly. Decode values and construct display objects on demand. Separate I/O from computation, write directly into the intended backing storage where practical, and avoid intermediate copies or repeated conversions. Keep repeatedly accessed bytes contiguous within each work unit. Choose a layout that serves the actual access pattern instead of imposing one universal container shape.
 
