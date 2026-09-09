@@ -60,6 +60,14 @@ in AGENTS.md before instrumenting compiler code. Distinguish the observed bounda
 from downstream gaps inferred from source. A checked-tree milestone can be useful
 while native production remains blocked, but report that boundary accurately.
 
+Apply [compositional lowering](../../../AGENTS.md#compositional-lowering) before
+turning that failure into another narrowly admitted source family. If supported
+operations fail only because of their surrounding arrangement, repair the shared
+sequencing or semantic join and retire the replaced recognizer. Carry the same
+customer across the repair; do not multiply helper milestones or board entries
+for each newly accepted permutation. Independent replay and real ownership,
+effect, proof, and ABI checks remain required.
+
 Carry the reproduction and source findings forward across handoffs. Revisit them
 when inputs change or a concrete evidence gap needs checking.
 

@@ -299,6 +299,33 @@ explicit evidence; it must not select a different downstream representation.
 dependency direction and semantic shape. A wrong-direction dependency fails
 there, not at `cargo check`.
 
+### Compositional lowering
+
+Source-shape admission is a code-rot warning: supported assignment, call, branch,
+and transfer operations must compose under their actual type, effect, ownership,
+and control-flow rules. Do not add another required producer family for an
+incidental arrangement such as "locals before calls", "call immediately followed
+by case dispatch", or "the same body with an extra statement". Replace the
+restrictive recognizer or duplicated planner with ordinary operation sequencing
+and explicit value/storage/control relationships. Clean X-to-Y crate names do
+not make a pattern-specific implementation compositional.
+
+Semantic distinctions, ABI constraints, missing proof obligations, and explicit
+implementation limits remain real. Never remove their rejection checks merely
+to admit more shapes. Specialized pattern matching is appropriate for optional
+optimizations with a correct general path, not as the only way to compile an
+ordinary combination. Independent verification must reconstruct and check the
+operation/evidence relationships, not trust a producer assertion or rediscover
+the original source idiom at each stage.
+
+When a customer exposes this pattern, identify the general operation or join that
+is missing and remove the superseded special path as that repair lands. Exercise
+supported operations before, after, and across calls/branches where semantically
+valid, including invalid ownership/effect controls. Keep the actual customer's
+command as the outer acceptance check; a passing isolated helper does not close
+an unchanged application failure. Do not expand the task board with one item per
+permutation, or treat this rule as permission for an unrelated whole-IR rewrite.
+
 ### Source trees
 
 - `omega-rust/` — the **Rust reference producer**. Working development

@@ -30,6 +30,14 @@ Read the relevant reference, not every reference. A simple change may need none 
 
 ## Shape the implementation
 
+For compiler lowering, apply [compositional lowering](../../../AGENTS.md#compositional-lowering).
+Recognizers for incidental source arrangements are code rot, not a reusable
+implementation boundary. Before widening one, trace whether ordinary operation
+sequencing or explicit data/control/ownership joins can replace the special path.
+Keep semantic and ABI restrictions explicit and independently verified; do not
+turn a failed proof into an accepted fallback. Test composition, not only the
+particular spelling which exposed the gap.
+
 Identify which facts change per request, partition, and element. Prepare reusable facts at the outer lifetime; specialize local choices where their inputs become known; keep the inner operation narrow. Borrow immutable context, own mutable working state, and transfer useful output storage to the consumer.
 
 Use coherent domain names and responsibility-focused modules. Preserve precise input modes instead of growing an all-purpose context. Reuse existing abstractions; allow a little duplication when it keeps invariant decisions outside a hot loop. Recover from errors at the boundary that owns recovery. Apply the [coding conventions](references/rust-conventions.md) when writing or reviewing Rust.
