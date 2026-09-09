@@ -999,10 +999,13 @@ Owners include
   `build-time-evaluation/src/const_generic_expressions.rs` precedes the typed
   scalar probe. Next acceptance: aggregate indices must preserve their lexical
   owner through namespace-aware materialization; module-owned aggregate constants
-  remain fenced by initializer normalization. Root scoped aggregate indices have
-  lexical admission coverage in `tests/omega/pass/modules/aggregate_machine_indices`
-  and `tests/omega/fail/modules/runtime_aggregate_index`; this does not replace
-  the legacy aggregate materializer with namespace-aware evaluation.
+  remain fenced by initializer normalization. Root-scoped record and fixed-array
+  arguments already retain lexical selection; continue from the
+  `aggregate_machine_indices` and `fixed_array_machine_indices` cases under
+  `tests/omega/pass/modules/`, with matching `runtime_aggregate_index` and
+  `runtime_fixed_array_index` rejection controls under `tests/omega/fail/modules/`.
+  The remaining work is namespace-aware aggregate materialization, not another
+  destination-shape exception in lexical admission.
   Conformance and static-requirement argument positions
   also need their complete owners, not a standalone root probe.
   Open-template computation, constrained destinations, authored operator execution

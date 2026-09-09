@@ -7,6 +7,10 @@
 //! normalizer cannot produce Boolean identity or establish operator meaning.
 //! Destination spelling only routes the probe; exact typed identity, admission
 //! and operand checks still precede evaluation and publication of the result.
+//! Every machine argument first needs its original lexical selection, including
+//! structural destinations such as fixed arrays. A destination without a name
+//! cannot bypass that obligation and let later canonicalization erase a runtime
+//! operand. Nonscalar values retain their existing materialization path.
 
 mod lexical_selection;
 mod value;
@@ -43,14 +47,11 @@ pub(super) fn evaluate(
     for (argument, destination, public) in machine_arguments {
         // This is probe routing, not builtin identity. The typed destination
         // must still resolve to the exact primitive before evaluation.
-        let TypeReferenceNode::Named(destination_name) =
-            syntax.type_references.type_reference(destination)
-        else {
-            continue;
-        };
         let scalar = matches!(
-            destination_name.as_str(),
-            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool"
+            syntax.type_references.type_reference(destination),
+            TypeReferenceNode::Named(destination_name)
+                if matches!(destination_name.as_str(),
+                    "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool")
         );
         let original = syntax.type_references.type_reference(argument).clone();
         if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(argument) {
