@@ -388,6 +388,11 @@ A statically admitted program can still exhaust them or diverge. Correct
 classification at those boundaries remains required, but a compiler cannot
 promise that every terminating program fits every finite runtime provision.
 
+The [canonical compiler's execution-storage audit](execution_storage.md)
+separately bounds its own call contexts, lexical rows, and temporary values
+under the current Gamma profile. It does not bound cumulative pair allocation
+or the runtime resources of generated applications.
+
 ### Arithmetic allocation probe
 
 At `8148975c62` on macOS arm64, a full-source probe used `n` nullary `Int`

@@ -172,7 +172,10 @@ prerequisite to every lower-rung milestone.
   [Capture's source-level accounting](bootstrap/3_delta/implementation/normalization/README.md#capture-allocation-ownership)
   and the passing full-width case do not constitute a whole-producer bound or
   checked refinement certificate. Generic overlapping helper batches, earlier
-  checking/lowering, and runtime contexts remain part of that argument.
+  checking/lowering, and serialization remain part of that allocation argument.
+  The [canonical compiler execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md)
+  bounds its call contexts, lexical rows, and temporary values separately;
+  generated-application runtime exhaustion is not compiler-execution exhaustion.
   Retain original binding atoms, immutable scopes, and matched parameter/argument
   order. No renaming maps, additional lookup subsystem, allocator, or provision
   increase is justified by this one case.
