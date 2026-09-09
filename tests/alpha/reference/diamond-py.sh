@@ -54,6 +54,7 @@ hex ovf_trap      "01 00 0000000000000080 01 01 ffffffffffffffff 06 00 01 00 00"
 hex jlt_signed    "01 00 ffffffffffffffff 01 01 0100000000000000 0f 00 01 2100000000000000 01 02 0000000000000000 00 02 01 02 0100000000000000 00 02" ""  # -1 <s 1
 hex read_eof      "11 00 00 00" ""                                                               # read at EOF -> 0xFF.. ; halt low8 = 0xFF=255
 hex bad_opcode    "ff 00" ""                                                                     # unknown -> trap 132
+hex io_registers "$(sed 's/;.*//' "$OMEGA_REPO_ROOT/tests/alpha/io-registers.hex")" "AB"
 
 echo "seed diamond (independent Python reference VM agrees with the host seed): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

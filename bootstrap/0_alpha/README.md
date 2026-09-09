@@ -65,10 +65,17 @@ See [bounds conformance](../../tests/alpha/README.md#bounds-conformance) for
 tested behavior and observation limits. macOS execution and source rebuild
 are checked; Windows listing reconstruction is not Windows runtime validation.
 
-A separate pre-existing Windows defect remains: I/O scratch at RVAs
-`0x3080..0x309f` overlaps Alpha registers 16–19 in the register file beginning
-at `0x3000`. Bounds hardening does not repair or validate that unrelated
-register-preservation behavior; the bootstrap board tracks the correction.
+Windows host I/O scratch occupies RVAs `0x3800..0x381f`, immediately after
+the 256 eight-byte Alpha registers at `0x3000..0x37ff` and before semantic
+memory at `0x4000`. The two handles use `0x3800` and `0x3808`, the byte buffer
+uses `0x3810`, and the count slot uses `0x3818`. The eight-byte count slot is
+initially zero; host I/O writes its low four bytes, leaving the high half zero
+for the native word read. All storage fits the existing writable zeroed page.
+This corrects the former alias with registers 16–19 by relocating eleven
+address immediates (22 binary bytes), without adding instructions or capacity.
+The [register fixture](../../tests/alpha/io-registers.hex) checks initial zero
+values, full-word preservation, and direct I/O operands. Its macOS/reference
+results do not establish Windows runtime validation.
 
 ## Owned files
 
@@ -98,7 +105,7 @@ repository bytes, separate from their realization/conformance obligations:
 | Container | SHA-256 |
 | --- | --- |
 | `alpha_arm64_macos` | `348bc9601a9f44d4afa98febd7292f77d016b3c1060e20b15768dc23e4061082` |
-| `alpha_x64_windows.exe` | `77419493b91c965fb0ef7e8a5f0ea61099963228b0c3b94ed01ae45451023a3c` |
+| `alpha_x64_windows.exe` | `bc71f8bee48cbd4c70c533e57b5dfcd04e04199ac3cf055cbed8e76ad6fb1c40` |
 
 | Retained files | Direct role | Deletion condition |
 | --- | --- | --- |

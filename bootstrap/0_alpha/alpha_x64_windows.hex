@@ -10,7 +10,8 @@
 ; (4-byte LE length, then the bytes), up to the hole's size.
 ; getbyte/putbyte are self-aligning native subroutines wrapping ReadFile/WriteFile.
 ;   rsi=pc ptr  rdi=mem base (0x140004000)  rbx=&vregs (0x140003000)  r12=sp
-;   scratch (vregs page): stdin_h 3080, stdout_h 3088, io_byte 3090, count 3098.
+;   vregs occupy RVAs 3000..37ff; private scratch follows in the same page:
+;   stdin_h 3800, stdout_h 3808, io_byte 3810, count 3818 (memory starts at 4000).
 ;   AlphaBootstrapV4: 1.75 GiB memory, unchanged stack origin 0x10000000.
 ;   Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000, .tape 0x70004000.
 ; ===========================================================================
@@ -104,11 +105,11 @@ z24
 ; stdin_h / stdout_h
 B9 F6 FF FF FF
 FF 15 .rel32 iat_gsh
-48 B9 80 30 00 40 01 00 00 00
+48 B9 00 38 00 40 01 00 00 00
 48 89 01
 B9 F5 FF FF FF
 FF 15 .rel32 iat_gsh
-48 B9 88 30 00 40 01 00 00 00
+48 B9 08 38 00 40 01 00 00 00
 48 89 01
 ; --- loader: copy the embedded tape (the .tape hole) into VM memory ---
 48 B8 00 40 00 B0 01 00 00 00   ; rax = &.tape  (ImageBase + 0x70004000)
@@ -367,18 +368,18 @@ C3
 ; --- getbyte: rax = next stdin byte, or -1 at EOF (self-aligning frame) ---
 getbyte:
 48 83 EC 28
-48 B8 80 30 00 40 01 00 00 00   ; &stdin_h
+48 B8 00 38 00 40 01 00 00 00   ; &stdin_h
 48 8B 08
-48 BA 90 30 00 40 01 00 00 00   ; &io_byte
+48 BA 10 38 00 40 01 00 00 00   ; &io_byte
 41 B8 01 00 00 00
-49 B9 98 30 00 40 01 00 00 00   ; &count
+49 B9 18 38 00 40 01 00 00 00   ; &count
 48 C7 44 24 20 00 00 00 00
 FF 15 .rel32 iat_rf
-48 B8 98 30 00 40 01 00 00 00   ; &count
+48 B8 18 38 00 40 01 00 00 00   ; &count
 48 8B 00
 48 85 C0
 74 .rel8 gb_eof
-48 B8 90 30 00 40 01 00 00 00   ; &io_byte
+48 B8 10 38 00 40 01 00 00 00   ; &io_byte
 0F B6 00
 48 83 C4 28
 C3
@@ -390,13 +391,13 @@ C3
 ; --- putbyte: write al to stdout (self-aligning frame) ---
 putbyte:
 48 83 EC 28
-48 BA 90 30 00 40 01 00 00 00   ; &io_byte
+48 BA 10 38 00 40 01 00 00 00   ; &io_byte
 88 02                           ; mov [io_byte], al
-48 B8 88 30 00 40 01 00 00 00   ; &stdout_h
+48 B8 08 38 00 40 01 00 00 00   ; &stdout_h
 48 8B 08
-48 BA 90 30 00 40 01 00 00 00   ; &io_byte
+48 BA 10 38 00 40 01 00 00 00   ; &io_byte
 41 B8 01 00 00 00
-49 B9 98 30 00 40 01 00 00 00   ; &count
+49 B9 18 38 00 40 01 00 00 00   ; &count
 48 C7 44 24 20 00 00 00 00
 FF 15 .rel32 iat_wf
 48 83 C4 28

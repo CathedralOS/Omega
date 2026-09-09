@@ -86,6 +86,11 @@ tc call_ret        42  "" "" 13 0b00000000000000 00 00 01 00 2a00000000000000 14
 # unknown opcode -> trap
 tc unknown_trap   132  "" "" ff
 
+# Host I/O scratch must not occupy Alpha registers 16-19, even when these
+# registers are themselves read/write operands. The shared fixture checks full
+# words, initial zero values, preserved sentinels, repeated I/O, and EOF.
+tc io_registers 0 "ABCDEF" "AB" "$(sed 's/;.*//' "$TEST_DIR/io-registers.hex")"
+
 # AlphaBootstrapV4 extends the V3 memory end without moving the stack origin.
 # All accesses below are in [0, 0x70000000); bounds.py also exercises traps.
 tc upper_origin_zero 0 "" "" 01 00 0000004000000000 08 01 00 00 01
