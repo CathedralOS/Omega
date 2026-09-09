@@ -137,6 +137,27 @@ implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
 the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
+- **NATIVE-DIFFERENTIAL-ACCEPTANCE.** Restore the remaining acceptance failures in
+  `tests/native-differential/tests/{terminal_psi_source,pipeline_ownership}`.
+  Resume on macOS AArch64 with `cargo nextest run -p omega-native-differential-test
+  --test terminal_psi_source --test pipeline_ownership --no-fail-fast --no-tests fail`.
+  At `6b950ff18d` plus the fixture-interface repair, nine tests fail: guarded
+  integer crash proof, typed-frontend disposal and checked-plan control transport,
+  scalar body/contract rejection expectations, build-bound progress publication,
+  and two selection-custody expectations. Production code and those failing
+  assertion bodies are unchanged by that repair. Start with
+  `admission_crashes_and_native::explicit_source_crash_lowers_to_verified_nonreturning_terminal`:
+  lowering reports `CrashSiteGuardUnproved` for a guarded integer comparison.
+  Trace the Psi crash guard producer and verifier; do not relax route checking.
+  Reconcile frontend-disposal expectations with the checked semantic-spine contract
+  before changing producer responsibilities. Review stale rejection expectations
+  against current admitted structural selection, preserving corruption controls.
+  The same source target has unused fixture inputs in
+  `comparisons_bitwise_and_casts.rs` and `control_graphs.rs`; restore their intended
+  assertions or remove genuinely obsolete setup, not blanket lint suppression.
+  Acceptance: both test targets and their scoped Clippy pass without filtering
+  failures; this does not replace the completion plan's hosted native matrix.
+
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
   sibling Omega packages: target-neutral phases under `source/psi/` and the
   Terminal-Psi-consuming product under `source/omega/`, with hosted entrypoints
