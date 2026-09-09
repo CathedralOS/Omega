@@ -18,6 +18,7 @@ Use this exact repository skill when invoked by path. A delegated evaluation sho
 | What you are deciding | Pattern to consider | Read |
 | --- | --- | --- |
 | The same setup repeats across many work units | Prepare shared facts once; borrow them in a small local plan. | [Code structure](references/squalr-code-structure.md#prepare-shared-decisions-borrow-them-in-local-plans) |
+| Repeated searches suggest adding a map or index | Ask whether the producer can carry the association directly. | [Lookup framing](references/storage-and-execution.md#eliminate-lookup-before-choosing-an-index) |
 | A loop repeatedly branches on a fixed mode | Select the mode outside the loop; keep each loop's actual inputs explicit. | [Branch placement](references/squalr-code-structure.md#branch-once-around-the-loop) |
 | Runtime flexibility meets a small set of fast kernels | Runtime selection around bounded compile-time specialization. | [Dispatch](references/squalr-code-structure.md#select-dynamically-specialize-a-bounded-dimension) |
 | Adding threads or scratch state | Stateless algorithm; invocation/worker owns mutable state and output. | [Working state](references/squalr-code-structure.md#stateless-algorithm-invocation-owned-working-state), [execution constraints](references/storage-and-execution.md#put-threads-at-the-ownership-boundary) |

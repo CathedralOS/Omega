@@ -33,6 +33,24 @@ Reuse an existing executor when its stack size, blocking, thread-affinity, isola
 
 Inspect the entire path after the parallel loop: merging, sorting, counting, serialization, and publication can become the serial bottleneck. Preserve partitions through subsequent stages where possible, and reduce only the metadata that actually needs aggregation.
 
+### Eliminate lookup before choosing an index
+
+Trace where the association becomes known and where it is lost. A consumer
+hashing an owner and local position may be reconstructing a relationship the
+producer could retain as a group handle or child span. Consider direct handles,
+owner-local dense tables, sorted ranges, or carrying a cursor through ordered
+work before building another global index. Composite-key sparsity alone does
+not show that its individual ownership relationships are irregular.
+
+Check the complete cost: preparation, hot queries, appends/deletions, repeated
+cloning or rebuilding, allocation slack, and cache locality. Compare relevant
+small and growing workloads, including actual producer order and late appends;
+an improvement over repeated full scans is not a comparison against these
+alternatives. Preserve generation checks, stable order, and mutation visibility.
+Hash maps can still be the simplest effective choice for genuinely irregular
+associations. Do not trade them for sparse over-allocation, quadratic insertion,
+or a more complicated ownership model without evidence of a net benefit.
+
 ### Minimize allocations and repeated work
 
 Reuse input, output, and scratch buffers across repeated operations when ownership permits. Retain useful capacity, reserve from realistic size information, and avoid allocating an object per match. Balance reuse against retained RAM; do not reserve worst-case capacity for every worker without a reason.
