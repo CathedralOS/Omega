@@ -4,15 +4,16 @@
 //! normalize. They can use the same exact constant-header selection and canonical
 //! value route as scalars; lexical and package custody still precede publication.
 //! Every newly admitted array declaration is also checked by the existing
-//! canonicalizer, including unused private declarations: ordinary substitution
-//! does not retain aggregate initializers for later type checking. Array leaves
+//! canonicalizer, including unused private declarations: unused initializers
+//! never reach destination checking. Array leaves
 //! therefore stay within its canonical integer/Boolean subset. Scoped literals
 //! additionally retain their exact nongeneric module-local carrier at constant
 //! finalization, where complete symbols exist. Scalar substitution then uses
 //! resolved declaration identity and the declared numeric landing, just as for
-//! unscoped constants. Foreign or generic attachments and nominal record/case
-//! initializers still need their full owners; array indices do not implement
-//! aggregate body substitution.
+//! unscoped constants. Primitive arrays use this same selection for body copies,
+//! preserving their declared element landings and full array type at destinations.
+//! Foreign or generic attachments and nominal record/case initializers still
+//! need their full owners.
 
 use diagnostics::Diagnostic;
 use source::SourceId;
@@ -175,7 +176,7 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
     Ok(())
 }
 
-fn module_literal_constant(
+pub(crate) fn module_literal_constant(
     syntax: &SyntaxTrees,
     constant: &syntax_trees::item::ConstDefinition,
 ) -> bool {

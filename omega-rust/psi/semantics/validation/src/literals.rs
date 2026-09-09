@@ -73,6 +73,7 @@ pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut
 mod float_landing;
 pub use float_landing::land_float_literal_destinations;
 pub(crate) use float_landing::validate_anonymous_divisions;
+mod constant_arrays;
 mod integer_landing;
 mod integer_remainder;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;
@@ -92,6 +93,8 @@ pub(crate) fn validate_suffix_landing(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     use numerics::literals::LandedIntegerType;
+
+    constant_arrays::validate_declared_array_destination(program, value, declared, diagnostics);
 
     let landed_of_primitive = |primitive: PrimitiveType| -> Option<LandedIntegerType> {
         Some(match primitive {

@@ -151,10 +151,17 @@ initializers still validate their declared carrier. Private floats retain their
 declared format and round directly to it. Public float constant identities remain
 unsupported by the existing canonical declaration encoder. Nominal record/sum
 initializers (including a type merely named `string`) and foreign/generic
-attachments still need namespace-aware normalization. Aggregate body substitution
-remains separate. The `module_machine_indices` integration target covers distinct
+attachments still need namespace-aware normalization. Integer/Boolean array body
+references use the same exact selector and deep-copy their literal trees per use.
+Destination checks rejoin their declared dimensions and element identity, including
+empty and nested-empty arrays; scalar leaf landings alone cannot retain that shape.
+The CLI example above includes root, module-local and qualified array body uses.
+Direct indexing/slicing of a substituted array still rejects until the value-based
+projection owner preserves element typing and execution without inventing a place;
+an ordinary typed-local copy already supports indexing.
+Nominal aggregate body substitution remains separate. The `module_machine_indices` integration target covers distinct
 module values, narrow imports, runtime shadowing, invalid unused declarations,
-and scalar landing boundaries.
+and scalar/array landing boundaries.
 The comparisons preserve each operand carrier and use the shared typed integer
 order operation; anonymous operands must land exactly in the selected peer carrier.
 Boolean equality and inequality compose named constants and comparison results

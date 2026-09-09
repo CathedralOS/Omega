@@ -17,6 +17,9 @@ use typed_trees::{statement::StatementNode, types::TypeReferenceHandle};
 #[path = "module_machine_indices/arrays.rs"]
 mod arrays;
 
+#[path = "module_machine_indices/array_bodies.rs"]
+mod array_bodies;
+
 #[path = "module_machine_indices/comparisons.rs"]
 mod comparisons;
 

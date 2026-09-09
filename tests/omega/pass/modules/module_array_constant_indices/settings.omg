@@ -7,3 +7,4 @@ machine scoped(value: Indexed<Sizes::SIZE>) -> Indexed<OTHER> { value }
 const Sizes::MAX: u64 = 2;
 machine scalar(value: Buffer<Sizes::MAX + 1>) -> Buffer<3> { value }
 machine scalar_value() -> u64 { Sizes::MAX }
+machine array_value() -> [u64; 2] { let value: [u64; 2] = Sizes::SIZE; value }
