@@ -794,6 +794,63 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 }
 
 #[test]
+fn case_membership_evaluates_tags_without_comparing_payloads() {
+    let program = typed(
+        "data Choice [copy] { case Ready(value: u64); case Empty; }
+         data Wrapper [copy] { choices: [Choice; 1]; }
+         machine ready() -> bool {
+             let choice: Choice = Choice::Ready { value: 37 };
+             choice in Choice::Ready
+         }
+         machine empty() -> bool {
+             let choice: Choice = Choice::Ready { value: 37 };
+             choice in Choice::Empty
+         }
+         machine nested() -> bool {
+             let wrapper: Wrapper = Wrapper { choices: [Choice::Ready { value: 37 }] };
+             wrapper.choices[0] in Choice::Ready
+         }",
+    );
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    for (machine, expected) in [("ready", true), ("empty", false), ("nested", true)] {
+        let value = admission
+            .evaluate_const_evaluable_machine(&program, machine, vec![])
+            .expect("exact case membership retains tag semantics");
+        assert_eq!(value, BuildTimeValue::Bool(expected), "{machine}");
+    }
+}
+
+#[test]
+fn case_membership_is_distinct_from_authored_equality() {
+    let program = typed(
+        "data Choice [copy] { case Ready; case Empty; }
+         operator == Choice::equal(left: Choice, right: Choice) -> bool;
+         machine member() -> bool {
+             let choice: Choice = Choice::Ready;
+             choice in Choice::Ready
+         }
+         machine equal() -> bool {
+             let choice: Choice = Choice::Ready;
+             choice == Choice::Ready
+         }",
+    );
+    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program);
+    assert_eq!(
+        admission
+            .evaluate_const_evaluable_machine(&program, "member", vec![])
+            .expect("an equality declaration does not redefine membership"),
+        BuildTimeValue::Bool(true)
+    );
+    let error = admission
+        .evaluate_const_evaluable_machine(&program, "equal", vec![])
+        .expect_err("authored equality must not execute as a builtin tag test");
+    assert!(
+        error.contains("requires exact authored selection"),
+        "{error}"
+    );
+}
+
+#[test]
 fn authored_binary_operator_cannot_fall_back_to_builtin_during_evaluation() {
     let program = typed(
         "data Math {}
