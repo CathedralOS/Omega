@@ -164,17 +164,19 @@ memory and an exact 16 MiB stamped hole, including the four-byte length, for a
 16,777,212-byte raw-tape maximum. A bounds trap is an Alpha failure and must not
 be relabeled as a successful Gamma or compiler-owned resource refusal.
 
-The current native seeds predate these checks. The hardening task must update
-both implementations, listings, identities, and exact-boundary/adjacent
-conformance evidence before either seed claims this complete revision.
+The current native sources/listings implement these checks. The
+[realization evidence](README.md#ratified-bounds-hardening-contract) distinguishes
+macOS execution from Windows listing reconstruction and records a separate
+unresolved Windows register-storage defect; source changes alone do not establish
+complete conformance.
 
 ## 9. Conformance
 
 `tests/alpha/conformance.sh` runs hand-built bytecode tapes against the host's
-seed and checks exit code and stdout. Its current cases pin the preexisting
-in-bound rules, signed division/remainder, signed `jlt`, EOF, and the three
-preexisting traps. Bounds hardening adds exact-boundary and adjacent cases for
-fetch, operands, byte/word data access, call/return stack access, and stamped
-tape length, including stdout-prefix preservation. A faithful seed on any ISA
+seed and checks exit code and stdout. It pins in-bound rules, signed
+division/remainder, signed `jlt`, EOF, and arithmetic/unknown-opcode traps.
+The linked bounds cases exercise exact and adjacent fetch, operand, byte/word
+data, call/return stack, and stamped-tape ranges, including stdout-prefix
+preservation. A faithful seed on any ISA
 passes all applicable cases; a divergence between two realizations on the same
 tape exposes a conformance or implementation problem.

@@ -57,3 +57,4 @@ hex bad_opcode    "ff 00" ""                                                    
 
 echo "seed diamond (independent Python reference VM agrees with the host seed): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
+python3 "$OMEGA_REPO_ROOT/tests/alpha/bounds.py" --reference
