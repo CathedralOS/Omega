@@ -7,7 +7,8 @@ Acceptance updates the specification; this directory does not define current rul
 ## Naming and lifecycle
 
 Use `NNNN_short_descriptive_name.md`, beginning with `0000`. The number is a stable
-proposal ID, not priority or acceptance order. Never renumber or reuse an ID.
+proposal ID, not priority or acceptance order. Do not routinely renumber or reuse
+IDs; an explicit owner-directed reassignment updates every reference in the same sweep.
 The next available ID is **0007**; advance this counter when adding a proposal,
 including after accepted or withdrawn files have been removed.
 
@@ -33,16 +34,14 @@ separate review system or historical decision ledger.
   and full anonymous contracts before accepting a scope.
 - [0001: Named proof-formula syntax](0001_proof_formula_syntax.md): unproven ergonomic
   alternatives to ordinary contracts and named witness/law bundles.
-- [0002: Bootstrap-chain comparison](0002_bootstrap_chain_alternatives.md): unapproved
-  alternatives requiring whole-chain audit-cost evidence before selection.
+- [0002: Author-invoked assertions and build diagnostics](0002_assertions_and_build_diagnostics.md):
+  unapproved library, provider, and diagnostic-build alternatives; admissions
+  require no runtime checking independently of this design.
 - [0003: Proof-search caching](0003_proof_search_cache.md): untrusted derivation reuse;
   persistence, keys, and granularity remain unselected.
 - [0004: Learned optimization policy](0004_learned_optimization_policy.md): proposed
   workload-guided ranking and search, with independent semantic validation.
 - [0005: Matching-logic interchange](0005_matching_logic.md): an open comparison of a
   second proof/semantics route, including its translation and trust costs.
-- [0006: Author-invoked assertions and build diagnostics](0006_assertions_and_build_diagnostics.md):
-  unapproved library, provider, and diagnostic-build alternatives; admissions
-  require no runtime checking independently of this design.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).

@@ -1,16 +1,17 @@
-# 0002: Comparing shorter bootstrap chains
+# Comparing shorter bootstrap chains
 
-Status: open comparison proposal; no alternative below is approved for
-implementation. Affected subjects: bootstrap topology, root auditability,
-checker placement, and the first Omega compiler.
+Purpose: reference notes on bootstrap topology, root auditability, checker
+placement, and the first Omega compiler. This is not a proposed change or an
+implementation request. Keep it while these comparisons are useful; delete it
+when superseded by concrete measured work or no longer relevant.
 
 The [selected chain](../../bootstrap/README.md) remains Alpha, Beta, Gamma,
 Delta, Epsilon, and Omega. Its functional Gamma evaluator is Beta-authored;
 the admitted Beta compiler and exact self-reconstruction remain part of the
-root argument. This proposal neither reopens rejected prototypes nor changes
+root argument. These notes neither reopen rejected prototypes nor change
 those decisions.
 
-## Problem
+## Tradeoffs
 
 Minimizing each selected rung separately can miss a cheaper complete chain.
 Conversely, fewer rungs can move more compiler and proof complexity into the
@@ -18,7 +19,7 @@ trusted root. Artifact pedigree records what produced bytes; it does not by
 itself make those bytes easy to audit. A larger opaque evaluator tape is not
 made cheaper by treating its readable source as optional.
 
-## Proposed comparison
+## Comparison axes
 
 If a concrete compiler customer or proof obligation exposes a remaining cost,
 compare the selected implementation and its simpler refactors against only the
@@ -45,7 +46,7 @@ and proof admission. Record defect discovery and localization effort and
 claims that cannot be checked locally. Toy results cannot select a route for
 the complete compiler closure.
 
-## Unresolved questions and approval boundary
+## Evidence needed for a future proposal
 
 No candidate here has established lower complete audit cost. Which concrete
 customer motivates a comparison, which admissions it removes, and whether its
@@ -57,4 +58,4 @@ and [new-language approval boundary](../../AGENTS.md#scope-checkpoints) remain
 binding, including for experimental replacement languages. A comparison is
 not advance permission for an opcode, axiom, accelerator, weakened observation,
 or parallel accepted chain. Rejected implementations and measurement diaries
-belong in Git, not a permanent archive in this proposal.
+belong in Git, not a permanent archive in these notes.

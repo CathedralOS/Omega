@@ -14,6 +14,8 @@ the existing task boards, not in a second tracking system.
   coverage before resuming self-hosting, removed after that migration closes.
 - [Bootstrap cost investigation](bootstrap_cost_review.md): bounded Delta/P1
   feasibility evidence, not authority for another chain.
+- [Bootstrap-chain comparisons](bootstrap_chain_alternatives.md): reference
+  tradeoffs, not a proposed replacement; remove when superseded or no longer useful.
 - [Test-cycle measurements](test_cycle_measurements.md): dated Windows evidence
   for future scheduling and selection comparisons.
 - [Cathedral alignment](cathedral_alignment.md): temporary cross-repository
