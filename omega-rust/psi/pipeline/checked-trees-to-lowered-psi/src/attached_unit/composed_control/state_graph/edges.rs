@@ -17,7 +17,9 @@ pub(super) fn successors(
             when_false,
             ..
         } => vec![when_true, when_false],
-        CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } => Vec::new(),
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
+            cases.iter().map(|case| &case.successor).collect()
+        }
     }
 }
 
@@ -29,6 +31,21 @@ pub(super) fn validate(
     transition: &TableTransition,
     edge: &CheckedStructuralControlSuccessorPlan,
     ordinal: usize,
+) -> Result<(), LoweringError> {
+    validate_bindings(checked, plan, source, state, transition, edge, ordinal, &[])?;
+    validate_parameter_cleanup(checked, plan, state, edge)
+}
+
+/// Case dispatch validates local-result cleanup separately from parameter cleanup.
+pub(super) fn validate_bindings(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    transition: &TableTransition,
+    edge: &CheckedStructuralControlSuccessorPlan,
+    ordinal: usize,
+    payloads: &[checked_trees::CheckedClosedSumPayloadTransferPlan],
 ) -> Result<(), LoweringError> {
     let TransitionTargetNode::Named {
         path, arguments, ..
@@ -65,7 +82,7 @@ pub(super) fn validate(
             .count()
             + target.scalar_parameters.len()
         || edge.transfers.len() != target.structural_parameters.len()
-        || edge.scalar_arguments.len() != target.scalar_parameters.len()
+        || edge.scalar_arguments.len() + payloads.len() != target.scalar_parameters.len()
     {
         return unsupported("Unit graph successor arity drifted");
     }
@@ -155,11 +172,16 @@ pub(super) fn validate(
             }
         }
     }
-    for (position, (target, transfer)) in target
+    for ((position, target), transfer) in target
         .scalar_parameters
         .iter()
-        .zip(&edge.scalar_arguments)
         .enumerate()
+        .filter(|(position, _)| {
+            !payloads
+                .iter()
+                .any(|payload| payload.target_scalar_parameter_index as usize == *position)
+        })
+        .zip(&edge.scalar_arguments)
     {
         if transfer.target_scalar_parameter_index as usize != position
             || transfer.argument_ordinal != target.source_position
@@ -200,6 +222,15 @@ pub(super) fn validate(
             }
         }
     }
+    Ok(())
+}
+
+fn validate_parameter_cleanup(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    state: &CheckedComposedUnitControlStatePlan,
+    edge: &CheckedStructuralControlSuccessorPlan,
+) -> Result<(), LoweringError> {
     let cleanup = checked
         .facts
         .flow

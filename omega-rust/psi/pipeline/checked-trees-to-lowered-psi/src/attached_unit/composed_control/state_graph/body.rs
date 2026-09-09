@@ -15,12 +15,36 @@ pub(super) fn validate(
         .position(|statement| matches!(statement, StatementNode::Transition(_)))
         .unwrap_or(statements.len());
     let prefix = state.bindings.len();
-    if prefix > end || state.operations.len() != end - prefix {
+    let marker_count = super::cases::validate_markers(checked, source, state, end)?;
+    if prefix > end || state.operations.len() + marker_count != end - prefix {
         return unsupported("Unit graph dropped or added a body effect");
     }
     for (ordinal, operation) in state.operations.iter().enumerate() {
         let ordinal = prefix + ordinal;
         match (operation, &statements[ordinal]) {
+            (
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate,
+                    result,
+                    completion_receipts,
+                    discard_result_on_return,
+                    ..
+                },
+                StatementNode::LocalData(_),
+            ) if completion_receipts.is_empty()
+                && coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && !discard_result_on_return
+                && matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { result: selected, .. } if selected == result) =>
+            {
+                crate::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+            }
             (
                 CheckedUnitEffectOperationPlan::ByteSequenceWrite(write),
                 StatementNode::Assignment(assignment),

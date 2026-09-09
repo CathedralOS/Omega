@@ -382,6 +382,29 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   spare capacity or retaining hidden length writeback. Preserve independently
   motivated whole-field operations and their own regression coverage.
 
+  Resume result/view composition in `terminal_byte_views/byte_input.omg` and
+  `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`. The original
+  guarded `read_one` probe now reaches exact narrowing but rejects with
+  `OperationProofUnavailable`: Terminal retains the payload's raw `i32`, not its
+  declared `[0..=255]` constraint. Preserve numeric field constraints through
+  declaration identity and construction/provider-return validation, then bind
+  selected payload facts to case-edge scalars. Do not assume a target state
+  parameter's range or add a provider-name shortcut. This is an implementation
+  dependency, not an owner decision. The separate classification fixture keeps
+  raw byte reads, case payloads, borrowed destination writes, and loop reentry
+  executable without claiming exact byte-copy or line-result support. Payload
+  construction and ordinary return/call realization for `LineReadResult` also
+  remain required; payloadless construction and whole-root identity returns do
+  not cover them.
+
+  Recheck the dependency with `cargo nextest run -p omega-native-differential-test
+  --test terminal_byte_views --no-fail-fast -E 'test(bounded_byte_input)'` (use
+  `mbx` when available). macOS ARM64 execution covers every octet, EOF, empty and
+  repeated views, failed reads, and no overread; Linux x64/ARM64 coverage here is
+  publication/replay only. The exact-narrowing rejection is pinned by
+  `byte_input_exact_narrowing_requires_retained_payload_range_evidence` in the
+  lowering crate's library tests.
+
   Acceptance: zero capacity returns `Full(0)` without reading; LF is stored and
   included in `LineComplete`, including at the last writable byte; EOF retains
   the partial count; filling without LF returns `Full` without one extra read.

@@ -59,152 +59,221 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
         return false;
     }
     machine.blocks.iter().all(|block| {
-        matches!(
-            block.terminator,
-            Terminator::Jump { .. }
-                | Terminator::Conditional { .. }
-                | Terminator::Return { .. }
-                | Terminator::ReturnUnit { .. }
-                | Terminator::Crash { .. }
-        ) && block
-            .operations
-            .iter()
-            .all(|operation| match &operation.kind {
-                // Ordinary scalar calls retain their complete signature,
-                // requirement, and crash checks after this eligibility fence.
-                OperationKind::Call { .. } => operation.result.scalar().is_some(),
-                OperationKind::PortWrite { .. } => operation.result == OperationResult::Unit,
-                OperationKind::EstablishPrimitiveLocal { .. } => {
-                    primitive_storage::validate_establishment(module, machine, operation).is_ok()
-                }
-                OperationKind::PrimitiveScalarRead { source } => {
-                    operation.result.scalar().is_some_and(|result| {
-                        primitive_storage::read_type(module, machine, operation.id, *source)
-                            == Ok(result.scalar_type)
-                    })
-                }
-                OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
-                    operation.result == OperationResult::Unit
-                        && primitive_storage::local_result(machine, *destination).is_some()
-                        && primitive_storage::store_type(
-                            module,
-                            machine,
-                            operation.id,
-                            *destination,
-                        )
-                        .is_ok()
-                }
-                OperationKind::CallStructuralScalar {
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                    ..
-                } => {
-                    operation.result.scalar().is_some()
-                        && !structural_arguments.is_empty()
-                        && structural_arguments.iter().all(|argument| {
-                            argument.path.is_empty()
-                                && ((argument.access != StructuralAccess::Owned
-                                    && primitive_storage::local_result(machine, argument.place)
-                                        .is_some())
-                                    || owned_argument(machine, argument))
+        let case_source = local_case_result(module, machine, block);
+        let terminator_eligible =
+            matches!(
+                block.terminator,
+                Terminator::Jump { .. }
+                    | Terminator::Conditional { .. }
+                    | Terminator::Return { .. }
+                    | Terminator::ReturnUnit { .. }
+                    | Terminator::Crash { .. }
+            ) || matches!(block.terminator, Terminator::StructuralCase { .. })
+                && case_source.is_some();
+        terminator_eligible
+            && block
+                .operations
+                .iter()
+                .all(|operation| match &operation.kind {
+                    // Ordinary scalar calls retain their complete signature,
+                    // requirement, and crash checks after this eligibility fence.
+                    OperationKind::Call { .. } => operation.result.scalar().is_some(),
+                    OperationKind::PortWrite { .. } => operation.result == OperationResult::Unit,
+                    OperationKind::EstablishPrimitiveLocal { .. } => {
+                        primitive_storage::validate_establishment(module, machine, operation)
+                            .is_ok()
+                    }
+                    OperationKind::PrimitiveScalarRead { source } => {
+                        operation.result.scalar().is_some_and(|result| {
+                            primitive_storage::read_type(module, machine, operation.id, *source)
+                                == Ok(result.scalar_type)
                         })
-                        && claim_transfers.is_empty()
-                        && requirement_obligations.is_empty()
-                        && crash_continuations.is_empty()
-                }
-                OperationKind::BoundaryCall {
-                    structural_arguments,
-                    completion_receipts,
-                    ..
-                } => {
-                    operation.result == OperationResult::Unit
-                        && completion_receipts.is_empty()
-                        && structural_arguments.iter().all(|argument| {
-                            argument.path.is_empty()
-                                && argument.access == StructuralAccess::SharedBorrow
-                                && (machine
-                                    .structural_parameters
-                                    .iter()
-                                    .any(|parameter| parameter.place == argument.place)
-                                    || block_views::parameter(machine, argument.place).is_some()
-                                    || machine.structural_places.iter().any(|place| {
-                                        place.id == argument.place
-                                            && matches!(
-                                                place.kind,
-                                                StructuralPlaceKind::ByteSequenceLiteral { .. }
-                                            )
-                                    })
-                                    || byte_sequence_subslice::borrowed_result(
-                                        machine,
-                                        argument.place,
-                                    )
-                                    .is_some())
-                        })
-                }
-                OperationKind::CallUnit {
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                    ..
-                } => {
-                    operation.result == OperationResult::Unit
-                        && structural_arguments.iter().all(|argument| {
-                            argument.path.is_empty()
-                                && ((argument.access == StructuralAccess::MutableBorrow
-                                    && machine.structural_parameters.iter().any(|parameter| {
-                                        parameter.place == argument.place
-                                            && persistent_receiver(module, parameter)
-                                    }))
-                                    || (argument.access != StructuralAccess::Owned
+                    }
+                    OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
+                        operation.result == OperationResult::Unit
+                            && primitive_storage::local_result(machine, *destination).is_some()
+                            && primitive_storage::store_type(
+                                module,
+                                machine,
+                                operation.id,
+                                *destination,
+                            )
+                            .is_ok()
+                    }
+                    OperationKind::CallStructuralScalar {
+                        structural_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                        ..
+                    } => {
+                        operation.result.scalar().is_some()
+                            && !structural_arguments.is_empty()
+                            && structural_arguments.iter().all(|argument| {
+                                argument.path.is_empty()
+                                    && ((argument.access != StructuralAccess::Owned
                                         && primitive_storage::local_result(
                                             machine,
                                             argument.place,
                                         )
                                         .is_some())
-                                    || (argument.access == StructuralAccess::SharedBorrow
-                                        && super::super::byte_sequence_length::validate_source(
-                                            module,
+                                        || owned_argument(machine, argument))
+                            })
+                            && claim_transfers.is_empty()
+                            && requirement_obligations.is_empty()
+                            && crash_continuations.is_empty()
+                    }
+                    OperationKind::BoundaryCall {
+                        structural_arguments,
+                        completion_receipts,
+                        ..
+                    } => {
+                        (operation.result == OperationResult::Unit
+                            || operation
+                                .result
+                                .structural()
+                                .is_some_and(|result| case_source == Some(result.place)))
+                            && completion_receipts.is_empty()
+                            && structural_arguments.iter().all(|argument| {
+                                argument.path.is_empty()
+                                    && argument.access == StructuralAccess::SharedBorrow
+                                    && (machine
+                                        .structural_parameters
+                                        .iter()
+                                        .any(|parameter| parameter.place == argument.place)
+                                        || block_views::parameter(machine, argument.place)
+                                            .is_some()
+                                        || machine.structural_places.iter().any(|place| {
+                                            place.id == argument.place
+                                                && matches!(
+                                                    place.kind,
+                                                    StructuralPlaceKind::ByteSequenceLiteral { .. }
+                                                )
+                                        })
+                                        || byte_sequence_subslice::borrowed_result(
                                             machine,
-                                            operation,
                                             argument.place,
-                                            || ModuleError::InvalidByteSequenceLengthSource {
-                                                operation: operation.id,
-                                                source: argument.place,
-                                            },
                                         )
-                                        .is_ok())
-                                    || owned_argument(machine, argument))
+                                        .is_some())
+                            })
+                    }
+                    OperationKind::CallUnit {
+                        structural_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                        ..
+                    } => {
+                        operation.result == OperationResult::Unit
+                            && structural_arguments.iter().all(|argument| {
+                                argument.path.is_empty()
+                                    && ((argument.access == StructuralAccess::MutableBorrow
+                                        && machine.structural_parameters.iter().any(|parameter| {
+                                            parameter.place == argument.place
+                                                && persistent_receiver(module, parameter)
+                                        }))
+                                        || (argument.access != StructuralAccess::Owned
+                                            && primitive_storage::local_result(
+                                                machine,
+                                                argument.place,
+                                            )
+                                            .is_some())
+                                        || (argument.access == StructuralAccess::SharedBorrow
+                                            && super::super::byte_sequence_length::validate_source(
+                                                module,
+                                                machine,
+                                                operation,
+                                                argument.place,
+                                                || ModuleError::InvalidByteSequenceLengthSource {
+                                                    operation: operation.id,
+                                                    source: argument.place,
+                                                },
+                                            )
+                                            .is_ok())
+                                        || owned_argument(machine, argument))
+                            })
+                            && claim_transfers.is_empty()
+                            && requirement_obligations.is_empty()
+                            && crash_continuations.is_empty()
+                    }
+                    OperationKind::ByteSequenceSubslice { .. } => {
+                        operation.result.structural().is_some_and(|result| {
+                            byte_sequence_subslice::borrowed_result(machine, result.place)
+                                == Some(result)
                         })
-                        && claim_transfers.is_empty()
-                        && requirement_obligations.is_empty()
-                        && crash_continuations.is_empty()
-                }
-                OperationKind::ByteSequenceSubslice { .. } => {
-                    operation.result.structural().is_some_and(|result| {
-                        byte_sequence_subslice::borrowed_result(machine, result.place)
-                            == Some(result)
-                    })
-                }
-                OperationKind::ByteSequenceLength { .. }
-                | OperationKind::StructuralByteSequenceFieldLength { .. }
-                | OperationKind::ByteSequenceRead { .. }
-                | OperationKind::IntegerStructuralField { .. }
-                | OperationKind::BooleanStructuralField { .. } => {
-                    operation.result.scalar().is_some()
-                }
-                OperationKind::StructuralScalarFieldStore { .. }
-                | OperationKind::ByteSequenceWrite { .. }
-                | OperationKind::StructuralByteSequenceFieldStore { .. }
-                | OperationKind::StructuralByteSequenceFieldByteStore { .. }
-                | OperationKind::EstablishByteSequenceLiteral { .. } => {
-                    operation.result == OperationResult::Unit
-                }
-                kind => operation.result.scalar().is_some() && pure_scalar(kind),
-            })
+                    }
+                    OperationKind::ByteSequenceLength { .. }
+                    | OperationKind::StructuralByteSequenceFieldLength { .. }
+                    | OperationKind::ByteSequenceRead { .. }
+                    | OperationKind::IntegerStructuralField { .. }
+                    | OperationKind::BooleanStructuralField { .. } => {
+                        operation.result.scalar().is_some()
+                    }
+                    OperationKind::StructuralScalarFieldStore { .. }
+                    | OperationKind::ByteSequenceWrite { .. }
+                    | OperationKind::StructuralByteSequenceFieldStore { .. }
+                    | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+                    | OperationKind::EstablishByteSequenceLiteral { .. } => {
+                        operation.result == OperationResult::Unit
+                    }
+                    kind => operation.result.scalar().is_some() && pure_scalar(kind),
+                })
     })
+}
+
+/// The owned sum never becomes loop-carried custody. The same block establishes
+/// and inspects it, and every selected edge disposes that exact whole root.
+/// Ordinary operation formation, dominance and frontier replay remain required.
+fn local_case_result(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+) -> Option<semantic_vocabulary::PlaceId> {
+    if machine.result != TerminalMachineResult::Unit {
+        return None;
+    }
+    let Terminator::StructuralCase { source, cases } = &block.terminator else {
+        return None;
+    };
+    if cases.is_empty()
+        || cases
+            .iter()
+            .any(|case| case.trivial_affine_discards != [*source])
+    {
+        return None;
+    }
+    let result = block.operations.iter().find_map(|operation| {
+        matches!(operation.kind, OperationKind::BoundaryCall { .. })
+            .then(|| operation.result.structural())
+            .flatten()
+            .filter(|result| result.place == *source)
+    })?;
+    if result.multiplicity != StructuralMultiplicity::Affine
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+    {
+        return None;
+    }
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)?;
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return None;
+    };
+    cases
+        .iter()
+        .all(|case| {
+            case.fields.iter().all(|field| {
+                !field.relevance.is_erased()
+                    && matches!(
+                        field.field_type,
+                        terminal_psi::StructuralFieldType::Scalar(_)
+                    )
+            })
+        })
+        .then_some(*source)
 }
 
 fn plain_owned(parameter: &StructuralParameterDeclaration) -> bool {

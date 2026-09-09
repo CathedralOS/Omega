@@ -52,7 +52,19 @@ pub(super) fn terminal_graph(machine: &terminal_psi::TerminalMachine) -> Canonic
                     target: successor.target,
                 }));
             }
-            _ => {}
+            terminal_psi::Terminator::StructuralCase { cases, .. } => {
+                edges.extend(cases.iter().map(|successor| CycleComponentEdge {
+                    edge: successor.edge,
+                    source: block.id,
+                    target: successor.target,
+                }));
+            }
+            terminal_psi::Terminator::Return { .. }
+            | terminal_psi::Terminator::ReturnUnit { .. }
+            | terminal_psi::Terminator::ReturnUnitPartialAffine { .. }
+            | terminal_psi::Terminator::ReturnUnitNominalAffine { .. }
+            | terminal_psi::Terminator::ReturnStructural { .. }
+            | terminal_psi::Terminator::Crash { .. } => {}
         }
     }
     edges.sort_unstable();
@@ -86,6 +98,13 @@ pub(super) fn optimization_graph(function: &PsiOptimizationFunction) -> Canonica
                 source: block.id,
                 target: successor.target,
             })),
+            O::StructuralCase { cases, .. } => {
+                edges.extend(cases.iter().map(|successor| CycleComponentEdge {
+                    edge: successor.psi_edge,
+                    source: block.id,
+                    target: successor.target,
+                }));
+            }
             _ => {}
         }
     }

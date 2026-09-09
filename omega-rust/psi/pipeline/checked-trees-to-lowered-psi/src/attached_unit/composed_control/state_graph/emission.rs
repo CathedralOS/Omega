@@ -11,6 +11,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
     scalar_parameters: Vec<ValueDeclaration>,
     catalogs: &mut catalogs::ComposedCatalogs,
 ) -> Result<(TerminalMachine, Vec<LoweredSourceCallOccurrence>), LoweringError> {
+    let result_places_start = catalogs.result_places.len();
     let mut structural_places = parameters
         .iter()
         .map(|parameter| StructuralPlaceDeclaration {
@@ -232,19 +233,22 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 None
             };
         let body_end = operations.len();
+        let prepared_cases = case_emission::prepare(state, catalogs, &operations, &mut next_value)?;
         let inherited_lengths = operations.byte_lengths.clone();
         let mut edge_blocks = Vec::new();
-        let mut successor =
-            |edge: &CheckedStructuralControlSuccessorPlan| -> Result<SuccessorEdge, LoweringError> {
-                operations.byte_lengths = inherited_lengths.clone();
-                let target = plan
-                    .states
-                    .iter()
-                    .position(|state| state.state == edge.target_state)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph target disappeared during emission",
-                    ))?;
-                let stage = condition.is_some()
+        let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
+                             payload_values: &[(u32, ValueDeclaration)],
+                             case_edge: bool|
+         -> Result<SuccessorEdge, LoweringError> {
+            operations.byte_lengths = inherited_lengths.clone();
+            let target = plan
+                .states
+                .iter()
+                .position(|state| state.state == edge.target_state)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph target disappeared during emission",
+                ))?;
+            let stage = case_edge || condition.is_some()
                     && ((current_rank.is_some() && ranking::parameter_position(plan, &plan.states[target]).is_some()) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
                     )) || edge.scalar_arguments.iter().any(|argument| {
@@ -253,38 +257,41 @@ pub(in crate::attached_unit::composed_control) fn emit(
                             checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
                         )
                     }));
-                let operation_start = operations.len();
-                let mut arguments = Vec::new();
-                let mut structural_arguments = Vec::new();
-                let target_state = &plan.states[target];
-                for argument_position in 0..target_state.structural_parameters.len()
-                    + target_state.scalar_parameters.len()
+            let operation_start = operations.len();
+            let mut arguments = Vec::new();
+            let mut structural_arguments = Vec::new();
+            let target_state = &plan.states[target];
+            for argument_position in
+                0..target_state.structural_parameters.len() + target_state.scalar_parameters.len()
+            {
+                if let Some((target_parameter, transfer)) = target_state
+                    .structural_parameters
+                    .iter()
+                    .zip(&edge.transfers)
+                    .find(|(parameter, _)| parameter.position as usize == argument_position)
                 {
-                    if let Some((target_parameter, transfer)) = target_state
-                        .structural_parameters
-                        .iter()
-                        .zip(&edge.transfers)
-                        .find(|(parameter, _)| parameter.position as usize == argument_position)
-                    {
-                        if target_parameter.is_self {
-                            let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } = transfer.source else {
-                                return unsupported("Unit graph receiver cannot be rebound");
-                            };
-                            if state_parameters
-                                .get(index as usize)
+                    if target_parameter.is_self {
+                        let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                            index,
+                        } = transfer.source
+                        else {
+                            return unsupported("Unit graph receiver cannot be rebound");
+                        };
+                        if state_parameters
+                            .get(index as usize)
+                            .map(|parameter| parameter.place)
+                            != parameters
+                                .iter()
+                                .find(|parameter| parameter.is_self)
                                 .map(|parameter| parameter.place)
-                                != parameters
-                                    .iter()
-                                    .find(|parameter| parameter.is_self)
-                                    .map(|parameter| parameter.place)
-                            {
-                                return unsupported(
-                                    "Unit graph receiver lost original invocation place",
-                                );
-                            }
-                            continue;
+                        {
+                            return unsupported(
+                                "Unit graph receiver lost original invocation place",
+                            );
                         }
-                        let place = match transfer.source {
+                        continue;
+                    }
+                    let place = match transfer.source {
                             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                                 state_parameters.get(index as usize).ok_or(
                                     LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
@@ -302,141 +309,151 @@ pub(in crate::attached_unit::composed_control) fn emit(
                                 destination
                             }
                         };
-                        structural_arguments.push(StructuralArgument {
-                            place,
-                            path: Vec::new(),
-                            access: match target_parameter.access {
-                                checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                                    StructuralAccess::MutableBorrow
-                                }
-                                _ => StructuralAccess::SharedBorrow,
-                            },
-                        });
-                        continue;
-                    }
-                    let transfer = edge
-                        .scalar_arguments
-                        .iter()
-                        .find(|transfer| transfer.argument_ordinal as usize == argument_position)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph successor argument position missing",
-                        ))?;
-                    let expression = match transfer.source {
-                        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
-                            index,
-                        } => bindings.expression(&CheckedScalarExpression::Parameter {
-                            position: index as usize,
-                            primitive_type: transfer.primitive_type,
-                        })?,
-                        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
-                            bindings.expression_at(
-                                checked,
-                                state.state,
-                                edge.statement_ordinal,
-                                CheckedScalarExpressionRole::TransitionArgument {
-                                    argument_ordinal: transfer.argument_ordinal,
-                                },
-                            )?
-                        }
-                    };
-                    if expression.scalar_type() != terminal_scalar_type(transfer.primitive_type)?
-                        || direct_expression_contains_short_circuit(&expression)
-                    {
-                        return unsupported(
-                            "Unit graph successor needs a matching branch-free value",
-                        );
-                    }
-                    validate_direct_parameter_types(
-                        &expression,
-                        &values
-                            .iter()
-                            .map(|value| value.scalar_type)
-                            .collect::<Vec<_>>(),
-                    )?;
-                    arguments.push(emit_direct_expression(
-                        &expression,
-                        &values,
-                        &mut next_value,
-                        &mut operations,
-                    ));
-                }
-                let arriving_rank = if current_rank.is_some() {
-                    ranking::parameter_position(plan, target_state).map(|parameter_position| {
-                        crate::operation_emission::emit_byte_length(
-                            structural_arguments[parameter_position].place,
-                            &mut next_value,
-                            &mut operations,
-                        )
-                    })
-                } else {
-                    None
-                };
-                let target = state_ids[target];
-                if stage {
-                    let staged = block_id(allocate_dense(&mut next_block)?);
-                    let backedge = edge_id(allocate_dense(&mut next_edge)?);
-                    let selection_edge = edge_id(allocate_dense(&mut next_edge)?);
-                    if let Some(rank) = current_rank {
-                        block_ranks.insert(staged, rank);
-                        rank_edges.insert(
-                            selection_edge,
-                            (
-                                rank,
-                                terminal_psi::TerminalNaturalRankComparison::Preserving,
-                            ),
-                        );
-                        if let Some(after) = arriving_rank {
-                            rank_edges.insert(
-                                backedge,
-                                (after, terminal_psi::TerminalNaturalRankComparison::Strict),
-                            );
-                        }
-                    }
-                    edge_blocks.push(Block {
-                        id: staged,
-                        parameters: Vec::new(),
-                        structural_parameters: Vec::new(),
-                        operations: operations[operation_start..].to_vec(),
-                        terminator: Terminator::Jump {
-                            edge: backedge,
-                            target,
-                            arguments,
-                            structural_arguments,
-                            trivial_affine_discards: Vec::new(),
-                            residual_affine_discards: Vec::new(),
+                    structural_arguments.push(StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: match target_parameter.access {
+                            checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                                StructuralAccess::MutableBorrow
+                            }
+                            _ => StructuralAccess::SharedBorrow,
                         },
                     });
-                    Ok(SuccessorEdge {
-                        edge: selection_edge,
-                        target: staged,
-                        arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                    })
-                } else {
-                    let successor_edge = edge_id(allocate_dense(&mut next_edge)?);
+                    continue;
+                }
+                if let Some((scalar_position, _)) = target_state
+                    .scalar_parameters
+                    .iter()
+                    .enumerate()
+                    .find(|(_, parameter)| parameter.source_position as usize == argument_position)
+                    && let Some((_, payload)) = payload_values
+                        .iter()
+                        .find(|(position, _)| *position as usize == scalar_position)
+                {
+                    arguments.push(payload.id);
+                    continue;
+                }
+                let transfer = edge
+                    .scalar_arguments
+                    .iter()
+                    .find(|transfer| transfer.argument_ordinal as usize == argument_position)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph successor argument position missing",
+                    ))?;
+                let expression = match transfer.source {
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                        index,
+                    } => bindings.expression(&CheckedScalarExpression::Parameter {
+                        position: index as usize,
+                        primitive_type: transfer.primitive_type,
+                    })?,
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                        bindings.expression_at(
+                            checked,
+                            state.state,
+                            edge.statement_ordinal,
+                            CheckedScalarExpressionRole::TransitionArgument {
+                                argument_ordinal: transfer.argument_ordinal,
+                            },
+                        )?
+                    }
+                };
+                if expression.scalar_type() != terminal_scalar_type(transfer.primitive_type)?
+                    || direct_expression_contains_short_circuit(&expression)
+                {
+                    return unsupported("Unit graph successor needs a matching branch-free value");
+                }
+                validate_direct_parameter_types(
+                    &expression,
+                    &values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>(),
+                )?;
+                arguments.push(emit_direct_expression(
+                    &expression,
+                    &values,
+                    &mut next_value,
+                    &mut operations,
+                ));
+            }
+            let arriving_rank = if current_rank.is_some() {
+                ranking::parameter_position(plan, target_state).map(|parameter_position| {
+                    crate::operation_emission::emit_byte_length(
+                        structural_arguments[parameter_position].place,
+                        &mut next_value,
+                        &mut operations,
+                    )
+                })
+            } else {
+                None
+            };
+            let target = state_ids[target];
+            if stage {
+                let staged = block_id(allocate_dense(&mut next_block)?);
+                let backedge = edge_id(allocate_dense(&mut next_edge)?);
+                let selection_edge = edge_id(allocate_dense(&mut next_edge)?);
+                if let Some(rank) = current_rank {
+                    block_ranks.insert(staged, rank);
+                    rank_edges.insert(
+                        selection_edge,
+                        (
+                            rank,
+                            terminal_psi::TerminalNaturalRankComparison::Preserving,
+                        ),
+                    );
                     if let Some(after) = arriving_rank {
                         rank_edges.insert(
-                            successor_edge,
+                            backedge,
                             (after, terminal_psi::TerminalNaturalRankComparison::Strict),
                         );
                     }
-                    Ok(SuccessorEdge {
-                        edge: successor_edge,
+                }
+                edge_blocks.push(Block {
+                    id: staged,
+                    parameters: payload_values.iter().map(|(_, value)| *value).collect(),
+                    structural_parameters: Vec::new(),
+                    operations: operations[operation_start..].to_vec(),
+                    terminator: Terminator::Jump {
+                        edge: backedge,
                         target,
                         arguments,
                         structural_arguments,
                         trivial_affine_discards: Vec::new(),
-                    })
+                        residual_affine_discards: Vec::new(),
+                    },
+                });
+                Ok(SuccessorEdge {
+                    edge: selection_edge,
+                    target: staged,
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                })
+            } else {
+                let successor_edge = edge_id(allocate_dense(&mut next_edge)?);
+                if let Some(after) = arriving_rank {
+                    rank_edges.insert(
+                        successor_edge,
+                        (after, terminal_psi::TerminalNaturalRankComparison::Strict),
+                    );
                 }
-            };
+                Ok(SuccessorEdge {
+                    edge: successor_edge,
+                    target,
+                    arguments,
+                    structural_arguments,
+                    trivial_affine_discards: Vec::new(),
+                })
+            }
+        };
         let terminator = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(&mut next_edge)?),
                 trivial_affine_discards: Vec::new(),
             },
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
-                let edge = successor(edge)?;
+                let edge = successor(edge, &[], false)?;
                 Terminator::Jump {
                     edge: edge.edge,
                     target: edge.target,
@@ -454,20 +471,43 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 condition: condition.ok_or(LoweringError::Unsupported(
                     "Unit graph conditional lost its guard",
                 ))?,
-                when_true: successor(when_true)?,
-                when_false: successor(when_false)?,
+                when_true: successor(when_true, &[], false)?,
+                when_false: successor(when_false, &[], false)?,
             },
-            _ => return unsupported("Unit graph terminator escaped admission"),
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } => {
+                let prepared = prepared_cases.as_ref().ok_or(LoweringError::Unsupported(
+                    "Unit graph case terminator lost its prepared payloads",
+                ))?;
+                let cases = prepared
+                    .cases
+                    .iter()
+                    .map(|case| {
+                        let edge = successor(case.successor, &case.values, true)?;
+                        Ok(StructuralCaseSuccessorEdge {
+                            edge: edge.edge,
+                            target: edge.target,
+                            case: case.identity,
+                            payload_fields: case.fields.clone(),
+                            trivial_affine_discards: vec![prepared.source],
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                Terminator::StructuralCase {
+                    source: prepared.source,
+                    cases,
+                }
+            }
         };
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
             structural_parameters: Vec::new(),
-            operations: operations[evaluation.operation_start..if condition.is_some() {
-                body_end
-            } else {
-                operations.len()
-            }]
+            operations: operations[evaluation.operation_start
+                ..if condition.is_some() || prepared_cases.is_some() {
+                    body_end
+                } else {
+                    operations.len()
+                }]
                 .to_vec(),
             terminator,
         });
@@ -498,6 +538,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
     }
     blocks.sort_by_key(|block| block.id);
     structural_places.append(&mut catalogs.literal_store_places);
+    structural_places.extend(catalogs.result_places.drain(result_places_start..));
     structural_places.sort_by_key(|place| place.id);
     let attachment = plan
         .attachment_type_identity

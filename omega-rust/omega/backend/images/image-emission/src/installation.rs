@@ -4239,7 +4239,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && installed.settlement.arguments.is_empty()
                     && installed.settlement.byte_sequence_arguments.is_empty()
                     && installed.settlement.byte_count != 0
-                    && function.unit_body
+                    // Selected graph fragments retain fixed-frame custody,
+                    // not the legacy Unit affine-cleanup body marker. Match
+                    // the object-side read-byte realization contract.
+                    && function.unit_stack.is_some()
                     && function.scalar_stack.is_none()
             }
         };

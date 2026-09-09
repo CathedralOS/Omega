@@ -113,11 +113,17 @@ fn admit<'a>(
         let leaf = leaves
             .iter()
             .copied()
-            .find(|leaf| leaf.state == case.target_state)
+            .find(|leaf| leaf.state == case.successor.target_state)
             .ok_or(LoweringError::Unsupported(
                 "closed-sum successor names a non-leaf state",
             ))?;
-        if case.payloads.len() != leaf.scalar_parameters.len()
+        if !case.successor.transfers.is_empty()
+            || !case.successor.scalar_arguments.is_empty()
+            || !case
+                .successor
+                .trivial_affine_discard_parameter_positions
+                .is_empty()
+            || case.payloads.len() != leaf.scalar_parameters.len()
             || case.payloads.iter().any(|payload| {
                 leaf.scalar_parameters
                     .get(payload.target_scalar_parameter_index as usize)
@@ -127,7 +133,7 @@ fn admit<'a>(
             return unsupported("closed-sum payload transfer drifted from its leaf signature");
         }
     }
-    if cases[0].target_state == cases[1].target_state
+    if cases[0].successor.target_state == cases[1].successor.target_state
         || entry.state == first_leaf.state
         || entry.state == second_leaf.state
         || first_leaf.state == second_leaf.state
@@ -299,7 +305,7 @@ fn emit(
             let leaf_index = admitted
                 .leaves
                 .iter()
-                .position(|leaf| leaf.state == case.target_state)
+                .position(|leaf| leaf.state == case.successor.target_state)
                 .ok_or(LoweringError::Unsupported(
                     "closed-sum successor lost its admitted leaf",
                 ))?;

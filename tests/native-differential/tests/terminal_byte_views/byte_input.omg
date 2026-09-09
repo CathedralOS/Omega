@@ -1,0 +1,34 @@
+data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+boundary trait Input {
+    machine read_byte() -> ByteRead reaches Input;
+}
+
+// Classify without narrowing the i32 payload: range-evidence transport remains
+// a separate prerequisite for copying it into a u8 destination.
+machine classify_bytes(out: &mut [u8], expected: i32) reaches Input {
+    transition { _ -> scan(out, 0, expected) }
+    state scan(out: &mut [u8], position: u64, expected: i32) {
+        transition position < out.len {
+            true -> read(out, position, expected)
+            false -> done()
+        }
+    }
+    state read(out: &mut [u8], position: u64, expected: i32) {
+        let observed: ByteRead = Input::read_byte();
+        transition observed {
+            ByteRead::Byte { value } -> classify(out, position, value, expected)
+            ByteRead::Eof -> done()
+        }
+    }
+    state classify(out: &mut [u8], position: u64, value: i32 [0..=255], expected: i32) {
+        transition value == expected {
+            true -> store(out, position, 1, expected)
+            false -> store(out, position, 0, expected)
+        }
+    }
+    state store(out: &mut [u8], position: u64, marker: u8, expected: i32) {
+        out[position] = marker;
+        transition { _ -> scan(out, position + 1, expected) }
+    }
+    state done() {}
+}

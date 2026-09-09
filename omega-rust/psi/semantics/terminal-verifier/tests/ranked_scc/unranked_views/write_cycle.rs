@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "forwarded_extent.rs"]
+mod forwarded_extent;
+
 fn integer() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
 }

@@ -38,10 +38,6 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
                         )
                         && parameter.qualifications.is_empty()
                 })
-                && !matches!(
-                    state.terminator,
-                    CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
-                )
         })
 }
 
@@ -195,6 +191,9 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
         let terminator_ordinal = super::body::validate(checked, plan.machine, source, state)?;
         let tail = &statements[terminator_ordinal..];
         match (&state.terminator, tail) {
+            (CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }, _) => {
+                super::cases::validate(checked, plan, source, state, tail, terminator_ordinal)?;
+            }
             (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, []) => {}
             (
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor },
@@ -300,7 +299,10 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     for (boundary, _) in &boundaries {
         if boundary.attachment_type_identity.is_some()
             || !boundary.domain_requirements.is_empty()
-            || !boundary.result.is_unit()
+            || !(boundary.result.is_unit()
+                || matches!(&boundary.result,
+                CheckedBoundaryMachineResultPlan::Structural { multiplicity: Multiplicity::Affine, qualifications, .. }
+                if qualifications.is_empty()))
         {
             return unsupported(
                 "Unit graph boundary requires additional provider or result custody",
