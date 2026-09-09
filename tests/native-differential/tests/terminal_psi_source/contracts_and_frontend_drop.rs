@@ -194,11 +194,13 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
                 block_entries: vec![
                     AbstractBlockEntry {
                         block: BlockId::new(1).expect("entry block"),
+                        structural_parameters: Vec::new(),
                         parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     AbstractBlockEntry {
                         block: BlockId::new(2).expect("return block"),
+                        structural_parameters: Vec::new(),
                         parameters: vec![AbstractParameter {
                             value: ValueId::new(1).expect("block parameter"),
                             scalar_type: ScalarType::Integer(i32_type),
@@ -216,6 +218,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
                     AbstractOperation::Jump {
                         psi_edge: EdgeId::new(1).expect("jump edge"),
                         target: BlockId::new(2).expect("return block"),
+                        structural_bindings: Vec::new(),
                         bindings: vec![ValueBinding {
                             parameter: ValueId::new(1).expect("block parameter"),
                             argument: ValueId::new(2).expect("jump constant"),

@@ -26,6 +26,13 @@ pub(crate) fn assert_ordinary_graph_custody(staged: &StagedOptimizedSelectedInst
         for (block_index, block) in function.blocks.iter().enumerate() {
             let mut raw = original.clone();
             match &mut raw.scalar_functions[function_index].blocks[block_index].terminator {
+                legalized_operations::LegalizedScalarTerminator::StructuralCase {
+                    defining_operation,
+                    ..
+                } => {
+                    // Case dispatch retains the exact dominating result producer.
+                    *defining_operation = OperationId::new(999_999).unwrap();
+                }
                 legalized_operations::LegalizedScalarTerminator::Return(returned) => {
                     returned.fuel.push(FuelSettlement {
                         site: PsiProvenance::Edge(returned.edge),
