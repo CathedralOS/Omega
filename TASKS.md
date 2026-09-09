@@ -664,8 +664,12 @@ Owners include
   stack/custody transfer, and return behavior. Application lookalikes and
   cross-target substitutions must reject.
 
-  Resume beyond native declaration/calling-custody preflight, which replays both
-  retained authored applications. In `program-entry-plan/src/optimized_semantic_entry/validation.rs`,
+  Resume with checked source through Terminal, child emission, and the entrance
+  in `native-realization/src/optimized_semantic_wrapper_object/mod.rs`.
+  That wrapper-publication entrance currently has no callers;
+  its object tests use constructed contracts, so further isolated binder work
+  is paused pending this exercising path. Native declaration preflight is not
+  executable bridge acceptance. In `program-entry-plan/src/optimized_semantic_entry/validation.rs`,
   `validate_method` still compares schema application identity with raw ABI-plan
   identity; retain exact source-application custody through the native binder
   instead of dropping this check or adding an upward backend dependency.
