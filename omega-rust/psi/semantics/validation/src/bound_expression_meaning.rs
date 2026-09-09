@@ -1,12 +1,20 @@
-//! Guard facts require the current expression's builtin comparison meaning.
+//! Guard facts and build-time execution require the current node's builtin
+//! meaning. Typed case membership shares equality's shape, so its exact case
+//! selections must be distinguished from authored value-operator selections.
 
 use crate::places::declared_place_type_raw;
 use language_core::OperatorSpelling;
-use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::{
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, TypedTrees,
+};
+
+#[cfg(test)]
+mod tests;
 
 /// Preserve selected operator meaning before interpreting an expression as a
 /// primitive bound. This grants no value, effect, or lifetime proof: callers
@@ -159,6 +167,13 @@ pub(super) fn builtin_boolean_equality(
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
+    // Typed lowering encodes `value in Type::Case` as equality, but retains
+    // its case selections. Membership tests the tag, not authored value
+    // equality. Rejoin those selections before applying operator rules; this
+    // does not admit the declarations or waive callers' operand checks.
+    if has_exact_case_membership_meaning(program, machine, state, expression, comparison) {
+        return true;
+    }
     let spelling = match comparison.operator {
         BinaryOperator::Equal => OperatorSpelling::Equal,
         BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
@@ -177,6 +192,85 @@ pub(super) fn builtin_boolean_equality(
             operand_type(program, machine, state, comparison.right),
         ],
     )
+}
+
+fn has_exact_case_membership_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+) -> bool {
+    if comparison.operator != BinaryOperator::Equal {
+        return false;
+    }
+    let ExpressionNode::Name(case) = program.expression_table.expression(comparison.right) else {
+        return false;
+    };
+    if !case.head_symbol.is_valid()
+        || !case.symbol.is_valid()
+        || program
+            .expression_table
+            .name_path_members(case.members)
+            .len()
+            != 2
+        || program
+            .expression_table
+            .name_path_member_symbols(case.member_symbols)
+            != [case.head_symbol, case.symbol]
+    {
+        return false;
+    }
+    let Some(owner) = program.data_definitions().iter().find(|owner| {
+        owner.symbol == case.head_symbol
+            && program.data_members(owner).iter().any(|member| {
+                matches!(member, DataMember::Variant(variant) if variant.symbol == case.symbol)
+            })
+    }) else {
+        return false;
+    };
+    let Some(subject_type) = operand_type(program, machine, state, comparison.left)
+        .and_then(|reference| crate::places::unwrapped_type_reference(program, reference))
+    else {
+        return false;
+    };
+    // Only nominal subjects match. In particular, type_symbol() also walks
+    // array/slice element types, which cannot establish a collection's tag.
+    let subject_symbol = match program.type_reference_table.type_reference(subject_type) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        _ => return false,
+    };
+    if subject_symbol != owner.symbol {
+        return false;
+    }
+    let mut has_owner = false;
+    let mut has_case = false;
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+            return false;
+        };
+        let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+            return false;
+        };
+        match selection.kind() {
+            AuthoredDeclarationSelectionKind::CaseReference
+                if selected.selected_symbol() == owner.symbol && !has_owner =>
+            {
+                has_owner = true
+            }
+            AuthoredDeclarationSelectionKind::CaseMembership
+                if selected.selected_symbol() == case.symbol && !has_case =>
+            {
+                has_case = true
+            }
+            _ => return false,
+        }
+    }
+    has_owner && has_case
 }
 
 fn operand_type(
