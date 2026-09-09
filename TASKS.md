@@ -48,6 +48,63 @@ tables, schedulers, process tables, timer queues, or drivers as compiler-owned
 Rust models. Compiler validation and code generation may consume general plans;
 they must not acquire customer-shaped semantic types or lifecycle protocols.
 
+## Compiler throughput
+
+These are bounded work-removal tasks, not a new performance framework. Preserve
+the [pipeline ownership and independent checks](omega-rust/pipeline.md).
+Source inspection identified the costs below; it did not establish their share
+of whole-compilation time. Record compared inputs, work counts and timings;
+do not claim a faster compiler from a smaller helper alone.
+
+- **FLOW-CONTEXT-LOOKUP.** In Psi `representations/facts/src/fact_plan.rs` and
+  `pipeline/typed-trees-to-checked-trees/src/flow/common/spans.rs`, replace repeated
+  whole-context-arena searches at each state entry with owner/point-indexed
+  handle groups. Reuse selected groups for contexts and constraints. Keep
+  appended contexts visible, stable ordering, generation checks and ZII; this
+  is not a replacement for small lexical-scope sibling scans. Acceptance:
+  growing independent machine/state fixtures no longer multiply global context
+  scans per state, with identical facts and diagnostics, including contexts
+  appended during flow construction. Measure index setup and retained storage.
+
+- **FLOW-DIRTY-STATES.** In Psi
+  `pipeline/typed-trees-to-checked-trees/src/flow/{builder,state_values}.rs`,
+  retain changed-state/dependency information instead of rebuilding every
+  machine/state and cloning the semantic baseline after one late input change.
+  Converge only affected state components with invocation-owned working state.
+  Preserve all-predecessor intersection, absorbing unknown, stable evidence and
+  conservative nonconvergence fallback. Acceptance: a reverse-ordered/cyclic
+  chain beside many independent machines rebuilds only affected components;
+  facts, rejection and evidence agree with the existing whole-pass reference.
+  Count rebuilt states/allocations and time the complete checking phase. No
+  thread-pool or unrelated IR redesign is part of this task.
+
+- **PROOF-PREPARATION.** In Psi
+  `pipeline/checked-trees-to-lowered-psi/src/operation_emission.rs` and
+  `semantics/terminal-verifier`, reconstruct obligations from the already
+  validated immutable module and prepare value/place contexts plus parameter
+  identities once per demanded machine, not per obligation. No persistent cache
+  or weaker final verifier. Acceptance: repeated obligations on one machine
+  construct one context; serial and parallel evidence equals the uncached
+  reference; retained source evidence, error ordering, execution/interpretation
+  admission and rejection of malformed modules/proofs remain unchanged. Keep
+  worker scheduling and output sorting unchanged unless measurement justifies
+  a separate collection change.
+
+- **PACKAGE-PREPARATION-REUSE.** In
+  `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and its compiler
+  source-preparation owners, identify and retain binding-independent source
+  preparation across discovery and final checking. Consumer bindings really
+  change (including std), so do not reuse an obsolete checked result or replay
+  build effects without their authority/accounting. First attribute phase self
+  time and select one demonstrably repeated phase with exact reuse inputs.
+  Acceptance: the already-built release CLI's `cli_mvp` package-review command
+  performs that phase once for unchanged inputs, invalidates on source/binding
+  changes as appropriate, and preserves complete findings, generated-source
+  custody and admission. Compare whole-route time with the SAMPLE-CORPUS probe;
+  no generic persistent cache or second package-review workflow.
+
+Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
+
 ## Semantic reflection
 
 Implement [semantic reflection](wiki/spec/language/reflection.md) in Psi schema
