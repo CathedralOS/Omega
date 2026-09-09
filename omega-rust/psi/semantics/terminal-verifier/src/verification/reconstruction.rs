@@ -195,8 +195,15 @@ pub fn reconstruct_optimizable_terminal_obligations(
 pub fn reconstruct_terminal_obligations(
     module: &TerminalModule,
 ) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
-    validate_module(module)?;
-    reconstruct_validated_terminal_obligations(module)
+    reconstruct_execution_terminal_obligations(validate_module(module)?)
+}
+
+/// Reuse execution validation of the same immutably borrowed module when
+/// reconstructing its complete proof question. This does not verify evidence.
+pub fn reconstruct_execution_terminal_obligations(
+    validated: crate::ValidatedTerminalModule<'_>,
+) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
+    reconstruct_validated_terminal_obligations(validated.module())
 }
 
 pub(super) fn reconstruct_validated_terminal_obligations(
