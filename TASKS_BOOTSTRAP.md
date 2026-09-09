@@ -106,22 +106,16 @@ prerequisite to every lower-rung milestone.
 
 ## Alpha execution hardening
 
-- **ALPHA-BOUNDS-HARDENING.** Owners: `bootstrap/0_alpha/` semantics, native
+- **ALPHA-WINDOWS-CONFORMANCE.** Owners: `bootstrap/0_alpha/` semantics, native
   implementations and audited listings, with `tests/alpha/conformance.sh`.
-  Remaining acceptance: execute `sh tests/alpha/conformance.sh` and
+  Remaining acceptance: execute `sh tests/bootstrap/alpha-beta-edge.sh` and
   `sh tests/alpha/reference/diamond-py.sh` on Windows x64 for the
-  [selected hardened seed](bootstrap/0_alpha/README.md#retention-inventory),
-  retaining exact stdout-prefix and native Trap observations. macOS execution
-  and source rebuild do not substitute for this unavailable host result;
+  [selected seed](bootstrap/0_alpha/README.md#retention-inventory), retaining
+  exact bounds/Trap observations and register preservation through host I/O.
+  The shared `tests/alpha/io-registers.hex` must return zero and `ABCDEF` for
+  input `AB`; all bounds and reconstruction controls remain required too.
+  macOS execution and PE byte audits do not substitute for this unavailable host result;
   [coverage limits](tests/alpha/README.md#bounds-conformance) remain explicit.
-
-- **ALPHA-WINDOWS-REGISTER-ISOLATION.** In
-  `bootstrap/0_alpha/alpha_x64_windows.hex`, I/O scratch RVAs `0x3080..0x309f`
-  overlap registers 16–19 of the register file at `0x3000`. Move private host
-  scratch outside all 256 Alpha registers without changing semantic memory or
-  opcode meaning. Acceptance: audited listing/container reconstruction, refreshed
-  identity, and native I/O controls preserving these register values and handles.
-  This is a source-confirmed pre-existing defect, not a Windows runtime result.
 
 ## P1 - Gamma checker and first complete encoding proof
 

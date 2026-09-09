@@ -1,0 +1,50 @@
+; Alpha register/I-O isolation regression: stdin AB, stdout ABCDEF, exit 0.
+; Raw bytes only; comments name decimal Alpha offsets and assertions.
+0d 10 0b 00 00 00 00 00 00 00 ff ; 0: initial r16 must be zero; otherwise trap
+0d 11 16 00 00 00 00 00 00 00 ff ; 11: initial r17 must be zero; otherwise trap
+0d 12 21 00 00 00 00 00 00 00 ff ; 22: initial r18 must be zero; otherwise trap
+0d 13 2c 00 00 00 00 00 00 00 ff ; 33: initial r19 must be zero; otherwise trap
+01 10 44 44 33 33 22 22 11 11 ; 44: imm r16, 0x1111222233334444
+01 11 55 55 44 44 33 33 22 22 ; 54: imm r17, 0x2222333344445555
+01 12 66 66 55 55 44 44 33 33 ; 64: imm r18, 0x3333444455556666
+01 13 77 77 66 66 55 55 44 44 ; 74: imm r19, 0x4444555566667777
+11 00 12 00 11 00 12 00 11 00 ; 84: read/write A and B through r0, then read EOF
+01 01 ff ff ff ff ff ff ff ff ; 94: imm r1, 0xffffffffffffffff
+10 00 01 74 00 00 00 00 00 00 00 ff ; 104: jeq r0, r1, next; otherwise trap
+01 01 44 44 33 33 22 22 11 11 ; 116: imm r1, 0x1111222233334444
+10 10 01 8a 00 00 00 00 00 00 00 ff ; 126: jeq r16, r1, next; otherwise trap
+01 01 55 55 44 44 33 33 22 22 ; 138: imm r1, 0x2222333344445555
+10 11 01 a0 00 00 00 00 00 00 00 ff ; 148: jeq r17, r1, next; otherwise trap
+01 01 66 66 55 55 44 44 33 33 ; 160: imm r1, 0x3333444455556666
+10 12 01 b6 00 00 00 00 00 00 00 ff ; 170: jeq r18, r1, next; otherwise trap
+01 01 77 77 66 66 55 55 44 44 ; 182: imm r1, 0x4444555566667777
+10 13 01 cc 00 00 00 00 00 00 00 ff ; 192: jeq r19, r1, next; otherwise trap
+01 10 43 00 00 00 00 00 00 00 ; 204: imm r16, 0x43
+12 10 ; 214: write C through r16
+01 01 43 00 00 00 00 00 00 00 ; 216: imm r1, 0x43
+10 10 01 ee 00 00 00 00 00 00 00 ff ; 226: jeq r16, r1, next; otherwise trap
+01 11 44 00 00 00 00 00 00 00 ; 238: imm r17, 0x44
+12 11 ; 248: write D through r17
+01 01 44 00 00 00 00 00 00 00 ; 250: imm r1, 0x44
+10 11 01 10 01 00 00 00 00 00 00 ff ; 260: jeq r17, r1, next; otherwise trap
+01 12 45 00 00 00 00 00 00 00 ; 272: imm r18, 0x45
+12 12 ; 282: write E through r18
+01 01 45 00 00 00 00 00 00 00 ; 284: imm r1, 0x45
+10 12 01 32 01 00 00 00 00 00 00 ff ; 294: jeq r18, r1, next; otherwise trap
+01 13 46 00 00 00 00 00 00 00 ; 306: imm r19, 0x46
+12 13 ; 316: write F through r19
+01 01 46 00 00 00 00 00 00 00 ; 318: imm r1, 0x46
+10 13 01 54 01 00 00 00 00 00 00 ff ; 328: jeq r19, r1, next; otherwise trap
+11 10 ; 340: read EOF directly into r16
+01 01 ff ff ff ff ff ff ff ff ; 342: imm r1, 0xffffffffffffffff
+10 10 01 6c 01 00 00 00 00 00 00 ff ; 352: jeq r16, r1, next; otherwise trap
+11 11 ; 364: read EOF directly into r17
+01 01 ff ff ff ff ff ff ff ff ; 366: imm r1, 0xffffffffffffffff
+10 11 01 84 01 00 00 00 00 00 00 ff ; 376: jeq r17, r1, next; otherwise trap
+11 12 ; 388: read EOF directly into r18
+01 01 ff ff ff ff ff ff ff ff ; 390: imm r1, 0xffffffffffffffff
+10 12 01 9c 01 00 00 00 00 00 00 ff ; 400: jeq r18, r1, next; otherwise trap
+11 13 ; 412: read EOF directly into r19
+01 01 ff ff ff ff ff ff ff ff ; 414: imm r1, 0xffffffffffffffff
+10 13 01 b4 01 00 00 00 00 00 00 ff ; 424: jeq r19, r1, next; otherwise trap
+00 ff ; 436: halt zero

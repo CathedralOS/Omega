@@ -166,9 +166,9 @@ be relabeled as a successful Gamma or compiler-owned resource refusal.
 
 The current native sources/listings implement these checks. The
 [realization evidence](README.md#ratified-bounds-hardening-contract) distinguishes
-macOS execution from Windows listing reconstruction and records a separate
-unresolved Windows register-storage defect; source changes alone do not establish
-complete conformance.
+macOS execution from Windows listing reconstruction. Windows bounds and
+register-isolation changes still require native host validation; source changes
+alone do not establish complete conformance.
 
 ## 9. Conformance
 

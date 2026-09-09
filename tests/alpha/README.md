@@ -7,6 +7,7 @@ audited VM implementations and normative semantics remain in `bootstrap/0_alpha/
 | --- | --- | --- |
 | `conformance.sh` | Pins every Alpha opcode and the selected seed profile. | Delete only when a stronger executable conformance gate subsumes every case. |
 | `bounds.py` | Hand-encoded bounds cases shared by native and reference checks. | Delete when stronger conformance controls subsume these exact/adjacent observations. |
+| `io-registers.hex` | Shared raw-tape regression for host scratch/register isolation. | Delete when stronger I/O conformance checks subsume its full-word and operand controls. |
 | `reference/` | Independent VM differential checks. | Delete when checked native correspondence subsumes the diagnostic. |
 | `tape-assembly/` | Off-chain assembler reconstruction, differential, grammar, and example tests. | Delete with the tool or when stronger checked coverage subsumes every relation. |
 
@@ -42,4 +43,16 @@ macOS arm64 execution is validated for the identities in the
 [seed inventory](../../bootstrap/0_alpha/README.md#retention-inventory).
 Windows native execution remains outstanding; exact PE reconstruction and source
 review do not establish that host result. These tests do not discharge native
-correspondence proofs or the separate Windows register-storage defect.
+correspondence proofs.
+
+## Register isolation
+
+The same two shell gates include `io-registers.hex`: a 438-byte raw tape with
+comments, not assembler output. Given stdin `AB`, it must exit zero with exact
+stdout `ABCDEF`. It checks registers 16–19 start at zero, retain distinct 64-bit
+sentinels across read/write/EOF through another register, preserve their own
+values when used as write operands, and receive EOF when used as read operands.
+This catches the Windows seed's former overlap of those registers with its host
+handles, byte buffer, and count slot. The native conformance gate pins the result;
+the reference gate independently compares it. The fixture passes on macOS arm64
+and the Python reference; Windows execution remains open on the bootstrap board.
