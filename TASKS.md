@@ -302,9 +302,11 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   fixed-work bound is claimed. Source proof/interpretation lives in
   `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs` and
   `terminal-interpreter/src/structural_byte_arrays.rs`.
-  Next dependencies are source-owned raw-array construction, payload-bearing
-  line outcomes and shared read-byte assembly/provider integration. Explicit host
-  inputs supply raw array contents; an opaque root supplies none. Zero-length
+  Next dependencies are receiver provisioning under `ENTRY-CONTENT-ROOTS`,
+  payload-bearing line outcomes and shared read-byte assembly/provider integration.
+  `Main.pause` is a provisioned receiver field, so generic source-local array
+  construction is not a prerequisite for this customer. Explicit host inputs
+  supply raw array contents in callable tests; an opaque root supplies none. Zero-length
   fixed arrays retain their Terminal admission fence; empty borrowed views work.
   Do not substitute owner replacement for the fixed-range writer contract.
 
@@ -448,6 +450,34 @@ Owners include
   none. Acceptance is native execution from an authored entry with exact
   symbol/text/continuation replay and mutation failures for redirected or
   duplicated identities.
+
+  Start with the missing hosted arrival/storage contract, not array construction
+  or an unchecked receiver allocation. At `ca90c1eadb`, hosted
+  `target::TargetProfile::program_entry_slot` leaves physical requirement,
+  contract package, boundary schema and calling conventions absent. The existing
+  `program-entry-plan` optimized semantic entry/wrapper accepts receiver-free
+  UEFI/Microsoft inputs with visible image/initial-storage parameters; it is not
+  a hosted bridge. Close one hosted profile's exact physical contract and
+  calling/stack plan through the actual `ProgramStorageEntry` root crossing,
+  while retaining zero source-visible arrival parameters. Runtime geometry,
+  rights and backing must come from that target's admitted arrival, joined to
+  the installed artifact occurrence and lifecycle epoch. Reuse `external-roots`
+  producer-schema, extent and epoch accounting. A plan-only helper or emitted
+  writable section does not establish that crossing. This is implementation
+  work under the settled [entry contract](wiki/spec/build/entry_roots.md), not
+  an owner-decision blocker.
+
+  Then exercise a plain ZII-valid receiver without provider fields, using its
+  captured source signature and verified structural layout. Derive its range
+  beneath admitted writable storage, keep receiver/stack/residual partitions
+  disjoint, and retain exact continuation, activation loan and normal cleanup.
+  Reject wrong receiver/continuation identity, non-ZII state, insufficient or
+  misaligned backing, overlapping partitions, substituted occurrence/epoch,
+  and prepared-input bypass. Keep the explicit rejection in
+  `native-realization/src/realization/native_artifact.rs` until executable
+  provisioning actually exists; its tests distinguish source-entry settlement
+  from runtime storage. Acceptance must run a published process without a
+  test-supplied receiver pointer, not merely a C caller over initialized storage.
 
   The stored-descriptor fixture
   `traits/runtime_local_named_dyn_stored_exit` already retains a borrowed
