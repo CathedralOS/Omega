@@ -30,7 +30,7 @@ use reconstruction::reconstruct_validated_terminal_obligations;
 pub use reconstruction::{
     ReconstructedOperationObligation, ReconstructedTerminalObligation,
     ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet,
-    reconstruct_interpretable_operation_obligations,
+    reconstruct_execution_terminal_obligations, reconstruct_interpretable_operation_obligations,
     reconstruct_interpretable_terminal_obligations, reconstruct_operation_obligations,
     reconstruct_optimizable_terminal_obligations, reconstruct_terminal_obligations,
 };

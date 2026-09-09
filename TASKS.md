@@ -78,18 +78,6 @@ do not claim a faster compiler from a smaller helper alone.
   Count rebuilt states/allocations and time the complete checking phase. No
   thread-pool or unrelated IR redesign is part of this task.
 
-- **PROOF-PREPARATION.** In Psi
-  `pipeline/checked-trees-to-lowered-psi/src/operation_emission.rs` and
-  `semantics/terminal-verifier`, reconstruct obligations from the already
-  validated immutable module and prepare value/place contexts plus parameter
-  identities once per demanded machine, not per obligation. No persistent cache
-  or weaker final verifier. Acceptance: repeated obligations on one machine
-  construct one context; serial and parallel evidence equals the uncached
-  reference; retained source evidence, error ordering, execution/interpretation
-  admission and rejection of malformed modules/proofs remain unchanged. Keep
-  worker scheduling and output sorting unchanged unless measurement justifies
-  a separate collection change.
-
 - **PACKAGE-PREPARATION-REUSE.** In
   `omega-rust/omega/packages/manager/src/review/candidate/compilation.rs` and its compiler
   source-preparation owners, identify and retain binding-independent source

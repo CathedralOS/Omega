@@ -1,5 +1,6 @@
 //! Terminal operation emission and proof finalization.
 
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
@@ -9,6 +10,17 @@ const PARALLEL_PROOF_THRESHOLD: usize = 16;
 const MAX_PROOF_WORKERS: usize = 8;
 
 pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
+    finalize_operation_proofs_inner(
+        lowered,
+        #[cfg(test)]
+        &|_| {},
+    )
+}
+
+fn finalize_operation_proofs_inner(
+    lowered: &mut LoweredPsi,
+    #[cfg(test)] prepared_machine: &(impl Fn(MachineId) + Sync),
+) -> Result<(), LoweringError> {
     let has_ranked_countdown = lowered.semantic_module.machines.iter().any(|machine| {
         machine
             .ranked_scc
@@ -26,7 +38,9 @@ pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
     let obligations = if let Some(validated) = interpretation_validated {
         terminal_verifier::reconstruct_interpretable_terminal_obligations(validated)
     } else {
-        terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
+        terminal_verifier::reconstruct_execution_terminal_obligations(
+            execution_validated.expect("one validation carrier is present"),
+        )
     }
     .map_err(LoweringError::InvalidTerminalModule)?;
     let existing = lowered
@@ -51,37 +65,47 @@ pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
         .semantic_module
         .machines
         .iter()
-        .map(|machine| (machine.id, machine))
+        .map(|machine| (machine.id, (machine, OnceLock::new())))
         .collect::<BTreeMap<_, _>>();
     let produce = |site: &terminal_verifier::ReconstructedTerminalObligation| {
-        let owner = owners.get(&site.owner.machine()).copied();
+        let owner = owners.get(&site.owner.machine());
         let assumptions = site.requirements.as_slice();
-        let proof = if let Some(machine) = owner
+        let proof = if let Some((machine, preparation)) = owner
             && (site.canonical_certificate
                 || matches!(
                     site.owner,
                     terminal_verifier::ReconstructedTerminalObligationOwner::ContractEnsures { .. }
                         | terminal_verifier::ReconstructedTerminalObligationOwner::CallRequires { .. }
                 )) {
-            let context = if let Some(validated) = interpretation_validated {
-                validated.value_context(machine)
-            } else {
-                execution_validated
-                    .expect("one validation carrier is present")
-                    .value_context(machine)
-            }
-            .map_err(LoweringError::InvalidTerminalModule)?;
-            let machine_parameter_values = machine
-                .parameters
-                .iter()
-                .map(|parameter| parameter.id)
-                .collect();
+            // This invocation borrows an immutable module. Share only machine
+            // facts, not site assumptions or proof-search state. Cache failures
+            // too, but report them at the original pending-site position.
+            let preparation = preparation.get_or_init(|| {
+                #[cfg(test)]
+                prepared_machine(machine.id);
+                let context = if let Some(validated) = interpretation_validated {
+                    validated.value_context(machine)
+                } else {
+                    execution_validated
+                        .expect("one validation carrier is present")
+                        .value_context(machine)
+                }?;
+                let machine_parameter_values = machine
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.id)
+                    .collect::<BTreeSet<_>>();
+                Ok::<_, terminal_verifier::ModuleError>((context, machine_parameter_values))
+            });
+            let (context, machine_parameter_values) = preparation
+                .as_ref()
+                .map_err(|error| LoweringError::InvalidTerminalModule(error.clone()))?;
             produce_checked_canonical_integer_proof(
-                &context,
+                context,
                 &site.obligation.proposition,
                 assumptions,
                 &site.semantic_axioms,
-                &machine_parameter_values,
+                machine_parameter_values,
             )
         } else {
             proof_from_available_facts(
@@ -154,6 +178,9 @@ pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
     crate::control_cycle_proofs::finalize(lowered)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
 
 fn proof_from_available_facts(
     goal: &Proposition,
