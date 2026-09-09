@@ -150,6 +150,9 @@ pub(super) fn validate_operation(
 ) -> Result<(), LoweringError> {
     if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
         coordinate, result, ..
+    }
+    | CheckedUnitEffectOperationPlan::StructuralCall {
+        coordinate, result, ..
     } = operation
     {
         initializers::validate_structural(

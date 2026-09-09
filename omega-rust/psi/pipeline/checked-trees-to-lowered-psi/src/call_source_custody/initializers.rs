@@ -1,10 +1,10 @@
-//! Rejoin local and temporary result sources separately from their operand graphs.
+//! Rejoin bound, temporary, and discarded result sources independently of operands.
 
 use super::*;
 use checked_trees::statement::StatementNode;
 
 /// A discarded statement result has an operation-owned place, not a fabricated
-/// local. Reconstruct its plain-owned custody from the exact authored boundary
+/// local. Reconstruct its plain-owned custody from the exact authored call
 /// signature; the continuation owner separately requires immediate disposal.
 pub(crate) fn validate_discarded_structural(
     checked: &CheckedTrees,
@@ -19,14 +19,13 @@ pub(crate) fn validate_discarded_structural(
         .statements(state.statement_nodes)
         .get(coordinate.statement_index as usize)
     else {
-        return unsupported("discarded boundary result has no authored call statement");
+        return unsupported("discarded structural result has no authored call statement");
     };
     let target = super::authored::target_signature(checked, caller_machine, call.target_symbol)?;
     if machine.symbol != caller_machine
         || coordinate.call_ordinal != 0
         || result.statement_index != coordinate.statement_index
         || !call.discards_result
-        || !target.boundary
         || checked
             .primitive_type_reference(target.return_type)
             .is_some()
@@ -36,14 +35,17 @@ pub(crate) fn validate_discarded_structural(
             != result.type_identity
         || checked.type_multiplicity(target.return_type) != result.multiplicity
         || result.multiplicity == language_semantics::Multiplicity::Linear
-        || !validation::has_plain_owned_contents(&checked.typed, target.return_type)
+        || !validation::has_plain_owned_contents_with_numeric_constraints(
+            &checked.typed,
+            target.return_type,
+        )
     {
-        return unsupported("discarded boundary result disagrees with its authored signature");
+        return unsupported("discarded structural result disagrees with its authored signature");
     }
     Ok(())
 }
 
-pub(super) fn validate_structural(
+pub(crate) fn validate_structural(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
@@ -63,7 +65,6 @@ pub(super) fn validate_structural(
         if machine.symbol != caller_machine
             || result.statement_index != coordinate.statement_index
             || result.multiplicity != Multiplicity::Affine
-            || !authored.boundary
             || checked
                 .normalized_type_identity(target.return_type)
                 .into_string()
@@ -132,6 +133,19 @@ pub(crate) fn validate(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> Result<(), LoweringError> {
     let (machine, state) = crate::scalar_source_custody::authored_state(checked, caller_state)?;
+    if coordinate.call_ordinal == 0
+        && matches!(checked.statement_table.statements(state.statement_nodes)
+            .get(coordinate.statement_index as usize), Some(StatementNode::Call(call)) if call.discards_result)
+    {
+        if machine.symbol != caller_machine {
+            return unsupported("discarded call belongs to another authored machine");
+        }
+        // Statement calls have no initializer expression. Rejoin the actual
+        // statement; validate_operation still checks every computation root,
+        // captured nested occurrence, target signature, and argument role.
+        super::authored::locate_source(checked, caller_state, coordinate)?;
+        return Ok(());
+    }
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)

@@ -10,7 +10,7 @@ use terminal_psi::{
 /// Rejoin a mutable byte-view argument to initialized fixed-u8-array storage.
 /// This preserves the actual type and field path; the returned length grants
 /// neither new storage nor resize permission. Callers separately check claims,
-/// exclusive aliasing, availability, and the ordinary Unit-call site.
+/// exclusive aliasing, availability, and the ordinary call site.
 pub fn mutable_fixed_byte_array_extent(
     module: &TerminalModule,
     actual: &StructuralParameterDeclaration,

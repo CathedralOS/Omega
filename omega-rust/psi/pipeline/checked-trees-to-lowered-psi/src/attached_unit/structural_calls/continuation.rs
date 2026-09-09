@@ -26,6 +26,12 @@ pub(crate) fn validate_cleanup(
         result,
         discard_result_on_return,
         ..
+    }
+    | CheckedUnitEffectOperationPlan::StructuralCall {
+        coordinate: producer,
+        result,
+        discard_result_on_return,
+        ..
     } = consumer
     {
         let [discard] = affine_discards.as_slice() else {

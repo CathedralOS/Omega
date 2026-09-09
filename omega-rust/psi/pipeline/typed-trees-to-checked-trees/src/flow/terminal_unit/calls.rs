@@ -1135,8 +1135,8 @@ pub(super) fn build_call_operation(
         // The closure pass below retains this call only when that complete body
         // was produced, avoiding an authored machine-order dependency.
         if structural_arguments.iter().all(|argument| {
-            argument.path.is_empty()
-                && argument.source_parameter_index().is_some()
+            (argument.source_parameter_index().is_some()
+                || argument.byte_sequence_literal().is_some())
                 && matches!(
                     argument.access,
                     CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
@@ -1690,7 +1690,7 @@ pub(super) fn ordinary_projected_call_is_supported(
             && (!shared_subloan_path
                 || crate::checks::type_multiplicity(program, target_parameter.type_reference)
                     == Multiplicity::Unrestricted)
-            && program.machine_states(caller_machine).len() == 1
+            && (mutable_byte_subloan_path || program.machine_states(caller_machine).len() == 1)
             && (mutable_byte_subloan_path || program.machine_states(target_machine).len() == 1)
             && caller_parameters[0].qualifications.is_empty();
     }
@@ -2015,7 +2015,6 @@ pub(super) fn structural_call_arguments(
             let expression = *explicit_arguments.get(explicit_index)?;
             explicit_index += 1;
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && is_unit(program, target_state.return_type)
                 && let Some(literal) =
                     byte_sequence_literal_argument(program, target.type_reference, expression)
             {
@@ -2278,8 +2277,8 @@ pub(super) fn structural_call_arguments(
                     projected_type,
                     target.type_reference,
                     &target_identity,
-                ) && !(is_unit(program, target_state.return_type)
-                    && caller_parameters[source_index].multiplicity == Multiplicity::Unrestricted
+                ) && !(caller_parameters[source_index].multiplicity
+                    == Multiplicity::Unrestricted
                     && segments
                         .iter()
                         .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))

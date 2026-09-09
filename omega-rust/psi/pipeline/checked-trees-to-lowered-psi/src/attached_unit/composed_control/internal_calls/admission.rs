@@ -89,7 +89,6 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     };
     if structural_arguments.iter().any(|argument| {
         (argument.source_parameter_index().is_none() && argument.byte_sequence_literal().is_none())
-            || !argument.path.is_empty()
             || !matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::MutableBorrow
@@ -152,10 +151,16 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
             .ok_or(LoweringError::Unsupported(
                 "composed Unit structural source is absent",
             ))?;
-        if source.type_identity != target.type_identity
-            || argument.access != target.access
+        // A projected argument names its owner's parameter, not a second
+        // parameter of the referent type. Source custody above checks the
+        // authored path; common transfer-shape validation before emission
+        // checks the projected type and byte-view presentation independently.
+        if argument.access != target.access
             || source.access != target.access
-            || source.multiplicity != target.multiplicity
+            || (argument.path.is_empty()
+                && (source.type_identity != target.type_identity
+                    || source.multiplicity != target.multiplicity))
+            || !source.qualifications.is_empty()
             || !target.qualifications.is_empty()
         {
             return unsupported("composed Unit structural call authority drifted");

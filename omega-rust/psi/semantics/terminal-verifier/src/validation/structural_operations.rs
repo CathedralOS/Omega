@@ -1113,13 +1113,19 @@ fn validate_scalar_case_call(
     {
         return Err(failure());
     }
+    let borrowed_projections = structural_arguments
+        .iter()
+        .zip(&callee.structural_parameters)
+        .all(|(argument, expected)| {
+            argument.path.is_empty() || is_unrestricted_mutable_subloan(machine, expected, argument)
+        });
     validate_structural_arguments(
         module,
         machine,
         structural_arguments,
         &callee.structural_parameters,
         operation.id,
-        false,
+        borrowed_projections,
         StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults,
     )?;
     validate_unit_call_claim_transfers(
@@ -1244,6 +1250,14 @@ pub(super) fn validate_structural_arguments(
         .find(|candidate| candidate.id == operation)
         .map(|candidate| &candidate.kind);
     let unit_call = matches!(call_kind, Some(OperationKind::CallUnit { .. }));
+    let borrowed_call = matches!(
+        call_kind,
+        Some(
+            OperationKind::CallUnit { .. }
+                | OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. }
+        )
+    );
     let ordinary_call = matches!(
         call_kind,
         Some(OperationKind::CallUnit { .. } | OperationKind::CallStructuralScalar { .. })
@@ -1435,14 +1449,14 @@ pub(super) fn validate_structural_arguments(
         }
         let root_type = actual_type;
         // Inline byte fields retain their owner/path instead of acquiring a
-        // fictitious structural type identity. Ordinary Unit calls admit only
+        // fictitious structural type identity. Ordinary calls admit only
         // an exact mutable field subloan; this grants no extent replacement.
         let buffer_presentation = (source_policy
             == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-            || (unit_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
+            || (borrowed_call && is_unrestricted_mutable_subloan(caller, expected, argument)))
             && terminal_semantics::boundary_buffer_capacity(module, root_type, argument, expected)
                 .is_some();
-        let fixed_array_presentation = unit_call
+        let fixed_array_presentation = borrowed_call
             && caller.structural_parameters.iter().any(|actual| {
                 terminal_semantics::mutable_fixed_byte_array_extent(
                     module, actual, argument, expected,

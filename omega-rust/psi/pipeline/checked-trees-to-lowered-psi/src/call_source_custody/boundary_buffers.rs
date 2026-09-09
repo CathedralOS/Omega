@@ -1,4 +1,4 @@
-//! Mutable boundary byte operands retain their authored field or borrowed-view root.
+//! Mutable byte operands retain their authored field or borrowed-view root.
 
 use super::{authored, literal_arguments, projected_receivers};
 use crate::{CheckedTrees, LoweringError, unsupported};
@@ -30,6 +30,10 @@ pub(super) fn validate(
             ..
         }
         | CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::StructuralCall {
             structural_arguments,
             ..
         } => structural_arguments,
@@ -98,8 +102,11 @@ pub(super) fn validate(
             || source_parameter.symbol != source.root
             || (source.path.is_empty()
                 && !is_mutable_byte_view(source_parameter)
-                && !(matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                    && is_mutable_fixed_byte_array(checked, source_parameter)))
+                && !(matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::CallUnit { .. }
+                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                ) && is_mutable_fixed_byte_array(checked, source_parameter)))
             || source.path != argument.path
         {
             return unsupported(

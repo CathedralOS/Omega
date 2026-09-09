@@ -2226,27 +2226,42 @@ pub(super) fn checked_unit_structural_result_local(
     };
     if local.is_mutable
         || !local.initial_value.is_valid()
-        || program
-            .primitive_type_reference(local.type_reference)
-            .is_some()
-        || is_reference(program, local.type_reference)
-        || crate::checks::type_multiplicity(program, local.type_reference) == Multiplicity::Linear
-        || type_graph_requires_nominal_drop(program, local.type_reference)
         || !matches!(
             program.expression_table.expression(local.initial_value),
             ExpressionNode::Call(_)
         )
-        || !parameter_qualifications(program, shapes, local.type_reference, binders)?.is_empty()
     {
         return None;
     }
     Some((
-        CheckedUnitStructuralResultBindingPlan {
-            statement_index: 0,
-            binding_ordinal: 0,
-            type_identity: shapes.add_type(local.type_reference, binders, &[])?,
-            multiplicity: crate::checks::type_multiplicity(program, local.type_reference),
-        },
+        checked_structural_result_type(program, shapes, local.type_reference, binders)?,
         local.symbol,
     ))
+}
+
+/// Result shape is independent of whether the source binds or discards it.
+/// Only no-code disposable results use this path; linear claims and nominal
+/// cleanup still require their checked settlement plan.
+fn checked_structural_result_type(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    result_type: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<CheckedUnitStructuralResultBindingPlan> {
+    if is_unit(program, result_type)
+        || program.primitive_type_reference(result_type).is_some()
+        || is_reference(program, result_type)
+        || crate::checks::type_multiplicity(program, result_type) == Multiplicity::Linear
+        || type_graph_requires_nominal_drop(program, result_type)
+        || !validation::has_plain_owned_contents_with_numeric_constraints(program, result_type)
+        || !parameter_qualifications(program, shapes, result_type, binders)?.is_empty()
+    {
+        return None;
+    }
+    Some(CheckedUnitStructuralResultBindingPlan {
+        statement_index: 0,
+        binding_ordinal: 0,
+        type_identity: shapes.add_type(result_type, binders, &[])?,
+        multiplicity: crate::checks::type_multiplicity(program, result_type),
+    })
 }

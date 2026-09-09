@@ -15,13 +15,20 @@ pub(in crate::attached_unit) fn validate(
     operation: &CheckedUnitEffectOperationPlan,
     target_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::CallUnit {
+    let (CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
         target_machine,
         target_state,
         structural_arguments,
         ..
-    } = operation
+    }
+    | CheckedUnitEffectOperationPlan::StructuralCall {
+        coordinate,
+        target_machine,
+        target_state,
+        structural_arguments,
+        ..
+    }) = operation
     else {
         return unsupported("primitive local Unit custody requires an ordinary Unit call");
     };

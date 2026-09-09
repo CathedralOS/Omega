@@ -1,4 +1,4 @@
-//! Reconcile implicit receiver operands against completed Unit signatures.
+//! Reconcile implicit receiver operands against completed call signatures.
 //!
 //! Attachment specialization can erase borrowed self. A retained callee self
 //! instead requires the caller's actual loan, including through forwarding
@@ -11,6 +11,7 @@ pub(super) fn reconcile(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
+    composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
     selected_operators: &[crate::SelectedOperatorApplication],
     selected_float_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) {
@@ -22,17 +23,32 @@ pub(super) fn reconcile(
             .iter()
             .filter(|plan| borrowed_self(plan).is_some())
             .map(|plan| plan.state)
+            .chain(composed.iter().filter_map(|plan| {
+                let entry = plan.states.first()?;
+                entry
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| {
+                        parameter.is_self && parameter.access != CheckedStructuralAccess::Owned
+                    })
+                    .then_some(entry.state)
+            }))
             .collect::<Vec<_>>();
         let demanded = candidates
             .iter()
             .filter(|plan| borrowed_self(plan).is_none())
             .filter(|plan| {
                 plan.operations.iter().any(|operation| {
-                    let CheckedUnitEffectOperationPlan::CallUnit {
+                    let (CheckedUnitEffectOperationPlan::CallUnit {
                         coordinate,
                         target_state,
                         ..
-                    } = operation
+                    }
+                    | CheckedUnitEffectOperationPlan::StructuralCall {
+                        coordinate,
+                        target_state,
+                        ..
+                    }) = operation
                     else {
                         return false;
                     };
@@ -85,82 +101,7 @@ pub(super) fn reconcile(
         });
     }
 
-    let retained = candidates
-        .iter()
-        .filter_map(|plan| {
-            let (index, receiver) = borrowed_self(plan)?;
-            Some((
-                plan.machine,
-                plan.state,
-                index,
-                receiver.clone(),
-                plan.structural_parameters.len(),
-            ))
-        })
-        .collect::<Vec<_>>();
-    candidates.retain_mut(|plan| {
-        for operation in &mut plan.operations {
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                claim_transfers,
-                ..
-            } = operation
-            else {
-                continue;
-            };
-            let Some((_, _, receiver_index, target, parameter_count)) = retained
-                .iter()
-                .find(|(machine, state, ..)| machine == target_machine && state == target_state)
-            else {
-                continue;
-            };
-            if structural_arguments.len().checked_add(1) != Some(*parameter_count) {
-                return false;
-            }
-            let Some(place) = receiver_place(
-                program,
-                facts,
-                plan.machine,
-                plan.state,
-                *coordinate,
-                *target_state,
-            ) else {
-                return false;
-            };
-            let Some(argument) = receiver_argument(
-                program,
-                plan.machine,
-                plan.state,
-                *coordinate,
-                &plan.structural_parameters,
-                &place,
-                target,
-            ) else {
-                return false;
-            };
-            if *receiver_index > structural_arguments.len() {
-                return false;
-            }
-            structural_arguments.insert(*receiver_index, argument);
-            // The new operand is a loan, never an ownership transfer. Existing
-            // transfers still name their original operands after insertion.
-            for transfer in claim_transfers {
-                if usize::try_from(transfer.argument_index)
-                    .ok()
-                    .is_some_and(|index| index >= *receiver_index)
-                {
-                    let Some(index) = transfer.argument_index.checked_add(1) else {
-                        return false;
-                    };
-                    transfer.argument_index = index;
-                }
-            }
-        }
-        true
-    });
+    reconcile_operands(program, facts, candidates, composed);
 }
 
 fn borrowed_self(
@@ -175,10 +116,10 @@ fn borrowed_self(
 }
 
 /// Rejoin receiver operands after ordinary and graph entry signatures exist.
-pub(super) fn reconcile_composed(
+fn reconcile_operands(
     program: &TypedTrees,
     facts: &CheckFacts,
-    candidates: &[CheckedUnitEffectMachinePlan],
+    candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
 ) {
     let retained = candidates
@@ -212,19 +153,47 @@ pub(super) fn reconcile_composed(
             ))
         }))
         .collect::<Vec<_>>();
-    composed.retain_mut(|plan| {
-        for state in &mut plan.states {
-            for operation in &mut state.operations {
-                let CheckedUnitEffectOperationPlan::CallUnit {
+    let reconcile_state =
+        |machine,
+         state,
+         parameters: &[CheckedUnitStructuralParameterPlan],
+         operations: &mut [CheckedUnitEffectOperationPlan]| {
+            for operation in operations {
+                let (
                     coordinate,
                     target_machine,
                     target_state,
                     structural_arguments,
                     claim_transfers,
-                    ..
-                } = operation
-                else {
-                    continue;
+                ) = match operation {
+                    CheckedUnitEffectOperationPlan::CallUnit {
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } => (
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        structural_arguments,
+                        Some(claim_transfers),
+                    ),
+                    CheckedUnitEffectOperationPlan::StructuralCall {
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        structural_arguments,
+                        ..
+                    } => (
+                        coordinate,
+                        target_machine,
+                        target_state,
+                        structural_arguments,
+                        None,
+                    ),
+                    _ => continue,
                 };
                 let Some((_, _, receiver_index, target, count)) =
                     retained.iter().find(|(machine, state, ..)| {
@@ -233,22 +202,17 @@ pub(super) fn reconcile_composed(
                 else {
                     continue;
                 };
-                let Some(place) = receiver_place(
-                    program,
-                    facts,
-                    plan.machine,
-                    state.state,
-                    *coordinate,
-                    *target_state,
-                ) else {
+                let Some(place) =
+                    receiver_place(program, facts, machine, state, *coordinate, *target_state)
+                else {
                     return false;
                 };
                 let Some(argument) = receiver_argument(
                     program,
-                    plan.machine,
-                    state.state,
+                    machine,
+                    state,
                     *coordinate,
-                    &state.structural_parameters,
+                    parameters,
                     &place,
                     target,
                 ) else {
@@ -260,7 +224,9 @@ pub(super) fn reconcile_composed(
                     return false;
                 }
                 structural_arguments.insert(*receiver_index, argument);
-                for transfer in claim_transfers {
+                // A retained receiver is a loan. Preserve the indices of any
+                // ownership transfers belonging to the other arguments.
+                for transfer in claim_transfers.into_iter().flatten() {
                     if transfer.argument_index as usize >= *receiver_index {
                         let Some(position) = transfer.argument_index.checked_add(1) else {
                             return false;
@@ -269,8 +235,25 @@ pub(super) fn reconcile_composed(
                     }
                 }
             }
-        }
-        true
+            true
+        };
+    candidates.retain_mut(|plan| {
+        reconcile_state(
+            plan.machine,
+            plan.state,
+            &plan.structural_parameters,
+            &mut plan.operations,
+        )
+    });
+    composed.retain_mut(|plan| {
+        plan.states.iter_mut().all(|state| {
+            reconcile_state(
+                plan.machine,
+                state.state,
+                &state.structural_parameters,
+                &mut state.operations,
+            )
+        })
     });
 }
 

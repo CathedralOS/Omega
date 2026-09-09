@@ -268,7 +268,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   now enters the shared provider closure. The next gap is `Main.pause`:
   raw `[u8; 256]` storage presented to the boundary's `&mut [u8]` parameter.
   `terminal-verifier/src/validation/structural_operations.rs` only applies
-  `terminal-semantics::mutable_fixed_byte_array_extent` to ordinary Unit calls;
+  `terminal-semantics::mutable_fixed_byte_array_extent` to ordinary calls;
   its boundary helper recognizes bounded byte fields, not raw fixed arrays.
   A reduced provider-free `Root { buffer: [u8; 256] }` calling
   `_ = Host::read(&mut self.buffer)` reproduces the same type mismatch, so
@@ -331,15 +331,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   tails reject. Re-run the same sample before choosing its next dependency.
 
   `cli_mvp` also calls `Console::read_line(&mut self.pause)` from an attached
-  `Main::main(&mut self)`. When the
-  ambient attachment cannot plan the body, `build_checked_machine`
-  (`typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs`)
-  retries with the borrowed `self` retained as structural parameter 0 carrying
-  the reference's access, beside the provider-specialized fields. The retry is
-  transitional; retain a borrowed `self` unconditionally once the entry bridge
+  `Main::main(&mut self)`. Remove the transitional ambient/retained-self retry
+  in `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` once the entry bridge
   passes the `ProgramEntry` loan as structural parameter 0, under
   `ENTRY-CONTENT-ROOTS` and
-  `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. Receiver-store sequences still need
+  `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. Use the shared result-disposition
+  and receiver reconciliation described in the [statement sequencer](omega-rust/psi/compiler/terminal-production/README.md),
+  not another caller/result/source-order admission family. Receiver-store sequences still need
   aggregate replacements and foreign-result assignments: `win64_direct_aggregate_import_compile`
   combines scalar writes, an aggregate replacement, and a foreign-result
   assignment. Extend the checked Unit statement sequence without dropping

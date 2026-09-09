@@ -349,21 +349,21 @@ pub(crate) fn build_checked_unit_effect_plans(
             )
         })
         .collect::<Vec<_>>();
-    receiver_calls::reconcile(
-        program,
-        facts,
-        &mut shapes,
-        &mut candidates,
-        selected_operator_applications,
-        selected_ieee_float_fma_applications,
-    );
     let mut composed_machines = build_checked_composed_unit_control_machines(
         program,
         facts,
         &mut shapes,
         &boundary_machines,
     );
-    receiver_calls::reconcile_composed(program, facts, &candidates, &mut composed_machines);
+    receiver_calls::reconcile(
+        program,
+        facts,
+        &mut shapes,
+        &mut candidates,
+        &mut composed_machines,
+        selected_operator_applications,
+        selected_ieee_float_fma_applications,
+    );
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
@@ -418,11 +418,18 @@ pub(crate) fn build_checked_unit_effect_plans(
                     CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
                         scalar_targets::is_available(program, facts, plan, operation)
                     }
-                    CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => facts
-                        .flow
-                        .terminal_structural_returns
-                        .claim_free_affine_for_machine(*target_machine)
-                        .is_some(),
+                    CheckedUnitEffectOperationPlan::StructuralCall {
+                        target_machine,
+                        target_state,
+                        ..
+                    } => {
+                        unique_entries.contains(&(*target_machine, *target_state))
+                            || facts
+                                .flow
+                                .terminal_structural_returns
+                                .claim_free_affine_for_machine(*target_machine)
+                                .is_some()
+                    }
                     // Exact realization custody was already joined by selected
                     // execution before this plan was minted.
                     CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
