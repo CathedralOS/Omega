@@ -293,3 +293,27 @@ fn short_circuit_anonymous_landing_warns_once_whether_executed_or_skipped() {
         );
     }
 }
+
+#[test]
+fn anonymous_rational_comparisons_do_not_create_integer_landing_warnings() {
+    for left in [false, true] {
+        let text = format!("machine run() -> bool {{ {left} || (7 / 2 == 3.5) }}");
+        let tokens = Lexer::new(&text).tokenize().expect("probe tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("probe syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("probe resolution");
+        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("probe typing");
+        let machine = program.machines().iter().next().expect("probe machine");
+        let state = &program.machine_states(machine)[0];
+        let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");
+        let (canonical, warnings) =
+            super::value::evaluate(&program, machine, state, expression, PrimitiveType::Bool)
+                .expect("exact rational comparison");
+        assert_eq!(
+            canonical,
+            language_semantics::const_value::CanonicalConstValue::boolean(true)
+        );
+        assert!(warnings.is_empty(), "comparison has no integer destination");
+    }
+}

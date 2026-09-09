@@ -78,8 +78,8 @@ mod integer_remainder;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;
 pub(crate) use integer_landing::{anonymous_numeric_value, land_integer_value};
 pub use integer_landing::{
-    has_anonymous_operator_meaning, land_anonymous_integer_expression,
-    land_anonymous_integer_expression_with_warning,
+    evaluate_anonymous_numeric_comparison, has_anonymous_operator_meaning,
+    land_anonymous_integer_expression, land_anonymous_integer_expression_with_warning,
 };
 pub(crate) use integer_remainder::validate_anonymous_remainders;
 

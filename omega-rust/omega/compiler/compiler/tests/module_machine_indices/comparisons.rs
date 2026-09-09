@@ -449,7 +449,6 @@ fn boolean_logic_indices_check_the_complete_static_operand_roster() {
         "((LIMIT == 3) + (LIMIT == 3) == 2)",
         "((LIMIT == 3) & true)",
         "(1 % 2 == LIMIT)",
-        "((1 + 1) < 3)",
     ] {
         rejected.push(expression.to_owned());
     }
@@ -481,6 +480,7 @@ fn boolean_logic_indices_check_the_complete_static_operand_roster() {
         "(LIMIT << 1u64 == 6)",
         "(LIMIT >> 1u64 == 1)",
         "(LIMIT + (6 / 2) == 6)",
+        "((1 + 1) < 3)",
     ] {
         Sources::write(
             root.join("main.omg"),

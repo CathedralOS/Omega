@@ -140,9 +140,14 @@ covers root and module selection under that schedule.
 The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/literal_boolean_indices/main.omg`
 covers literal Boolean expressions and fixed-integer comparisons in both scopes.
-Open templates, aggregate evaluation, comparisons between two wholly anonymous
-numeric operands, constrained destinations, authored operators and module-owned domain
-families remain outside this probe.
+Comparisons between two anonymous numeric operands consume exact rational values
+without selecting an integer carrier or floating format. The shared evaluator
+rejects undefined rational values even in unselected comparisons; typed operands
+still require ordinary peer landing. The two-file CLI check
+`cargo run -p omega -- --check tests/omega/pass/modules/rational_boolean_indices/main.omg`
+covers fractional and decimal comparisons with their canonical Boolean results.
+Open templates, aggregate evaluation, constrained destinations, authored operators
+and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.
 Unrelated root constants and literal or binder-only

@@ -11,6 +11,11 @@
 //! cannot hide a runtime name or unauthorized operator in the unselected branch.
 //! A separate shape pass establishes types and complete anonymous-rational
 //! landings across both operands before selective evaluation runs landed operations.
+//! Two anonymous numeric operands instead compare as exact rationals through the
+//! shared validation evaluator. Their Boolean result supplies no numeric carrier;
+//! neither integer truncation nor floating rounding belongs to this comparison.
+//! The static pass requires both rational values even in an unselected comparison:
+//! anonymous division by zero has no value under the numeric contract.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -130,6 +135,19 @@ pub(super) fn evaluate(
                 let right = values.pop().ok_or("missing right constant operand")?;
                 let left = values.pop().ok_or("missing left constant operand")?;
                 let value = match (left, right) {
+                    (Value::Anonymous(_), Value::Anonymous(_))
+                        if matches!(
+                            operator,
+                            BinaryOperator::Equal
+                                | BinaryOperator::NotEqual
+                                | BinaryOperator::Less
+                                | BinaryOperator::LessOrEqual
+                                | BinaryOperator::Greater
+                                | BinaryOperator::GreaterOrEqual
+                        ) =>
+                    {
+                        Value::Boolean(compare_anonymous(program, machine, state, expression)?)
+                    }
                     (Value::Anonymous(_), Value::Anonymous(_)) => {
                         if !matches!(
                             operator,
@@ -295,6 +313,21 @@ fn validate_shapes(
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
         );
         let (left, right) = match (left, right) {
+            (Shape::Anonymous(_), Shape::Anonymous(_))
+                if matches!(
+                    operator,
+                    BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                        | BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                ) =>
+            {
+                compare_anonymous(program, machine, state, expression)?;
+                shapes.push(Shape::Boolean);
+                continue;
+            }
             (Shape::Anonymous(_), Shape::Anonymous(_)) => {
                 if !matches!(
                     operator,
@@ -382,6 +415,21 @@ fn validate_shapes(
         return Err("constant expression did not produce one type".into());
     }
     Ok(warnings)
+}
+
+fn compare_anonymous(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Result<bool, String> {
+    validation::evaluate_anonymous_numeric_comparison(program, expression, |operand| {
+        validation::has_builtin_binary_expression_meaning(program, machine, Some(state), operand)
+    })
+    .ok_or_else(|| {
+        "anonymous comparison requires defined exact numeric operands and selected builtin meaning"
+            .into()
+    })
 }
 
 fn land_anonymous(

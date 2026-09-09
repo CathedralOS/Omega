@@ -1,6 +1,11 @@
-//! Chapter 5 anonymous numeric arithmetic before one integer landing.
+//! Chapter 5 anonymous numeric arithmetic at integer and Boolean destinations.
 //! The authored expression remains intact; consumers retain the rendered value
 //! at its actual destination, not widths on the anonymous intermediate nodes.
+//! A comparison between two anonymous trees consumes their exact rational values
+//! directly: its Boolean result creates no numeric landing or integer-warning
+//! obligation. Both operations share the same value traversal, including rejection
+//! of zero divisors and previously landed operands. The caller retains selection
+//! custody and must admit every operator before interpreting its value.
 
 use diagnostics::Diagnostic;
 use numerics::{
@@ -47,6 +52,50 @@ pub fn land_anonymous_integer_expression_with_warning(
     let literal = land_integer_value(&integer, destination)?;
     let warning = integer_landing_warning(program, &value, &integer, &mut builtin);
     Some((literal, warning))
+}
+
+/// Compare two wholly anonymous numeric trees without choosing a fixed carrier.
+/// The callback must establish builtin meaning for the comparison and every
+/// arithmetic node. A Boolean result grants no declaration-selection authority;
+/// callers retain that evidence separately. Non-comparisons, prior landings,
+/// invalid trees and anonymous division by zero return None.
+pub fn evaluate_anonymous_numeric_comparison(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    mut builtin: impl FnMut(ExpressionHandle) -> bool,
+) -> Option<bool> {
+    use std::cmp::Ordering;
+
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) || !builtin(expression)
+    {
+        return None;
+    }
+    let left = anonymous_numeric_value(program, binary.left, &mut builtin)?;
+    let right = anonymous_numeric_value(program, binary.right, &mut builtin)?;
+    let ordering = left.value.cmp_value(&right.value);
+    Some(match binary.operator {
+        BinaryOperator::Equal => ordering == Ordering::Equal,
+        BinaryOperator::NotEqual => ordering != Ordering::Equal,
+        BinaryOperator::Less => ordering == Ordering::Less,
+        BinaryOperator::LessOrEqual => ordering != Ordering::Greater,
+        BinaryOperator::Greater => ordering == Ordering::Greater,
+        BinaryOperator::GreaterOrEqual => ordering != Ordering::Less,
+        _ => return None,
+    })
 }
 
 fn integer_landing_warning(

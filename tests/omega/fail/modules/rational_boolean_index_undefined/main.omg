@@ -1,0 +1,2 @@
+data Flag<const Value: bool> { value: u8; }
+machine keep(value: Flag<(true || (1 / 0 < 2))>) {}

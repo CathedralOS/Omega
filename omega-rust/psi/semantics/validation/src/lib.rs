@@ -138,6 +138,7 @@ pub use float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
     is_exact_toolchain_float_meaning_type,
 };
+pub use literals::evaluate_anonymous_numeric_comparison;
 pub use literals::has_anonymous_operator_meaning;
 pub use literals::land_anonymous_integer_expression;
 pub use literals::land_anonymous_integer_expression_with_warning;
