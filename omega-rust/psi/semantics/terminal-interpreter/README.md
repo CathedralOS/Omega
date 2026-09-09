@@ -126,8 +126,15 @@ projected qualifications, and sum discriminator/payload inspection remain
 unsupported. Preflight rejects unsupported result requirements before the host
 effect; validate the response before committing result/claim custody.
 
-Opaque structural entry inputs and host results recursively containing bounded
-integer fields reject. Their type identities do not supply complete field or
+Structural entry records and fixed arrays containing bounded integer fields
+require explicit contents for every bounded field, including unread fields.
+Startup validates each exact integer carrier and range before establishing
+custody; missing, duplicate, or conflicting aliased fields reject. Unbounded
+integer fields keep their existing deferred initialization check. Arrays are
+visited incrementally, so missing contents do not require expanding their shape.
+Opaque entry inputs and host results recursively containing bounded integer
+fields still reject, as do bounded sum or mixed entry shapes without a selected
+case discriminator. Their type identities do not supply complete field or
 selected-payload values with which to validate the restrictions. Result preflight
 rejects before the handler runs; this fence does not prohibit independently
 valid selected scalar-case construction or supported exact internal transfers.

@@ -59,7 +59,9 @@ fn mixed_roster_preserves_authored_permutation_for_affine_copyable_and_ranked_so
         for ranked in [false, true] {
             let checked = fixture(copyable, ranked);
             let (state, successor) = successor(&checked);
-            assert!(validate(&checked, state, &successor).is_ok());
+            validate(&checked, state, &successor).unwrap_or_else(|error| {
+                panic!("mixed successor copyable={copyable}, ranked={ranked}: {error:?}")
+            });
             let plans = &checked.facts.flow.terminal_scalar_graphs;
             let structural = plans
                 .structural_transfers

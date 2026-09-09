@@ -2,6 +2,7 @@
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape};
+use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
 
 use super::support;
 
@@ -217,4 +218,203 @@ fn sum_and_mixed_shapes_rejoin_case_order_identity_and_payloads() {
             reject(&checked);
         }
     }
+}
+
+#[test]
+fn bounded_fields_preserve_signed_unsigned_expression_and_substituted_ranges() {
+    for (declarations, owner_field, minimum, maximum) in [
+        (
+            "data Envelope { limit: u64; spare: i8 [-128..=-1]; }",
+            None,
+            IntegerValue::Signed(-128),
+            IntegerValue::Signed(-1),
+        ),
+        (
+            "data Envelope { limit: u64; spare: u64 [3..=5]; }",
+            None,
+            IntegerValue::Unsigned(3),
+            IntegerValue::Unsigned(5),
+        ),
+        (
+            "data Envelope { limit: u64; spare: i16 [0 - 3..=10 * 2]; }",
+            None,
+            IntegerValue::Signed(-3),
+            IntegerValue::Signed(20),
+        ),
+        (
+            "data Envelope { limit: u64; spare: u8 [0..=300]; }",
+            None,
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(255),
+        ),
+        (
+            "data Cell<T> { spare: T; }
+             data Envelope { limit: u64; wrapped: Cell<i32 [12..=100]>; }",
+            Some("wrapped"),
+            IntegerValue::Signed(12),
+            IntegerValue::Signed(100),
+        ),
+    ] {
+        let (checked, identity) = fixture(declarations);
+        let identity = owner_field
+            .map(|field| nested_type(&checked, &identity, field))
+            .unwrap_or(identity);
+        let plan = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter()
+            .find(|plan| plan.identity == identity)
+            .unwrap();
+        let CheckedUnitStructuralTypeShape::Record { fields } = &plan.shape else {
+            panic!("bounded source record")
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.identity == "spare")
+            .unwrap();
+        let CheckedUnitStructuralFieldType::BoundedInteger(integer) = field.field_type else {
+            panic!("source range must survive publication: {declarations}")
+        };
+        assert_eq!((integer.minimum(), integer.maximum()), (minimum, maximum));
+    }
+}
+
+#[test]
+fn consistently_forged_bounded_fields_reject_range_erasure_and_carrier_changes() {
+    let (original, identity) = fixture("data Envelope { limit: u64; spare: u64 [3..=5]; }");
+    for replacement in [
+        CheckedUnitStructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                IntegerValue::Unsigned(2),
+                IntegerValue::Unsigned(6),
+            )
+            .unwrap(),
+        ),
+        CheckedUnitStructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                IntegerValue::Unsigned(4),
+                IntegerValue::Unsigned(4),
+            )
+            .unwrap(),
+        ),
+        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
+        CheckedUnitStructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                IntegerValue::Unsigned(3),
+                IntegerValue::Unsigned(5),
+            )
+            .unwrap(),
+        ),
+        CheckedUnitStructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+                IntegerValue::Signed(3),
+                IntegerValue::Signed(5),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let mut checked = original.clone();
+        corrupt(&mut checked, &identity, |shape| {
+            let CheckedUnitStructuralTypeShape::Record { fields } = shape else {
+                panic!("bounded source record")
+            };
+            fields[1].field_type = replacement.clone();
+        });
+        reject(&checked);
+    }
+}
+
+#[test]
+fn source_range_drift_rejects_an_unchanged_bounded_catalog() {
+    use checked_trees::data::DataMember;
+    use checked_trees::expression::ExpressionNode;
+    use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
+
+    let (mut checked, _) = fixture("data Envelope { limit: u64; spare: u64 [3..=5]; }");
+    let envelope = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Envelope")
+        .unwrap();
+    let DataMember::Field(field) = &checked.data_members(envelope)[1] else {
+        panic!("bounded source field")
+    };
+    let TypeReferenceNode::Constrained { constraints, .. } = checked
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("source range shell")
+    };
+    let maximum = checked
+        .type_reference_table
+        .constraints(*constraints)
+        .iter()
+        .find_map(|constraint| match constraint {
+            TypeConstraintNode::Range { maximum, .. } => Some(*maximum),
+            _ => None,
+        })
+        .unwrap();
+    let ExpressionNode::Integer(value) = checked.typed.expression_table.expression_mut(maximum)
+    else {
+        panic!("literal source upper bound")
+    };
+    *value = numerics::literals::IntegerLiteral::from_value(6);
+    reject(&checked);
+}
+
+#[test]
+fn nested_source_range_shells_reconstruct_their_intersection() {
+    use checked_trees::data::DataMember;
+    use checked_trees::types::TypeReferenceNode;
+
+    let (mut checked, _) = fixture(
+        "data Envelope { limit: u64; spare: i32 [12..=100]; }
+         data Wider { value: i32 [0..=255]; }",
+    );
+    let wider = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Wider")
+        .unwrap();
+    let DataMember::Field(field) = &checked.data_members(wider)[0] else {
+        panic!("wider source field")
+    };
+    let TypeReferenceNode::Constrained { constraints, .. } = *checked
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("wider source range shell")
+    };
+    let (handle, reference) = checked
+        .typed
+        .data_members
+        .iter()
+        .find_map(|(handle, member)| match member {
+            DataMember::Field(field) if field.name.as_str() == "spare" => {
+                Some((handle, field.type_reference))
+            }
+            _ => None,
+        })
+        .unwrap();
+    // Source syntax has one range slot; typed substitution can retain nested
+    // shells. The wider shell must not replace the narrower source restriction.
+    let reference = checked
+        .typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: reference,
+            constraints,
+        });
+    let DataMember::Field(field) = checked.typed.data_members.get_mut(handle) else {
+        panic!("bounded source field")
+    };
+    field.type_reference = reference;
+    let _artifact = terminal_production::produce_terminal_artifact(&checked, "enter")
+        .expect("equivalent intersected source ranges preserve the retained catalog");
 }
