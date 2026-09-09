@@ -26,6 +26,9 @@ mod noninteger;
 #[path = "module_machine_indices/rational.rs"]
 mod rational;
 
+#[path = "module_machine_indices/scoped_scalars.rs"]
+mod scoped_scalars;
+
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
 const BUFFER: &str = "pub data Buffer<const N: u64> { value: [u8; N]; }";
 

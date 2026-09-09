@@ -6,11 +6,13 @@
 //! Every newly admitted array declaration is also checked by the existing
 //! canonicalizer, including unused private declarations: ordinary substitution
 //! does not retain aggregate initializers for later type checking. Array leaves
-//! therefore stay within its canonical integer/Boolean subset. Scoped arrays
+//! therefore stay within its canonical integer/Boolean subset. Scoped literals
 //! additionally retain their exact nongeneric module-local carrier at constant
-//! finalization, where complete symbols exist. Scalar scoped declarations, foreign
-//! or generic attachments and nominal record/case initializers still need their
-//! full owners; array indices do not implement aggregate body substitution.
+//! finalization, where complete symbols exist. Scalar substitution then uses
+//! resolved declaration identity and the declared numeric landing, just as for
+//! unscoped constants. Foreign or generic attachments and nominal record/case
+//! initializers still need their full owners; array indices do not implement
+//! aggregate body substitution.
 
 use diagnostics::Diagnostic;
 use source::SourceId;
@@ -81,12 +83,19 @@ pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), 
                                     constant.name.as_str()
                                 )).with_source_span(constant.name.source_span())]
                             })?;
+                    } else if !constant.scope.as_str().is_empty() {
+                        validate_scoped_scalar_initializer(syntax, constant).map_err(|reason| {
+                            vec![Diagnostic::error(format!(
+                                "module scalar constant `{}` is invalid: {reason}",
+                                constant.name.as_str()
+                            )).with_source_span(constant.name.source_span())]
+                        })?;
                     }
                     None
                 } else {
                     Some((
                         &constant.name,
-                        "module-owned type-scoped or aggregate constants require namespace-aware initializer normalization",
+                        "module-owned nominal or nonliteral constants require namespace-aware initializer normalization",
                     ))
                 }
             }
@@ -179,9 +188,6 @@ fn module_literal_constant(
         syntax.type_references.type_reference(type_reference),
         TypeReferenceNode::FixedArray { .. }
     );
-    if !is_array && !constant.scope.as_str().is_empty() {
-        return false;
-    }
     if !is_array
         && matches!(
             syntax.expressions.expression(constant.value),
@@ -196,7 +202,11 @@ fn module_literal_constant(
                 return matches!(
                     name.as_str(),
                     "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
-                ) || (!is_array && matches!(name.as_str(), "f32" | "f64" | "string"));
+                ) || (!is_array && matches!(name.as_str(), "f32" | "f64"))
+                    // The legacy free-constant profile includes this spelling,
+                    // but `string` is not a builtin scalar. Do not extend that
+                    // exception to newly admitted scoped nominal declarations.
+                    || (!is_array && constant.scope.as_str().is_empty() && name.as_str() == "string");
             }
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -223,6 +233,55 @@ fn scalar_literal_tree(
             .iter()
             .all(|element| scalar_literal_tree(syntax, *element)),
         _ => false,
+    }
+}
+
+fn validate_scoped_scalar_initializer(
+    syntax: &SyntaxTrees,
+    constant: &syntax_trees::item::ConstDefinition,
+) -> Result<(), String> {
+    use numerics::literals::{FloatFormat, FloatLiteral};
+    use syntax_trees::expression::ExpressionNode;
+
+    // Private declarations do not require a canonical public identity, and an
+    // unused initializer never reaches substitution's numeric landing check.
+    // Validate each newly admitted declaration here, independently of uses.
+    // Floating values need no const-index encoding to check their carrier.
+    let TypeReferenceNode::Named(carrier) = syntax
+        .type_references
+        .type_reference(constant.type_reference)
+    else {
+        return Err("expected an unconstrained scalar carrier".to_owned());
+    };
+    let initializer = syntax.expressions.expression(constant.value);
+    match carrier.as_str() {
+        "f32" | "f64" => {
+            let format = if carrier.as_str() == "f32" {
+                FloatFormat::F32
+            } else {
+                FloatFormat::F64
+            };
+            let compatible = match initializer {
+                ExpressionNode::Float(text) => {
+                    FloatLiteral::parse(text.as_str()).is_some_and(|literal| {
+                        literal.landing().is_none_or(|landing| landing == format)
+                    })
+                }
+                ExpressionNode::Integer(literal) => {
+                    literal.landing().is_none() && literal.value_bignum().is_some()
+                }
+                _ => false,
+            };
+            if compatible {
+                Ok(())
+            } else {
+                Err(format!(
+                    "initializer conflicts with declared floating carrier `{carrier}`"
+                ))
+            }
+        }
+        _ => crate::generic_data::canonicalize_declared_const_definition(syntax, constant)
+            .map(|_| ()),
     }
 }
 
@@ -356,7 +415,6 @@ mod tests {
             "module settings; data Item { value: u8; } const SIZE: [Item; 0] = [];",
             "module settings; const SIZE: [f32; 0] = [];",
             "module settings; const SIZE: [string; 0] = [];",
-            "module settings; data Config {} const Config::SIZE: u64 = 1;",
         ] {
             assert!(
                 crate::normalize_generic_data(parse(&[source]))

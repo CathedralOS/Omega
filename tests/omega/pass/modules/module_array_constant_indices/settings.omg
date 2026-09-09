@@ -4,3 +4,6 @@ machine keep(value: Indexed<SIZE>) -> Indexed<OTHER> { value }
 data Sizes {}
 const Sizes::SIZE: [u64; 2] = [2, 1];
 machine scoped(value: Indexed<Sizes::SIZE>) -> Indexed<OTHER> { value }
+const Sizes::MAX: u64 = 2;
+machine scalar(value: Buffer<Sizes::MAX + 1>) -> Buffer<3> { value }
+machine scalar_value() -> u64 { Sizes::MAX }
