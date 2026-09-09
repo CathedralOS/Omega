@@ -18,7 +18,7 @@ The gate requires the Omega product build to bind exactly one
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
 the Delta-written Epsilon implementation. The evaluator is currently 12,097
 lines / 617,354 bytes, authored in 87 explicitly manifested members.
-The complete gate checks 142 ordinary fixtures, five D customers, and seven
+The complete gate checks 143 ordinary fixtures, five D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
@@ -107,6 +107,14 @@ prefix `00 ff` and suppress a following write of `B`. Their prior empty-prefix
 observations could not detect dropped output. These cover trap identity,
 prefix preservation, and stopping after the fault, not every route to each
 trap or resource exhaustion.
+
+The existing [`full_scalar.epsilon`](full_scalar.epsilon) control also checks
+successful `i32` endpoint arithmetic, signed quotient/remainder combinations,
+sign-bit and alternating-bit operations, and shift counts 0 and 31. Its literal
+expectations distinguish 32-bit wrapping left shifts from overflow and arithmetic
+right shifts from truncating division. In particular, `-1 << 31` exercises the
+largest intermediate product in the current 64-bit shift implementation. These
+are source-level execution checks, not an exhaustive scalar refinement proof.
 
 Call controls cover
 recursive frame isolation, machine-parameter mutation across states, ordinary
