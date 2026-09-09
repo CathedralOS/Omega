@@ -988,13 +988,17 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: the working checkpoint based on `94284b0131`, macOS arm64
+  Resume evidence: the working checkpoint based on `ee66bca4a6`, macOS arm64
   with Cargo and `RUST_MIN_STACK=33554432`, checks
   `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`:
-  same-leaf root/module integer arrays retain distinct canonical values and exact
-  declaration custody. Continue from that customer: nominal record/sum initializers,
-  type-scoped module constants and aggregate body substitution still need their
-  namespace-aware owners in `syntax-trees-to-symbol-resolved-trees`.
+  root/module arrays, including `settings::Sizes::SIZE`, retain distinct canonical
+  values and exact declaration/carrier custody. Scoped arrays require a nongeneric
+  carrier in their declaring module; missing carriers and public exposure of a
+  private carrier reject even on unused declarations. Continue from this customer
+  with nominal record/sum initializers, scoped scalar constants, foreign/generic
+  attachments or aggregate body substitution in `syntax-trees-to-symbol-resolved-trees`.
+  Those next probes remain unrun at this checkpoint. Preserve the exact carrier
+  selection in `constant.rs` and local/narrow-import lookup in `symbols/src/table/modules.rs`.
   Literal integer/Boolean arrays already use the canonical structural index path;
   module admission validates unused declarations too. Root/module machine scopes
   retain original lexical selection through `build-time-evaluation/src/const_generic_expressions.rs`.

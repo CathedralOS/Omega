@@ -267,69 +267,77 @@ fn module_array_imports_preserve_ambiguity_and_runtime_shadow_rejection() {
 
 #[test]
 fn module_array_indices_preserve_package_and_public_interface_authority() {
-    let tree = Sources::new();
-    let root = tree.package("root");
-    let middle = tree.package("middle");
-    let leaf = tree.package("leaf");
-    Sources::write(
-        middle.join("bridge.omg"),
-        "use leaf::settings; pub machine bridge() -> u64 { 1 }",
-    );
-    Sources::write(
-        leaf.join("settings.omg"),
-        "module settings; pub const SIZE: [u8; 2] = [1, 2];",
-    );
-    let sources = vec![
-        PackageSourceBinding::new(identity(1), "root", root.clone()),
-        PackageSourceBinding::new(identity(2), "middle", middle),
-        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
-    ];
-    let mut dependencies = vec![
-        PackageDependencyBinding::new(identity(1), "middle", identity(2)),
-        PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
-    ];
-    let indirect =
-        PackageCompilationInputs::new_package(identity(1), sources.clone(), dependencies.clone())
-            .unwrap();
-    Sources::write(
-        root.join("main.omg"),
-        &format!(
-            "use middle::bridge; use leaf::settings; {} pub {}",
-            declarations("[u8; 2]", "[1, 2]").replace("data Indexed", "pub data Indexed"),
-            keep("keep", "leaf::settings::SIZE")
-        ),
-    );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
-        .expect_err("a loaded transitive array constant cannot be selected");
-    dependencies.push(PackageDependencyBinding::new(
-        identity(1),
-        "leaf",
-        identity(3),
-    ));
-    let direct = PackageCompilationInputs::new_package(identity(1), sources, dependencies).unwrap();
-    let checked = compile(&root, direct.clone());
-    let uses = selections(&checked, "settings::SIZE", identity(3));
-    assert_eq!(uses.len(), 3);
-    assert_eq!(
-        uses.iter()
-            .filter(|selection| selection.exposure()
-                == AuthoredDeclarationSelectionExposure::PublicInterface)
-            .count(),
-        2
-    );
-    assert_eq!(
-        uses.iter()
-            .filter(|selection| selection.exposure()
-                == AuthoredDeclarationSelectionExposure::PrivateImplementation)
-            .count(),
-        1
-    );
-    Sources::write(
-        leaf.join("settings.omg"),
-        "module settings; const SIZE: [u8; 2] = [1, 2];",
-    );
-    compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
-        .expect_err("direct package reach does not expose a private array constant");
+    for scope in ["", "Sizes::"] {
+        let tree = Sources::new();
+        let root = tree.package("root");
+        let middle = tree.package("middle");
+        let leaf = tree.package("leaf");
+        Sources::write(
+            middle.join("bridge.omg"),
+            "use leaf::settings; pub machine bridge() -> u64 { 1 }",
+        );
+        Sources::write(
+            leaf.join("settings.omg"),
+            &format!(
+                "module settings; pub data Sizes {{}} pub const {scope}SIZE: [u8; 2] = [1, 2];"
+            ),
+        );
+        let sources = vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ];
+        let mut dependencies = vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ];
+        let indirect = PackageCompilationInputs::new_package(
+            identity(1),
+            sources.clone(),
+            dependencies.clone(),
+        )
+        .unwrap();
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use middle::bridge; use leaf::settings; {} pub {}",
+                declarations("[u8; 2]", "[1, 2]").replace("data Indexed", "pub data Indexed"),
+                keep("keep", &format!("leaf::settings::{scope}SIZE"))
+            ),
+        );
+        compile_to_checked_with_packages(&root.join("main.omg"), None, indirect)
+            .expect_err("a loaded transitive array constant cannot be selected");
+        dependencies.push(PackageDependencyBinding::new(
+            identity(1),
+            "leaf",
+            identity(3),
+        ));
+        let direct =
+            PackageCompilationInputs::new_package(identity(1), sources, dependencies).unwrap();
+        let checked = compile(&root, direct.clone());
+        let uses = selections(&checked, &format!("settings::{scope}SIZE"), identity(3));
+        assert_eq!(uses.len(), 3);
+        assert_eq!(
+            uses.iter()
+                .filter(|selection| selection.exposure()
+                    == AuthoredDeclarationSelectionExposure::PublicInterface)
+                .count(),
+            2
+        );
+        assert_eq!(
+            uses.iter()
+                .filter(|selection| selection.exposure()
+                    == AuthoredDeclarationSelectionExposure::PrivateImplementation)
+                .count(),
+            1
+        );
+        Sources::write(
+            leaf.join("settings.omg"),
+            &format!("module settings; pub data Sizes {{}} const {scope}SIZE: [u8; 2] = [1, 2];"),
+        );
+        compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+            .expect_err("direct package reach does not expose a private array constant");
+    }
 }
 
 #[test]
@@ -366,20 +374,202 @@ fn module_array_indices_reject_malformed_values_and_wrong_carriers() {
 
 #[test]
 fn module_array_indices_in_concrete_data_fields_match_static_oracles() {
+    for scope in ["", "Sizes::"] {
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("settings.omg"),
+            &format!("module settings; data Sizes {{}} const {scope}SIZE: [u8; 2] = [1, 2];"),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use settings; {} data Holder {{ value: Indexed<settings::{scope}SIZE>; }}
+         machine read(holder: &Holder) -> Indexed<Oracle::SAME> {{ holder.value }}",
+                declarations("[u8; 2]", "[1, 2]")
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_eq!(
+            selections(&checked, &format!("settings::{scope}SIZE"), identity(1)).len(),
+            1
+        );
+    }
+}
+
+#[test]
+fn module_scoped_array_indices_preserve_exact_owners() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (array_type, first, second) in [
+        ("[u8; 2]", "[1, 2]", "[2, 1]"),
+        ("[[bool; 2]; 1]", "[[true, false]]", "[[false, true]]"),
+        ("[i64; 2]", "[-2, -1]", "[-1, -2]"),
+        ("[u64; 0]", "[]", "[]"),
+    ] {
+        for (module, value) in [("first", first), ("second", second)] {
+            Sources::write(
+                root.join(format!("{module}.omg")),
+                &format!(
+                    "module {module}; data Sizes {{}} const Sizes::SIZE: {array_type} = {value}; {}",
+                    keep("keep", "Sizes::SIZE"),
+                ),
+            );
+        }
+        for imports in ["use first; use second;", "use second; use first;"] {
+            Sources::write(
+                root.join("main.omg"),
+                &format!(
+                    "{imports} {} const OTHER: {array_type} = {second}; {} {} {} {} {}",
+                    declarations(array_type, first),
+                    keep("root_use", "Sizes::SIZE"),
+                    keep("first_use", "first::Sizes::SIZE"),
+                    keep("second_use", "second::Sizes::SIZE"),
+                    keep("first_oracle", "Oracle::SAME"),
+                    keep("second_oracle", "OTHER"),
+                ),
+            );
+            let checked = compile(&root, root_inputs(&root));
+            for (machine, oracle) in [
+                ("root_use", "first_oracle"),
+                ("first::keep", "first_oracle"),
+                ("second::keep", "second_oracle"),
+                ("first_use", "first_oracle"),
+                ("second_use", "second_oracle"),
+            ] {
+                assert_same_machine_types(&checked, machine, oracle);
+            }
+            for constant in ["first::Sizes::SIZE", "second::Sizes::SIZE"] {
+                let uses = selections(&checked, constant, identity(1));
+                assert_eq!(uses.len(), 6);
+                for (position, selection) in uses.iter().enumerate() {
+                    assert!(
+                        uses[..position]
+                            .iter()
+                            .all(|prior| prior.source_span() != selection.source_span())
+                    );
+                }
+            }
+            for carrier in ["first::Sizes", "second::Sizes"] {
+                assert_eq!(
+                    selections(&checked, carrier, identity(1)).len(),
+                    1,
+                    "declaration attachment retains its carrier"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn module_scoped_arrays_validate_unused_attachment_owners_and_collisions() {
     let tree = Sources::new();
     let root = tree.package("root");
     Sources::write(
-        root.join("settings.omg"),
-        "module settings; const SIZE: [u8; 2] = [1, 2];",
+        root.join("main.omg"),
+        "use settings; data Sizes { case SIZE; }",
     );
+    for (source, diagnostic) in [
+        (
+            "module settings; const Missing::SIZE: [u8; 1] = [1];",
+            "exact nongeneric data carrier",
+        ),
+        (
+            "module settings; const Sizes::SIZE: [u8; 1] = [1];",
+            "exact nongeneric data carrier",
+        ),
+        (
+            "module settings; data Sizes {} pub const Sizes::SIZE: [u8; 1] = [1];",
+            "public interface selects private data",
+        ),
+        (
+            "module settings; data Sizes { case SIZE; } const Sizes::SIZE: [u8; 1] = [1];",
+            "collides with the case",
+        ),
+        (
+            "module settings; data Sizes {} const Sizes::SIZE: [u8; 1] = [1]; const Sizes::SIZE: [u8; 1] = [1];",
+            "duplicate const",
+        ),
+        (
+            "module settings; data Sizes {} const Sizes::SIZE: [u8; 1] = [256];",
+            "module array constant",
+        ),
+    ] {
+        Sources::write(root.join("settings.omg"), source);
+        let diagnostics =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err("unused scoped array still owes attachment and value validity");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|actual| actual.message.contains(diagnostic)),
+            "{source}: {diagnostics:?}"
+        );
+    }
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings; data Sizes {} const Sizes::SIZE: [u8; 1] = [1];",
+    );
+    compile(&root, root_inputs(&root));
+}
+
+#[test]
+fn module_scoped_array_indices_keep_import_ambiguity_and_runtime_custody() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for module in ["first", "second"] {
+        Sources::write(
+            root.join(format!("{module}.omg")),
+            &format!("module {module}; data Sizes {{}} const Sizes::SIZE: [u8; 2] = [1, 2];"),
+        );
+    }
+    for imports in [
+        "use first::Sizes::SIZE; use second::Sizes::SIZE;",
+        "use second::Sizes::SIZE; use first::Sizes::SIZE;",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{imports} {} {}",
+                declarations("[u8; 2]", "[1, 2]"),
+                keep("keep", "SIZE")
+            ),
+        );
+        compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+            .expect_err("equal scoped values cannot resolve competing imports");
+    }
+    for machine in [
+        "machine keep(first: u64, value: Indexed<first::Sizes::SIZE>) {}",
+        "machine keep(first: u64, value: Indexed<Oracle::SAME>) -> Indexed<first::Sizes::SIZE> { value }",
+        "machine keep(value: Indexed<Oracle::SAME>) { let first: u64 = 0; let local: Indexed<first::Sizes::SIZE> = value; }",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!("use first; {} {machine}", declarations("[u8; 2]", "[1, 2]")),
+        );
+        let diagnostics =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err("runtime qualifier cannot acquire scoped constant identity");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("original lexical scope")),
+            "{diagnostics:?}"
+        );
+    }
     Sources::write(
         root.join("main.omg"),
         &format!(
-            "use settings; {} data Holder {{ value: Indexed<settings::SIZE>; }}
-         machine read(holder: &Holder) -> Indexed<Oracle::SAME> {{ holder.value }}",
-            declarations("[u8; 2]", "[1, 2]")
+            "use first::Sizes::SIZE; {} {}",
+            declarations("[u8; 2]", "[1, 2]"),
+            keep("keep", "SIZE")
         ),
     );
     let checked = compile(&root, root_inputs(&root));
-    assert_eq!(selections(&checked, "settings::SIZE", identity(1)).len(), 1);
+    assert_eq!(
+        selections(&checked, "first::Sizes::SIZE", identity(1)).len(),
+        4,
+        "the import and three index positions retain the exact declaration"
+    );
+    assert!(selections(&checked, "Sizes::SIZE", identity(1)).is_empty());
 }

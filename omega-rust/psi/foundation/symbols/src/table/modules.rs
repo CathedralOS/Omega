@@ -1,3 +1,10 @@
+//! Logical module ownership without relocating physical declaration slots.
+//!
+//! Local declarations precede imported and root names, including relative
+//! attached paths. A narrow import may expose an attached declaration's leaf;
+//! retaining that candidate does not expose sibling declarations or make its
+//! leaf a bare local name. Every candidate still needs its exact source owner.
+
 use std::sync::Arc;
 
 use arena::HandleSpan;
@@ -245,6 +252,7 @@ impl SymbolTable {
     pub(super) fn select_namespace_candidate(
         &self,
         candidates: &[SymbolHandle],
+        name: &str,
         reference: SourceSpan,
     ) -> Option<SymbolHandle> {
         let current_module = self.source_module(reference.source_id);
@@ -252,7 +260,8 @@ impl SymbolTable {
             .iter()
             .copied()
             .filter(|candidate| {
-                self.symbol_module(*candidate) == current_module
+                self.name(*candidate) == name
+                    && self.symbol_module(*candidate) == current_module
                     && self
                         .symbol_provenance_source_span(*candidate)
                         .is_some_and(|span| self.same_source_package(reference, span))
@@ -278,6 +287,7 @@ impl SymbolTable {
                     let logical = logical_import_path(import);
                     self.display_path(*candidate, "::") == logical
                         || (import.exact_source
+                            && self.name(*candidate) == name
                             && !self.source_module(binding.declaration_source).is_valid()
                             && self
                                 .symbol_provenance_source_span(*candidate)
@@ -288,12 +298,9 @@ impl SymbolTable {
         if !imported.is_empty() {
             return unique(imported.into_iter());
         }
-        unique(
-            candidates
-                .iter()
-                .copied()
-                .filter(|candidate| !self.symbol_module(*candidate).is_valid()),
-        )
+        unique(candidates.iter().copied().filter(|candidate| {
+            self.name(*candidate) == name && !self.symbol_module(*candidate).is_valid()
+        }))
     }
 
     fn import_owner_matches(
@@ -334,6 +341,7 @@ impl SymbolTable {
         }
         let qualified = name.contains("::");
         let mut matches = Vec::new();
+        let mut module_local_matches = Vec::new();
         for candidate in self
             .child_handles(self.root)
             .into_iter()
@@ -349,6 +357,19 @@ impl SymbolTable {
             }
             let candidate_path = self.display_path(candidate, "::");
             let current_module = self.source_module(reference.source_id);
+            // A relative attached path first belongs to the current module,
+            // just like a bare declaration name. A root legacy spelling must
+            // not compete with that local owner; competing local declarations
+            // still reject together. Absolute/imported paths use the ordinary
+            // candidate set below.
+            if qualified
+                && reference.span.start != reference.span.end
+                && current_module.is_valid()
+                && self.symbol_module(candidate) == current_module
+                && self.name(candidate) == name
+            {
+                module_local_matches.push(candidate);
+            }
             let direct_path = qualified
                 && (candidate_path == name
                     || (current_module.is_valid()
@@ -425,7 +446,9 @@ impl SymbolTable {
                 matches.push(candidate);
             }
         }
-        if qualified {
+        if !module_local_matches.is_empty() {
+            Some(unique(module_local_matches.into_iter()))
+        } else if qualified {
             Some(unique(matches.into_iter()))
         } else if matches.is_empty() {
             None

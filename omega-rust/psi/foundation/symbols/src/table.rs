@@ -457,7 +457,13 @@ impl SymbolTable {
         let candidates = children
             .filter(|symbol| {
                 kinds.contains(&self.get(*symbol).kind)
-                    && self.name(*symbol) == name
+                    && (self.name(*symbol) == name
+                        || (reference_is_source_backed
+                            && self.has_namespace_context(reference)
+                            && self
+                                .name(*symbol)
+                                .rsplit_once("::")
+                                .is_some_and(|(_, leaf)| leaf == name)))
                     && matches_candidate(*symbol)
                     && (!reference_is_source_backed
                         || self.source_reference_can_see_symbol(reference, *symbol))
@@ -478,15 +484,17 @@ impl SymbolTable {
             })
         {
             let mut targets = candidates.iter().copied().filter(|symbol| {
-                self.symbol_source_span(*symbol)
-                    .is_some_and(|span| span.source_id == binding.declaration_source)
+                self.name(*symbol) == name
+                    && self
+                        .symbol_source_span(*symbol)
+                        .is_some_and(|span| span.source_id == binding.declaration_source)
             });
             let target = targets.next()?;
             return targets.next().is_none().then_some(target);
         }
 
         if self.has_namespace_context(reference) {
-            return self.select_namespace_candidate(&candidates, reference);
+            return self.select_namespace_candidate(&candidates, name, reference);
         }
         candidates
             .iter()

@@ -97,10 +97,11 @@ selection and independently executable constant artifacts. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. This is not completion of the
 [module/name contract](../../../wiki/spec/language/modules.md):
-aggregate/type-scoped constant and template normalization, trait defaults,
-operator homes, qualified constructors, and the remaining declaration forms
-still need exact namespace-aware resolution. Module-owned aggregate/type-scoped
-constants, generic templates, traits, conformances, domains, and operators
+nominal aggregate constants, remaining type-scoped constants and template
+normalization, trait defaults, operator homes, qualified constructors, and the
+remaining declaration forms still need exact namespace-aware resolution.
+Module-owned nominal aggregates, unsupported scoped constants, generic templates,
+traits, conformances, domains, and operators
 currently reject before their bare-name transforms; so do generic
 carrier/argument collisions across module scopes.
 Closed data applications select named constant indices through the shared
@@ -139,9 +140,14 @@ Every such declaration validates its extents and element carriers even when
 private and unused; explicit integer landings cannot be erased during encoding.
 The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`
-covers same-leaf root/module constants with different canonical array values.
-Nominal record/sum initializers and type-scoped module constants still need
-namespace-aware normalization. Aggregate body substitution remains separate.
+covers same-leaf root/module constants with different canonical array values,
+including `settings::Sizes::SIZE`. Scoped arrays select an exact nongeneric data
+carrier in their declaring module and retain the authored carrier occurrence for
+visibility checks. Relative attached names prefer their local module; narrow
+imports expose only the exact selected leaf. Duplicate declarations, case
+collisions and runtime qualifiers still reject. Nominal record/sum initializers,
+scoped scalar constants and foreign/generic attachments still need namespace-aware
+normalization. Aggregate body substitution remains separate.
 The comparisons preserve each operand carrier and use the shared typed integer
 order operation; anonymous operands must land exactly in the selected peer carrier.
 Boolean equality and inequality compose named constants and comparison results
