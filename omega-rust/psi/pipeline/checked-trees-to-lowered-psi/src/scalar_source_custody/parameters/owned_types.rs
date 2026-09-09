@@ -1,4 +1,9 @@
 //! Reconstruct owned graph catalog shapes from their exact typed declarations.
+//!
+//! Plain ownership does not imply an unrestricted payload. Numeric constraints
+//! carry no cleanup, but their admitted values remain part of field identity.
+//! Reconstruct those restrictions from the original type and substitutions before
+//! comparing catalogs; agreement between retained catalogs cannot replace this.
 
 use checked_trees::data::{DataDefinition, DataField, DataMember};
 use checked_trees::state::State;
@@ -11,6 +16,8 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 use crate::{LoweringError, unsupported};
+
+mod scalar_fields;
 
 /// Signature admission owns plain-content and no-code eligibility. Catalog
 /// correspondence must still be reconstructed: agreement among retained
@@ -189,7 +196,10 @@ impl SourceTypes<'_> {
                     .into_string(),
             }
         } else if let Some(primitive) = self.checked.primitive_type_reference(reference) {
-            CheckedUnitStructuralFieldType::Scalar(primitive)
+            scalar_fields::reconstruct(self.checked, field.type_reference, substitutions, primitive)
+                .ok_or(LoweringError::Unsupported(
+                    "owned scalar field has unsupported source restrictions",
+                ))?
         } else {
             CheckedUnitStructuralFieldType::Structural {
                 type_identity: self.validate_type(field.type_reference, substitutions)?,

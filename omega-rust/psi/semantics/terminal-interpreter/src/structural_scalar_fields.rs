@@ -1,3 +1,11 @@
+//! Bind host field contents by runtime referent, then validate entry restrictions.
+//!
+//! A structural type identity alone cannot establish bounded values. Supplied
+//! fields first pass carrier and alias checks; entry validation then requires
+//! every relevant bounded leaf, even if the program never reads it. This runs
+//! before invocation custody is committed. Unbounded integer initialization
+//! remains checked when read, allowing stores to establish those contents.
+
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
@@ -9,6 +17,7 @@ use crate::{
     TerminalStructuralValue, direct_scalar_field_type, resolve_structural_path_type,
 };
 
+mod entry;
 #[cfg(test)]
 mod tests;
 
@@ -78,6 +87,7 @@ pub(crate) fn bind(
             return Err(invalid());
         }
     }
+    entry::validate(machine, structural_types, structural_values, &values)?;
     for operation in machine.blocks.values().flat_map(|block| &block.operations) {
         // Preserve the Boolean entry contract. Integer fields can be initialized
         // by earlier stores; their existing runtime read checks missing contents.

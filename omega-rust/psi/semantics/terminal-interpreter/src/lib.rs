@@ -988,14 +988,6 @@ impl TerminalExecution {
             .get(&module.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
         let values = bind_arguments(&machine.parameters, scalar_arguments)?;
-        for parameter in &machine.structural_parameters {
-            if effect_results::contains_bounded_integer(
-                &structural_types,
-                parameter.structural_type,
-            ) {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-            }
-        }
         let structural_values =
             bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
         let (structural_primitive_storage, structural_primitive_entry_places) =
