@@ -55,9 +55,12 @@ chain handles require neither copied context lists nor another lookup table.
 State-input facts remain selected after their pass-local appends; an absent
 declaration selection is not a reservation for a future group. Statement, call
 and exit construction still use exact point lookup. Both entry lists preserve
-point order and within-point append order. Cloning the semantic baseline still
-clones its lookup index; this change removes repeated declaration lookups, not
-that index or the flow fixed-point rebuilding.
+point order and within-point append order. Late input changes revisit only dirty
+state transfers, then materialize complete flow evidence once in source order.
+A first-pass fixed point needs no replay. Each sweep still clones the semantic
+baseline, including its lookup index; reusable scratch storage remains separate
+work. The builder documents why provisional state contexts cannot be rebuilt
+into the live output.
 
 Range-state arguments form an entry-rooted all-predecessor fixed point. Rebuild
 edge contributions each pass and withhold unconverged inference. Assignment

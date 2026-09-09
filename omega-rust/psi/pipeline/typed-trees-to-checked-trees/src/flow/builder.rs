@@ -1,7 +1,21 @@
+//! Input joins name their changed destination directly. Revisit those states
+//! in source order, preserving the original predecessor/evidence encounter order.
+//! Each sweep starts from declaration/proof facts: appending a second build into
+//! live output would leave stale state contexts visible after an input weakens.
+//! Once inputs settle, materialize complete output once in source order so scratch
+//! handles never escape and published fact/evidence ordering stays unchanged.
+//! The common first-pass fixed point already has complete output and returns it.
+//!
+//! Baseline cloning remains per sweep; this removes unrelated transfer work,
+//! not that storage cost. Reusable scratch must also reset context-point links,
+//! not merely truncate arenas or allow old handles to become valid again.
+
 use super::*;
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
+#[cfg(test)]
+mod whole_pass_reference;
 
 #[cfg(test)]
 pub(crate) fn build_flow_facts(
@@ -40,10 +54,22 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> FlowFacts {
-    // Reuse the ordinary effect/statement transfer once per input revision.
-    // Each pass starts from declaration/proof facts, never a prior pass's
-    // derived contexts. Inputs join immediately so source-ordered chains need
-    // no pass per edge. A changed input can only weaken, never regain a value.
+    #[cfg(test)]
+    if tests::WHOLE_PASS_REFERENCE.get() {
+        return whole_pass_reference::build_whole_pass_reference(
+            program,
+            borrow,
+            proof,
+            semantic,
+            domains,
+            operational,
+            service_reaches,
+            scalar_expressions,
+            operators,
+            exact_integer_casts,
+        );
+    }
+
     let baseline = semantic.clone();
     // Declaration contexts do not change during flow. Retain their handles
     // once, in typed-machine order, instead of rediscovering Global/Machine
@@ -71,9 +97,11 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     // lazy, and never carry this table into another flow-build invocation.
     let state_mutation_summary_cache = StateMutationSummaryCache::default();
     let mut inputs = Vec::new();
+    let mut dirty_inputs = Vec::new();
+    let mut complete_pass = true;
     // Each state becomes reachable once; each formal can acquire a constant
-    // then lose it to unknown once. Include one pass to observe convergence.
-    let mut pass_limit = 1 + program
+    // then lose it to unknown once. Include convergence and final materialization.
+    let mut pass_limit = 2 + program
         .machines()
         .iter()
         .map(|machine| {
@@ -86,6 +114,10 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         .sum::<usize>();
     let mut pass = 0;
     while pass < pass_limit {
+        #[cfg(test)]
+        if pass >= tests::SWEEP_LIMIT.get() {
+            break;
+        }
         if pass != 0 {
             *semantic = baseline.clone();
         }
@@ -100,8 +132,16 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             &state_mutation_summary_cache,
         );
         ctx.state_value_inputs = inputs;
+        ctx.dirty_state_value_inputs = dirty_inputs;
         for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
             for state in program.machine_states(machine) {
+                if !complete_pass && !ctx.dirty_state_value_inputs.contains(&state.symbol) {
+                    continue;
+                }
+                // Clear before transfer: a self/back edge may dirty this state
+                // again. A later destination can still run in this same sweep.
+                ctx.dirty_state_value_inputs
+                    .retain(|symbol| *symbol != state.symbol);
                 build_state_flow_fact(
                     program,
                     borrow,
@@ -119,14 +159,23 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         // predicate set; parameter qualifications contribute finite membership
         // cells. Subsequent joins only remove these cells.
         pass_limit = pass_limit.saturating_add(ctx.new_state_field_input_height);
-        // Inputs arriving before a state's entry was built are already in its
-        // contexts. Only a change after that point requires rebuilding flow.
-        if !ctx.state_value_inputs_changed_after_build {
-            let mut flow = ctx.finish();
-            attach_reach_summaries(&mut flow, service_reaches, operational);
-            return flow;
+        if ctx.dirty_state_value_inputs.is_empty() {
+            if complete_pass {
+                let mut flow = ctx.finish();
+                attach_reach_summaries(&mut flow, service_reaches, operational);
+                return flow;
+            }
+            complete_pass = true;
+        } else {
+            if complete_pass && pass != 0 {
+                // Final publication must confirm the fixed point; never expose
+                // provisional evidence if an untracked dependency changed it.
+                break;
+            }
+            complete_pass = false;
         }
         inputs = std::mem::take(&mut ctx.state_value_inputs);
+        dirty_inputs = std::mem::take(&mut ctx.dirty_state_value_inputs);
         pass += 1;
     }
     // No provisional input fact survives a nonconvergent graph.

@@ -17,7 +17,13 @@ pub(super) fn build_state_flow_fact(
         return;
     };
 
-    ctx.built_state_value_inputs.push(state.symbol);
+    #[cfg(test)]
+    super::builder::tests::STATE_BUILDS.set(super::builder::tests::STATE_BUILDS.get() + 1);
+
+    #[cfg(test)]
+    if super::builder::tests::WHOLE_PASS_REFERENCE.get() {
+        ctx.built_state_value_inputs.push(state.symbol);
+    }
     super::state_values::append_entry_context(program, semantic, ctx, machine, state);
     let declaration_contexts = declaration_groups
         .into_iter()

@@ -144,6 +144,8 @@ use boundaries::append_call_boundary_edges;
 #[cfg(test)]
 pub(crate) use builder::build_flow_facts;
 pub(crate) use builder::build_flow_facts_with_service_reaches;
+#[cfg(test)]
+pub(crate) use builder::tests::check_against_whole_pass;
 use call_phases::{
     CallFlowContexts, apply_call_invalidations, build_call_entry_contexts,
     build_call_exit_contexts, build_call_requires_contexts,
