@@ -1,0 +1,8 @@
+use settings;
+data Flag<const Value: bool> { value: u8; }
+machine keep(value: Flag<(1 / 3 < 1 / 2)>) -> Flag<true> {
+    let local: Flag<(0.1 + 0.2 == 0.3)> = value;
+    local
+}
+data Main {}
+machine Main::main(&mut self) {}

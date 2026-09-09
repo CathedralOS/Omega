@@ -20,6 +20,9 @@ mod comparisons;
 #[path = "module_machine_indices/noninteger.rs"]
 mod noninteger;
 
+#[path = "module_machine_indices/rational.rs"]
+mod rational;
+
 static NEXT_TREE: AtomicU64 = AtomicU64::new(0);
 const BUFFER: &str = "pub data Buffer<const N: u64> { value: [u8; N]; }";
 

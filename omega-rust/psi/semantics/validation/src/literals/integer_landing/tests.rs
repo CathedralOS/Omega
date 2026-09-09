@@ -167,3 +167,117 @@ fn partial_division_and_target_width_are_not_guessed() {
         land_anonymous_integer_expression(&program, first, PrimitiveType::Addr, |_| true).is_none()
     );
 }
+
+#[test]
+fn anonymous_comparison_requires_each_selection_and_rejects_malformed_trees() {
+    let mut program = TypedTrees::default();
+    let three = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(3)));
+    let two = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+    let quotient = program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: three,
+            operator: BinaryOperator::Divide,
+            right: two,
+        }));
+    let comparison =
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: quotient,
+                operator: BinaryOperator::Less,
+                right: two,
+            }));
+    assert_eq!(
+        evaluate_anonymous_numeric_comparison(&program, comparison, |_| true),
+        Some(true)
+    );
+    for denied in [comparison, quotient] {
+        assert_eq!(
+            evaluate_anonymous_numeric_comparison(&program, comparison, |expression| expression
+                != denied),
+            None
+        );
+    }
+    for invalid in [
+        ExpressionHandle::invalid(),
+        ExpressionHandle::from_parts(comparison.arena_index(), comparison.generation() + 1),
+    ] {
+        assert_eq!(
+            evaluate_anonymous_numeric_comparison(&program, invalid, |_| true),
+            None
+        );
+    }
+    assert_eq!(
+        evaluate_anonymous_numeric_comparison(&program, quotient, |_| true),
+        None
+    );
+    for invalid_operand in [ExpressionHandle::invalid(), comparison] {
+        *program.expression_table.expression_mut(comparison) =
+            ExpressionNode::Binary(TableBinaryExpression {
+                left: invalid_operand,
+                operator: BinaryOperator::Less,
+                right: two,
+            });
+        assert_eq!(
+            evaluate_anonymous_numeric_comparison(&program, comparison, |_| true),
+            None
+        );
+    }
+}
+
+#[test]
+fn anonymous_comparison_does_not_erase_prior_landings_or_supply_a_zero_divisor_value() {
+    let mut program = TypedTrees::default();
+    let first = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(3)));
+    let second = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+    let quotient = program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: first,
+            operator: BinaryOperator::Divide,
+            right: second,
+        }));
+    let comparison =
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: quotient,
+                operator: BinaryOperator::Equal,
+                right: second,
+            }));
+    for invalid in [
+        ExpressionNode::Boolean(true),
+        ExpressionNode::Integer(IntegerLiteral::from_value(3).with_landing(IntegerLanding {
+            landed_type: LandedIntegerType::U64,
+            domain: ArithmeticDomain::Exact,
+        })),
+        ExpressionNode::Float(
+            numerics::literals::FloatLiteral::parse("3.0")
+                .unwrap()
+                .with_landing(numerics::literals::FloatFormat::F64),
+        ),
+    ] {
+        *program.expression_table.expression_mut(first) = invalid;
+        assert_eq!(
+            evaluate_anonymous_numeric_comparison(&program, comparison, |_| true),
+            None
+        );
+    }
+    *program.expression_table.expression_mut(first) =
+        ExpressionNode::Integer(IntegerLiteral::from_value(3));
+    *program.expression_table.expression_mut(second) =
+        ExpressionNode::Integer(IntegerLiteral::zero());
+    assert_eq!(
+        evaluate_anonymous_numeric_comparison(&program, comparison, |_| true),
+        None
+    );
+}

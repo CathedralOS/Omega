@@ -1,0 +1,2 @@
+module settings;
+machine keep(value: Flag<(7 / 2 == 3)>) -> Flag<false> { value }

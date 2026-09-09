@@ -24,13 +24,14 @@ concrete data fields, payloads and nongeneric machine type annotations use
 [typed expression probes](src/const_generic_expressions.rs) before generic data
 synthesis. Nongeneric machine owners also admit Boolean indices through
 the same probe, including literal Boolean expressions and fixed-integer
-comparisons without named operands. The temporary probe carries original
-source/import custody; its symbols and placeholder layouts never become the
-published program. Exact
-unconstrained builtin integer or Boolean destinations and each integer operator's
-builtin meaning are required. Named Boolean constants retain their selected typed literal and
-canonical Boolean atom. Fixed-width integer comparisons
-produce canonical Boolean results using the shared typed order operation, after
+comparisons without named operands. Comparisons between two anonymous numeric
+trees use exact rational values through the shared validation evaluator, without
+integer truncation, floating rounding or integer-landing warnings. The temporary
+probe carries original source/import custody; its symbols and placeholder layouts
+never become the published program. Exact unconstrained builtin integer or Boolean
+destinations and each integer operator's builtin meaning are required. Named Boolean
+constants retain their selected typed literal and canonical Boolean atom. Fixed-width
+integer comparisons produce canonical Boolean results using the shared typed order operation, after
 each operand lands in its selected carrier. Boolean equality and inequality
 compose named Boolean constants and comparison results on the same value path;
 every occurrence still requires its selected builtin meaning. Boolean `&&` and `||`
@@ -53,10 +54,9 @@ entry signatures publish public-interface occurrences; body and internal-state
 annotations retain private implementation exposure. Root scalar constants use
 the same resolved substitution as module constants, while legacy aggregate
 materialization remains separate.
-Open templates, aggregate indices, comparisons between two wholly anonymous
-numeric operands, authored operator execution, constrained destinations and
-address-dependent arithmetic need their own complete contexts; the standalone
-probe does not claim those forms.
+Open templates, aggregate indices, authored operator execution, constrained
+destinations and address-dependent arithmetic need their own complete contexts;
+the standalone probe does not claim those forms.
 
 ## Semantic admission boundary
 

@@ -1003,8 +1003,6 @@ Owners include
   lexical admission coverage in `tests/omega/pass/modules/aggregate_machine_indices`
   and `tests/omega/fail/modules/runtime_aggregate_index`; this does not replace
   the legacy aggregate materializer with namespace-aware evaluation.
-  Comparisons between two wholly anonymous numeric operands still need admitted
-  evaluation; explicit fixed-integer operands must keep their chosen carriers.
   Conformance and static-requirement argument positions
   also need their complete owners, not a standalone root probe.
   Open-template computation, constrained destinations, authored operator execution
