@@ -78,7 +78,8 @@ pub use constant_arrays::builtin_constant_array_projection_type;
 pub use constant_arrays::declared_constant_array_type;
 pub(crate) use constant_arrays::validate_constant_projection_destination;
 pub use constant_arrays::{
-    closed_constant_array_elements, closed_literal_array_elements, is_closed_primitive_array_type,
+    ScalarArrayElements, closed_constant_array_elements, closed_literal_array_elements,
+    is_closed_primitive_array_type, scalar_array_elements,
 };
 mod integer_landing;
 mod integer_remainder;

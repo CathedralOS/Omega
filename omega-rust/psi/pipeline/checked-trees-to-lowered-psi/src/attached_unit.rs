@@ -1777,14 +1777,39 @@ fn assemble_unit_closure(
                     if result.binding_ordinal as usize != structural_result_places.len() {
                         return unsupported("array result binding is not dense");
                     }
+                    let source_value_count = scalar_result_values.len();
+                    for (ordinal, element) in elements.iter().enumerate() {
+                        let element_ordinal = u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("array element ordinal exceeds u32")
+                        })?;
+                        let value = evaluation.array_element(
+                            checked,
+                            plan.machine,
+                            plan.state,
+                            result.statement_index,
+                            element_ordinal,
+                            element,
+                            source_value_count,
+                            &mut scalar_result_values,
+                            &mut next_value_identity,
+                            &mut next_block,
+                            &mut next_edge,
+                            &mut operations,
+                            &mut scalar_calls,
+                        )?;
+                        scalar_result_values.push(value);
+                    }
+                    next_call_obligation = scalar_calls.next_obligation_identity;
+                    // Private control joins may replace every scalar identity.
+                    // Read the completed leaves only after the final element.
                     let declaration = scalar_arrays::emit(
                         result,
-                        elements,
+                        &scalar_result_values[source_value_count..],
                         &type_ids,
                         &mut next_place,
-                        &mut next_value_identity,
                         &mut operations,
                     )?;
+                    scalar_result_values.truncate(source_value_count);
                     structural_result_places.push((declaration, false));
                     continue;
                 }

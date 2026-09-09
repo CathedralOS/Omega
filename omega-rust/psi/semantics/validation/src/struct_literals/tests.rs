@@ -19,6 +19,46 @@ fn construction_diagnostics(source: &str) -> Vec<Diagnostic> {
 }
 
 #[test]
+fn array_elements_require_explicit_integer_carrier_conversions() {
+    for source in [
+        "machine read(input: u8) -> [u16;1] { [input] }",
+        "machine read(input: u8) -> [u16;1] { let values: [u16;1] = [input]; values }",
+        "machine read(input: u8) -> [[u16;1];1] { [[input]] }",
+        "machine helper(input: u8) -> u8 { input } machine read(input: u8) -> [u16;1] { [helper(input)] }",
+        "machine read(input: u8) -> [u16;1] { [input ^ 1u8] }",
+        "machine read() -> [u8;1] { let value: u16 = 7u16; [value] }",
+        "machine read() -> [u8;1] { [7u16] }",
+    ] {
+        let program = typed(source);
+        let diagnostics = crate::validate_program(&program).expect_err(source);
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("array literal element has type")
+                    && diagnostic.message.contains("explicit conversion")
+            }),
+            "{source}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn array_elements_preserve_anonymous_landing_and_explicit_conversions() {
+    for source in [
+        "machine read(input: u8) -> [u16;1] { [input as u16] }",
+        "machine read(input: u8) -> [u16;1] { let values: [u16;1] = [input as u16]; values }",
+        "machine read(input: u8) -> [[u16;1];1] { [[input as u16]] }",
+        "machine helper(input: u8) -> u8 { input } machine read(input: u8) -> [u16;1] { [helper(input) as u16] }",
+        "machine read() -> [u8;2] { [7, 7u16 as u8] }",
+        "machine read(input: u8 [0..=7]) -> [u8;1] { [input] }",
+    ] {
+        let program = typed(source);
+        assert!(crate::validate_program(&program).is_ok(), "{source}");
+    }
+}
+
+#[test]
 fn guarded_owned_field_reconstruction_preserves_declared_range() {
     let diagnostics = construction_diagnostics(
         "data Countdown { remaining: u64 [0..=5]; }

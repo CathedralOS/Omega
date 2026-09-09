@@ -4,13 +4,15 @@
 use super::*;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
-use checked_trees::{CheckedScalarArrayLiteral, CheckedUnitStructuralResultBindingPlan};
+use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
+
+mod operands;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
     result: &CheckedUnitStructuralResultBindingPlan,
-    elements: &[CheckedScalarArrayLiteral],
+    elements: &[CheckedCallScalarArgument],
 ) -> Result<(), LoweringError> {
     let source = checked
         .typed
@@ -49,19 +51,12 @@ pub(super) fn validate(
         return unsupported("array constructor result differs from its declared type");
     }
     validate_shape(checked, reference)?;
-    let leaves = validation::closed_constant_array_elements(
-        &checked.typed,
-        machine.machine,
-        expression,
-        reference,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "array constructor source is not an exact closed primitive array",
-    ))?;
-    let mut projection = expression;
-    while let ExpressionNode::Indexed(indexed) =
-        checked.typed.expression_table.expression(projection)
-    {
+    let array =
+        validation::scalar_array_elements(&checked.typed, machine.machine, expression, reference)
+            .ok_or(LoweringError::Unsupported(
+            "array constructor source is not an exact primitive array",
+        ))?;
+    for projection in array.projections {
         if let Some(selected) = checked.facts.operators.expression_use(projection)
             && (selected.spelling != language_core::OperatorSpelling::Index
                 || selected.selected_operator_symbol.is_valid()
@@ -74,40 +69,96 @@ pub(super) fn validate(
         {
             return unsupported("array constructor indexing selection changed");
         }
-        projection = indexed.collection;
     }
-    if leaves.len() != elements.len()
-        || !leaves
-            .iter()
-            .zip(elements)
-            .all(|((leaf, primitive), element)| {
-                match (checked.typed.expression_table.expression(*leaf), element) {
-                    (
-                        ExpressionNode::Integer(actual),
-                        CheckedScalarArrayLiteral::Integer(expected),
-                    ) => {
-                        if actual.landing().is_some() {
-                            actual == expected
-                        } else {
-                            validation::land_anonymous_integer_expression(
-                                &checked.typed,
-                                *leaf,
-                                *primitive,
-                                |_| false,
-                            )
-                            .as_ref()
-                                == Some(expected)
-                        }
-                    }
-                    (
-                        ExpressionNode::Boolean(actual),
-                        CheckedScalarArrayLiteral::Boolean(expected),
-                    ) => actual == expected,
-                    _ => false,
+    let leaves = array.elements;
+    if leaves.len() != elements.len() {
+        return unsupported("array constructor scalar operand count changed");
+    }
+    for (ordinal, ((leaf, primitive), element)) in leaves.iter().zip(elements).enumerate() {
+        let element_ordinal = u32::try_from(ordinal)
+            .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
+        let role = CheckedScalarExpressionRole::ArrayElement { element_ordinal };
+        match element {
+            CheckedCallScalarArgument::Pure(value) => {
+                let (binding, retained) = checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(machine.state, result.statement_index, role)
+                    .ok_or(LoweringError::Unsupported(
+                        "array element has no exact pure source binding",
+                    ))?;
+                if binding.expression != *leaf || retained != value {
+                    return unsupported("array element differs from its pure source binding");
                 }
-            })
-    {
-        return unsupported("array constructor scalar operands changed");
+                crate::scalar_source_custody::validate_pure(
+                    checked,
+                    binding,
+                    terminal_scalar_type(*primitive)?,
+                )?;
+                if checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .any(|(_, root)| {
+                        root.state == machine.state
+                            && root.statement_ordinal == result.statement_index
+                            && root.role == role
+                    })
+                {
+                    return unsupported("array element has conflicting pure and computed owners");
+                }
+            }
+            CheckedCallScalarArgument::Computation(handle) => {
+                let plans = &checked.facts.values.scalar_computations;
+                let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
+                    root.state == machine.state
+                        && root.statement_ordinal == result.statement_index
+                        && root.role == role
+                });
+                let root = roots.next().ok_or(LoweringError::Unsupported(
+                    "array element has no exact computation root",
+                ))?;
+                if roots.next().is_some()
+                    || root.machine != machine.machine
+                    || root.root != *handle
+                    || !plans.nodes.is_valid(*handle)
+                    || plans.nodes.get(*handle).authored_root != *leaf
+                    || plans.nodes.get(*handle).primitive_type != *primitive
+                    || checked
+                        .facts
+                        .values
+                        .scalar_expressions
+                        .expressions
+                        .iter()
+                        .any(|value| {
+                            value.state == machine.state
+                                && value.statement_ordinal == result.statement_index
+                                && value.role == role
+                        })
+                {
+                    return unsupported("array computation differs from its source element");
+                }
+                crate::scalar_source_custody::validate_computation_calls(
+                    checked,
+                    machine.machine,
+                    machine.state,
+                    result.statement_index,
+                    *handle,
+                    *leaf,
+                )?;
+            }
+        }
+        operands::validate(
+            checked,
+            machine.state,
+            result.statement_index,
+            *leaf,
+            *primitive,
+            element,
+        )?;
     }
     Ok(())
 }
@@ -313,41 +364,11 @@ fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
 
 pub(super) fn emit(
     result: &CheckedUnitStructuralResultBindingPlan,
-    elements: &[CheckedScalarArrayLiteral],
+    elements: &[ValueDeclaration],
     types: &[(String, StructuralTypeId)],
     next_place: &mut u64,
-    next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let mut values = Vec::with_capacity(elements.len());
-    for element in elements {
-        let (scalar_type, kind) = match element {
-            CheckedScalarArrayLiteral::Integer(literal) => {
-                let scalar_type = integer_landing_scalar_type(literal)?;
-                (
-                    scalar_type,
-                    OperationKind::IntegerConstant {
-                        value: integer_value(literal, scalar_type)?,
-                    },
-                )
-            }
-            CheckedScalarArrayLiteral::Boolean(value) => (
-                ScalarType::Boolean,
-                OperationKind::BooleanConstant { value: *value },
-            ),
-        };
-        let value = ValueDeclaration {
-            id: value_id(allocate_dense(next_value)?),
-            scalar_type,
-        };
-        let id = operations.allocate();
-        operations.push(Operation {
-            id,
-            result: OperationResult::Scalar(value),
-            kind,
-        });
-        values.push(value.id);
-    }
     let structural_type = lookup_type_id(types, &result.type_identity)?;
     let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);
@@ -361,7 +382,9 @@ pub(super) fn emit(
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishScalarArray { elements: values },
+        kind: OperationKind::EstablishScalarArray {
+            elements: elements.iter().map(|element| element.id).collect(),
+        },
     });
     Ok(StructuralPlaceDeclaration {
         id: place,

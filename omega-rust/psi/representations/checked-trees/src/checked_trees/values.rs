@@ -208,6 +208,10 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    /// One row-major scalar operand of an array construction at this statement.
+    ArrayElement {
+        element_ordinal: u32,
+    },
     /// Scalar operand of an ordinary case-construction return, in authored order.
     ReturnCaseField {
         field_ordinal: u32,

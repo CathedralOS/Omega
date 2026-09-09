@@ -78,6 +78,36 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                 };
+                let array_destination = match statement {
+                    StatementNode::LocalData(local) if !local.is_mutable => {
+                        Some((local.initial_value, local.type_reference))
+                    }
+                    StatementNode::Expression(expression) => Some((*expression, state.return_type)),
+                    _ => None,
+                };
+                if let Some((expression, expected)) = array_destination
+                    && let Some(elements) = validation::scalar_array_elements(
+                        program,
+                        machine.symbol,
+                        expression,
+                        expected,
+                    )
+                {
+                    for (element_index, (element, primitive_type)) in
+                        elements.elements.into_iter().enumerate()
+                    {
+                        let Ok(element_ordinal) = u32::try_from(element_index) else {
+                            break;
+                        };
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            CheckedScalarExpressionRole::ArrayElement { element_ordinal },
+                            element,
+                            primitive_type,
+                        );
+                    }
+                }
                 for (call_ordinal, site) in super::call_arguments::nested_structural_call_sites(
                     program,
                     flow,

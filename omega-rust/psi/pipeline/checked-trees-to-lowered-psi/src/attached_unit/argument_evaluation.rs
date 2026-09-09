@@ -3,6 +3,8 @@
 use super::*;
 use checked_trees::CheckedCallScalarArgument;
 
+mod array_elements;
+
 pub(crate) struct Evaluation {
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// State-local storage has its own namespace; it is not an immutable slot.
