@@ -43,8 +43,12 @@ serialization. These helpers, definition order, whitespace, hygienic spellings,
 and the final publication byte retain the established receipt format.
 
 Each packed runtime chunk has an adjacent exact ASCII annotation, checked by the
-[emission gate](../../../../tests/delta/emission/README.md). Running byte-count
-bindings are named `writtenN`, not ignored results. This keeps the emitted text
+[emission gate](../../../../tests/delta/emission/README.md). The fixed emitter
+selects count or publication once: count advances by the complete fixed extent,
+while publication sequences the existing zero-returning byte writers with balanced
+addition, then advances the count. Left-to-right evaluation preserves output
+order; zero sums cannot overflow. No per-chunk bindings or pair allocations are
+needed. The checked chunk lengths establish each fixed total. This keeps the emitted text
 visible on the implementation reading path without adding Gamma literal syntax
 or a host source generator. The annotation checker is diagnostic; byte agreement
 does not prove that the runtime implements Delta. Packing and its limited
