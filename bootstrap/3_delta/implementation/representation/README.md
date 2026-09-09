@@ -24,8 +24,9 @@ The byte extent likewise describes one complete serialized occurrence, not
 unique DAG storage. Construction derives it once from the
 [serializer's shared formatting helpers](../emission/extents.gamma) and already
 constructed child extents. Those count-only calls write no bytes and make no
-Delta lowering decisions. Rebuilding a node after capture renaming or helper
-extraction refreshes the extent automatically. Checked addition prevents wrapped
+Delta lowering decisions. Rebuilding a node after helper extraction refreshes
+the extent automatically; free-binding collection retains the completed body
+and its summaries unchanged. Checked addition prevents wrapped
 summaries. The extent keeps payload preflight from repeatedly unfolding shared
 projection tails. Function spelling includes the
 selected compilation profile; definition framing, fixed runtime text, and the
@@ -48,7 +49,10 @@ lowered reference reuses its established binding atom, so equal spellings in
 disjoint scopes do not erase declaration identity. Lowering-generated bindings
 retain an explicit marker and source coordinate. Normalization uses that same
 atom form with a marker and program-wide allocated identity for fresh helper
-names and parameters. Binding references reuse their established atom; no
+names. Helper parameters and call arguments share the ordered original binding
+atoms; the [normalizer's scope argument](../normalization/README.md#captured-bindings)
+establishes their spelling safety in independently scoped Gamma functions.
+Binding references reuse their established atom; no
 comparison observes the numeric provenance of a Gamma pair reference.
 
 This representation is shared by source-dependent lowering,

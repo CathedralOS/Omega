@@ -22,30 +22,14 @@
       1
       (capture_is_bound node (- count 1) (second bindings)))))
 
-; Mapping rows are (pair original-binding fresh-parameter), newest first.
-; An explicit option distinguishes no mapping from a pair-valued parameter.
-(def capture_find_binding ((node Int) (count Int) (rows Int)) Int
-  (if (eq count 0)
-    (pair 0 0)
-    (let row Int (first rows)
-      (if (capture_same_binding node (first row))
-        (pair 1 (second row))
-        (capture_find_binding node (- count 1) (second rows))))))
-
 ; Produced plans give each identity one lexical binder. A previously captured
-; free identity cannot later be bound inside this fragment. Reuse its mapping
+; free identity cannot later be bound inside this fragment. Check the captures
 ; before scanning the local spine; only unseen references need classification.
 (def capture_reference
-  ((node Int) (bound_count Int) (bound Int) (state Int)
+  ((node Int) (bound_count Int) (bound Int) (count Int) (captures Int)
    (depth Int) (frames Int)) Int
-  (let mappings Int (second state)
-    (let found Int (capture_find_binding node (first mappings) (second mappings))
-      (if (first found)
-        (capture_resume (second found) state depth frames)
-        (if (capture_is_bound node bound_count bound)
-          (capture_resume node state depth frames)
-          (let parameter Int (gamma_generated 99 (first state))
-            (capture_resume parameter
-              (capture_state (+ (first state) 1) (+ (first mappings) 1)
-                (pair (pair node parameter) (second mappings)))
-              depth frames)))))))
+  (if (capture_is_bound node count captures)
+    (capture_resume count captures depth frames)
+    (if (capture_is_bound node bound_count bound)
+      (capture_resume count captures depth frames)
+      (capture_resume (+ count 1) (pair node captures) depth frames))))

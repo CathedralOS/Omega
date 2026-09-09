@@ -330,10 +330,12 @@ Lowering then completes an expanded Gamma program before the first output byte.
 Explicit continuations retain pending children, while the plan records binding
 identities and generated expression-list heights. A separate normalizer reuses
 fitting subtrees and extracts over-height fragments into generated functions
-under a 255-list body budget. Captures pass established values through fresh
-parameter identities, and replacement calls retain the fragments' evaluation
-and tail positions. A serializer prints the resulting plan rather than
-selecting lowering rules during publication; exact spans supply admitted names
+under a 255-list body budget. Free-binding collection retains each completed
+helper body and shares its original binding atoms between helper parameters
+and call arguments. Lexical scope and active-name uniqueness make those names
+safe in independently scoped Gamma functions. Replacement calls retain the
+fragments' evaluation and tail positions. A serializer prints the resulting plan
+rather than selecting lowering rules during publication; exact spans supply admitted names
 and literal bytes.
 Serialization first counts the complete payload without writing, including
 fixed helpers, profile text, definition separators, and the entry-owned final

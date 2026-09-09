@@ -11,18 +11,18 @@
         (normalization_state (+ (first state) 1)
           (first helpers) (second helpers))))))
 
-; Split descendants before capture so each helper rewrites only its own body.
+; Split descendants before capture so each helper visits only its own body.
 ; Nested helpers are closed definitions; their call arguments still name the
 ; original surrounding bindings and are captured normally by this helper.
 (def normalization_helper_done
   ((body Int) (name Int) (depth Int) (frames Int) (state Int)) Int
-  (let captured Int (capture_expression body (first state))
+  (let captured Int (capture_expression body)
     (let helpers Int (second state)
       (let definition Int
         (gamma_definition name (capture_count captured)
-          (capture_parameters captured) (capture_body captured))
+          (capture_bindings captured) body)
         (normalization_resume
-          (gamma_call name (capture_count captured) (capture_arguments captured))
+          (gamma_call name (capture_count captured) (capture_bindings captured))
           depth frames
-          (normalization_state (capture_next_identity captured) (+ (first helpers) 1)
+          (normalization_state (first state) (+ (first helpers) 1)
             (pair definition (second helpers))))))))
