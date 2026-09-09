@@ -28,13 +28,13 @@ machine Main::main(&mut self) {
     state leap(&mut self) {
         self.console.write_line("PASS: 2024 is a leap year (exit 1)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
     state common(&mut self) {
         self.console.write_line("FAIL: 2024 misclassified as a common year (exit 0)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

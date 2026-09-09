@@ -99,7 +99,7 @@ machine Main::main(&mut self) {
     state bad_r1(&mut self) {
         self.console.write_line("FAIL: scale(5) with multiplier 3 did not return 15 (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -113,7 +113,7 @@ machine Main::main(&mut self) {
     state bad_r2(&mut self) {
         self.console.write_line("FAIL: scale(4) with multiplier 7 did not return 28 (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
@@ -127,7 +127,7 @@ machine Main::main(&mut self) {
     state bad_r3(&mut self) {
         self.console.write_line("FAIL: offset_add(10) with addend 2 did not return 12 (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
@@ -141,7 +141,7 @@ machine Main::main(&mut self) {
     state bad_r4(&mut self) {
         self.console.write_line("FAIL: offset_add(0) with addend 15 did not return 15 (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 
@@ -157,14 +157,14 @@ machine Main::main(&mut self) {
     state bad_total(&mut self) {
         self.console.write_line("FAIL: results did not total 70 (exit 75)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(75);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: every call observed the freshly mutated self state (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

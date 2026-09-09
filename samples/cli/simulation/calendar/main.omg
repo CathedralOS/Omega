@@ -107,13 +107,13 @@ machine Main::main(&mut self) {
     state finish(&mut self) {
         self.console.write_line("done: all 30 dates laid out and flushed (exit 0)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: a column offset left the 21-byte line (exit 1)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

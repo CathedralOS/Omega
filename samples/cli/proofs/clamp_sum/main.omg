@@ -41,6 +41,6 @@ machine Main::main(&mut self) {
     let total: i32 = self.clamper.clamp_sum(s, 0);
     self.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
     self.console.write_line("[press Enter to close]");
-    self.console.read_line(&mut self.pause);
+    _ = self.console.read_line(&mut self.pause);
     self.console.exit_process(total);
 }

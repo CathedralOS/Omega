@@ -68,7 +68,7 @@ data Main {
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
-    input: [u8; 32] in Utf8;
+    input: [u8; 32];
     output: [u8; 32] in Utf8;
     current_room_index: u64;
     fountain_used: bool;
@@ -77,7 +77,6 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.input = "";
     self.output = "";
     self.current_room_index = 0;
     self.fountain_used = false;
@@ -111,9 +110,50 @@ machine Main::main(&mut self) {
 
     state prompt(&mut self) {
         self.view.render_prompt(&mut self.console);
-        self.console.read_line(&mut self.input);
+        let observed: LineReadResult = self.console.read_line(&mut self.input);
+        transition observed {
+            LineReadResult::LineComplete { count } -> bounded_input(count, true)
+            LineReadResult::EndOfInput { count } -> bounded_input(count, false)
+            LineReadResult::Full { count } -> invalid_command()
+            LineReadResult::Invalid -> invalid_command()
+        }
+    }
 
-        transition self.input == "east" {
+    // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.
+    state bounded_input(&mut self, count: u64, complete: bool) {
+        transition count <= self.input.len {
+            true -> normal_input(count, complete)
+            false -> invalid_command()
+        }
+    }
+    state normal_input(&mut self, count: u64, complete: bool) {
+        transition complete {
+            true -> completed_input(count)
+            false -> parsed_input(count)
+        }
+    }
+    state completed_input(&mut self, count: u64) {
+        transition count > 0 && count <= self.input.len {
+            true -> trim_carriage_return(count - 1)
+            false -> invalid_command()
+        }
+    }
+    state trim_carriage_return(&mut self, count: u64) {
+        transition count > 0 && count <= self.input.len {
+            true -> inspect_carriage_return(count, count - 1)
+            false -> parsed_input(count)
+        }
+    }
+    state inspect_carriage_return(&mut self, count: u64, byte_index: u64) {
+        transition byte_index < self.input.len && self.input[byte_index] == 13 {
+            true -> parsed_input(byte_index)
+            false -> parsed_input(count)
+        }
+    }
+
+    state parsed_input(&mut self, count: u64) {
+
+        transition count <= self.input.len && self.input[0..count] == "east" {
             true -> move_east()
             false -> finished()
         }

@@ -71,14 +71,14 @@ machine Main::main(&mut self) {
     state found(&mut self) {
         self.console.write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.trial.d);
     }
 
     state prime(&mut self) {
         self.console.write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.trial.n);
     }
 }

@@ -57,7 +57,7 @@ machine Main::main(&mut self) {
     state bad_c2f_low(&mut self) {
         self.console.write_line("FAIL: 100 C converted below 211.5 F (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -70,7 +70,7 @@ machine Main::main(&mut self) {
     state bad_c2f_high(&mut self) {
         self.console.write_line("FAIL: 100 C converted above 212.5 F (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
@@ -85,7 +85,7 @@ machine Main::main(&mut self) {
     state bad_f2c_low(&mut self) {
         self.console.write_line("FAIL: 212 F converted below 99.5 C (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
@@ -98,7 +98,7 @@ machine Main::main(&mut self) {
     state bad_f2c_high(&mut self) {
         self.console.write_line("FAIL: 212 F converted above 100.5 C (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 
@@ -113,7 +113,7 @@ machine Main::main(&mut self) {
     state bad_k2c_low(&mut self) {
         self.console.write_line("FAIL: 373.15 K converted below 99.9 C (exit 75)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(75);
     }
 
@@ -126,7 +126,7 @@ machine Main::main(&mut self) {
     state bad_k2c_high(&mut self) {
         self.console.write_line("FAIL: 373.15 K converted above 100.1 C (exit 76)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(76);
     }
 
@@ -141,7 +141,7 @@ machine Main::main(&mut self) {
     state bad_km_low(&mut self) {
         self.console.write_line("FAIL: 10 km converted below 6.1 miles (exit 77)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(77);
     }
 
@@ -154,7 +154,7 @@ machine Main::main(&mut self) {
     state bad_km_high(&mut self) {
         self.console.write_line("FAIL: 10 km converted above 6.3 miles (exit 78)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(78);
     }
 
@@ -169,7 +169,7 @@ machine Main::main(&mut self) {
     state bad_kg_low(&mut self) {
         self.console.write_line("FAIL: 5 kg converted below 11.0 lbs (exit 79)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(79);
     }
 
@@ -182,14 +182,14 @@ machine Main::main(&mut self) {
     state bad_kg_high(&mut self) {
         self.console.write_line("FAIL: 5 kg converted above 11.1 lbs (exit 80)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(80);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: all five conversions landed in tolerance (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

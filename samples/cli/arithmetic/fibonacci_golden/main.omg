@@ -64,7 +64,7 @@ machine Main::main(&mut self) {
         self.result = I32::from_f64(self.ratio);
         self.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result as i32);
     }
 }

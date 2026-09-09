@@ -41,6 +41,6 @@ machine Main::main(&mut self) {
 
     self.console.write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
     self.console.write_line("[press Enter to close]");
-    self.console.read_line(&mut self.pause);
+    _ = self.console.read_line(&mut self.pause);
     self.console.exit_process(self.shown);
 }

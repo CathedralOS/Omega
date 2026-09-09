@@ -1,12 +1,9 @@
 // Complete linux_x86_64 Console provider closure over compiler-known native
-// byte/runtime leaves. Friendly write adapters live in std/console.omg on the
+// byte/runtime leaves. Friendly line and write adapters live in std/console.omg on the
 // same nominal provider type.
 // Unmigrated sibling leaves retain transitional payload-free `via` syntax. The
 // exit leaf's compiler supply is inferred from its exact realization symbol,
 // normalized signature, package custody, and selected target.
-linux_x86_64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
-    satisfies Console::read_line
-    via Binding::CompilerIntrinsic;
 linux_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
     via Binding::CompilerIntrinsic;

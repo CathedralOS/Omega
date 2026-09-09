@@ -60,14 +60,14 @@ machine Main::main(&mut self) {
     state good(&mut self) {
         self.console.write_line("PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
         self.console.write_line("FAIL: sum != 2200000000 -- widening reduction wrong (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

@@ -19,15 +19,12 @@ requires
 domain [u8; 32]::Utf8
 requires
     valid_utf8(self);
-domain [u8; 256]::Utf8
-requires
-    valid_utf8(self);
 
 data Main {
     console: Console;
     name: [u8; 8] in Utf8;
     greeting: [u8; 32] in Utf8;
-    pause: [u8; 256] in Utf8;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {
@@ -44,13 +41,13 @@ machine Main::main(&mut self) {
     state ok(&mut self) {
         self.console.write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state mismatch(&mut self) {
         self.console.write_line("FAIL: the concatenated greeting did not match (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

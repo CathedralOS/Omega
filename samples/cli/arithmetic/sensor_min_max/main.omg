@@ -97,7 +97,7 @@ machine Main::main(&mut self) {
 
         self.console.write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);
     }
 }

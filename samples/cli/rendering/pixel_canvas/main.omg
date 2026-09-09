@@ -129,7 +129,7 @@ machine Main::main(&mut self) {
     state good(&mut self) {
         self.console.write_line("PASS: channel sum is 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
@@ -137,7 +137,7 @@ machine Main::main(&mut self) {
         // Exit with a code that encodes the wrong total for debugging.
         self.console.write_line("FAIL: wrong channel sum (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

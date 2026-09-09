@@ -59,7 +59,7 @@ machine Main::main(&mut self) {
     state emit(&mut self) {
         self.console.write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.area);
     }
 }

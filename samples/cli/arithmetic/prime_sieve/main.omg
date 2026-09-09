@@ -100,7 +100,7 @@ machine Main::main(&mut self) {
     state finish(&mut self) {
         self.console.write_line("PASS: primes below 50 printed (exit 0)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

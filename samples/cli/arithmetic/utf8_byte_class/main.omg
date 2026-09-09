@@ -77,9 +77,9 @@ machine Main::main(&mut self) {
     state done4(&mut self) { transition { _ -> finish4() } }
     state done99(&mut self) { transition { _ -> finish99() } }
 
-    state finish1(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(1); }
-    state finish2(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(2); }
-    state finish3(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(3); }
-    state finish4(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(4); }
-    state finish99(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(99); }
+    state finish1(&mut self) { self.console.write_line("[press Enter to close]"); _ = self.console.read_line(&mut self.pause); self.console.exit_process(1); }
+    state finish2(&mut self) { self.console.write_line("[press Enter to close]"); _ = self.console.read_line(&mut self.pause); self.console.exit_process(2); }
+    state finish3(&mut self) { self.console.write_line("[press Enter to close]"); _ = self.console.read_line(&mut self.pause); self.console.exit_process(3); }
+    state finish4(&mut self) { self.console.write_line("[press Enter to close]"); _ = self.console.read_line(&mut self.pause); self.console.exit_process(4); }
+    state finish99(&mut self) { self.console.write_line("[press Enter to close]"); _ = self.console.read_line(&mut self.pause); self.console.exit_process(99); }
 }

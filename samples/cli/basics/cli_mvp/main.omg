@@ -8,18 +8,14 @@
 
 use omega_language_std::console;
 
-domain [u8; 256]::Utf8
-requires
-    valid_utf8(self);
-
 data Main {
     console: Console;
-    pause: [u8; 256] in Utf8;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {
     self.console.write_line("Hello, Omega.");
     self.console.write_line("[press Enter to close]");
-    self.console.read_line(&mut self.pause);
+    _ = self.console.read_line(&mut self.pause);
     self.console.exit_process(0);
 }

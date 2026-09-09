@@ -81,7 +81,7 @@ machine Main::main(&mut self) {
     state bad_sum(&mut self) {
         self.console.write_line("FAIL: recursive sum did not equal 50 (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -100,14 +100,14 @@ machine Main::main(&mut self) {
     state bad_count(&mut self) {
         self.console.write_line("FAIL: recursive count did not equal 4 (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: sum=50 and count=4 both verified (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

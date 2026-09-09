@@ -17,14 +17,10 @@
 
 use omega_language_std::console;
 
-domain [u8; 256]::Utf8
-requires
-    valid_utf8(self);
-
 data Main {
     console: Console;
     counter: AtomicU32;
-    pause: [u8; 256] in Utf8;
+    pause: [u8; 256];
 }
 
 machine Main::main(&mut self) {
@@ -74,13 +70,13 @@ machine Main::main(&mut self) {
     state good(&mut self) {
         self.console.write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

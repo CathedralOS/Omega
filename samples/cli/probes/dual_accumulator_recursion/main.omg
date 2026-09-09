@@ -90,7 +90,7 @@ machine Main::main(&mut self) {
     state bad_sum(&mut self) {
         self.console.write_line("FAIL: sum != 15 (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -105,7 +105,7 @@ machine Main::main(&mut self) {
     state bad_sum_sq(&mut self) {
         self.console.write_line("FAIL: sum of squares != 55 (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
@@ -120,7 +120,7 @@ machine Main::main(&mut self) {
     state bad_final_sum(&mut self) {
         self.console.write_line("FAIL: sum_result stale in a sibling state -- expected 15 (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 
@@ -135,7 +135,7 @@ machine Main::main(&mut self) {
     state bad_final_sq(&mut self) {
         self.console.write_line("FAIL: sum_sq_result stale in a sibling state -- expected 55 (exit 75)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(75);
     }
 
@@ -153,14 +153,14 @@ machine Main::main(&mut self) {
     state bad_final(&mut self) {
         self.console.write_line("FAIL: 15 + 55 != 70 -- combined value-call arithmetic wrong (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: sum 15 + sum of squares 55 == 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

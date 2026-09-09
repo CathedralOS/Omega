@@ -195,7 +195,7 @@ machine Main::main(&mut self) {
     state bad_price(&mut self) {
         self.console.write_line("FAIL: search returned the wrong price for id 5 (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -210,14 +210,14 @@ machine Main::main(&mut self) {
     state bad_total(&mut self) {
         self.console.write_line("FAIL: wrong inventory total value (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: golden item price 70, total value 147 (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

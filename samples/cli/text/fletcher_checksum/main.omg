@@ -50,6 +50,6 @@ machine Main::main(&mut self) {
     let checksum: i32 = self.adder.fletcher(s, 0, 0);
     self.console.write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
     self.console.write_line("[press Enter to close]");
-    self.console.read_line(&mut self.pause);
+    _ = self.console.read_line(&mut self.pause);
     self.console.exit_process(checksum);
 }

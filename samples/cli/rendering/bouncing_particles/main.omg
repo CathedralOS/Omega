@@ -218,13 +218,13 @@ machine Main::main(&mut self) {
     state finish(&mut self) {
         self.console.write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

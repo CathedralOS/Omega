@@ -144,7 +144,11 @@ impl<'program> Evaluator<'program> {
                 }
             }
             "read_line" => {
-                // Read up to (and including) the next newline from the remaining stdin into
+                // Legacy local boundary fixtures only: bundled std read_line is
+                // an ordinary selected checked body over its exact read_byte
+                // leaf. This whole-owner/Boolean fallback is not its bounded
+                // LineReadResult contract and must not serve as that oracle.
+                // Read up to the next newline from the remaining stdin into
                 // the mutable text-carrier out-parameter. CRLF is normalized (a trailing `\r` is
                 // dropped). Returns whether a line was available (some programs ignore it).
                 let line = self.read_stdin_line();

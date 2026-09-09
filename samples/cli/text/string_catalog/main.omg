@@ -101,7 +101,7 @@ machine Main::main(&mut self) {
     state bad_name1(&mut self) {
         self.console.write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -115,7 +115,7 @@ machine Main::main(&mut self) {
     state bad_name2(&mut self) {
         self.console.write_line("FAIL: entry2.name did not equal Beta (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
@@ -129,7 +129,7 @@ machine Main::main(&mut self) {
     state bad_label(&mut self) {
         self.console.write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
@@ -143,14 +143,14 @@ machine Main::main(&mut self) {
     state bad_total(&mut self) {
         self.console.write_line("FAIL: score total was not 70 (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

@@ -32,8 +32,8 @@ independently establish its storage, initialization, and lifetime obligations.
 
 ## Line result and zero initialization
 
-The library result has this shape; the declaration illustrates the settled
-schema rather than an already shipped API:
+The library result in `source/library/std/console.omg` has this shape; native
+provider and complete caller support remain implementation obligations:
 
 ```omega
 data LineReadResult {

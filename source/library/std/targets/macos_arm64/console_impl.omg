@@ -1,12 +1,9 @@
 // Complete macos_arm64 Console provider closure over compiler-known native
-// byte/runtime leaves. Friendly write adapters live in std/console.omg on the
+// byte/runtime leaves. Friendly line and write adapters live in std/console.omg on the
 // same nominal provider type.
 // Unmigrated sibling leaves retain transitional payload-free `via` syntax.
 // Byte output and process exit are inferred from their exact realization
 // symbols, normalized signatures, package custody, and selected target.
-macos_arm64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
-    satisfies Console::read_line
-    via Binding::CompilerIntrinsic;
 macos_arm64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
     via Binding::CompilerIntrinsic;

@@ -118,7 +118,7 @@ machine Main::main(&mut self) {
     state done(&mut self) {
         self.console.write_line("result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.nums[0]);
     }
 }

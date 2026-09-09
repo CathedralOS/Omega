@@ -1,22 +1,73 @@
-// #66: two sequential `read_line`s into the SAME owned `[u8; 64] in Utf8` carrier,
-// each echoed back. The second read overwrites the carrier's inline bytes + length
-// (a leading-delimiter is skipped so CRLF is one terminator), so line buffering is
-// per-read with no `String`.
+// Echo only each completed reported prefix; normalize CRLF in this caller.
+// Fixed input extent and untouched suffix survive every read.
 use omega_language_std::console;
-
-domain [u8; 64]::Utf8
-requires
-    valid_utf8(self);
 
 data Main {
     console: Console;
-    line: [u8; 64] in Utf8;
+    line: [u8; 64];
 }
 
 machine Main::main(&mut self) {
-    self.console.read_line(&mut self.line);
-    self.console.write_line(self.line);
-    self.console.read_line(&mut self.line);
-    self.console.write_line(self.line);
+    self.echo_line();
+    self.echo_line();
     self.console.exit_process(0);
+}
+
+machine Main::echo_line(&mut self) {
+    let observed: LineReadResult = self.console.read_line(&mut self.line);
+    transition observed {
+        LineReadResult::LineComplete { count } -> bounded_input(count, true)
+        LineReadResult::EndOfInput { count } -> bounded_input(count, false)
+        LineReadResult::Full { count } -> input_failed()
+        LineReadResult::Invalid -> input_failed()
+    }
+
+    // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.
+    state bounded_input(&mut self, count: u64, complete: bool) {
+        transition count <= self.line.len {
+            true -> normal_input(count, complete)
+            false -> input_failed()
+        }
+    }
+    state normal_input(&mut self, count: u64, complete: bool) {
+        transition complete {
+            true -> completed_input(count)
+            false -> parsed_input(count)
+        }
+    }
+    state completed_input(&mut self, count: u64) {
+        transition count > 0 && count <= self.line.len {
+            true -> trim_carriage_return(count - 1)
+            false -> input_failed()
+        }
+    }
+    state trim_carriage_return(&mut self, count: u64) {
+        transition count > 0 && count <= self.line.len {
+            true -> inspect_carriage_return(count, count - 1)
+            false -> parsed_input(count)
+        }
+    }
+    state inspect_carriage_return(&mut self, count: u64, byte_index: u64) {
+        transition byte_index < self.line.len && self.line[byte_index] == 13 {
+            true -> parsed_input(byte_index)
+            false -> parsed_input(count)
+        }
+    }
+
+    state parsed_input(&mut self, count: u64) {
+        write_prefix(&mut self.console, &self.line, count);
+    }
+    state input_failed(&mut self) { self.console.exit_process(1); }
+}
+
+// The bound is checked on the exact view before forming its output prefix.
+machine write_prefix(console: &mut Console, bytes: &[u8], count: u64) {
+    transition count <= bytes.len {
+        true -> output(console, bytes[0..count])
+        false -> invalid(console)
+    }
+    state output(console: &mut Console, bytes: &[u8]) {
+        console.write_line(bytes);
+    }
+    state invalid(console: &mut Console) { console.exit_process(1); }
 }

@@ -179,7 +179,7 @@ machine Main::main(&mut self) {
         // The result is the bottom of the stack.
         self.console.write_line("result: the RPN evaluation, 35 for this program (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.stack[0]);
     }
 }

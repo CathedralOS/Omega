@@ -18,6 +18,15 @@ pub data ByteRead {
     case Byte(value: i32 [0..=255]);
 }
 
+// Counts describe only the prefix written during this invocation. Invalid is
+// the zero-initialized value, never a normal reader completion or an I/O error.
+pub data LineReadResult {
+    case Invalid;
+    case LineComplete(count: u64);
+    case EndOfInput(count: u64);
+    case Full(count: u64);
+}
+
 pub boundary trait Console {
     machine write_line(text: &[u8])
     reaches
@@ -25,10 +34,9 @@ pub boundary trait Console {
     machine write(text: &[u8])
     reaches
         Console;
-    // The concrete owned `[u8; N] in D` destination supplies the write bound;
-    // provider planning derives N from that call-site place and updates its
-    // runtime length. A growable destination remains allocator-gated.
-    machine read_line(out_line: &mut [u8])
+    // Fill the existing writable extent without resizing it. Preserve every
+    // byte, including CR and the terminating LF; callers interpret the prefix.
+    machine read_line(out_line: &mut [u8]) -> LineReadResult
     reaches
         Console;
     // Byte-level stdin/stdout (the settled universal console surface):
@@ -51,6 +59,39 @@ pub boundary trait Console {
 // adapters and compiler-known native leaves attach to the same type so
 // provider selection never assembles rows from unrelated implementations.
 pub data ConsoleNativeProvider { }
+
+// Shared bounded input uses this exact provider's byte leaf, not recursive
+// service redispatch. Check capacity before reading: Full consumes no lookahead
+// and an empty destination returns Full(0). LF in the last slot still completes
+// the line. Finite storage does not promise a bound on waiting for host input.
+machine ConsoleNativeProvider::read_line(out_line: &mut [u8]) -> LineReadResult
+satisfies Console::read_line
+reaches Console {
+    transition { _ -> scan(out_line, 0) }
+    state scan(out_line: &mut [u8], position: u64) -> LineReadResult {
+        transition position < out_line.len {
+            true -> read(out_line, position)
+            false -> full(position)
+        }
+    }
+    state read(out_line: &mut [u8], position: u64) -> LineReadResult {
+        let observed: ByteRead = ConsoleNativeProvider::read_byte();
+        transition observed {
+            ByteRead::Byte { value } -> store(out_line, position, value)
+            ByteRead::Eof -> end(position)
+        }
+    }
+    state store(out_line: &mut [u8], position: u64, value: i32 [0..=255]) -> LineReadResult {
+        out_line[position] = value as u8;
+        transition value == 10 {
+            true -> complete(position + 1)
+            false -> scan(out_line, position + 1)
+        }
+    }
+    state full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
+    state end(count: u64) -> LineReadResult { LineReadResult::EndOfInput { count: count } }
+    state complete(count: u64) -> LineReadResult { LineReadResult::LineComplete { count: count } }
+}
 
 // Friendly output is checked Omega code over the byte-level boundary leaf.
 // The writer belongs to this concrete provider closure and calls its byte leaf

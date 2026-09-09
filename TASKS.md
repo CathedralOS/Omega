@@ -259,18 +259,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  The downstream native `cli_mvp` probe at checkpoint `024a0cd245`
-  passes Terminal and native abstract admission but remains red. On macOS ARM64,
+  After the bounded-line API migration (tested from `ef362977e1` on macOS ARM64),
+  the downstream native `cli_mvp` probe remains red:
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution with a missing macOS catalog identity for `read_line`.
+  execution at `InvalidUnitMachinePlan { machine: "Main::main", reason:
+  "attached Unit closure is missing a checked transitive machine plan" }`.
+  Resume the ordinary transitive source-call closure, not a line intrinsic.
   The native sample harness now supplies exact test-owned Console acceptance and
   receiving permissions through the shared canary helper. Byte-output and exit
   classification succeed; fixture acceptance does not replace the CLI's package review.
   Checking-only sample probes remain unaccepted, and stale-target bindings reject.
-  macOS input still needs its provider definition and native realization; do not
-  substitute Linux or interpreter output.
+  The macOS byte leaf and callable line loop have separate native evidence below;
+  they do not establish the complete entry-owned caller. Do not substitute Linux
+  or interpreter output for that acceptance.
   Terminal production retains authored boundary calls; native provider selection
   owns adapter realization, independently of interpreter dispatch. Complete the
   [borrowed-byte writer closure](omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
@@ -331,14 +334,12 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   any write or its exact frame; ordered literal/parameter scalar field stores
   do not cover that complete body.
 
-  Implement the settled [bounded byte input](wiki/spec/resources/bounded_input.md)
-  contract for `cli_mvp` and line-reading callers. Change `Console::read_line`
-  from Unit/hidden replacement to a fixed mutable slice plus `LineReadResult`:
-  ZII `Invalid`, and normal `LineComplete(count)`, `EndOfInput(count)`, or
-  `Full(count)` outcomes. Migrate declarations, selected provider signatures,
-  result-case evidence, and callers together. A raw fixed array supplies its
-  writable range; the reader changes neither its extent nor owner live length.
-  No resizable output descriptor or allocator feature is a prerequisite.
+  Finish native integration of the settled
+  [bounded byte input](wiki/spec/resources/bounded_input.md) contract for `cli_mvp`
+  and line-reading callers. The bundled fixed-range `LineReadResult` API and shared
+  checked provider are the source contract; native entry/caller composition must
+  retain its exact result cases and writable range, without changing extent or
+  owner live length. No resizable output descriptor or allocator is a prerequisite.
 
   Resume the native dependency from
   `tests/native-differential/tests/terminal_byte_views/mutable_writes.rs`.
@@ -402,10 +403,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   byte once, including case-subject payload extraction, without a global type-name
   lookup. Preserve its hostile schema/identity and host-effect controls in
   `checked-interpreter/src/evaluator/host_dispatch/`.
-  Next migrate `source/library/std/console.omg`, target provider declarations,
-  interpreter line-input handling, and callers together using the shared checked
-  loop over `read_byte`, not a line-specific compiler route. The bundled line
-  reader and `cli_mvp` acceptance below remain open.
+  Resume from `source/library/std/console.omg` and
+  `compiler/tests/canary_suite/providers_float_and_console/console_reader.rs`.
+  The selected reader executes as ordinary checked source over its exact byte
+  leaf; independent legacy local boundaries still use the old interpreter fallback
+  and are not an oracle for this API. Native `cli_mvp` acceptance below remains open.
+  Preserve the checked API controls with `cargo nextest run -p compiler --test
+  canary_suite --no-fail-fast --no-tests fail -E 'test(selected_console_line_reader)'`.
+  Also reconcile the inherited hosted byte leaf's blocking/crash envelope with
+  `wiki/spec/language/effects.md`: `exact_console_signature` in
+  `build/selected-dispatch/src/compiler_intrinsic.rs` currently rejects `blocks`,
+  although hosted input may wait and trap. Carry honest declarations, call-site
+  acknowledgements, selected identity and native admission together; do not claim
+  bounded wait or full operational-contract closure from interpreter success.
+  The public result schema alone supplies no callable count-to-extent theorem;
+  callers retain explicit prefix guards until that relational evidence is carried.
   Preserve the retained declaration ranges, selected-case scalar
   facts, and provider-return validation described in the
   [Terminal producer](omega-rust/psi/compiler/terminal-production/README.md).
@@ -435,9 +447,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Replace sample-local capacity-specific `Utf8` declarations and compiler-name
   `valid_utf8` dependence with imported checked library encoding vocabulary.
-  `cli_mvp` only pauses: its scratch buffer needs no text qualification, and
-  its new non-Unit result must be explicitly handled or discarded. Text consumers
-  validate only the returned prefix. Migrate the byte-predicate recognizer in
+  Text consumers validate only the returned prefix; pause-only callers use raw
+  fixed storage and explicitly discard the result. Migrate the byte-predicate recognizer in
   `psi/foundation/language-semantics/src/byte_predicates.rs` and its checked-tree
   readers under the [encoding contract](wiki/spec/language/domains.md#byte-containers-and-encoding-domains),
   rather than renaming a compiler primitive or duplicating it per capacity.
@@ -466,8 +477,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   execution must retain distinct result homes, exactly two sequential reads,
   first-byte output, and zero-status Unit completion. The macOS completion
   adapter is a physical entry mapping, not closure of the canonical root contract.
-  At `b5aadc0600`, the macOS `cli_mvp` probe above still stops at the missing
-  `Console::read_line` catalog identity. Preserve exact operation/result identity,
+  Preserve exact operation/result identity through the open native caller closure,
   frame home, layout, fuel, effects and cleanup through the existing selected
   instruction and `BoundaryStructuralResultRecord`; do not fabricate scalar
   results or replace the structural home with boundary scratch.
