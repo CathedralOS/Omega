@@ -7,8 +7,8 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 159,514 bytes, SHA-256
-`bbe70aa8e63ff786660827c521253afc0763d14e3223c0ed06973e927695f965`.
+closure: 158,947 bytes, SHA-256
+`4db798805a01abc5c48dabe6e283790de4c88d4f95a9fadb8654ac1a3964908e`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
@@ -22,7 +22,7 @@ The fixed-source maxima below need no larger provision.
 
 ## Fixed source and call inventory
 
-The compiler contains 369 Gamma definitions. Inspecting every body gives these
+The compiler contains 366 Gamma definitions. Inspecting every body gives these
 maxima, including bodies not reached from the canonical `main`:
 
 | Fixed-source quantity | Maximum | Owning body |
@@ -46,7 +46,7 @@ The evaluator releases that tail context before reusing the current activation.
 
 Weight each caller-to-callee edge by the pending enclosing user calls plus one
 for a non-tail callee activation. Include each call's temporary argument context
-as a local peak. The complete inventory has 66 recursive components. Only four
+as a local peak. The complete inventory has 65 recursive components. Only four
 call sites on recursive cycles have positive weight: two in `capture_sort` and
 one in each of `name_children_replace` and `emit_decimal`.
 
