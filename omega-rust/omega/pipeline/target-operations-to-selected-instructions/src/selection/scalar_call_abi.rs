@@ -47,7 +47,9 @@ pub(super) fn scalar_stack_placement(
         ] if matches!(
             placement.shape.class,
             calling_conventions::ValueClass::Float | calling_conventions::ValueClass::Integer
-        ) && matches!(*byte_size, 4 | 8)
+        ) && (matches!(*byte_size, 4 | 8)
+            || placement.shape.class == calling_conventions::ValueClass::Integer
+                && matches!(*byte_size, 1 | 2))
             && *byte_size == placement.shape.byte_size
             && *alignment >= placement.shape.alignment
             && alignment.is_power_of_two()

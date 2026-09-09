@@ -31,6 +31,28 @@ fn boolean_locals_publish_exact_observations() {
 }
 
 #[test]
+fn narrow_stack_arguments_preserve_signed_unsigned_and_boolean_bits() {
+    for scalar in ["u8", "i8", "u16", "i16", "bool"] {
+        let source = source(scalar)
+            .replace(
+                &format!("destination: &mut {scalar}, value: {scalar}"),
+                &format!(
+                    "destination: &mut {scalar}, first: u64, second: u64, third: u64, \
+                     fourth: u64, fifth: u64, sixth: u64, seventh: u64, eighth: u64, value: {scalar}"
+                ),
+            )
+            .replace(
+                "replace(&mut scratch, replacement);",
+                "replace(&mut scratch, 1, 2, 3, 4, 5, 6, 7, 8, initial);\n\
+                 replace(&mut scratch, 1, 2, 3, 4, 5, 6, 7, 8, replacement);",
+            );
+        let artifact = produce(&source, "observe");
+        publication::assert_four_targets(&artifact);
+        publication::assert_host_execution(&artifact, &driver(scalar, false));
+    }
+}
+
+#[test]
 fn ieee_locals_publish_exact_payload_observations() {
     for scalar in ["f32", "f64"] {
         let artifact = produce(&source(scalar), "observe");

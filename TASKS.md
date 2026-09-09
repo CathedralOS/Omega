@@ -255,6 +255,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   a descriptor or scalar return.
   Windows byte output remains a native realization dependency; do not substitute
   another host's provider or interpreter output.
+  Connect selected imported-call/fixup custody and its call-frame effects before
+  adding Windows API leaves: the current byte pseudo and structural publication
+  are call-free and relocation-free, not an admitted `GetStdHandle`/`WriteFile` route.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.
@@ -296,7 +299,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   or neighboring bytes. Whole raw fixed arrays and nested field-only array loans
   now reach the same native writer using a call-local descriptor over original
   backing, including stack-passed descriptors and runtime scalar arguments.
-  Resume those controls in `mutable_writes/fixed_arrays.rs`; scalar-result and
+  Resume those controls in `mutable_writes/fixed_arrays.rs`, including the byte
+  argument in its actual outgoing stack position; scalar-result and
   indexed array presentations remain excluded. Publication covers Linux x64/ARM64, macOS ARM64 and
   Windows x64; only macOS runtime was exercised. No termination certificate or
   fixed-work bound is claimed. Source proof/interpretation lives in

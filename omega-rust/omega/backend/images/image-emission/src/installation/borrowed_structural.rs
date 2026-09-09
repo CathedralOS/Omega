@@ -184,7 +184,7 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
                             }] if *byte_size == placement.shape.byte_size
                         ) || matches!(placement.locations.as_slice(),
                             [ValueLocation::Stack { stack_byte_offset, value_byte_offset: 0, byte_size, alignment }]
-                                if matches!(*byte_size, 4 | 8) && *byte_size == placement.shape.byte_size
+                                if matches!(*byte_size, 1 | 2 | 4 | 8) && *byte_size == placement.shape.byte_size
                                     && *alignment >= placement.shape.alignment && alignment.is_power_of_two()
                                     && stack_byte_offset.is_multiple_of(u32::from(*alignment))))
                 })

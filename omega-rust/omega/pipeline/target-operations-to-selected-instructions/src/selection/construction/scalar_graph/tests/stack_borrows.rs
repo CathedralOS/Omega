@@ -3,6 +3,8 @@ use super::*;
 use calling_conventions::ValuePlacement;
 use selected_instructions::FrameStorageSlotId;
 
+mod narrow_unsigned;
+
 #[test]
 fn ieee_stack_fragments_replay_exact_width_source_and_outgoing_slot() {
     for target in [

@@ -427,6 +427,8 @@ fn scalar_stack(placement: &ValuePlacement) -> bool {
     [
         ValueShape::float(4),
         ValueShape::float(8),
+        ValueShape::integer(1, 1),
+        ValueShape::integer(2, 2),
         ValueShape::integer(4, 4),
         ValueShape::integer(8, 8),
     ]
