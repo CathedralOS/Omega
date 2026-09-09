@@ -129,9 +129,11 @@ custody without materializing aggregate values. Module-owned aggregates still
 require namespace-aware initializer normalization and materialization.
 The comparisons preserve each operand carrier and use the shared typed integer
 order operation; anonymous operands must land exactly in the selected peer carrier.
-Open templates, aggregate evaluation, Boolean logic, wholly anonymous comparisons,
-constrained destinations, authored operators and module-owned domain families
-remain outside this probe.
+Boolean equality and inequality compose named constants and comparison results
+without losing their separate authored selection occurrences.
+Open templates, aggregate evaluation, short-circuit Boolean logic, wholly anonymous
+comparisons, constrained destinations, authored operators and module-owned domain
+families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.
 Unrelated root constants and literal or binder-only
@@ -166,6 +168,7 @@ cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/m
 cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/boolean_machine_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/comparison_machine_indices/main.omg
+cargo run -p omega -- --check tests/omega/pass/modules/boolean_equality_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/aggregate_machine_indices/main.omg
 ```
 

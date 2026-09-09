@@ -187,3 +187,99 @@ fn comparisons_reject_runtime_operands_unsafe_arithmetic_and_authored_operators(
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn boolean_equality_indices_preserve_module_selection_and_canonical_identity() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (operator, peer, root_result, module_result) in [
+        ("==", true, true, false),
+        ("!=", true, false, true),
+        ("==", false, false, true),
+        ("!=", false, true, false),
+    ] {
+        let index = format!("(ENABLED {operator} {peer})");
+        Sources::write(
+            root.join("settings.omg"),
+            &format!(
+                "module settings; const ENABLED: bool = false; {}",
+                keep("keep", &index)
+            ),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use settings; {FLAG} const ENABLED: bool = true; {} {} {}",
+                keep("keep", &index),
+                keep("enabled", "true"),
+                keep("disabled", "false")
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        for (name, result, constant) in [
+            ("keep", root_result, "ENABLED"),
+            ("settings::keep", module_result, "settings::ENABLED"),
+        ] {
+            assert_same_machine_types(&checked, name, if result { "enabled" } else { "disabled" });
+            let uses = selections(&checked, constant, identity(1));
+            assert_eq!(uses.len(), 3);
+            for (position, selection) in uses.iter().enumerate() {
+                assert!(
+                    uses[..position]
+                        .iter()
+                        .all(|prior| prior.source_span() != selection.source_span())
+                );
+            }
+        }
+        let operators = checked.authored_declaration_selections().iter().filter(|selection| selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Operator).collect::<Vec<_>>();
+        assert_eq!(operators.len(), 6);
+        for (position, selection) in operators.iter().enumerate() {
+            assert!(
+                operators[..position]
+                    .iter()
+                    .all(|prior| prior.source_span() != selection.source_span())
+            );
+        }
+    }
+}
+
+#[test]
+fn boolean_equality_indices_compose_with_comparison_results() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (expression, result) in [
+        ("(ENABLED == false)", false),
+        ("(false != ENABLED)", true),
+        ("(ENABLED == ENABLED)", true),
+        ("((LIMIT == 3) == ENABLED)", true),
+        ("((LIMIT < 3) != (LIMIT > 1))", true),
+        ("((ENABLED != false) == true)", true),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{FLAG} const ENABLED: bool = true; const LIMIT: u64 = 3; {} {}",
+                keep("keep", expression),
+                keep("oracle", if result { "true" } else { "false" })
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}
+
+#[test]
+fn boolean_equality_indices_reject_runtime_and_authored_meaning() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (declarations, machine, expected) in [
+        ("", "machine keep(ENABLED: bool, value: Flag<(ENABLED == true)>) {}".to_owned(), "original lexical scope"),
+        ("", "machine keep(input: bool) { let ENABLED: bool = input; let value: Flag<(ENABLED != false)>; }".to_owned(), "original lexical scope"),
+        ("operator == bool::equal(left: bool, right: bool) -> bool;", keep("keep", "(ENABLED == true)"), "requires exact authored selection"),
+        ("operator != bool::different(left: bool, right: bool) -> bool;", keep("keep", "(ENABLED != false)"), "requires exact authored selection"),
+    ] {
+        Sources::write(root.join("main.omg"), &format!("{FLAG} const ENABLED: bool = true; {declarations} {machine}"));
+        let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root)).expect_err("Boolean equality cannot erase selection obligations");
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(expected)), "{diagnostics:?}");
+    }
+}

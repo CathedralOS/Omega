@@ -29,8 +29,10 @@ unconstrained builtin integer or Boolean destinations and each integer operator'
 builtin meaning are required. Named Boolean constants retain their selected typed literal and
 canonical Boolean atom. Fixed-width integer comparisons containing named constants
 produce canonical Boolean results using the shared typed order operation, after
-each operand lands in its selected carrier. Declaration visibility and direct
-package selection are checked before evaluation.
+each operand lands in its selected carrier. Boolean equality and inequality
+compose named Boolean constants and comparison results on the same value path;
+every occurrence still requires its selected builtin meaning. Declaration visibility
+and direct package selection are checked before evaluation.
 Existing fixed-integer kernels enforce every node's carrier bounds; anonymous
 arithmetic lands once through the shared rational evaluator,
 including fractional-intermediate warnings. The canonical result is distinct
@@ -43,9 +45,10 @@ entry signatures publish public-interface occurrences; body and internal-state
 annotations retain private implementation exposure. Root scalar constants use
 the same resolved substitution as module constants, while legacy aggregate
 materialization remains separate.
-Open templates, aggregate indices, Boolean logic, wholly anonymous comparisons,
-authored operator execution, constrained destinations and address-dependent arithmetic need their
-own complete contexts; the standalone probe does not claim those forms.
+Open templates, aggregate indices, short-circuit Boolean logic, wholly anonymous
+comparisons, authored operator execution, constrained destinations and
+address-dependent arithmetic need their own complete contexts; the standalone
+probe does not claim those forms.
 
 ## Semantic admission boundary
 
