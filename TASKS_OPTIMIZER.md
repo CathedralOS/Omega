@@ -11,6 +11,22 @@ another broad alias. Every rule must name the exact semantic, proof, ownership,
 effect, target, and provenance facts it consumes, and retain the identities
 needed for independent replay through publication.
 
+## Optimizer execution cost
+
+- **ANALYSIS-REVISION-REUSE.** In
+  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/manager.rs`
+  and `pass_manager/execution.rs`, make cached analysis reads borrow products
+  from an immutable validated revision. Today `require_all` serializes/hashes
+  the whole unit even on cache hits, then the rule loop clones its products.
+  Establish revision validity at admission/change boundaries with mutation
+  ownership that prevents stale content, retaining independent candidate and
+  publication checking. Stream necessary canonical hashing without changing
+  encoded bytes/identities. Acceptance: repeated no-change rule requests neither
+  re-encode the unit nor clone analysis payloads; mutated/stale units still
+  reject; invalidation, decisions and published identities match. Measure
+  multi-rule unchanged and rewrite-heavy runs, including allocations and total
+  optimizer time. Do not add a new cache framework or change rule selection.
+
 ## Pipeline cleanup follow-ups
 
 These are separately schedulable follow-ups, not an ongoing cleanup run.
