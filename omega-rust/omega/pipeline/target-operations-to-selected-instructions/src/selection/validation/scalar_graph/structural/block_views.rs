@@ -1,14 +1,15 @@
-//! Rejoin every descriptor destination address to its exact block declaration.
+//! Replay each descriptor address at its owning block's entry.
+//! Destination edge copies initialize the slot independently of this address;
+//! exact block placement keeps the shorter pointer lifetime independently checked.
 use super::*;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
 };
 
-pub(super) fn entry(
-    source: &LegalizedScalarFunction,
+pub(in crate::selection::validation) fn block_entry(
+    block: &legalized_operations::LegalizedScalarBlock,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    for block in &source.blocks {
         for parameter in &block.structural_parameters {
             let slot = LocalStorageSlotId::StructuralBlockParameter {
                 block: block.id,
@@ -48,6 +49,5 @@ pub(super) fn entry(
             )?;
             replay.transport.pointers.push((parameter.place, pointer));
         }
-    }
     Ok(())
 }

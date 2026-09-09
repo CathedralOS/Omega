@@ -237,18 +237,36 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
     };
     stack.stack_alignment == 16
         && stack.frame_bytes.is_multiple_of(8)
-        && function.unit_call_stacks.len() == calls.len()
+        // The stack roster covers every ordinary call. Legacy argument-custody
+        // records cover only calls with structural transport (and Unit calls),
+        // not scalar-only calls returning fresh aggregates. Require every such
+        // record to join one stack site, without inventing a legacy result home.
+        // Unrepresented calls still need exact operation attribution below;
+        // the enclosing installation/image join and retained physical replay
+        // establish their callee, complete result transport, and machine bytes.
+        && calls.iter().all(|call| {
+            function.unit_call_stacks.iter().filter(|site| {
+                call.custody.owner == site.owner && call.custody.target == site.target
+                    && call.text_offset == site.text_offset
+            }).count() == 1
+        })
         && function.unit_call_stacks.iter().all(|site| {
             site.active_frame_bytes == stack.frame_bytes
                 && site.transient_bytes == linkage
                 && stack.frame_bytes.checked_add(linkage) == Some(site.caller_live_bytes)
-                && calls
-                    .iter()
-                    .filter(|call| {
-                        call.custody.owner == site.owner && call.custody.target == site.target
-                    })
-                    .count()
-                    == 1
+                && match site.owner {
+                    target_operations::CallSiteOwner::Operation(operation) => {
+                        record.semantic_code_attribution.iter().filter(|row| {
+                            row.machine == function.machine
+                                && row.attribution.site == machine_code::SemanticCodeSite::Operation(operation)
+                                && function.text_offset.checked_add(row.attribution.code_offset).is_some_and(|start| {
+                                    start <= site.text_offset
+                                        && start.checked_add(row.attribution.byte_count).is_some_and(|end| site.text_offset < end)
+                                })
+                        }).count() == 1
+                    }
+                    _ => false,
+                }
         })
         && stack.local_peak_bytes
             == function

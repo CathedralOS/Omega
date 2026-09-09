@@ -1,0 +1,54 @@
+data Outcome {
+    case Empty;
+    case First(count: u64);
+    case Second(count: u64);
+    case Third(count: u64);
+}
+
+machine choose(out: &mut [u8], selector: u64, count: u64) -> Outcome {
+    transition { _ -> scan(out, 0, selector, count) }
+    state scan(out: &mut [u8], position: u64, selector: u64, count: u64) -> Outcome {
+        transition position < out.len {
+            true -> store(out, position, selector, count)
+            false -> select(selector, count)
+        }
+    }
+    state store(out: &mut [u8], position: u64, selector: u64, count: u64) -> Outcome {
+        out[position] = 37;
+        transition { _ -> scan(out, position + 1, selector, count) }
+    }
+    state select(selector: u64, count: u64) -> Outcome {
+        transition selector == 0 { true -> empty() false -> first_test(selector, count) }
+    }
+    state empty() -> Outcome { Outcome::Empty }
+    state first_test(selector: u64, count: u64) -> Outcome {
+        transition selector == 1 { true -> first(count) false -> second_test(selector, count) }
+    }
+    state first(count: u64) -> Outcome { Outcome::First { count: count } }
+    state second_test(selector: u64, count: u64) -> Outcome {
+        transition selector == 2 { true -> second(count) false -> third(count) }
+    }
+    state second(count: u64) -> Outcome { Outcome::Second { count: count } }
+    state third(count: u64) -> Outcome { Outcome::Third { count: count } }
+}
+
+machine collect(out: &mut [u8], selector: u64, expected: u64) {
+    let observed: Outcome = choose(out, selector, expected);
+    transition observed {
+        Outcome::Third { count } -> check(out, expected, count, 33)
+        Outcome::Empty -> writable(out, 0)
+        Outcome::Second { count } -> check(out, expected, count, 22)
+        Outcome::First { count } -> check(out, expected, count, 11)
+    }
+    state check(out: &mut [u8], expected: u64, actual: u64, marker: u8) {
+        transition expected == actual {
+            true -> writable(out, marker)
+            false -> writable(out, 255)
+        }
+    }
+    state writable(out: &mut [u8], marker: u8) {
+        transition out.len > 0 { true -> store(out, marker) false -> done() }
+    }
+    state store(out: &mut [u8], marker: u8) { out[0] = marker; }
+    state done() {}
+}

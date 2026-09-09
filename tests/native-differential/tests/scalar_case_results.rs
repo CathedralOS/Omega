@@ -112,6 +112,22 @@ fn scalar_case_call_dispatch_writes_original_borrowed_storage() {
     assert_host("collect", include_str!("scalar_case_results/collect.c"));
 }
 
+#[test]
+fn scalar_case_borrowed_callee_loop_preserves_storage_and_result() {
+    let artifact = produce_source("collect", include_str!("scalar_case_results/borrowed.omg"));
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+        let (image, offset) = publish(&artifact, target);
+        #[cfg(any(
+            all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        if target == NativeTarget::host() {
+            let driver = format!("#define CALLEE_FILLS_VIEW 1\n{}", include_str!("scalar_case_results/collect.c"));
+            native_function::assert_c_text(&image.output().final_text_bytes, offset, &driver);
+        }
+    }
+}
+
 fn assert_host(entry: &str, driver: &str) {
     #[cfg(any(
         all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")),

@@ -405,10 +405,11 @@ fn validate_borrowed_argument(
                 .into_iter()
                 .chain(std::iter::once(shape))
                 .collect(),
-            result: call
-                .result_placement
-                .as_ref()
-                .map(|_| ValueShape::integer(8, 8)),
+            result: if call.structural_result.is_some() {
+                Some(crate::selection::scalar_case_input::call_result(source, call)?.1.shape)
+            } else {
+                call.result_placement.as_ref().map(|_| ValueShape::integer(8, 8))
+            },
         },
     )
     .ok()?;

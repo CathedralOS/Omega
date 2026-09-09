@@ -105,7 +105,9 @@ pub(crate) fn accepts_write_borrow(
     .is_ok_and(|expected| expected == *call_plan)
 }
 
-/// An immutable byte descriptor is borrowed through one native pointer.
+/// A byte descriptor is borrowed through one native pointer, independently of
+/// the function's result carrier. Legalization and return selection validate
+/// that carrier separately; borrowing does not imply a Unit result.
 pub(crate) fn accepts_borrowed_view(
     call_plan: &CallPlan,
     parameters: &[Parameter<'_>],
@@ -127,11 +129,7 @@ pub(crate) fn accepts_borrowed_view(
             calling_conventions::ValueShape::integer(1, 1),
         ]
         .contains(shape)
-    }) || call_plan
-        .result
-        .as_ref()
-        .is_some_and(|result| result.shape != calling_conventions::ValueShape::integer(8, 8))
-    {
+    }) {
         return false;
     }
     shapes.extend(
@@ -152,9 +150,8 @@ pub(crate) fn accepts_borrowed_view(
         && parameters.iter().enumerate().all(|(position, parameter)| {
             parameter.semantic.position as usize == position
                 && !parameter.semantic.is_self
-                && (parameter.semantic.access == StructuralAccess::SharedBorrow
-                    || (parameter.semantic.access == StructuralAccess::MutableBorrow
-                        && call_plan.result.is_none()))
+                && matches!(parameter.semantic.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
                 && parameter.semantic.multiplicity
                     == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.semantic.qualifications.is_empty()
