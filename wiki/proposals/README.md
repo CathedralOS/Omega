@@ -39,9 +39,5 @@ separate review system or historical decision ledger.
   require no runtime checking independently of this design.
 - [0003: Proof-search caching](0003_proof_search_cache.md): untrusted derivation reuse;
   persistence, keys, and granularity remain unselected.
-- [0004: Learned optimization policy](0004_learned_optimization_policy.md): proposed
-  workload-guided ranking and search, with independent semantic validation.
-- [0005: Matching-logic interchange](0005_matching_logic.md): an open comparison of a
-  second proof/semantics route, including its translation and trust costs.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).

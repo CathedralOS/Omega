@@ -16,6 +16,10 @@ the existing task boards, not in a second tracking system.
   feasibility evidence, not authority for another chain.
 - [Bootstrap-chain comparisons](bootstrap_chain_alternatives.md): reference
   tradeoffs, not a proposed replacement; remove when superseded or no longer useful.
+- [Learned optimization](learned_optimization_policy.md): exploratory workload,
+  ranking, and search ideas; remove when superseded by a concrete design or unused.
+- [Matching-logic interchange](matching_logic.md): research background and possible
+  proof-route comparisons; remove when superseded by a concrete design or unused.
 - [Test-cycle measurements](test_cycle_measurements.md): dated Windows evidence
   for future scheduling and selection comparisons.
 - [Cathedral alignment](cathedral_alignment.md): temporary cross-repository

@@ -1,20 +1,23 @@
-# 0004: Learned optimization policy
+# Exploring learned optimization policy
 
-Status: open; not accepted.
+Purpose: explore whether learned ranking or bounded search would improve compiler
+output enough to justify its costs. No concrete integration is proposed, and
+these notes authorize no implementation. Keep them while the comparison is
+useful; delete them when superseded by a concrete design or no longer relevant.
 
 Affected subject: [optimization selection and validation](../spec/build/optimizations.md).
 
-## Problem
+## Motivation
 
 Deterministic heuristics may choose poorly for a particular workload. The
 question is whether learned ranking or bounded search can improve measured
 output quality enough to justify training, evaluation, and build costs without
 changing semantic admission or making the baseline depend on a model.
 
-## Proposed direction
+## Possible investigation
 
-Use offline or explicitly selected build-time search over the existing validated
-candidate interface. Evaluate candidate decisions against a versioned workload
+One approach would use offline or explicitly selected build-time search over the
+existing validated candidate interface. Evaluate decisions against a versioned workload
 corpus, with source-separated training, evaluation, and regression sets. Emit a
 fixed, identity-bound decision/result, not a runtime oracle. Compare measured
 execution, size, and compilation costs against the model-free baseline rather
@@ -28,7 +31,7 @@ specialization or multiversioning are extensions to investigate, not existing
 compiler contracts. They must retain exact candidate admission, reproducibility,
 resource bounds, and the separate component-publication contract.
 
-## Alternatives and unresolved questions
+## Alternatives and research questions
 
 Keep deterministic heuristics and the current offline reference model if useful
 quality gains are not measured. Bounded model-free search can test the workload
