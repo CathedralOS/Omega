@@ -181,9 +181,13 @@ fn stage_terminal_component(
                 native_realization::current_terminal_authority_permission_policy(),
             program_entry: native_realization::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
-                selected_program_entry
-                    .calling_plans()
-                    .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry)),
+                selected_program_entry.calling_plans().map(|plans| {
+                    (
+                        &plans.semantic_calling_application,
+                        &plans.physical_calling_application,
+                        &plans.storage_entry,
+                    )
+                }),
                 selected_program_entry.fused_service_establishments(),
             ),
             optimization_selections: post_terminal_optimizations.selections(),
