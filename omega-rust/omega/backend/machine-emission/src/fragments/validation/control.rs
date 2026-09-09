@@ -16,7 +16,8 @@ pub(super) fn check(
     actual: &Control,
 ) -> Result<(), ResolvedFragmentEmissionError> {
     if let SelectedInstructionKind::CallI64 { callee }
-    | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
+    | SelectedInstructionKind::CallUnit { callee }
+    | SelectedInstructionKind::CallAggregate { callee } = instruction.kind
     {
         return require(
             matches!(actual, Control::DirectInternalCall { callee: target } if *target == callee),
@@ -108,8 +109,7 @@ fn successor(
     require(
         actual.role == source.role
             && actual.psi_edge == source.psi_edge
-            && (actual.role
-                == selected_instructions::SelectedSuccessorRole::Semantic
+            && (actual.role == selected_instructions::SelectedSuccessorRole::Semantic
                 || actual.fuel.is_empty())
             && actual.block == source.block
             && actual.source_target == source.source_target

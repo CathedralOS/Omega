@@ -52,21 +52,33 @@ pub(super) fn check(
         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
     require(actual_end == end)?;
     match (&claimed.value, selected.kind) {
-        (WholeFunctionReturnValueEvidence::AggregateV1 { fragments }, SelectedInstructionKind::ReturnAggregate { fragment_count }) => {
-            require((1..=2).contains(&fragment_count)
-                && fragments.len() == usize::from(fragment_count)
-                && selected.operands.len() == fragments.len()
-                && machine.operands.len() == fragments.len())?;
-            for (ordinal, ((fragment, operand), selected_operand)) in fragments.iter().zip(&machine.operands).zip(&selected.operands).enumerate() {
-                require(operand.operand == ordinal as u16
-                    && operand.access == RegisterOperandAccess::Use
-                    && selected_operand.fixed_view == Some(operand.view)
-                    && selected_operand.virtual_register == operand.virtual_register
-                    && operand.read_units == operand.storage_units
-                    && operand.write_units.is_empty()
-                    && fragment.virtual_register == operand.virtual_register
-                    && fragment.view == operand.view
-                    && fragment.units == operand.storage_units)?;
+        (
+            WholeFunctionReturnValueEvidence::AggregateV1 { fragments },
+            SelectedInstructionKind::ReturnAggregate { fragment_count },
+        ) => {
+            require(
+                (1..=2).contains(&fragment_count)
+                    && fragments.len() == usize::from(fragment_count)
+                    && selected.operands.len() == fragments.len()
+                    && machine.operands.len() == fragments.len(),
+            )?;
+            for (ordinal, ((fragment, operand), selected_operand)) in fragments
+                .iter()
+                .zip(&machine.operands)
+                .zip(&selected.operands)
+                .enumerate()
+            {
+                require(
+                    operand.operand == ordinal as u16
+                        && operand.access == RegisterOperandAccess::Use
+                        && selected_operand.fixed_view == Some(operand.view)
+                        && selected_operand.virtual_register == operand.virtual_register
+                        && operand.read_units == operand.storage_units
+                        && operand.write_units.is_empty()
+                        && fragment.virtual_register == operand.virtual_register
+                        && fragment.view == operand.view
+                        && fragment.units == operand.storage_units,
+                )?;
             }
         }
         (WholeFunctionReturnValueEvidence::UnitV1, SelectedInstructionKind::ReturnUnit) => {

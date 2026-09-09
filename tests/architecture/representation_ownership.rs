@@ -1092,8 +1092,8 @@ fn exit_contract_records_and_identities_are_representation_owned() {
     assert!(emission.contains(wrapper));
     assert!(!pipeline.contains(wrapper));
     assert!(!machine.contains(wrapper));
-    assert!(machine.contains("omega.terminal.whole-function-exit-contract.v12"));
-    assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v12"));
+    assert!(machine.contains("omega.terminal.whole-function-exit-contract.v13"));
+    assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v13"));
     assert!(!machine.contains("post_allocation_machine_to_post_allocation_machine::"));
     assert!(!machine.contains("native_realization::"));
     assert!(

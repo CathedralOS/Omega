@@ -371,15 +371,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Continue line assembly from the exact-copy floor in
   `tests/native-differential/tests/terminal_byte_views/read_one.omg` and
   `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`.
-  Finish native payload construction and ordinary return/call realization for
-  `LineReadResult`; payloadless construction and whole-root identity returns do
-  not cover them. Use the verified/interpreted scalar-case constructor and
-  caller controls in `byte_write_loop.rs`, including four-case dispatch with
-  repeated payload names and full-width counts, as input to the existing shared graph,
-  not a line-specific compiler route. Native lowering must keep rejecting
-  nonempty scalar-case construction until aggregate result storage, call
-  transport, and selected-case observation are realized together. The fence is
-  pinned in `terminal_psi_source_payloadless_optimizer.rs`.
+  Continue from ordinary native scalar-sum construction, return/call transport,
+  and selected-case observation in `tests/native-differential/tests/scalar_case_results.rs`.
+  On the checkpoint based on `7a82972872`, macOS ARM64,
+  `cargo nextest run -p omega-native-differential-test --test scalar_case_results
+  --no-fail-fast --no-tests fail` passes: a borrowed callee fills original caller
+  storage, returns one of four cases with repeated payload names, and preserves
+  full-width counts through caller dispatch and installation replay. Publication
+  covers Linux x64/ARM64 and macOS ARM64; only macOS runtime was exercised.
+  Windows indirect aggregate results remain an explicit realization dependency.
+  Integrate these ordinary graph operations into shared line assembly rather
+  than introducing a line-specific compiler route. The actual line reader and
+  `cli_mvp` acceptance below remain open.
   Preserve the retained declaration ranges, selected-case scalar
   facts, and provider-return validation described in the
   [Terminal producer](omega-rust/psi/compiler/terminal-production/README.md).

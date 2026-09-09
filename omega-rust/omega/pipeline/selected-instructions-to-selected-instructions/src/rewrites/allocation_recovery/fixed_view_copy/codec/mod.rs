@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V23 binds block origin and successor role.
+//! Owns admission and authentication order. V28 binds aggregate result contracts,
+//! call/return fragments, and multi-case dispatch origins alongside existing transport.
 //! Every older envelope is rejected before its payload is interpreted.
 
 mod content;

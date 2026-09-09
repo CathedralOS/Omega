@@ -289,8 +289,7 @@ pub(super) fn lower_terminator(
             source,
             returned_claims,
             trivial_affine_discards,
-        } if machine.result.structural().is_some() =>
-        {
+        } if machine.result.structural().is_some() => {
             operations.push(AbstractOperation::ReturnStructural {
                 psi_edge: *edge,
                 source: *source,

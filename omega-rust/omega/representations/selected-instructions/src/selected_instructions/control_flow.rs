@@ -34,7 +34,10 @@ pub struct SelectedBlock {
 pub enum SelectedBlockOrigin {
     Source(BlockId),
     /// Continues selection of a declared sum case; no semantic edge is taken yet.
-    CaseDispatch { source: BlockId, case_ordinal: u32 },
+    CaseDispatch {
+        source: BlockId,
+        case_ordinal: u32,
+    },
     /// Copies for one authored edge; the target is semantic lineage, not a
     /// claim that this implementation block exists in Terminal Psi.
     EdgeTransfer {

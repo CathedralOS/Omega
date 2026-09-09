@@ -93,7 +93,9 @@ pub(super) fn prepare_function_signature(
             AbstractFunctionResult::Structural(result) => Some(
                 super::control_flow::scalar_sums::result_layout(result, structural_types)?.shape,
             ),
-            _ => function.result.scalar()
+            _ => function
+                .result
+                .scalar()
                 .map(|result| super::scalar::scalar_shape(result.value, result.scalar_type, false))
                 .transpose()?,
         },

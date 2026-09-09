@@ -101,7 +101,9 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
 
     match &mut normalized {
         O::EstablishScalarCase { fields, .. } => {
-            for field in fields { replace(&mut field.value); }
+            for field in fields {
+                replace(&mut field.value);
+            }
         }
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }

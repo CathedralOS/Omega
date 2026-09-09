@@ -38,7 +38,7 @@ pub(crate) fn has_free_unit_entry(
 pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnostics::Diagnostic> {
     if artifact.requires_graph_storage_replay && artifact.fragment_replay.is_none() {
         return Err(diagnostics::Diagnostic::error(
-            "primitive storage operations require retained physical replay evidence",
+            "graph storage and aggregate results require retained physical replay evidence",
         ));
     }
     if artifact.fragment_replay.is_none()

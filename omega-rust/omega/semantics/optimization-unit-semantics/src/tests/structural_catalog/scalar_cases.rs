@@ -13,24 +13,45 @@ fn scalar_case_unit() -> PsiOptimizationUnit {
     candidate.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
         id: structural_type,
         identity: "test::ScalarOutcome".into(),
-        shape: terminal_psi::StructuralTypeShape::Sum { cases: vec![terminal_psi::StructuralCaseDeclaration {
-            id: case, identity: "Value".into(), fields: vec![terminal_psi::StructuralFieldDeclaration {
-                id: field, identity: "value".into(), relevance: terminal_psi::BindingRelevance::Relevant,
-                field_type: terminal_psi::StructuralFieldType::Scalar(scalar_type),
+        shape: terminal_psi::StructuralTypeShape::Sum {
+            cases: vec![terminal_psi::StructuralCaseDeclaration {
+                id: case,
+                identity: "Value".into(),
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: field,
+                    identity: "value".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(scalar_type),
+                }],
             }],
-        }] },
+        },
     }];
-    candidate.functions[0].structural_places.push(terminal_psi::StructuralPlaceDeclaration {
-        id: place, kind: StructuralPlaceKind::OperationResult { producer: operation, structural_type },
-    });
+    candidate.functions[0]
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type,
+            },
+        });
     let mut node = candidate.functions[0].blocks[0].nodes[0].clone();
     node.operation = AbstractOperation::EstablishScalarCase {
         psi_operation: operation,
-        result: terminal_psi::StructuralOperationResult { place, structural_type,
+        result: terminal_psi::StructuralOperationResult {
+            place,
+            structural_type,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(), projected_qualifications: Vec::new(), claims: Vec::new() },
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        },
         result_case: case,
-        fields: vec![terminal_psi::ScalarCaseField { field, value: id(3, ValueId::new), range_obligation: None }],
+        fields: vec![terminal_psi::ScalarCaseField {
+            field,
+            value: id(3, ValueId::new),
+            range_obligation: None,
+        }],
     };
     candidate.functions[0].blocks[0].nodes.insert(1, node);
     refresh_node_derivatives(&mut candidate, 0, 0, 1);
@@ -46,12 +67,28 @@ fn scalar_case_initializer_is_a_live_typed_scalar_use() {
     let node = &function.blocks[0].nodes[1];
     assert_eq!(node.uses.len(), 1);
     assert_eq!(node.uses[0].value, id(3, ValueId::new));
-    let types = candidate.structural_types.iter().map(|declaration| (declaration.id, declaration)).collect();
-    assert!(crate::unit_validation::scalar_case_establishment_matches(function, &node.operation, &types));
+    let types = candidate
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect();
+    assert!(crate::unit_validation::scalar_case_establishment_matches(
+        function,
+        &node.operation,
+        &types
+    ));
     let original = candidate.identity;
     for mutation in 0..5 {
         let mut changed = candidate.clone();
-        let AbstractOperation::EstablishScalarCase { fields, result_case, result, .. } = &mut changed.functions[0].blocks[0].nodes[1].operation else { unreachable!() };
+        let AbstractOperation::EstablishScalarCase {
+            fields,
+            result_case,
+            result,
+            ..
+        } = &mut changed.functions[0].blocks[0].nodes[1].operation
+        else {
+            unreachable!()
+        };
         match mutation {
             0 => fields.clear(),
             1 => fields[0].field = id(899, semantic_vocabulary::StructuralFieldId::new),
@@ -62,6 +99,10 @@ fn scalar_case_initializer_is_a_live_typed_scalar_use() {
         }
         refresh_identity(&mut changed);
         assert_ne!(original, changed.identity);
-        assert!(!crate::unit_validation::scalar_case_establishment_matches(&changed.functions[0], &changed.functions[0].blocks[0].nodes[1].operation, &types));
+        assert!(!crate::unit_validation::scalar_case_establishment_matches(
+            &changed.functions[0],
+            &changed.functions[0].blocks[0].nodes[1].operation,
+            &types
+        ));
     }
 }

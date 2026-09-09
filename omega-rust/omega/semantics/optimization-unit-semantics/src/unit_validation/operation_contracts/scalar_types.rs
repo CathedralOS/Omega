@@ -456,9 +456,15 @@ pub(crate) fn operation_scalar_types_match(
                     && requirement.result
                         == terminal_psi::ClosedConformanceCallableResult::Unit)
         }
-        O::CallStructural { callee, arguments, .. } => functions.get(callee).is_some_and(|callee| {
+        O::CallStructural {
+            callee, arguments, ..
+        } => functions.get(callee).is_some_and(|callee| {
             callee.parameters.len() == arguments.len()
-                && callee.parameters.iter().zip(arguments).all(|(parameter, argument)| scalar(*argument) == Some(parameter.scalar_type))
+                && callee
+                    .parameters
+                    .iter()
+                    .zip(arguments)
+                    .all(|(parameter, argument)| scalar(*argument) == Some(parameter.scalar_type))
                 && matches!(
                     callee.result,
                     abstract_operations::AbstractFunctionResult::Structural(_)

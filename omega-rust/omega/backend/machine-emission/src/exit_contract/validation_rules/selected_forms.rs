@@ -377,10 +377,14 @@ pub(in crate::exit_contract) fn validate_return(
                 || selected.operands.len() != usize::from(fragment_count)
                 || machine.operands.len() != usize::from(fragment_count)
             {
-                return Err(WholeFunctionExitContractError::ReturnOperandMismatch(selected.id));
+                return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
+                    selected.id,
+                ));
             }
             let mut fragments = Vec::new();
-            for (ordinal, (selected_operand, operand)) in selected.operands.iter().zip(&machine.operands).enumerate() {
+            for (ordinal, (selected_operand, operand)) in
+                selected.operands.iter().zip(&machine.operands).enumerate()
+            {
                 if operand.operand != ordinal as u16
                     || operand.access != RegisterOperandAccess::Use
                     || selected_operand.fixed_view != Some(operand.view)
@@ -388,7 +392,9 @@ pub(in crate::exit_contract) fn validate_return(
                     || operand.read_units != operand.storage_units
                     || !operand.write_units.is_empty()
                 {
-                    return Err(WholeFunctionExitContractError::ReturnOperandMismatch(selected.id));
+                    return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
+                        selected.id,
+                    ));
                 }
                 fragments.push(machine_code::WholeFunctionReturnFragmentEvidence {
                     virtual_register: operand.virtual_register,

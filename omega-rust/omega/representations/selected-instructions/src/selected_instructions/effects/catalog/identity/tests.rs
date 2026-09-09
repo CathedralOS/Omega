@@ -19,8 +19,14 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
 
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
-        call_aggregate: vec![RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 1000 }],
-        return_aggregate: vec![RegisterConstraintKey { family: RegisterConstraintFamily::Return, variant: 10 }],
+        call_aggregate: vec![RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: 1000,
+        }],
+        return_aggregate: vec![RegisterConstraintKey {
+            family: RegisterConstraintFamily::Return,
+            variant: 10,
+        }],
         hosted_read_byte: Some(instruction(33)),
         hosted_write_byte_i32: Some(instruction(24)),
         hosted_exit_process_i32: Some(instruction(32)),
@@ -72,8 +78,12 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
     let constraint = keys
         .for_semantic(semantic)
         .or_else(|| {
-            if semantic == MachineSemanticKind::CallAggregate { return keys.call_aggregate.first().copied(); }
-            if semantic == MachineSemanticKind::ReturnAggregate { return keys.return_aggregate.first().copied(); }
+            if semantic == MachineSemanticKind::CallAggregate {
+                return keys.call_aggregate.first().copied();
+            }
+            if semantic == MachineSemanticKind::ReturnAggregate {
+                return keys.return_aggregate.first().copied();
+            }
             (matches!(
                 semantic,
                 MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
@@ -113,7 +123,9 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
             MachineBarrier::ControlFlow
         } else if matches!(
             semantic,
-            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate
+            MachineSemanticKind::CallI64
+                | MachineSemanticKind::CallUnit
+                | MachineSemanticKind::CallAggregate
         ) {
             MachineBarrier::Call
         } else {
@@ -121,7 +133,9 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
         },
         call: if matches!(
             semantic,
-            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate
+            MachineSemanticKind::CallI64
+                | MachineSemanticKind::CallUnit
+                | MachineSemanticKind::CallAggregate
         ) {
             MachineCallEffect::DirectInternalNormalReturnV1 {
                 pre_call_stack_alignment: 16,
@@ -234,6 +248,22 @@ fn identity_distinguishes_call_arity_order_and_role_boundaries() {
         relabeled.selected_keys.in_identity_order()
     );
     assert_ne!(baseline, machine_effect_catalog_identity(&relabeled));
+}
+
+#[test]
+fn identity_distinguishes_aggregate_call_and_return_role_boundaries() {
+    let source = catalog();
+    let mut relabeled = source.clone();
+    let call_key = relabeled.selected_keys.call_aggregate.remove(0);
+    relabeled.selected_keys.return_aggregate.insert(0, call_key);
+    assert_eq!(
+        source.selected_keys.in_identity_order(),
+        relabeled.selected_keys.in_identity_order()
+    );
+    assert_ne!(
+        machine_effect_catalog_identity(&source),
+        machine_effect_catalog_identity(&relabeled)
+    );
 }
 
 #[test]

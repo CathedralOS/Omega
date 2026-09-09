@@ -5,9 +5,24 @@ pub(crate) fn plain_scalar_sum_call(
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::CallStructural { result, claim_transfers, returned_claim_transfers, requirement_obligations, crash_continuations, selected_evidence, .. } = operation else { return false; };
-    let Some(signature) = callee.result.structural() else { return false; };
-    let Some(contract) = &callee.verified_contract else { return false; };
+    let O::CallStructural {
+        result,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+        selected_evidence,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let Some(signature) = callee.result.structural() else {
+        return false;
+    };
+    let Some(contract) = &callee.verified_contract else {
+        return false;
+    };
     matches!(signature.multiplicity, terminal_psi::StructuralMultiplicity::Affine | terminal_psi::StructuralMultiplicity::Unrestricted)
         && signature.qualifications.is_empty()
         && signature.projected_qualifications.is_empty()

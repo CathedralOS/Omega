@@ -212,7 +212,7 @@ pub(super) fn build(
         } else {
             builder.instructions.len()
         };
-        if source.ranked.is_none() && !crate::unobserved_owned_input::accepts(source) {
+        if !crate::unobserved_owned_input::accepts(source) {
             structural::block_entry(block, &mut builder)?;
         }
         for (operation_index, operation) in block.instructions.iter().enumerate() {

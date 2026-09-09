@@ -81,7 +81,8 @@ fn validate_internal_fixup(
     fixup: SelectedFormInternalMachineFixup,
 ) -> Result<SelectedFormInternalMachineFixup, OptimizedResolvedSelectedFormLayoutError> {
     let (SelectedInstructionKind::CallI64 { callee }
-    | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
+    | SelectedInstructionKind::CallUnit { callee }
+    | SelectedInstructionKind::CallAggregate { callee }) = instruction.kind
     else {
         return unexpected(instruction.id);
     };

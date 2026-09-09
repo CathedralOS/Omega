@@ -322,13 +322,14 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
         signature.parameters[0].semantic.access = terminal_psi::StructuralAccess::MutableBorrow;
         signature.parameters[0].target.access = terminal_psi::StructuralAccess::MutableBorrow;
         let mutable_selected = build(
-                0,
-                &mutable_view,
-                target,
-                &constraints,
-                environment.physical(),
-                environment.constraints()
-            ).expect("incoming mutable descriptor is independent of the scalar result");
+            0,
+            &mutable_view,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .expect("incoming mutable descriptor is independent of the scalar result");
         validate(&mutable_view, &mutable_selected).unwrap();
         assert!(validate(&source, &mutable_selected).is_err());
         let mut wrong_source = source.clone();

@@ -88,7 +88,9 @@ fn instruction_size(
         SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, .. } => {
             if !matches!(
                 instruction.kind,
-                SelectedInstructionKind::CallI64 { .. } | SelectedInstructionKind::CallUnit { .. } | SelectedInstructionKind::CallAggregate { .. }
+                SelectedInstructionKind::CallI64 { .. }
+                    | SelectedInstructionKind::CallUnit { .. }
+                    | SelectedInstructionKind::CallAggregate { .. }
             ) {
                 return unexpected(instruction);
             }
