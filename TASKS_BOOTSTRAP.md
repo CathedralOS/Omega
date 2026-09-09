@@ -150,7 +150,7 @@ prerequisite to every lower-rung milestone.
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
   Resume evidence on macOS arm64, canonical Delta closure SHA-256
-  `84ab380f0d725061d415efa048db3bd2b7c6fe8a525a70207783cb81ce23dda5`
+  `67b578fd34cb9188e66def82c70bd5f489b70962b4eeacbdbbfd259f1f68a86a`
   and the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
   `sh tests/epsilon/checking/run.sh` reconstructs the
@@ -162,13 +162,15 @@ prerequisite to every lower-rung milestone.
   is bounded by admitted constructors. Do not implement fictitious tables or
   chase arbitrary corrupt private pairs. The
   [normalization audit](bootstrap/3_delta/implementation/normalization/README.md)
-  gives source-level height and static-environment arguments, including helper
-  captures; `sh tests/delta/normalization/run.sh` exercises successful compilation
-  and execution at source depth 1,024 and payload width 2,048. The latter source
-  compiles in 16.0 seconds with mapped-capture reuse, preserving its exact receipt;
-  the original inline-projection baseline exceeded 300 seconds, not an observed
-  heap exhaustion. These are not checked
-  edge certificates.
+  gives source-level height, static-environment, and capture-allocation arguments;
+  `sh tests/delta/normalization/run.sh` exercises source depth 1,024 and payload
+  width 2,048. The [full-width control](tests/delta/normalization/README.md#full-width-allocation-control)
+  targets 65,535 pattern bindings plus one parameter. Its canonical compilation
+  and generated execution pass under the unchanged profile; the complete opt-in
+  diagnostic/repeated-compilation gate remains unrun. Capture now follows
+  descendant splitting, removing the demonstrated repeated-tail allocation
+  obstruction. This is neither a whole-producer allocation bound nor a checked
+  edge certificate.
   The [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
   separately bounds intermediate and complete byte counts below `2^62`;
   synthetic overflowing metadata is not an admitted-source refusal case.

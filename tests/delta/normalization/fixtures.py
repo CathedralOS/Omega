@@ -3,9 +3,22 @@
 PAYLOAD = b"A\x00\x80\xff"
 
 
-def fixtures():
+def wide_pattern_source(width, digits):
+    return (b"(data Wide (Wide" + b" Int" * width + b"))\n"
+            b"(def select ((value Wide)) Int (match value ((Wide "
+            + b" ".join(f"field{index:0{digits}}".encode() for index in range(width))
+            + f") field{width - 1:0{digits}})))\n".encode()
+            + b"(def main ((source Bytes)) Bytes source)\n")
+
+
+def fixtures(full_width=False):
     # name, source, application status/output, extraction required, initial definitions,
     # exact maximum height when fixed, pre-normalization receipt SHA256.
+    if full_width:
+        # One parameter plus these pattern binders fills the active-local provision.
+        return [("65535-field compiler completion", wide_pattern_source(65535, 5),
+                 0, PAYLOAD, True, 3, None,
+                 "d254b0f8497f617dba196196d4a8c03ceca4063687414f25d4e4b11266c9123c", None)]
     cases = []
     identity = b"(def main ((source Bytes)) Bytes source)\n"
     boundary = (b"(def deep () Int " + b"(if 1 " * 255 + b"7"
@@ -118,10 +131,7 @@ def fixtures():
               b"(if (eq (score 1) 1024) source (bytes_empty)))\n")
     cases.append(("profile depth preserves checked arithmetic", source,
                   0, PAYLOAD, True, 2, None, None, None))
-    source = (b"(data Wide (Wide" + b" Int" * 2048 + b"))\n"
-              b"(def select ((value Wide)) Int (match value ((Wide "
-              + b" ".join(f"field{index:04}".encode() for index in range(2048))
-              + b") field2047)))\n(def main ((source Bytes)) Bytes source)\n")
+    source = wide_pattern_source(2048, 4)
     cases.append(("2048-field compiler completion", source, 0, PAYLOAD, True, 3,
-                  None, "3c6ec03bc2882a5c80101bfd08a50bbe444eb61fc3ad8362e6d8cdbaa01d7d79", None))
+                  None, "b7282dcbe5078759e7260c2ffff3df01181cdc19a533ace43f1e7f20fb71772d", None))
     return cases

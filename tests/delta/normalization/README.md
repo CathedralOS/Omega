@@ -24,8 +24,8 @@ match cases require both source bindings and compiler-generated bindings to
 retain their values across helper extraction.
 The payload cases check first and middle integer fields and the pair-bearing
 last `Bytes` field, rather than only exercising the tail case.
-Two 600-level controls require later extraction to capture an earlier helper's
-fresh parameter correctly. Repeated free references must use exactly one
+Two 600-level controls require outer capture to forward its fresh parameters
+correctly to already-extracted inner helpers. Repeated free references must use exactly one
 parameter per helper. A same-spelling binder inside an outer let's initializer
 retains its independent scope across extraction.
 Two controls reach the admitted Delta expression depth of 1,024: repeated
@@ -34,7 +34,7 @@ captures must remain singular, and 1,023 nested checked additions must produce
 compilation and execution, complementing the frontend's adjacent-depth refusal
 controls rather than replacing them.
 
-The 28,797-byte, 2,048-field source pins its complete 91,238-byte receipt.
+The 28,797-byte, 2,048-field source pins its complete 91,746-byte receipt.
 Its unused wide function must still compile and validate before the identity
 entry returns binary input. On macOS arm64 the previous compiler exceeded a
 300-second watchdog; preparation/lowering alone completed in 6.7 seconds.
@@ -46,8 +46,12 @@ macOS arm64 host; executing the unchanged receipt returned `41 00 80 ff` in
 0.055 seconds. These are single-run observations, not a statistical benchmark.
 The [capture invariant](../../../bootstrap/3_delta/implementation/normalization/README.md#captured-bindings)
 explains why repeated references need no second bound-spine scan after mapping.
-This witnesses compiler completion, not an observed heap exhaustion or a
-claim that runtime traversal of every wide field is now linear.
+Those measurements preceded capture-after-splitting. That ordering now produces
+the pinned 91,746-byte receipt; its changed helper identities account for the
+byte change. It compiled and executed on macOS arm64 in a focused probe, with
+15.588 seconds for compilation. This is not a controlled speedup comparison.
+These observations witness compiler completion, not measured heap exhaustion
+or a claim that runtime traversal of every wide field is now linear.
 
 The fitting height-255 program pins its entire 3,729-byte canonical receipt by
 SHA256. That receipt was measured with the preceding 111,464-byte compiler
@@ -70,3 +74,35 @@ This private framing is not a compiler or application envelope. The
 [lowering-plan gate](../lowering-plan/README.md) continues measuring the
 unnormalized expanded plan. These bounded normalization controls do not close
 all resource limits or the Delta bootstrap edge.
+
+## Full-width allocation control
+
+`sh tests/delta/normalization/run.sh --full-width` selects one source with a
+65,535-field constructor, a one-parameter function matching all those fields,
+and an identity `main : Bytes -> Bytes`. The match returns its last field;
+the entry does not execute that unused function, but the complete compiler and
+generated Gamma validator must still admit it. The gate uses the same height,
+capture, repeated-compilation, and binary-output checks with a 1,200-second
+diagnostic allowance per invocation. This is an opt-in conformance control,
+not a profile change or a permanent profiler.
+
+The 983,151-byte source has SHA-256
+`67a00ec31c05a30042a8ae73e24c12212065a2777eccfca7b767ee355d9ed839`.
+Its parameter plus pattern binders exactly fill 65,536 active locals; it has
+one nominal type, one constructor, two functions, and expression depth two.
+The source-derived parser and grammar allocation is respectively 655,529 and
+524,324 pairs: 47,194,120 syntax bytes, below 114,294,752.
+The [capture allocation argument](../../../bootstrap/3_delta/implementation/normalization/README.md#capture-allocation-ownership)
+shows why capture-before-splitting cannot finish within the selected pair arena.
+It is not inferred from a watchdog expiration.
+
+With canonical compiler SHA-256
+`67b578fd34cb9188e66def82c70bd5f489b70962b4eeacbdbbfd259f1f68a86a`,
+a disposable canonical DCREQ/profile-1 run on macOS arm64 compiled this source
+in 511.187 seconds to 3,102,098 bytes, SHA-256
+`d254b0f8497f617dba196196d4a8c03ceca4063687414f25d4e4b11266c9123c`.
+That exact receipt returned `41 00 80 ff` with status zero and empty stderr.
+The old compiler hit a 120-second diagnostic watchdog; the candidate first hit
+300 seconds before the longer successful run. Neither timeout was reported as
+a resource frame or used as a speedup baseline. The complete optional gate's
+diagnostic and repeated-compilation legs have not yet been run for this source.
