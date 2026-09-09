@@ -3,15 +3,21 @@
 Omega is a systems language built around explicit state machines, checked
 contracts, and ownership of memory and resources.
 
-Make trust explicit. Prove that, when those assumptions hold, the program keeps
+Omega is betting on the following software trends into the future:
+- The cost of code and intelligence are going to zero as the quality increases.
+- It will become increasingly critical that software performs well, and 'just works'.
+- It will be necessary to validate assurances up front. Even intelligent AI can make critical mistakes.
+- Software will permeate every aspect of our lives. Some of these areas are too costly to get wrong, like transportation and medical fields.
+- "Don't trust, and verify" will become necessary to avoid an onslaught of malicious or buggy code. This means provable claims about performance, capabilities, and stability.
+
+Make trust explicit, narrow, and auditable. When this trust holds, the program keeps
 its promises. There is no `unsafe` escape hatch: even inline assembly must
-satisfy checked contracts or rely on explicitly admitted assumptions.
+satisfy checked contracts.
 
-These contracts make questions about program behavior part of checking:
-
-- Which operations are proved to terminate?
-- Can this API access the filesystem, including through its dependencies?
-- Under what conditions can this operation crash?
+The acyclic graph-like nature of Omega programs allow us to answer otherwise difficult questions at compile-time:
+- Does an API call provably terminate? Can it crash? Under what conditions?
+- Does an API access the filesystem, including through its dependencies?
+- Does a program perform well under load?
 
 Omega is being built for software where failure is costly—from aircraft systems
 to OS kernels—without sacrificing performance.
@@ -28,115 +34,108 @@ design is ahead of its implementation; native support is still being completed.
 [Examples](samples/) ·
 [Contributing](#development)
 
-## What this lets you build
+## Machines
 
-These sketches use illustrative package APIs with the contracts described below.
-Devices, allocators, and storage services are library code, not special language
-constructs.
+A machine defines behavior, its inputs, and its contract. A simple machine looks
+like an ordinary function or method:
 
-### The borrow checker includes your hardware
+```omega
+data Player {
+    health: u32;
+}
 
-A device writing into memory holds an exclusive loan, just as another machine
-would. Here `receive` starts that loan; `finish` returns only after the device has
-released it and the required memory visibility has been established.
+machine Player::take_damage(&mut self, amount: u32)
+    requires amount <= self.health
+    ensures self.health == before(self.health) - amount
+{
+    // Guaranteed safe since amount <= self.health
+    self.health = self.health - amount;
+}
+```
+
+- `&mut self` borrows the player exclusively.
+- `requires` is the caller's obligation: establish that the subtraction is safe.
+- `ensures` is the implementation's obligation: prove the promised result.
+  `before(...)` refers to the value on entry.
+
+The caller can establish the condition through a branch or facts already known.
+An unproved call is a compile error, not an automatically inserted runtime
+assertion.
+
+For longer control flow, machines contain named states and explicit transitions.
+Transfers carry values and ownership without growing the call stack.
+[Machines](wiki/language_guide/chapter_3_machines.md) ·
+[States and transitions](wiki/language_guide/chapter_4_states_transitions.md)
+
+## Domains and invariants
+
+Contracts can describe relationships between fields, not just individual
+arguments. A data type's `where` clause defines its **default domain**:
+
+```omega
+data Span
+where
+    start <= end,
+{
+    start: u32;
+    end: u32;
+}
+
+machine Span::shift(&mut self, delta: u32)
+    requires self.end <= u32::Maximum - delta
+{
+    self.start = self.start + delta;
+    self.end = self.end + delta;
+}
+```
+
+The first write can temporarily break `start <= end`. Exclusive access prevents
+another observer from seeing that intermediate state; the second write restores
+the relationship. Returning early or passing the broken span to a machine that
+requires a valid one is rejected.
+
+The checker proves both additions fit and that the domain holds again at return.
+Neither check inserts a runtime assertion or adds a field: a span still contains
+just two `u32` values.
+
+Named domains let other contracts reuse such facts. Ordinary machines also
+establish mathematical theorems, and eligible computations can be evaluated at
+compile time or referenced in proofs without maintaining a separate algorithm.
+[Domains](wiki/language_guide/chapter_8_domains.md) ·
+[Invariant windows](wiki/language_guide/chapter_11_invariant_windows.md) ·
+[Mathematical proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
+
+## Hardware access
+
+Ownership also applies when a device accesses memory. In this driver API sketch,
+`receive` lends a nonempty buffer to a device for writing. `finish` returns only
+after the device releases the loan and the required memory visibility holds:
 
 ```omega
 let transfer = device.receive(&mut buffer);
 
-// buffer[0] = 42;                 // Rejected: the device holds the buffer.
-// let byte = buffer[0];           // Rejected: reading races the device too.
+// buffer[0] = 42;       // Rejected: the device holds exclusive access.
+// let byte = buffer[0]; // Rejected: CPU reads are excluded too.
 
 suspend device.finish(move transfer);
 
-buffer[0] = 42;                    // Valid: CPU access has been restored.
+buffer[0] = 42;          // Valid after release.
 ```
 
-Suspension preserves the loan. Losing the linear transfer token cannot silently
-release it, and a device's “success” bit is not proof that it stopped accessing
-memory. A fallible completion must return the pending obligation when release
-cannot be established. The selected provider must establish confinement and
-ordering through checked code or explicit hardware assumptions.
+`suspend` allows the current activation to pause; it does not discard the loan.
+Losing the linear transfer token cannot release it, and a device's success
+status alone is insufficient. A fallible completion must preserve the pending
+obligation when release cannot be established.
 
-The transfer and any required fences are real runtime work. Tracking the loan
-does not add a runtime borrow checker. [Device loans and completion →](wiki/spec/resources/device_access.md)
+The driver supplies the operations; Omega checks their composition. Hardware
+behavior must be established through checked instruction contracts or explicit
+provider assumptions. Required fences still execute—ownership checking does not
+replace synchronization.
 
-### Permissions without runtime tags
-
-An `Extent` stores an address and a length. The domain in `Extent in Granted`
-records established permission to use the storage—not another field. Constructing identical
-address and length values cannot forge that permission.
-
-Given sufficient granted, writable, vacant storage, an allocator can split the
-region and place a value into one part. The caller proves the required size and
-alignment:
-
-```omega
-let parts = memory.split(move region, 4096);
-let header = memory.place<Header>(move parts.left);
-
-// memory.clear(&mut region);      // Rejected: the parent was consumed.
-// memory.place<Header>(move parts.left); // Rejected: already moved into header.
-```
-
-The split must prove that its children are disjoint and cover the original
-range. Merely returning two lengths that add up is insufficient. Placement
-establishes the chosen layout, alignment, and value's validity. The header keeps
-its backing storage owned; the remaining part stays separately owned.
-
-The bound `embed(base) + embed(length) <= addr::Bound` uses unbounded mathematical
-integers: even a range's one-past endpoint need not fit in an address register.
-The executable keeps ordinary addresses and lengths—not big integers, permission tags, or a runtime
-proof object. Initialization still does its actual work.
-[Memory authority](wiki/spec/resources/extents.md) ·
-[Domains](wiki/language_guide/chapter_8_domains.md) ·
-[Proofs and erasure](wiki/language_guide/chapter_10_compile_time_proofs.md)
-
-### A dependency cannot quietly expand your permissions
-
-`build.omg` selects implementations using ordinary Omega code. Suppose the
-receiving policy allows local file access but no network access:
-
-```omega
-machine build(builder: &mut Build) {
-    builder.application("archive-reader");
-    builder.select_provider<Storage, LocalStorage>();
-}
-```
-
-Changing the selection to a network-backed implementation exposes a different
-authority requirement:
-
-```omega
-builder.select_provider<Storage, RemoteStorage>(); // Rejected by this policy.
-```
-
-The name `Storage` cannot hide the selected implementation's network access.
-A provider must satisfy both the service contract and the receiving policy;
-selecting it grants neither extra permissions nor trust in its claims.
-Replacing an admitted foreign implementation with checked Omega code can remove
-that admission, but only after proving the required contract.
-
-Provider selection is build-time work. A fused build can call the selected
-implementation directly; this does not require a runtime permission broker.
-[Boundaries and provider selection →](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md)
-
-### One machine, several uses
-
-A pure, terminating checksum machine need not be rewritten for each context:
-
-| Use | What happens |
-| --- | --- |
-| `checksum(bytes)` | Compute over runtime input. |
-| Evaluate it on fixed bytes in a constant context | Compute during compilation. |
-| Refer to its result in a proof contract | Reason about the same computation without a runtime call. |
-| `runtime.start<checksum>(bytes)` | Ask a task runtime to run it in another activation. |
-
-There is no separate `checksum_async`, `checksum_const`, or duplicated
-specification algorithm. Each use still checks eligibility, authority, and
-ownership: starting a task with borrowed bytes must keep their owner alive until
-the task releases them. An effectful machine does not become a mathematical
-function merely by appearing in a proof.
-[Machines](wiki/language_guide/chapter_3_machines.md) ·
+The same model extends to
+[memory authority without runtime domain tags](wiki/spec/resources/extents.md)
+and [provider selection under build policy](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+[Device loans](wiki/spec/resources/device_access.md) ·
 [Concurrency](wiki/language_guide/chapter_18_concurrency.md)
 
 ## Failures Omega addresses
@@ -144,21 +143,21 @@ function merely by appearing in a proof.
 These are design guarantees, within the stated trust boundaries:
 
 - ✅ **Prevented** by required checking and admission.
-- ⭐ **Conditional** on an arithmetic policy, additional proof, or trust decision;
+- ⭐ **Conditionally prevented** on an arithmetic policy, additional proof, or trust decision;
   the row states what is covered and what remains possible.
 
 | Failure | Guarantee | What Omega does about it |
 | --- | --- | --- |
 | Use-after-free, double-free, dangling references | ✅ | Ownership and borrow checking reject access after an object's lifetime and conflicting transfers. |
 | Out-of-bounds reads and writes | ✅ | Array and slice access requires proof that the index or range is valid. |
-| Stack overflow | ✅ | Tail recursion becomes iteration. Worst-case stack demand, including compiler spills, must fit provisioned storage before execution. |
-| Integer overflow and division by zero | ⭐ | Exact arithmetic is the default and requires proof of validity. Explicit wrapping, saturation, or trapping policies choose other behavior rather than promising failure-free arithmetic. |
+| Stack overflow | ✅ | Recursion is banned, except for tail recursion which compiles as iteration. The compiler pre-calculates the worst-case stack demand, including compiler spills. |
+| Integer overflow and division by zero | ⭐ | Eliminated by default, as all arithmatic defaults to compiler-enforced safety. Users have to opt-in to more dangerous modalities like trapping and wrapping. |
 | Data races | ✅ | Ordinary borrows reject conflicting shared mutation; concurrent access needs an explicit synchronization contract. |
 | Deadlocks and indefinite waits | ⭐ | Protocol proofs rule out wait cycles and missing wakeups for the checked composition and its stated external assumptions. Ownership alone does not promise progress. |
-| Unintended infinite loops | ⭐ | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. |
-| Hidden filesystem or process authority | ✅ | Boundary effects propagate through calls; a build cannot silently grant authority its receiving policy disallows. |
-| Dependency supply-chain attacks | ⭐ | Package review exposes dependency changes, trust assumptions, and requested authority. New authority needs acceptance; malicious use of already-approved permissions is not automatically detected. |
-| Compiler supply-chain attacks | ⭐ | Independent verification rejects compiler output that violates the checked contracts, even if the producer is compromised. This relies on a trusted checker and binding the artifact to the intended program. |
+| Unintended infinite loops | ⭐ | A machine promising termination must prove it. Deliberately nonterminating event loops remain legal. An entire app can prove itself to terminate. |
+| Malicious/covert system abuse | ✅ | APIs must declare exactly what critical system resources they reach, or the code simply will not compile. This surfaces all potentially dangerous system access points for auditing. |
+| Dependency supply-chain attacks | ⭐ | Installing or upgrading a package prompts the user / LLM with trust reports, exposing potentially dangerous reachability such as network or filesystem access. Novel additions, or dangerous combinations are directly surfaced to the user or agents for auditing. |
+| Compiler supply-chain attacks | ⭐ | Omega bootstraps from ~400 lines of hand written assembly, with 0 external dependencies. This assembly kernel interprets a tiny hand written Turing tape, which is used to construct increasingly powerful languages that are simple enough for a human to review them. A trusted tape checker provides strong safety guarantees of the results. |
 
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
