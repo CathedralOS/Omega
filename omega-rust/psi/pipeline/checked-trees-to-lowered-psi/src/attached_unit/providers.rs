@@ -1,10 +1,17 @@
 //! Exact provider-candidate discovery for an attached Unit closure.
+//!
+//! Checked providers use the same ordinary/composed body closure as direct
+//! calls. A structural result does not imply an identity-return implementation:
+//! a checked graph may construct it after calling helpers or boundary leaves.
+//! Retaining that graph as a closure root preserves those dependencies and its
+//! source replay. The affine identity family keeps its existing separate emitter;
+//! competing body plans must reject rather than choose whichever path succeeds.
 
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
-    Unit,
+    Callable,
     AffineIdentity,
 }
 
@@ -29,10 +36,34 @@ pub(super) fn affine_candidate(
             .terminal_unit_effects
             .for_machine(machine)
             .is_some()
+        || checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine)
+            .is_some()
     {
         return unsupported("provider candidate has ambiguous terminal body plans");
     }
     Ok(candidate)
+}
+
+fn callable_candidate(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<UnitBody<'_>, LoweringError> {
+    let body = UnitBody::find(&checked.facts.flow.terminal_unit_effects, machine)?;
+    if checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .claim_free_affine_machines
+        .iter()
+        .any(|plan| plan.machine == machine)
+    {
+        return unsupported("provider candidate has ambiguous terminal body plans");
+    }
+    Ok(body)
 }
 
 pub(super) fn checked_unit_provider_candidates(
@@ -110,35 +141,55 @@ pub(super) fn checked_unit_provider_candidates(
         for machine in candidates {
             let body = match &boundary.result {
                 checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
-                    unique_unit_machine(plans, machine.symbol).map_err(|error| match error {
-                        LoweringError::Unsupported(reason) => {
-                            LoweringError::InvalidUnitMachinePlan {
-                                machine: machine.name.as_str().to_owned(),
-                                reason,
+                    let candidate = callable_candidate(checked, machine.symbol).map_err(
+                        |error| match error {
+                            LoweringError::Unsupported(reason) => {
+                                LoweringError::InvalidUnitMachinePlan {
+                                    machine: machine.name.as_str().to_owned(),
+                                    reason,
+                                }
                             }
-                        }
-                        error => error,
-                    })?;
-                    ProviderBody::Unit
+                            error => error,
+                        },
+                    )?;
+                    if candidate.result() != checked_trees::CheckedControlResultPlan::Unit {
+                        return unsupported(
+                            "provider result disagrees with its Unit boundary requirement",
+                        );
+                    }
+                    ProviderBody::Callable
                 }
                 checked_trees::CheckedBoundaryMachineResultPlan::Structural {
                     type_identity,
                     multiplicity,
                     qualifications,
                 } => {
-                    let candidate = affine_candidate(checked, machine.symbol)?;
+                    let (body, result) = if plans.composed_for_machine(machine.symbol).is_some() {
+                        let candidate = callable_candidate(checked, machine.symbol)?;
+                        let checked_trees::CheckedControlResultPlan::Structural(result) =
+                            candidate.result()
+                        else {
+                            return unsupported(
+                                "provider result disagrees with its structural boundary requirement",
+                            );
+                        };
+                        (ProviderBody::Callable, result)
+                    } else {
+                        let candidate = affine_candidate(checked, machine.symbol)?;
+                        (ProviderBody::AffineIdentity, candidate.result.clone())
+                    };
                     if *multiplicity != Multiplicity::Affine
                         || !qualifications.is_empty()
-                        || candidate.result.type_identity != *type_identity
-                        || candidate.result.multiplicity != *multiplicity
-                        || !candidate.result.qualifications.is_empty()
+                        || result.type_identity != *type_identity
+                        || result.multiplicity != *multiplicity
+                        || !result.qualifications.is_empty()
                         || !boundary.domain_requirements.is_empty()
                     {
                         return unsupported(
                             "provider affine result disagrees with its boundary requirement",
                         );
                     }
-                    ProviderBody::AffineIdentity
+                    body
                 }
                 checked_trees::CheckedBoundaryMachineResultPlan::Scalar(_) => {
                     return unsupported(

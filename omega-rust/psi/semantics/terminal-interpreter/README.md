@@ -31,6 +31,10 @@ the callee resumes without paying or invoking that call again. A callee crash
 retains its original site and edge charge, with no fabricated caller crash.
 Ordinary recursive call graphs remain fenced until their tail/ranking evidence
 is admitted; cyclic block execution has its separate verified route above.
+Installed checked Unit providers forward the boundary's ordered scalar arguments
+through the ordinary call binder, alongside independently prepared structural
+arguments. A Unit result does not imply an empty parameter list. Installation
+replays the exact signatures; fuel suspension retains the same selected frame.
 Fixed-work composition distinguishes normal return bounds from crash bounds:
 only a normal return composes the caller's remaining work.
 

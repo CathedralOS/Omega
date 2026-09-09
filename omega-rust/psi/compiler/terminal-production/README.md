@@ -472,6 +472,16 @@ nested argument temporaries retain their existing custody routes. This source
 support does not extend provider-candidate admission beyond its separately
 implemented body families.
 
+Checked provider discovery reuses the ordinary/composed call closure, including
+state graphs constructing plain affine scalar-sum results. It retains their
+helper and boundary dependencies to a fixed point; it does not turn the caller's
+boundary operation into a selected direct call. Competing ordinary, composed,
+and affine-identity plans reject. Source admission checks the graph and exact
+result, and canonical verification independently checks the conformance signature
+and service refinement. Provider selection and native entry provisioning remain
+separate obligations. See the
+[composed-provider regressions](../../pipeline/checked-trees-to-lowered-psi/src/tests/composed_provider_candidates.rs).
+
 The first suspension retention path covers receiver-free direct scalar calls
 with checked primitive liveness and empty claim rosters. Receiver/threaded-local,
 persistent, structural, claim-bearing, Unit, boundary, and dynamic frontiers
