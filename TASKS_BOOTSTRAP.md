@@ -165,18 +165,21 @@ prerequisite to every lower-rung milestone.
   gives source-level height, static-environment, and capture-allocation arguments;
   `sh tests/delta/normalization/run.sh` exercises source depth 1,024 and payload
   width 2,048. The [full-width control](tests/delta/normalization/README.md#full-width-allocation-control)
-  targets 65,535 pattern bindings plus one parameter. Its canonical compilation
-  and generated execution pass under the unchanged profile; the complete opt-in
-  diagnostic/repeated-compilation gate remains unrun. Capture now follows
-  descendant splitting, removing the demonstrated repeated-tail allocation
-  obstruction. This is neither a whole-producer allocation bound nor a checked
-  edge certificate.
+  covers 65,535 pattern bindings plus one parameter through normalization
+  diagnostics, repeated canonical compilation, and generated execution under
+  the unchanged profile. Capture follows descendant splitting, removing the
+  demonstrated repeated-tail allocation obstruction. This is neither a
+  whole-producer allocation bound nor a checked edge certificate.
   The [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
   separately bounds intermediate and complete byte counts below `2^62`;
   synthetic overflowing metadata is not an admitted-source refusal case.
   Next acceptance: account for remaining compiler-execution allocation against
-  the selected profile, using a whole-producer bound or a separately justified
-  full admitted source that exposes a gap. The
+  the selected profile. The source-derived, unrun
+  [wide-reconstruction case](bootstrap/3_delta/implementation/normalization/README.md#remaining-wide-capture-obstruction)
+  exposes a distinct obstruction: fresh capture parameters exceed the pair
+  arena before normalization can reach the required payload-size refusal.
+  Investigate removing unnecessary capture renaming first; that alone does not
+  establish the exact refusal or a whole-producer allocation bound. The
   [arithmetic allocation inventory](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
   and [name-storage argument and regression](tests/delta/resource-boundary/README.md#long-identifier-storage)
   bound particular paths, not the whole producer. Neither justifies further

@@ -104,5 +104,12 @@ in 511.187 seconds to 3,102,098 bytes, SHA-256
 That exact receipt returned `41 00 80 ff` with status zero and empty stderr.
 The old compiler hit a 120-second diagnostic watchdog; the candidate first hit
 300 seconds before the longer successful run. Neither timeout was reported as
-a resource frame or used as a speedup baseline. The complete optional gate's
-diagnostic and repeated-compilation legs have not yet been run for this source.
+a resource frame or used as a speedup baseline.
+
+At `17fa177caf`, the complete `--full-width` gate passed on macOS arm64:
+normalization height/helper observations, two byte-identical canonical
+compilations matching that receipt, and generated execution. The outer
+`/usr/bin/time -p` measurement was 1,404.26 seconds wall time, 1,399.84 user,
+and 4.73 system. This is one full test invocation, not a bootstrap-chain timing
+or a controlled speedup comparison. It does not cover the separate
+[wide-reconstruction allocation obstruction](../../../bootstrap/3_delta/implementation/normalization/README.md#remaining-wide-capture-obstruction).

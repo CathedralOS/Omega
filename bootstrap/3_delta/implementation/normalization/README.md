@@ -155,6 +155,33 @@ height-bounded bodies can still contain broad arguments and large capture sets,
 and all preceding phases still consume cumulative storage. It adds no allocator,
 resource ledger, representation, or profile.
 
+#### Remaining wide-capture obstruction
+
+A separate source-derived case still prevents whole-producer closure. Keep the
+full-width control's declaration, pattern, and identity entry, but change
+`select` to return `Wide` and reconstruct `(Wide field00000 ... field65534)`
+instead of returning only the last field. Its source remains below 2 MiB,
+expression depth is three, and active locals remain 65,536. Parser/grammar
+allocation is conservatively below `(28 * 65,535 + 1,024) * 40 = 73,400,160`
+syntax bytes. This case has not been executed; the following is an allocation
+argument, not an observed evaluator failure.
+
+[Constructor lowering](../lowering/constructors.gamma) makes a right-nested
+product whose leaves reference all those distinct bindings. The first 257
+extraction cuts along that product must forward at least 8,421,633 capture
+incidences by the same suffix sum above. Fresh parameter atoms alone allocate
+five pairs each through `gamma_generated`: 42,108,165 pairs, beyond the arena
+before mappings, frames, or earlier phases. Their printed parameter declarations
+alone require at least seven bytes each, or 58,951,431 bytes, beyond the payload
+provision. Thus the issue is reaching canonical payload refusal, not admitting
+that receipt or speeding up successful Epsilon compilation.
+
+Before adding machinery, investigate whether helpers can reuse original binding
+atoms and bodies without capture renaming. That requires a scoped spelling-safety
+argument as well as identity preservation; it would not by itself eliminate
+quadratic capture lists or establish complete resource outcomes. No larger
+profile or new refusal is justified by this lower bound alone.
+
 ### Static validation-environment bound
 
 The selected Delta frontend permits at most 65,536 simultaneously active

@@ -118,12 +118,21 @@ Normalization moves original subtrees into helpers; it never copies their
 composite structure into both caller and callee. Each extraction starts at a
 different original call/let occurrence, so helper count `J <= M`. Charge each
 distinct captured parameter to one free local-reference occurrence below its
-extraction point. A reference crosses at most `L` ancestor cuts, hence total
-capture incidence `C <= R*L <= 512*N*N`. Extraction captures its fragment before
-normalizing descendants: newly inserted helper-call arguments cannot start a
-second recursive expansion in the same pass. Renaming through outer helper
-parameters preserves each reference's origin. Deduplication only reduces this
-bound. These counts also bound the program-wide fresh-identity counter:
+extraction point. Normalization completes descendant helpers before capturing
+the enclosing helper, so this charge must include forwarded call arguments.
+Initially each reference has its original expanded-occurrence origin. When an
+inner helper captures a binding, assign its replacement-call argument an origin
+from one of that binding's references in the extracted subtree. Outer capture
+can forward that origin again, but only across an ancestor cut. Its deduplication
+selects at most one parameter for each binding at that cut; different captured
+bindings cannot claim the same original reference. Thus `(origin, ancestor cut)`
+is an injective charge for capture incidences, including forwarded arguments.
+Replacement calls have height one and do not introduce further extraction
+points. A reference crosses at most `L` ancestor cuts, giving
+`C <= R*L <= 512*N*N` without assuming the old capture order. This bounds retained
+and intermediate capture incidences, not the work of looking them up or the
+cumulative allocation of traversal frames. These counts also bound the
+program-wide fresh-identity counter:
 `J + C <= 576*N*N < 2^54`; generated names consequently fit within 21 bytes,
 without assuming that counter arithmetic was already safe.
 
