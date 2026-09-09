@@ -69,6 +69,27 @@ pub(crate) fn validate_usage(
             let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             };
+            let immediately_discarded = operation_index.checked_sub(1)
+                == Some(producer.operation_index)
+                && matches!(&caller.operations[producer.operation_index],
+                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate: call, .. }
+                        if call == coordinate && call.call_ordinal == 0);
+            if immediately_discarded {
+                if consumed
+                    || disposed
+                    || producer.discard
+                    || !projected_paths.is_empty()
+                    || !matches!(affine_discards.as_slice(), [discard]
+                        if discard.source == source && discard.path.is_empty()
+                            && discard.type_identity == result.type_identity)
+                {
+                    return unsupported(
+                        "discarded boundary result lost its immediate whole cleanup",
+                    );
+                }
+                disposed = true;
+                continue;
+            }
             // Empty complements still end the temporary's lifetime. Its exact
             // consumer identifies that owner even when no residual row exists.
             let owns_continuation = operation_index
@@ -332,6 +353,24 @@ pub(crate) fn validate_consumer(
             else {
                 continue;
             };
+            if producer_coordinate.call_ordinal == 0
+                && matches!(
+                    statements.get(result.statement_index as usize),
+                    Some(StatementNode::Call(_))
+                )
+            {
+                crate::call_source_custody::initializers::validate_discarded_structural(
+                    checked,
+                    caller.machine,
+                    caller.state,
+                    *producer_coordinate,
+                    result,
+                )?;
+                if binding_ordinal == Some(result.binding_ordinal) {
+                    return unsupported("discarded boundary result cannot supply a later operand");
+                }
+                continue;
+            }
             let names_result = if producer_coordinate.call_ordinal == 0 {
                 let Some(StatementNode::LocalData(local)) =
                     statements.get(result.statement_index as usize)

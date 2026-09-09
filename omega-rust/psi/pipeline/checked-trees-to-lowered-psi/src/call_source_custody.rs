@@ -35,6 +35,7 @@ pub(super) fn validate_store_and_initializer_calls(
                 Some(local.initial_value)
             }
             StatementNode::Assignment(_) | StatementNode::LocalData(_) => continue,
+            StatementNode::Call(call) if call.discards_result => None,
             _ if !has_stores => continue,
             _ => None,
         };
@@ -44,48 +45,81 @@ pub(super) fn validate_store_and_initializer_calls(
             statement_index,
             call_ordinal: 0,
         };
-        let mut owners = plan.operations.iter().filter(|operation| match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate: actual, ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                coordinate: actual, ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate: actual, ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate: actual, ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate: actual, ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate: actual, ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
-                coordinate: actual,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                coordinate: actual,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                coordinate: actual,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
-                coordinate: actual,
-                ..
-            } => *actual == coordinate,
-            _ => false,
-        });
-        let Some(owner) = owners.next() else {
+        let mut owners =
+            plan.operations
+                .iter()
+                .enumerate()
+                .filter(|(_, operation)| match operation {
+                    CheckedUnitEffectOperationPlan::CallUnit {
+                        coordinate: actual, ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryCall {
+                        coordinate: actual, ..
+                    }
+                    | CheckedUnitEffectOperationPlan::ScalarCall {
+                        coordinate: actual, ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                        coordinate: actual,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::StructuralCall {
+                        coordinate: actual, ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        coordinate: actual,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                        coordinate: actual,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                        coordinate: actual,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                        coordinate: actual,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
+                        coordinate: actual,
+                        ..
+                    } => *actual == coordinate,
+                    _ => false,
+                });
+        let Some((operation_index, owner)) = owners.next() else {
             return unsupported("Unit body omits or duplicates an authored call");
         };
         if owners.next().is_some() {
             return unsupported("Unit body omits or duplicates an authored call");
+        }
+        if matches!(statement, StatementNode::Call(call) if call.discards_result)
+            && let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                result,
+                discard_result_on_return,
+                ..
+            } = owner
+        {
+            // The source discard independently demands its continuation. A
+            // producer cannot delete cleanup and substitute return-time custody.
+            initializers::validate_discarded_structural(
+                checked,
+                plan.machine,
+                plan.state,
+                coordinate,
+                result,
+            )?;
+            if *discard_result_on_return
+                || (result.multiplicity == language_semantics::Multiplicity::Affine
+                    && !matches!(plan.operations.get(operation_index + 1),
+                        Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate: cleanup, .. })
+                            if *cleanup == coordinate))
+            {
+                return unsupported(
+                    "authored discard requires immediate normal continuation cleanup",
+                );
+            }
         }
         // Selected dispatch may rewrite the source call after checked planning.
         // Its existing exact application owner validates that realization;

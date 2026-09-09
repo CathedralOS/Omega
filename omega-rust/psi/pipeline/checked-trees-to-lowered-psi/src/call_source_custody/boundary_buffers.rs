@@ -73,11 +73,10 @@ pub(super) fn validate(
             ))?;
         let (target, access) = match checked.expression_table.expression(expression) {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
-            ExpressionNode::Name(_)
-                if matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }) =>
-            {
-                (expression, language_core::ReferenceAccess::Mutable)
-            }
+            // Forwarding an existing exclusive view does not require a new
+            // borrow expression. The exact source parameter and access checks
+            // below still reject owned values and shared views.
+            ExpressionNode::Name(_) => (expression, language_core::ReferenceAccess::Mutable),
             _ => return unsupported("mutable boundary bytes lost their authored borrow"),
         };
         let source =

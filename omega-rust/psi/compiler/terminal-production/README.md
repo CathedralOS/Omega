@@ -463,6 +463,15 @@ structural binding ordinals remain separate from statement coordinates and
 private argument slots. Source correspondence must reject replacement by a
 different same-typed live result even if Terminal ownership alone permits it.
 
+An explicitly discarded plain-owned structural boundary result retains its real
+result place and exact source call. It does not acquire a synthetic local or a
+Unit signature. Affine disposal belongs to the immediate normal continuation,
+before the next statement; source replay independently requires that edge even
+if a rewritten plan instead claims return-time disposal. Named results and
+nested argument temporaries retain their existing custody routes. This source
+support does not extend provider-candidate admission beyond its separately
+implemented body families.
+
 The first suspension retention path covers receiver-free direct scalar calls
 with checked primitive liveness and empty claim rosters. Receiver/threaded-local,
 persistent, structural, claim-bearing, Unit, boundary, and dynamic frontiers

@@ -540,7 +540,7 @@ fn boundary_value_result_matches(
 /// `[u8; N] in D` destination is admitted at a requirement that declares the
 /// borrowed `[u8]` view, which is the settled `Console::read_line` surface: the
 /// requirement keeps its checked mutable-slice type while the lowering derives
-/// N and the live-length write from this exact call-site place. That is why the
+/// the existing writable extent from this exact call-site place. That is why the
 /// argument retains the projected path instead of a materialized view. Equal
 /// element types establish nothing on their own -- both sides must classify as
 /// byte-sequence carriers, and no other pair of carriers agrees.
@@ -868,6 +868,10 @@ pub(super) fn build_call_operation(
                     projected_type,
                     parameter.type_reference,
                     &target_identity,
+                ) && !fixed_byte_array_mutable_view_is_admitted(
+                    program,
+                    projected_type,
+                    parameter.type_reference,
                 ) {
                     return None;
                 }

@@ -3,6 +3,46 @@
 use super::*;
 use checked_trees::statement::StatementNode;
 
+/// A discarded statement result has an operation-owned place, not a fabricated
+/// local. Reconstruct its plain-owned custody from the exact authored boundary
+/// signature; the continuation owner separately requires immediate disposal.
+pub(crate) fn validate_discarded_structural(
+    checked: &CheckedTrees,
+    caller_machine: symbols::SymbolHandle,
+    caller_state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+) -> Result<(), LoweringError> {
+    let (machine, state) = crate::scalar_source_custody::authored_state(checked, caller_state)?;
+    let Some(StatementNode::Call(call)) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(coordinate.statement_index as usize)
+    else {
+        return unsupported("discarded boundary result has no authored call statement");
+    };
+    let target = super::authored::target_signature(checked, caller_machine, call.target_symbol)?;
+    if machine.symbol != caller_machine
+        || coordinate.call_ordinal != 0
+        || result.statement_index != coordinate.statement_index
+        || !call.discards_result
+        || !target.boundary
+        || checked
+            .primitive_type_reference(target.return_type)
+            .is_some()
+        || checked
+            .normalized_type_identity(target.return_type)
+            .into_string()
+            != result.type_identity
+        || checked.type_multiplicity(target.return_type) != result.multiplicity
+        || result.multiplicity == language_semantics::Multiplicity::Linear
+        || !validation::has_plain_owned_contents(&checked.typed, target.return_type)
+    {
+        return unsupported("discarded boundary result disagrees with its authored signature");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
@@ -39,6 +79,21 @@ pub(super) fn validate_structural(
             caller_state,
             coordinate,
             expression,
+        );
+    }
+    if matches!(
+        checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(result.statement_index as usize),
+        Some(StatementNode::Call(_))
+    ) {
+        return validate_discarded_structural(
+            checked,
+            caller_machine,
+            caller_state,
+            coordinate,
+            result,
         );
     }
     let Some(StatementNode::LocalData(local)) = checked

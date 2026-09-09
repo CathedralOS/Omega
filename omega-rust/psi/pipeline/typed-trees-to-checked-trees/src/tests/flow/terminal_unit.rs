@@ -13,6 +13,7 @@ mod composed_internal_calls;
 mod composed_nested_control;
 mod composed_prefixed_control;
 mod composed_transitive_internal_calls;
+mod discarded_results;
 mod free_scalar_parameters;
 mod nested_boundary_results;
 mod primitive_locals;

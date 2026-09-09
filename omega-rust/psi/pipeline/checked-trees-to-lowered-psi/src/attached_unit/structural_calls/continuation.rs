@@ -21,6 +21,36 @@ pub(crate) fn validate_cleanup(
         .ok_or(LoweringError::Unsupported(
             "call cleanup has no preceding consumer",
         ))?;
+    if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        coordinate: producer,
+        result,
+        discard_result_on_return,
+        ..
+    } = consumer
+    {
+        let [discard] = affine_discards.as_slice() else {
+            return unsupported("discarded boundary result requires one whole disposal");
+        };
+        if producer != coordinate
+            || *discard_result_on_return
+            || result.multiplicity != language_semantics::Multiplicity::Affine
+            || discard.source
+                != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                })
+            || !discard.path.is_empty()
+            || discard.type_identity != result.type_identity
+        {
+            return unsupported("discarded boundary result cleanup substituted its owner");
+        }
+        return crate::call_source_custody::initializers::validate_discarded_structural(
+            checked,
+            caller.machine,
+            caller.state,
+            *producer,
+            result,
+        );
+    }
     let CheckedUnitEffectOperationPlan::CallUnit {
         coordinate: call,
         structural_arguments,

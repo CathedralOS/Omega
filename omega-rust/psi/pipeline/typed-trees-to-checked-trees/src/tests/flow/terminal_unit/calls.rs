@@ -3479,12 +3479,10 @@ fn presents_projected_owned_byte_carrier_at_a_borrowed_boundary_view() {
 }
 
 #[test]
-fn rejects_a_projected_array_that_is_no_byte_carrier_at_a_borrowed_boundary_view() {
-    // Without a declared domain the projected `[u8; 16]` is an ordinary fixed
-    // array, not a bounded owned byte carrier. Equal element types alone never
-    // present at the requirement's borrowed view.
-    let checked = checked(
-        r#"
+fn projected_fixed_byte_arrays_lend_initialized_storage_to_boundary_views() {
+    // Raw byte arrays lend their complete initialized extent. They do not
+    // become bounded owners; non-byte array/view pairs remain outside this route.
+    let source = r#"
         boundary trait Console {
             machine read_line(out_line: &mut [u8])
             reaches Console;
@@ -3496,14 +3494,21 @@ fn rejects_a_projected_array_that_is_no_byte_carrier_at_a_borrowed_boundary_view
         {
             Console::read_line(&mut self.line);
         }
-        "#,
-    );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine_named(&checked, "enter"))
-            .is_none()
-    );
+        "#;
+    for (element, admitted) in [("u8", true), ("u16", false)] {
+        let checked = checked(&source.replace("u8", element));
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        assert_eq!(
+            plans
+                .for_machine(machine_named(&checked, "enter"))
+                .is_some(),
+            admitted
+        );
+        if admitted {
+            assert!(plans.structural_types.iter().any(|declaration| matches!(
+                declaration.shape,
+                CheckedUnitStructuralTypeShape::FixedArray { length: 16, .. }
+            )));
+        }
+    }
 }
