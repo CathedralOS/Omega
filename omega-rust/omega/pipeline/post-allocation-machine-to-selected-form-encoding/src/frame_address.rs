@@ -239,6 +239,8 @@ pub(super) fn resolve(
         }
         Address::Load8Indexed { .. } => 0,
         Address::Load64 { byte_offset, .. }
+        | Address::Load8 { byte_offset, .. }
+        | Address::Load16 { byte_offset, .. }
         | Address::Load32 { byte_offset, .. }
         | Address::AddressOffset { byte_offset, .. } => byte_offset,
         Address::Store {
@@ -395,6 +397,14 @@ pub(super) fn validate_address(
             index_operand: 1,
         } if candidate.displacement == 0 => Ok(()),
         Address::Load64 {
+            base_operand: 0,
+            byte_offset,
+        }
+        | Address::Load8 {
+            base_operand: 0,
+            byte_offset,
+        }
+        | Address::Load16 {
             base_operand: 0,
             byte_offset,
         }

@@ -144,7 +144,9 @@ pub(super) fn lower_terminator(
                     source_value: *condition,
                     value: *value,
                 }
-            } else if let Some(home) = live.boolean_homes.get(condition) {
+            } else if let Some(home) = live.scalar_homes.get(condition)
+                && home.scalar_type == ScalarType::Boolean
+            {
                 TargetBooleanExpression::ScalarHome(*home)
             } else if let Some(parameter) = live.boolean_parameters.get(condition) {
                 TargetBooleanExpression::BlockParameter(*parameter)

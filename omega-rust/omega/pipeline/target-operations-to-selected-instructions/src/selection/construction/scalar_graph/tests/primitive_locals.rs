@@ -3,6 +3,7 @@ use super::*;
 mod hostile;
 mod mixed_references;
 mod reentry;
+mod widths;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralOperationResult,

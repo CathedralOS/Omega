@@ -9,6 +9,8 @@ mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
 mod register_model;
+pub use register_model::AARCH64_LOAD8;
+pub use register_model::AARCH64_LOAD16;
 pub use register_model::AARCH64_LOAD32;
 pub use register_model::{
     AARCH64_BITS_TO_FLOAT32, AARCH64_BITS_TO_FLOAT64, AARCH64_DARWIN_HOSTED_READ_BYTE,

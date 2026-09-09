@@ -223,8 +223,14 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::IntegerConstant { .. }
                 | AbstractOperation::BooleanConstant { .. } => true,
                 AbstractOperation::IeeeFloatConstant { .. } => {
-                    matches!(&targeted.operation, target_operations::TargetOperation::UnitBody(body)
-                        if ieee_literal_retained(operation, &body.operations))
+                    match &targeted.operation {
+                        target_operations::TargetOperation::UnitBody(body) =>
+                            ieee_literal_retained(operation, &body.operations),
+                        target_operations::TargetOperation::ControlGraph(graph) =>
+                            ieee_literal_retained(operation, graph.blocks.iter()
+                                .flat_map(|block| &block.operations)),
+                        _ => false,
+                    }
                 }
                 AbstractOperation::EstablishByteSequenceLiteral {
                     psi_operation, place, structural_type, bytes,
@@ -322,9 +328,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
 }
 
 /// Account for one exact typed literal; mandatory source replay validates its realization.
-fn ieee_literal_retained(
+fn ieee_literal_retained<'operation>(
     operation: &AbstractOperation,
-    operations: &[target_operations::TargetUnitOperation],
+    operations: impl IntoIterator<Item = &'operation target_operations::TargetUnitOperation>,
 ) -> bool {
     let AbstractOperation::IeeeFloatConstant {
         psi_operation,
@@ -334,7 +340,7 @@ fn ieee_literal_retained(
     else {
         return false;
     };
-    let mut matching = operations.iter().filter(|candidate| {
+    let mut matching = operations.into_iter().filter(|candidate| {
         matches!(candidate,
         target_operations::TargetUnitOperation::IeeeFloatConstant { psi_operation: retained, .. }
             if retained == psi_operation)

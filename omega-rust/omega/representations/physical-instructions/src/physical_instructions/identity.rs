@@ -159,6 +159,22 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             slot.encode_identity(bytes);
         }
         None => bytes.push(0),
+        Some(crate::PhysicalAddressOperation::Load8 {
+            base_operand,
+            byte_offset,
+        }) => {
+            bytes.push(10);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        Some(crate::PhysicalAddressOperation::Load16 {
+            base_operand,
+            byte_offset,
+        }) => {
+            bytes.push(11);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         Some(crate::PhysicalAddressOperation::Load32 {
             base_operand,
             byte_offset,
@@ -241,6 +257,8 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Load8 => 33,
+        MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedExitProcessI32 => 31,
         MachineAlternativeFamily::HostedReadByte => 32,

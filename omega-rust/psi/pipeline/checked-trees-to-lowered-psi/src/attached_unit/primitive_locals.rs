@@ -4,6 +4,7 @@ use super::*;
 use checked_trees::statement::{StatementNode, TableLocalData};
 
 pub(crate) mod borrows;
+pub(super) mod unit_calls;
 
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,

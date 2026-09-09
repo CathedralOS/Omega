@@ -124,8 +124,12 @@ pub(super) fn validate_successors(
                     .get(&binding.argument)
                     .map(|known| ScalarType::Integer(known.scalar_type()))
                     .or_else(|| {
+                        live.scalar_homes
+                            .get(&binding.argument)
+                            .map(|home| home.scalar_type)
+                    })
+                    .or_else(|| {
                         (live.booleans.contains_key(&binding.argument)
-                            || live.boolean_homes.contains_key(&binding.argument)
                             || live.boolean_parameters.contains_key(&binding.argument))
                         .then_some(ScalarType::Boolean)
                     })

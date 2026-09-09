@@ -108,6 +108,18 @@ pub(super) fn reconstruct_instruction(
                     byte_offset,
                 })
             }
+            selected_instructions::SelectedInstructionKind::Load8 { byte_offset } => {
+                Some(physical_instructions::PhysicalAddressOperation::Load8 {
+                    base_operand: 0,
+                    byte_offset,
+                })
+            }
+            selected_instructions::SelectedInstructionKind::Load16 { byte_offset } => {
+                Some(physical_instructions::PhysicalAddressOperation::Load16 {
+                    base_operand: 0,
+                    byte_offset,
+                })
+            }
             selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => {
                 Some(physical_instructions::PhysicalAddressOperation::Load32 {
                     base_operand: 0,

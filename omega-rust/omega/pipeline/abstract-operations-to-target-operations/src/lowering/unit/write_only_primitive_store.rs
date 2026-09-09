@@ -15,6 +15,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     ieee_float_constants: &BTreeMap<ValueId, (OperationId, IeeeFloatValue)>,
+    scalar_homes: &BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
@@ -100,6 +101,14 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                     source_value: value.value,
                     scalar_type: ScalarType::Boolean,
                 }
+            } else if let Some(home) = scalar_homes.get(&value.value) {
+                if home.source_value != value.value
+                    || home.scalar_type != ScalarType::Boolean
+                    || home.shape != ValueShape::integer(1, 1)
+                {
+                    return Err(invalid());
+                }
+                TargetUnitWriteOnlyPrimitiveStoreSource::Home(*home)
             } else {
                 let (defining_operation, immediate) = boolean_constants
                     .get(&value.value)
@@ -130,6 +139,14 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                     source_value: value.value,
                     scalar_type: value.scalar_type,
                 }
+            } else if let Some(home) = scalar_homes.get(&value.value) {
+                if home.source_value != value.value
+                    || home.scalar_type != value.scalar_type
+                    || home.shape != ValueShape::float(byte_size)
+                {
+                    return Err(invalid());
+                }
+                TargetUnitWriteOnlyPrimitiveStoreSource::Home(*home)
             } else {
                 let (defining_operation, immediate) = ieee_float_constants
                     .get(&value.value)

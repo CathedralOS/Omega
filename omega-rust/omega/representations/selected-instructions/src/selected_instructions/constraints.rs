@@ -12,6 +12,8 @@ pub struct SelectedConstraintKeys {
     pub store: Option<RegisterConstraintKey>,
     pub address_offset: Option<RegisterConstraintKey>,
     pub load64: Option<RegisterConstraintKey>,
+    pub load8: Option<RegisterConstraintKey>,
+    pub load16: Option<RegisterConstraintKey>,
     pub load32: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,

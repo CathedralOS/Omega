@@ -88,7 +88,14 @@ pub(in crate::function_fragments) fn operation_retained(
     }
     match operation {
         AbstractOperation::PrimitiveScalarRead { result, .. } => {
-            size == 8 && instruction.kind == (SelectedInstructionKind::Load64 { byte_offset: 0 })
+            let load = match size {
+                1 => SelectedInstructionKind::Load8 { byte_offset: 0 },
+                2 => SelectedInstructionKind::Load16 { byte_offset: 0 },
+                4 => SelectedInstructionKind::Load32 { byte_offset: 0 },
+                8 => SelectedInstructionKind::Load64 { byte_offset: 0 },
+                _ => return false,
+            };
+            instruction.kind == load
                 && instruction.operands.len() == 2
                 && instruction.provenance.values == [result.value]
                 && selected.virtual_registers.iter().any(|register| {
@@ -99,7 +106,11 @@ pub(in crate::function_fragments) fn operation_retained(
                 })
         }
         AbstractOperation::PrimitiveLocalStore { value, .. } => {
-            instruction.kind == (SelectedInstructionKind::Store { byte_offset: 0, byte_size: size })
+            instruction.kind
+                == (SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: size,
+                })
                 && instruction.provenance.values == [value.value]
         }
         _ => false,

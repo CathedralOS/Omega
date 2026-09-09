@@ -86,17 +86,13 @@ pub(super) fn lower(
         .zip(&signature.scalar_parameters)
         .enumerate()
         .map(|(position, (value, parameter))| {
-            let known = live
-                .integers
-                .get(value)
-                .copied()
-                .ok_or(LoweringError::UnknownValue(*value))?;
-            if ScalarType::Integer(known.scalar_type()) != parameter.scalar_type {
+            let source = super::scalar_sources::source(*value, function, live)?;
+            if source.scalar_type() != parameter.scalar_type {
                 return Err(LoweringError::ValueTypeMismatch(*value));
             }
             Ok(TargetUnitScalarCallArgument {
                 parameter_index: u32::try_from(position).map_err(|_| invalid())?,
-                source: known.into_target_source(*value),
+                source,
                 placement: parameter.placement.clone(),
             })
         })

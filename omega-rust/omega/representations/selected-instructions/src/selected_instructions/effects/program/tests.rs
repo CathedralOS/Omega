@@ -306,6 +306,67 @@ fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
 }
 
 #[test]
+fn narrow_load_effect_codec_binds_width_offset_and_pointer_footprint() {
+    for (kind, family, byte_count) in [
+        (
+            SelectedInstructionKind::Load8 { byte_offset: 3 },
+            MachineAlternativeFamily::Load8,
+            1,
+        ),
+        (
+            SelectedInstructionKind::Load16 { byte_offset: 6 },
+            MachineAlternativeFamily::Load16,
+            2,
+        ),
+    ] {
+        let mut source = plan();
+        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        instruction.kind = kind;
+        instruction.memory = MachineMemoryEffect::ReadPointerV1;
+        instruction.trap = MachineTrapBehavior::MayArchitecturalFaultV1;
+        instruction.alternatives.truncate(1);
+        instruction.alternatives[0].key.family = family;
+        instruction.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand: 0,
+            byte_count,
+        };
+        source.identity = pre_allocation_machine_effect_identity(&source);
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        for mutation in 0..4 {
+            let mut changed = source.clone();
+            let instruction = &mut changed.functions[0].blocks[0].instructions[0];
+            match mutation {
+                0 => instruction.kind = SelectedInstructionKind::Load64 { byte_offset: 0 },
+                1 => {
+                    instruction.kind = match kind {
+                        SelectedInstructionKind::Load8 { .. } => {
+                            SelectedInstructionKind::Load8 { byte_offset: 4 }
+                        }
+                        _ => SelectedInstructionKind::Load16 { byte_offset: 8 },
+                    }
+                }
+                2 => instruction.alternatives[0].key.family = MachineAlternativeFamily::Load64,
+                _ => {
+                    instruction.alternatives[0].encoded.memory =
+                        MachineEncodedMemoryEffect::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: 8,
+                        }
+                }
+            }
+            assert_ne!(
+                source.identity,
+                pre_allocation_machine_effect_identity(&changed)
+            );
+            assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+        }
+    }
+}
+
+#[test]
 fn linux_byte_input_codec_binds_structural_home_and_distinct_effects() {
     let mut source = plan();
     let row = &mut source.functions[0].blocks[0].instructions[0];

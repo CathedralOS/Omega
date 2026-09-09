@@ -15,6 +15,8 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use super::*;
 
+mod scalar_payloads;
+
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
 }

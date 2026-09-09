@@ -31,6 +31,8 @@ fn pointer_load_catalog_requires_the_semantic_exact_width() {
         clobbers: Vec::new(),
     };
     for (semantic, byte_count) in [
+        (MachineSemanticKind::Load8, 1),
+        (MachineSemanticKind::Load16, 2),
         (MachineSemanticKind::Load32, 4),
         (MachineSemanticKind::Load64, 8),
     ] {

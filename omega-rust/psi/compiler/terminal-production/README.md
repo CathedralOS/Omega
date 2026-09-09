@@ -280,9 +280,12 @@ store sequences and branch-free computed values, including direct integer field
 observations. Bounded projected single-store forms include one literal record-array
 index. Ordinary Unit primitive locals use initialized referents and current
 storage reads through the [shared call producer](scalar_calls.md#unit-and-boundary-integration);
-immutable snapshots survive borrowed mutations. Native establishment/read
-realization currently supports fixed 64-bit integer locals through the ordinary
-graph. Other primitive read widths, delayed results, computed IEEE sources,
+immutable snapshots survive borrowed mutations. Ordinary Unit helpers retain
+the authored local actual and its exact checked borrow occurrence. Readable
+primitive parameters can initialize a distinct local; write-only inputs cannot.
+Native establishment/read realization supports fixed 8/16/32/64-bit integer,
+Boolean, and IEEE binary32/binary64 locals through the ordinary graph.
+Delayed results, computed IEEE arithmetic,
 short-circuit store values, and richer indexed/aggregate forms need further
 producer support.
 

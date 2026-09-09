@@ -52,6 +52,14 @@ pub enum PhysicalAddressOperation {
         base_operand: u16,
         byte_offset: u32,
     },
+    Load8 {
+        base_operand: u16,
+        byte_offset: u32,
+    },
+    Load16 {
+        base_operand: u16,
+        byte_offset: u32,
+    },
     Load32 {
         base_operand: u16,
         byte_offset: u32,

@@ -582,6 +582,12 @@ fn assemble_unit_closure(
                             "Unit call does not match the exact checked target state, contract, and reach",
                         );
                     }
+                    primitive_locals::unit_calls::validate(
+                        checked,
+                        machine,
+                        operation,
+                        target.structural_parameters,
+                    )?;
                     crate::call_source_custody::projected_receivers::validate(
                         checked,
                         machine,
@@ -1496,6 +1502,13 @@ fn assemble_unit_closure(
             .zip(parameters)
             .map(|(source, parameter)| (source.position, parameter.clone()))
             .collect();
+        evaluation.primitive_storage =
+            crate::scalar_source_custody::primitive_references::bindings(
+                checked,
+                plan.state,
+                &evaluation.structural_parameters,
+                &structural_types,
+            )?;
         let mut staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
         evaluation.structural_fields =
             crate::scalar_bindings::StructuralScalarFieldBinding::collect(
@@ -1974,6 +1987,7 @@ fn assemble_unit_closure(
                                             &affine_scalar_record_places,
                                             &structural_result_places,
                                             &structural_types,
+                                            &primitive_local_places,
                                         )?
                                     },
                                 ),

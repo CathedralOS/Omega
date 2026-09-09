@@ -83,6 +83,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Load8 { .. } => 33,
+        SelectedInstructionKind::Load16 { .. } => 34,
         SelectedInstructionKind::Load32 { .. } => 30,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::HostedReadByte { .. } => 32,
@@ -127,6 +129,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::Load64 { byte_offset }
+        | SelectedInstructionKind::Load8 { byte_offset }
+        | SelectedInstructionKind::Load16 { byte_offset }
         | SelectedInstructionKind::Load32 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }
@@ -220,6 +224,12 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
             byte_offset: cursor.u32()?,
         },
         31 => SelectedInstructionKind::HostedExitProcessI32,
+        33 => SelectedInstructionKind::Load8 {
+            byte_offset: cursor.u32()?,
+        },
+        34 => SelectedInstructionKind::Load16 {
+            byte_offset: cursor.u32()?,
+        },
         30 => SelectedInstructionKind::Load32 {
             byte_offset: cursor.u32()?,
         },
@@ -412,6 +422,8 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         },
         SelectedInstructionKind::AddressOffset { byte_offset: 26 },
         SelectedInstructionKind::Load64 { byte_offset: 8 },
+        SelectedInstructionKind::Load8 { byte_offset: 3 },
+        SelectedInstructionKind::Load16 { byte_offset: 6 },
         SelectedInstructionKind::Load32 { byte_offset: 12 },
         SelectedInstructionKind::Float32ToBits,
         SelectedInstructionKind::Float64ToBits,

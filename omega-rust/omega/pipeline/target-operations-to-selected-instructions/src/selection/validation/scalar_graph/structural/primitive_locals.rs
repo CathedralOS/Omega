@@ -113,21 +113,38 @@ pub(in crate::selection) fn read(
         definition.definition_site,
         definition.scalar_type,
     )?;
+    let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
+        .ok_or_else(|| replay.invalid())?;
+    let (instruction, constraint) = match shape.byte_size {
+        1 => (
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            replay.constraints.keys.load8,
+        ),
+        2 => (
+            SelectedInstructionKind::Load16 { byte_offset: 0 },
+            replay.constraints.keys.load16,
+        ),
+        4 => (
+            SelectedInstructionKind::Load32 { byte_offset: 0 },
+            replay.constraints.keys.load32,
+        ),
+        8 => (
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            replay.constraints.keys.load64,
+        ),
+        _ => return Err(replay.invalid()),
+    };
     memory(
         replay,
         row,
         place,
         0,
-        8,
+        u32::from(shape.byte_size),
         SelectedMemoryAccessRole::ReadPlace,
     )?;
     replay.check_instruction(
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        replay
-            .constraints
-            .keys
-            .load64
-            .ok_or_else(|| replay.invalid())?,
+        instruction,
+        constraint.ok_or_else(|| replay.invalid())?,
         &[pointer, output],
         &SelectedInstructionProvenance {
             operations: vec![row.operation],

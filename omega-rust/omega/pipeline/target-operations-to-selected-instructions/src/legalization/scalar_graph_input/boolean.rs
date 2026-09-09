@@ -63,6 +63,8 @@ pub(super) fn validate(
                         || matches!(&consumer.operation,
                             AbstractOperation::StructuralScalarFieldStore { value, .. }
                             | AbstractOperation::WriteOnlyPrimitiveStore { value, .. }
+                            | AbstractOperation::EstablishPrimitiveLocal { value, .. }
+                            | AbstractOperation::PrimitiveLocalStore { value, .. }
                             if value.value == result && value.scalar_type == ScalarType::Boolean)
                         || (function.result == AbstractFunctionResult::Unit
                             && matches!(
@@ -82,6 +84,11 @@ pub(super) fn validate(
             {
                 return Err(invalid);
             }
+            continue;
+        }
+        if matches!(node.operation, AbstractOperation::PrimitiveScalarRead { result, .. }
+            if result.scalar_type == ScalarType::Boolean)
+        {
             continue;
         }
         if let Some(definition) = node.definitions.first()

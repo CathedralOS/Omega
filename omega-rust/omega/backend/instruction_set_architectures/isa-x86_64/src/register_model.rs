@@ -17,6 +17,14 @@ mod float_transport_tests;
 mod mixed_calls;
 pub use mixed_calls::*;
 
+pub const X86_64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 730,
+};
+pub const X86_64_LOAD16: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 731,
+};
 pub const X86_64_LOAD32: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 714,
@@ -295,7 +303,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 56] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 58] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -418,6 +426,8 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 56] = [
     X86_64_LOAD32,
     X86_64_HOSTED_EXIT_PROCESS_I32,
     X86_64_HOSTED_READ_BYTE,
+    X86_64_LOAD8,
+    X86_64_LOAD16,
 ];
 
 struct ModelBuilder {
@@ -1185,6 +1195,8 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(call);
     }
     for (key, source_class, destination_class) in [
+        (X86_64_LOAD8, GPR64, GPR64),
+        (X86_64_LOAD16, GPR64, GPR64),
         (X86_64_LOAD32, GPR64, GPR64),
         (X86_64_FLOAT32_TO_BITS, VECTOR128, GPR64),
         (X86_64_FLOAT64_TO_BITS, VECTOR128, GPR64),

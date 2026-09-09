@@ -123,8 +123,8 @@ reads retain their source place and new scalar result. Current-IR checking
 reconstructs primitive type, access, claim-free unrestricted storage, dominating
 establishment, and nonescape. Optimization cannot treat a read as its initializer
 or an earlier observation across mutation. The ordinary native graph realizes
-fixed 64-bit integer locals and their borrowed calls; other primitive read widths
-remain explicitly unsupported downstream.
+fixed 8/16/32/64-bit integer, Boolean, and IEEE binary32/binary64 locals and their
+borrowed calls, with exact-width source reads and unchanged scalar payload bits.
 
 Unranked modules take the same ordinary verification and abstract route without
 a progress claim. Scalar cycles proceed through the shared

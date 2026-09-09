@@ -59,6 +59,24 @@ pub(super) fn declaration(
             },
             MachineSizeKnowledge::ExactBytes(9),
         ),
+        MachineSemanticKind::Load8 | MachineSemanticKind::Load16 => (
+            MachineMemoryEffect::ReadPointerV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0],
+            vec![1],
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count: if semantic == MachineSemanticKind::Load8 {
+                    1
+                } else {
+                    2
+                },
+            },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 8,
+                maximum_bytes: Some(9),
+            },
+        ),
         MachineSemanticKind::Load32 | MachineSemanticKind::Load64 => (
             MachineMemoryEffect::ReadPointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,

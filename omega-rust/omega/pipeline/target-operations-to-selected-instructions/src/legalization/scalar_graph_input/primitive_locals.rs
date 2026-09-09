@@ -127,9 +127,8 @@ pub(super) fn validate(
                     }
                     parameter.structural_type
                 };
-                // Load64 cannot supply an exact narrow, Boolean, or floating observation.
                 if scalar(types, identity) != Some(result.scalar_type)
-                    || !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && integer.bits() == 64)
+                    || scalar_shape(result.scalar_type).is_none()
                 {
                     return Err(invalid);
                 }

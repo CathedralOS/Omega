@@ -140,9 +140,14 @@ establishment forms its frame address and performs one exact-width initializing
 store. Loop reentry reuses the activation slot and executes initialization again;
 the store is not hoisted to invocation entry. Later stores and borrowed Unit/scalar calls
 use that original pointer; a scalar call retains its actual result independently.
-Fresh primitive reads use pointer loads and distinct SSA definitions. The current
-load instruction admits fixed 64-bit integer observations; narrower, Boolean,
-and floating observations reject instead of reading an oversized footprint.
+Fresh primitive reads use pointer loads and distinct SSA definitions. `Load8`,
+`Load16`, `Load32`, and `Load64` read exactly 1, 2, 4, or 8 bytes for Boolean,
+fixed-width signed/unsigned integers, and IEEE binary32/binary64. Narrow loads
+zero-extend the raw payload into the GPR carrier without changing its scalar
+type; IEEE loads preserve payload bits without floating-point arithmetic.
+Materialized Boolean reads used in stores and Unit calls are values, not
+comparison-only branch suffixes. Boolean-local branching remains separate
+source/graph composition work.
 Construction and replay retain AddressLocal, WritePlace and ReadPlace records,
 exact scalar demand, fuel, and the incoming parameter roster. Local storage does
 not add an ABI parameter or a synthetic aggregate.

@@ -2,6 +2,7 @@
 
 mod body;
 pub(super) mod boundary_call;
+mod byte_literal;
 mod conditional_exit;
 pub(crate) mod continuation;
 mod dynamic;

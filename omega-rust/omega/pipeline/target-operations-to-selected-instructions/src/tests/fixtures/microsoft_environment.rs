@@ -33,6 +33,8 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
             call_unit_mixed: Vec::new(),
             load64: Some(isa_x86_64::X86_64_LOAD64),
             load32: Some(isa_x86_64::X86_64_LOAD32),
+            load8: Some(isa_x86_64::X86_64_LOAD8),
+            load16: Some(isa_x86_64::X86_64_LOAD16),
             load8_indexed: None,
             store64: Some(isa_x86_64::X86_64_STORE64),
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),

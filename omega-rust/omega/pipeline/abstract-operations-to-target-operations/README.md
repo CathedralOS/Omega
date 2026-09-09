@@ -123,7 +123,11 @@ and their real scalar result. The selected consumer derives the local address
 and replays initialization, exact-width writes, and subsequent loads. The
 [primitive-local regressions](../../../../tests/native-differential/tests/primitive_locals.rs)
 cover the unchanged ranked `walk`, direct replacement and loop reinitialization
-through native publication. Native reads currently require fixed 64-bit integers.
+through native publication. Fixed 8/16/32/64-bit signed and unsigned integers,
+Boolean, and IEEE binary32/binary64 retain exact-width reads and writes. IEEE
+homes carry raw payloads, not numeric conversions. Ordinary Unit helpers can
+replace a local while an earlier scalar snapshot remains distinct from its next
+read; readable primitive references can initialize that local.
 
 Closed-sum inspection of an admitted boundary result uses this same graph,
 without a fixed block count, arm order, or exit-only body template. Each case
