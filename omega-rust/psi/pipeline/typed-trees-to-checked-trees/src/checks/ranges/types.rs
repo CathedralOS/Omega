@@ -256,6 +256,9 @@ pub(in crate::checks::ranges) fn expression_type_reference(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(_) => {
+            validation::declared_constant_array_type(program, expression)
+        }
         ExpressionNode::Borrow(inner) => {
             expression_type_reference(program, machine, state, inner.target)
         }

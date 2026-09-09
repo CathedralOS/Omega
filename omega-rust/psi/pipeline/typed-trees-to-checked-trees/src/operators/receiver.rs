@@ -133,8 +133,10 @@ fn expression_type_reference_in_state(
                 )
             }),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Boolean(_)
+        ExpressionNode::ArrayLiteral(_) => {
+            validation::declared_constant_array_type(program, expression)
+        }
+        ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)

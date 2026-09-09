@@ -46,6 +46,9 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> Option<TypeReferenceHandle> {
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::ArrayLiteral(_) => {
+                validation::declared_constant_array_type(self.program, expression)
+            }
             ExpressionNode::Borrow(inner) => self.expression_type_reference(inner.target, frame),
             ExpressionNode::Cast(cast) => Some(cast.target_type),
             ExpressionNode::Indexed(indexed) => {

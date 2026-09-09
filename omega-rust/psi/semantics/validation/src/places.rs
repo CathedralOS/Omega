@@ -195,7 +195,9 @@ pub(crate) fn assignment_value_type(
 
 /// Like [`declared_place_type`] but returns the place's type reference WITHOUT
 /// unwrapping the `Constrained`/`Reference` shells -- callers that need the
-/// arithmetic domain (decision 17) read it from this raw handle.
+/// arithmetic domain (decision 17) read it from this raw handle. This type query
+/// also recognizes declared call results and substituted constant arrays; a
+/// result here does not establish that an expression denotes storage.
 pub fn declared_place_type_raw(
     program: &TypedTrees,
     current_machine: &typed_trees::machine::Machine,
@@ -243,6 +245,7 @@ pub fn declared_place_type_raw(
         return declared_member_path_type(program, current_machine, current_state, &members);
     }
     match program.expression_table.expression(handle) {
+        ExpressionNode::ArrayLiteral(_) => crate::declared_constant_array_type(program, handle),
         ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call),
         ExpressionNode::Member(member) => {
             let receiver =

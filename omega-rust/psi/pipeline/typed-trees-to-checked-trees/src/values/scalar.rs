@@ -19,6 +19,7 @@ use typed_trees::{
 
 mod call_arguments;
 mod computations;
+mod constant_array_projection;
 mod primitive_reference_read;
 mod structural_fields;
 pub(crate) use structural_fields::resolve_structural_parameter_path;
@@ -2578,6 +2579,23 @@ fn lower_scalar_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    if let Some(leaf) = constant_array_projection::selected_leaf(
+        program,
+        operators,
+        authored_parameters,
+        expression,
+    ) {
+        return lower_scalar_expression(
+            program,
+            operators,
+            leaf,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        );
+    }
     if let Some(length) =
         structural_fields::whole_byte_view_length(program, authored_parameters, expression)
     {
@@ -3183,6 +3201,23 @@ fn lower_boolean_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
+    if let Some(leaf) = constant_array_projection::selected_leaf(
+        program,
+        operators,
+        authored_parameters,
+        expression,
+    ) {
+        return lower_boolean_expression(
+            program,
+            operators,
+            leaf,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        );
+    }
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Name(_) | ExpressionNode::Member(_)

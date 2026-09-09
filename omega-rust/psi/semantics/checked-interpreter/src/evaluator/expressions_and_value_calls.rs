@@ -225,7 +225,26 @@ impl<'program> Evaluator<'program> {
                 }
                 // Select the collection and index once, including nested views.
                 // Packed bytes share their buffer; other arrays share cells.
-                let collection = self.resolve_place(indexed.collection, frame)?;
+                let collection = if self.is_array_literal_projection(indexed.collection) {
+                    if validation::builtin_constant_array_projection_type(
+                        self.program,
+                        frame.machine_symbol,
+                        handle,
+                    )
+                    .is_none()
+                    {
+                        return unsupported(
+                            "array value projection has no exact builtin constant indexing meaning",
+                        );
+                    }
+                    // A copied literal is a value, not a source place. Evaluate
+                    // all its elements before the selector, once, without
+                    // extending resolve_place's write/borrow authority.
+                    let value = self.eval_expression(indexed.collection, frame)?;
+                    self.allocate_cell(value)?
+                } else {
+                    self.resolve_place(indexed.collection, frame)?
+                };
                 let collection = self.deref_cell(collection);
                 let index = self.eval_index(indexed.index, frame)?;
                 if let Value::Str(text) = &*collection.borrow() {
@@ -255,6 +274,16 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::StructLiteral(literal) => self.eval_struct_literal(&literal, frame),
             ExpressionNode::ZeroValue(_) => {
                 unsupported("proof-only zero_value<T>() reached runtime evaluation")
+            }
+        }
+    }
+
+    fn is_array_literal_projection(&self, mut expression: ExpressionHandle) -> bool {
+        loop {
+            match self.program.expression_table.expression(expression) {
+                ExpressionNode::ArrayLiteral(_) => return true,
+                ExpressionNode::Indexed(indexed) => expression = indexed.collection,
+                _ => return false,
             }
         }
     }

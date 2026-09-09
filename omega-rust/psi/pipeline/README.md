@@ -156,9 +156,13 @@ references use the same exact selector and deep-copy their literal trees per use
 Destination checks rejoin their declared dimensions and element identity, including
 empty and nested-empty arrays; scalar leaf landings alone cannot retain that shape.
 The CLI example above includes root, module-local and qualified array body uses.
-Direct indexing/slicing of a substituted array still rejects until the value-based
-projection owner preserves element typing and execution without inventing a place;
-an ordinary typed-local copy already supports indexing.
+Literal scalar indexing of these constants retains its declared element type,
+bounds and selected indexing meaning through checking. The checked interpreter
+evaluates the copied value; Terminal production selects its closed literal leaf
+without creating constant storage. Nested integer/Boolean projections execute
+from independently decoded semantic/proof bytes. Dynamic selectors, slicing and
+explicitly borrowed projections still reject pending general value projection
+and view-lifetime support; an ordinary typed-local copy already supports indexing.
 Nominal aggregate body substitution remains separate. The `module_machine_indices` integration target covers distinct
 module values, narrow imports, runtime shadowing, invalid unused declarations,
 and scalar/array landing boundaries.

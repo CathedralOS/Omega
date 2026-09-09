@@ -473,23 +473,48 @@ pub(crate) fn substitute_resolved_constants(
             ));
         }
     }
-    // Direct projections still require the value-based array indexing owner:
-    // current projection typing and execution expect an addressable place.
-    // Collect the original collection roots before substituting any names.
-    let array_projection_sources = program
+    // Fixed scalar projections preserve their full typed indexing expression.
+    // Dynamic selectors, slicing and borrowed projections still need value/view
+    // lowering. Fence their original root before substituting names, including
+    // nonliteral outer selectors in a nested projection.
+    let unsupported_array_projection_sources = program
         .tables
         .bodies
         .expressions
         .iter_expressions()
         .filter_map(|(_, node)| {
-            let ExpressionNode::Indexed(indexed) = node else {
-                return None;
+            let mut collection = match node {
+                ExpressionNode::Indexed(indexed)
+                    if !matches!(
+                        program.tables.bodies.expressions.expression(indexed.index),
+                        ExpressionNode::Integer(_)
+                    ) || matches!(
+                        program
+                            .tables
+                            .bodies
+                            .expressions
+                            .expression(indexed.collection),
+                        ExpressionNode::Borrow(_)
+                    ) =>
+                {
+                    indexed.collection
+                }
+                ExpressionNode::Borrow(borrow)
+                    if matches!(
+                        program.tables.bodies.expressions.expression(borrow.target),
+                        ExpressionNode::Indexed(_)
+                    ) =>
+                {
+                    borrow.target
+                }
+                _ => return None,
             };
-            let mut collection = indexed.collection;
-            while let ExpressionNode::Borrow(borrow) =
-                program.tables.bodies.expressions.expression(collection)
-            {
-                collection = borrow.target;
+            loop {
+                match program.tables.bodies.expressions.expression(collection) {
+                    ExpressionNode::Borrow(borrow) => collection = borrow.target,
+                    ExpressionNode::Indexed(inner) => collection = inner.collection,
+                    _ => break,
+                }
             }
             Some(collection)
         })
@@ -575,9 +600,9 @@ pub(crate) fn substitute_resolved_constants(
             program.tables.bodies.expressions.expression(*initializer),
             ExpressionNode::ArrayLiteral(_)
         ) {
-            if array_projection_sources.contains(&occurrence.expression) {
+            if unsupported_array_projection_sources.contains(&occurrence.expression) {
                 return Err(Diagnostic::error(
-                    "direct array constant indexing requires value-based array projection; materialize into a typed local before indexing"
+                    "array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection"
                 ).with_source_span(reference));
             }
             program
