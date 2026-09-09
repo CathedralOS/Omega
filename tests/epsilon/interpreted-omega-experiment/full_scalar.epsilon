@@ -15,5 +15,71 @@ machine Main::main(&mut self) {
   let quotient: i32 = 17 / 5;
   let remainder: i32 = -17 % 5;
   assert quotient == 3 && remainder == -2;
+
+  // Exact i32 endpoints, including results that cross zero without overflow.
+  let minimum: i32 = -2147483648;
+  let maximum: i32 = 2147483647;
+  assert minimum + maximum == -1;
+  assert minimum + 1 == -2147483647;
+  assert maximum + 0 == maximum;
+  assert -1 - maximum == minimum;
+  assert -1 - minimum == maximum;
+  assert minimum - minimum == 0;
+  assert -maximum == -2147483647;
+  assert minimum * 1 == minimum;
+  assert minimum * 0 == 0;
+  assert maximum * -1 == -2147483647;
+  assert -32768 * 65536 == minimum;
+  assert 46340 * 46340 == 2147395600;
+
+  // Division truncates toward zero; a remainder keeps the dividend's sign.
+  assert 17 / -5 == -3;
+  assert -17 / 5 == -3;
+  assert -17 / -5 == 3;
+  assert 17 % -5 == 2;
+  assert -17 % -5 == -2;
+  assert minimum / 1 == minimum;
+  assert minimum % 1 == 0;
+  assert minimum / minimum == 1;
+  assert minimum % minimum == 0;
+  assert minimum / maximum == -1;
+  assert minimum % maximum == -1;
+  assert maximum / minimum == 0;
+  assert maximum % minimum == maximum;
+  assert -2147483647 / 2 == -1073741823;
+  assert -2147483647 % 2 == -1;
+
+  // Bit operations retain exactly 32 bits, including the sign bit.
+  assert (minimum & maximum) == 0;
+  assert (minimum | maximum) == -1;
+  assert (minimum ^ -1) == maximum;
+  assert (1431655765 & -1431655766) == 0;
+  assert (1431655765 | -1431655766) == -1;
+  assert (1431655765 ^ -1431655766) == -1;
+  assert (-1 & maximum) == maximum;
+  assert (-1 ^ -1) == 0;
+
+  // Both admitted count endpoints; negative left shifts wrap, not overflow.
+  assert (minimum << 0) == minimum;
+  assert (maximum >> 0) == maximum;
+  assert (1 << 31) == minimum;
+  assert (-1 << 31) == minimum;
+  assert (maximum << 31) == minimum;
+  assert (minimum << 1) == 0;
+  assert (maximum << 1) == -2;
+  assert (-1 << 1) == -2;
+  assert (minimum >> 31) == -1;
+  assert (maximum >> 31) == 0;
+  assert (-1 >> 31) == -1;
+  assert (-3 >> 1) == -2;
+
+  assert (minimum < maximum) == 1;
+  assert (maximum < minimum) == 0;
+  assert (minimum <= minimum) == 1;
+  assert (maximum > minimum) == 1;
+  assert (minimum > maximum) == 0;
+  assert (maximum >= maximum) == 1;
+  assert (minimum != maximum) == 1;
+  assert (minimum == maximum) == 0;
   self.console.write_byte(65);
 }
