@@ -263,17 +263,22 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution at `Unsupported("provider candidate has no checked affine identity return plan")`
-  (macOS ARM64, `ac80b59b07`). Main's complete checked call plan now retains its
-  raw fixed-buffer borrow, structural line result, and immediate disposal.
-  Next owner: `checked-trees-to-lowered-psi/src/attached_unit/providers.rs`;
-  structural provider candidates currently require an affine identity-return
-  plan, while `ConsoleNativeProvider::read_line` has a composed state-graph
-  result plan. Admit that actual checked body through the existing provider
-  route, preserving exact requirement/result signatures and settlement custody.
-  Do not substitute a line intrinsic or rewrite portable boundary calls into
-  selected direct calls. Re-run this same native probe; entry provisioning and
-  later native realization remain separate dependencies, not implied passes.
+  execution at `StructuralArgumentTypeMismatch` (operation 5, argument 0,
+  expected type 7, actual type 1; macOS ARM64, `b8c05f5e0f`). The checked reader
+  now enters the shared provider closure. The next gap is `Main.pause`:
+  raw `[u8; 256]` storage presented to the boundary's `&mut [u8]` parameter.
+  `terminal-verifier/src/validation/structural_operations.rs` only applies
+  `terminal-semantics::mutable_fixed_byte_array_extent` to ordinary Unit calls;
+  its boundary helper recognizes bounded byte fields, not raw fixed arrays.
+  A reduced provider-free `Root { buffer: [u8; 256] }` calling
+  `_ = Host::read(&mut self.buffer)` reproduces the same type mismatch, so
+  changing provider discovery again will not resolve it.
+  Preserve the real initialized array, exact field path, exclusive loan, fixed
+  extent, and structural result cleanup through boundary verification and
+  selected-provider transport. Do not substitute bounded-owner replacement,
+  a line intrinsic, or selected direct calls in portable Psi. Exercise the
+  borrowed view in the checked provider and rerun this same native probe;
+  entry provisioning and later native realization remain separate dependencies.
   The native sample harness now supplies exact test-owned Console acceptance and
   receiving permissions through the shared canary helper. Byte-output and exit
   classification succeed; fixture acceptance does not replace the CLI's package review.
