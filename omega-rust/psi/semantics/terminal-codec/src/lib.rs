@@ -1612,7 +1612,7 @@ fn validate_operation_foundation(
                 || !actual_result.claims.is_empty()
                 || !claim_transfers.is_empty()
                 || !returned_claim_transfers.is_empty()
-                || if is_plain_scalar_case_call(module, actual_result, callee) {
+                || if is_plain_primitive_structural_call(module, actual_result, callee) {
                     requirement_obligations.len() != callee.contract.requires.len()
                 } else {
                     !requirement_obligations.is_empty() || !crash_continuations.is_empty()
@@ -1694,16 +1694,17 @@ fn validate_operation_foundation(
                 && expected_result.qualifications.is_empty()
                 && actual_result.claims.is_empty()
                 && callee_exact_payloadless_return(callee);
-            let plain_scalar_case = is_plain_scalar_case_call(module, actual_result, callee)
-                && selected_evidence.is_empty()
-                && claim_transfers.is_empty()
-                && returned_claim_transfers.is_empty()
-                && requirement_obligations.len() == callee.contract.requires.len();
+            let plain_primitive_result =
+                is_plain_primitive_structural_call(module, actual_result, callee)
+                    && selected_evidence.is_empty()
+                    && claim_transfers.is_empty()
+                    && returned_claim_transfers.is_empty()
+                    && requirement_obligations.len() == callee.contract.requires.len();
             if !callee.parameters.is_empty()
                 || structural_arguments.len() != callee.structural_parameters.len()
                 || (!selected_evidence.is_empty() && !exact_payloadless)
                 || (!exact_payloadless
-                    && !plain_scalar_case
+                    && !plain_primitive_result
                     && (structural_arguments.len() != 1 || callee.structural_parameters.len() != 1))
                 || actual_result.structural_type != expected_result.structural_type
                 || actual_result.multiplicity != expected_result.multiplicity
@@ -1747,7 +1748,7 @@ fn validate_operation_foundation(
             if exact_payloadless {
                 return Ok(());
             }
-            if plain_scalar_case {
+            if plain_primitive_result {
                 return validate_structural_arguments(
                     module,
                     machine,
@@ -2050,7 +2051,10 @@ fn validate_operation_foundation(
     Ok(())
 }
 
-fn is_plain_scalar_case_call(
+// Primitive aggregate results use the same exact call signature. Arrays carry
+// no claims or qualifications, even when their payload is empty; the verifier
+// still checks the callee and result availability independently.
+fn is_plain_primitive_structural_call(
     module: &TerminalModule,
     result: &terminal_psi::StructuralOperationResult,
     callee: &TerminalMachine,
@@ -2064,12 +2068,17 @@ fn is_plain_scalar_case_call(
         && callee.entry_claims.is_empty()
         && callee.content_entry_claims.is_empty()
         && callee.contract.outcome_specific_ensures.is_empty()
-        && module.structural_types.iter().any(|declaration| {
+        && (module.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
                 && matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
                     if cases.iter().all(|case| case.fields.iter().all(|field|
                         !field.relevance.is_erased() && field.field_type.scalar_type().is_some())))
-        })
+        }) || (result.multiplicity == StructuralMultiplicity::Unrestricted
+            && terminal_semantics::scalar_array_leaf_shape(
+                module.structural_types.iter(),
+                result.structural_type,
+            )
+            .is_some()))
 }
 
 fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {

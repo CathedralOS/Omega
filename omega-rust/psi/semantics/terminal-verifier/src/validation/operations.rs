@@ -11,8 +11,8 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
-    // Structural calls do not yet transport primitive-array payloads. Reject
-    // an exact constructor occurrence before ordinary opaque-place binding
+    // Arguments do not yet transport primitive-array payloads. Reject a
+    // constructor or returned call payload before ordinary opaque-place binding
     // could mistake type/custody metadata for initialized array contents.
     let structural_arguments = match &operation.kind {
         OperationKind::CallUnit {
@@ -43,11 +43,19 @@ pub(super) fn validate_operation_operands(
             .iter()
             .flat_map(|block| &block.operations)
             .any(|producer| {
-                matches!(producer.kind, OperationKind::EstablishScalarArray { .. })
-                    && producer
-                        .result
-                        .structural()
-                        .is_some_and(|result| result.place == argument.place)
+                matches!(
+                    producer.kind,
+                    OperationKind::EstablishScalarArray { .. }
+                        | OperationKind::CallStructural { .. }
+                        | OperationKind::CallStructuralWithScalarArguments { .. }
+                ) && producer.result.structural().is_some_and(|result| {
+                    result.place == argument.place
+                        && terminal_semantics::scalar_array_leaf_shape(
+                            module.structural_types.iter(),
+                            result.structural_type,
+                        )
+                        .is_some()
+                })
             })
         {
             return Err(ModuleError::ScalarArrayResultMismatch(operation.id));

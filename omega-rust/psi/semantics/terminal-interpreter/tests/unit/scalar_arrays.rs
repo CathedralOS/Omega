@@ -448,3 +448,365 @@ fn scalar_array_structural_argument_transport_rejects_before_execution() {
         "{error:?}"
     );
 }
+
+fn internal_array_returns(dimensions: &[u64], return_prior_array: bool) -> TerminalModule {
+    let count = dimensions.iter().product::<u64>();
+    let mut module = fixture(dimensions, byte(0).scalar_type(), &[]);
+    module.machines.clear();
+    for depth in 0..3_u64 {
+        let values = vec![byte(7 + depth as u8); count as usize];
+        let mut machine = fixture(dimensions, byte(0).scalar_type(), &values)
+            .machines
+            .remove(0);
+        let offset = depth * 1000;
+        machine.id = machine_id(depth + 1);
+        machine.contract.id = contract_id(depth + 1);
+        machine.entry = block_id(depth + 1);
+        machine.blocks[0].id = block_id(depth + 1);
+        let TerminalMachineResult::Structural(result) = &mut machine.result else {
+            unreachable!()
+        };
+        result.place = place_id(offset + 2);
+        machine.structural_places[0].id = place_id(offset + 1);
+        machine.structural_places[0].kind =
+            semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer: operation_id(offset + 99),
+                structural_type: structural_type_id(1),
+            };
+        machine.structural_places[1].id = place_id(offset + 2);
+        for operation in &mut machine.blocks[0].operations {
+            operation.id = operation_id(offset + operation.id.get());
+            match &mut operation.result {
+                OperationResult::Scalar(value) => value.id = value_id(offset + value.id.get()),
+                OperationResult::Structural(result) => result.place = place_id(offset + 1),
+                OperationResult::Unit => unreachable!(),
+            }
+            if let OperationKind::EstablishScalarArray { elements } = &mut operation.kind {
+                for element in elements {
+                    *element = value_id(offset + element.get());
+                }
+            }
+        }
+        let mut source = place_id(offset + 1);
+        if depth < 2 {
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place_id(offset + 3),
+                kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer: operation_id(offset + 100),
+                    structural_type: structural_type_id(1),
+                },
+            });
+            machine.blocks[0].operations.push(Operation {
+                id: operation_id(offset + 100),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: place_id(offset + 3),
+                    structural_type: structural_type_id(1),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                    claims: vec![],
+                }),
+                kind: OperationKind::CallStructural {
+                    callee: machine_id(depth + 2),
+                    structural_arguments: vec![],
+                    claim_transfers: vec![],
+                    returned_claim_transfers: vec![],
+                    requirement_obligations: vec![],
+                    crash_continuations: vec![],
+                    selected_evidence: vec![],
+                },
+            });
+            machine.blocks[0].operations.push(Operation {
+                id: operation_id(offset + 101),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(offset + 101),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::BooleanConstant { value: true },
+            });
+            if !return_prior_array {
+                source = place_id(offset + 3);
+            }
+        }
+        machine.blocks[0].terminator = Terminator::ReturnStructural {
+            edge: edge_id(depth + 1),
+            source,
+            returned_claims: vec![],
+            trivial_affine_discards: vec![],
+        };
+        module.machines.push(machine);
+    }
+    module
+}
+
+#[test]
+fn scalar_array_internal_returns_preserve_nested_payloads_and_caller_arrays_across_fuel() {
+    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    for dimensions in [vec![2], vec![2, 2], vec![0], vec![1, 0], vec![0, 2]] {
+        for return_prior_array in [false, true] {
+            let module = internal_array_returns(&dimensions, return_prior_array);
+            let semantic = encode_module(&module).unwrap();
+            assert_eq!(decode_module(&semantic).unwrap(), module);
+            let count = dimensions.iter().product::<u64>();
+            let result = expected(vec![
+                byte(if return_prior_array { 7 } else { 9 });
+                count as usize
+            ]);
+            let measured = interpret_terminal_artifact_measured(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                &[],
+            )
+            .unwrap();
+            assert_eq!(measured.value(), result);
+            let mut execution = TerminalExecution::start_artifact(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                &[],
+            )
+            .unwrap();
+            let mut meter = TerminalFuelMeter::with_allowance(0);
+            for _ in 0..measured.usage().total_units() {
+                assert!(matches!(
+                    execution.resume(&mut meter).unwrap(),
+                    TerminalExecutionStatus::SponsorExhausted(_)
+                ));
+                meter.replenish(1).unwrap();
+            }
+            assert_eq!(
+                execution.resume(&mut meter).unwrap(),
+                TerminalExecutionStatus::Complete(result.clone())
+            );
+            assert_eq!(meter.usage(), measured.usage());
+            assert_eq!(
+                execution.resume(&mut meter).unwrap(),
+                TerminalExecutionStatus::Complete(result)
+            );
+            assert_eq!(meter.usage(), measured.usage());
+        }
+    }
+}
+
+#[test]
+fn scalar_array_internal_returns_reject_forged_result_and_call_evidence() {
+    for mutation in 0..4 {
+        let mut module = internal_array_returns(&[2], false);
+        let caller = &mut module.machines[0];
+        let operation = &mut caller.blocks[0].operations[3];
+        match mutation {
+            0 => {
+                let OperationResult::Structural(result) = &mut operation.result else {
+                    unreachable!()
+                };
+                result.structural_type = structural_type_id(2);
+            }
+            1 => {
+                let OperationResult::Structural(result) = &mut operation.result else {
+                    unreachable!()
+                };
+                result.multiplicity = StructuralMultiplicity::Affine;
+            }
+            2 => {
+                let OperationKind::CallStructural {
+                    requirement_obligations,
+                    ..
+                } = &mut operation.kind
+                else {
+                    unreachable!()
+                };
+                requirement_obligations.push(obligation_id(1));
+            }
+            3 => {
+                caller.structural_places[2].kind =
+                    semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: operation_id(99),
+                        structural_type: structural_type_id(1),
+                    };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err(),
+            "forged internal array result {mutation}"
+        );
+        // Some contradictions are already rejected by canonical encoding.
+        // Encodable contradictions must still fail admission before execution.
+        if let Ok(semantic) = encode_module(&module) {
+            assert!(
+                TerminalExecution::start_artifact(
+                    &semantic,
+                    &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+                    &AdmissionProfile::default(),
+                    &[],
+                )
+                .is_err(),
+                "forged internal array artifact {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_array_internal_returns_preserve_boolean_and_ieee_payload_bits() {
+    for payload in [
+        TerminalScalarValue::Boolean(true),
+        TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x8000_0000)),
+        TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(0x7fc0_0042)),
+    ] {
+        let mut module = internal_array_returns(&[2], false);
+        module.structural_types.last_mut().unwrap().shape =
+            StructuralTypeShape::PrimitiveScalar(payload.scalar_type());
+        for machine in &mut module.machines {
+            for operation in &mut machine.blocks[0].operations {
+                if !matches!(operation.kind, OperationKind::IntegerConstant { .. }) {
+                    continue;
+                }
+                let OperationResult::Scalar(result) = &mut operation.result else {
+                    panic!("literal result");
+                };
+                result.scalar_type = payload.scalar_type();
+                operation.kind = match payload {
+                    TerminalScalarValue::Boolean(value) => OperationKind::BooleanConstant { value },
+                    TerminalScalarValue::IeeeFloat(value) => {
+                        OperationKind::IeeeFloatConstant { value }
+                    }
+                    _ => panic!("noninteger payload"),
+                };
+            }
+        }
+        assert_eq!(
+            interpret_terminal_artifact_measured(
+                &encode_module(&module).unwrap(),
+                &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+                &AdmissionProfile::default(),
+                &[],
+            )
+            .unwrap()
+            .value(),
+            expected(vec![payload; 2])
+        );
+    }
+}
+
+#[test]
+fn scalar_array_call_results_do_not_erase_callee_requirements() {
+    let mut module = internal_array_returns(&[2], false);
+    let mut proof = ProofBundle::default();
+    for machine in &mut module.machines {
+        machine.contract.requires.push(Proposition::Truth);
+        for operation in &mut machine.blocks[0].operations {
+            if let OperationKind::CallStructural {
+                requirement_obligations,
+                ..
+            } = &mut operation.kind
+            {
+                let identity = proof.evidence.len() as u64 + 1;
+                requirement_obligations.push(obligation_id(identity));
+                proof.evidence.push(ObligationEvidence {
+                    obligation: obligation_id(identity),
+                    route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                        identity: EvidenceIdentity::new(identity).unwrap(),
+                        proof_system_marker: ProofSystemMarker::CURRENT,
+                        proof: ProofNode {
+                            conclusion: Proposition::Truth,
+                            rule: ProofRule::Assumption { index: 0 },
+                        },
+                    }),
+                });
+            }
+        }
+    }
+    let semantics = encode_module(&module).unwrap();
+    assert_eq!(
+        interpret_terminal_artifact_measured(
+            &semantics,
+            &encode_proof_bundle(&proof).unwrap(),
+            &AdmissionProfile::default(),
+            &[],
+        )
+        .unwrap()
+        .value(),
+        expected(vec![byte(9); 2])
+    );
+    assert!(
+        TerminalExecution::start_artifact(
+            &semantics,
+            &encode_proof_bundle(&ProofBundle::default()).unwrap(),
+            &AdmissionProfile::default(),
+            &[],
+        )
+        .is_err()
+    );
+    let OperationKind::CallStructural {
+        requirement_obligations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[3].kind
+    else {
+        panic!("caller operation");
+    };
+    requirement_obligations.clear();
+    assert!(verify_module(&module, &proof, &AdmissionProfile::default()).is_err());
+}
+
+#[test]
+fn scalar_array_call_results_do_not_gain_opaque_argument_transport() {
+    let mut module = internal_array_returns(&[2], false);
+    let mut sink = unit_module().machines.remove(0);
+    sink.id = machine_id(4);
+    sink.contract.id = contract_id(4);
+    sink.entry = block_id(4);
+    sink.blocks[0].id = block_id(4);
+    sink.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(4),
+        trivial_affine_discards: vec![],
+    };
+    sink.structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(301),
+            position: 0,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            access: StructuralAccess::Owned,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+        });
+    sink.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(301),
+        kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    });
+    module.machines.push(sink);
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: operation_id(302),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(4),
+            arguments: vec![],
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(3),
+                path: vec![],
+                access: StructuralAccess::Owned,
+            }],
+            claim_transfers: vec![],
+            requirement_obligations: vec![],
+            crash_continuations: vec![],
+        },
+    });
+    assert!(
+        matches!(verify_module(&module, &ProofBundle::default(), &AdmissionProfile::default()),
+            Err(VerificationError::Module(ModuleError::ScalarArrayResultMismatch(operation)))
+            | Err(VerificationError::Module(ModuleError::UnknownStructuralArgument { operation, .. }))
+            if operation == operation_id(302)
+        )
+    );
+}

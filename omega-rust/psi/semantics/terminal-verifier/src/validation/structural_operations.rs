@@ -170,21 +170,7 @@ pub(super) fn validate_unit_operation_static(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
-    if matches!(
-        operation.kind,
-        OperationKind::CallStructural { .. }
-            | OperationKind::CallStructuralWithScalarArguments { .. }
-    ) && operation.result.structural().is_some_and(|result| {
-        result.multiplicity == StructuralMultiplicity::Unrestricted
-            && terminal_semantics::scalar_array_leaf_shape(
-                module.structural_types.iter(),
-                result.structural_type,
-            )
-            .is_some()
-    }) {
-        return Err(ModuleError::ScalarArrayResultMismatch(operation.id));
-    }
-    if validate_scalar_case_call(module, machine, machines, operation)? {
+    if validate_primitive_structural_call(module, machine, machines, operation)? {
         return Ok(());
     }
     match &operation.kind {
@@ -1034,10 +1020,10 @@ pub(super) fn validate_unit_operation_static(
     Ok(())
 }
 
-/// Ordinary claim-free scalar-sum results use the same argument, requirement,
-/// crash, and service checks as continuing calls. No callee topology supplies
-/// facts or excuses checking its body.
-fn validate_scalar_case_call(
+/// Scalar cases and unrestricted primitive arrays share argument, requirement,
+/// crash, and service checks. Selecting an executable payload shape supplies no
+/// facts or permission to skip the callee body, contract, or availability checks.
+fn validate_primitive_structural_call(
     module: &TerminalModule,
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
@@ -1046,7 +1032,14 @@ fn validate_scalar_case_call(
     let Some(result) = operation.result.structural() else {
         return Ok(false);
     };
-    if !super::scalar_case::plain_type(module, result.structural_type)
+    let primitive_payload = super::scalar_case::plain_type(module, result.structural_type)
+        || (result.multiplicity == StructuralMultiplicity::Unrestricted
+            && terminal_semantics::scalar_array_leaf_shape(
+                module.structural_types.iter(),
+                result.structural_type,
+            )
+            .is_some());
+    if !primitive_payload
         || !matches!(
             result.multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
