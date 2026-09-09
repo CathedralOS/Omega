@@ -388,7 +388,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Finish native payload construction and ordinary return/call realization for
   `LineReadResult`; payloadless construction and whole-root identity returns do
   not cover them. Use the verified/interpreted scalar-case constructor and
-  caller controls in `byte_write_loop.rs` as input to the existing shared graph,
+  caller controls in `byte_write_loop.rs`, including four-case dispatch with
+  repeated payload names and full-width counts, as input to the existing shared graph,
   not a line-specific compiler route. Native lowering must keep rejecting
   nonempty scalar-case construction until aggregate result storage, call
   transport, and selected-case observation are realized together. The fence is

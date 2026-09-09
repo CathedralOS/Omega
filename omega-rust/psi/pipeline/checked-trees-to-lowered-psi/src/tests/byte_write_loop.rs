@@ -275,6 +275,93 @@ fn scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count()
 }
 
 #[test]
+fn same_named_case_payloads_preserve_identity_through_calls_and_interpretation() {
+    let checked = checked_source(
+        r#"
+        data Outcome {
+            case Empty;
+            case First(count: u64);
+            case Second(count: u64);
+            case Third(count: u64);
+        }
+        machine choose(selector: u64, count: u64) -> Outcome {
+            transition selector == 0 { true -> empty() false -> first_test(selector, count) }
+            state empty() -> Outcome { Outcome::Empty }
+            state first_test(selector: u64, count: u64) -> Outcome {
+                transition selector == 1 { true -> first(count) false -> second_test(selector, count) }
+            }
+            state first(count: u64) -> Outcome { Outcome::First { count: count } }
+            state second_test(selector: u64, count: u64) -> Outcome {
+                transition selector == 2 { true -> second(count) false -> third(count) }
+            }
+            state second(count: u64) -> Outcome { Outcome::Second { count: count } }
+            state third(count: u64) -> Outcome { Outcome::Third { count: count } }
+        }
+        machine collect(out: &mut [u8], selector: u64, expected: u64) {
+            let observed: Outcome = choose(selector, expected);
+            transition observed {
+                Outcome::Third { count } -> check(out, expected, count, 33)
+                Outcome::Empty -> writable(out, 0)
+                Outcome::Second { count } -> check(out, expected, count, 22)
+                Outcome::First { count } -> check(out, expected, count, 11)
+            }
+            state check(out: &mut [u8], expected: u64, actual: u64, marker: u8) {
+                transition expected == actual { true -> writable(out, marker) false -> writable(out, 255) }
+            }
+            state writable(out: &mut [u8], marker: u8) {
+                transition out.len > 0 { true -> store(out, marker) false -> done() }
+            }
+            state store(out: &mut [u8], marker: u8) { out[0] = marker; }
+            state done() {}
+        }
+        data Record { out: [u8; 1]; }
+        machine Record::run(&mut self, selector: u64, count: u64) {
+            collect(&mut self.out, selector, count);
+        }
+    "#,
+    );
+    let artifact = produce_terminal_artifact(&checked, "Record::run")
+        .expect("same-named payloads retain distinct case identities in Terminal");
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let path = vec![StructuralPathSegment::Field("out".into())];
+    for (selector, marker) in [(0, 0), (1, 11), (2, 22), (3, 33)] {
+        for count in [0, 7, u64::MAX] {
+            let arguments =
+                [selector, count].map(|value| terminal_interpreter::TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    value: IntegerValue::Unsigned(u128::from(value)),
+                });
+            let mut execution =
+                TerminalExecution::start_artifact_with_structural_arguments_and_byte_arrays(
+                    artifact.semantic_bytes(),
+                    artifact.proof_bytes(),
+                    &proof_admission::AdmissionProfile::default(),
+                    &arguments,
+                    &[entry_argument(&artifact)],
+                    &[TerminalStructuralByteArrayValue {
+                        argument_index: 0,
+                        path: path.clone(),
+                        bytes: vec![19],
+                    }],
+                )
+                .expect("independently verify the reloaded artifact before execution");
+            let result = execution
+                .resume(&mut TerminalFuelMeter::with_allowance(512))
+                .unwrap();
+            assert_eq!(
+                result,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                execution.structural_byte_array(73, &path),
+                Some([marker].as_slice())
+            );
+        }
+    }
+}
+
+#[test]
 fn byte_input_exact_narrowing_uses_retained_payload_range_evidence() {
     let checked = checked_source(READ_ONE);
     let artifact = produce_terminal_artifact(&checked, "read_one")

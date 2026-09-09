@@ -1,11 +1,49 @@
+//! Resolve expression projections to declaration identities used by canonical places.
+//! Case payload spelling is not unique within a data declaration. Reconstruct
+//! qualified fields inside the selected case so borrow and Terminal consumers
+//! see the same Case/Field path; never repair a conflicting retained identity.
+
 use super::*;
 use crate::lookup::{first_valid_name_path_symbol, machine_by_symbol};
+
+#[cfg(test)]
+mod tests;
 
 pub(crate) fn effective_member_symbol(
     program: &typed_trees::TypedTrees,
     receiver: ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
+    // A case-qualified projection must not select the first same-named field
+    // in another case. Preserve the selected variant when reconstructing its
+    // canonical place; an inconsistent retained symbol is not repairable here.
+    if let Some(case_name) = &member.case_variant {
+        let selected = expression_type_symbol(program, receiver).and_then(|type_symbol| {
+            let declaration = program
+                .data_definitions()
+                .iter()
+                .find(|row| row.symbol == type_symbol)?;
+            let variant = program
+                .data_members(declaration)
+                .iter()
+                .find_map(|row| match row {
+                    typed_trees::data::DataMember::Variant(variant)
+                        if variant.name == *case_name =>
+                    {
+                        Some(variant)
+                    }
+                    _ => None,
+                })?;
+            program
+                .data_payload_fields(variant)
+                .iter()
+                .find(|field| field.name == member.member)
+                .map(|field| field.symbol)
+        });
+        return selected
+            .filter(|symbol| !member.member_symbol.is_valid() || member.member_symbol == *symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
+    }
     if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(receiver)
         && let Some(field) = program
             .expression_table
