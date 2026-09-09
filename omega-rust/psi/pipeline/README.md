@@ -141,13 +141,20 @@ private and unused; explicit integer landings cannot be erased during encoding.
 The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`
 covers same-leaf root/module constants with different canonical array values,
-including `settings::Sizes::SIZE`. Scoped arrays select an exact nongeneric data
-carrier in their declaring module and retain the authored carrier occurrence for
+including `settings::Sizes::SIZE` and scalar `settings::Sizes::MAX`. Scoped constants
+select an exact nongeneric data carrier in their declaring module and retain the authored carrier occurrence for
 visibility checks. Relative attached names prefer their local module; narrow
 imports expose only the exact selected leaf. Duplicate declarations, case
-collisions and runtime qualifiers still reject. Nominal record/sum initializers,
-scoped scalar constants and foreign/generic attachments still need namespace-aware
-normalization. Aggregate body substitution remains separate.
+collisions and runtime qualifiers still reject. Scoped numeric/Boolean literals
+also substitute into scalar bodies and computed machine indices; unused private
+initializers still validate their declared carrier. Private floats retain their
+declared format and round directly to it. Public float constant identities remain
+unsupported by the existing canonical declaration encoder. Nominal record/sum
+initializers (including a type merely named `string`) and foreign/generic
+attachments still need namespace-aware normalization. Aggregate body substitution
+remains separate. The `module_machine_indices` integration target covers distinct
+module values, narrow imports, runtime shadowing, invalid unused declarations,
+and scalar landing boundaries.
 The comparisons preserve each operand carrier and use the shared typed integer
 order operation; anonymous operands must land exactly in the selected peer carrier.
 Boolean equality and inequality compose named constants and comparison results

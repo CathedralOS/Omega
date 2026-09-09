@@ -10,3 +10,7 @@ data Sizes {}
 const Sizes::SIZE: [u64; 2] = [1, 2];
 machine root_scoped(value: Indexed<Sizes::SIZE>) -> Indexed<SIZE> { value }
 machine selected_scoped(value: Indexed<settings::Sizes::SIZE>) -> Indexed<OTHER> { value }
+const Sizes::MAX: u64 = 1;
+data Buffer<const N: u64> { value: [u8; N]; }
+machine root_scalar(value: Buffer<Sizes::MAX + 1>) -> Buffer<2> { value }
+machine selected_scalar(value: Buffer<settings::Sizes::MAX + 1>) -> Buffer<3> { value }

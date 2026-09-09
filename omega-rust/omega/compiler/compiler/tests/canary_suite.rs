@@ -756,6 +756,11 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "modules/module_array_component_landing",
+    "modules/module_array_missing_carrier",
+    "modules/module_array_private_carrier",
+    "modules/module_array_unused_length",
+    "modules/runtime_fixed_array_index",
     "modules/runtime_boolean_index",
     "modules/runtime_aggregate_index",
     "termination/unequal_computed_rank_copies",

@@ -12,7 +12,7 @@
 //!
 //! Scalar values substitute only after the shared resolver has selected their
 //! namespace and lexical binding. Legacy aggregate materialization retains its
-//! conservative free-constant shadowing walk. Module-owned array declarations
+//! conservative free-constant shadowing walk. Module-owned scoped declarations
 //! additionally select an exact nongeneric carrier in their declaring module.
 //! The authored scope token survives until complete symbol assignment, then joins
 //! the ordinary visibility/selection ledger; the structural value encoder alone
@@ -647,8 +647,8 @@ pub(crate) fn finalize_const_declarations(
             "failed to retain const declaration visibility provenance",
         ));
     }
-    // Scoped module arrays use the existing structural value encoder, but
-    // their declaration also selects a carrier. Retain that authored selection
+    // Scoped module constants select their carrier independently of scalar
+    // substitution or structural value encoding. Retain that authored selection
     // before erasing the scope token; a constant's visibility cannot authorize
     // naming its private carrier. Foreign and generic attachments still need
     // their complete normalization owners.
@@ -674,7 +674,7 @@ pub(crate) fn finalize_const_declarations(
                 })
         }) else {
             return Err(Diagnostic::error(
-                "module type-scoped array constants require an exact nongeneric data carrier in their declaring module",
+                "module type-scoped constants require an exact nongeneric data carrier in their declaring module",
             ).with_source_span(declaration.scope.source_span()));
         };
         let exposure = if declaration.is_public {
