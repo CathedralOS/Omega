@@ -108,16 +108,20 @@ prerequisite to every lower-rung milestone.
 
 - **ALPHA-BOUNDS-HARDENING.** Owners: `bootstrap/0_alpha/` semantics, native
   implementations and audited listings, with `tests/alpha/conformance.sh`.
-  The [ratified contract](bootstrap/0_alpha/SEMANTICS.md#8-bounds-and-fixed-capacity)
-  reuses Trap for failed runtime range checks and oversized stamped input,
-  preserving prior stdout without adding diagnostics or a higher-rung resource
-  result. Implement it without changing admitted in-bound runs.
-  Acceptance: matched semantics/reference/listings/native implementations,
-  exact-boundary and adjacent failure controls for memory, loading, and
-  return-stack capacity, deterministic Trap with runtime stdout-prefix
-  preservation, and refreshed affected seed identities and evidence.
-  Validate supported Windows and macOS routes; report unavailable host execution
-  explicitly rather than treating source review as a runtime pass.
+  Remaining acceptance: execute `sh tests/alpha/conformance.sh` and
+  `sh tests/alpha/reference/diamond-py.sh` on Windows x64 for the
+  [selected hardened seed](bootstrap/0_alpha/README.md#retention-inventory),
+  retaining exact stdout-prefix and native Trap observations. macOS execution
+  and source rebuild do not substitute for this unavailable host result;
+  [coverage limits](tests/alpha/README.md#bounds-conformance) remain explicit.
+
+- **ALPHA-WINDOWS-REGISTER-ISOLATION.** In
+  `bootstrap/0_alpha/alpha_x64_windows.hex`, I/O scratch RVAs `0x3080..0x309f`
+  overlap registers 16–19 of the register file at `0x3000`. Move private host
+  scratch outside all 256 Alpha registers without changing semantic memory or
+  opcode meaning. Acceptance: audited listing/container reconstruction, refreshed
+  identity, and native I/O controls preserving these register values and handles.
+  This is a source-confirmed pre-existing defect, not a Windows runtime result.
 
 ## P1 - Gamma checker and first complete encoding proof
 

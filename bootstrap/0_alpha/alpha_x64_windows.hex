@@ -113,6 +113,8 @@ FF 15 .rel32 iat_gsh
 ; --- loader: copy the embedded tape (the .tape hole) into VM memory ---
 48 B8 00 40 00 B0 01 00 00 00   ; rax = &.tape  (ImageBase + 0x70004000)
 44 8B 30                        ; mov r14d, [rax]   (tape length, 4-byte LE)
+41 81 FE FC FF FF 00            ; cmp r14d, 0x00fffffc (hole limit < MEMSIZE)
+0F 87 .rel32 trap               ; ja: reject before copying any tape bytes
 48 83 C0 04                     ; add rax, 4        (rax -> first tape byte)
 4D 31 FF                        ; xor r15, r15      (i = 0)
 load_loop:
@@ -131,7 +133,18 @@ load_done:
 
 ; --- fetch + dispatch ---
 next:
+48 89 F2                        ; mov rdx, rsi
+48 29 FA                        ; sub rdx, rdi: recover the unsigned pc offset
+48 81 FA 00 00 00 70            ; cmp rdx, MEMSIZE (also rejects wrapped targets)
+0F 83 .rel32 trap               ; jae: opcode must be in memory
 0F B6 06
+83 F8 14                        ; cmp eax, 0x14
+0F 87 .rel32 trap               ; ja: unknown opcode; no width-table access
+4C 8D 05 .rel32 widths          ; lea r8, [rip+widths]
+41 0F B6 0C 00                  ; movzx ecx, byte [r8+rax]
+48 01 CA                        ; add rdx, rcx: offset + full width cannot wrap
+48 81 FA 00 00 00 70            ; cmp rdx, MEMSIZE
+0F 87 .rel32 trap               ; ja: check every operand before any effect
 48 FF C6
 83 F8 00  0F 84 .rel32 h_halt
 83 F8 01  0F 84 .rel32 h_imm
@@ -154,7 +167,8 @@ next:
 83 F8 12  0F 84 .rel32 h_write
 83 F8 13  0F 84 .rel32 h_call
 83 F8 14  0F 84 .rel32 h_ret
-0F 0B
+trap:
+0F 0B                           ; abnormal halt; preserves prior stdout
 
 do_jump:
 48 8B 06
@@ -235,6 +249,8 @@ h_loadb:
 0F B6 16
 48 FF C6
 48 8B 04 D3
+48 3D 00 00 00 70               ; cmp rax, MEMSIZE
+0F 83 .rel32 trap               ; jae: unsigned byte address
 0F B6 14 07
 48 89 14 CB
 E9 .rel32 next
@@ -245,6 +261,8 @@ h_storeb:
 48 FF C6
 48 8B 04 CB
 48 8B 14 D3
+48 3D 00 00 00 70               ; cmp rax, MEMSIZE
+0F 83 .rel32 trap
 88 14 07
 E9 .rel32 next
 h_load:
@@ -253,6 +271,8 @@ h_load:
 0F B6 16
 48 FF C6
 48 8B 04 D3
+48 3D F8 FF FF 6F               ; cmp rax, MEMSIZE-8
+0F 87 .rel32 trap               ; ja: full word, without address addition
 48 8B 14 07
 48 89 14 CB
 E9 .rel32 next
@@ -263,6 +283,8 @@ h_store:
 48 FF C6
 48 8B 04 CB
 48 8B 14 D3
+48 3D F8 FF FF 6F               ; cmp rax, MEMSIZE-8
+0F 87 .rel32 trap
 48 89 14 07
 E9 .rel32 next
 h_jmp:
@@ -312,6 +334,9 @@ h_write:
 E8 .rel32 putbyte
 E9 .rel32 next
 h_call:
+49 8D 54 24 F8                  ; lea rdx, [r12-8]: prospective stack offset
+48 81 FA F8 FF FF 6F            ; cmp rdx, MEMSIZE-8 (underflow is unsigned large)
+0F 87 .rel32 trap               ; ja: no sp change or write on failed range
 48 8B 06
 48 89 F2
 48 29 FA
@@ -324,6 +349,8 @@ h_call:
 48 01 C6
 E9 .rel32 next
 h_ret:
+49 81 FC F8 FF FF 6F            ; cmp r12, MEMSIZE-8
+0F 87 .rel32 trap               ; ja: no preceding-call or stack-origin restriction
 49 89 FA
 4D 01 E2
 49 8B 02
@@ -374,6 +401,10 @@ putbyte:
 FF 15 .rel32 iat_wf
 48 83 C4 28
 C3
+
+; Total instruction widths, indexed only after op <= 0x14.
+widths:
+02 0A 03 03 03 03 03 03 03 03 03 03 09 0A 0A 0B 0B 02 02 09 01
 .pad 0x1200
 
 ; ===================== .rdata (RVA 0x2000, file 0x1200) =====================

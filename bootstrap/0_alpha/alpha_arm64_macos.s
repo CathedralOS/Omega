@@ -7,7 +7,7 @@
 // not grant either realization authority; the written semantics and each
 // realization's audited correspondence to them are the trust boundary.
 //
-// Trust obligation (bootstrap/alpha/README.md): disassemble the committed binary
+// Trust obligation (bootstrap/0_alpha/README.md): disassemble the committed binary
 // and read it against THIS source.  alpha_arm64_macos.lst is a committed
 // disassembly to ease that audit.
 //
@@ -45,9 +45,14 @@ _main:
     add  x19, x19, vregs@PAGEOFF
     adrp x20, mem@PAGE
     add  x20, x20, mem@PAGEOFF
+    movz x23, #0x7000, lsl #16     // fixed semantic extent, preserved by host calls
     adrp x9, _tape@PAGE
     add  x9, x9, _tape@PAGEOFF
     ldr  w10, [x9]
+    mov  w11, #0x1000000
+    sub  w11, w11, #4
+    cmp  w10, w11                 // hole maximum is also below MEMSIZE
+    b.hi Lbounds
     add  x9, x9, #4
     mov  x11, #0
 Lcopy:
@@ -70,50 +75,66 @@ h_imm:
     add  x21, x21, #9
     str  x10, [x19, w9, uxtw #3]
 next:
-    ldrb w23, [x21], #1
-    cmp  w23, #1
+    // Recover the unsigned Alpha offset even after a wrapped target addition.
+    sub  x10, x21, x20
+    cmp  x10, x23
+    b.hs Lbounds
+    ldrb w9, [x21]
+    cmp  w9, #20
+    b.hi Lbounds
+    sub  x10, x23, x10            // remaining bytes, without end-address overflow
+    adr  x11, Lwidths
+    ldrb w11, [x11, w9, uxtw]
+    cmp  x10, x11
+    b.lo Lbounds                 // complete instruction before any operand/effect
+    add  x21, x21, #1
+    cmp  w9, #1
     b.eq h_imm
-    cmp  w23, #4
+    cmp  w9, #4
     b.eq h_sub
-    cmp  w23, #10
+    cmp  w9, #10
     b.eq h_load
-    cmp  w23, #2
+    cmp  w9, #2
     b.eq h_mov
-    cmp  w23, #11
+    cmp  w9, #11
     b.eq h_store
-    cmp  w23, #3
+    cmp  w9, #3
     b.eq h_add
-    cmp  w23, #12
+    cmp  w9, #12
     b.eq h_jmp
-    cmp  w23, #13
+    cmp  w9, #13
     b.eq h_jz
-    cmp  w23, #16
+    cmp  w9, #16
     b.eq h_jeq
-    cmp  w23, #19
+    cmp  w9, #19
     b.eq h_call
-    cmp  w23, #20
+    cmp  w9, #20
     b.eq h_ret
-    cmp  w23, #15
+    cmp  w9, #15
     b.eq h_jlt
-    cmp  w23, #5
+    cmp  w9, #5
     b.eq h_mul
-    cmp  w23, #8
+    cmp  w9, #8
     b.eq h_loadb
-    cmp  w23, #6
+    cmp  w9, #6
     b.eq h_div
-    cmp  w23, #9
+    cmp  w9, #9
     b.eq h_storeb
-    cmp  w23, #7
+    cmp  w9, #7
     b.eq h_mod
-    cmp  w23, #17
+    cmp  w9, #17
     b.eq h_read
-    cmp  w23, #0
+    cmp  w9, #0
     b.eq h_halt
-    cmp  w23, #14
+    cmp  w9, #14
     b.eq h_jnz
-    cmp  w23, #18
+    cmp  w9, #18
     b.eq h_write
+Lbounds:
     udf  #0
+Lwidths:
+    .byte 2,10,3,3,3,3,3,3,3,3,3,3,9,10,10,11,11,2,2,9,1
+    .p2align 2
 // Hot two-register handlers read the adjacent operand bytes independently,
 // then advance pc once.  This is the same d,s decode and pc+2 transition as
 // two serial post-index loads, without a load-to-load writeback dependency.
@@ -187,6 +208,8 @@ h_loadb:
     ldrb w9,  [x21], #1
     ldrb w10, [x21], #1
     ldr  x12, [x19, w10, uxtw #3]
+    cmp  x12, x23
+    b.hs Lbounds
     ldrb w11, [x20, x12]
     str  x11, [x19, w9,  uxtw #3]
     b    next
@@ -195,6 +218,8 @@ h_storeb:
     ldrb w10, [x21], #1
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
+    cmp  x11, x23
+    b.hs Lbounds
     strb w12, [x20, x11]
     b    next
 h_load:
@@ -202,6 +227,9 @@ h_load:
     ldrb w10, [x21, #1]
     add  x21, x21, #2
     ldr  x12, [x19, w10, uxtw #3]
+    sub  x13, x23, #8
+    cmp  x12, x13
+    b.hi Lbounds
     ldr  x11, [x20, x12]
     str  x11, [x19, w9,  uxtw #3]
     b    next
@@ -211,6 +239,9 @@ h_store:
     add  x21, x21, #2
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
+    sub  x13, x23, #8
+    cmp  x11, x13
+    b.hi Lbounds
     str  x12, [x20, x11]
     b    next
 h_jmp:
@@ -292,6 +323,10 @@ h_write:
     bl   _write
     b    next
 h_call:
+    cmp  x22, #8
+    b.lo Lbounds
+    cmp  x22, x23
+    b.hi Lbounds
     ldr  x10, [x21]
     add  x11, x21, #8
     sub  x11, x11, x20
@@ -300,6 +335,9 @@ h_call:
     add  x21, x20, x10
     b    next
 h_ret:
+    sub  x13, x23, #8
+    cmp  x22, x13
+    b.hi Lbounds
     ldr  x11, [x20, x22]
     add  x22, x22, #8
     add  x21, x20, x11

@@ -19,13 +19,14 @@ toolchain (Apple clang 17.0.0, build `clang-1700.0.13.5`, macOS SDK 15.5), not
 by patching the older native binary. Its audited disassembly
 reflects that linker layout; the tape hole remains at file offset 32,768.
 
-The Windows PE listing keeps the same instruction handlers and file offsets.
+The Windows PE listing keeps the same file offsets.
 Its zero-filled data virtual size and `SizeOfUninitializedData` grow to
 `0x70001000`; the tape section moves to RVA `0x70004000`, the loader's absolute
 tape address becomes `0x1b0004000`, and `SizeOfImage` becomes `0x71004000`.
-The tape hole still begins at file offset `0x1400`. Reconstructing the complete
-listing changes exactly those five capacity/address bytes from the V3 PE.
-Windows runtime validation is not established by that byte audit.
+The tape hole still begins at file offset `0x1400`. The V4 capacity change
+affected five capacity/address bytes from the V3 PE; the current seed also
+contains the bounds checks below. Windows runtime validation is not established
+by the listing's exact reconstruction.
 
 This extent fits the existing static native containers, including the
 [PE32+ image-size limit of 2 GiB](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format).
@@ -47,14 +48,27 @@ non-resumable Trap. Runtime failure preserves prior stdout; loader failure occur
 before execution and has empty stdout. Neither adds diagnostic bytes, a new
 opcode, or a higher-rung resource result.
 
-The native hardening remains unimplemented. It must check complete fetch,
-operand, data, and call/return stack ranges with nonwrapping arithmetic, and
-reject a stamped length above 16,777,212 before copying. The implementation must
-preserve all admitted in-bound behavior, keep both native realizations small
-enough to audit, and update their source/listings, identities, and conformance
-evidence together. Do not infer Windows runtime validation from source/listing
-reconstruction. The independent reference VM must acquire the same transition
-checks with the new differential cases.
+Both native implementations and the independent reference check complete fetch,
+operand, data, and call/return stack ranges, and reject a stamped length above
+16,777,212 before copying. Dispatch checks the unsigned Alpha offset before
+fetch, then the full instruction width using a 21-byte table. Data and stack
+guards use unsigned end-minus-width comparisons; no address can wrap into an
+admitted range. The arm64 implementation keeps the fixed extent in a preserved
+native register. Neither adds semantic memory, a stack partition, or a new
+outcome. The reference also captures a call's target before an overlapping
+return-address write, as both native implementations do.
+
+The Windows occupied code/table extent grows from 1,079 to 1,248 bytes; its
+headers, imports, tape hole, and total container size remain unchanged. The
+macOS source and refreshed disassembly retain the existing container layout.
+See [bounds conformance](../../tests/alpha/README.md#bounds-conformance) for
+tested behavior and observation limits. macOS execution and source rebuild
+are checked; Windows listing reconstruction is not Windows runtime validation.
+
+A separate pre-existing Windows defect remains: I/O scratch at RVAs
+`0x3080..0x309f` overlaps Alpha registers 16–19 in the register file beginning
+at `0x3000`. Bounds hardening does not repair or validate that unrelated
+register-preservation behavior; the bootstrap board tracks the correction.
 
 ## Owned files
 
@@ -83,8 +97,8 @@ repository bytes, separate from their realization/conformance obligations:
 
 | Container | SHA-256 |
 | --- | --- |
-| `alpha_arm64_macos` | `4e1ca500d5c4a93eb3f487988e26bf63006c31ec398fdbafccc84a0a1224fac9` |
-| `alpha_x64_windows.exe` | `4fb6c5fc99e93d8e18f7247855d4a58a82dedf8705d3d24ea82e5b59d166edde` |
+| `alpha_arm64_macos` | `348bc9601a9f44d4afa98febd7292f77d016b3c1060e20b15768dc23e4061082` |
+| `alpha_x64_windows.exe` | `77419493b91c965fb0ef7e8a5f0ea61099963228b0c3b94ed01ae45451023a3c` |
 
 | Retained files | Direct role | Deletion condition |
 | --- | --- | --- |
