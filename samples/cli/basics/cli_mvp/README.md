@@ -148,6 +148,15 @@ Windows leaf settlement, receiver provisioning, and migrating `read_line` to a
 fixed mutable range with explicit line-result/count outcomes remain dependencies. These
 are code-inspected gaps, not claims that this sample has reached each failure.
 
+`pause` belongs to the provisioned `Main` receiver; this program does not need a
+new source-local array constructor. The entry bridge must establish the receiver
+beneath admitted storage and lend it to the selected machine. Hosted target slots
+currently lack the exact physical arrival/storage contract, and the existing
+receiver-free UEFI ProgramStorage wrapper cannot supply it. Follow
+`ENTRY-CONTENT-ROOTS` before adding receiver bytes or removing the native rejection.
+The raw-buffer migration also removes the current sample-local `Utf8`
+qualification; zeroed backing alone is not the completed line-input contract.
+
 The [native byte-observation regressions](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 execute encoded, verified Terminal scalar functions against empty, nonempty,
 non-UTF-8, and rebound caller descriptors on macOS ARM64, and cross-lower
