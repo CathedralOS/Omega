@@ -34,6 +34,31 @@ fn canonical() -> CheckedTrees {
 }
 
 #[test]
+fn byte_input_spelling_does_not_reclassify_a_scalar_to_unit_intrinsic() {
+    let program = checked(
+        "pub boundary trait Console { machine read_byte(value: i32) reaches Console; }
+        pub data ConsoleNativeProvider {}
+        machine ConsoleNativeProvider::read_byte(value: i32)
+            satisfies Console::read_byte via Binding::CompilerIntrinsic;
+        machine main() reaches Console { ConsoleNativeProvider::read_byte(7); }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "ConsoleNativeProvider::read_byte")
+        .unwrap();
+    let mut evaluator = Evaluator::new_checked(&program, &[255]);
+    assert_eq!(
+        evaluator.exact_console_intrinsic_host_method(program.machine_states(machine)[0].symbol),
+        None
+    );
+    let _ = evaluator.run_entry("main");
+    assert_eq!(evaluator.stdin_cursor, 0);
+    assert!(!evaluator.host_boundary_touched);
+    assert!(!evaluator.non_fs_host_boundary_touched);
+}
+
+#[test]
 fn byte_input_rejects_changed_result_schema_before_consuming_input() {
     for mutation in 0..8 {
         let mut program = canonical();
@@ -89,7 +114,7 @@ fn byte_input_rejects_changed_result_schema_before_consuming_input() {
                 };
                 byte.payload = arena::HandleSpan::empty();
             }
-            4 | 5 | 6 => {
+            4..=6 => {
                 let TypeReferenceNode::Constrained { constraints, .. } =
                     program.type_reference_table.type_reference(field_type)
                 else {
