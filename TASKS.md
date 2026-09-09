@@ -1011,21 +1011,31 @@ Owners include
   of one identity is valid, competing carrier-qualified names reject with both
   owners/imports, and carried qualifications do not grant source selection.
 
-  Resume evidence: the working checkpoint based on `8bbdb54e1c`, macOS arm64
+  Resume evidence: the working checkpoint based on `dce409429f`, macOS arm64
   with Cargo and `RUST_MIN_STACK=33554432`, checks
   `cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`:
   root/module arrays and scalar `settings::Sizes::MAX` retain distinct canonical
-  values and exact declaration/carrier custody. Scoped constants require a
+  values and exact declaration/carrier custody. Array body references also copy
+  values under exact selection, retaining declared dimensions and element carriers
+  at destinations, including empty arrays. Scoped constants require a
   nongeneric carrier in their declaring module; missing carriers and public exposure of a
   private carrier reject even on unused declarations. Continue from this customer
   with nominal record/sum initializers, public floating constant identities,
-  foreign/generic attachments or aggregate body substitution in `syntax-trees-to-symbol-resolved-trees`.
+  foreign/generic attachments or nominal aggregate body substitution in `syntax-trees-to-symbol-resolved-trees`.
   Those next probes remain unrun at this checkpoint. Preserve the exact carrier
   selection in `constant.rs` and local/narrow-import lookup in `symbols/src/table/modules.rs`.
   Literal integer/Boolean arrays already use the canonical structural index path;
   module admission validates unused array and scoped scalar declarations too.
   Root/module machine scopes
   retain original lexical selection through `build-time-evaluation/src/const_generic_expressions.rs`.
+  Direct array-value projection remains unfinished: the probe
+  `machine projected() -> u8 { settings::Sizes::VALUES[0] }` checks after naive
+  substitution but the evaluator rejects its non-place collection. Keep the
+  explicit `direct_array_constant_projection_retains_the_value_indexing_boundary`
+  integration control until `validation/src/places.rs` projection typing,
+  builtin-coordinate checking and value-based execution agree. Acceptance includes
+  exact element types, bounds rejection, slicing, and checked/Terminal execution;
+  do not turn a constant into addressable storage to bypass this dependency.
   Keep the `runtime_aggregate_index` and `runtime_fixed_array_index` rejection
   controls under `tests/omega/fail/modules/` while extending materialization.
   Conformance and static-requirement argument positions

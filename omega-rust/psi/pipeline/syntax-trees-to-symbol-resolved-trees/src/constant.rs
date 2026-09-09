@@ -10,8 +10,8 @@
 //! one). The symbol table retains only declaration provenance so authored-
 //! selection and package-authority checks cannot be erased by substitution.
 //!
-//! Scalar values substitute only after the shared resolver has selected their
-//! namespace and lexical binding. Legacy aggregate materialization retains its
+//! Scalar values and closed primitive arrays substitute only after the shared
+//! resolver has selected their namespace and lexical binding. Other legacy aggregate materialization retains its
 //! conservative free-constant shadowing walk. Module-owned scoped declarations
 //! additionally select an exact nongeneric carrier in their declaring module.
 //! The authored scope token survives until complete symbol assignment, then joins
@@ -26,8 +26,9 @@
 //! - A const may not collide with a case of its scope type: `Type::NAME` must
 //!   stay unambiguous against case-constructor paths, which substitution
 //!   would otherwise shadow.
-//! - Selected primitive numeric constants retain their declared literal landing
-//!   before typing; aggregate declaration conformance remains a separate check.
+//! - Selected numeric values retain their declared landing recursively through
+//!   arrays. Destination checking rejoins complete array declaration types from
+//!   retained selections, so empty arrays cannot lose their element identity.
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -355,7 +356,22 @@ pub(crate) fn retain_const_initializer(
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
     if !has_scalar_initializer(syntax, definition) {
-        return Ok(());
+        if !lowerer.defer_const_substitution
+            || !crate::module_normalization::module_literal_constant(syntax, definition)
+        {
+            return Ok(());
+        }
+        // The module closure defers root-owned arrays too. Validate every
+        // newly retained aggregate, including private declarations with no use.
+        crate::generic_data::canonicalize_declared_const_definition(syntax, definition).map_err(
+            |reason| {
+                Diagnostic::error(format!(
+                    "array constant `{}` is invalid: {reason}",
+                    semantic_const_name(definition)
+                ))
+                .with_source_span(definition.name.source_span())
+            },
+        )?;
     }
     let initializer =
         crate::expression::lower_expression_into_table(lowerer, syntax, definition.value)?;
@@ -457,6 +473,27 @@ pub(crate) fn substitute_resolved_constants(
             ));
         }
     }
+    // Direct projections still require the value-based array indexing owner:
+    // current projection typing and execution expect an addressable place.
+    // Collect the original collection roots before substituting any names.
+    let array_projection_sources = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, node)| {
+            let ExpressionNode::Indexed(indexed) = node else {
+                return None;
+            };
+            let mut collection = indexed.collection;
+            while let ExpressionNode::Borrow(borrow) =
+                program.tables.bodies.expressions.expression(collection)
+            {
+                collection = borrow.target;
+            }
+            Some(collection)
+        })
+        .collect::<Vec<_>>();
     for occurrence in authored {
         let ExpressionNode::Name(path) = program
             .tables
@@ -532,11 +569,30 @@ pub(crate) fn substitute_resolved_constants(
             };
             return Err(Diagnostic::error(message).with_source_span(reference));
         };
+        // Array children must belong to this occurrence. Later numeric landing
+        // may mutate them, so a shallow root clone would couple distinct uses.
+        let initializer = if matches!(
+            program.tables.bodies.expressions.expression(*initializer),
+            ExpressionNode::ArrayLiteral(_)
+        ) {
+            if array_projection_sources.contains(&occurrence.expression) {
+                return Err(Diagnostic::error(
+                    "direct array constant indexing requires value-based array projection; materialize into a typed local before indexing"
+                ).with_source_span(reference));
+            }
+            program
+                .tables
+                .bodies
+                .expressions
+                .copy_from_self(*initializer)
+        } else {
+            *initializer
+        };
         let value = program
             .tables
             .bodies
             .expressions
-            .expression(*initializer)
+            .expression(initializer)
             .clone();
         *program
             .tables
