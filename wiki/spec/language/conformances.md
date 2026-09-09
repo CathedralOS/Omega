@@ -54,9 +54,13 @@ edge's private-binder equality partition.
 At a later conformance application, lifetime elision succeeds only when ordinary
 call-site borrow constraints determine one unique complete mapping. Zero or
 conflicting mappings reject; explicit mappings must satisfy the same constraints.
-The resolved mapping remains in semantic identity. Lifetime constants, higher-ranked
-applications, outlives bounds, variance, and subtyping are not current facilities;
-introducing them requires revisiting this matching rule.
+The resolved mapping remains in semantic identity. Whole-conformance lifetime
+applications do not gain lifetime constants, higher-ranked argument selection,
+general outlives bounds, variance, or subtyping. Introducing those forms requires
+revisiting this application-matching rule. Separately, a requirement member's
+invocation-lifetime family and its selected body obey
+[universal callable matching](generics.md#invocation-lifetime-families), not merely
+this ordinal application mapping.
 
 The telescope participates in every concrete application's identity. Adding,
 removing, or reordering type, const, or static-machine binders breaks existing
@@ -114,6 +118,13 @@ route, or proof citation without satisfying a whole-trait bound or licensing
 creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
+
+Checking an anonymous body against an explicitly selected exact requirement
+records the same satisfaction edge as a named body. The literal's environment
+association identifies which body to check; it proves neither compatibility nor
+whole-map completeness. This contextual check does not search visible maps,
+invent a whole-trait conformance, or authorize dynamic dispatch. See
+[callable association](anonymous_machines.md#callable-association-and-exact-requirements).
 
 A signature-free requirement path must resolve to one exact overload, without
 consulting visible or selected satisfiers. If several overloads share that path,
@@ -181,8 +192,9 @@ Structural synthesis compares record fields, or sum tags followed by the selecte
 case's payload. Every field must be a scalar primitive, payload-less sum, text
 compared by byte content, or independently Equatable-conforming. Recursive
 structural synthesis rejects. Operators and the callable equality wrapper share
-the selected member meaning. General member-reflection generators remain
-unspecified; this contract does not authorize their syntax or implementation.
+the selected member meaning. [General reflection](reflection.md) lets authorized
+authors generate ordinary checked member calls; it does not expand this sealed
+synthesis catalog, supply missing law evidence, or permit raw quotient observation.
 
 See the [trait guide](../../language_guide/chapter_14_traits.md) for static bounds,
 reference-row syntax, and dynamic coercion examples. [Relations and quotients](../proofs/quotients.md)

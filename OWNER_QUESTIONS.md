@@ -94,3 +94,64 @@ choice. Only replacement of this policy awaits an owner ruling. The
 [P3 resource task](TASKS_BOOTSTRAP.md#p3---delta-to-epsilon) remains open; checking
 and runtime conformance, lower-chain resource analysis, and independent proof
 work do not depend on this answer.
+
+## Q2 — Callback contract forwarding
+
+### Context
+
+[Anonymous machines](wiki/spec/language/anonymous_machines.md) and named static
+callbacks share ordinary requirement checking. Fixed authored callback ceilings
+already give a coherent language contract. The external customer for forwarding
+is a reusable traversal accepting either a pure calculation, a Console-writing
+callback, or a suspending callback without making every use conservatively
+effectful. Existing corpus use is not required to motivate that API.
+
+[Operational contracts](wiki/spec/language/effects.md) currently require fixed
+ordinary exported ceilings and exact call-site suspension/blocking markers.
+Private summaries cannot narrow generic calls. A static callback's declared
+contract therefore cannot vary its effects through a generic consumer without
+an additional public composition and acknowledgement rule.
+
+### Problem statement
+
+How does a generic machine expose a selected callback's permitted reach and
+operational possibilities, and acknowledge the corresponding call crossings,
+without guessing from private bodies or granting unconstrained effects?
+This is general machine-contract work, not a special lambda privilege. It does
+not block fixed-ceiling capture, invocation, or repeated-reborrow implementation.
+
+### Proposed solution
+
+Permit typed static projections from a bound machine's public contract, such as
+`reaches Step.reaches;`, `suspends Step.suspends;`, and `blocks Step.blocks;`.
+Compose service rows by union and suspension/blocking independently by Boolean
+disjunction. Selections must satisfy the binder's authored bounds and retain
+their exact substitutions; opaque private body behavior cannot define an API.
+Decide the binder syntax for those variable bounds along with the projections,
+not merely the spelling used by the consumer.
+
+For call acknowledgement, consider static conditional forms such as
+`suspend(Step.suspends) block(Step.blocks) Step(context, item);`. Resolve markers
+from the same pinned contract used for admission. Check carry/loans for every
+admitted crossing; false conditions do not manufacture suspension. This syntax
+is proposed, not part of the current spec.
+
+Do not forward a whole contract mechanically. Each call proves its preconditions
+and substitutes its post-state/crash routes; recoverable failure remains result
+data. Termination includes the consumer's traversal argument, and resource
+composition accounts for call count and overlap. The result must support named
+and anonymous callbacks identically, recursive generic checking, and independent
+replay of the same normalized contract dependencies.
+
+### Alternates
+
+- Fixed conservative callback ceilings or separately named pure/effectful
+  interfaces remain viable. Compare their API duplication and loss of pure or
+  no-suspend eligibility against projection complexity.
+- Explicitly bound effect rows/operational parameters are viable if they stay
+  coupled to the selected callback contract and define the same call-marker rule.
+- Implicit insertion of crossing markers would change the acknowledgement
+  policy. It is not a harmless implementation shortcut and needs its own rationale.
+- Inferring public effects from whichever body or instantiations happen to be
+  visible, weakening generic ceilings after specialization, or treating
+  `invokes Step` as an unspecified all-axis forwarding wildcard is wrong.

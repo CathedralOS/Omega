@@ -14,6 +14,14 @@ in `omega::language::core::layout`. The complete machine contract governs
 evaluation. A returned plan must validate before layout, projection, recast,
 codec, or ABI consumers use it.
 
+This target-resolved `layout::Schema` is not the target-neutral
+[`reflect::TypeSchema`](../language/reflection.md#schema-and-layout). Their checked
+join retains exact owner, application, member, relevance, and schema revision.
+Semantic graph indices are not physical field keys or byte offsets. Reflection
+descriptions do not inherit the pilot layout carrier's fixed capacities; they
+remain complete or report resource/production failure. Layout consumers still
+obey the actual validated plan and its supported placement constraints.
+
 Reflection retains fields, sum cases, structured-case payload fields, and
 retired identities for each scope. Ordinary fields and cases may have stable
 `#N` identities; `retired #N;` reserves removed identities. Numbering is

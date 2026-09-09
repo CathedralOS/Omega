@@ -17,12 +17,5 @@ Acceptance updates the specification; this directory does not define current rul
 - [Author-invoked assertions and build diagnostics](assertions_and_build_diagnostics.md):
   unapproved library, provider, and diagnostic-build alternatives; admissions
   require no runtime checking independently of this design.
-- [Semantic reflection through data and ordinary machines](semantic_reflection.md):
-  candidate typed visitation shared by inspectors and serializers, optional policy
-  plans, runtime adapters, and owner-validated construction; preserves Layout/Placed
-  boundaries without new keywords and does not define current rules.
-- [Lambdas and captured environments through ordinary machines](anonymous_machines.md):
-  unapproved anonymous bodies, explicit captures, shared/mutable/consuming calls,
-  generic walkers, and task-submission adapters over existing lifecycle contracts.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).

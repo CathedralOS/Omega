@@ -4,6 +4,10 @@ A type describes a value; a layout describes its representation. Layout alone
 does not establish that bytes contain a valid value, that you own the backing,
 or that a device permits the access you want to perform.
 
+[Semantic reflection](chapter_21_reflection.md) describes fields and cases;
+layout supplies their target representation. A description is not a byte offset
+or permission to access storage.
+
 This chapter introduces ordinary storage, boundary calls and placed memory.
 The reference contracts are [layout plans](../spec/layouts/plans.md),
 [calling plans](../spec/build/calling_plans.md),

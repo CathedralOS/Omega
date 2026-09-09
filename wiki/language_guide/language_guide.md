@@ -42,5 +42,6 @@ Boundary and low-level topics:
 
 - [Chapter 19: Capabilities, Reach, And Boundaries](chapter_19_capabilities_effects_boundaries.md)
 - [Chapter 20: Memory Layout And ABI](chapter_20_memory_layout_abi.md)
-- [Chapter 21: Inline Assembly](chapter_21_inline_assembly.md)
+- [Chapter 21: Semantic Reflection](chapter_21_reflection.md)
+- [Chapter 22: Inline Assembly](chapter_22_inline_assembly.md)
 - [Using source packages](packages.md)

@@ -26,6 +26,12 @@ layout and monomorphization. Erasure does not remove semantic lifetime relations
 or loan obligations. [Conformance telescopes](conformances.md#declaration-and-selection)
 have their own normalized public mapping and application-elision rules.
 
+Static callable requirements may additionally bind fresh lifetimes for each
+invocation under [generic family matching](generics.md#invocation-lifetime-families).
+These are distinct from captured-environment lifetimes. The rule permits repeated
+reborrowing and requires universal requirement refinement; it does not introduce
+general authored outlives bounds or higher-ranked whole-conformance arguments.
+
 ## Returned views
 
 An explicit result lifetime relates its reference leaves to the corresponding

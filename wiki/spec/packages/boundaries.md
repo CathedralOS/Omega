@@ -24,6 +24,12 @@ and automatic cleanup are carried type semantics. The reserved owner-attached
 ordinary consuming call whose resulting cleanup plan remains carried semantics.
 Borrowed erased views never acquire cleanup ownership of their referents.
 
+[Reflection](../language/reflection.md) elaborates member selection under the
+lexical author's dependency and visibility authority, not the generic caller's.
+An owner may supply a checked visitor or conformance to another package. That
+package invokes the supplied operation; carrying its type or metadata does not
+authorize independently enumerating the owner's fields.
+
 Exact foreign-domain qualification and evidence can likewise travel through an
 API without importing the domain for authored lookup. Carrying does not expose
 its declaring package's other extensions or erase its separate ownership.

@@ -241,3 +241,8 @@ The independent bounded `reaches _;` inside a
 base requirement; it does not create another installation-row declaration form.
 [Installed roots](../build/external_roots.md#installation-bound-reach) owns
 manifest and lineage requirements; equal rows never establish protocol identity.
+
+General callback-contract projections and conditional call acknowledgements are
+unresolved under [callback contract forwarding](../../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding).
+Anonymous-machine support does not implicitly add them; named and anonymous
+callbacks with fixed authored ceilings use the existing rules.

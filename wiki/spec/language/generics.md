@@ -9,6 +9,14 @@ const-generic substitution. Lifetime binders follow [lifetimes](lifetimes.md).
 These are source contracts, not a claim of complete implementation; current
 normalization limits belong beside [source resolution](../../../omega-rust/psi/pipeline/README.md#value-generic-staging).
 
+An explicit `where machine Step(...)` or `where machine Step satisfies
+Trait::requirement` clause can determine the kind of Step introduced without
+a kind marker in the generic list. Retaining `machine Step` there is also legal.
+The clause is a declaration, not inference from body usage or the current
+consumer set. Missing or conflicting kinds/contracts reject. This rule applies
+equally to named and anonymous selected bodies and does not infer whole-trait
+conformance evidence.
+
 ## Applications and specialization
 
 Type parameters use ordinary angle-bracket applications. `const N: u64` binds
@@ -328,12 +336,21 @@ type, or unspecified variable-layout result ABI is introduced.
 ## Reflection boundary
 
 Static type equality and structural parameter binding do not require runtime
-type objects or general compile-time reflection. Existing layout schemas keep
-their [defined vocabulary](../layouts/plans.md). General field/predicate
-inspection, declaration traversal, and generated-body facilities remain a
-separate design discussion. Any future reflected type identity must use the
-same canonical equality, not names, matching layouts, or a second equivalence
-relation. No general reflection API is approved by these generic rules.
+type objects. [Semantic reflection](reflection.md) describes an explicitly
+selected authorized type and specializes ordinary typed member callbacks using
+these same family and invocation-lifetime contracts. Its owned semantic schema
+is distinct from the target-resolved [layout schema](../layouts/plans.md).
+Reflected identity uses canonical type equality, not names or matching layouts.
+Runtime metadata does not become a generic type argument; dependent applications
+retain exact subject relationships rather than guessed static type keys.
+
+An explicit per-member selection policy receives the actual qualified field
+type as a static parameter. It selects an exact operation or conformance through
+the [scoped selection receiver](reflection.md#explicit-operation-selection),
+not ambient discovery or a new field-declaration binder. Policies may use
+generic type rules and member-specific exceptions. Reflection does not weaken
+types before generic binding, change exact `==` into assignability, or make
+selection records into general first-class conformance arguments.
 
 ## Requirements and conformance evidence
 
@@ -384,15 +401,48 @@ without a callable contract. This category expresses relationships such as a
 private callback slot's selected requirement; it is not missing-contract inference.
 
 Each executable use of a static-machine argument becomes a direct selected call
-after specialization. There is no runtime function value, hidden callable
-argument, or capture inference. Stateful behavior uses ordinary instance data
-and its receiver access contract; dynamically selected callables use the
-ordinary dynamic-trait mechanism instead.
+after specialization. The binder is not a runtime function value or hidden
+callable argument. Stateful behavior uses ordinary instance data and its receiver
+access contract. An [anonymous machine](anonymous_machines.md#callable-association-and-exact-requirements)
+explicitly constructs that data and retains its associated static body. A receiving
+application may recover the body selection from this checked association when
+the declared contract and argument matching determine one application; this is
+not free-variable capture inference or ambient conformance search. Dynamic
+selection still uses ordinary sums/wrappers or eligible dynamic conformances.
 
 A static parameter cannot be stored as a field type, converted to an address,
 or returned as a runtime callback reference. [Private callback realization](../build/private_callbacks.md)
 is contextual: an exact selected requirement and destination authorize a private
 entry relocation, not a general reified machine value.
+
+## Invocation-lifetime families
+
+A static callable requirement can bind invocation lifetimes independently of
+the environment's captured lifetimes. The selected body must refine the complete
+requirement for every admissible choice of those invocation binders. Matching
+introduces fresh arbitrary lifetimes, substitutes both contracts by declaration
+identity, and verifies parameter/result correspondence, loans, and all other
+refinement axes without stronger premises. Rename-bound lifetimes match by their
+binding structure; matching a single existing environment lifetime is insufficient.
+
+Each invocation instantiates the requirement afresh. Sequential calls may end
+their context/item reborrows between invocations without ending the environment's
+longer-lived captured loans. A callback cannot retain an item loan in a context
+whose lifetime/type contract does not permit it. Ordinary rejection does not
+require general authored outlives syntax. Returned views retain their declared
+input relationships; fresh instantiation cannot change which storage they denote.
+
+This higher-ranked matching rule is limited to static callable requirement
+families and their exact selected bodies, including corresponding generic
+requirement members. It is not a blanket extension to whole-conformance lifetime
+applications, lifetime constants, variance, subtyping, or generic dynamic tables.
+Those forms retain their separate restrictions. Ordinal substitution identifies
+binders; it does not by itself prove universal refinement.
+
+Type-generic callable families similarly check every admitted type alternative.
+Consumers prove each demanded application satisfies the declared family rather
+than inferring an interface from their current instantiations. Reflection adds
+member projection obligations, not a different generic matching judgment.
 
 ## Nested contracts and proof families
 

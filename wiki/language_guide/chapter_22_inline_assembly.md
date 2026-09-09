@@ -1,4 +1,4 @@
-# Chapter 21: Inline Assembly
+# Chapter 22: Inline Assembly
 
 Assembly is a checked low-level operation surface, not an escape from Omega's
 ownership, authority, effects or control flow. The [assembly specification](../spec/language/assembly.md)

@@ -453,7 +453,7 @@ guarantees, not blanket claims of generic or native implementation support.
 A freestanding target has no operating-system host below it. Its providers may
 guarantee hardware behavior: a mapping becomes active, an MMIO access reaches
 a device, or an interrupt mask remains in force until restoration. Those accepted
-facts remain explicit trust inputs. [Inline assembly](chapter_21_inline_assembly.md)
+facts remain explicit trust inputs. [Inline assembly](chapter_22_inline_assembly.md)
 is an implementation mechanism, not a bypass around their contracts.
 
 Physical arrival is distinct from semantic authority. UEFI supplies an image

@@ -1,9 +1,14 @@
 # Machines and contract refinement
 
-A machine is a named, contracted transition system. Given inputs, state, and
-authority, it produces an observable trace and may reach a terminal outcome.
+A machine is a contracted transition system with declaration identity. Given
+inputs, state, and authority, it produces an observable trace and may reach a terminal outcome.
 A productive machine may run forever; a function returning a value is a special
 case, not the definition.
+
+Declarations may be named or [anonymous](anonymous_machines.md). An anonymous
+body has generated declaration identity and an ordinary captured environment;
+its calls, states, proof/evaluation eligibility, and obligations use this same
+machine contract rather than a separate callable species.
 
 Runtime calls, [semantic evaluation](evaluation.md),
 [proof citation](../proofs/contracts.md), task activation, trait satisfaction,

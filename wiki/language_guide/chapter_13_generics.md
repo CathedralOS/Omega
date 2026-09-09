@@ -174,8 +174,9 @@ returns an already bound N; an unconstrained `upper_bound()` cannot infer it.
 
 These are settled source rules with incomplete implementation. See
 [structural inference](../spec/language/generics.md#structural-type-equations-and-inference).
-They do not approve general compile-time inspection of declarations or predicates;
-[reflection remains separate](../spec/language/generics.md#reflection-boundary).
+[Semantic reflection](chapter_21_reflection.md) uses these same generic rules for
+typed member callbacks. Structural inference itself is not declaration inspection
+or permission to discover arbitrary predicates.
 
 ## Const And Proof Parameters
 

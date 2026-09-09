@@ -1,7 +1,7 @@
 # Chapter 3: Machines
 
-A machine is a **named, contracted transition system**. Given its inputs,
-state, and authority, it produces a contract-observable trace and may produce
+A machine is a **contracted transition system**, named or anonymous. Given its
+inputs, state, and authority, it produces a contract-observable trace and may produce
 a terminal outcome. A productive machine may run forever, so an ordinary
 function-like call is one important use of a machine, not its definition.
 
@@ -75,6 +75,36 @@ machine add_i32(
 
 Use a free-standing machine for math helpers, proof helpers, and operations
 that are not naturally owned by one data type.
+
+## Anonymous Machines
+
+Write a small machine at its use site without naming a declaration:
+
+```omega
+let above_threshold = [threshold = threshold](value: u32) -> bool {
+    value > threshold
+};
+
+let selected = above_threshold(sample);
+```
+
+The brackets explicitly construct its captured data. Here threshold is copied
+once; the body runs only when called. Use ordinary borrow or move expressions
+to capture references or owned resources instead. A capture-free form is
+`(value: u32) -> u32 { value }`.
+
+These are ordinary machines: their bodies may have states, transitions,
+preconditions, guarantees, and termination measures. Calls do not allocate a
+closure box, spawn a task, or produce a future. A statically selected body
+operates on its ordinary environment; generic libraries check it against an
+inline callable contract or an exact named trait requirement.
+
+An explicit `&self`, `&mut self`, or owned `self` parameter declares access to
+the environment. If omitted, a local body's capture uses determine the required
+receiver access. Moving out a capture consumes the environment; simply owning
+a capture does not. Captured resources retain their obligations even if the
+machine is never called. See [anonymous machines](../spec/language/anonymous_machines.md)
+for construction failure, fresh invocation loans, erased captures, and task use.
 
 ## Program Entry
 
