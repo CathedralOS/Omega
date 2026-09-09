@@ -225,7 +225,19 @@ impl<'program> Evaluator<'program> {
             .flat_map(|definition| self.program.trait_machine_signatures(definition))
             .find(|requirement| requirement.symbol == requirement_symbol)?;
         match (realization.name.as_str(), requirement.name.as_str()) {
-            ("ConsoleNativeProvider::read_byte", "read_byte") => Some("read_byte"),
+            ("ConsoleNativeProvider::read_byte", "read_byte")
+                if self
+                    .program
+                    .state_signature_parameters(requirement)
+                    .is_empty()
+                    && validation::exact_byte_read_result_type(
+                        self.program,
+                        requirement.return_type,
+                    )
+                    .is_some() =>
+            {
+                Some("read_byte")
+            }
             ("ConsoleNativeProvider::write_byte", "write_byte") => Some("write_byte"),
             ("ConsoleNativeProvider::exit_process", "exit_process") => Some("exit_process"),
             _ => None,
