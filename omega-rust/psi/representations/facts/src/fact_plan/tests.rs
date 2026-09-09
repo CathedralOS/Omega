@@ -13,6 +13,32 @@ use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceHandle;
 
 #[test]
+fn clone_from_replaces_every_fact_root_with_the_source_snapshot() {
+    let mut source = FactPlan::default();
+    source.places.append(Default::default());
+    source.place_segments.append(Default::default());
+    source.facts.append(Default::default());
+    source.scalar_values.append(Default::default());
+    source.integer_ranges.append(Default::default());
+    source
+        .qualification_correspondences
+        .append(Default::default());
+    source.domain_definition_facts.append(Default::default());
+    source.data_definition_facts.append(Default::default());
+    source.instantiated_expressions.append(Default::default());
+    source.refs.append(Default::default());
+    source.contexts.append(Default::default());
+    source.symbol_sets.append(Default::default());
+    let mut destination = FactPlan::with_capacity(8, 8);
+    destination.clone_from(&source);
+    assert_eq!(destination, source.clone());
+    destination.clone_from(&FactPlan::default());
+    assert_eq!(destination, FactPlan::default());
+    destination.clone_from(&source);
+    assert_eq!(destination, source);
+}
+
+#[test]
 fn qualification_correspondence_ledger_is_exact_and_idempotent() {
     let mut facts = FactPlan::default();
     let source_place = facts.append_symbol_place(SymbolHandle::from_arena_index(10));

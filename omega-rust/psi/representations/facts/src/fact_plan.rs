@@ -27,7 +27,7 @@ pub type PlaceHandle = Handle<Place>;
 pub type PlaceSegmentHandle = Handle<PlaceSegment>;
 pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct FactPlan {
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
@@ -41,6 +41,47 @@ pub struct FactPlan {
     pub refs: Arena<FactRef>,
     pub contexts: contexts::FactContexts,
     pub symbol_sets: Arena<SymbolFactSet>,
+}
+
+impl Clone for FactPlan {
+    fn clone(&self) -> Self {
+        Self {
+            places: self.places.clone(),
+            place_segments: self.place_segments.clone(),
+            facts: self.facts.clone(),
+            scalar_values: self.scalar_values.clone(),
+            integer_ranges: self.integer_ranges.clone(),
+            qualification_correspondences: self.qualification_correspondences.clone(),
+            domain_definition_facts: self.domain_definition_facts.clone(),
+            data_definition_facts: self.data_definition_facts.clone(),
+            instantiated_expressions: self.instantiated_expressions.clone(),
+            refs: self.refs.clone(),
+            contexts: self.contexts.clone(),
+            symbol_sets: self.symbol_sets.clone(),
+        }
+    }
+
+    /// Replace the complete plan while reusing storage; this is not an in-place
+    /// mutation preserving handles from the replaced plan. Only handles shared
+    /// with the source before divergence retain their meaning after replacement.
+    fn clone_from(&mut self, source: &Self) {
+        self.places.clone_from(&source.places);
+        self.place_segments.clone_from(&source.place_segments);
+        self.facts.clone_from(&source.facts);
+        self.scalar_values.clone_from(&source.scalar_values);
+        self.integer_ranges.clone_from(&source.integer_ranges);
+        self.qualification_correspondences
+            .clone_from(&source.qualification_correspondences);
+        self.domain_definition_facts
+            .clone_from(&source.domain_definition_facts);
+        self.data_definition_facts
+            .clone_from(&source.data_definition_facts);
+        self.instantiated_expressions
+            .clone_from(&source.instantiated_expressions);
+        self.refs.clone_from(&source.refs);
+        self.contexts.clone_from(&source.contexts);
+        self.symbol_sets.clone_from(&source.symbol_sets);
+    }
 }
 
 impl FactPlan {

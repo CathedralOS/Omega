@@ -6,9 +6,10 @@
 //! handles never escape and published fact/evidence ordering stays unchanged.
 //! The common first-pass fixed point already has complete output and returns it.
 //!
-//! Baseline cloning remains per sweep; this removes unrelated transfer work,
-//! not that storage cost. Reusable scratch must also reset context-point links,
-//! not merely truncate arenas or allow old handles to become valid again.
+//! Whole-output storage is reused only while unpublished; no sweep-local handle
+//! survives that replacement boundary. Baseline contents still copy per sweep,
+//! including context-point links, while clone_from reuses their allocations.
+//! This is not a generation-preserving suffix rollback into a live fact plan.
 
 use super::*;
 
@@ -96,8 +97,16 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy, and never carry this table into another flow-build invocation.
     let state_mutation_summary_cache = StateMutationSummaryCache::default();
-    let mut inputs = Vec::new();
-    let mut dirty_inputs = Vec::new();
+    let mut ctx = FlowBuildContext::new(
+        borrow,
+        proof,
+        semantic,
+        scalar_expressions,
+        operators,
+        exact_integer_casts,
+        call_frames.as_ref(),
+        &state_mutation_summary_cache,
+    );
     let mut complete_pass = true;
     // Each state becomes reachable once; each formal can acquire a constant
     // then lose it to unknown once. Include convergence and final materialization.
@@ -119,20 +128,9 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             break;
         }
         if pass != 0 {
-            *semantic = baseline.clone();
+            ctx.discard_output();
+            semantic.clone_from(&baseline);
         }
-        let mut ctx = FlowBuildContext::new(
-            borrow,
-            proof,
-            semantic,
-            scalar_expressions,
-            operators,
-            exact_integer_casts,
-            call_frames.as_ref(),
-            &state_mutation_summary_cache,
-        );
-        ctx.state_value_inputs = inputs;
-        ctx.dirty_state_value_inputs = dirty_inputs;
         for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
             for state in program.machine_states(machine) {
                 if !complete_pass && !ctx.dirty_state_value_inputs.contains(&state.symbol) {
@@ -174,25 +172,15 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             }
             complete_pass = false;
         }
-        inputs = std::mem::take(&mut ctx.state_value_inputs);
-        dirty_inputs = std::mem::take(&mut ctx.dirty_state_value_inputs);
         pass += 1;
     }
     // No provisional input fact survives a nonconvergent graph.
+    ctx.discard_output();
     *semantic = baseline;
-    let mut ctx = FlowBuildContext::new(
-        borrow,
-        proof,
-        semantic,
-        scalar_expressions,
-        operators,
-        exact_integer_casts,
-        call_frames.as_ref(),
-        &state_mutation_summary_cache,
-    );
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
     ctx.state_value_inputs = super::state_values::unknown_inputs(program);
+    ctx.dirty_state_value_inputs.clear();
     for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
         for state in program.machine_states(machine) {
             build_state_flow_fact(

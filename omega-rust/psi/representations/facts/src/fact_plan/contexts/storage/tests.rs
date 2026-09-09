@@ -10,6 +10,48 @@ fn context(point: ProgramPoint, fact_ordinal: u32) -> FactContext {
     }
 }
 
+#[test]
+fn clone_from_restores_baseline_groups_and_discards_divergent_tail_links() {
+    let machine = ProgramPoint::Machine {
+        machine_symbol: SymbolHandle::from_arena_index(7),
+    };
+    let state = ProgramPoint::State {
+        machine_symbol: SymbolHandle::from_arena_index(7),
+        state_symbol: SymbolHandle::from_arena_index(8),
+    };
+    let mut baseline = FactContexts::default();
+    baseline.append(context(ProgramPoint::Global, 1));
+    baseline.append(context(machine, 2));
+    let declaration = baseline.group_at_point(machine);
+    let expected = baseline.handles_in_group(declaration).collect::<Vec<_>>();
+    let mut scratch = baseline.clone();
+    scratch.append(context(machine, 3));
+    scratch.append(context(state, 4));
+    let contexts_pointer = scratch.contexts.storage_slice().as_ptr();
+    let links_pointer = scratch.links.storage_slice().as_ptr();
+    for _ in 0..3 {
+        scratch.clone_from(&baseline);
+        assert_eq!(scratch, baseline);
+        assert_eq!(scratch.contexts.storage_slice().as_ptr(), contexts_pointer);
+        assert_eq!(scratch.links.storage_slice().as_ptr(), links_pointer);
+        assert_eq!(
+            scratch.handles_in_group(declaration).collect::<Vec<_>>(),
+            expected
+        );
+        assert!(scratch.handles_at_point(state).next().is_none());
+        let appended = scratch.append(context(machine, 5));
+        assert_eq!(
+            scratch.handles_in_group(declaration).collect::<Vec<_>>(),
+            [expected[0], appended]
+        );
+        scratch.append(context(state, 6));
+    }
+    assert_eq!(
+        baseline.handles_in_group(declaration).collect::<Vec<_>>(),
+        expected
+    );
+}
+
 fn assert_matches_scan(
     storage: &FactContexts,
     reference: &Arena<FactContext>,
