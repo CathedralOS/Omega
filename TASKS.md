@@ -116,6 +116,19 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   --test terminal_psi_source --test pipeline_ownership --no-fail-fast --no-tests fail`.
   Next: restore build-bound progress publication in
   `selected_source_entry_retains_build_bound_progress_for_terminal_publication`.
+  On `b76d693e30` plus the selected-syscall handoff repair, the focused command
+  above with only `--test terminal_psi_source` and
+  `-E 'test(=selected_source_entry_retains_build_bound_progress_for_terminal_publication)'`
+  reaches native receiving-policy validation and rejects unclassified syscall
+  231 under policy version 7 (macOS AArch64, pinned nightly, `RUST_MIN_STACK=33554432`).
+  The fixture still maps ordinary Unit `Scheduler::finish` to physical process
+  exit. Reconcile that with [Process-exit contract](#process-exit-contract), then
+  supply independent receiving policy and retain the existing missing-settlement,
+  exact-provider, progress-attestation, and publication assertions. Selection or
+  a syscall number must not confer canonical ProcessExit semantics or authority.
+  Owners: `compiler/src/pipeline/checked_entry.rs` and native realization's
+  `realization/providers/settlements/source_imports.rs` under
+  `omega-rust/omega/compiler/`.
   The same source target has unused fixture inputs in
   `comparisons_bitwise_and_casts.rs` and `control_graphs.rs`; restore their intended
   assertions or remove genuinely obsolete setup, not blanket lint suppression.

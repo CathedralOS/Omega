@@ -49,10 +49,14 @@ pub fn extract_external_binding_rows(
     )
 }
 
-/// Extract only normalized import leaves for compiler-to-native custody.
+/// Extract normalized imports and syscalls for compiler-to-native custody.
+/// Native realization rejoins both mechanisms to the exact selected row;
+/// omitting syscalls loses that correspondence even when selection succeeded.
+/// These rows grant no terminal authority or execution permission: the receiving
+/// policy and provider settlements remain independently required.
 /// Other selected provider mechanisms retain their existing specialized
 /// lowering and must not be forced through host-ABI compatibility planning.
-pub fn extract_normalized_import_binding_rows(
+pub fn extract_native_external_binding_rows(
     selected_target: Option<&str>,
     native_target: target::NativeTarget,
     selected_plans: &[effects::provider_plan::ProviderPlan],
@@ -79,7 +83,7 @@ fn extract_external_binding_rows_for_scope(
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     typed: &typed_trees::TypedTrees,
-    normalized_imports_only: bool,
+    native_mechanisms_only: bool,
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
     use effects::provider_plan::ProviderBinding;
@@ -90,7 +94,12 @@ fn extract_external_binding_rows_for_scope(
     // a second binding authority beside the retained typed identity.
     for plan in selected_plans {
         for row in &plan.rows {
-            if normalized_imports_only && !matches!(&row.binding, ProviderBinding::Import { .. }) {
+            if native_mechanisms_only
+                && !matches!(
+                    &row.binding,
+                    ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
+                )
+            {
                 continue;
             }
             let binding = match &row.binding {

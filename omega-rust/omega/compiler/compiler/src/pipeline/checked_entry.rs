@@ -1353,7 +1353,7 @@ fn compile_assembled_checked_child(
         &typed,
         &selected_semantic_plans,
     )?;
-    let external_binding_rows = provider_planning::plans::extract_normalized_import_binding_rows(
+    let external_binding_rows = provider_planning::plans::extract_native_external_binding_rows(
         target_name,
         provider_selection_target,
         &selected_semantic_plans,

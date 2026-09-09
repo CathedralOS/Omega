@@ -19,7 +19,7 @@ use typed_trees::TypedTrees;
 #[path = "plans/external_binding_rows.rs"]
 mod external_binding_rows;
 pub use external_binding_rows::{
-    extract_external_binding_rows, extract_normalized_import_binding_rows,
+    extract_external_binding_rows, extract_native_external_binding_rows,
     settle_external_binding_rows,
 };
 #[path = "plans/intrinsic_execution.rs"]
