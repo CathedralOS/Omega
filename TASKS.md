@@ -365,7 +365,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs` and
   `terminal-interpreter/src/structural_byte_arrays.rs`.
   Next dependencies are receiver provisioning under `ENTRY-CONTENT-ROOTS`,
-  payload-bearing line outcomes and shared read-byte assembly/provider integration.
+  payload-bearing line outcomes and shared line assembly/provider integration.
   `Main.pause` is a provisioned receiver field, so generic source-local array
   construction is not a prerequisite for this customer. Explicit host inputs
   supply raw array contents in callable tests; an opaque root supplies none. Zero-length
@@ -382,37 +382,25 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   spare capacity or retaining hidden length writeback. Preserve independently
   motivated whole-field operations and their own regression coverage.
 
-  Resume result/view composition in `terminal_byte_views/byte_input.omg` and
-  `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`. The original
-  guarded `read_one` probe at `92aeeff816` reaches exact narrowing but rejects with
-  `OperationProofUnavailable`: Terminal retains the payload's raw `i32`, not its
-  declared `[0..=255]` constraint. Preserve numeric field constraints through
-  declaration identity and construction/provider-return validation, then combine
-  retained bounds with selected payload equalities at case-edge scalars. Do not assume a target state
-  parameter's range or add a provider-name shortcut. This is an implementation
-  dependency, not an owner decision. The separate classification fixture keeps
-  raw byte reads, case payloads, borrowed destination writes, and loop reentry
-  executable without claiming exact byte-copy or line-result support. Payload
-  construction and ordinary return/call realization for `LineReadResult` also
+  Continue line assembly from the exact-copy floor in
+  `tests/native-differential/tests/terminal_byte_views/read_one.omg` and
+  `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`.
+  Payload construction and ordinary return/call realization for `LineReadResult`
   remain required; payloadless construction and whole-root identity returns do
-  not cover them.
+  not cover them. Preserve the retained declaration ranges, selected-case scalar
+  facts, and provider-return validation described in the
+  [Terminal producer](omega-rust/psi/compiler/terminal-production/README.md).
+  Restricted record construction and mutation require written-value obligations;
+  opaque host values and successor annotations cannot establish those bounds.
 
-  Range retention starts at `typed-trees-to-checked-trees/src/flow/terminal_unit/types.rs`:
-  `structural_field_plan` currently strips constrained wrappers through
-  `scalar_type`. Carry supported closed intervals through the checked field plan,
-  both structural catalog emitters, Terminal field identity and the codec before
-  using them as premises. Existing wire-range normalization is width-limited;
-  an unsupported authored range must not become an unrestricted carrier. Check
-  every supported constructor/provider establishment route against the retained
-  bounds, including rejection of a native provider with a narrower result promise.
-
-  Recheck the dependency with `cargo nextest run -p omega-native-differential-test
-  --test terminal_byte_views --no-fail-fast -E 'test(bounded_byte_input)'` (use
-  `mbx` when available). macOS ARM64 execution covers every octet, EOF, empty and
-  repeated views, failed reads, and no overread; Linux x64/ARM64 coverage here is
-  publication/replay only. The exact-narrowing rejection is pinned by
-  `byte_input_exact_narrowing_requires_retained_payload_range_evidence` in the
-  lowering crate's library tests.
+  Recheck this floor with `cargo nextest run -p omega-native-differential-test
+  --test terminal_byte_views --no-fail-fast --no-tests fail -E 'test(byte_input)'`
+  (use `mbx` when available). macOS ARM64 execution covers exact copying of every
+  octet, EOF, empty and repeated views; the classifier additionally checks failed
+  reads and no overread. Linux x64/ARM64 coverage here is publication/replay only.
+  General signed state-graph casts still need missing sign/16-bit normalization
+  before unsupported carrier combinations can be admitted; this does not block
+  the reader's proven `i32` to `u8` conversion.
 
   Acceptance: zero capacity returns `Full(0)` without reading; LF is stored and
   included in `LineComplete`, including at the last writable byte; EOF retains

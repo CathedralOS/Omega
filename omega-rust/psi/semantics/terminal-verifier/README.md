@@ -20,10 +20,13 @@ pre-result premise snapshot excludes its own later result equation.
 
 Selected Boolean and integer case payloads retain their exact source, case,
 field and successor parameter identities. Their scalar binding equation is an
-edge observation, not a declaration of numeric bounds or an entry snapshot. Only the selected
+edge observation, not an entry snapshot. Only the selected
 arrival may use it; the ordinary mutation invalidation, all-arrival intersection
-and cycle cuts still govern its lifetime. Numeric payload restrictions require
-separate retained declaration and establishment evidence. IEEE payloads retain
+and cycle cuts still govern its lifetime. A selected bounded-integer field also
+establishes its exact declared inclusive bounds on the copied SSA payload.
+These scalar snapshot bounds survive later source mutation but not iteration
+cuts. Restricted record construction and field stores remain unsupported rather
+than treating carrier equality as an invariant-establishment proof. IEEE payloads retain
 their existing transfer behavior without an integer/Boolean field equation.
 
 Leaf schemas and call-composition policies belong to terminal-semantics.

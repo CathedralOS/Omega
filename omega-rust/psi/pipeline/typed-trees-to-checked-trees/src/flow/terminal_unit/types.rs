@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[path = "types/scalar_fields.rs"]
+mod scalar_fields;
+
 #[cfg(test)]
 #[path = "types/partial_affine_ownership_tests.rs"]
 mod partial_affine_ownership_tests;
@@ -1496,7 +1499,12 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::ByteSequence(carrier)
         } else {
             match scalar_type(self.program, field.type_reference, substitutions) {
-                Some(primitive) => CheckedUnitStructuralFieldType::Scalar(primitive),
+                Some(primitive) => scalar_fields::retain_scalar_field(
+                    self.program,
+                    field.type_reference,
+                    substitutions,
+                    primitive,
+                )?,
                 None => {
                     let nested = self.add_type(field.type_reference, binders, substitutions)?;
                     if nested == owner_identity {

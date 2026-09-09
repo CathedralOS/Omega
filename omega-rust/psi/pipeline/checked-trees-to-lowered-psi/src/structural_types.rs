@@ -38,6 +38,9 @@ pub(super) fn lower_mixed_fields(
                 return unsupported("mixed structural type has duplicate field identities");
             }
             let field_type = match &field.field_type {
+                CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
+                    StructuralFieldType::BoundedInteger(*integer)
+                }
                 CheckedUnitStructuralFieldType::Scalar(primitive) => {
                     terminal_structural_field_type(*primitive)?
                 }
@@ -262,6 +265,7 @@ pub(super) fn retain_additional_structural_types(
                             ));
                         }
                         let field_type = match &field.field_type {
+                            CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                 terminal_structural_field_type(*primitive)?
                             }
@@ -330,6 +334,7 @@ pub(super) fn retain_additional_structural_types(
                                             ));
                                         }
                                         let field_type = match &field.field_type {
+                                            CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
                                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                                 terminal_structural_field_type(*primitive)?
                                             }
@@ -439,6 +444,7 @@ pub(super) fn lower_structural_type_plans(
                                 ));
                             }
                             let field_type = match &field.field_type {
+                                CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
                                 CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                     terminal_structural_field_type(*primitive)?
                                 }
@@ -508,6 +514,7 @@ pub(super) fn lower_structural_type_plans(
                                                 ));
                                             }
                                             let field_type = match &field.field_type {
+                                                CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
                                                 CheckedUnitStructuralFieldType::Scalar(
                                                     primitive,
                                                 ) => terminal_structural_field_type(*primitive)?,

@@ -295,7 +295,45 @@ pub(in crate::lowering) fn lower_boundary_call(
                     });
                 }
                 BoundaryRealization::HostedReadByte(_) => {
+                    let target_operations::TargetBoundaryResult::Structural(home) = &target_result
+                    else {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    };
+                    let Some(result_declaration) =
+                        structural_types.get(&home.result.structural_type)
+                    else {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    };
+                    let StructuralTypeShape::Sum { cases } = &result_declaration.shape else {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    };
+                    let [empty, byte] = cases.as_slice() else {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    };
+                    let [field] = byte.fields.as_slice() else {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    };
+                    let valid_payload = empty.fields.is_empty()
+                        && !field.relevance.is_erased()
+                        && match field.field_type {
+                            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                                !integer.is_address()
+                                    && integer.sign() == IntegerSign::Signed
+                                    && integer.bits() == 32
+                            }
+                            StructuralFieldType::BoundedInteger(bounds) => {
+                                let integer = bounds.integer_type();
+                                !integer.is_address()
+                                    && integer.sign() == IntegerSign::Signed
+                                    && integer.bits() == 32
+                                    && bounds.contains(semantic_vocabulary::IntegerValue::Signed(0))
+                                    && bounds
+                                        .contains(semantic_vocabulary::IntegerValue::Signed(255))
+                            }
+                            _ => false,
+                        };
                     if !target_operations::HostedReadByteRealization::supports_target(target)
+                        || !valid_payload
                         || !arguments.is_empty()
                         || !structural_arguments.is_empty()
                         || !declaration.scalar_parameters.is_empty()

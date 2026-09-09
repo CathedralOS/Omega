@@ -144,7 +144,8 @@ pub(super) fn lower_operation(
         | AbstractOperation::IntegerLessThan { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::ExactIntegerAdd { .. }
-        | AbstractOperation::ExactIntegerSubtract { .. } => observations::lower(
+        | AbstractOperation::ExactIntegerSubtract { .. }
+        | AbstractOperation::IntegerExactCast { .. } => observations::lower(
             operation,
             function,
             structural_types,

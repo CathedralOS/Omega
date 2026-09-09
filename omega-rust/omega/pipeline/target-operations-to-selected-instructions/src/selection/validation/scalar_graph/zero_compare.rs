@@ -74,7 +74,8 @@ pub(super) fn folded_zero<'a>(
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
                 LegalizedScalarInstructionKind::BooleanNot { operand }
-                | LegalizedScalarInstructionKind::IntegerWiden { operand, .. } => {
+                | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
+                | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {
                     *operand == definition.value
                 }
                 LegalizedScalarInstructionKind::Call(call) => call

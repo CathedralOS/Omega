@@ -122,7 +122,7 @@ use terminal_verifier::{ModuleError, validate_module_representation};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 84;
+const FORMAT_MARKER: u16 = 85;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -134,6 +134,18 @@ pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     validate_structural_foundation(module)?;
     validate_module_representation(module).map_err(CodecError::InvalidModule)?;
     encode_raw(module)
+}
+
+/// Encode one structural declaration using the exact module-section wire format.
+///
+/// This omits the module header and declaration count. Encoding alone does not
+/// validate the referenced-type closure or establish any value invariant.
+pub fn encode_structural_type_declaration(
+    declaration: &terminal_psi::StructuralTypeDeclaration,
+) -> Result<Vec<u8>, CodecError> {
+    let mut writer = Writer::default();
+    structural_type_wire::encode_structural_type(&mut writer, declaration)?;
+    Ok(writer.finish())
 }
 
 pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
@@ -302,6 +314,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                             );
                         }
                         StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_)
                         | StructuralFieldType::Structural(_)
                             if field.relevance.is_erased() =>
@@ -349,6 +362,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                                 );
                             }
                             StructuralFieldType::Scalar(_)
+                            | StructuralFieldType::BoundedInteger(_)
                             | StructuralFieldType::IeeeFloat(_)
                             | StructuralFieldType::Structural(_)
                                 if field.relevance.is_erased() =>
@@ -400,6 +414,7 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                             );
                         }
                         StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_)
                         | StructuralFieldType::Structural(_)
                             if field.relevance.is_erased() =>
@@ -1345,8 +1360,16 @@ fn validate_operation_foundation(
                     StructuralTypeShape::Record { fields } => fields.iter().find(|candidate| {
                         candidate.id == *field
                             && !candidate.relevance.is_erased()
-                            && candidate.field_type
-                                == StructuralFieldType::Scalar(result.scalar_type)
+                            && match candidate.field_type {
+                                StructuralFieldType::Scalar(scalar_type) => {
+                                    scalar_type == result.scalar_type
+                                }
+                                StructuralFieldType::BoundedInteger(bounded) => {
+                                    ScalarType::Integer(bounded.integer_type())
+                                        == result.scalar_type
+                                }
+                                _ => false,
+                            }
                     }),
                     _ => None,
                 });

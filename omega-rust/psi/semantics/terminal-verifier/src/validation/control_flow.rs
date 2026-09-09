@@ -529,7 +529,13 @@ fn validate_structural_case_successors(
                 });
             };
             if field.relevance.is_erased()
-                || !matches!(field.field_type, StructuralFieldType::Scalar(actual) if actual == parameter.scalar_type)
+                || !match field.field_type {
+                    StructuralFieldType::Scalar(actual) => actual == parameter.scalar_type,
+                    StructuralFieldType::BoundedInteger(bounded) => {
+                        ScalarType::Integer(bounded.integer_type()) == parameter.scalar_type
+                    }
+                    _ => false,
+                }
             {
                 return Err(ModuleError::StructuralCasePayloadMismatch {
                     edge: successor.edge,

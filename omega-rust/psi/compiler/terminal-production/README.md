@@ -141,13 +141,22 @@ The source state currently begins with that result call and dispatches directly;
 interleaved effects, structural payloads, and loop-carried owned results remain
 outside this producer family.
 
-Raw payload types do not preserve field numeric restrictions. In particular,
-`ByteRead::Byte(value: i32 [0..=255])` can drive comparisons but its exact `as u8`
-conversion still lacks source-free range evidence. Retain those constraints at
-their declaration/establishment boundary and connect selected fields to scalar
-bindings before admitting the conversion. An authored successor parameter range
-is not an independent hypothesis. The byte-input classification fixture exercises
-result/view composition without claiming that the shared line reader is complete.
+Closed integer field restrictions retain their exact carrier and inclusive
+bounds through the checked catalog and Terminal declaration. The selected case
+introduces those bounds on its copied scalar payload, allowing
+`ByteRead::Byte(value: i32 [0..=255])` to prove an exact `as u8` conversion through
+ordinary scalar forwarding. A successor parameter annotation is not an
+independent hypothesis. Native providers must establish every promised value;
+byte-input realization rejects restrictions excluding either 0 or 255.
+
+Source range normalization uses the existing closed-expression evaluator's i64
+window. Unsupported or unevaluated bounds reject instead of becoming unrestricted
+scalars; floating/address restrictions and non-Exact arithmetic/range combinations
+are not admitted by this producer. Restricted field stores and scalar-record
+construction remain fenced until written-value obligations are retained.
+Opaque interpreter inputs/results cannot establish these restrictions from type
+identity alone. The byte-input classification and exact-copy fixtures do not
+claim that the shared line reader or payload-bearing line outcomes are complete.
 
 The general state-graph path also retains one persistent unrestricted mutable
 record receiver. It shares ordinary Unit statement construction for ordered

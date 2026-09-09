@@ -45,8 +45,7 @@ pub(super) fn validate(
             if payload.parameter != parameter.value
                 || payload.scalar_type != parameter.scalar_type
                 || field.relevance.is_erased()
-                || !matches!(field.field_type, terminal_psi::StructuralFieldType::Scalar(actual)
-                    if actual == payload.scalar_type)
+                || field.field_type.scalar_type() != Some(payload.scalar_type)
             {
                 return Err(invalid());
             }

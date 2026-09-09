@@ -228,6 +228,18 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&operand.get().to_le_bytes());
                     encode_integer_type(bytes, *source_type);
                 }
+                LegalizedScalarInstructionKind::IntegerExactCast {
+                    operand,
+                    source_type,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(20);
+                    bytes.extend_from_slice(&operand.get().to_le_bytes());
+                    encode_integer_type(bytes, *source_type);
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::Constant(value) => {
                     bytes.push(0);
                     encode_integer(bytes, *value);

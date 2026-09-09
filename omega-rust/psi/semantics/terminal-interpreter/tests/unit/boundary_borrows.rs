@@ -1,6 +1,6 @@
 use super::*;
 
-fn borrowed_boundary_module(access: StructuralAccess) -> TerminalModule {
+pub(super) fn borrowed_boundary_module(access: StructuralAccess) -> TerminalModule {
     let mut module = byte_sequence_literal_module(Vec::new());
     module.structural_types[0].identity = "test::Resource".into();
     module.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };

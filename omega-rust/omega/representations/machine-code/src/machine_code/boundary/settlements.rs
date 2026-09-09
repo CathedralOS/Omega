@@ -23,6 +23,8 @@ pub struct BoundaryScalarResultRecord {
 pub struct BoundaryStructuralResultRecord {
     pub defining_operation: OperationId,
     pub result: StructuralOperationResult,
+    /// Exact result declaration, retained for independent realization replay.
+    pub declaration: StructuralTypeDeclaration,
     pub layout: ConventionalSumLayout,
     /// Offset within the complete allocated Unit frame.
     pub home_byte_offset: u32,

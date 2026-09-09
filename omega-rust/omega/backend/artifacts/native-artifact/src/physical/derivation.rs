@@ -906,7 +906,7 @@ fn derive_read_byte_child(
         selected_plan_digest,
         target,
         result,
-    );
+    )?;
     let parent = PhysicalChildParent::BoundaryTraitSettlement(
         BoundaryTraitSettlementParts {
             occurrence: *occurrence,
@@ -1650,9 +1650,9 @@ fn builtin_structural_boundary_trait_settlement_identity(
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
     result: &machine_code::BoundaryStructuralResultRecord,
-) -> [u8; 32] {
+) -> Result<[u8; 32], &'static str> {
     let mut digest = Sha256::new();
-    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v1\0");
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v2\0");
     digest.update(occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.update(selected_plan_digest.as_bytes());
@@ -1680,9 +1680,12 @@ fn builtin_structural_boundary_trait_settlement_identity(
         digest.update(claim.claim.get().to_le_bytes());
         hash_structural_path(&mut digest, &claim.path);
     }
+    let declaration = terminal_codec::encode_structural_type_declaration(&result.declaration)
+        .map_err(|_| "hosted read-byte result declaration cannot be encoded canonically")?;
+    hash_bytes(&mut digest, &declaration);
     hash_sum_layout(&mut digest, &result.layout);
     digest.update(result.home_byte_offset.to_le_bytes());
-    digest.finalize().into()
+    Ok(digest.finalize().into())
 }
 
 fn hash_structural_path(digest: &mut Sha256, path: &[terminal_psi::StructuralPathSegment]) {
@@ -2127,5 +2130,119 @@ mod tests {
             validate_exact_physical_child_coordinates(&projection, [role_swapped, boundary]),
             Err("native physical child swapped or substituted its semantic parent role")
         );
+    }
+
+    #[test]
+    fn structural_boundary_settlement_identity_binds_the_complete_result_declaration() {
+        use semantic_vocabulary::{
+            BoundedIntegerType, IntegerValue, OperationId, PlaceId, StructuralCaseId,
+            StructuralFieldId, StructuralTypeId,
+        };
+        use terminal_psi::{
+            BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+            StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+            StructuralTypeDeclaration, StructuralTypeShape,
+        };
+
+        let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        let original = machine_code::BoundaryStructuralResultRecord {
+            defining_operation: OperationId::new(3).unwrap(),
+            result: StructuralOperationResult {
+                place: PlaceId::new(1).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            declaration: StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "InputResult".into(),
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![
+                        StructuralCaseDeclaration {
+                            id: StructuralCaseId::new(1).unwrap(),
+                            identity: "End".into(),
+                            fields: Vec::new(),
+                        },
+                        StructuralCaseDeclaration {
+                            id: StructuralCaseId::new(2).unwrap(),
+                            identity: "Value".into(),
+                            fields: vec![StructuralFieldDeclaration {
+                                id: StructuralFieldId::new(1).unwrap(),
+                                identity: "value".into(),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::BoundedInteger(
+                                    BoundedIntegerType::new(
+                                        integer,
+                                        IntegerValue::Signed(0),
+                                        IntegerValue::Signed(255),
+                                    )
+                                    .unwrap(),
+                                ),
+                            }],
+                        },
+                    ],
+                },
+            },
+            layout: calling_conventions::evaluate_conventional_sum_layout(
+                &[],
+                &[
+                    Vec::new(),
+                    vec![calling_conventions::ValueShape::integer(4, 4)],
+                ],
+            )
+            .unwrap(),
+            home_byte_offset: 16,
+        };
+        let projection = physical_projection();
+        let identity = |result: &machine_code::BoundaryStructuralResultRecord| {
+            builtin_structural_boundary_trait_settlement_identity(
+                &projection.boundary_occurrences()[0],
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                result,
+            )
+            .unwrap()
+        };
+        let expected = identity(&original);
+        for mutation in 0..7 {
+            let mut changed = original.clone();
+            let StructuralTypeShape::Sum { cases } = &mut changed.declaration.shape else {
+                panic!("sum")
+            };
+            match mutation {
+                0 => changed.declaration.identity.push_str("Other"),
+                1 => cases[1].identity.push_str("Other"),
+                2 => cases[1].id = StructuralCaseId::new(3).unwrap(),
+                3 => cases[1].fields[0].identity.push_str("Other"),
+                4 => cases[1].fields[0].id = StructuralFieldId::new(2).unwrap(),
+                5 => {
+                    cases[1].fields[0].field_type = StructuralFieldType::BoundedInteger(
+                        BoundedIntegerType::new(
+                            integer,
+                            IntegerValue::Signed(-1),
+                            IntegerValue::Signed(256),
+                        )
+                        .unwrap(),
+                    )
+                }
+                _ => {
+                    cases[1].fields[0].field_type =
+                        StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                }
+            }
+            assert_eq!(
+                changed.layout, original.layout,
+                "unchanged layout cannot mask semantic drift"
+            );
+            assert_ne!(
+                identity(&changed),
+                expected,
+                "declaration mutation {mutation}"
+            );
+        }
     }
 }

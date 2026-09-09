@@ -127,6 +127,14 @@ fn field_shape(
                 bytes.next_power_of_two().min(16),
             ))
         }
+        StructuralFieldType::BoundedInteger(bounds) => {
+            let integer = bounds.integer_type();
+            let bytes = integer.bits().div_ceil(8);
+            Ok(ValueShape::integer(
+                bytes,
+                bytes.next_power_of_two().min(16),
+            ))
+        }
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))

@@ -247,8 +247,15 @@ entering the same legalized SSA graph. Explicit `u8` widening to fixed
 16/32/64-bit signed or unsigned integers reuses ordinary copies after byte
 inputs are zero-extended at the ABI boundary. Result type, defining operation,
 source identity and value residence remain independently replayed; no new
-instruction or forced stack home is needed. Other source widths and general
-Unit control-flow composition remain separate realization work.
+instruction or forced stack home is needed. Proof-bearing exact casts retain
+their accepted obligation in ordinary control graphs, independently replay the
+source/result types, and normalize 8/32-bit results with existing selected forms.
+Supported casts use fixed 8/16/32/64-bit carriers. Signed-to-signed casts involving
+sub-64-bit carriers and widening from a 16-bit source reject. These cases need
+coherent signed-width normalization through arithmetic/comparison consumers or
+16-bit raw normalization, including selected ISA and replay support; copying a
+register does not supply it. Sign-changing casts retain the proof that their
+mathematical value is nonnegative.
 
 [Construction](src/selection/construction/mod.rs) and independent validation
 derive separate projections. Replay checks the complete selected content against

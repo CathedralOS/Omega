@@ -75,6 +75,40 @@ pub(super) fn lower(
         return Ok(());
     }
     let (psi_operation, result, scalar_type, expression) = match operation {
+        AbstractOperation::IntegerExactCast {
+            psi_operation,
+            obligation,
+            result,
+            source_type,
+            target_type,
+            operand,
+        } => {
+            let operand_value = match values.get(operand).cloned() {
+                Some(KnownScalar::Integer { scalar_type, value })
+                    if scalar_type == *source_type
+                        && source_type.can_exact_cast_to(*target_type) =>
+                {
+                    value
+                }
+                Some(_) => return Err(LoweringError::IntegerExactCastTypeMismatch(*result)),
+                None => return Err(LoweringError::UnknownValue(*operand)),
+            };
+            provenance.operations.push(*psi_operation);
+            (
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*target_type),
+                TargetScalarExpression::Integer {
+                    scalar_type: *target_type,
+                    expression: TargetIntegerExpression::IntegerExactCast {
+                        psi_operation: *psi_operation,
+                        obligation: *obligation,
+                        source_type: *source_type,
+                        operand: Box::new(operand_value.into_expression(*operand)),
+                    },
+                },
+            )
+        }
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,

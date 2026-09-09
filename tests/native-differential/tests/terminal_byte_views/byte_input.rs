@@ -6,7 +6,11 @@ use abstract_operations_to_target_operations::{
 };
 
 fn reader() -> lowered_psi::LoweredPsi {
-    let tokens = source_files_to_tokens::Lexer::new(include_str!("byte_input.omg"))
+    lower_reader(include_str!("byte_input.omg"), "classify_bytes")
+}
+
+fn lower_reader(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
+    let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
@@ -14,7 +18,7 @@ fn reader() -> lowered_psi::LoweredPsi {
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "classify_bytes")
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine)
         .expect("read result and guarded destination share the ordinary state graph");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -80,7 +84,13 @@ fn bounded_byte_input_cycle_keeps_case_edges_in_replay() {
 }
 
 fn publish(target: NativeTarget) -> (image_emission::ExecutableImage, usize) {
-    let lowered = reader();
+    publish_reader(target, reader())
+}
+
+fn publish_reader(
+    target: NativeTarget,
+    lowered: lowered_psi::LoweredPsi,
+) -> (image_emission::ExecutableImage, usize) {
     let [boundary] = lowered.semantic_module.boundary_machines.as_slice() else {
         panic!("one authored input leaf");
     };
@@ -115,6 +125,33 @@ fn publish(target: NativeTarget) -> (image_emission::ExecutableImage, usize) {
     )
     .unwrap();
     image_emission::validate_installation_record(&decoded, &image).unwrap();
+    for (minimum, maximum) in [(1, 255), (0, 254)] {
+        let mut narrowed = decoded.clone();
+        let machine_code::BoundaryResultRecord::Structural(result) = &mut narrowed
+            .boundary_settlements_mut_for_test()[0]
+            .settlement
+            .native_result
+        else {
+            panic!("owned byte result");
+        };
+        let terminal_psi::StructuralTypeShape::Sum { cases } = &mut result.declaration.shape else {
+            panic!("byte result sum");
+        };
+        cases[1].fields[0].field_type = terminal_psi::StructuralFieldType::BoundedInteger(
+            semantic_vocabulary::BoundedIntegerType::new(
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                    .unwrap(),
+                IntegerValue::Signed(minimum),
+                IntegerValue::Signed(maximum),
+            )
+            .unwrap(),
+        );
+        assert!(
+            image_emission::encode_installation_record(&narrowed).is_err(),
+            "standalone installed realization rejects same-layout interval {minimum}..{maximum}"
+        );
+        assert!(image_emission::validate_installation_record(&narrowed, &image).is_err());
+    }
     let mut missing_frame = decoded.clone();
     missing_frame.functions_mut_for_test()[0].unit_stack = None;
     assert!(image_emission::validate_installation_record(&missing_frame, &image).is_err());
@@ -131,6 +168,79 @@ fn publish(target: NativeTarget) -> (image_emission::ExecutableImage, usize) {
     missing.clear_fragment_replay_for_test();
     assert!(image_emission::emit_executable_image(&missing, 3).is_err());
     (image, entry)
+}
+
+#[test]
+fn exact_byte_input_copy_publishes_on_supported_hosted_targets() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_reader(include_str!("read_one.omg"), "read_one");
+        let (image, _) = publish_reader(target, lowered);
+        assert!(!image.output().final_text_bytes.is_empty());
+    }
+}
+
+#[test]
+fn exact_byte_input_copy_executes_all_octets_empty_view_and_eof() {
+    #[cfg(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64"),
+    ))]
+    {
+        let lowered = lower_reader(include_str!("read_one.omg"), "read_one");
+        let (image, entry) = publish_reader(NativeTarget::host(), lowered);
+        native_function::assert_c_text(
+            &image.output().final_text_bytes,
+            entry,
+            include_str!("read_one.c"),
+        );
+    }
+    #[cfg(not(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64"),
+    )))]
+    eprintln!("SKIP: exact byte copy execution requires matching Linux or macOS ARM64 host");
+}
+
+#[test]
+fn exact_byte_input_casts_compose_through_unsigned_intermediate_carriers() {
+    #[cfg(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64"),
+    ))]
+    for intermediate in ["u16", "u32", "u64"] {
+        let source = include_str!("read_one.omg").replace(
+            "out[0] = value as u8;",
+            &format!("out[0] = (value as {intermediate}) as u8;"),
+        );
+        let lowered = lower_reader(&source, "read_one");
+        let (image, entry) = publish_reader(NativeTarget::host(), lowered);
+        native_function::assert_c_text(
+            &image.output().final_text_bytes,
+            entry,
+            include_str!("read_one.c"),
+        );
+    }
+    #[cfg(not(any(
+        all(
+            target_os = "linux",
+            any(target_arch = "x86_64", target_arch = "aarch64")
+        ),
+        all(target_os = "macos", target_arch = "aarch64"),
+    )))]
+    eprintln!("SKIP: composed exact cast execution requires matching Linux or macOS ARM64 host");
 }
 
 #[test]

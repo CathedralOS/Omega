@@ -76,6 +76,7 @@ pub(super) fn lower(
             | AbstractOperation::BooleanConstant { result, .. }
             | AbstractOperation::IeeeFloatConstant { result, .. }
             | AbstractOperation::IntegerWiden { result, .. }
+            | AbstractOperation::IntegerExactCast { result, .. }
             | AbstractOperation::IntegerEqual { result, .. }
             | AbstractOperation::IntegerLessThan { result, .. }
             | AbstractOperation::IntegerLessOrEqual { result, .. } => Some(*result),

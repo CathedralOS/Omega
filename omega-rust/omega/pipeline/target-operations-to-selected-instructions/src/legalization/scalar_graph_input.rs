@@ -104,6 +104,22 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
         _ => None,
     }
 }
+
+/// Graph integers retain raw carrier bits. Sub-64-bit signed-to-signed casts and
+/// 16-bit-source widening need coherent normalization not yet present here.
+pub(super) fn exact_cast_has_native_carriers(source: IntegerType, target: IntegerType) -> bool {
+    scalar_shape(ScalarType::Integer(source)).is_some()
+        && scalar_shape(ScalarType::Integer(target)).is_some()
+        && source.can_exact_cast_to(target)
+        && !(source.sign() == IntegerSign::Signed
+            && target.sign() == IntegerSign::Signed
+            && (source.bits() != 64 || target.bits() != 64))
+        && !(source.bits() == 16 && target.bits() > 16)
+}
+
+#[cfg(test)]
+mod exact_cast_carrier_tests;
+
 pub(super) fn i32_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 32).expect("I32")
 }

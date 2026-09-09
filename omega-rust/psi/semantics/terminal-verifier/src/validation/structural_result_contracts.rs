@@ -101,7 +101,9 @@ pub(super) fn has_plain_owned_shape(module: &TerminalModule, root: StructuralTyp
         let mut field_is_owned = |field: &terminal_psi::StructuralFieldDeclaration| {
             !field.relevance.is_erased()
                 && match &field.field_type {
-                    StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
+                    StructuralFieldType::Scalar(_)
+                    | StructuralFieldType::BoundedInteger(_)
+                    | StructuralFieldType::IeeeFloat(_) => true,
                     StructuralFieldType::Structural(child) => {
                         visit(module, *child, active, complete)
                     }

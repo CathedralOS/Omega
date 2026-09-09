@@ -320,7 +320,7 @@ pub(super) fn lower_structural_member_term(
 ) -> Result<ScalarTerm, LoweringError> {
     let (root, terminal_path, actual) =
         lower_structural_member_path(parameter_position, path, parameters, structural_types)?;
-    if actual != StructuralFieldType::Scalar(expected) {
+    if actual.scalar_type() != Some(expected) {
         return unsupported(
             "structural scalar contract path does not end at the retained scalar type",
         );

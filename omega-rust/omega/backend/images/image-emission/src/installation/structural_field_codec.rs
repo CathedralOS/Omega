@@ -1,4 +1,4 @@
-//! Canonical format-36 structural field rows.
+//! Canonical structural field rows, including exact inclusive integer restrictions.
 
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralFieldId, StructuralTypeId,
@@ -20,6 +20,12 @@ pub(super) fn encode_structural_field(
     encode_identity(bytes, &field.identity)?;
     bytes.push(u8::from(field.relevance.is_erased()));
     match &field.field_type {
+        StructuralFieldType::BoundedInteger(bounds) => {
+            bytes.push(8);
+            super::unit_scalar_codec::encode_integer_type(bytes, bounds.integer_type())?;
+            super::unit_scalar_codec::encode_integer_value(bytes, bounds.minimum());
+            super::unit_scalar_codec::encode_integer_value(bytes, bounds.maximum());
+        }
         StructuralFieldType::Scalar(ScalarType::Boolean) => {
             bytes.push(1);
             bytes.extend_from_slice(&[0; 2]);
@@ -84,6 +90,24 @@ pub(super) fn decode_structural_field(
         value => return Err(InstallationError::InvalidBoolean(value)),
     };
     let field_type = match reader.u8()? {
+        8 => {
+            let sign = match reader.u8()? {
+                1 => IntegerSign::Signed,
+                2 => IntegerSign::Unsigned,
+                _ => return Err(InstallationError::InvalidStructuralTypeShape),
+            };
+            if reader.u8()? != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            let integer = IntegerType::new(sign, reader.u16()?)
+                .map_err(|_| InstallationError::InvalidStructuralTypeShape)?;
+            let minimum = super::unit_scalar_codec::decode_integer_value(reader)?;
+            let maximum = super::unit_scalar_codec::decode_integer_value(reader)?;
+            StructuralFieldType::BoundedInteger(
+                semantic_vocabulary::BoundedIntegerType::new(integer, minimum, maximum)
+                    .map_err(|_| InstallationError::InvalidStructuralTypeShape)?,
+            )
+        }
         1 => {
             if reader.u16()? != 0 {
                 return Err(InstallationError::NonzeroReservedField);
@@ -174,4 +198,38 @@ pub(super) fn decode_structural_field(
         relevance,
         field_type,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+
+    #[test]
+    fn installed_bounded_fields_preserve_full_width_endpoints_and_reject_reversed_bounds() {
+        let field = StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).unwrap(),
+            identity: "payload".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    IntegerType::new(IntegerSign::Unsigned, 128).unwrap(),
+                    IntegerValue::Unsigned(1 << 127),
+                    IntegerValue::Unsigned(u128::MAX - 1),
+                )
+                .unwrap(),
+            ),
+        };
+        let mut bytes = Vec::new();
+        encode_structural_field(&mut bytes, &field).unwrap();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_field(&mut reader).unwrap(), field);
+        assert_eq!(reader.remaining(), 0);
+        let minimum_payload = bytes.len() - 36;
+        bytes[minimum_payload..minimum_payload + 16].copy_from_slice(&u128::MAX.to_le_bytes());
+        assert_eq!(
+            decode_structural_field(&mut Reader::new(&bytes)),
+            Err(InstallationError::InvalidStructuralTypeShape)
+        );
+    }
 }

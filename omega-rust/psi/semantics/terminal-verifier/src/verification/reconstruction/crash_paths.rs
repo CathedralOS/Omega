@@ -87,6 +87,7 @@ pub(super) fn reconstruct(
         let mut outcome_exits = BTreeMap::new();
         let prior_sites = sites.len();
         terminator_facts::append_terminator(
+            module,
             &block.terminator,
             current,
             machine,

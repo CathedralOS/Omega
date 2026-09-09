@@ -397,6 +397,9 @@ pub(crate) fn lower_unit_structural_type_roots(
                     ));
                 }
                 let (relevance, field_type) = match &field.field_type {
+                    CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
+                        (field.relevance, StructuralFieldType::BoundedInteger(*integer))
+                    }
                     CheckedUnitStructuralFieldType::Scalar(primitive) => {
                         (field.relevance, terminal_structural_field_type(*primitive)?)
                     }
@@ -477,6 +480,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                                             ));
                                         }
                                         let field_type = match &field.field_type {
+                                            CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
                                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                                 terminal_structural_field_type(*primitive)?
                                             }

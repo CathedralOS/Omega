@@ -362,6 +362,37 @@ pub(super) fn validate(
             AbstractOperation::IntegerConstant { value, .. },
         ) if actual == value => {}
         (
+            LegalizedScalarInstructionKind::IntegerExactCast {
+                operand,
+                source_type,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::IntegerExactCast {
+                psi_operation,
+                operand: source,
+                source_type: source_integer,
+                obligation: source_obligation,
+                ..
+            },
+        ) => {
+            let fact = unit
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == *psi_operation
+                        && fact.obligation == *source_obligation
+                })
+                .ok_or(Error::SourceCustodyMismatch)?;
+            if operand != source || source_type != source_integer || obligation != source_obligation || *accepted_fact != fact.identity
+                || !optimized.facts.iter().any(|fact| matches!(fact,
+                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    if referenced == source_obligation && support == psi_operation)) {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::Constant(actual),
             AbstractOperation::IeeeFloatConstant { value, .. },
         ) if *actual

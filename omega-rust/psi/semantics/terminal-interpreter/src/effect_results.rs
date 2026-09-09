@@ -17,7 +17,8 @@ impl TerminalExecution {
         result: &OperationResult,
     ) -> Result<(), TerminalInterpretError> {
         if let OperationResult::Structural(result) = result
-            && (self.structural_values.contains_key(&result.place)
+            && (contains_bounded_integer(&self.structural_types, result.structural_type)
+                || self.structural_values.contains_key(&result.place)
                 || self.payloadless_case_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
@@ -31,6 +32,51 @@ impl TerminalExecution {
         }
         Ok(())
     }
+}
+
+/// Opaque host values carry neither complete scalar contents nor selected sum
+/// payloads. Type identity alone cannot establish a numeric field restriction.
+pub(super) fn contains_bounded_integer(
+    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if !visited.insert(current) {
+            continue;
+        }
+        let Some(declaration) = types.get(&current) else {
+            return true;
+        };
+        let mut fields = Vec::new();
+        match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::Record { fields: members } => fields.extend(members),
+            StructuralTypeShape::Sum { cases } => {
+                fields.extend(cases.iter().flat_map(|case| &case.fields));
+            }
+            StructuralTypeShape::Mixed {
+                fields: members,
+                cases,
+            } => {
+                fields.extend(members);
+                fields.extend(cases.iter().flat_map(|case| &case.fields));
+            }
+        }
+        for field in fields {
+            match field.field_type {
+                terminal_psi::StructuralFieldType::BoundedInteger(_) => return true,
+                terminal_psi::StructuralFieldType::Structural(child) => pending.push(child),
+                terminal_psi::StructuralFieldType::Scalar(_)
+                | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                | terminal_psi::StructuralFieldType::ByteSequence(_)
+                | terminal_psi::StructuralFieldType::Erased { .. } => {}
+            }
+        }
+    }
+    false
 }
 
 pub(super) fn commit_boundary_result(

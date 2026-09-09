@@ -270,6 +270,7 @@ fn local_case_result(
                     && matches!(
                         field.field_type,
                         terminal_psi::StructuralFieldType::Scalar(_)
+                            | terminal_psi::StructuralFieldType::BoundedInteger(_)
                     )
             })
         })

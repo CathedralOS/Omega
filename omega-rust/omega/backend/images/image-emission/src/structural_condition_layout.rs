@@ -193,6 +193,11 @@ fn replay_structural_field_shape(
             let size = integer.bits().div_ceil(8);
             Some(ValueShape::integer(size, size.next_power_of_two().min(16)))
         }
+        terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
+            let integer = bounds.integer_type();
+            let size = integer.bits().div_ceil(8);
+            Some(ValueShape::integer(size, size.next_power_of_two().min(16)))
+        }
         terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
             semantic_vocabulary::IeeeFloatFormat::Binary32,
         )) => Some(ValueShape::float(4)),

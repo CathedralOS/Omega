@@ -333,11 +333,58 @@ fn read_byte_rejects_same_width_unsigned_payload() {
             execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
             realization: target_operations::HostedReadByteRealization.into(),
         }],
-    ).expect("target sum layout alone does not distinguish signed payload meaning");
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-        &source,
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
-    assert!(legalize_target_operations(&target, &source, &unit).is_err());
+    );
+    assert!(
+        target.is_err(),
+        "same-width unsigned payload does not satisfy the realization contract"
+    );
+}
+
+#[test]
+fn read_byte_requires_produced_octets_to_fit_retained_bounds_at_each_native_gate() {
+    for (minimum, maximum, accepted) in [
+        (0, 255, true),
+        (-1, 256, true),
+        (1, 255, false),
+        (0, 254, false),
+    ] {
+        let native = NativeTarget::macos_arm64();
+        let (mut source, original_target, _) = fixture(native);
+        let terminal_psi::StructuralTypeShape::Sum { cases } =
+            &mut source.structural_types[0].shape
+        else {
+            unreachable!()
+        };
+        cases[1].fields[0].field_type = terminal_psi::StructuralFieldType::BoundedInteger(
+            semantic_vocabulary::BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                semantic_vocabulary::IntegerValue::Signed(minimum),
+                semantic_vocabulary::IntegerValue::Signed(maximum),
+            )
+            .unwrap(),
+        );
+        let target = abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
+            &source, native, &[AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte),
+                realization: target_operations::HostedReadByteRealization.into(),
+            }],
+        );
+        assert_eq!(
+            target.is_ok(),
+            accepted,
+            "target interval {minimum}..{maximum}"
+        );
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let target = target.unwrap_or(original_target);
+        assert_eq!(
+            legalize_target_operations(&target, &source, &unit).is_ok(),
+            accepted,
+            "legalized interval {minimum}..{maximum}"
+        );
+    }
 }

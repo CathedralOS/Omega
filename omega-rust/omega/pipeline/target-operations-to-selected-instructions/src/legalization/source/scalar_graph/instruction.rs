@@ -264,6 +264,34 @@ pub(super) fn project(
             operand: *operand,
             source_type: *source_type,
         },
+        AbstractOperation::IntegerExactCast {
+            psi_operation,
+            operand,
+            source_type,
+            obligation,
+            ..
+        } => {
+            let fact = unit
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == *psi_operation
+                        && fact.obligation == *obligation
+                })
+                .ok_or(Error::SourceCustodyMismatch)?;
+            if !optimized.facts.iter().any(|fact| matches!(fact,
+                optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                if referenced == obligation && support == psi_operation)) {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            LegalizedScalarInstructionKind::IntegerExactCast {
+                operand: *operand,
+                source_type: *source_type,
+                obligation: *obligation,
+                accepted_fact: fact.identity,
+            }
+        }
         AbstractOperation::IntegerConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(*value)
         }

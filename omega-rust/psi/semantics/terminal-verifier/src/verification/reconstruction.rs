@@ -442,6 +442,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
             }
         }
         terminator_facts::append_terminator(
+            module,
             &block.terminator,
             current,
             machine,

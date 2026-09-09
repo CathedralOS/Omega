@@ -84,14 +84,7 @@ pub(in crate::function_fragments) fn cleanup_actions_match(
             let mut types = contract.structural_types.iter().filter(|declaration| declaration.id == result.structural_type);
             let Some(declaration) = types.next() else { return false; };
             if types.next().is_some() { return false; }
-            let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else { return false; };
-            let [eof, byte] = cases.as_slice() else { return false; };
-            let [payload] = byte.fields.as_slice() else { return false; };
-            eof.fields.is_empty() && !payload.relevance.is_erased()
-                && matches!(payload.field_type,
-                    terminal_psi::StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(integer))
-                        if integer.sign() == semantic_vocabulary::IntegerSign::Signed && integer.bits() == 32
-                )
+            crate::boundary_results::hosted_read_byte_declaration_is_valid(declaration)
         })
 }
 
@@ -172,6 +165,7 @@ pub(super) fn settlement(
         native_result: BoundaryResultRecord::Structural(BoundaryStructuralResultRecord {
             defining_operation: *operation,
             result: result.clone(),
+            declaration: result_declaration(function, result.structural_type)?.clone(),
             layout: layout.clone(),
             home_byte_offset: offset,
         }),
@@ -259,6 +253,7 @@ pub(super) fn validate(
     let (abstracted, _) = source::function(container, machine)?;
     let code_offset = host(span.offset)?;
     if proposed.machine != machine
+        || &produced.declaration != result_declaration(function, result.structural_type)?
         || proposed.text_offset
             != host(placed.section_offset)?
                 .checked_add(code_offset)
@@ -301,6 +296,25 @@ pub(super) fn validate(
         return Err(invalid());
     }
     Ok(())
+}
+
+fn result_declaration(
+    function: &selected_instructions::SelectedFunction,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+) -> Result<&terminal_psi::StructuralTypeDeclaration, Error> {
+    let invalid = || Error::Mismatch("selected byte input declaration custody");
+    let contract = function.structural.as_ref().ok_or_else(invalid)?;
+    let mut matching = contract
+        .structural_types
+        .iter()
+        .filter(|row| row.id == structural_type);
+    let declaration = matching.next().ok_or_else(invalid)?;
+    if matching.next().is_some()
+        || !crate::boundary_results::hosted_read_byte_declaration_is_valid(declaration)
+    {
+        return Err(invalid());
+    }
+    Ok(declaration)
 }
 
 #[cfg(test)]

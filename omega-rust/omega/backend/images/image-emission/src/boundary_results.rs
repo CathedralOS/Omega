@@ -38,6 +38,8 @@ pub(super) fn boundary_result_is_exact(
                 return false;
             };
             target_operations::HostedReadByteRealization::supports_target(target)
+                && result.declaration.id == result.result.structural_type
+                && hosted_read_byte_declaration_is_valid(&result.declaration)
                 && result.layout.tag_byte_offset == 0
                 && result.layout.tag_shape == ValueShape::integer(4, 4)
                 && result.layout.common_fields.is_empty()
@@ -52,9 +54,109 @@ pub(super) fn boundary_result_is_exact(
     }
 }
 
+pub(crate) fn hosted_read_byte_declaration_is_valid(
+    declaration: &terminal_psi::StructuralTypeDeclaration,
+) -> bool {
+    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return false;
+    };
+    let [empty, byte] = cases.as_slice() else {
+        return false;
+    };
+    let [field] = byte.fields.as_slice() else {
+        return false;
+    };
+    empty.fields.is_empty()
+        && !declaration.identity.is_empty()
+        && !empty.identity.is_empty()
+        && !byte.identity.is_empty()
+        && !field.identity.is_empty()
+        && empty.id < byte.id
+        && empty.identity != byte.identity
+        && !field.relevance.is_erased()
+        && match field.field_type {
+            terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                !integer.is_address()
+                    && integer.sign() == IntegerSign::Signed
+                    && integer.bits() == 32
+            }
+            terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
+                let integer = bounds.integer_type();
+                !integer.is_address()
+                    && integer.sign() == IntegerSign::Signed
+                    && integer.bits() == 32
+                    && bounds.contains(semantic_vocabulary::IntegerValue::Signed(0))
+                    && bounds.contains(semantic_vocabulary::IntegerValue::Signed(255))
+            }
+            _ => false,
+        }
+}
+
+#[cfg(test)]
+pub(crate) fn test_byte_read_declaration(
+    id: semantic_vocabulary::StructuralTypeId,
+) -> terminal_psi::StructuralTypeDeclaration {
+    terminal_psi::StructuralTypeDeclaration {
+        id,
+        identity: "ByteRead".into(),
+        shape: terminal_psi::StructuralTypeShape::Sum {
+            cases: vec![
+                terminal_psi::StructuralCaseDeclaration {
+                    id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                    identity: "Eof".into(),
+                    fields: vec![],
+                },
+                terminal_psi::StructuralCaseDeclaration {
+                    id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                    identity: "Byte".into(),
+                    fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                        identity: "value".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::BoundedInteger(
+                            semantic_vocabulary::BoundedIntegerType::new(
+                                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                                semantic_vocabulary::IntegerValue::Signed(0),
+                                semantic_vocabulary::IntegerValue::Signed(255),
+                            )
+                            .unwrap(),
+                        ),
+                    }],
+                },
+            ],
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_byte_declaration_replay_rejects_noncanonical_case_and_field_custody() {
+        let original = test_byte_read_declaration(StructuralTypeId::new(3).unwrap());
+        for mutation in 0..8 {
+            let mut changed = original.clone();
+            let terminal_psi::StructuralTypeShape::Sum { cases } = &mut changed.shape else {
+                unreachable!()
+            };
+            match mutation {
+                0 => changed.identity.clear(),
+                1 => cases[0].identity.clear(),
+                2 => cases[1].identity.clear(),
+                3 => cases[1].fields[0].identity.clear(),
+                4 => cases[1].id = cases[0].id,
+                5 => cases[0].id = semantic_vocabulary::StructuralCaseId::new(3).unwrap(),
+                6 => cases[1].identity = cases[0].identity.clone(),
+                7 => cases[1].fields[0].relevance = terminal_psi::BindingRelevance::Erased,
+                _ => unreachable!(),
+            }
+            assert!(
+                !hosted_read_byte_declaration_is_valid(&changed),
+                "mutation {mutation}"
+            );
+        }
+    }
     use calling_conventions::ValuePlacement;
     use machine_code::BoundaryScalarResultRecord;
     use semantic_vocabulary::{EdgeId, OperationId, PlaceId, ServiceId, StructuralTypeId};
@@ -136,6 +238,7 @@ mod tests {
         let result =
             BoundaryResultRecord::Structural(machine_code::BoundaryStructuralResultRecord {
                 defining_operation: OperationId::new(1).unwrap(),
+                declaration: test_byte_read_declaration(StructuralTypeId::new(3).unwrap()),
                 result: terminal_psi::StructuralOperationResult {
                     place: PlaceId::new(2).unwrap(),
                     structural_type: StructuralTypeId::new(3).unwrap(),

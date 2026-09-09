@@ -86,7 +86,7 @@ pub(super) fn prepare<'a>(
                         "Unit graph payload field is missing",
                     ))?;
                 let scalar_type = terminal_scalar_type(payload.primitive_type)?;
-                if field.field_type != terminal_psi::StructuralFieldType::Scalar(scalar_type)
+                if field.field_type.scalar_type() != Some(scalar_type)
                     || values
                         .iter()
                         .any(|(position, _)| *position == payload.target_scalar_parameter_index)

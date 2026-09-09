@@ -5,15 +5,18 @@
 //! in the parent codec.
 
 use semantic_vocabulary::{
-    ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatStructuralField, PlaceId,
+    BoundedIntegerType, ByteSequenceStructuralField, CanonicalStructuralPathSegment,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, PlaceId,
 };
 use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
 };
 
 use super::CodecError;
-use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::scalar_wire::{
+    decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
+    encode_integer_value, encode_scalar_type,
+};
 use super::wire::{Reader, Writer};
 
 pub(super) fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
@@ -172,6 +175,12 @@ pub(super) fn encode_structural_field(
             writer.u8(1);
             encode_scalar_type(writer, *scalar_type);
         }
+        StructuralFieldType::BoundedInteger(bounded) => {
+            writer.u8(6);
+            encode_integer_type(writer, bounded.integer_type());
+            encode_integer_value(writer, bounded.minimum());
+            encode_integer_value(writer, bounded.maximum());
+        }
         StructuralFieldType::IeeeFloat(format) => {
             writer.u8(4);
             encode_ieee_float_format(writer, *format);
@@ -210,6 +219,14 @@ pub(super) fn decode_structural_field(
         },
         4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
         5 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(reader)?),
+        6 => StructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                decode_integer_type(reader)?,
+                decode_integer_value(reader)?,
+                decode_integer_value(reader)?,
+            )
+            .map_err(CodecError::MalformedProposition)?,
+        ),
         tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
     };
     Ok(StructuralFieldDeclaration {
@@ -219,3 +236,7 @@ pub(super) fn decode_structural_field(
         field_type,
     })
 }
+
+#[cfg(test)]
+#[path = "structural_field_wire/bounded_integer_tests.rs"]
+mod bounded_integer_tests;

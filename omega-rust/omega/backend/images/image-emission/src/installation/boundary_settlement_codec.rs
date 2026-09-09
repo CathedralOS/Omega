@@ -489,6 +489,7 @@ fn encode_boundary_result(
             bytes.extend_from_slice(&[2, 0, 0, 0]);
             push_u64(bytes, result.defining_operation.get());
             encode_structural_operation_result(bytes, &result.result)?;
+            super::encode_structural_types(bytes, std::slice::from_ref(&result.declaration))?;
             encode_sum_layout(bytes, &result.layout)?;
             push_u32(bytes, result.home_byte_offset);
         }
@@ -517,6 +518,15 @@ fn decode_boundary_result(
                 defining_operation: OperationId::new(reader.u64()?)
                     .ok_or(InstallationError::InvalidBoundaryResult)?,
                 result: decode_structural_operation_result(reader)?,
+                declaration: {
+                    let mut declarations = super::decode_structural_types(reader)?;
+                    if declarations.len() != 1 {
+                        return Err(InstallationError::InvalidBoundaryResult);
+                    }
+                    declarations
+                        .pop()
+                        .ok_or(InstallationError::InvalidBoundaryResult)?
+                },
                 layout: decode_sum_layout(reader)?,
                 home_byte_offset: reader.u32()?,
             },
@@ -1047,6 +1057,9 @@ mod tests {
         .expect("ByteRead layout");
         let result = BoundaryResultRecord::Structural(BoundaryStructuralResultRecord {
             defining_operation: OperationId::new(7).unwrap(),
+            declaration: crate::boundary_results::test_byte_read_declaration(
+                StructuralTypeId::new(9).unwrap(),
+            ),
             result: StructuralOperationResult {
                 place: PlaceId::new(8).unwrap(),
                 structural_type: StructuralTypeId::new(9).unwrap(),

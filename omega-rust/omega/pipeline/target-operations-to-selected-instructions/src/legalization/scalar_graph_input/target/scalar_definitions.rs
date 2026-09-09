@@ -127,6 +127,26 @@ pub(super) fn observation(
         return Err(invalid);
     };
     let (operation, value, scalar_type) = match abstracted {
+        AbstractOperation::IntegerExactCast {
+            psi_operation,
+            result,
+            source_type,
+            target_type,
+            operand,
+            ..
+        } => {
+            if !source_type.can_exact_cast_to(*target_type)
+                || checker.available.is_none_or(|sources| {
+                    !sources.iter().any(|(value, source)| {
+                        value == operand
+                            && source.scalar_type() == ScalarType::Integer(*source_type)
+                    })
+                })
+            {
+                return Err(invalid);
+            }
+            (*psi_operation, *result, ScalarType::Integer(*target_type))
+        }
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             result,

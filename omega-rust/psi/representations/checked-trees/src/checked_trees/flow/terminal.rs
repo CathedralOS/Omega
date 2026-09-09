@@ -1112,6 +1112,7 @@ pub struct CheckedUnitStructuralFieldPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralFieldType {
     Scalar(PrimitiveType),
+    BoundedInteger(semantic_vocabulary::BoundedIntegerType),
     ByteSequence(CheckedByteSequenceCarrier),
     Structural {
         type_identity: String,

@@ -125,6 +125,7 @@ fn validate_structural_fields(
                 });
             }
             StructuralFieldType::Scalar(_)
+            | StructuralFieldType::BoundedInteger(_)
             | StructuralFieldType::IeeeFloat(_)
             | StructuralFieldType::Structural(_)
                 if field.relevance.is_erased() =>

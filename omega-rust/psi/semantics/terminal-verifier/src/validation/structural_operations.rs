@@ -1606,7 +1606,9 @@ fn is_material_write_only_type(module: &TerminalModule, structural_type: Structu
                         return false;
                     }
                     match field.field_type {
-                        StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(next) => pending.push(next),
                         StructuralFieldType::ByteSequence(_)
                         | StructuralFieldType::Erased { .. } => return false,
