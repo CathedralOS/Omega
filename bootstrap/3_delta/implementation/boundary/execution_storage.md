@@ -7,19 +7,18 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 162,740 bytes, SHA-256
-`79649a72f55d9b6d12352995dc62d1f124b5e092754fc93f9b8c91d2bb70224c`.
+closure: 160,576 bytes, SHA-256
+`001fe82924f137bef79fb10abc2cf123e8ddb5015b1e8d435ab1700adf2e50df`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
 argument; a new source manifest digest alone does not preserve this evidence.
 
-The packed runtime annotations add comments and rename `ignoredN` to equal-length
-`writtenN` binders without changing executable structure. The fixed-source counts
-and recursive call edges below therefore remain unchanged. Removing those
-annotations and reversing the binder renames recovers the prior emitter exactly;
-direct baseline/candidate checks also preserve all three emitters' publication
-bytes and counts. No storage provision or bound is increased for this revision.
+Fixed runtime emission branches once between counting and publication. Balanced
+addition sequences zero-returning byte writers in publication order, eliminating
+per-chunk local bindings and linear syntax depth. The three changed bodies have
+one local each and heights 10, 10, and 8; all other bodies are unchanged. The
+recomputed fixed-source maxima below are smaller without increasing any provision.
 
 ## Fixed source and call inventory
 
@@ -29,13 +28,13 @@ maxima, including bodies not reached from the canonical `main`:
 | Fixed-source quantity | Maximum | Owning body |
 | --- | ---: | --- |
 | Formal parameters | 11 | `typing_match_bindings` |
-| Nested expression lists | 84 | `emit_bytes_runtime` |
-| All authored `let` nodes in one body | 83 | `emit_bytes_runtime` |
-| Formal parameters plus all body `let` nodes | 85 | `emit_bytes_runtime` |
+| Nested expression lists | 18 | `resolve_collected_constructors` |
+| All authored `let` nodes in one body | 12 | `publish_compiler_failure` |
+| Formal parameters plus all body `let` nodes | 16 | `lowering_match_arms` |
 | Pending user calls within one body's expression syntax | 5 | `lowering_projection_definition`, `typing_match_body` |
 
 These are compiler-source counts, independent of Delta input depth, width,
-identifier length, or generated-helper count. The fixed 84-list maximum fits
+identifier length, or generated-helper count. The fixed 18-list maximum fits
 Gamma's 255-list validation provision. Its validator visits bodies separately,
 resets the lexical environment at each definition, and never executes callees.
 
@@ -65,7 +64,9 @@ list, and cursor cycles have only zero-weight tail edges.
 
 Remove those four bounded edges, collapse zero-weight recursive components,
 and propagate maximum weighted demands from local peaks through the resulting
-acyclic graph. The fixed overhead from `main` is 18 contexts. Reserving 64 for
+acyclic graph. The previous 18-context fixed overhead from `main` remains a
+conservative bound: the fixed-emitter rewrite removes counted-writer calls and
+introduces only primitive additions, not additional nested user calls. Reserving 64 for
 that overhead and adding all three recursion allowances, even though their
 deepest paths do not coexist, gives:
 
@@ -89,7 +90,7 @@ Ordinary scope/function completion restores the saved environment count, and
 therefore retains at most its parameters plus all its body's `let` nodes:
 
 ```text
-live lexical rows <= 209 * 85 = 17,765 < 131,072
+live lexical rows <= 209 * 16 = 3,344 < 131,072
 ```
 
 Every expression-list level retains at most eleven temporary-value entries:
@@ -103,7 +104,7 @@ does not retain previous argument blocks. Allow one extra result entry per
 activation for `enter_function`'s return handling:
 
 ```text
-temporary entries <= 209 * (84 * 11 + 1) = 193,325 < 524,288
+temporary entries <= 209 * (18 * 11 + 1) = 41,591 < 524,288
 ```
 
 The validator executes no Gamma bodies, so its one-body requirements are smaller

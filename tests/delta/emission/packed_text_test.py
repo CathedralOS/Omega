@@ -6,14 +6,16 @@ import unittest
 from pathlib import Path
 
 
-PACKED_CALL = re.compile(r"\(emit_ascii ([0-9]+) ([1-8]) publish [A-Za-z0-9_]+\)")
+PACKED_CALL = re.compile(
+    r"\(emit_ascii(?:_bytes)? ([0-9]+) ([1-8])(?: publish [A-Za-z0-9_]+)?\)"
+)
 
 
 def check_annotations(source):
     checked = 0
     for line_number, line in enumerate(source.splitlines(), 1):
         expression, separator, annotation = line.partition(";")
-        if "(emit_ascii " not in expression:
+        if "(emit_ascii " not in expression and "(emit_ascii_bytes " not in expression:
             continue
         call = PACKED_CALL.search(expression)
         if call is None or not separator or not annotation.startswith(" ascii: "):
@@ -38,11 +40,23 @@ class PackedTextTests(unittest.TestCase):
         source = repository / "bootstrap/3_delta/implementation/emission/bytes.gamma"
         self.assertEqual(check_annotations(source.read_text(encoding="ascii")), 169)
 
+    def test_fixed_counts_match_publication_chunks(self):
+        repository = Path(__file__).resolve().parents[3]
+        source = repository / "bootstrap/3_delta/implementation/emission/bytes.gamma"
+        bodies = re.split(r"(?m)^\(def ", source.read_text(encoding="ascii"))[1:]
+        self.assertEqual(len(bodies), 3)
+        for body in bodies:
+            with self.subTest(emitter=body.split()[0]):
+                length = sum(int(count) for _, count in PACKED_CALL.findall(body))
+                self.assertEqual(re.findall(r"\(emit_advance written ([0-9]+)\)", body), [str(length)])
+                self.assertEqual(re.findall(r"\(\+ written ([0-9]+)\)", body), [str(length)])
+
     def test_exact_bytes_and_escapes(self):
         self.assertEqual(check_annotations(
             '(emit_ascii 7089831434963477544 8 publish written) ; ascii: "(def $db"\n'
             '(emit_ascii 10 1 publish written) ; ascii: "\\n"\n'
-        ), 2)
+            '(emit_ascii_bytes 65 1) ; ascii: "A"\n'
+        ), 3)
 
     def test_missing_annotation_rejects(self):
         with self.assertRaises(ValueError):

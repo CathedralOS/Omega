@@ -48,6 +48,10 @@ The same gate first runs `python3 -B tests/delta/emission/packed_text_test.py`.
 This diagnostic checks all 169 fixed runtime publication chunks against their
 adjacent `ascii:` comments and rejects missing, changed, malformed, or empty
 annotations, changed lengths, and words extending past their byte count. It
+also checks each fixed emitter's single count/publication increment against the
+sum of its packed chunk lengths, including the short final chunk. Balanced
+publication uses direct `emit_ascii_bytes` calls; counted `emit_ascii` annotations
+remain accepted by the diagnostic checker for other exact text examples. It
 neither emits compiler source nor participates in bootstrap admission. The
 readable comments use JSON string escaping solely for this test; Gamma treats
 them as ordinary comments and gains no string-literal form. Runtime meaning is
