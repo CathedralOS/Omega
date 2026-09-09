@@ -31,8 +31,8 @@ pub fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysi
         &ValidatedTargetFrameProtocolEncoding,
     )>,
 ) -> Result<ValidatedWholeFunctionExitContract, Error> {
-    let custody =
-        validated_layout_custody(selected, machine, physical, encoding, baseline, layout)?;
+    validate_layout(selected, machine, physical, encoding, baseline, layout)?;
+    let custody = layout_custody(layout);
     let contract = compute::compute_inner(
         selected,
         machine,
@@ -73,29 +73,50 @@ pub fn validate_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnal
     )>,
     contract: &ValidatedWholeFunctionExitContract,
 ) -> Result<(), Error> {
-    let custody =
-        validated_layout_custody(selected, machine, physical, encoding, baseline, layout)?;
+    validate_layout(selected, machine, physical, encoding, baseline, layout)?;
+    validate_exit_record_for_replayed_layout(
+        selected, machine, physical, encoding, layout, frame, contract,
+    )
+}
+
+/// Check the exit record after this invocation has replayed the exact borrowed
+/// selected/machine/encoding/layout tuple. Fixed-frame admission additionally
+/// binds encoding to its actual frame and layout to its source phase selections.
+/// This is crate-private reuse of that replay, not a cached admission result.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    layout: &ResolvedLayoutOptimization,
+    frame: Option<(
+        &ValidatedTargetFrameLayout,
+        &ValidatedTargetFrameProtocolEncoding,
+    )>,
+    contract: &ValidatedWholeFunctionExitContract,
+) -> Result<(), Error> {
     validation::validate(
         selected,
         machine,
         physical,
         encoding,
         layout.layout(),
-        custody,
+        layout_custody(layout),
         frame,
         contract.contract(),
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-fn validated_layout_custody<S: ValidatedSelectedAnalysis>(
+fn validate_layout<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &ResolvedLayoutOptimization,
-) -> Result<WholeFunctionExitLayoutCustody, Error> {
+) -> Result<(), Error> {
     validate_resolved_layout_optimization(
         selected,
         machine,
@@ -105,15 +126,16 @@ fn validated_layout_custody<S: ValidatedSelectedAnalysis>(
         layout.selections(),
         layout,
     )
-    .map_err(Error::LayoutOptimization)?;
+    .map_err(Error::LayoutOptimization)
+}
+
+fn layout_custody(layout: &ResolvedLayoutOptimization) -> WholeFunctionExitLayoutCustody {
     // Evidence selects the custody tag, never the current program accessor.
     if let Some(relaxation) = layout.relaxation() {
-        Ok(
-            WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-                relaxation: relaxation.identity(),
-            },
-        )
+        WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+            relaxation: relaxation.identity(),
+        }
     } else {
-        Ok(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1)
+        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
     }
 }

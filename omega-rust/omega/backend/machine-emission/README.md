@@ -17,6 +17,12 @@ layout selection, and validates the whole-function exit contract. The retained
 result owns all replay inputs. Its validator reconstructs their complete join;
 it does not select another machine or rerun allocation.
 
+Within one fixed-frame validation, exit-record checking reuses the layout replay
+already performed against the same immutable inputs. Encoding remains checked
+against the actual frame, and layout remains checked against the source's phase
+selections. Public exit admission still replays its complete input; no result is
+cached across invocations or substituted artifacts.
+
 Encoding and layout are separate pipeline transforms. Target-owned encoders
 produce bytes; independent validation uses target-owned decoders and exact
 instruction effects. Layout binds labels, canonical order, spans, offsets,

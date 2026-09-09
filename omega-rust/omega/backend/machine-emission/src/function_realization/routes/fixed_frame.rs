@@ -138,12 +138,13 @@ pub fn validate_fixed_frame_function_relative_realization(
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
     )?;
     let frame = &staged.frame;
-    validate_whole_function_exit_contract_for_layout(
+    // Encoding, exact source selections, layout and frame were replayed above
+    // against these same immutable inputs. Only the exit record remains.
+    crate::exit_contract::validate_exit_record_for_replayed_layout(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
-        &staged.baseline_layout,
         &staged.layout_optimization,
         Some((frame.layout(), frame.protocol())),
         &staged.exit_contract,
