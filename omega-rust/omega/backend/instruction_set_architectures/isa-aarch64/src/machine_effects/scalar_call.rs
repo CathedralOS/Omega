@@ -22,7 +22,11 @@ pub(super) fn declaration(
         .find(|row| row.key == constraint)
         .expect("canonical AArch64 catalog contains its scalar-call constraint");
     let unit = semantic == MachineSemanticKind::CallUnit;
-    let arity = row.operands.iter().take_while(|operand| operand.access == register_model::RegisterOperandAccess::Use).count();
+    let arity = row
+        .operands
+        .iter()
+        .take_while(|operand| operand.access == register_model::RegisterOperandAccess::Use)
+        .count();
     MachineEffectDeclaration {
         semantic,
         constraint,

@@ -203,7 +203,8 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
                 .iter()
                 .filter_map(|block| match block.origin {
                     selected_instructions::SelectedBlockOrigin::Source(source) => Some(source),
-                    selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. } => None,
+                    selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. }
+                    | selected_instructions::SelectedBlockOrigin::CaseDispatch { .. } => None,
                 })
                 .collect::<Vec<_>>(),
             [block(1), block(3), block(4), block(2)]

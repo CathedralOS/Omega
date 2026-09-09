@@ -40,6 +40,7 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
             placement: source.call_plan.parameters[0].clone(),
         }];
         source.structural = Some(legalized_operations::LegalizedStructuralContract {
+            result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                 id: structural_type,
                 identity: "bytes".into(),
@@ -220,6 +221,7 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
             scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         };
         source.structural = Some(legalized_operations::LegalizedStructuralContract {
+            result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                 id: structural_type,
                 identity: "bytes".into(),
@@ -319,17 +321,16 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
         let signature = mutable_view.structural.as_mut().unwrap();
         signature.parameters[0].semantic.access = terminal_psi::StructuralAccess::MutableBorrow;
         signature.parameters[0].target.access = terminal_psi::StructuralAccess::MutableBorrow;
-        assert!(
-            build(
+        let mutable_selected = build(
                 0,
                 &mutable_view,
                 target,
                 &constraints,
                 environment.physical(),
                 environment.constraints()
-            )
-            .is_err()
-        );
+            ).expect("incoming mutable descriptor is independent of the scalar result");
+        validate(&mutable_view, &mutable_selected).unwrap();
+        assert!(validate(&source, &mutable_selected).is_err());
         let mut wrong_source = source.clone();
         wrong_source.blocks[0].instructions[0].kind =
             LegalizedScalarInstructionKind::ByteSequenceLength {

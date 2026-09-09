@@ -216,7 +216,7 @@ fn canonical_operation_identity_bytes_are_stable() {
             141, 79, 158, 175, 189, 38, 249, 92, 114, 52, 57, 203, 142, 125, 46, 95, 169, 79, 64,
             155, 180, 37, 69, 183, 189, 45, 197, 50, 248, 38, 72, 211,
         ],
-        "v22 identity binds vocabulary 93 alongside unchanged scalar operation tags",
+        "v24 identity binds vocabulary 93 and scalar-case payloads",
     );
     assert_eq!(
         structural.identity.bytes(),
@@ -224,7 +224,7 @@ fn canonical_operation_identity_bytes_are_stable() {
             235, 154, 0, 164, 153, 134, 177, 244, 39, 12, 101, 208, 0, 4, 13, 224, 39, 102, 118,
             102, 78, 137, 173, 91, 35, 183, 189, 136, 97, 131, 241, 94,
         ],
-        "v22 identity binds vocabulary 93 alongside unchanged storage and return tags",
+        "v24 identity binds vocabulary 93 alongside unchanged storage and return tags",
     );
 }
 

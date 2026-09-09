@@ -124,7 +124,7 @@ pub(super) fn validate_mixed_structural_scalar_abi(
     let structural_count = abi.structural_parameters.len();
     if structural_count == 0
         || function.scalar_abi.is_some()
-        || function.unit_scalar_abi.is_some()
+        || function.parameter_abi.is_some()
         || function.scalar_stack.is_none()
         || function.unit_stack.is_some()
         || expected != abi.call_plan
@@ -350,7 +350,7 @@ pub(super) fn validate_internal_unit_call_custody(
     validated_function_stack: Option<&ObjectUnitStack>,
     validated_call_stack: Option<&ObjectUnitCallStack>,
     validated_scalar_call_stack: Option<&ObjectScalarCallStack>,
-    callee_unit_scalar_abi: Option<&machine_code::UnitScalarFunctionAbiRecord>,
+    callee_parameter_abi: Option<&machine_code::ParameterFunctionAbiRecord>,
     callee_unit_parameters: &[machine_code::UnitParameterRecord],
     callee_mixed_abi: Option<&MixedStructuralScalarFunctionAbi>,
     callee_structural_return: Option<&StructuralReturnRecord>,
@@ -491,7 +491,7 @@ pub(super) fn validate_internal_unit_call_custody(
         !returned.scalar_parameters.is_empty()
             || crate::structural_return::has_claim_free_affine_identity_custody(returned)
     });
-    if usize::from(callee_unit_scalar_abi.is_some())
+    if usize::from(callee_parameter_abi.is_some())
         + usize::from(callee_mixed_abi.is_some())
         + usize::from(callee_mixed_structural_return.is_some())
         > 1
@@ -501,7 +501,7 @@ pub(super) fn validate_internal_unit_call_custody(
     let expected_plan = calling_conventions::evaluate_call_plan(
         calling_conventions::CallingPolicy::native_for_target(target),
         &calling_conventions::CallSignature {
-            parameters: if let Some(abi) = callee_unit_scalar_abi {
+            parameters: if let Some(abi) = callee_parameter_abi {
                 abi.parameters
                     .iter()
                     .map(|parameter| unit_scalar_shape(parameter.scalar_type).ok_or_else(invalid))
@@ -588,7 +588,7 @@ pub(super) fn validate_internal_unit_call_custody(
                     )
                 })
         };
-    if let Some(abi) = callee_unit_scalar_abi {
+    if let Some(abi) = callee_parameter_abi {
         if expected_plan != abi.call_plan
             || custody.result.is_some()
             || custody.structural_result.is_some()
@@ -782,7 +782,7 @@ pub(super) fn validate_internal_unit_call_custody(
         {
             return Err(invalid());
         }
-        let caller_scalar_shapes = function.unit_scalar_abi.as_ref().map_or_else(
+        let caller_scalar_shapes = function.parameter_abi.as_ref().map_or_else(
             || Ok(Vec::new()),
             |abi| {
                 abi.parameters
@@ -803,7 +803,7 @@ pub(super) fn validate_internal_unit_call_custody(
         )
         .map_err(|_| invalid())?;
         if function
-            .unit_scalar_abi
+            .parameter_abi
             .as_ref()
             .is_some_and(|abi| abi.call_plan != expected_caller_plan)
             || expected_caller_plan.parameters.last() != Some(&home.source)
@@ -1221,7 +1221,7 @@ fn validate_mixed_argument_bytes_and_order(
                 function_stack.frame_bytes,
                 &function.unit_parameter_homes,
                 &function.unit_scalar_homes,
-                function.unit_scalar_abi.as_ref(),
+                function.parameter_abi.as_ref(),
                 function
                     .unit_stack
                     .and_then(|stack| stack.aarch64_return_link)

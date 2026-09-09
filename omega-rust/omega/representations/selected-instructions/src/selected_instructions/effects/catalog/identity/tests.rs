@@ -19,6 +19,8 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
 
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        call_aggregate: vec![RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant: 1000 }],
+        return_aggregate: vec![RegisterConstraintKey { family: RegisterConstraintFamily::Return, variant: 10 }],
         hosted_read_byte: Some(instruction(33)),
         hosted_write_byte_i32: Some(instruction(24)),
         hosted_exit_process_i32: Some(instruction(32)),
@@ -70,6 +72,8 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
     let constraint = keys
         .for_semantic(semantic)
         .or_else(|| {
+            if semantic == MachineSemanticKind::CallAggregate { return keys.call_aggregate.first().copied(); }
+            if semantic == MachineSemanticKind::ReturnAggregate { return keys.return_aggregate.first().copied(); }
             (matches!(
                 semantic,
                 MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
@@ -104,11 +108,12 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
                 | MachineSemanticKind::ConditionalBranchI64LessThan
                 | MachineSemanticKind::ReturnI64
                 | MachineSemanticKind::ReturnUnit
+                | MachineSemanticKind::ReturnAggregate
         ) {
             MachineBarrier::ControlFlow
         } else if matches!(
             semantic,
-            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate
         ) {
             MachineBarrier::Call
         } else {
@@ -116,7 +121,7 @@ fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
         },
         call: if matches!(
             semantic,
-            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate
         ) {
             MachineCallEffect::DirectInternalNormalReturnV1 {
                 pre_call_stack_alignment: 16,

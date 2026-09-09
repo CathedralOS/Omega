@@ -292,7 +292,10 @@ pub(super) fn operation(
         primitive_locals::write(source, row, builder)?;
         return Ok(true);
     }
-    if matches!(row.kind, LegalizedScalarInstructionKind::EstablishScalarCase { .. }) {
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+    ) {
         scalar_case::establish(source, row, builder)?;
         return Ok(true);
     }

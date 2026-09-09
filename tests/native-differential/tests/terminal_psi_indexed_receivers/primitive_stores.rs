@@ -80,7 +80,7 @@ fn boolean_primitive_installation_rejects_borrowed_contract_substitution() {
                 caller.unit_parameter_homes[0].access = terminal_psi::StructuralAccess::SharedBorrow
             }
             3 => {
-                caller.unit_scalar_abi.as_mut().unwrap().parameters[0].scalar_type =
+                caller.parameter_abi.as_mut().unwrap().parameters[0].scalar_type =
                     semantic_vocabulary::ScalarType::Integer(
                         semantic_vocabulary::IntegerType::new(
                             semantic_vocabulary::IntegerSign::Unsigned,

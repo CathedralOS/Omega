@@ -2,7 +2,7 @@
 
 use calling_conventions::ValueLocation;
 use machine_code::{
-    UnitEntryRegisterSpillRecord, UnitParameterHomeRecord, UnitScalarFunctionAbiRecord,
+    ParameterFunctionAbiRecord, UnitEntryRegisterSpillRecord, UnitParameterHomeRecord,
     UnitScalarParameterLocationRecord,
 };
 use semantic_vocabulary::ValueId;
@@ -11,7 +11,7 @@ use target::{Architecture, NativeTarget};
 pub(crate) fn storage_end(
     target: NativeTarget,
     parameters: &[UnitParameterHomeRecord],
-    abi: Option<&UnitScalarFunctionAbiRecord>,
+    abi: Option<&ParameterFunctionAbiRecord>,
     has_continuations: bool,
 ) -> Option<u32> {
     let mut cursor =
@@ -87,7 +87,7 @@ pub(crate) fn store_bytes(
 pub(crate) fn validate_shape(
     target: NativeTarget,
     parameters: &[UnitParameterHomeRecord],
-    abi: Option<&UnitScalarFunctionAbiRecord>,
+    abi: Option<&ParameterFunctionAbiRecord>,
     has_continuations: bool,
     frame_bytes: u32,
 ) -> Option<u32> {
@@ -123,7 +123,7 @@ pub(crate) fn validate_shape(
 pub(crate) fn exact_prologue(
     target: NativeTarget,
     bytes: &[u8],
-    abi: Option<&UnitScalarFunctionAbiRecord>,
+    abi: Option<&ParameterFunctionAbiRecord>,
     parameters: &[UnitParameterHomeRecord],
     frame_bytes: u32,
     first_operation_offset: usize,
@@ -169,7 +169,7 @@ pub(crate) fn exact_prologue(
 }
 
 pub(crate) fn parameter_location(
-    abi: &UnitScalarFunctionAbiRecord,
+    abi: &ParameterFunctionAbiRecord,
     parameter_index: usize,
     source_value: ValueId,
     consumer_code_offset: usize,

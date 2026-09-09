@@ -291,6 +291,7 @@ fn clobber_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
         &mut source,
         9,
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            structural_result: None,
             source: LegalizedCallUnitSource::AuthoredCallUnit,
             callee: MachineId::new(11).unwrap(),
             call_plan,

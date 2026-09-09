@@ -434,7 +434,7 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     scalar_type,
                     location,
                 } => {
-                    let abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+                    let abi = function.parameter_abi.as_ref().ok_or_else(invalid)?;
                     let scalar_parameter_index =
                         usize::try_from(parameter_index).map_err(|_| invalid())?;
                     let scalar_parameter = abi
@@ -766,7 +766,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     scalar_type,
                     location,
                 } => {
-                    let abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+                    let abi = function.parameter_abi.as_ref().ok_or_else(invalid)?;
                     let scalar_parameter_index =
                         usize::try_from(parameter_index).map_err(|_| invalid())?;
                     let scalar_parameter = abi
@@ -1216,7 +1216,7 @@ mod tests {
             attachment: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
-            unit_scalar_abi: None,
+            parameter_abi: None,
             structural_call_scalar_return: None,
             text_offset: 100,
             byte_count: 50,

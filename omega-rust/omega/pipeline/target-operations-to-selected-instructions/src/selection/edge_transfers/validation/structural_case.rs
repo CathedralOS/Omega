@@ -133,10 +133,24 @@ pub(super) fn project(
                 parameter,
             } => {
                 let payload_type = payload.semantic.parameter.scalar_type;
-                let ScalarType::Integer(integer) = payload_type else { return Err(error()); };
+                let ScalarType::Integer(integer) = payload_type else {
+                    return Err(error());
+                };
                 let (load_kind, load_key, byte_count) = match integer.bits() {
-                    32 => (SelectedInstructionKind::Load32 { byte_offset: payload.semantic.field_byte_offset }, constraints.keys.load32, 4),
-                    64 => (SelectedInstructionKind::Load64 { byte_offset: payload.semantic.field_byte_offset }, constraints.keys.load64, 8),
+                    32 => (
+                        SelectedInstructionKind::Load32 {
+                            byte_offset: payload.semantic.field_byte_offset,
+                        },
+                        constraints.keys.load32,
+                        4,
+                    ),
+                    64 => (
+                        SelectedInstructionKind::Load64 {
+                            byte_offset: payload.semantic.field_byte_offset,
+                        },
+                        constraints.keys.load64,
+                        8,
+                    ),
                     _ => return Err(error()),
                 };
                 let instruction_index =

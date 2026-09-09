@@ -26,7 +26,7 @@ pub(super) fn validate_installed_provider_unit_scalar_calls(
     if function.installed_provider_unit_scalar_calls.is_empty() {
         return Ok(());
     }
-    validate_unit_scalar_abi(target, function)?;
+    validate_parameter_abi(target, function)?;
     let invalid = || ObjectError::InvalidInstalledProviderUnitScalarCallEvidence(function.machine);
     if function.installed_provider_unit_scalar_calls.len() > 1 {
         return Err(invalid());
@@ -39,12 +39,12 @@ pub(super) fn validate_installed_provider_unit_scalar_calls(
         let CallSiteOwner::Operation(operation) = call.owner else {
             return Err(invalid());
         };
-        let caller_abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+        let caller_abi = function.parameter_abi.as_ref().ok_or_else(invalid)?;
         let candidate = functions
             .get(&call.provider.candidate)
             .copied()
             .ok_or_else(invalid)?;
-        let candidate_abi = candidate.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+        let candidate_abi = candidate.parameter_abi.as_ref().ok_or_else(invalid)?;
         let [caller_parameter] = caller_abi.parameters.as_slice() else {
             return Err(invalid());
         };
@@ -187,12 +187,12 @@ pub(super) fn validate_installed_provider_unit_scalar_calls(
     Ok(())
 }
 
-fn validate_unit_scalar_abi(
+fn validate_parameter_abi(
     target: NativeTarget,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidUnitScalarFunctionAbi(function.machine);
-    let Some(abi) = function.unit_scalar_abi.as_ref() else {
+    let Some(abi) = function.parameter_abi.as_ref() else {
         return if function.installed_provider_unit_scalar_calls.is_empty() {
             Ok(())
         } else {

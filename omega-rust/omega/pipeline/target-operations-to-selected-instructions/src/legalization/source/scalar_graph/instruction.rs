@@ -10,25 +10,61 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
-        AbstractOperation::CallStructural { result, callee, arguments, structural_arguments,
-            claim_transfers, requirement_obligations, crash_continuations, .. } => {
+        AbstractOperation::CallStructural {
+            result,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } => {
             let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            let called = unit.functions.iter().find(|function| function.machine == *callee).ok_or(Error::SourceCustodyMismatch)?;
-            let mut lowered = arguments.iter().zip(&call_plan.parameters).map(|(source, placement)|
-                LegalizedScalarArgument::Scalar { source: *source, placement: placement.clone() }).collect::<Vec<_>>();
+            let called = unit
+                .functions
+                .iter()
+                .find(|function| function.machine == *callee)
+                .ok_or(Error::SourceCustodyMismatch)?;
+            let mut lowered = arguments
+                .iter()
+                .zip(&call_plan.parameters)
+                .map(|(source, placement)| LegalizedScalarArgument::Scalar {
+                    source: *source,
+                    placement: placement.clone(),
+                })
+                .collect::<Vec<_>>();
             for (position, semantic) in structural_arguments.iter().enumerate() {
-                lowered.push(LegalizedScalarArgument::Structural { semantic: semantic.clone(),
-                    target: scalar_graph_input::scalar_sums::call_argument(semantic, position, optimized, called, &call_plan, native, plan)?, });
+                lowered.push(LegalizedScalarArgument::Structural {
+                    semantic: semantic.clone(),
+                    target: scalar_graph_input::scalar_sums::call_argument(
+                        semantic, position, optimized, called, &call_plan, native, plan,
+                    )?,
+                });
             }
-            LegalizedScalarInstructionKind::Call(LegalizedScalarCall { callee: *callee, arguments: lowered,
-                structural_result: Some(result.clone()), result_placement: call_plan.result.clone(), call_plan,
-                source: LegalizedCallUnitSource::AuthoredCallUnit, claim_transfers: claim_transfers.clone(),
-                requirement_obligations: requirement_obligations.clone(), crash_continuations: crash_continuations.clone(), })
+            LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                callee: *callee,
+                arguments: lowered,
+                structural_result: Some(result.clone()),
+                result_placement: call_plan.result.clone(),
+                call_plan,
+                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                claim_transfers: claim_transfers.clone(),
+                requirement_obligations: requirement_obligations.clone(),
+                crash_continuations: crash_continuations.clone(),
+            })
         }
-        AbstractOperation::EstablishScalarCase { result, result_case, fields, .. } => {
-            LegalizedScalarInstructionKind::EstablishScalarCase { result: result.clone(), result_case: *result_case,
-                fields: fields.clone(), layout: scalar_graph_input::scalar_sums::layout(result, plan)?, }
-        }
+        AbstractOperation::EstablishScalarCase {
+            result,
+            result_case,
+            fields,
+            ..
+        } => LegalizedScalarInstructionKind::EstablishScalarCase {
+            result: result.clone(),
+            result_case: *result_case,
+            fields: fields.clone(),
+            layout: scalar_graph_input::scalar_sums::layout(result, plan)?,
+        },
         AbstractOperation::EstablishPrimitiveLocal { result, value, .. } => {
             LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
                 result: result.clone(),

@@ -1,6 +1,6 @@
-//! Canonical installation transport for an attached Unit function's scalar ABI.
+//! Canonical incoming scalar parameters and their complete function call plan.
 
-use machine_code::{UnitEntryRegisterSpillRecord, UnitScalarFunctionAbiRecord};
+use machine_code::{ParameterFunctionAbiRecord, UnitEntryRegisterSpillRecord};
 use semantic_vocabulary::ValueId;
 use target_operations::ScalarAbiValue;
 
@@ -12,9 +12,9 @@ use super::{
     value_placement_codec::{decode_register, register_tag},
 };
 
-pub(super) fn encode_unit_scalar_abi(
+pub(super) fn encode_parameter_abi(
     bytes: &mut Vec<u8>,
-    abi: Option<&UnitScalarFunctionAbiRecord>,
+    abi: Option<&ParameterFunctionAbiRecord>,
 ) -> Result<(), InstallationError> {
     let Some(abi) = abi else {
         bytes.extend_from_slice(&[0; 4]);
@@ -61,9 +61,9 @@ pub(super) fn encode_unit_scalar_abi(
     Ok(())
 }
 
-pub(super) fn decode_unit_scalar_abi(
+pub(super) fn decode_parameter_abi(
     reader: &mut Reader<'_>,
-) -> Result<Option<UnitScalarFunctionAbiRecord>, InstallationError> {
+) -> Result<Option<ParameterFunctionAbiRecord>, InstallationError> {
     match reader.u8()? {
         0 => {
             if reader.take(3)? != [0; 3] {
@@ -90,7 +90,7 @@ pub(super) fn decode_unit_scalar_abi(
                     placement: decode_direct_placement(reader)?,
                 });
             }
-            Ok(Some(UnitScalarFunctionAbiRecord {
+            Ok(Some(ParameterFunctionAbiRecord {
                 call_plan,
                 parameters,
                 entry_register_spills: decode_entry_spills(reader)?,

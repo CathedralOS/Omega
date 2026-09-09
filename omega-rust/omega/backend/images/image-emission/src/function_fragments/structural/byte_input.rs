@@ -368,6 +368,7 @@ mod tests {
             },
             ranked: None,
             structural: Some(legalized_operations::LegalizedStructuralContract {
+                result: None,
                 structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                     id: structural_type,
                     identity: "ByteRead".into(),

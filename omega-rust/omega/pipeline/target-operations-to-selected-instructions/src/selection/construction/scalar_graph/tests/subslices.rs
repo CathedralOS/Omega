@@ -30,6 +30,7 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
     )
     .unwrap();
     source.structural = Some(legalized_operations::LegalizedStructuralContract {
+        result: None,
         structural_types: vec![terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
             identity: "bytes".into(),

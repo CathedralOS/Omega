@@ -467,7 +467,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &20_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &21_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source

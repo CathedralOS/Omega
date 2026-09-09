@@ -303,7 +303,7 @@ pub struct ObjectFunction {
     pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<target_operations::MixedStructuralScalarFunctionAbi>,
     pub structural_call_scalar_return: Option<machine_code::StructuralCallScalarReturnEvidence>,
-    pub unit_scalar_abi: Option<machine_code::UnitScalarFunctionAbiRecord>,
+    pub parameter_abi: Option<machine_code::ParameterFunctionAbiRecord>,
     pub provenance: TerminalPsiProvenance,
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
@@ -1331,7 +1331,7 @@ fn build_object_artifact_with_x86_feature_profile(
             && unit_scalar_call_custody::entry_spills::validate_shape(
                 plan.target,
                 parameter_homes,
-                function.unit_scalar_abi.as_ref(),
+                function.parameter_abi.as_ref(),
                 true,
                 validated_function_stack
                     .as_ref()
@@ -1364,7 +1364,7 @@ fn build_object_artifact_with_x86_feature_profile(
             && !unit_scalar_call_custody::entry_spills::exact_prologue(
                 plan.target,
                 &function.bytes,
-                function.unit_scalar_abi.as_ref(),
+                function.parameter_abi.as_ref(),
                 parameter_homes,
                 validated_function_stack
                     .as_ref()
@@ -1489,7 +1489,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 scalar_call_stack,
                 machine_functions
                     .get(&custody.target)
-                    .and_then(|callee| callee.unit_scalar_abi.as_ref()),
+                    .and_then(|callee| callee.parameter_abi.as_ref()),
                 machine_functions
                     .get(&custody.target)
                     .map_or(&[][..], |callee| callee.unit_parameters.as_slice()),
@@ -2369,7 +2369,7 @@ fn build_object_artifact_with_x86_feature_profile(
             scalar_abi: function.scalar_abi.clone(),
             mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
             structural_call_scalar_return: function.structural_call_scalar_return,
-            unit_scalar_abi: function.unit_scalar_abi.clone(),
+            parameter_abi: function.parameter_abi.clone(),
             provenance: function.provenance.clone(),
             symbol,
             text_offset,
@@ -3162,7 +3162,7 @@ fn validate_private_functions<'plan>(
                 .function
                 .installed_provider_unit_scalar_calls
                 .is_empty()
-            || private.function.unit_scalar_abi.is_some()
+            || private.function.parameter_abi.is_some()
             || !private.function.dynamic_calls.is_empty()
             || !private.function.stored_dynamic_calls.is_empty()
             || !private.function.dynamic_parameter_calls.is_empty()

@@ -127,21 +127,33 @@ pub(super) fn unit_key(
     let inputs = views.len();
     if call.structural_result.is_some() {
         for location in &call.result_placement.as_ref()?.locations {
-            let ValueLocation::Register { register, .. } = location else { return None; };
+            let ValueLocation::Register { register, .. } = location else {
+                return None;
+            };
             views.push(environment.fixed_register_view(*register)?);
         }
     }
     let keys = environment.selected_keys();
-    let candidate_keys = if call.structural_result.is_some() { keys.call_aggregate.iter().collect::<Vec<_>>() }
-        else { keys.call_unit.iter().chain(&keys.call_unit_mixed).collect() };
-    let mut matches = candidate_keys.into_iter()
-        .filter(|key| {
+    let candidate_keys = if call.structural_result.is_some() {
+        keys.call_aggregate.iter().collect::<Vec<_>>()
+    } else {
+        keys.call_unit.iter().chain(&keys.call_unit_mixed).collect()
+    };
+    let mut matches =
+        candidate_keys.into_iter().filter(|key| {
             environment.constraint(**key).is_some_and(|row| {
                 row.operands.len() == views.len()
-                    && row.operands.iter().zip(&views).enumerate().all(|(position, (operand, view))| {
-                        operand.access == if position < inputs { RegisterOperandAccess::Use } else { RegisterOperandAccess::Def }
-                            && operand.fixed_view == Some(*view)
-                    })
+                    && row.operands.iter().zip(&views).enumerate().all(
+                        |(position, (operand, view))| {
+                            operand.access
+                                == if position < inputs {
+                                    RegisterOperandAccess::Use
+                                } else {
+                                    RegisterOperandAccess::Def
+                                }
+                                && operand.fixed_view == Some(*view)
+                        },
+                    )
             })
         });
     let result = *matches.next()?;
@@ -173,15 +185,23 @@ pub(super) fn validate(
     let register_count = register_argument_count(call);
     let result = call.call_plan.result.as_ref();
     let aggregate = if call.structural_result.is_some() {
-        Some(crate::selection::scalar_case_input::call_result(source, call).ok_or_else(invalid)?.1)
-    } else { None };
+        Some(
+            crate::selection::scalar_case_input::call_result(source, call)
+                .ok_or_else(invalid)?
+                .1,
+        )
+    } else {
+        None
+    };
     let selected_keys = environment.selected_keys();
     let keys = if result.is_some() {
         &selected_keys.call_i64
     } else {
         &selected_keys.call_unit
     };
-    if (if aggregate.is_some() { unit_key(call, environment) } else if result.is_some() {
+    if (if aggregate.is_some() {
+        unit_key(call, environment)
+    } else if result.is_some() {
         keys.get(register_count).copied()
     } else {
         unit_key(call, environment)
@@ -189,7 +209,11 @@ pub(super) fn validate(
         || environment.constraint(key) != Some(row)
         || row.key != key
         || call.call_plan.parameters.len() != count
-        || row.operands.len() != register_count + aggregate.map_or(usize::from(result.is_some()), |placement| placement.locations.len())
+        || row.operands.len()
+            != register_count
+                + aggregate.map_or(usize::from(result.is_some()), |placement| {
+                    placement.locations.len()
+                })
     {
         return Err(invalid());
     }
@@ -200,10 +224,19 @@ pub(super) fn validate(
     for (index, placement) in call.call_plan.parameters.iter().chain(result).enumerate() {
         if index == count && aggregate.is_some() {
             for (fragment, location) in placement.locations.iter().enumerate() {
-                let ValueLocation::Register { register, .. } = location else { return Err(invalid()); };
-                let operand = row.operands.get(register_count + fragment).ok_or_else(invalid)?;
-                if operand.access != RegisterOperandAccess::Def || operand.fixed_view.is_none()
-                    || operand.fixed_view != environment.fixed_register_view(*register) { return Err(invalid()); }
+                let ValueLocation::Register { register, .. } = location else {
+                    return Err(invalid());
+                };
+                let operand = row
+                    .operands
+                    .get(register_count + fragment)
+                    .ok_or_else(invalid)?;
+                if operand.access != RegisterOperandAccess::Def
+                    || operand.fixed_view.is_none()
+                    || operand.fixed_view != environment.fixed_register_view(*register)
+                {
+                    return Err(invalid());
+                }
             }
             continue;
         }
@@ -406,9 +439,15 @@ fn validate_borrowed_argument(
                 .chain(std::iter::once(shape))
                 .collect(),
             result: if call.structural_result.is_some() {
-                Some(crate::selection::scalar_case_input::call_result(source, call)?.1.shape)
+                Some(
+                    crate::selection::scalar_case_input::call_result(source, call)?
+                        .1
+                        .shape,
+                )
             } else {
-                call.result_placement.as_ref().map(|_| ValueShape::integer(8, 8))
+                call.result_placement
+                    .as_ref()
+                    .map(|_| ValueShape::integer(8, 8))
             },
         },
     )

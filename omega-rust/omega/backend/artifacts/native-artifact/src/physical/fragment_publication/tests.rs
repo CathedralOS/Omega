@@ -64,7 +64,7 @@ fn plan(machine_raw: u64) -> MachineCodePlan {
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
-            unit_scalar_abi: None,
+            parameter_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: vec![return_edge],

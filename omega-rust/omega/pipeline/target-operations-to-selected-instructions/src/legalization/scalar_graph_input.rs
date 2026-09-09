@@ -21,8 +21,8 @@ mod byte_views;
 mod header;
 mod hosted_scalar;
 pub(super) mod read_byte;
-pub(super) mod structural_case;
 pub(super) mod scalar_sums;
+pub(super) mod structural_case;
 mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_execution;
 mod literals;
@@ -170,7 +170,8 @@ pub(super) fn match_input(
         && (!matches!(
             target.operation,
             TargetOperation::UnitBody(_) | TargetOperation::ControlGraph(_)
-        ) || !(abstracted.result == AbstractFunctionResult::Unit || abstracted.result.structural().is_some()))
+        ) || !(abstracted.result == AbstractFunctionResult::Unit
+            || abstracted.result.structural().is_some()))
     {
         return Err(invalid);
     }
@@ -388,17 +389,19 @@ pub(super) fn callee_plan(
     ) else {
         return Err(LegalizationError::SourceCustodyMismatch);
     };
-    if !scalar_sums::uses(optimized) && ((target.attachment.is_some() && !matches!(abstracted.result, AbstractFunctionResult::Unit))
-        || !matches!(abstracted.result, AbstractFunctionResult::Unit)
-            && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
-        || abstracted.parameters.iter().any(|parameter| {
-            if matches!(abstracted.result, AbstractFunctionResult::Unit) {
-                scalar_shape(parameter.scalar_type).is_none()
-            } else {
-                ![ScalarType::Integer(u64_type()), ScalarType::Boolean]
-                    .contains(&parameter.scalar_type)
-            }
-        }))
+    if !scalar_sums::uses(optimized)
+        && ((target.attachment.is_some()
+            && !matches!(abstracted.result, AbstractFunctionResult::Unit))
+            || !matches!(abstracted.result, AbstractFunctionResult::Unit)
+                && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
+            || abstracted.parameters.iter().any(|parameter| {
+                if matches!(abstracted.result, AbstractFunctionResult::Unit) {
+                    scalar_shape(parameter.scalar_type).is_none()
+                } else {
+                    ![ScalarType::Integer(u64_type()), ScalarType::Boolean]
+                        .contains(&parameter.scalar_type)
+                }
+            }))
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }

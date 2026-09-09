@@ -33,6 +33,7 @@ fn source(native: target::NativeTarget) -> LegalizedScalarFunction {
     )
     .unwrap();
     source.structural = Some(legalized_operations::LegalizedStructuralContract {
+        result: None,
         structural_types: vec![StructuralTypeDeclaration {
             id: identity,
             identity: "test::Payload".into(),

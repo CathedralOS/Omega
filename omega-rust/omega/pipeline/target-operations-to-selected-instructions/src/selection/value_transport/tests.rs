@@ -282,6 +282,7 @@ fn retained_call_demands_arguments_even_when_its_result_is_unused() {
     let source = retained_instruction(
         &[3, 4],
         Instruction::Call(LegalizedScalarCall {
+            structural_result: None,
             source: LegalizedCallUnitSource::AuthoredCallUnit,
             callee: MachineId::new(2).unwrap(),
             result_placement: plan.result.clone(),

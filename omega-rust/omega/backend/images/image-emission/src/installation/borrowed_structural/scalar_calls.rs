@@ -22,7 +22,7 @@ pub(super) fn scalar_parameters(
         &abi.parameters
     } else {
         function
-            .unit_scalar_abi
+            .parameter_abi
             .as_ref()
             .map_or(&[], |abi| &abi.parameters)
     }
@@ -88,7 +88,7 @@ pub(super) fn scalar_function_is_exact(
         _ => return false,
     };
     if function.unit_stack.is_some()
-        || function.unit_scalar_abi.is_some()
+        || function.parameter_abi.is_some()
         || !function.unit_call_stacks.is_empty()
         || !function.unit_parameters.is_empty()
         || !function.unit_parameter_homes.is_empty()

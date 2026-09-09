@@ -29,7 +29,25 @@ transport, with exact edge, polarity, target and taken-edge fuel. Fixed views ar
 constraints, not assigned homes. ISA-owned RFLAGS/RIP or NZCV/PC effects do not
 become fictional source values. Compiler condition tests, copies and address
 work do not invent Psi operations or logical charges. Returns retain their exact
-Unit/scalar role, result constraint where applicable, and edge fuel.
+Unit/scalar/aggregate role, complete result constraints, and edge fuel.
+
+Fresh scalar sums use activation-local carriers in this graph. Construction
+initializes the complete carrier, including padding and inactive payload bytes,
+then writes the declared tag and exact-width fields. The carrier-address
+instruction retains the single source-operation charge; its other initialization
+instructions add none. Ordinary calls capture every direct result fragment into
+the caller's result slot, and returns load every fragment under the same retained
+ABI plan. Result definitions are not also unknown call clobbers. Current direct
+carriers cover one or two register fragments; hidden-pointer returns remain an
+explicit realization limit, including 16-byte sums on Microsoft x64.
+
+Multi-case dispatch uses ordinary comparisons and explicitly identified
+`CaseDispatch` continuation blocks. An unsuccessful comparison has taken no
+semantic edge and charges none; the chosen edge carries its exact case payload,
+destination, and once-only fuel through the ordinary edge bridge. Constructors,
+calls and returns preserve declaration identity rather than inferring a field
+from its name. These paths share allocation, frame, encoding and publication;
+independent selection replay checks their complete instruction and storage roster.
 
 Unit graphs use this same transport for `u8`, `u32`, `u64`, `i64` and
 materialized Boolean block arguments. Exact block/value/type references are
@@ -102,7 +120,9 @@ and retained instructions whose results are unused.
 
 Whole, unqualified, unrestricted shared or mutable byte views use the same edge bridges.
 Each block parameter owns a 16-byte activation-local descriptor slot. Its address
-is formed at invocation entry without reading uninitialized contents. The chosen
+is formed on entry to that block without reading uninitialized contents. Future
+descriptor addresses therefore need not survive earlier calls; edge bridges
+address destination slots directly. The chosen
 edge snapshots both words of every incoming descriptor and all scalar arguments
 before any destination replacement, preserving parallel swaps and earlier aliases
 when a producer's slot is reused. Backing bytes are never copied. Independent

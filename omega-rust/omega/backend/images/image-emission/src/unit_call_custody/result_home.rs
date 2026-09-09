@@ -89,7 +89,7 @@ pub(crate) fn expected_store_bytes(
 pub(crate) fn parameter_storage_end(
     target: NativeTarget,
     parameter_homes: &[UnitParameterHomeRecord],
-    scalar_abi: Option<&machine_code::UnitScalarFunctionAbiRecord>,
+    scalar_abi: Option<&machine_code::ParameterFunctionAbiRecord>,
 ) -> Option<u32> {
     let scalar_parameters = scalar_abi.map_or(&[][..], |abi| abi.parameters.as_slice());
     let scalar_shapes = scalar_parameters
@@ -175,7 +175,7 @@ pub(crate) fn exact_storage(
     frame_bytes: u32,
     parameter_homes: &[UnitParameterHomeRecord],
     scalar_homes: &[UnitScalarHomeRecord],
-    scalar_abi: Option<&machine_code::UnitScalarFunctionAbiRecord>,
+    scalar_abi: Option<&machine_code::ParameterFunctionAbiRecord>,
     return_link: Option<u32>,
     has_continuations: bool,
 ) -> bool {

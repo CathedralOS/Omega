@@ -6,8 +6,8 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
-mod byte_input;
 mod aggregate_return;
+mod byte_input;
 mod byte_output;
 mod control;
 mod integer_conversion;
@@ -212,7 +212,7 @@ pub(super) fn build(
         } else {
             builder.instructions.len()
         };
-        if !crate::unobserved_owned_input::accepts(source) {
+        if source.ranked.is_none() && !crate::unobserved_owned_input::accepts(source) {
             structural::block_entry(block, &mut builder)?;
         }
         for (operation_index, operation) in block.instructions.iter().enumerate() {
@@ -440,11 +440,13 @@ pub(super) fn build(
             } else {
                 control::build(function, source, block, &order, &mut builder, &environment)?
             };
-        let body_end = builder.case_body_end.take().unwrap_or(builder
-            .instructions
-            .len()
-            .checked_sub(1)
-            .ok_or_else(invalid)?);
+        let body_end = builder.case_body_end.take().unwrap_or(
+            builder
+                .instructions
+                .len()
+                .checked_sub(1)
+                .ok_or_else(invalid)?,
+        );
         blocks.push(SelectedBlock {
             id: block_id,
             origin: selected_instructions::SelectedBlockOrigin::Source(block.id),

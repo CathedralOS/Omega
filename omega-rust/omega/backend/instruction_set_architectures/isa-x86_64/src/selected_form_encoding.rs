@@ -494,8 +494,14 @@ fn family_and_operand_count(
         ),
         SelectedInstructionKind::ReturnI64 => (MachineAlternativeFamily::ReturnI64, 1, 0..=0),
         SelectedInstructionKind::ReturnAggregate { fragment_count } => {
-            if !(1..=2).contains(&fragment_count) { return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch); }
-            (MachineAlternativeFamily::ReturnAggregate, usize::from(fragment_count), 0..=0)
+            if !(1..=2).contains(&fragment_count) {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            (
+                MachineAlternativeFamily::ReturnAggregate,
+                usize::from(fragment_count),
+                0..=0,
+            )
         }
         SelectedInstructionKind::ReturnUnit => (MachineAlternativeFamily::ReturnUnit, 0, 0..=0),
         SelectedInstructionKind::ConditionalBranchNonZero => {
@@ -525,7 +531,8 @@ fn family_and_operand_count(
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump
-        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::CallI64 { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
@@ -539,7 +546,9 @@ fn validate_return_home(
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     if let SelectedInstructionKind::ReturnAggregate { fragment_count } = kind
-        && (!(1..=2).contains(&fragment_count) || registers != & [0, 2][..usize::from(fragment_count)]) {
+        && (!(1..=2).contains(&fragment_count)
+            || registers != &[0, 2][..usize::from(fragment_count)])
+    {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
     Ok(())
@@ -739,9 +748,9 @@ fn encode_unchecked(
             }
             _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
         },
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit => {
-            bytes.push(0xc3)
-        }
+        SelectedInstructionKind::ReturnI64
+        | SelectedInstructionKind::ReturnAggregate { .. }
+        | SelectedInstructionKind::ReturnUnit => bytes.push(0xc3),
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
@@ -765,7 +774,8 @@ fn encode_unchecked(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => {
+        | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::CallI64 { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -1107,9 +1117,9 @@ fn validate_decoded(
             }
             _ => false,
         },
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit => {
-            decoded == [DecodedInstruction::Return]
-        }
+        SelectedInstructionKind::ReturnI64
+        | SelectedInstructionKind::ReturnAggregate { .. }
+        | SelectedInstructionKind::ReturnUnit => decoded == [DecodedInstruction::Return],
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
@@ -1131,7 +1141,8 @@ fn validate_decoded(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => false,
+        | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
         Ok(())
@@ -1165,9 +1176,9 @@ fn footprint(
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit => {
-            (vec![], vec![], false)
-        }
+        SelectedInstructionKind::ReturnI64
+        | SelectedInstructionKind::ReturnAggregate { .. }
+        | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
@@ -1189,13 +1200,16 @@ fn footprint(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. } | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
+        | SelectedInstructionKind::CallAggregate { .. }
+        | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = x86_64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if matches!(
         kind,
-        SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnAggregate { .. } | SelectedInstructionKind::ReturnUnit
+        SelectedInstructionKind::ReturnI64
+            | SelectedInstructionKind::ReturnAggregate { .. }
+            | SelectedInstructionKind::ReturnUnit
     ) {
         let stack_pointer = physical.view_named("rsp").unwrap().id;
         let mut defs = units("rsp");

@@ -7,15 +7,14 @@ use crate::{
     BoundarySettlementRecord, DynamicCallRecord, DynamicParameterCallRecord, ForeignCallRelocation,
     ForwardedDynamicDescriptorCallRecord, ForwardedDynamicParameterCallRecord,
     InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalUnitCallRecord,
-    InternalUnitScalarCallRecord, MachineCodePlan, PortEffectRecord,
+    InternalUnitScalarCallRecord, MachineCodePlan, ParameterFunctionAbiRecord, PortEffectRecord,
     RankedU32CountdownMachineCodeRecord, ScalarControlAffineCleanupRecord, ScalarStackEvidence,
     ScalarStructuralScalarFieldStoreRecord, SemanticCodeAttribution, StoredDynamicCallRecord,
     StructuralCallScalarReturnEvidence, StructuralReturnRecord, UnitAffineCleanupRecord,
     UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord, UnitIntegerConstantRecord,
-    UnitParameterHomeRecord, UnitParameterRecord, UnitScalarFunctionAbiRecord,
-    UnitScalarHomeRecord, UnitStackEvidence, UnitStructuralScalarFieldStoreRecord,
-    UnitWriteOnlyPrimitiveStoreRecord, X86FloatingControlRecord, X86ScalarFmaFragment,
-    X86ScalarFmaOccurrenceRecord,
+    UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord, UnitStackEvidence,
+    UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
+    X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
 };
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target_operations::TerminalPsiProvenance;
@@ -57,7 +56,7 @@ pub struct MachineCodeFunction {
     pub structural_call_scalar_return: Option<StructuralCallScalarReturnEvidence>,
     /// Exact Unit-returning fixed-integer input ABI when this function belongs
     /// to the bounded scalar-provider cohort.
-    pub unit_scalar_abi: Option<UnitScalarFunctionAbiRecord>,
+    pub parameter_abi: Option<ParameterFunctionAbiRecord>,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
     /// Feature-requiring scalar FMA3 instruction intervals. These records do

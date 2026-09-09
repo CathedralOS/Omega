@@ -70,7 +70,6 @@ pub use preservation_storage::{
 pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_register_call_keys;
 pub use register_model::x86_64_system_v_register_call_keys;
-pub use register_model::{x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys};
 pub use register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
     X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP,
@@ -84,6 +83,9 @@ pub use register_model::{
 };
 pub use register_model::{
     x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys,
+};
+pub use register_model::{
+    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
 };
 pub use selected_form_encoding::hosted_read_byte::{
     decode_x86_64_selected_hosted_read_byte, encode_x86_64_selected_hosted_read_byte_form,

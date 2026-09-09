@@ -61,6 +61,7 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
                 })
                 .collect();
             LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                structural_result: None,
                 source: LegalizedCallUnitSource::AuthoredCallUnit,
                 claim_transfers: Vec::new(),
                 callee: MachineId::new(raw + 7).unwrap(),

@@ -96,8 +96,7 @@ pub fn validate_function_fragment_object_artifact(
         } else {
             format!("omega_terminal_machine_{}", placed.machine.get())
         };
-        let unit_abi_matches = match (&function.unit_scalar_abi, source::unit_scalar_abi(targeted))
-        {
+        let unit_abi_matches = match (&function.parameter_abi, source::parameter_abi(targeted)) {
             (None, None) => true,
             (Some(actual), Some((call_plan, parameters, _))) => {
                 actual.call_plan == *call_plan && actual.parameters == parameters

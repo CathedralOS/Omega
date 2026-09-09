@@ -375,7 +375,7 @@ pub(crate) fn validate_function(
     let invalid = || crate::ObjectError::InvalidUnitAffineCleanupEvidence(function.machine);
     if function.unit_continuations.is_empty() {
         if function
-            .unit_scalar_abi
+            .parameter_abi
             .as_ref()
             .is_some_and(|abi| !abi.entry_register_spills.is_empty())
         {
@@ -403,7 +403,7 @@ pub(crate) fn validate_function(
         || !function.scalar_control_affine_cleanups.is_empty()
         || function.structural_call_scalar_return.is_some()
         || !exact_scalar_bindings(
-            function.unit_scalar_abi.as_ref(),
+            function.parameter_abi.as_ref(),
             &function.unit_continuations,
         )
         || !function.boundary_settlements.is_empty()
@@ -476,7 +476,7 @@ pub(crate) fn validate_function(
 /// boundary independently checks retained definitions and simultaneous types;
 /// canonical call sources still rejoin the original ABI parameter separately.
 pub(crate) fn exact_scalar_bindings(
-    abi: Option<&machine_code::UnitScalarFunctionAbiRecord>,
+    abi: Option<&machine_code::ParameterFunctionAbiRecord>,
     continuations: &[UnitContinuationRecord],
 ) -> bool {
     let mut values = std::collections::BTreeMap::new();
