@@ -114,9 +114,11 @@ contracts or existing runnable regression examples supplements the inline
 explanation. This requirement is self-contained and needs no personal skill installation,
 external memory, or special retrieval tool on another developer's machine.
 
-Before landing, ask: **Would an agent opening the obvious file to make this change
-encounter the reasoning it needs before editing?** Check the answer against the
-questions this invocation actually had to reconstruct. Update stale explanations
+Before landing, internally verify that an agent opening the obvious file would
+encounter the reasoning needed before editing. Use the design questions this
+invocation actually had to reconstruct as the test. This is the agent's own
+review responsibility, not a user question or approval gate: correct missing
+explanations within scope and continue without requesting confirmation. Update stale explanations
 and add only missing reasoning in the touched design area. If existing comments
 already answer those questions, leave them alone. Avoid mandatory header templates,
 comment quotas, implementation paraphrases, new trace ledgers, or a repository-wide

@@ -233,7 +233,8 @@
         "Uses existing runnable examples where relevant without inventing historical intent or validation evidence",
         "Does not require a personal skill, external memory, or special retrieval tool",
         "Preserves normal customer acceptance, scoped validation, and landing requirements",
-        "Reports what was reconstructed and where the explanation now lives without claiming an unmeasured speedup"
+        "Reports what was reconstructed and where the explanation now lives without claiming an unmeasured speedup",
+        "Performs the documentation sufficiency check internally and continues without asking the user to assess or approve it"
       ]
     },
     {
@@ -247,7 +248,8 @@
         "Reads and uses the existing explanation before editing",
         "Does not add redundant headers, templates, trace files, or unrelated documentation changes",
         "Updates prose only if the resulting implementation makes it stale or exposes a real missing explanation",
-        "Reports the documentation that answered the design question without asserting that unvisited modules were evaluated"
+        "Reports the documentation that answered the design question without asserting that unvisited modules were evaluated",
+        "Performs the documentation sufficiency check internally and continues without asking the user to assess or approve it"
       ]
     }
   ]
