@@ -48,6 +48,13 @@ outside this crate.
 
 ## Flow, ranges, and progress
 
+Semantic contexts maintain exact program-point groups as they are appended.
+Entry, statement, call and exit construction select each group once for both
+context and constraint references, preserving point order and within-point
+append order. Flow-inferred contexts use the same append route; cloning the
+semantic baseline also clones its lookup index. This avoids whole-arena scans
+without caching a changing flow result or weakening independent evidence checks.
+
 Range-state arguments form an entry-rooted all-predecessor fixed point. Rebuild
 edge contributions each pass and withhold unconverged inference. Assignment
 values share semantic contexts and invalidation with domain facts. Exit checking

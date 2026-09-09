@@ -120,10 +120,6 @@ fn append_call_contract_contexts(
         semantic,
         &mut ctx.contexts.semantic_context_refs,
         contexts,
-        &[point],
-    );
-    append_semantic_constraints_for_points(
-        semantic,
         &mut ctx.contexts.constraint_refs,
         constraints,
         &[point],

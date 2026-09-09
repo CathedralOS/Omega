@@ -153,9 +153,8 @@ pub(crate) use calls::call_target_return_type;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
-    append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,
-    clone_constraint_refs, clone_flow_contexts, project_constraint_refs_to_active_contexts,
-    proof_contract_call,
+    appended_span_since, borrow_state_fact, clone_constraint_refs, clone_flow_contexts,
+    project_constraint_refs_to_active_contexts, proof_contract_call,
 };
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
