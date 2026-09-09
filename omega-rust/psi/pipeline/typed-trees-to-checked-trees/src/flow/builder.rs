@@ -45,6 +45,20 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     // derived contexts. Inputs join immediately so source-ordered chains need
     // no pass per edge. A changed input can only weaken, never regain a value.
     let baseline = semantic.clone();
+    // Declaration contexts do not change during flow. Retain their handles
+    // once, in typed-machine order, instead of rediscovering Global/Machine
+    // groups for every state on every input pass. The baseline clones preserve
+    // these handles. State-input and rebased contexts remain pass-local below.
+    let global_contexts = baseline.context_group_at_point(ProgramPoint::Global);
+    let machine_contexts: Vec<_> = program
+        .machines()
+        .iter()
+        .map(|machine| {
+            baseline.context_group_at_point(ProgramPoint::Machine {
+                machine_symbol: machine.symbol,
+            })
+        })
+        .collect();
     // Symbol preparation depends on the immutable program, not the changing
     // incoming value facts. Prefix origins still resolve at each exact site.
     let call_frames = if borrow.calls.is_empty() {
@@ -86,10 +100,18 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             &state_mutation_summary_cache,
         );
         ctx.state_value_inputs = inputs;
-        for machine in program.machines() {
+        for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
             for state in program.machine_states(machine) {
                 build_state_flow_fact(
-                    program, borrow, proof, semantic, domains, &mut ctx, machine, state,
+                    program,
+                    borrow,
+                    proof,
+                    semantic,
+                    domains,
+                    &mut ctx,
+                    machine,
+                    state,
+                    [global_contexts, *machine_contexts],
                 );
             }
         }
@@ -122,10 +144,18 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
     ctx.state_value_inputs = super::state_values::unknown_inputs(program);
-    for machine in program.machines() {
+    for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
         for state in program.machine_states(machine) {
             build_state_flow_fact(
-                program, borrow, proof, semantic, domains, &mut ctx, machine, state,
+                program,
+                borrow,
+                proof,
+                semantic,
+                domains,
+                &mut ctx,
+                machine,
+                state,
+                [global_contexts, *machine_contexts],
             );
         }
     }

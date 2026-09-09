@@ -207,6 +207,47 @@ fn empty_invalid_and_stale_handles_keep_zero_initialization_behavior() {
 }
 
 #[test]
+fn selected_groups_keep_append_order_and_survive_matching_baseline_clones() {
+    let point = ProgramPoint::Machine {
+        machine_symbol: SymbolHandle::from_parts(19, 2),
+    };
+    let mut storage = FactContexts::default();
+    let absent = storage.group_at_point(point);
+    let first = storage.append(context(point, 1));
+    let group = storage.group_at_point(point);
+    storage.append(context(ProgramPoint::Global, 2));
+    let second = storage.append(context(point, 3));
+    assert_eq!(
+        storage.handles_in_group(group).collect::<Vec<_>>(),
+        [first, second]
+    );
+    // A missing selection is not a reservation for a future group.
+    assert_eq!(storage.handles_in_group(absent).count(), 0);
+    assert_eq!(
+        storage
+            .handles_in_group(FactContextGroup::default())
+            .count(),
+        0
+    );
+    let baseline = storage.clone();
+    assert!(storage.free(first));
+    assert_eq!(
+        storage.handles_in_group(group).collect::<Vec<_>>(),
+        [second]
+    );
+    let third = storage.append(context(point, 4));
+    assert_eq!(
+        storage.handles_in_group(group).collect::<Vec<_>>(),
+        [second, third]
+    );
+    storage = baseline;
+    assert_eq!(
+        storage.handles_in_group(group).collect::<Vec<_>>(),
+        [first, second]
+    );
+}
+
+#[test]
 fn clones_restore_independent_indexes_and_preserve_arena_equality_and_debug() {
     let points = [
         ProgramPoint::Global,

@@ -38,6 +38,16 @@ struct ContextGroup {
     last: Handle<ContextLink>,
 }
 
+/// A selected context chain in one fact plan or clones preserving that chain.
+/// Like context handles, these are storage-local: selections acquired after
+/// sibling plans diverge are not interchangeable between those plans.
+/// Existing chains observe later appends. An empty selection stays empty;
+/// it does not reserve a group for a point that has not been introduced yet.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FactContextGroup {
+    first: Handle<ContextLink>,
+}
+
 // Lookup storage is derived, not semantic identity or diagnostic output.
 impl PartialEq for FactContexts {
     fn eq(&self, other: &Self) -> bool {
@@ -105,10 +115,23 @@ impl FactContexts {
         &self,
         point: ProgramPoint,
     ) -> impl Iterator<Item = FactContextHandle> + '_ {
-        let mut next = self
-            .groups
-            .get(&point)
-            .map_or(Handle::invalid(), |group| group.first);
+        self.handles_in_group(self.group_at_point(point))
+    }
+
+    pub(in crate::fact_plan) fn group_at_point(&self, point: ProgramPoint) -> FactContextGroup {
+        FactContextGroup {
+            first: self
+                .groups
+                .get(&point)
+                .map_or(Handle::invalid(), |group| group.first),
+        }
+    }
+
+    pub(in crate::fact_plan) fn handles_in_group(
+        &self,
+        group: FactContextGroup,
+    ) -> impl Iterator<Item = FactContextHandle> + '_ {
+        let mut next = group.first;
         std::iter::from_fn(move || {
             while next.is_valid() {
                 let link = self.links.get(next);

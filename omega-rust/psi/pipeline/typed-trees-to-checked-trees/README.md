@@ -49,11 +49,15 @@ outside this crate.
 ## Flow, ranges, and progress
 
 Semantic contexts maintain exact program-point groups as they are appended.
-Entry, statement, call and exit construction select each group once for both
-context and constraint references, preserving point order and within-point
-append order. Flow-inferred contexts use the same append route; cloning the
-semantic baseline also clones its lookup index. This avoids whole-arena scans
-without caching a changing flow result or weakening independent evidence checks.
+Global and machine declaration groups are selected once per flow invocation,
+then carried in typed-machine order across states and input passes. These small
+chain handles require neither copied context lists nor another lookup table.
+State-input facts remain selected after their pass-local appends; an absent
+declaration selection is not a reservation for a future group. Statement, call
+and exit construction still use exact point lookup. Both entry lists preserve
+point order and within-point append order. Cloning the semantic baseline still
+clones its lookup index; this change removes repeated declaration lookups, not
+that index or the flow fixed-point rebuilding.
 
 Range-state arguments form an entry-rooted all-predecessor fixed point. Rebuild
 edge contributions each pass and withhold unconverged inference. Assignment

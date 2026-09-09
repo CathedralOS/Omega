@@ -54,17 +54,32 @@ pub(crate) fn append_flow_contexts_for_points(
     constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     points: &[ProgramPoint],
 ) {
-    // Both lists describe the same selected contexts. Keep their arena order
-    // while querying each point once, including facts appended by this pass.
-    for point in points {
-        for context in semantic.context_handles_at_point(*point) {
-            semantic_context_refs.append_to_span(refs, FlowSemanticContextRef { context });
-            append_constraint_ref(
-                constraint_refs,
-                constraints,
-                FlowConstraintKind::SemanticContext { context },
-            );
-        }
+    append_flow_contexts(
+        points
+            .iter()
+            .flat_map(|point| semantic.context_handles_at_point(*point)),
+        semantic_context_refs,
+        refs,
+        constraint_refs,
+        constraints,
+    );
+}
+
+pub(crate) fn append_flow_contexts(
+    contexts: impl Iterator<Item = facts::FactContextHandle>,
+    semantic_context_refs: &mut arena::Arena<FlowSemanticContextRef>,
+    refs: &mut arena::HandleSpan<FlowSemanticContextRef>,
+    constraint_refs: &mut arena::Arena<FlowConstraintRef>,
+    constraints: &mut arena::HandleSpan<FlowConstraintRef>,
+) {
+    // Both lists describe the same selected contexts. Keep their arena order.
+    for context in contexts {
+        semantic_context_refs.append_to_span(refs, FlowSemanticContextRef { context });
+        append_constraint_ref(
+            constraint_refs,
+            constraints,
+            FlowConstraintKind::SemanticContext { context },
+        );
     }
 }
 
