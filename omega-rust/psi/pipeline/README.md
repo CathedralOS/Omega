@@ -131,7 +131,11 @@ The comparisons preserve each operand carrier and use the shared typed integer
 order operation; anonymous operands must land exactly in the selected peer carrier.
 Boolean equality and inequality compose named constants and comparison results
 without losing their separate authored selection occurrences.
-Open templates, aggregate evaluation, short-circuit Boolean logic, wholly anonymous
+Boolean `&&` and `||` evaluate only the selected right operand, while the probe
+retains admission and authored custody for both operands. The two-file CLI check
+`cargo run -p omega -- --check tests/omega/pass/modules/boolean_logic_indices/main.omg`
+covers root and module selection under that schedule.
+Open templates, aggregate evaluation, wholly anonymous
 comparisons, constrained destinations, authored operators and module-owned domain
 families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical

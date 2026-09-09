@@ -1003,8 +1003,7 @@ Owners include
   lexical admission coverage in `tests/omega/pass/modules/aggregate_machine_indices`
   and `tests/omega/fail/modules/runtime_aggregate_index`; this does not replace
   the legacy aggregate materializer with namespace-aware evaluation.
-  Short-circuit Boolean logic and wholly anonymous comparisons still need admitted
-  evaluation.
+  Wholly anonymous comparisons still need admitted evaluation.
   Conformance and static-requirement argument positions
   also need their complete owners, not a standalone root probe.
   Open-template computation, constrained destinations, authored operator execution

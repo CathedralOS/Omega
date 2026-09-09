@@ -283,3 +283,214 @@ fn boolean_equality_indices_reject_runtime_and_authored_meaning() {
         assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(expected)), "{diagnostics:?}");
     }
 }
+
+#[test]
+fn boolean_logic_indices_select_only_the_required_value_branch() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (expression, result) in [
+        ("(ENABLED && true)", true),
+        ("(ENABLED && false)", false),
+        ("(false && ENABLED)", false),
+        ("(true || ENABLED)", true),
+        ("(false || ENABLED)", true),
+        ("(ENABLED || false)", true),
+        ("(false && (LIMIT / 0 == 0))", false),
+        ("(true || (LIMIT / 0 == 0))", true),
+        ("((ENABLED && false) || (LIMIT == 3))", true),
+        ("((ENABLED || false) == (LIMIT > 1))", true),
+        ("(false && (LIMIT + 255 == 0))", false),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{FLAG} const ENABLED: bool = true; const LIMIT: u8 = 3; {} {}",
+                keep("keep", expression),
+                keep("oracle", if result { "true" } else { "false" })
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}
+
+#[test]
+fn boolean_logic_indices_keep_unselected_custody_and_module_identity() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        &format!(
+            "module settings; const ENABLED: bool = false; {}",
+            keep("keep", "(false || ENABLED)")
+        ),
+    );
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "use settings; {FLAG} const ENABLED: bool = true; {} {} {} {}",
+            keep("keep", "(false || ENABLED)"),
+            keep("skipped", "(true || ENABLED)"),
+            keep("enabled", "true"),
+            keep("disabled", "false")
+        ),
+    );
+    let checked = compile(&root, root_inputs(&root));
+    assert_same_machine_types(&checked, "keep", "enabled");
+    assert_same_machine_types(&checked, "skipped", "enabled");
+    assert_same_machine_types(&checked, "settings::keep", "disabled");
+    assert_eq!(selections(&checked, "ENABLED", identity(1)).len(), 6);
+    assert_eq!(
+        selections(&checked, "settings::ENABLED", identity(1)).len(),
+        3
+    );
+}
+
+#[test]
+fn boolean_logic_indices_do_not_skip_admission_or_selected_branch_failures() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (declarations, machine, expected) in [
+        (
+            "",
+            keep("keep", "(true && (LIMIT / 0 == 0))"),
+            "Exact integer constant operation",
+        ),
+        (
+            "",
+            keep("keep", "(false || (LIMIT / 0 == 0))"),
+            "Exact integer constant operation",
+        ),
+        (
+            "",
+            "machine keep(ENABLED: bool, value: Flag<(true || ENABLED)>) {}".to_owned(),
+            "original lexical scope",
+        ),
+        (
+            "operator == u8::equal(left: u8, right: u8) -> bool;",
+            keep("keep", "(true || (LIMIT == 3))"),
+            "requires exact authored selection",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{FLAG} const ENABLED: bool = true; const LIMIT: u8 = 3; {declarations} {machine}"
+            ),
+        );
+        let diagnostics =
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .expect_err(
+                    "selective execution retains admission and evaluated arithmetic obligations",
+                );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn boolean_logic_indices_reject_ill_typed_unselected_operands() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for expression in [
+        "(true || LIMIT)",
+        "(false && LIMIT)",
+        "(true || (LIMIT == 1u64))",
+        "(true || (LIMIT + 1u64 == 3))",
+        "(true || ((LIMIT + 1) == 4u64))",
+        "(true || ((LIMIT | 0) == 1u64))",
+        "(true || ((LIMIT << 0u64) == 1u64))",
+        "(true || (LIMIT == 256))",
+        "(true || (LIMIT + 256 == 3))",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!("{FLAG} const LIMIT: u8 = 3; {}", keep("keep", expression)),
+        );
+        assert!(
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .is_err(),
+            "unselected operand must be well typed: {expression}"
+        );
+    }
+}
+
+#[test]
+fn boolean_logic_indices_check_the_complete_static_operand_roster() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let mut rejected = Vec::new();
+    for operator in [
+        "+", "-", "*", "/", "%", "&", "|", "^", "==", "!=", "<", "<=", ">", ">=",
+    ] {
+        let operation = format!("(LIMIT {operator} 1u64)");
+        rejected.push(
+            if matches!(operator, "==" | "!=" | "<" | "<=" | ">" | ">=") {
+                operation
+            } else {
+                format!("({operation} == 3)")
+            },
+        );
+    }
+    for expression in [
+        "(LIMIT + (255 + 1) == 3)",
+        "((255 + 1) + LIMIT == 3)",
+        "(LIMIT + (7 / 2) == 3)",
+        "(LIMIT == 18446744073709551616)",
+        "(LIMIT + 18446744073709551616 == 3)",
+        "(LIMIT << (7 / 2) == 3)",
+        "(LIMIT >> 18446744073709551616 == 3)",
+        "(1 << LIMIT == 3)",
+        "(LIMIT << true == 3)",
+        "((LIMIT == 3) + (LIMIT == 3) == 2)",
+        "((LIMIT == 3) & true)",
+        "(1 % 2 == LIMIT)",
+        "((1 + 1) < 3)",
+    ] {
+        rejected.push(expression.to_owned());
+    }
+    for expression in rejected {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{FLAG} const LIMIT: u8 = 3; {}",
+                keep("keep", &format!("(true || {expression})"))
+            ),
+        );
+        assert!(
+            compile_to_checked_with_packages(&root.join("main.omg"), None, root_inputs(&root))
+                .is_err(),
+            "unselected operand must retain formation and landing: {expression}"
+        );
+    }
+    for expression in [
+        "(LIMIT + 255 == 0)",
+        "(LIMIT - 4 == 0)",
+        "(LIMIT * 255 == 0)",
+        "(LIMIT / 0 == 0)",
+        "(LIMIT % 0 == 0)",
+        "(LIMIT << 8 == 0)",
+        "(LIMIT >> 8 == 0)",
+        "(LIMIT & (1 + 1) == 2)",
+        "(LIMIT | (1 + 1) == 3)",
+        "(LIMIT ^ (1 + 1) == 1)",
+        "(LIMIT << 1u64 == 6)",
+        "(LIMIT >> 1u64 == 1)",
+        "(LIMIT + (6 / 2) == 6)",
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "{FLAG} const LIMIT: u8 = 3; {} {}",
+                keep("keep", &format!("(true || {expression})")),
+                keep("oracle", "true")
+            ),
+        );
+        let checked = compile(&root, root_inputs(&root));
+        assert_same_machine_types(&checked, "keep", "oracle");
+    }
+}

@@ -1,0 +1,5 @@
+const ENABLED: bool = true;
+data Flag<const Value: bool> { value: u8; }
+machine keep(ENABLED: bool, value: Flag<(true || ENABLED)>) {}
+data Main {}
+machine Main::main(&mut self) {}
