@@ -7,6 +7,9 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 
 use crate::structural_reference_input::stack_pointer_offset;
 
+#[cfg(test)]
+mod fixed_array_tests;
+
 /// Incoming scalar slots compose with the admitted primitive-write result ABI.
 /// Other result-bearing structural signatures retain their current admission.
 pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) -> bool {
@@ -333,7 +336,27 @@ fn validate_borrowed_argument(
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
     );
     let local = crate::selection::primitive_local_input::local(source, semantic.place);
-    let shape = if let Some((_, result, _, referent)) = local {
+    let byte_view = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == semantic.place)
+        .and_then(|parameter| {
+            crate::structural_reference_input::fixed_byte_array_view(
+                &parameter.semantic,
+                semantic,
+                target.structural_type,
+                &signature.structural_types,
+            )
+        });
+    let shape = if let Some((offset, _)) = byte_view {
+        if offset != target.source_byte_offset
+            || call.result_placement.is_some()
+            || call.call_plan.result.is_some()
+        {
+            return None;
+        }
+        ValueShape::borrowed_reference(16, 8)
+    } else if let Some((_, result, _, referent)) = local {
         if target.structural_type != result.structural_type
             || target.root_structural_type != result.structural_type
             || !semantic.path.is_empty()
@@ -401,8 +424,8 @@ fn validate_borrowed_argument(
         || (!exclusive && target.root_structural_type != target.structural_type)
         || target.shape != shape
         || (!exclusive && target.source_byte_offset != 0)
-        || target.fixed_array_length.is_some()
-        || target.element_stride.is_some()
+        || target.fixed_array_length != byte_view.map(|(_, length)| length)
+        || target.element_stride != byte_view.map(|_| 1)
         || Some(&target.destination) != expected.parameters.last()
     {
         return None;

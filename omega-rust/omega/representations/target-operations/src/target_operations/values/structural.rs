@@ -30,7 +30,13 @@ pub struct TargetStructuralArgument {
     pub shape: ValueShape,
     /// Checked byte offset of this projected value within `source`.
     pub source_byte_offset: u32,
+    /// Root array extent for indexed projection. For a field-only or whole
+    /// mutable fixed-u8-array presentation, this instead names the projected
+    /// array extent: `shape` describes the view descriptor while `source`
+    /// still identifies original backing, not a descriptor allocation.
     pub fixed_array_length: Option<u64>,
+    /// Array element byte stride, paired with `fixed_array_length` (one for
+    /// fixed-u8-array presentation). Metadata alone grants no indexing authority.
     pub element_stride: Option<u32>,
     pub source: TargetStructuralArgumentSource,
     pub destination: ValuePlacement,

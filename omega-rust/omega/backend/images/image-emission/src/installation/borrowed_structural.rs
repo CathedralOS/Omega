@@ -345,6 +345,24 @@ pub(super) fn call_is_exact(
         selected_instruction = Some(instruction);
     }
     for (argument, destination) in call.arguments.iter().zip(parameter_homes(callee)) {
+        // Shape only: image replay reconstructs the exact array declaration,
+        // field path and call-local descriptor initialization. Source location
+        // continues to name the original backing, not the temporary descriptor.
+        let array_view = match (argument.fixed_array_length, argument.element_stride) {
+            (Some(length @ 1..), Some(1))
+                if argument.access == StructuralAccess::MutableBorrow
+                    && argument.shape == ValueShape::borrowed_reference(16, 8)
+                    && argument
+                        .path
+                        .iter()
+                        .all(|segment| matches!(segment, StructuralPathSegment::Field(_))) =>
+            {
+                Some(length)
+            }
+            (None, None) => None,
+            _ => return false,
+        };
+        let referent_bytes = array_view.unwrap_or(u64::from(argument.shape.byte_size));
         let source_matches = match &argument.source {
             InternalUnitStructuralArgumentSourceRecord::Placement(placement) => {
                 let Some(source) = parameter_homes(function)
@@ -359,14 +377,16 @@ pub(super) fn call_is_exact(
                     && (argument.access == source.access
                         || source.access == StructuralAccess::MutableBorrow
                             && argument.access == StructuralAccess::WriteOnlyBorrow)
-                    && argument
-                        .source_byte_offset
-                        .checked_add(u32::from(argument.shape.byte_size))
-                        .is_some_and(|end| end <= u32::from(source.shape.byte_size))
+                    && u64::from(argument.source_byte_offset)
+                        .checked_add(referent_bytes)
+                        .is_some_and(|end| end <= u64::from(source.shape.byte_size))
                     && (!argument.path.is_empty()
                         || argument.source_byte_offset == 0
-                            && argument.structural_type == source.structural_type
-                            && argument.shape == source.shape)
+                            && (array_view.is_some_and(|length| {
+                                length == u64::from(source.shape.byte_size)
+                                    && source.shape.alignment == 1
+                            }) || argument.structural_type == source.structural_type
+                                && argument.shape == source.shape))
             }
             InternalUnitStructuralArgumentSourceRecord::BlockParameter { place, .. } => {
                 // The image's retained source/frame replay establishes block identity
@@ -398,15 +418,15 @@ pub(super) fn call_is_exact(
             ),
         };
         if !source_matches
+            || (array_view.is_some() && !matches!(argument.source, InternalUnitStructuralArgumentSourceRecord::Placement(_)))
             || argument.structural_type != destination.structural_type
             || argument.access != destination.access || argument.shape != destination.shape
             || argument.destination != destination.source
-            || argument.fixed_array_length.is_some() || argument.element_stride.is_some()
             || argument.call_stack_bytes != frame_bytes
             || argument.code_offset != call.code_offset || argument.byte_count != call.byte_count
             || argument.bytes.len() != call.byte_count
             || argument.shape.alignment == 0
-            || !argument.source_byte_offset.is_multiple_of(u32::from(argument.shape.alignment))
+            || !argument.source_byte_offset.is_multiple_of(if array_view.is_some() { 1 } else { u32::from(argument.shape.alignment) })
             || argument.path.iter().any(|segment| matches!(segment, StructuralPathSegment::Field(field) if field.is_empty()))
             || !outgoing_pointer_fits(&argument.destination, frame_bytes) {
             return false;

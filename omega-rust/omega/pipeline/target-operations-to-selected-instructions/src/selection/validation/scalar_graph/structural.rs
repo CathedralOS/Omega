@@ -12,6 +12,7 @@ mod block_views;
 mod byte_views;
 mod literals;
 mod local_storage;
+pub(super) use local_storage::fixed_array_argument;
 mod primitive_locals;
 pub(super) use primitive_locals::read;
 mod scalar_store;

@@ -5,6 +5,9 @@ use super::*;
 #[path = "mutable_writes/admission.rs"]
 mod admission;
 
+#[path = "mutable_writes/fixed_arrays.rs"]
+mod fixed_arrays;
+
 const FILL: &str = r#"
 machine fill(out: &mut [u8], byte: u8) {
     transition { _ -> scan(out, 0, byte) }
@@ -65,6 +68,13 @@ fn lower_writer(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
 
 fn publish(target: NativeTarget, relayed: bool) -> (image_emission::ExecutableImage, usize) {
     let lowered = writer(relayed);
+    publish_lowered(target, &lowered)
+}
+
+fn publish_lowered(
+    target: NativeTarget,
+    lowered: &lowered_psi::LoweredPsi,
+) -> (image_emission::ExecutableImage, usize) {
     let text =
         calls::stage_call_text_with_proof(target, &lowered.semantic_module, &lowered.proof_bundle);
     let source = std::sync::Arc::new(
