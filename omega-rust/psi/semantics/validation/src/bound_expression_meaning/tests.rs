@@ -13,7 +13,8 @@ fn membership_program() -> (TypedTrees, ExpressionHandle, ExpressionHandle) {
          machine member(choice: Choice, choices: [Choice; 1]) -> bool {
              choice in Choice::Ready
          }
-         machine foreign(choice: Foreign) -> bool { choice in Foreign::Ready }",
+         machine foreign(choice: Foreign) -> bool { choice in Foreign::Ready }
+         machine create() -> Choice { Choice::Ready { value: 37 } }",
     )
     .tokenize()
     .expect("tokenize");
@@ -159,6 +160,67 @@ fn membership_rejoins_the_nominal_subject_owner_and_case_symbols() {
     subject.symbol = collection.symbol;
     subject.head_symbol = collection.symbol;
     assert!(!is_exact_membership(&altered, member));
+}
+
+#[test]
+fn membership_constructor_subject_retains_its_own_owner_and_case() {
+    let (mut program, member, foreign) = membership_program();
+    let (constructor, literal) = program
+        .expression_table
+        .expression_entries()
+        .find_map(|(expression, node)| match node {
+            ExpressionNode::StructLiteral(literal) => Some((expression, literal.clone())),
+            _ => None,
+        })
+        .expect("constructor subject");
+    let ExpressionNode::Binary(foreign_comparison) = program.expression_table.expression(foreign)
+    else {
+        panic!("foreign membership");
+    };
+    let ExpressionNode::Name(foreign_case) = program
+        .expression_table
+        .expression(foreign_comparison.right)
+    else {
+        panic!("foreign case");
+    };
+    let foreign_case = *foreign_case;
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression_mut(member) else {
+        panic!("membership comparison");
+    };
+    comparison.left = constructor;
+    assert!(is_exact_membership(&program, member));
+    for replacement in [
+        typed_trees::expression::TableStructLiteral {
+            type_symbol: foreign_case.head_symbol,
+            ..literal.clone()
+        },
+        typed_trees::expression::TableStructLiteral {
+            case_symbol: Some(foreign_case.symbol),
+            ..literal.clone()
+        },
+        typed_trees::expression::TableStructLiteral {
+            type_symbol: symbols::SymbolHandle::invalid(),
+            ..literal.clone()
+        },
+        typed_trees::expression::TableStructLiteral {
+            case_symbol: None,
+            ..literal
+        },
+    ] {
+        *program.expression_table.expression_mut(constructor) =
+            ExpressionNode::StructLiteral(replacement);
+        assert!(!is_exact_membership(&program, member));
+    }
+}
+
+#[test]
+fn membership_tag_domain_is_not_a_payload_subject_value() {
+    let (mut program, member, _) = membership_program();
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression_mut(member) else {
+        panic!("membership comparison");
+    };
+    comparison.left = comparison.right;
+    assert!(!is_exact_membership(&program, member));
 }
 
 #[test]
