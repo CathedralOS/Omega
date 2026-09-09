@@ -137,6 +137,116 @@ fn scalar_root_folded_short_circuit_retains_the_selected_source_scope() {
 }
 
 #[test]
+fn scalar_root_known_guard_result_preserves_left_effects() {
+    let source = r#"
+        machine stamp(value: &mut u64, number: u64, answer: bool) -> bool {
+            value = number;
+            answer
+        }
+        machine first(left: bool, right: bool) -> bool { left }
+        machine enter(enabled: bool, slot: &mut u64, number: u64) -> bool {
+            let answer: bool = RESULT;
+            TAIL
+            answer
+        }
+    "#;
+    for (guard, known_result, writes_guard) in [
+        ("(stamp(&mut slot, number, enabled) && false)", false, true),
+        ("(stamp(&mut slot, number, enabled) || true)", true, true),
+        ("!(stamp(&mut slot, number, enabled) && false)", true, true),
+        ("!(stamp(&mut slot, number, enabled) || true)", false, true),
+        (
+            "((stamp(&mut slot, number, enabled) && false) && enabled)",
+            false,
+            true,
+        ),
+        (
+            "((stamp(&mut slot, number, enabled) || true) || enabled)",
+            true,
+            true,
+        ),
+        ("(enabled && false)", false, false),
+        ("(enabled || true)", true, false),
+        ("!(enabled && false)", true, false),
+        ("!(enabled || true)", false, false),
+    ] {
+        for conjunction in [false, true] {
+            let invokes_right = known_result == conjunction;
+            let result = if conjunction { known_result } else { true };
+            for (result_expression, tail, machines) in [
+                (
+                    "GUARD OPERATOR stamp(&mut slot, 11u64, true)",
+                    "let written: bool = stamp(&mut slot, 13u64, true);",
+                    2,
+                ),
+                (
+                    "first(GUARD OPERATOR stamp(&mut slot, 11u64, true), stamp(&mut slot, 13u64, true))",
+                    "",
+                    3,
+                ),
+            ] {
+                let source = source
+                    .replace("RESULT", result_expression)
+                    .replace("TAIL", tail)
+                    .replace("GUARD", guard)
+                    .replace("OPERATOR", if conjunction { "&&" } else { "||" });
+                for enabled in [false, true] {
+                    execute(
+                        &source,
+                        &[TerminalScalarValue::Boolean(enabled), unsigned(7)],
+                        ExecutionExpectations {
+                            result: TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(
+                                result,
+                            )),
+                            observations: match (writes_guard, invokes_right) {
+                                (true, true) => &[201, 7, 11, 13],
+                                (true, false) => &[201, 7, 13],
+                                (false, true) => &[201, 11, 13],
+                                (false, false) => &[201, 13],
+                            },
+                            stamp_calls: 1 + usize::from(writes_guard) + usize::from(invokes_right),
+                            stamp_invocations: 1
+                                + u64::from(writes_guard)
+                                + u64::from(invokes_right),
+                            machines,
+                        },
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn scalar_root_strict_guard_retains_flow_call_correspondence() {
+    let source = r#"
+        machine stamp(value: &mut u64, number: u64, answer: bool) -> bool {
+            value = number;
+            answer
+        }
+        machine enter(enabled: bool, slot: &mut u64, number: u64) -> bool {
+            let answer: bool = ((stamp(&mut slot, number, enabled) && false) == false)
+                || stamp(&mut slot, 11u64, true);
+            let written: bool = stamp(&mut slot, 13u64, true);
+            answer
+        }
+    "#;
+    for enabled in [false, true] {
+        execute(
+            source,
+            &[TerminalScalarValue::Boolean(enabled), unsigned(7)],
+            ExecutionExpectations {
+                result: TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
+                observations: &[201, 7, 13],
+                stamp_calls: 3,
+                stamp_invocations: 2,
+                machines: 2,
+            },
+        );
+    }
+}
+
+#[test]
 fn scalar_root_comparison_guards_preserve_skipped_and_evaluated_calls() {
     for (condition, constant) in [
         ("1u64 > 2u64", false),

@@ -95,14 +95,22 @@ pub(crate) fn validate_computation_calls(
                     (*condition, false, condition_scope),
                 ]);
             }
-            CheckedScalarComputationKind::Apply { operands, .. } => {
+            CheckedScalarComputationKind::Apply {
+                source_expression,
+                operands,
+                ..
+            } => {
+                if !authored_expressions(checked, authored_scope)?.contains(source_expression) {
+                    return unsupported("computed application escaped its authored operand scope");
+                }
                 let operands = plans
                     .operands
                     .span(*operands)
                     .ok_or(LoweringError::Unsupported(
                         "computed invocation has an invalid operand span",
                     ))?;
-                let scopes = operand_scopes::application(checked, authored_scope, operands.len())?;
+                let scopes =
+                    operand_scopes::application(checked, *source_expression, operands.len())?;
                 pending.extend(
                     operands
                         .iter()
@@ -298,6 +306,84 @@ fn authored_expressions(
 mod tests {
     use super::*;
     use checked_trees::expression::{BinaryOperator, TableBinaryExpression};
+
+    #[test]
+    fn computed_application_rejects_another_same_typed_operation_occurrence() {
+        let source = r#"
+            machine identity(value: bool) -> bool { value }
+            machine first() -> bool { !identity(true) }
+            machine second() -> bool { !identity(false) }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let roots = checked
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root.clone())
+            .filter(|root| root.role == CheckedScalarExpressionRole::Return)
+            .collect::<Vec<_>>();
+        assert_eq!(roots.len(), 2);
+        for root in &roots {
+            let authored = checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(root.root)
+                .authored_root;
+            validate_computation_calls(
+                &checked,
+                root.machine,
+                root.state,
+                root.statement_ordinal,
+                root.root,
+                authored,
+            )
+            .expect("original exact application custody");
+        }
+        let replacement = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(roots[1].root)
+            .authored_root;
+        let node = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(roots[0].root);
+        let authored = node.authored_root;
+        let CheckedScalarComputationKind::Apply {
+            source_expression, ..
+        } = &mut node.kind
+        else {
+            panic!("negation retains an application");
+        };
+        *source_expression = replacement;
+        assert!(
+            validate_computation_calls(
+                &checked,
+                roots[0].machine,
+                roots[0].state,
+                roots[0].statement_ordinal,
+                roots[0].root,
+                authored,
+            )
+            .is_err(),
+            "same-typed operation cannot replace the authored occurrence"
+        );
+    }
 
     #[test]
     fn computation_call_coverage_does_not_require_unselected_syntax() {

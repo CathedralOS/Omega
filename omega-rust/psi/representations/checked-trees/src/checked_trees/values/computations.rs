@@ -101,6 +101,8 @@ pub enum CheckedScalarComputationKind {
     /// Evaluate operands left-to-right once, then apply a pure template whose
     /// Parameter positions name only these computed operands, not source locals.
     Apply {
+        /// Exact operation occurrence, retained when an enclosing selection folds.
+        source_expression: typed_trees::expression::ExpressionHandle,
         expression: CheckedScalarExpression,
         operands: HandleSpan<CheckedScalarComputationHandle>,
     },

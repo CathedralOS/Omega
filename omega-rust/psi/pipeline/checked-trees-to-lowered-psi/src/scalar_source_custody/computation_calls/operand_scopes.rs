@@ -1,4 +1,9 @@
 //! Source operand coordinates, independent of arithmetic template meaning.
+//!
+//! An enclosing short circuit may retain either operand's computation. Apply
+//! nodes therefore name their exact authored operation, just as Select nodes
+//! name their conditional. Do not infer a surviving operand from expression
+//! shape: a known result can still require evaluating the left operand's calls.
 
 use super::*;
 use checked_trees::expression::BinaryOperator;
@@ -40,10 +45,7 @@ pub(super) fn application(
             ExpressionNode::Binary(binary)
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
             {
-                // Logical selection is a Select, never an Apply. When its
-                // condition was folded, this application belongs to the RHS.
-                // This locates operands; it does not establish a guard proof.
-                source = binary.right;
+                return unsupported("computed application substituted a conditional occurrence");
             }
             ExpressionNode::Binary(binary) if arity == 2 => {
                 // Comparison normalization reverses values, not evaluation.
