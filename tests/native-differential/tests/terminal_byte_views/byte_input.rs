@@ -5,6 +5,9 @@ use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
 
+#[path = "byte_input/line_read.rs"]
+mod line_read;
+
 fn reader() -> lowered_psi::LoweredPsi {
     lower_reader(include_str!("byte_input.omg"), "classify_bytes")
 }
@@ -154,7 +157,36 @@ fn publish_reader(
     }
     let mut missing_frame = decoded.clone();
     missing_frame.functions_mut_for_test()[0].unit_stack = None;
+    missing_frame.functions_mut_for_test()[0].scalar_stack = None;
+    assert!(image_emission::encode_installation_record(&missing_frame).is_err());
     assert!(image_emission::validate_installation_record(&missing_frame, &image).is_err());
+    // Admitting a byte leaf in either return kind must not let metadata change
+    // the enclosing function's independently validated frame role or geometry.
+    let mut dual_frame = decoded.clone();
+    let function = &mut dual_frame.functions_mut_for_test()[0];
+    let originally_unit = function.unit_stack.is_some();
+    if let Some(stack) = function.unit_stack {
+        function.scalar_stack = Some(image_emission::ObjectScalarStack {
+            local_peak_bytes: stack.local_peak_bytes,
+            stack_alignment: stack.stack_alignment,
+        });
+    } else {
+        let stack = function.scalar_stack.unwrap();
+        function.unit_stack = Some(image_emission::ObjectUnitStack {
+            frame_bytes: stack.local_peak_bytes,
+            local_peak_bytes: stack.local_peak_bytes,
+            stack_alignment: stack.stack_alignment,
+        });
+    }
+    assert!(image_emission::encode_installation_record(&dual_frame).is_err());
+    assert!(image_emission::validate_installation_record(&dual_frame, &image).is_err());
+    let mut substituted_frame = dual_frame;
+    if originally_unit {
+        substituted_frame.functions_mut_for_test()[0].unit_stack = None;
+    } else {
+        substituted_frame.functions_mut_for_test()[0].scalar_stack = None;
+    }
+    assert!(image_emission::validate_installation_record(&substituted_frame, &image).is_err());
     assert_eq!(
         image_emission::derive_stack_demand(&object, lowered.semantic_module.entry).unwrap(),
         image_emission::derive_installation_stack_demand(

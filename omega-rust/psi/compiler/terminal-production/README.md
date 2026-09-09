@@ -157,8 +157,11 @@ case edges dispose the returned affine root using the existing checked cleanup
 evidence. Bounded fields receive independent declaration-range obligations;
 missing proofs reject artifact production. Call-bearing or short-circuit
 constructor operands, structural payloads, and loop-carried owned sum results
-are not admitted by this producer. Native realization still rejects nonempty
-scalar-case construction rather than erasing its payload.
+are not admitted by this producer. Ordinary native scalar-sum construction,
+return/call transport, and selected-case observation retain full-width payloads
+through installation replay for Linux x64/ARM64 and macOS ARM64. Windows
+indirect aggregate returns remain a realization dependency; see
+`tests/native-differential/tests/scalar_case_results.rs` at the repository root.
 
 Closed integer field restrictions retain their exact carrier and inclusive
 bounds through the checked catalog and Terminal declaration. The selected case
@@ -174,8 +177,10 @@ scalars; floating/address restrictions and non-Exact arithmetic/range combinatio
 are not admitted by this producer. Restricted field stores and scalar-record
 construction remain fenced until written-value obligations are retained.
 Opaque interpreter inputs/results cannot establish these restrictions from type
-identity alone. The byte-input classification and exact-copy fixtures do not
-claim that the shared line reader or payload-bearing line outcomes are complete.
+identity alone. The authored `terminal_byte_views/read_line.omg` native fixture
+composes the byte leaf, guarded writes, and payload-bearing line outcomes through
+installation replay. It does not establish the bundled library's provider/API
+migration or the complete `cli_mvp` entry path.
 
 The general state-graph path also retains one persistent unrestricted mutable
 record receiver. It shares ordinary Unit statement construction for ordered
@@ -205,9 +210,9 @@ Fresh per-iteration guards support mutable fill loops and exact cursor increment
 Completed ordinary byte-view calls preserve the caller's reference carrier, so
 it can be passed again; they do not restore a still-live descendant loan or
 preserve arbitrary content facts. Whole mutable views now reach ordinary native
-indexed stores. Source-owned raw-array construction, payload-bearing line
-outcomes, and general multi-arrival invariants remain separate dependencies;
-this primitive does not establish the shared line-reader contract.
+indexed stores, including before scalar-sum line outcomes. Source-owned raw-array
+construction and general multi-arrival invariants remain separate dependencies;
+the writer primitive alone does not establish the shared line-reader contract.
 
 Provider-field calls retain the same exact attachment requirement roots as
 ordinary Unit bodies, including across backedges and interleaved field writes.

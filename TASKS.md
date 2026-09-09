@@ -349,8 +349,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   fixed-work bound is claimed. Source proof/interpretation lives in
   `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs` and
   `terminal-interpreter/src/structural_byte_arrays.rs`.
-  Next dependencies are receiver provisioning under `ENTRY-CONTENT-ROOTS`,
-  payload-bearing line outcomes and shared line assembly/provider integration.
+  Next dependencies are receiver provisioning under `ENTRY-CONTENT-ROOTS`
+  and bundled line-result API/provider integration.
   `Main.pause` is a provisioned receiver field, so generic source-local array
   construction is not a prerequisite for this customer. Explicit host inputs
   supply raw array contents in callable tests; an opaque root supplies none. Zero-length
@@ -367,21 +367,25 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   spare capacity or retaining hidden length writeback. Preserve independently
   motivated whole-field operations and their own regression coverage.
 
-  Continue line assembly from the exact-copy floor in
-  `tests/native-differential/tests/terminal_byte_views/read_one.omg` and
-  `checked-trees-to-lowered-psi/src/tests/byte_write_loop.rs`.
-  Continue from ordinary native scalar-sum construction, return/call transport,
-  and selected-case observation in `tests/native-differential/tests/scalar_case_results.rs`.
-  On the checkpoint based on `7a82972872`, macOS ARM64,
-  `cargo nextest run -p omega-native-differential-test --test scalar_case_results
-  --no-fail-fast --no-tests fail` passes: a borrowed callee fills original caller
-  storage, returns one of four cases with repeated payload names, and preserves
-  full-width counts through caller dispatch and installation replay. Publication
-  covers Linux x64/ARM64 and macOS ARM64; only macOS runtime was exercised.
-  Windows indirect aggregate results remain an explicit realization dependency.
-  Integrate these ordinary graph operations into shared line assembly rather
-  than introducing a line-specific compiler route. The actual line reader and
-  `cli_mvp` acceptance below remain open.
+  Resume bundled API/provider integration from the authored line loop in
+  `tests/native-differential/tests/terminal_byte_views/read_line.omg` and its
+  `byte_input/line_read.rs` regression. On the checkpoint based on `03bd1317e5`,
+  macOS ARM64 (Cargo fallback), `cargo nextest run -p omega-native-differential-test
+  --test terminal_byte_views --no-fail-fast --no-tests fail -E 'test(bounded_line_reader)'`
+  passes: byte input, bounded stores, and full-width line outcomes compose through
+  source checking and installation replay. Publication covers Linux x64/ARM64
+  and macOS ARM64; runtime was exercised only on macOS. The loop preserves raw
+  prefixes, LF/EOF/Full distinctions, zero-extent non-consumption, and unread
+  suffixes across repeated calls. Installation's byte-result home is independent
+  of the enclosing function's aggregate return frame; retain its exact frame and
+  replay controls in `image-emission/src/installation.rs`.
+  Ordinary scalar-sum caller transport remains covered by
+  `tests/native-differential/tests/scalar_case_results.rs`.
+  Windows byte input and indirect aggregate results remain realization dependencies.
+  Next migrate `source/library/std/console.omg`, target provider declarations,
+  interpreter line-input handling, and callers together using the shared checked
+  loop over `read_byte`, not a line-specific compiler route. The bundled line
+  reader and `cli_mvp` acceptance below remain open.
   Preserve the retained declaration ranges, selected-case scalar
   facts, and provider-return validation described in the
   [Terminal producer](omega-rust/psi/compiler/terminal-production/README.md).

@@ -1,0 +1,38 @@
+data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+boundary trait Console {
+    machine read_byte() -> ByteRead reaches Console;
+}
+
+data LineReadResult {
+    case Invalid;
+    case LineComplete(count: u64);
+    case EndOfInput(count: u64);
+    case Full(count: u64);
+}
+
+machine read_line(out: &mut [u8]) -> LineReadResult reaches Console {
+    transition { _ -> scan(out, 0) }
+    state scan(out: &mut [u8], position: u64) -> LineReadResult {
+        transition position < out.len {
+            true -> read(out, position)
+            false -> full(position)
+        }
+    }
+    state read(out: &mut [u8], position: u64) -> LineReadResult {
+        let observed: ByteRead = Console::read_byte();
+        transition observed {
+            ByteRead::Byte { value } -> store(out, position, value)
+            ByteRead::Eof -> end(position)
+        }
+    }
+    state store(out: &mut [u8], position: u64, value: i32 [0..=255]) -> LineReadResult {
+        out[position] = value as u8;
+        transition value == 10 {
+            true -> complete(position + 1)
+            false -> scan(out, position + 1)
+        }
+    }
+    state full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
+    state end(count: u64) -> LineReadResult { LineReadResult::EndOfInput { count: count } }
+    state complete(count: u64) -> LineReadResult { LineReadResult::LineComplete { count: count } }
+}

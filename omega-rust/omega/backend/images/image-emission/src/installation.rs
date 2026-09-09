@@ -4239,11 +4239,11 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     && installed.settlement.arguments.is_empty()
                     && installed.settlement.byte_sequence_arguments.is_empty()
                     && installed.settlement.byte_count != 0
-                    // Selected graph fragments retain fixed-frame custody,
-                    // not the legacy Unit affine-cleanup body marker. Match
-                    // the object-side read-byte realization contract.
-                    && function.unit_stack.is_some()
-                    && function.scalar_stack.is_none()
+                    // The byte result is local to this boundary occurrence,
+                    // independent of the enclosing function's return kind.
+                    // Retain exactly one frame record; function/image replay
+                    // separately checks its role, geometry, and physical home.
+                    && (function.unit_stack.is_some() != function.scalar_stack.is_some())
             }
         };
         if !valid_realization
