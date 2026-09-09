@@ -1,5 +1,19 @@
 use super::*;
 
+#[cfg(test)]
+#[path = "scalar_operations/sequence_equality_tests.rs"]
+mod sequence_equality_tests;
+
+fn byte_sequence_element(element: &Cell) -> EvalResult<u8> {
+    let element = element.borrow();
+    let Value::Int(value) = &*element else {
+        return unsupported("byte-sequence equality has a non-byte element");
+    };
+    u8::try_from(*value).map_err(|_| {
+        Halt::Unsupported("byte-sequence equality has an out-of-range element".to_owned())
+    })
+}
+
 impl<'program> Evaluator<'program> {
     pub(super) fn eval_unary(&self, operator: UnaryOperator, operand: Value) -> EvalResult<Value> {
         match operator {
@@ -753,14 +767,47 @@ impl<'program> Evaluator<'program> {
                 Value::Int(tag),
             ) => self.enum_variant_tag(*type_symbol, variant_name) == Some(*tag),
             (Value::Str(a), Value::Str(b)) => *a.borrow() == *b.borrow(),
+            // Packed text and cell-backed byte views denote the same live
+            // sequence. Compare the window, without decoding or trimming bytes.
+            (Value::Array(elements), Value::Str(text))
+            | (Value::Str(text), Value::Array(elements)) => {
+                let bytes = text.borrow();
+                if elements.len() != bytes.len() {
+                    return Ok(false);
+                }
+                for (element, byte) in elements.iter().zip(bytes.iter()) {
+                    let value = byte_sequence_element(element)?;
+                    if value != *byte {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            (Value::Array(left), Value::Array(right)) => {
+                if left.len() != right.len() {
+                    return Ok(false);
+                }
+                for (left, right) in left.iter().zip(right) {
+                    if byte_sequence_element(left)? != byte_sequence_element(right)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
             (Value::Bool(a), Value::Bool(b)) => a == b,
             _ => {
                 if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
-                    let left = FloatMeaning::from_f64(left.as_float().unwrap_or(f64::NAN));
-                    let right = FloatMeaning::from_f64(right.as_float().unwrap_or(f64::NAN));
+                    let (Some(left), Some(right)) = (left.as_float(), right.as_float()) else {
+                        return unsupported("equality has a non-numeric floating-point operand");
+                    };
+                    let left = FloatMeaning::from_f64(left);
+                    let right = FloatMeaning::from_f64(right);
                     FloatSemantics::equal(&left, &right)
                 } else {
-                    left.as_int() == right.as_int()
+                    let (Some(left), Some(right)) = (left.as_int(), right.as_int()) else {
+                        return unsupported("equality operands have no supported comparison");
+                    };
+                    left == right
                 }
             }
         })
