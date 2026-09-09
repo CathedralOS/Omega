@@ -78,36 +78,51 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.console.read_line(&mut self.line);
-    self.owner.output.headers[0] = Header {
-        tag: 1, first: 2, second: 3, third: 4, source: 5,
-        start: 6, end: 7, decoded_start: 8, decoded_length: 9
-    };
-    self.owner.output.headers[1] = Header {
-        tag: self.line[0],
-        first: self.line[1],
-        second: 17,
-        third: 18,
-        source: 19,
-        start: self.line[2] as u64,
-        end: self.line[3] as u64,
-        decoded_start: 20,
-        decoded_length: 21
-    };
-    self.owner.output.headers[2] = Header {
-        tag: 9, first: 8, second: 7, third: 6, source: 5,
-        start: 4, end: 3, decoded_start: 2, decoded_length: 1
-    };
-    self.selected = 1;
-    let picked: Header = self.owner.output.select(self.selected);
-    self.sink.accept(picked);
+    let observed: LineReadResult = self.console.read_line(&mut self.line);
+    transition observed {
+        LineReadResult::LineComplete { count } -> bounded_input(count)
+        LineReadResult::EndOfInput { count } -> bounded_input(count)
+        LineReadResult::Full { count } -> bad()
+        LineReadResult::Invalid -> bad()
+    }
+    state bounded_input(&mut self, count: u64) {
+        transition count >= 4 && count <= self.line.len {
+            true -> loaded_input()
+            false -> bad()
+        }
+    }
+    state loaded_input(&mut self) {
+        self.owner.output.headers[0] = Header {
+            tag: 1, first: 2, second: 3, third: 4, source: 5,
+            start: 6, end: 7, decoded_start: 8, decoded_length: 9
+        };
+        self.owner.output.headers[1] = Header {
+            tag: self.line[0],
+            first: self.line[1],
+            second: 17,
+            third: 18,
+            source: 19,
+            start: self.line[2] as u64,
+            end: self.line[3] as u64,
+            decoded_start: 20,
+            decoded_length: 21
+        };
+        self.owner.output.headers[2] = Header {
+            tag: 9, first: 8, second: 7, third: 6, source: 5,
+            start: 4, end: 3, decoded_start: 2, decoded_length: 1
+        };
+        self.selected = 1;
+        let picked: Header = self.owner.output.select(self.selected);
+        self.sink.accept(picked);
 
-    transition self.sink.tag == 5 && self.sink.first == 27 &&
-        self.sink.second == 17 && self.sink.third == 18 && self.sink.source == 19 &&
-        self.sink.start == 33 && self.sink.end == 44 &&
-        self.sink.decoded_start == 20 && self.sink.decoded_length == 21 {
-        true -> good()
-        false -> bad()
+        transition self.sink.tag == 5 && self.sink.first == 27 &&
+            self.sink.second == 17 && self.sink.third == 18 && self.sink.source == 19 &&
+            self.sink.start == 33 && self.sink.end == 44 &&
+            self.sink.decoded_start == 20 && self.sink.decoded_length == 21 {
+            true -> good()
+            false -> bad()
+        }
+
     }
 
     state good(&mut self) { self.console.exit_process(70); }

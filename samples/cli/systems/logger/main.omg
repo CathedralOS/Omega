@@ -126,35 +126,35 @@ machine Main::main(&mut self) {
     state good(&mut self) {
         self.console.write_line("PASS: 5 info + 4 warn + 1 error scored 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_score(&mut self) {
         self.console.write_line("FAIL: wrong weighted score (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_info(&mut self) {
         self.console.write_line("FAIL: wrong info count (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
     state bad_warn(&mut self) {
         self.console.write_line("FAIL: wrong warn count (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
     state bad_error(&mut self) {
         self.console.write_line("FAIL: wrong error count (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 }

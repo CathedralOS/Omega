@@ -38,19 +38,34 @@ machine Loader::fill(&mut self) {
 }
 
 machine Loader::run(&mut self) {
-    self.console.read_line(&mut self.line);
-    self.tags[1] = self.line[0];
-    self.firsts[1] = self.line[1];
-    self.starts[1] = self.line[2] as u64;
-    self.ends[1] = self.line[3] as u64;
-    self.cursor = 1;
-    self.fill();
-    transition { _ -> loaded(
-        self.tag,
-        self.first,
-        self.start,
-        self.end
-    ) }
+    let observed: LineReadResult = self.console.read_line(&mut self.line);
+    transition observed {
+        LineReadResult::LineComplete { count } -> bounded_input(count)
+        LineReadResult::EndOfInput { count } -> bounded_input(count)
+        LineReadResult::Full { count } -> bad()
+        LineReadResult::Invalid -> bad()
+    }
+    state bounded_input(&mut self, count: u64) {
+        transition count >= 4 && count <= self.line.len {
+            true -> loaded_input()
+            false -> bad()
+        }
+    }
+    state loaded_input(&mut self) {
+        self.tags[1] = self.line[0];
+        self.firsts[1] = self.line[1];
+        self.starts[1] = self.line[2] as u64;
+        self.ends[1] = self.line[3] as u64;
+        self.cursor = 1;
+        self.fill();
+        transition { _ -> loaded(
+            self.tag,
+            self.first,
+            self.start,
+            self.end
+        ) }
+
+    }
 
     state loaded(
         &mut self,

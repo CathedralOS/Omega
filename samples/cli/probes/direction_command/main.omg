@@ -43,31 +43,31 @@ machine Main::main(&mut self) {
     state go_north(&mut self) {
         self.console.write_line("PASS: first byte 'n' classified as north (exit 1)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
     state go_south(&mut self) {
         self.console.write_line("FAIL: classified as south -- expected north for \"north\" (exit 2)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(2);
     }
     state go_east(&mut self) {
         self.console.write_line("FAIL: classified as east -- expected north for \"north\" (exit 3)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(3);
     }
     state go_west(&mut self) {
         self.console.write_line("FAIL: classified as west -- expected north for \"north\" (exit 4)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(4);
     }
     state unknown(&mut self) {
         self.console.write_line("FAIL: first byte matched no direction -- expected 'n' (exit 0)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

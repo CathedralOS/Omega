@@ -107,7 +107,7 @@ machine Main::main(&mut self) {
     state bad_idx0(&mut self) {
         self.console.write_line("FAIL: pick(0) returned wrong index -- expected 0 (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -121,7 +121,7 @@ machine Main::main(&mut self) {
     state bad_idx2(&mut self) {
         self.console.write_line("FAIL: pick(2) returned wrong index -- expected 4 (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
@@ -135,7 +135,7 @@ machine Main::main(&mut self) {
     state bad_v0(&mut self) {
         self.console.write_line("FAIL: read_at(idx0) returned wrong value -- expected table[0] == 3 (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
@@ -151,14 +151,14 @@ machine Main::main(&mut self) {
     state bad_result(&mut self) {
         self.console.write_line("FAIL: v2 + v1 - v0 - 1 != 70 -- lookup arithmetic wrong (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: 60 + 14 - 3 - 1 == 70 from call-driven lookups (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

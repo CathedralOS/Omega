@@ -76,13 +76,13 @@ machine Main::main(&mut self) {
     state valid(&mut self) {
         self.console.write_line("PASS: Luhn sum 70 is a multiple of 10, number valid (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state invalid(&mut self) {
         self.console.write_line("FAIL: Luhn sum not a multiple of 10, number invalid (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

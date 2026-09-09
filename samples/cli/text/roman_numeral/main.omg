@@ -84,19 +84,19 @@ machine Main::main(&mut self) {
     state ok(&mut self) {
         self.console.write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state mismatch(&mut self) {
         self.console.write_line("FAIL: parse total did not equal 1994 (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: unknown symbol or index guard tripped (exit 99)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(99);
     }
 }

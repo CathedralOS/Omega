@@ -100,21 +100,21 @@ machine Main::main(&mut self) {
     state good(&mut self) {
         self.console.write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_sizes(&mut self) {
         self.console.write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_fields(&mut self) {
         self.console.write_line("FAIL: a decoded field did not match the original packet (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 }

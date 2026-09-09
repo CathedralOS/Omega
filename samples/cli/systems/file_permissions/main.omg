@@ -35,7 +35,7 @@ machine Main::main(&mut self) {
     state emit(&mut self) {
         self.console.write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.mode);
     }
 }

@@ -96,7 +96,7 @@ machine Main::main(&mut self) {
     state bad_balance(&mut self) {
         self.console.write_line("FAIL: wrong final balance (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -110,7 +110,7 @@ machine Main::main(&mut self) {
     state bad_deposits(&mut self) {
         self.console.write_line("FAIL: wrong deposit count (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
@@ -124,7 +124,7 @@ machine Main::main(&mut self) {
     state bad_withdrawals(&mut self) {
         self.console.write_line("FAIL: wrong withdrawal count (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
@@ -138,14 +138,14 @@ machine Main::main(&mut self) {
     state bad_count(&mut self) {
         self.console.write_line("FAIL: wrong event count (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: balance=70, deposits=3, withdrawals=2, events=5 (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

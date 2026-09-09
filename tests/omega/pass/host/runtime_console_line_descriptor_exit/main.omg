@@ -6,6 +6,6 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.console.read_line(&mut self.line);
+    _ = self.console.read_line(&mut self.line);
     self.console.exit_process(70);
 }

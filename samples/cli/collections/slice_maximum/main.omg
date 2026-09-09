@@ -37,6 +37,6 @@ machine Main::main(&mut self) {
     let m: i32 = self.finder.find_max(s, 0);
     self.console.write_line("result: the slice maximum, 9 for this data (the exit code)");
     self.console.write_line("[press Enter to close]");
-    self.console.read_line(&mut self.pause);
+    _ = self.console.read_line(&mut self.pause);
     self.console.exit_process(m);
 }

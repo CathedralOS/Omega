@@ -100,21 +100,21 @@ machine Main::main(&mut self) {
     state good(&mut self) {
         self.console.write_line("PASS: found 42 in exactly 7 guesses (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state not_found_error(&mut self) {
         self.console.write_line("FAIL: target never found (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_guesses(&mut self) {
         self.console.write_line("FAIL: wrong guess count (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 }

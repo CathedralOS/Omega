@@ -1,9 +1,5 @@
 use omega::language::std::console;
 
-domain [u8; 256]::Utf8
-requires
-    valid_utf8(self);
-
 data Command {
     case Look;
     case Quit;
@@ -18,8 +14,8 @@ data Navigation {
 data Parser {
 }
 
-machine Parser::resolve_navigation(&mut self, line: &[u8; 256] in Utf8) -> Navigation {
-    let choice: Command = self.resolve_command(line);
+machine Parser::resolve_navigation(&mut self, line: &[u8], count: u64) -> Navigation {
+    let choice: Command = self.resolve_command(line, count);
 
     transition {
         choice == Command::Invalid -> self.resolve_exit()
@@ -27,10 +23,10 @@ machine Parser::resolve_navigation(&mut self, line: &[u8; 256] in Utf8) -> Navig
     }
 }
 
-machine Parser::resolve_command(&mut self, line: &[u8; 256] in Utf8) -> Command {
+machine Parser::resolve_command(&mut self, line: &[u8], count: u64) -> Command {
     transition {
-        line == "look" -> Command::Look
-        line == "quit" -> Command::Quit
+        count <= line.len && line[0..count] == "look" -> Command::Look
+        count <= line.len && line[0..count] == "quit" -> Command::Quit
         _ -> Command::Invalid
     }
 }
@@ -47,7 +43,7 @@ machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navi
 
 data Main {
     console: Console;
-    line: [u8; 256] in Utf8;
+    line: [u8; 256];
     parser: Parser;
     navigation: Navigation;
     health: i32;
@@ -63,8 +59,49 @@ machine Main::main(&mut self) {
     
 
     state prompt(&mut self) {
-        self.console.read_line(&mut self.line);
-        self.navigation = self.parser.resolve_navigation(&self.line);
+        let observed: LineReadResult = self.console.read_line(&mut self.line);
+        transition observed {
+            LineReadResult::LineComplete { count } -> bounded_input(count, true)
+            LineReadResult::EndOfInput { count } -> bounded_input(count, false)
+            LineReadResult::Full { count } -> invalid()
+            LineReadResult::Invalid -> invalid()
+        }
+    }
+
+    // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.
+    state bounded_input(&mut self, count: u64, complete: bool) {
+        transition count <= self.line.len {
+            true -> normal_input(count, complete)
+            false -> invalid()
+        }
+    }
+    state normal_input(&mut self, count: u64, complete: bool) {
+        transition complete {
+            true -> completed_input(count)
+            false -> parsed_input(count)
+        }
+    }
+    state completed_input(&mut self, count: u64) {
+        transition count > 0 && count <= self.line.len {
+            true -> trim_carriage_return(count - 1)
+            false -> invalid()
+        }
+    }
+    state trim_carriage_return(&mut self, count: u64) {
+        transition count > 0 && count <= self.line.len {
+            true -> inspect_carriage_return(count, count - 1)
+            false -> parsed_input(count)
+        }
+    }
+    state inspect_carriage_return(&mut self, count: u64, byte_index: u64) {
+        transition byte_index < self.line.len && self.line[byte_index] == 13 {
+            true -> parsed_input(byte_index)
+            false -> parsed_input(count)
+        }
+    }
+
+    state parsed_input(&mut self, count: u64) {
+        self.navigation = self.parser.resolve_navigation(&self.line, count);
 
         transition self.navigation.choice {
             Command::Look -> look()

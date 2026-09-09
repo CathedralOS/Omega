@@ -132,7 +132,7 @@ machine Main::main(&mut self) {
 
     state finish(&mut self) {
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state not_found(&mut self) {

@@ -145,7 +145,7 @@ machine Main::main(&mut self) {
     state good(&mut self) {
         self.console.write_line("PASS: fire_count 2, alarm 7:00 inactive after the full sequence (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
@@ -155,28 +155,28 @@ machine Main::main(&mut self) {
         // unreachable) was live; that is fixed and the sample exits 70 via good().
         self.console.write_line("FAIL: fire_count*35 != 70 -- wrong fire_count (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_active(&mut self) {
         self.console.write_line("FAIL: alarm still active after Cancel (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
     state bad_hour(&mut self) {
         self.console.write_line("FAIL: alarm hour != 7 after second Set (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
     state bad_minute(&mut self) {
         self.console.write_line("FAIL: alarm minute != 0 after second Set (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 }

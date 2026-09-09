@@ -1,0 +1,79 @@
+// The raw destination stays fixed. Emit all storage (including the untouched
+// tail), the next unread byte, then expose the stop reason/count in the exit.
+use omega_language_std::console;
+
+data Main {
+    console: Console;
+    line: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    self.line[0] = 165;
+    self.line[1] = 165;
+    self.line[2] = 165;
+    self.line[3] = 165;
+    let empty: LineReadResult = self.console.read_line(&mut self.line[0..0]);
+    transition empty {
+        LineReadResult::Full { count } -> empty_result(count)
+        _ -> invalid()
+    }
+    state empty_result(&mut self, count: u64) {
+        transition count == 0 { true -> read() false -> invalid() }
+    }
+    state read(&mut self) {
+        let result: LineReadResult = self.console.read_line(&mut self.line);
+        transition result {
+            LineReadResult::LineComplete { count } -> report(10, count)
+            LineReadResult::EndOfInput { count } -> report(20, count)
+            LineReadResult::Full { count } -> report(30, count)
+            LineReadResult::Invalid -> invalid()
+        }
+    }
+    state report(&mut self, reason: i32, count: u64) {
+        self.console.write(&self.line);
+        let next: ByteRead = self.console.read_byte();
+        transition next {
+            ByteRead::Byte { value } -> suffix(reason, count, value)
+            ByteRead::Eof -> done(reason, count)
+        }
+    }
+    state suffix(&mut self, reason: i32, count: u64, value: i32 [0..=255]) {
+        self.console.write_byte(value);
+        transition { _ -> done(reason, count) }
+    }
+    state done(&mut self, reason: i32, count: u64) {
+        self.console.exit_process(reason + count as i32);
+    }
+    state invalid(&mut self) { self.console.exit_process(99); }
+}
+
+// Reuse a middle window: the second read resumes after Full and leaves the
+// previous suffix intact. The outer bytes are never part of either loan.
+machine Main::repeat(&mut self) {
+    self.line[0] = 165;
+    self.line[1] = 165;
+    self.line[2] = 165;
+    self.line[3] = 165;
+    let first: LineReadResult = self.console.read_line(&mut self.line[1..3]);
+    transition first {
+        LineReadResult::Full { count } -> first_count(count)
+        _ -> invalid()
+    }
+    state first_count(&mut self, count: u64) {
+        transition count == 2 { true -> again() false -> invalid() }
+    }
+    state again(&mut self) {
+        self.console.write(&self.line);
+        let second: LineReadResult = self.console.read_line(&mut self.line[1..3]);
+        transition second {
+            LineReadResult::LineComplete { count } -> completed(count)
+            _ -> invalid()
+        }
+    }
+    state completed(&mut self, count: u64) {
+        self.console.write(&self.line);
+        transition count == 1 { true -> done() false -> invalid() }
+    }
+    state done(&mut self) { self.console.exit_process(70); }
+    state invalid(&mut self) { self.console.exit_process(99); }
+}

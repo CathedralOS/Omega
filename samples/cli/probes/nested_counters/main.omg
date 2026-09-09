@@ -119,7 +119,7 @@ machine Main::main(&mut self) {
     state bad_value(&mut self) {
         self.console.write_line("FAIL: wrong nested value field (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
@@ -133,7 +133,7 @@ machine Main::main(&mut self) {
     state bad_bonus(&mut self) {
         self.console.write_line("FAIL: wrong nested bonus field (exit 72)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
@@ -147,7 +147,7 @@ machine Main::main(&mut self) {
     state bad_count(&mut self) {
         self.console.write_line("FAIL: wrong counter value (exit 73)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 
@@ -165,14 +165,14 @@ machine Main::main(&mut self) {
     state bad_result(&mut self) {
         self.console.write_line("FAIL: wrong combined result (exit 74)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(74);
     }
 
     state good(&mut self) {
         self.console.write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

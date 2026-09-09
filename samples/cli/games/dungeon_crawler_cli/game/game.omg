@@ -9,9 +9,9 @@ data Game {
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
-    input: [u8; 256] in Utf8;
+    input: [u8; 256];
     output: [u8; 128] in Utf8;
-    pause: [u8; 256] in Utf8;
+    pause: [u8; 256];
 }
 
 machine Game::initialize(
@@ -19,11 +19,9 @@ machine Game::initialize(
     seed: u64 in Wrapping
 )
 ensures
-    self.input in Utf8,
     self.output in Utf8
 {
     self.dungeon.initialize(seed);
-    self.input = "";
     self.output = "";
 }
 
@@ -65,37 +63,82 @@ machine Game::run_game_loop(&mut self) {
 
     state read_command(&mut self) {
         self.view.render_prompt(&mut self.console);
-        self.console.read_line(&mut self.input);
+        transition self.console.read_line(&mut self.input) {
+            LineReadResult::LineComplete { count } -> received_command(count)
+            LineReadResult::EndOfInput { count } -> received_command(count)
+            // Full and Invalid do not establish a completed command.
+            _ -> invalid_command()
+        }
+    }
+
+    state received_command(&mut self, count: u64) {
+        transition count <= 256 && count <= self.input.len {
+            true -> bounded_command(count)
+            false -> invalid_command()
+        }
+    }
+
+    state bounded_command(&mut self, count: u64 [0..=256]) {
+        transition count > 0 {
+            true -> inspect_line_end(count, count - 1)
+            false -> finished()
+        }
+    }
+
+    state inspect_line_end(&mut self, count: u64 [1..=256], last_index: u64 [0..=255]) {
+        transition self.input[last_index] == 10 {
+            true -> without_line_feed(last_index)
+            false -> dispatch_command(count)
+        }
+    }
+
+    state without_line_feed(&mut self, count: u64 [0..=255]) {
+        transition count > 0 {
+            true -> inspect_carriage_return(count, count - 1)
+            false -> finished()
+        }
+    }
+
+    state inspect_carriage_return(&mut self, count: u64 [1..=255], last_index: u64 [0..=254]) {
+        transition self.input[last_index] == 13 {
+            true -> dispatch_command(last_index)
+            false -> dispatch_command(count)
+        }
+    }
+
+    state dispatch_command(&mut self, count: u64 [0..=256]) {
+        // ASCII commands compare against only the written prefix.
+        let command: &[u8] = self.input[0..count];
 
         transition {
-            self.input == "" -> finished()
-            self.input == "quit" -> finished()
-            self.input == "exit" -> finished()
-            self.input == "look" -> look()
-            self.input == "info" -> look()
-            self.input == "paths" -> exits()
-            self.input == "help" -> exits()
-            self.input == "inventory" -> inventory()
-            self.input == "inv" -> inventory()
-            self.input == "char" -> character()
-            self.input == "character" -> character()
-            self.input == "stats" -> character()
-            self.input == "use" -> use_event()
-            self.input == "fight" -> fight()
-            self.dungeon.current_cell == CellId::R00 && self.input == "north" -> move_r01()
-            self.dungeon.current_cell == CellId::R01 && self.input == "south" -> move_r00()
-            self.dungeon.current_cell == CellId::R01 && self.input == "north" -> move_r02()
-            self.dungeon.current_cell == CellId::R01 && self.input == "east" -> move_r05()
-            self.dungeon.current_cell == CellId::R02 && self.input == "south" -> move_r01()
-            self.dungeon.current_cell == CellId::R02 && self.input == "north" -> move_r03()
-            self.dungeon.current_cell == CellId::R02 && self.input == "west" -> move_r06()
-            self.dungeon.current_cell == CellId::R03 && self.input == "south" -> move_r02()
-            self.dungeon.current_cell == CellId::R03 && self.input == "north" -> move_r04()
-            self.dungeon.current_cell == CellId::R03 && self.input == "east" -> move_r07()
-            self.dungeon.current_cell == CellId::R04 && self.input == "south" -> move_r03()
-            self.dungeon.current_cell == CellId::R05 && self.input == "west" -> move_r01()
-            self.dungeon.current_cell == CellId::R06 && self.input == "east" -> move_r02()
-            self.dungeon.current_cell == CellId::R07 && self.input == "west" -> move_r03()
+            command == "" -> finished()
+            command == "quit" -> finished()
+            command == "exit" -> finished()
+            command == "look" -> look()
+            command == "info" -> look()
+            command == "paths" -> exits()
+            command == "help" -> exits()
+            command == "inventory" -> inventory()
+            command == "inv" -> inventory()
+            command == "char" -> character()
+            command == "character" -> character()
+            command == "stats" -> character()
+            command == "use" -> use_event()
+            command == "fight" -> fight()
+            self.dungeon.current_cell == CellId::R00 && command == "north" -> move_r01()
+            self.dungeon.current_cell == CellId::R01 && command == "south" -> move_r00()
+            self.dungeon.current_cell == CellId::R01 && command == "north" -> move_r02()
+            self.dungeon.current_cell == CellId::R01 && command == "east" -> move_r05()
+            self.dungeon.current_cell == CellId::R02 && command == "south" -> move_r01()
+            self.dungeon.current_cell == CellId::R02 && command == "north" -> move_r03()
+            self.dungeon.current_cell == CellId::R02 && command == "west" -> move_r06()
+            self.dungeon.current_cell == CellId::R03 && command == "south" -> move_r02()
+            self.dungeon.current_cell == CellId::R03 && command == "north" -> move_r04()
+            self.dungeon.current_cell == CellId::R03 && command == "east" -> move_r07()
+            self.dungeon.current_cell == CellId::R04 && command == "south" -> move_r03()
+            self.dungeon.current_cell == CellId::R05 && command == "west" -> move_r01()
+            self.dungeon.current_cell == CellId::R06 && command == "east" -> move_r02()
+            self.dungeon.current_cell == CellId::R07 && command == "west" -> move_r03()
             _ -> invalid_command()
         }
     }
@@ -276,8 +319,7 @@ machine Game::run_game_loop(&mut self) {
     state finished(&mut self) {
         self.console.write_line("the crawl has ended -- goodbye (exit 0)");
         self.console.write_line("[press Enter to close]");
-        self.pause = "";
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

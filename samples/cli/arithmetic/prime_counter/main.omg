@@ -121,7 +121,7 @@ machine Main::main(&mut self) {
     state done(&mut self) {
         self.console.write_line("result: the prime count, 8 for the primes below 21 (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.count);
     }
 }

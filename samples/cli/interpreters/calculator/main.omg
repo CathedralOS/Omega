@@ -65,13 +65,13 @@ machine Main::main(&mut self) {
     state unknown(&mut self) {
         self.console.write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state emit(&mut self) {
         self.console.write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result as i32);
     }
 }

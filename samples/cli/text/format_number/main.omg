@@ -50,13 +50,13 @@ machine Main::main(&mut self) {
     state ok(&mut self) {
         self.console.write_line("PASS: buffer matches '25' (exit 70)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: formatted text mismatch (exit 71)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

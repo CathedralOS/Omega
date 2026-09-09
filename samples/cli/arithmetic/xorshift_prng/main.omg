@@ -43,7 +43,7 @@ machine Main::main(&mut self) {
     state emit(&mut self) {
         self.console.write_line("result: the draw's low byte, 99 for this seed (the exit code)");
         self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
+        _ = self.console.read_line(&mut self.pause);
         self.console.exit_process(self.output);
     }
 }

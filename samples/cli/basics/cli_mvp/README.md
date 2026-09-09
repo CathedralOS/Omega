@@ -1,6 +1,6 @@
 # CLI MVP: work from a should-be-working example
 
-The customer is this unchanged program: print two lines, read into `Main.pause`,
+The customer behavior is unchanged: print two lines, read into `Main.pause`,
 then exit 0. Success means a published native executable produces:
 
 ```text
@@ -74,14 +74,15 @@ The macOS release outer command reaches missing package acceptance. Remaining
 package latency, current measurements, and the next performance investigation
 belong to the owning task; Windows release timing has not been measured.
 
-On Windows, std contributes `FilesystemHost` authority and four external Console
-leaves: `read_line`, `read_byte`, `write_byte`, and `exit_process`. These are review
+On Windows, std contributes `FilesystemHost` authority and three external Console
+leaves: `read_byte`, `write_byte`, and `exit_process`. `read_line` is a checked
+library adapter over that same provider's `read_byte` leaf. These are review
 findings, not implicit grants. Do not supply blanket acceptance merely to advance
 the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
 The compiler-library sample test supplies test-owned acceptance and stops later
-at unsupported native provider leaves. Neither package acceptance nor that
+at the incomplete transitive checked Unit-call closure. Neither package acceptance nor that
 failing probe establishes native execution. Current commands, tested revisions,
 and the next implementation step remain on the execution board.
 
@@ -144,8 +145,7 @@ order, and caller continuation. Unguarded head reads and unchanged tails reject.
 The producer's [writer composition notes](../../../../omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
 describe support and acceptance; the [byte-view specification](../../../../wiki/spec/terminal-psi/byte_views.md)
 owns the portable view rules.
-Windows leaf settlement, receiver provisioning, and migrating `read_line` to a
-fixed mutable range with explicit line-result/count outcomes remain dependencies. These
+Windows leaf settlement and receiver provisioning remain dependencies. These
 are code-inspected gaps, not claims that this sample has reached each failure.
 
 `pause` belongs to the provisioned `Main` receiver; this program does not need a
@@ -154,8 +154,10 @@ beneath admitted storage and lend it to the selected machine. Hosted target slot
 currently lack the exact physical arrival/storage contract, and the existing
 receiver-free UEFI ProgramStorage wrapper cannot supply it. Follow
 `ENTRY-CONTENT-ROOTS` before adding receiver bytes or removing the native rejection.
-The raw-buffer migration also removes the current sample-local `Utf8`
-qualification; zeroed backing alone is not the completed line-input contract.
+`pause` is a raw fixed array, not UTF-8-qualified storage. The shared line reader
+fills its existing range and reports LF, EOF, or Full with the written count;
+this pause-only caller explicitly discards that result. Zeroed backing alone
+is not the completed native line-input contract.
 
 The [native byte-observation regressions](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 execute encoded, verified Terminal scalar functions against empty, nonempty,

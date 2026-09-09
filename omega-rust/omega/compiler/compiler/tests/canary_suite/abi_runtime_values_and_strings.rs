@@ -2024,16 +2024,12 @@ fn runtime_text_storage_carrier_canary_runs() {
         std::env::temp_dir().join(format!("omega-runtime-text-storage-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation =
-        compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, build_dir.clone())
-            .expect("carrier text storage canary should compile from its authored root");
-
-    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
-        .expect("carrier text storage backend report should exist");
-    assert!(
-        report.contains("-> carrier") && report.contains("cap 64"),
-        "carrier read must use the destination's 64-byte capacity, not the legacy String scratch capacity:\n{report}"
-    );
+    // Input now fills a fixed range; the caller selects the reported prefix.
+    // Exact output below rejects emitting the unused tail. Owner-replacement
+    // report markers are not evidence for this contract; raw bounds and untouched
+    // tails have separate selected_console_line_reader regressions.
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("fixed-range text input canary should compile from its authored root");
 
     let executable = compilation
         .checked_native_executable_path()
@@ -2162,10 +2158,9 @@ fn runtime_stdin_line_buffering_exit_canary_runs() {
 #[test]
 fn runtime_stdin_crlf_line_read_canary_runs() {
     // Windows terminals (and piped CRLF input) terminate each line with "\r\n".
-    // The line reader must treat that as ONE terminator: a '\r'-ended line must
-    // not leave the trailing '\n' to surface as a phantom empty line on the next
-    // read_line. Reuses the two-read echo sample; with the bug the second read
-    // returns "" and the output is "hello\n\n".
+    // The raw reader retains both bytes through LF. This echo caller explicitly
+    // strips LF and preceding CR before write_line; CR alone is not a delimiter.
+    // Reuses the two-read echo sample to reject a phantom second empty line.
     let canary = pass_canary(fixture_roster::RUNTIME_STDIN_LINE_BUFFERING_EXIT);
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-stdin-crlf-line-read-{}",

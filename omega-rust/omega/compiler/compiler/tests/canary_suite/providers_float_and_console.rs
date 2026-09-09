@@ -1,6 +1,8 @@
 use super::*;
 use native_realization as native;
 
+#[path = "providers_float_and_console/console_reader.rs"]
+mod console_reader;
 #[path = "providers_float_and_console/console_writer.rs"]
 mod console_writer;
 
@@ -1703,7 +1705,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     assert_eq!(console_plan.provider_type, "ConsoleNativeProvider");
     assert_eq!(console_plan.rows.len(), 6);
     assert!(console_plan.covers_schema());
-    for method in ["write", "write_line"] {
+    for method in ["write", "write_line", "read_line"] {
         let expected =
             checked_adapter_identity(&checked, &format!("ConsoleNativeProvider::{method}"));
         assert!(console_plan.rows.iter().any(|row| {
@@ -1715,7 +1717,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
                 )
         }));
     }
-    for method in ["read_line", "read_byte", "write_byte", "exit_process"] {
+    for method in ["read_byte", "write_byte", "exit_process"] {
         assert!(console_plan.rows.iter().any(|row| {
             row.method == method
                 && matches!(
@@ -2599,8 +2601,9 @@ fn runtime_console_byte_replay_cross_target_canary_compiles() {
 
 #[test]
 fn runtime_console_line_replay_cross_target_canary_compiles() {
-    // Exercise every retained line-read storage shape under the Linux syscall,
-    // Darwin direct-import, and Win64 two-import adapters.
+    // Required native acceptance for the shared checked reader over target byte
+    // leaves. This remains open at ordinary caller/entry closure and Windows
+    // byte-input support; cross-emission alone is not matching-host execution.
     for &canary_name in fixture_roster::CONSOLE_LINE_REPLAY_CANARIES {
         let canary = pass_canary(canary_name);
         for target in [
