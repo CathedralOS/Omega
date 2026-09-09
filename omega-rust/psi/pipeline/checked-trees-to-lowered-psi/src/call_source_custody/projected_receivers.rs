@@ -382,11 +382,16 @@ pub(crate) fn validate(
     operation: &CheckedUnitEffectOperationPlan,
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::CallUnit {
+    let (CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
         structural_arguments,
         ..
-    } = operation
+    }
+    | CheckedUnitEffectOperationPlan::StructuralCall {
+        coordinate,
+        structural_arguments,
+        ..
+    }) = operation
     else {
         return Ok(());
     };

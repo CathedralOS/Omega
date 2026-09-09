@@ -73,6 +73,7 @@ pub(crate) fn validate_usage(
                 == Some(producer.operation_index)
                 && matches!(&caller.operations[producer.operation_index],
                     CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate: call, .. }
+                    | CheckedUnitEffectOperationPlan::StructuralCall { coordinate: call, .. }
                         if call == coordinate && call.call_ordinal == 0);
             if immediately_discarded {
                 if consumed

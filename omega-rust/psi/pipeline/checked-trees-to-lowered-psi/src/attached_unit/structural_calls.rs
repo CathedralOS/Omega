@@ -10,6 +10,52 @@ mod shared_temporary;
 pub(super) use continuation::validate_cleanup;
 pub(super) use result_uses::{validate_consumer, validate_usage};
 
+/// Caller result use cannot change the callee's normal result contract. Both
+/// straight-line and graph callers rejoin the same complete body signature.
+pub(super) fn validate_body_result(
+    checked: &CheckedTrees,
+    operation: &CheckedUnitEffectOperationPlan,
+    expected: checked_trees::CheckedControlResultPlan,
+) -> Result<(), LoweringError> {
+    match operation {
+        CheckedUnitEffectOperationPlan::CallUnit { .. }
+            if expected == checked_trees::CheckedControlResultPlan::Unit =>
+        {
+            Ok(())
+        }
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            result,
+            target_machine,
+            target_contract_commitment,
+            ..
+        } => {
+            let checked_trees::CheckedControlResultPlan::Structural(signature) = expected else {
+                return unsupported("structural call has no matching body result");
+            };
+            let contract = checked
+                .facts
+                .contract_plans
+                .for_machine(*target_machine)
+                .ok_or(LoweringError::Unsupported(
+                    "structural call contract missing",
+                ))?;
+            if target_contract_commitment.is_zero()
+                || *target_contract_commitment != contract.commitment
+                || result.statement_index != coordinate.statement_index
+                || result.type_identity != signature.type_identity
+                || result.multiplicity != signature.multiplicity
+                || result.multiplicity != Multiplicity::Affine
+                || !signature.qualifications.is_empty()
+            {
+                return unsupported("structural call result or commitment disagrees with its body");
+            }
+            Ok(())
+        }
+        _ => unsupported("call cannot erase or invent a body result"),
+    }
+}
+
 fn target(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -119,49 +165,22 @@ pub(super) fn validate(
         crate::scalar_source_custody::authored_state(checked, caller.state)?;
     let authored =
         crate::call_source_custody::authored::locate_source(checked, caller.state, *coordinate)?;
-    let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = authored.source_site
-    else {
-        return unsupported("ordinary structural result has no authored expression");
-    };
     if *source_site != authored.source_site || source_machine.symbol != caller.machine {
         return unsupported("ordinary structural result disagrees with its authored expression");
     }
-    if coordinate.call_ordinal == 0 {
-        let Some(StatementNode::LocalData(local)) = checked
-            .statement_table
-            .statements(source_state.statement_nodes)
-            .get(result.statement_index as usize)
-        else {
-            return unsupported("ordinary structural result has no authored immutable local");
-        };
-        if local.initial_value != expression
-            || local.is_mutable
-            || !local.symbol.is_valid()
-            || checked
-                .typed
-                .normalized_type_identity(local.type_reference)
-                .into_string()
-                != result.type_identity
-        {
-            return unsupported(
-                "ordinary structural result disagrees with its authored initializer",
-            );
-        }
-    }
-    crate::call_source_custody::occurrences::validate(
+    crate::call_source_custody::initializers::validate_structural(
         checked,
         caller.machine,
         caller.state,
         *coordinate,
-        expression,
+        result,
     )?;
-    let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
-        return unsupported("ordinary structural result has no direct initializer call");
-    };
-    let authored_argument = checked
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(target.structural_parameter.position as usize)
+    let authored_argument = authored
+        .structural_arguments
+        .iter()
+        .find_map(|(position, expression)| {
+            (*position == target.structural_parameter.position).then_some(expression)
+        })
         .ok_or(LoweringError::Unsupported(
             "ordinary structural call lost its authored argument",
         ))?;

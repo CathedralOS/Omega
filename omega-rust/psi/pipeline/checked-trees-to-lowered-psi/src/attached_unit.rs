@@ -564,14 +564,28 @@ fn assemble_unit_closure(
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
                     structural_calls::validate_cleanup(checked, machine, operation_index)?;
                 }
+                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
+                    if plans.composed_for_machine(*target_machine).is_none() =>
+                {
+                    structural_calls::validate(checked, machine, operation)?;
+                }
                 CheckedUnitEffectOperationPlan::CallUnit {
                     target_machine,
                     target_state,
                     target_contract_report_fingerprint,
                     service_reach,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    target_machine,
+                    target_state,
+                    target_contract_report_fingerprint,
+                    service_reach,
+                    ..
                 } => {
-                    let target = UnitBody::find(plans, *target_machine)?.entry()?;
+                    let body = UnitBody::find(plans, *target_machine)?;
+                    structural_calls::validate_body_result(checked, operation, body.result())?;
+                    let target = body.entry()?;
                     if target.state != *target_state
                         || target.contract_report_fingerprint != *target_contract_report_fingerprint
                         || !checked_unit_target_reach_matches(
@@ -602,9 +616,6 @@ fn assemble_unit_closure(
                         target.structural_parameters,
                         target.entry_claims,
                     )?;
-                }
-                CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
-                    structural_calls::validate(checked, machine, operation)?;
                 }
                 CheckedUnitEffectOperationPlan::ScalarCall {
                     coordinate,
@@ -1446,6 +1457,10 @@ fn assemble_unit_closure(
                 | CheckedUnitEffectOperationPlan::CallUnit {
                     structural_arguments,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    structural_arguments,
+                    ..
                 } => literal_arguments.extend(
                     structural_arguments
                         .iter()
@@ -1840,15 +1855,47 @@ fn assemble_unit_closure(
                     affine_scalar_record_places.push(result_declaration);
                     continue;
                 }
+                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
+                    if plans.composed_for_machine(*target_machine).is_none() =>
+                {
+                    let result = structural_calls::emit(
+                        checked,
+                        plan,
+                        operation,
+                        parameters,
+                        evaluated_scalar_arguments.as_deref(),
+                        &structural_types,
+                        &type_ids,
+                        &machine_ids,
+                        &structural_result_places,
+                        &mut next_place,
+                        &mut operations,
+                    )?;
+                    structural_result_places.push(result);
+                    continue;
+                }
                 CheckedUnitEffectOperationPlan::CallUnit {
                     coordinate,
                     target_machine,
                     target_state,
                     scalar_arguments,
                     structural_arguments,
-                    claim_transfers,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate,
+                    target_machine,
+                    target_state,
+                    scalar_arguments,
+                    structural_arguments,
                     ..
                 } => {
+                    let claim_transfers = match operation {
+                        CheckedUnitEffectOperationPlan::CallUnit {
+                            claim_transfers, ..
+                        } => claim_transfers.as_slice(),
+                        _ => &[],
+                    };
                     let target = UnitBody::find(plans, *target_machine)?.entry()?;
                     if scalar_arguments.len() != target.scalar_parameters.len() {
                         return unsupported(
@@ -2014,6 +2061,58 @@ fn assemble_unit_closure(
                             Ok(obligation)
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
+                    if let CheckedUnitEffectOperationPlan::StructuralCall {
+                        source_site,
+                        result,
+                        discard_result_on_return,
+                        ..
+                    } = operation
+                    {
+                        let id = operations.allocate();
+                        let place = place_id(allocate_dense(&mut next_place)?);
+                        let structural_type = lookup_type_id(&type_ids, &result.type_identity)?;
+                        operations.record_source_call(
+                            SourceCallCoordinate {
+                                state: plan.state,
+                                statement_index: coordinate.statement_index as usize,
+                                call_ordinal: coordinate.call_ordinal as usize,
+                            },
+                            *source_site,
+                            id,
+                            *target_state,
+                        )?;
+                        operations.push(Operation {
+                            id,
+                            result: OperationResult::Structural(StructuralOperationResult {
+                                place,
+                                structural_type,
+                                multiplicity: StructuralMultiplicity::Affine,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                claims: Vec::new(),
+                            }),
+                            kind: OperationKind::CallStructuralWithScalarArguments {
+                                callee: lookup_machine_id(&machine_ids, *target_machine)?,
+                                arguments: terminal_scalar_arguments,
+                                structural_arguments: terminal_arguments,
+                                claim_transfers: Vec::new(),
+                                returned_claim_transfers: Vec::new(),
+                                requirement_obligations,
+                                crash_continuations,
+                            },
+                        });
+                        structural_result_places.push((
+                            StructuralPlaceDeclaration {
+                                id: place,
+                                kind: StructuralPlaceKind::OperationResult {
+                                    producer: id,
+                                    structural_type,
+                                },
+                            },
+                            *discard_result_on_return,
+                        ));
+                        continue;
+                    }
                     OperationKind::CallUnit {
                         callee: lookup_machine_id(&machine_ids, *target_machine)?,
                         arguments: terminal_scalar_arguments,
@@ -2419,23 +2518,6 @@ fn assemble_unit_closure(
                         },
                     });
                     scalar_result_values.push(value);
-                    continue;
-                }
-                CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
-                    let result = structural_calls::emit(
-                        checked,
-                        plan,
-                        operation,
-                        parameters,
-                        evaluated_scalar_arguments.as_deref(),
-                        &structural_types,
-                        &type_ids,
-                        &machine_ids,
-                        &structural_result_places,
-                        &mut next_place,
-                        &mut operations,
-                    )?;
-                    structural_result_places.push(result);
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {

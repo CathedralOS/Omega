@@ -463,13 +463,19 @@ structural binding ordinals remain separate from statement coordinates and
 private argument slots. Source correspondence must reject replacement by a
 different same-typed live result even if Terminal ownership alone permits it.
 
-An explicitly discarded plain-owned structural boundary result retains its real
-result place and exact source call. It does not acquire a synthetic local or a
-Unit signature. Affine disposal belongs to the immediate normal continuation,
+An explicitly discarded plain-owned structural result from a boundary or ordinary
+call retains its real result place and exact source call. It does not acquire a
+synthetic local or a Unit signature. Affine disposal belongs to the immediate normal continuation,
 before the next statement; source replay independently requires that edge even
 if a rewritten plan instead claims return-time disposal. Named results and
-nested argument temporaries retain their existing custody routes. This source
-support does not extend provider-candidate admission beyond its separately
+nested argument temporaries retain their existing custody routes. Result-producing
+graph calls use the ordinary call-input and requirement/crash handling, including
+literal byte views and projected mutable fixed buffers. Receiver retention joins
+ordinary and graph callers before closure pruning, independently of result category;
+the receiver remains a loan of the caller's original storage. A graph caller uses
+the same projected transfer validation as a straight-line caller, not a whole-root
+type comparison or a caller-state-count restriction. This source support does
+not extend provider-candidate admission beyond its separately
 implemented body families.
 
 Checked provider discovery reuses the ordinary/composed call closure, including

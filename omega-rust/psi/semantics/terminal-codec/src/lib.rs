@@ -1507,7 +1507,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
-                StructuralArgumentPresentation::MutableUnitView,
+                StructuralArgumentPresentation::Ordinary,
             )?;
             validate_claim_indices(
                 machine,
@@ -2124,7 +2124,6 @@ fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
 #[derive(Clone, Copy)]
 enum StructuralArgumentPresentation {
     Ordinary,
-    MutableUnitView,
     Boundary,
 }
 
@@ -2139,27 +2138,27 @@ fn validate_structural_arguments(
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };
-        if matches!(
-            presentation,
-            StructuralArgumentPresentation::MutableUnitView
-        ) && machine.structural_parameters.iter().any(|actual| {
-            terminal_semantics::mutable_fixed_byte_array_extent(module, actual, argument, expected)
+        if matches!(presentation, StructuralArgumentPresentation::Ordinary)
+            && machine.structural_parameters.iter().any(|actual| {
+                terminal_semantics::mutable_fixed_byte_array_extent(
+                    module, actual, argument, expected,
+                )
                 .is_some()
-                && !machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == argument.place)
-                && !machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == argument.place)
-        }) {
+                    && !machine
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == argument.place)
+                    && !machine
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == argument.place)
+            })
+        {
             continue;
         }
         let inline_byte_view = match presentation {
-            StructuralArgumentPresentation::Ordinary => false,
             StructuralArgumentPresentation::Boundary => true,
-            StructuralArgumentPresentation::MutableUnitView => {
+            StructuralArgumentPresentation::Ordinary => {
                 expected.multiplicity == StructuralMultiplicity::Unrestricted
                     && !argument.path.is_empty()
                     && argument

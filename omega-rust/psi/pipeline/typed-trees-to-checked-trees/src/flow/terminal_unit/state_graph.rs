@@ -169,7 +169,6 @@ pub(super) fn build(
                     && structural_arguments.iter().all(|argument| {
                         whole_shared_argument(argument)
                             || (argument.source_parameter_index().is_some()
-                                && argument.path.is_empty()
                                 && argument.access == CheckedStructuralAccess::MutableBorrow)
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)

@@ -161,6 +161,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
                 if !matches!(operation_index.checked_sub(1).and_then(|previous| machine.operations.get(previous)),
                     Some(CheckedUnitEffectOperationPlan::CallUnit { coordinate: call, .. }
+                        | CheckedUnitEffectOperationPlan::StructuralCall { coordinate: call, .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate: call, .. }) if call == coordinate)
                 {
                     return unsupported("call cleanup has no immediately preceding completed call");
