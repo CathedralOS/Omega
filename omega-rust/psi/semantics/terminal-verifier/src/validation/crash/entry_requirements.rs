@@ -10,6 +10,7 @@ use semantic_vocabulary::{Proposition, PropositionContext, StructuralPlaceKind};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard, TerminalMachine};
 
 mod integer_order;
+mod order_chain;
 
 const MAXIMUM_SEARCH_STEPS: usize = 4096;
 const MAXIMUM_PROOF_DEPTH: usize = 64;
@@ -137,6 +138,9 @@ fn prove(
                 return Some(proof);
             }
         }
+    }
+    if let Some(proof) = order_chain::prove(goal, requirements, semantic_axioms, remaining, depth) {
+        return Some(proof);
     }
     let rule = match goal {
         Proposition::Truth => ProofRule::Primitive(PrimitiveJudgment::Truth),

@@ -64,6 +64,8 @@ const PROOF_ADMISSION_JUDGMENT_SOURCE: &[u8] =
 const PROOF_ADMISSION_PROOF_SOURCE: &[u8] = include_bytes!("../../proof-admission/src/proof.rs");
 const PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/proof/order_discreteness.rs");
+const PROOF_ADMISSION_STRICT_ORDER_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/proof/strict_order_transitivity.rs");
 const PROOF_ADMISSION_TRAVERSAL_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/proof/traversal.rs");
 const PROOF_ADMISSION_INTEGER_AFFINE_SOURCE: &[u8] =
@@ -90,6 +92,8 @@ const PREDICATE_DENOTATION_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/predicate_denotation.rs");
 const PREDICATE_DENOTATION_BUDGET_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/predicate_denotation/budget.rs");
+const PREDICATE_VALUE_EQUALITIES_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/predicate_denotation/value_equalities.rs");
 const TERMINAL_PROOF_BEARING_SCALAR_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/proof_bearing_scalar.rs");
 const TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE: &[u8] =
@@ -524,7 +528,7 @@ mod tests {
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-admission")
             .expect("current Rust proof admission checker");
-        assert_eq!(rust_admission.version(), "rust-proof-admission-v12");
+        assert_eq!(rust_admission.version(), "rust-proof-admission-v13");
         assert!(
             rust_admission
                 .dependencies()

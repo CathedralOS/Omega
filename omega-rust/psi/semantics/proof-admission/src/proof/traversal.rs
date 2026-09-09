@@ -162,6 +162,13 @@ fn schedule_children<'proof>(
             pending.push(Action::Enter(middle_less_or_equal_right));
             pending.push(Action::Enter(left_less_or_equal_middle));
         }
+        ProofRule::IntegerStrictOrderTransitivity {
+            left_to_middle,
+            middle_to_right,
+        } => {
+            pending.push(Action::Enter(middle_to_right));
+            pending.push(Action::Enter(left_to_middle));
+        }
         ProofRule::IntegerOrderSubstitution {
             relation, equality, ..
         } => {

@@ -30,7 +30,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 30;
+pub(crate) const FORMAT_MARKER: u16 = 31;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -399,6 +399,14 @@ fn encode_proof_node(
                             child_depth,
                         ));
                     }
+                    ProofRule::IntegerStrictOrderTransitivity {
+                        left_to_middle,
+                        middle_to_right,
+                    } => {
+                        writer.u8(21);
+                        pending.push(ProofEncodingAction::Node(middle_to_right, child_depth));
+                        pending.push(ProofEncodingAction::Node(left_to_middle, child_depth));
+                    }
                     ProofRule::IntegerOrderSubstitution {
                         relation, equality, ..
                     } => {
@@ -476,7 +484,8 @@ fn encode_proof_rule_suffix(
         | ProofRule::IntegerOrderWeakening { .. }
         | ProofRule::IntegerOrderDiscreteness { .. }
         | ProofRule::IntegerSubtractOrder { .. }
-        | ProofRule::IntegerLessOrEqualTransitivity { .. } => {}
+        | ProofRule::IntegerLessOrEqualTransitivity { .. }
+        | ProofRule::IntegerStrictOrderTransitivity { .. } => {}
         ProofRule::IntegerOrderSubstitution { endpoint, .. } => {
             writer.index("integer order substitution endpoint", *endpoint)?;
         }
@@ -1364,7 +1373,7 @@ fn decode_proof_node(
             1..=3 | 14 => 0,
             4 => reader.count()?,
             5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 => 1,
-            7 | 8 | 10 | 11 | 15 | 20 => 2,
+            7 | 8 | 10 | 11 | 15 | 20 | 21 => 2,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
         };
         let node = PendingProofNode {
@@ -1477,6 +1486,10 @@ fn decode_proof_rule(
         10 => ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle: Box::new(children.next().expect("decoded first order")),
             middle_less_or_equal_right: Box::new(children.next().expect("decoded second order")),
+        },
+        21 => ProofRule::IntegerStrictOrderTransitivity {
+            left_to_middle: Box::new(children.next().ok_or(ProofCodecError::UnexpectedEnd)?),
+            middle_to_right: Box::new(children.next().ok_or(ProofCodecError::UnexpectedEnd)?),
         },
         11 => ProofRule::IntegerOrderSubstitution {
             relation: Box::new(children.next().expect("decoded relation")),

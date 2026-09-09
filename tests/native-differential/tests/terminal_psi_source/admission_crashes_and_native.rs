@@ -517,6 +517,13 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
     };
     for (left, middle, right, expected, expected_units) in [
         (
+            1,
+            1,
+            3,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(signed(0))),
+            4,
+        ),
+        (
             5,
             3,
             10,
@@ -531,6 +538,7 @@ fn explicit_source_crash_lowers_to_verified_nonreturning_terminal() {
             6,
         ),
         (1, 2, 3, expected_crash(&transitive_semantic_module), 5),
+        (1, 2, 2, expected_crash(&transitive_semantic_module), 5),
     ] {
         let mut execution = start_verified_artifact(
             &transitive_verified,

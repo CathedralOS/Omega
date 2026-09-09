@@ -35,6 +35,7 @@ pub enum AcceptedProofRule {
     IntegerOrderDiscreteness,
     IntegerSubtractOrder,
     IntegerLessOrEqualTransitivity,
+    IntegerStrictOrderTransitivity,
     IntegerOrderSubstitution,
     IntegerAffineBound,
     IntegerExactAddDefinitionBound,
@@ -190,6 +191,7 @@ pub fn accept_certificate_with_machine_parameters(
 }
 
 mod order_discreteness;
+mod strict_order_transitivity;
 mod subtract_order;
 mod traversal;
 use traversal::check_node;
@@ -513,6 +515,19 @@ fn check_node_locally(
                 }
                 _ => Err(ProofError::RulePremiseMismatch("integer <= transitivity")),
             }
+        }
+        ProofRule::IntegerStrictOrderTransitivity {
+            left_to_middle,
+            middle_to_right,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerStrictOrderTransitivity);
+            strict_order_transitivity::check(
+                &left_to_middle.conclusion,
+                &middle_to_right.conclusion,
+                &proof.conclusion,
+            )
         }
         ProofRule::IntegerOrderSubstitution {
             relation,

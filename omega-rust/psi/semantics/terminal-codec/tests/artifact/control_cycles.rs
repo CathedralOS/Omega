@@ -53,7 +53,7 @@ fn control_cycle_certificates_round_trip_after_proof_recursion_with_exact_identi
         ..ProofBundle::default()
     };
     let bytes = encode_proof_bundle(&bundle).unwrap();
-    assert_eq!(&bytes[8..10], &30_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &31_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
     let identity = proof_bundle_fingerprint(&bundle).unwrap();
     for changed in [

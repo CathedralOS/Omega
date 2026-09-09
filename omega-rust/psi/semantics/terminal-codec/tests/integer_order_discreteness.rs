@@ -51,7 +51,7 @@ fn order_discreteness_roundtrips_exact_child_and_replays_acceptance_trace() {
             },
         });
         let bytes = encode_proof_bundle(&original).unwrap();
-        assert_eq!(&bytes[8..10], &30_u16.to_le_bytes());
+        assert_eq!(&bytes[8..10], &31_u16.to_le_bytes());
         let positions = bytes
             .iter()
             .enumerate()
@@ -89,10 +89,10 @@ fn order_discreteness_roundtrips_exact_child_and_replays_acceptance_trace() {
             );
         }
         let mut unknown = bytes.clone();
-        unknown[*tag] = 21;
+        unknown[*tag] = 22;
         assert_eq!(
             decode_proof_bundle(&unknown),
-            Err(ProofCodecError::InvalidTag("ProofRule", 21))
+            Err(ProofCodecError::InvalidTag("ProofRule", 22))
         );
         let mut changed_rule = bytes.clone();
         changed_rule[*tag] = 18;

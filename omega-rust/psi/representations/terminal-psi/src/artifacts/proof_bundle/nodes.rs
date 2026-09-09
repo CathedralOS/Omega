@@ -75,6 +75,11 @@ pub enum ProofRule {
         left_less_or_equal_middle: Box<ProofNode>,
         middle_less_or_equal_right: Box<ProofNode>,
     },
+    /// Compose two integer orders with an exact middle and at least one strict edge.
+    IntegerStrictOrderTransitivity {
+        left_to_middle: Box<ProofNode>,
+        middle_to_right: Box<ProofNode>,
+    },
     /// Substitute one exactly equal endpoint while preserving strict or nonstrict order.
     IntegerOrderSubstitution {
         relation: Box<ProofNode>,
