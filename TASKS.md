@@ -129,9 +129,6 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   Owners: `compiler/src/pipeline/checked_entry.rs` and native realization's
   `realization/providers/settlements/source_imports.rs` under
   `omega-rust/omega/compiler/`.
-  The same source target has unused fixture inputs in
-  `comparisons_bitwise_and_casts.rs` and `control_graphs.rs`; restore their intended
-  assertions or remove genuinely obsolete setup, not blanket lint suppression.
   Acceptance: both test targets and their scoped Clippy pass without filtering
   failures; this does not replace the completion plan's hosted native matrix.
 

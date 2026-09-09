@@ -1328,44 +1328,33 @@ fn source_closed_integer_chain_matches_target_lowering() {
         .expect("closed integer state chain should select for the host");
 }
 
-#[cfg(unix)]
 #[test]
-fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
+fn source_runtime_arithmetic_retains_target_parameter_abi_and_provenance() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi runtime arithmetic source canary should compile");
     let lowered = [
-        (
-            "terminal_runtime_wrapping_add",
-            100_u8,
-            2_u8,
-            200_u8,
-            44_i32,
-            1_usize,
-        ),
-        ("terminal_runtime_nested_wrapping", 100, 3, 200, 132, 2),
-        ("terminal_runtime_jump_wrapping", 5, 2, 40, 135, 3),
-        ("terminal_runtime_chain_wrapping", 5, 2, 40, 134, 5),
-        ("terminal_runtime_multi_binding", 5, 2, 40, 137, 7),
+        ("terminal_runtime_wrapping_add", 1_usize),
+        ("terminal_runtime_nested_wrapping", 2),
+        ("terminal_runtime_jump_wrapping", 3),
+        ("terminal_runtime_chain_wrapping", 5),
+        ("terminal_runtime_multi_binding", 7),
     ]
     .into_iter()
-    .map(
-        |(machine, first, second, ninth, expected, operation_count)| {
-            (
-                machine,
-                first,
-                second,
-                ninth,
-                expected,
-                operation_count,
-                lower_machine(&checked, machine)
-                    .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
-            )
-        },
-    )
+    .map(|(machine, operation_count)| {
+        (
+            machine,
+            operation_count,
+            lower_machine(&checked, machine)
+                .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
+        )
+    })
     .collect::<Vec<_>>();
     drop(checked);
 
-    for (machine, first, second, ninth, expected, operation_count, lowered) in lowered {
+    // runtime_policy_and_narrowing::checked_source_runtime_integer_policy_operations_survive_frontend_drop
+    // owns exact inputs, results, and fuel. This test owns target ABI and
+    // source custody; successful lowering alone does not establish execution.
+    for (machine, operation_count, lowered) in lowered {
         let verified = verify_module(
             &lowered.semantic_module,
             &lowered.proof_bundle,
@@ -1374,8 +1363,42 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
         .unwrap_or_else(|error| panic!("{machine} terminal Psi should verify: {error:?}"));
         let abstract_operations = lower_verified_artifact(&verified)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
-        let _target_operations =
-            lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .unwrap_or_else(|error| {
+                    panic!("{machine} should select for {target:?}: {error:?}")
+                });
+            let [function] = target_operations.functions.as_slice() else {
+                panic!("{machine} must retain one target function");
+            };
+            assert_eq!(
+                function.provenance.operations.len(),
+                operation_count,
+                "{machine}"
+            );
+            let abi = function.scalar_abi.as_ref().expect("source scalar ABI");
+            assert_eq!(abi.parameters.len(), 9);
+            for (parameter, source) in abi
+                .parameters
+                .iter()
+                .zip(&abstract_operations.functions[0].parameters)
+            {
+                assert_eq!(parameter.value, source.value);
+                assert_eq!(parameter.scalar_type, source.scalar_type);
+            }
+            assert!(matches!(
+                abi.parameters[0].placement.locations.as_slice(),
+                [calling_conventions::ValueLocation::Register { .. }]
+            ));
+            assert!(matches!(
+                abi.parameters[8].placement.locations.as_slice(),
+                [calling_conventions::ValueLocation::Stack { .. }]
+            ));
+        }
     }
 }

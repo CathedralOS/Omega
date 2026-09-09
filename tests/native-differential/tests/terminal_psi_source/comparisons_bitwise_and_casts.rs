@@ -729,15 +729,19 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
         &AdmissionProfile::default(),
     )
     .expect("wrapping-cast artifact should cross the Omega boundary");
-    let _erasure_abstract = lower_artifact_sections(
+    let erasure_abstract = lower_artifact_sections(
         &erasure_semantic,
         &erasure_proof,
         &AdmissionProfile::default(),
     )
     .expect("policy-erasure artifact should cross the Omega boundary");
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::host(),
+    ] {
         let wrapping_target = lower_to_target_operations(&wrapping_abstract, target)
-            .expect("wrapping-cast expression should select on both native targets");
+            .expect("wrapping-cast expression should select for the native target");
         assert!(matches!(
             &wrapping_target.functions[0].operation,
             TargetOperation::ReturnIntegerExpression {
@@ -745,12 +749,15 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
                 ..
             }
         ));
-    }
-
-    #[cfg(unix)]
-    {
-        let wrapping_target = lower_to_target_operations(&wrapping_abstract, NativeTarget::host())
-            .expect("host wrapping-cast selection");
+        let erasure_target = lower_to_target_operations(&erasure_abstract, target)
+            .expect("policy erasure preserves the original runtime parameter");
+        assert!(matches!(
+            erasure_target.functions[0].operation,
+            TargetOperation::ReturnIntegerParameter {
+                parameter_index: 0,
+                ..
+            }
+        ));
     }
 }
 
@@ -1433,7 +1440,6 @@ fn checked_source_short_circuit_operands_preserve_terminal_equality() {
     ));
 }
 
-#[cfg(unix)]
 #[test]
 fn source_booleans_reach_constant_and_stack_parameter_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
@@ -1463,9 +1469,33 @@ fn source_booleans_reach_constant_and_stack_parameter_target_control() {
         .unwrap_or_else(|error| panic!("{machine} should verify: {error:?}"));
         let abstract_operations = lower_verified_artifact(&verified)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
-        let _target_operations =
+        let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
+        let [function] = target_operations.functions.as_slice() else {
+            panic!("{machine} must retain one target function");
+        };
+        assert_eq!(
+            function.provenance.operations.len(),
+            usize::from(has_operation)
+        );
+        // A constant produces a value; a parameter return reads the ninth
+        // incoming argument without inventing a semantic operation.
+        if has_operation {
+            assert!(matches!(
+                function.operation,
+                TargetOperation::ReturnBooleanImmediate { value: true, .. }
+            ));
+        } else {
+            assert!(matches!(
+                function.operation,
+                TargetOperation::ReturnBooleanParameter {
+                    parameter_index: 8,
+                    location: target_operations::ScalarParameterLocation::IncomingStack { .. },
+                    ..
+                }
+            ));
+        }
     }
 }
 
