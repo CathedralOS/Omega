@@ -5,10 +5,9 @@ inputs, state, and authority, it produces an observable trace and may reach a te
 A productive machine may run forever; a function returning a value is a special
 case, not the definition.
 
-Declarations may be named or [anonymous](anonymous_machines.md). An anonymous
-body has generated declaration identity and an ordinary captured environment;
-its calls, states, proof/evaluation eligibility, and obligations use this same
-machine contract rather than a separate callable species.
+Machines use named declarations. Static callbacks select those declarations
+and pass ordinary explicit context data. Anonymous machine expressions and implicit
+capture-environment construction are not part of the source language.
 
 Runtime calls, [semantic evaluation](evaluation.md),
 [proof citation](../proofs/contracts.md), task activation, trait satisfaction,

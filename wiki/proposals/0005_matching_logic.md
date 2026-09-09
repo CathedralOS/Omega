@@ -1,4 +1,4 @@
-# Matching-logic proof interchange experiment
+# 0005: Matching-logic proof interchange experiment
 
 Status: open research; no new calculus, kernel replacement, or implementation
 experiment is approved by this proposal. Affected subjects:

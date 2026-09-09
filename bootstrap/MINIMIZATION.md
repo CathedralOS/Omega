@@ -89,7 +89,7 @@ Apply the [repository scope checkpoints](../AGENTS.md#scope-checkpoints) before
 expanding support machinery. A paused strategy does not block independent
 bootstrap work, authorize abandoning proof obligations, or permit a replacement
 rung. Unapproved alternatives belong in
-[the comparison proposal](../wiki/proposals/bootstrap_chain_alternatives.md),
+[the comparison proposal](../wiki/proposals/0002_bootstrap_chain_alternatives.md),
 not beside the selected chain as another authority.
 
 ## Owner escalation

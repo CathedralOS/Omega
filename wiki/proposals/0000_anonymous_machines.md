@@ -1,11 +1,61 @@
-# Anonymous machines and captured environments
+# 0000: Anonymous machines and captured environments
 
-An anonymous machine is an ordinary checked machine body associated with an
-ordinary environment value. The body is statically selected; the environment
-holds its captures. Invocation follows [machine contracts](machines.md), not a
-separate closure, async, or proof execution model. These source rules do not
-claim that compiler implementation is complete; execution work is in
-[TASKS.md](../../../TASKS.md#anonymous-machines).
+Status: proposed; no anonymous-machine or lambda form is accepted. This includes
+capture-free expressions, capture lists, inferred environment receivers, generic
+literals, custom clauses, and state-bearing anonymous bodies. The body below is
+a candidate design, not current language rules or an implementation mandate.
+
+## Context and motivation
+
+Named machines, ordinary data, and explicit static callback selection already
+express the proposed behavior. Anonymous syntax would save environment naming,
+construction, and body association at a use site. It adds ergonomics, not a new
+execution model, proof capability, or source of authority. That convenience must
+justify parser, elaboration, diagnostic, and maintenance costs.
+
+The simple forms have a worked-out candidate shape; that does not constitute
+acceptance. Reflection uses named callbacks and explicit contexts independently
+of this proposal. No compiler implementation is claimed.
+
+## Scope and alternatives
+
+The minimum candidate is a capture-free typed body or an explicit capture record
+associated with a statically selected body. Compare it with the equivalent named
+machine and ordinary environment before extending it.
+
+Three viable choices remain: no anonymous surface; a restricted simple-lambda
+surface; or the full ordinary-machine surface below. The full form admits generic
+constraints, authored contracts, states, and ranking evidence, but risks bringing
+contract annotation back inside a machine. These are alternatives to decide,
+not successive promised implementation phases.
+
+Private-body effect inference is already an ordinary facility. It is not ambient
+inheritance from a future caller. Reach/suspension/blocking are permissions;
+termination and postconditions are guarantees which still require proof. A
+contextual ceiling cannot establish a guarantee by inheritance. Callback-dependent
+consumer contracts are not necessary to accept fixed-contract lambdas.
+
+## Open questions and acceptance bar
+
+[Callback contract forwarding](../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding)
+remains an independent owner question for named generic consumers as well. No
+effect projection, conditional call marker, or wholesale contract forwarding is
+accepted by this proposal. The choice among no surface, simple forms, and full
+anonymous contracts is tracked in
+[anonymous-machine scope](../../OWNER_QUESTIONS.md#q3--anonymous-machine-scope-and-contracts).
+
+Before acceptance, show a named-machine/environment baseline beside each proposed
+form and price the actual boilerplate saved. Test capture-free invocation,
+captured copies and loans, shared/exclusive/consuming access, and named callback
+equivalence under one existing fixed requirement. Cover zero invocations of
+linear captures, second-call rejection, ordered initializer failure and cleanup,
+and trap abandonment without invented rollback. Repeated invocation must use
+ordinary fresh reborrows; generic and heterogeneous cases must not require a new
+contract system solely to support this syntax. Complex forms need a separate
+argument beyond being possible to parse.
+
+No implementation board item is authorized until an owner accepts a defined
+scope. The remaining sections preserve the candidate details for that review.
 
 ## Source form
 
@@ -39,7 +89,7 @@ where Value == u32 || Value == f32;
 ```
 
 The output operations above are assumed declared library operations. Static
-type branches follow [generic equality](generics.md#static-type-equality).
+type branches follow [generic equality](../spec/language/generics.md#static-type-equality).
 Bodies may contain ordinary states, transitions, contracts, and ranking
 evidence. Captures remain the environment; state parameters carry values along
 transitions. A body is not restricted to a single expression. Returning or
@@ -57,7 +107,7 @@ without type-directed selection or repeatedly reparsing unbounded prefixes.
 Each capture introduces a field whose type follows ordinary binding inference.
 Its initializer is an expression in the construction scope, evaluated exactly
 once in authored order. Copy, move, shared borrow, exclusive borrow, and
-disjoint-subplace capture use ordinary [ownership](ownership.md). Construction
+disjoint-subplace capture use ordinary [ownership](../spec/language/ownership.md). Construction
 does not invoke the body. A copied integer snapshots its value; a reference
 retains its referent and lifetime, not a snapshot of its contents.
 
@@ -84,7 +134,7 @@ its initializer resolves self in the outer scope. Bare capture bindings and
 explicit environment-field access denote the same captured fields. Neither
 route bypasses field access or borrowing checks.
 
-An erased capture uses ordinary [binding relevance](../proofs/contracts.md#explicit-erased-bindings):
+An erased capture uses ordinary [binding relevance](../spec/proofs/contracts.md#explicit-erased-bindings):
 `[buffer = &buffer, evidence [erased] = evidence](...) { ... }`.
 The ellipses stand for ordinary parameters and body. Evidence retains exact
 subjects, validity, multiplicity, and provenance, but no runtime field, address,
@@ -93,7 +143,7 @@ determine runtime data/control. Erasure does not discharge linear debt.
 
 Recoverable failure during construction accounts for already acquired values
 and loans through ordinary result, transfer, and cleanup rules. Unexecuted
-initializers acquire nothing. A trap instead follows [crash rules](effects.md#guarded-crashes)
+initializers acquire nothing. A trap instead follows [crash rules](../spec/language/effects.md#guarded-crashes)
 and the relevant execution-domain/survivor contract. Neither path invents
 rollback; a trap does not promise recoverable cleanup.
 
@@ -171,7 +221,7 @@ context follows the same checking. Conflicting or undetermined selections need
 explicit arguments, not a best-match search.
 
 An inline structural callable contract remains available for a one-off use.
-It uses the same [refinement judgment](machines.md#substitution), not a second
+It uses the same [refinement judgment](../spec/language/machines.md#substitution), not a second
 callable system. Named requirements retain their nominal identities even when
 their signatures coincide. Neither a new function-typedef category nor a
 reflective test that something is a machine replaces its callable contract.
@@ -189,7 +239,7 @@ captured environment. Matching must establish validity for every admissible
 fresh invocation choice. It cannot choose one long lifetime spanning the
 consumer and call that repeated-call compatibility. This rule applies equally
 to named and anonymous static machine arguments; see
-[generic requirement matching](generics.md#invocation-lifetime-families).
+[generic requirement matching](../spec/language/generics.md#invocation-lifetime-families).
 
 A sequential walker proves its index/projection valid, reborrows its context,
 borrows the current item, invokes the callback, releases those invocation
@@ -202,7 +252,7 @@ Rejection needs ordinary loan checking, not general authored outlives bounds.
 Permitting retention instead needs an expressible, checked lifetime relationship
 and compatibility with later traversal. General outlives syntax is not implied.
 
-Heterogeneous [reflection](reflection.md) additionally requires independently
+Heterogeneous [reflection](../spec/language/reflection.md) additionally requires independently
 checked member selection and projection under its own contract.
 Each selected field must satisfy the callback's generic requirements or reject
 at that member; no silent skipping, type whitelist, or runtime type-to-generic
@@ -223,7 +273,7 @@ later calls use the previous post-state. Reentrancy or concurrent invocation is
 not granted by receiver inference.
 
 A general facility forwarding a callback's variable operational envelope is
-unresolved under [callback contract forwarding](../../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding).
+unresolved under [callback contract forwarding](../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding).
 It is not implicit in lambda support. The question covers named generic machines
 equally and does not block fixed-ceiling callbacks. Failure remains ordinary
 result data; crash guards require substitution; repetition and overlap affect
@@ -250,7 +300,7 @@ Runtime selection among different environments uses an explicit sum/wrapper or
 a separately eligible, explicitly selected whole dynamic conformance. A static
 generic family is not an unrestricted generic virtual method.
 
-[Semantic evaluation](evaluation.md) may evaluate an eligible invocation with
+[Semantic evaluation](../spec/language/evaluation.md) may evaluate an eligible invocation with
 eligible captured values. A statically known body does not make runtime captures
 available during compilation. Erased material remains erased; returned constants
 follow ordinary materialization and cannot retain evaluator references or raw
@@ -265,7 +315,7 @@ obligations. No implicit future, task, detach, or automatic joining is created.
 
 An ordinary library task adapter may specialize an entry that receives and
 invokes the environment, then use existing
-[transactional task start](../build/task_runtime.md#transactional-start).
+[transactional task start](../spec/build/task_runtime.md#transactional-start).
 Construction happens before submission. Dynamic rejection returns the original
 environment and reservations or accounts for their authorized transfer; successful
 start transfers execution/storage custody under the selected runtime contract.
@@ -273,7 +323,7 @@ Cancellation requests do not release captured loans or discharge linear tasks.
 An exact adapter signature is separate library work, not a new TaskRuntime
 primitive or permission to emit incomplete activation evidence.
 
-[Foreign callbacks](../build/private_callbacks.md) need a real context/lifetime
+[Foreign callbacks](../spec/build/private_callbacks.md) need a real context/lifetime
 registration route to carry an environment. A native address alone carries none.
 No-context APIs do not gain a fabricated argument or hidden global allocation.
 

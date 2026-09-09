@@ -1,4 +1,4 @@
-# Comparing shorter bootstrap chains
+# 0002: Comparing shorter bootstrap chains
 
 Status: open comparison proposal; no alternative below is approved for
 implementation. Affected subjects: bootstrap topology, root auditability,

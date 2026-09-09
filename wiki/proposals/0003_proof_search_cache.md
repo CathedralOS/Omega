@@ -1,4 +1,4 @@
-# Reusing proof search
+# 0003: Reusing proof search
 
 Status: open implementation proposal. No persistent cache format, key, storage
 location, or granularity is selected.

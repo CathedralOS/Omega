@@ -223,7 +223,7 @@ projects the retained proposition and may cheaply verify its artifact/kernel
 evidence without rerunning the search. Ordinary theorem contracts and named
 witness/law bundles follow [proof contracts](../proofs/contracts.md); a cache
 does not turn erased evidence into runtime values. The separate
-[proof-search-cache proposal](../../proposals/proof_search_cache.md) concerns
+[proof-search-cache proposal](../../proposals/0003_proof_search_cache.md) concerns
 untrusted search reuse, not a replacement admission route.
 
 ## Trait bodies and generators

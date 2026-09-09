@@ -33,7 +33,7 @@ modulus's law, not just construct another value called `ConvergenceEvidence`.
 General quantification must also support arbitrary mathematical functions and
 predicates, not only executable declarations. Neither a dedicated proposition
 declaration nor a machine returning a logical result is a prerequisite. Optional
-[formula naming syntax](../proposals/proof_formula_syntax.md) is a separate,
+[formula naming syntax](../proposals/0001_proof_formula_syntax.md) is a separate,
 unproven ergonomic proposal, not accepted source syntax.
 
 The [proof contract](../spec/proofs/contracts.md#machines-and-bundles) owns these
@@ -448,7 +448,7 @@ Successful validation establishes the property for that result. It does not
 prove the provider always complies or repair effects already performed.
 The [admission and diagnostics rules](../spec/proofs/contracts.md#admission-and-runtime-diagnostics)
 remain independent of the unapproved
-[assertion design RFC](../proposals/assertions_and_build_diagnostics.md).
+[assertion design RFC](../proposals/0006_assertions_and_build_diagnostics.md).
 
 Admitting a false statement can invalidate downstream safety proofs. It does
 not waive the independently checked reach ceiling or establish runtime authority

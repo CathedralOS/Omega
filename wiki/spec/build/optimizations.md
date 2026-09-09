@@ -204,7 +204,7 @@ executable, credential, or network isolation. Offline training and evaluation
 grant no compiler activation, optimizer replay, or artifact-publication
 authority. [Offline policy tooling](../../../omega-rust/omega/tooling/optimization-policy-offline/README.md)
 owns its current data formats and commands; broader
-[learned search](../../proposals/learned_optimization_policy.md) remains a proposal.
+[learned search](../../proposals/0004_learned_optimization_policy.md) remains a proposal.
 
 ## Release rollback and promotion
 

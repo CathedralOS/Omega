@@ -14,8 +14,7 @@ Trait::requirement` clause can determine the kind of Step introduced without
 a kind marker in the generic list. Retaining `machine Step` there is also legal.
 The clause is a declaration, not inference from body usage or the current
 consumer set. Missing or conflicting kinds/contracts reject. This rule applies
-equally to named and anonymous selected bodies and does not infer whole-trait
-conformance evidence.
+to selected named bodies and does not infer whole-trait conformance evidence.
 
 ## Applications and specialization
 
@@ -403,12 +402,10 @@ private callback slot's selected requirement; it is not missing-contract inferen
 Each executable use of a static-machine argument becomes a direct selected call
 after specialization. The binder is not a runtime function value or hidden
 callable argument. Stateful behavior uses ordinary instance data and its receiver
-access contract. An [anonymous machine](anonymous_machines.md#callable-association-and-exact-requirements)
-explicitly constructs that data and retains its associated static body. A receiving
-application may recover the body selection from this checked association when
-the declared contract and argument matching determine one application; this is
-not free-variable capture inference or ambient conformance search. Dynamic
-selection still uses ordinary sums/wrappers or eligible dynamic conformances.
+access contract. Authors construct ordinary context data and explicitly select
+the named callback declaration. No anonymous body/environment association or
+free-variable capture inference is provided. Dynamic selection still uses
+ordinary sums/wrappers or eligible dynamic conformances.
 
 A static parameter cannot be stored as a field type, converted to an address,
 or returned as a runtime callback reference. [Private callback realization](../build/private_callbacks.md)

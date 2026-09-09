@@ -244,5 +244,5 @@ manifest and lineage requirements; equal rows never establish protocol identity.
 
 General callback-contract projections and conditional call acknowledgements are
 unresolved under [callback contract forwarding](../../../OWNER_QUESTIONS.md#q2--callback-contract-forwarding).
-Anonymous-machine support does not implicitly add them; named and anonymous
-callbacks with fixed authored ceilings use the existing rules.
+Named callbacks with fixed authored ceilings use the existing rules.
+No anonymous-machine or lambda surface is accepted.
