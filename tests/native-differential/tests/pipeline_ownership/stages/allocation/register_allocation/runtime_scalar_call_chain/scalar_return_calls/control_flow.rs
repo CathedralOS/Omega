@@ -56,6 +56,9 @@ fn branch_call_selection_rejects_changed_join_bindings_and_edges() {
                 selected_instructions::SelectedBlockOrigin::EdgeTransfer { edge, .. } => {
                     mutation >= 3 && edge == EdgeId::new(28_151).unwrap()
                 }
+                // A case-test continuation has not taken a source edge and
+                // cannot stand in for either side of this join transfer.
+                selected_instructions::SelectedBlockOrigin::CaseDispatch { .. } => false,
             })
             .unwrap();
         let SelectedTerminator::Jump { successor, .. } = &mut arm.terminator else {

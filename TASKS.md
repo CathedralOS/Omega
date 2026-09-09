@@ -114,9 +114,8 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   `tests/native-differential/tests/{terminal_psi_source,pipeline_ownership}`.
   Resume on macOS AArch64 with `cargo nextest run -p omega-native-differential-test
   --test terminal_psi_source --test pipeline_ownership --no-fail-fast --no-tests fail`.
-  Remaining failures include build-bound progress publication
-  and two selection-custody expectations. Review stale rejection expectations
-  against current admitted structural selection, preserving corruption controls.
+  Next: restore build-bound progress publication in
+  `selected_source_entry_retains_build_bound_progress_for_terminal_publication`.
   The same source target has unused fixture inputs in
   `comparisons_bitwise_and_casts.rs` and `control_graphs.rs`; restore their intended
   assertions or remove genuinely obsolete setup, not blanket lint suppression.
