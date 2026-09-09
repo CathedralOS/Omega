@@ -12,7 +12,12 @@
 //!
 //! Scalar values substitute only after the shared resolver has selected their
 //! namespace and lexical binding. Legacy aggregate materialization retains its
-//! conservative free-constant shadowing walk.
+//! conservative free-constant shadowing walk. Module-owned array declarations
+//! additionally select an exact nongeneric carrier in their declaring module.
+//! The authored scope token survives until complete symbol assignment, then joins
+//! the ordinary visibility/selection ledger; the structural value encoder alone
+//! cannot establish attachment ownership. Seeded declarations keep their existing
+//! selections rather than inventing a new scope occurrence from a display name.
 //!
 //! Remaining boundaries, enforced loudly:
 //! - LITERAL-ONLY initializers (scalars, negated scalars -- already folded by
@@ -642,6 +647,50 @@ pub(crate) fn finalize_const_declarations(
             "failed to retain const declaration visibility provenance",
         ));
     }
+    // Scoped module arrays use the existing structural value encoder, but
+    // their declaration also selects a carrier. Retain that authored selection
+    // before erasing the scope token; a constant's visibility cannot authorize
+    // naming its private carrier. Foreign and generic attachments still need
+    // their complete normalization owners.
+    for (declaration, constant_symbol) in pending.iter().zip(&const_symbols) {
+        let module = program.symbols.symbol_module(*constant_symbol);
+        if declaration.scope.as_str().is_empty() || !module.is_valid() {
+            continue;
+        }
+        let carrier = program
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                declaration.scope.as_str(),
+                &[SymbolKind::Data],
+                declaration.scope.source_span(),
+            );
+        let Some(carrier) = carrier.filter(|carrier| {
+            program.symbols.symbol_module(*carrier) == module
+                && program
+                    .symbols
+                    .same_symbol_source_package(*carrier, *constant_symbol)
+                && program.data_definitions.iter().any(|definition| {
+                    definition.symbol == *carrier && definition.type_parameters.is_empty()
+                })
+        }) else {
+            return Err(Diagnostic::error(
+                "module type-scoped array constants require an exact nongeneric data carrier in their declaring module",
+            ).with_source_span(declaration.scope.source_span()));
+        };
+        let exposure = if declaration.is_public {
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        } else {
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        };
+        program
+            .record_resolved_authored_declaration_selection(
+                declaration.scope.source_span(),
+                exposure,
+                AuthoredDeclarationSelectionKind::TypeReference,
+                carrier,
+            )
+            .map_err(const_selection_record_diagnostic)?;
+    }
     let mut ordinal = 0usize;
     let mut visibility_drifted = false;
     program
@@ -863,6 +912,56 @@ mod module_tests {
                 _ => None,
             })
             .expect("constant test local")
+    }
+
+    #[test]
+    fn scoped_array_attachment_uses_the_exact_module_across_sources() {
+        let sources = [
+            "data Sizes { case SIZE; }",
+            "module settings; data Sizes {}",
+            "module settings; const Sizes::SIZE: [u8; 1] = [1];",
+        ];
+        for ordered in [sources, [sources[2], sources[1], sources[0]]] {
+            let program = resolve(&ordered).expect("one exact carrier across module sources");
+            let selection = program.authored_declaration_selections().iter().find(|selection| {
+                matches!(selection.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if program.symbols.display_path(target.selected_symbol(), "::") == "settings::Sizes")
+            }).expect("attachment selects the module carrier");
+            let text = ordered[selection.source_span().source_id.0];
+            let span = selection.source_span().span;
+            assert_eq!(&text[span.start..span.end], "Sizes");
+        }
+        resolve(&[
+            "module settings; data Sizes {} const Sizes::SIZE: [u8; 1] = [1];",
+            "module settings; const Sizes::SIZE: [u8; 1] = [1];",
+        ])
+        .expect_err("duplicate scoped declarations across sources reject");
+    }
+
+    #[test]
+    fn scoped_array_attachment_cannot_borrow_another_module_or_generic_owner() {
+        for (sources, expected) in [
+            (
+                vec![
+                    "module other; data Sizes {}",
+                    "module settings; use other::Sizes; const Sizes::SIZE: [u8; 1] = [1];",
+                ],
+                "exact nongeneric data carrier",
+            ),
+            (
+                vec!["module settings; data Sizes<T> {} const Sizes::SIZE: [u8; 1] = [1];"],
+                "namespace-aware template normalization",
+            ),
+        ] {
+            let diagnostics =
+                resolve(&sources).expect_err("attachment normalization is incomplete");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(expected)),
+                "{diagnostics:?}"
+            );
+        }
     }
 
     #[test]

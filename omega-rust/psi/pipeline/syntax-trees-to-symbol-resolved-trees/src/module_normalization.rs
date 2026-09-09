@@ -6,9 +6,11 @@
 //! Every newly admitted array declaration is also checked by the existing
 //! canonicalizer, including unused private declarations: ordinary substitution
 //! does not retain aggregate initializers for later type checking. Array leaves
-//! therefore stay within its canonical integer/Boolean subset. Type-scoped
-//! declarations and nominal record/case initializers still need their full owners;
-//! permitting an array index does not implement aggregate body substitution.
+//! therefore stay within its canonical integer/Boolean subset. Scoped arrays
+//! additionally retain their exact nongeneric module-local carrier at constant
+//! finalization, where complete symbols exist. Scalar scoped declarations, foreign
+//! or generic attachments and nominal record/case initializers still need their
+//! full owners; array indices do not implement aggregate body substitution.
 
 use diagnostics::Diagnostic;
 use source::SourceId;
@@ -169,7 +171,7 @@ fn module_literal_constant(
     constant: &syntax_trees::item::ConstDefinition,
 ) -> bool {
     use syntax_trees::expression::ExpressionNode;
-    if !constant.scope.as_str().is_empty() || !scalar_literal_tree(syntax, constant.value) {
+    if !scalar_literal_tree(syntax, constant.value) {
         return false;
     }
     let mut type_reference = constant.type_reference;
@@ -177,6 +179,9 @@ fn module_literal_constant(
         syntax.type_references.type_reference(type_reference),
         TypeReferenceNode::FixedArray { .. }
     );
+    if !is_array && !constant.scope.as_str().is_empty() {
+        return false;
+    }
     if !is_array
         && matches!(
             syntax.expressions.expression(constant.value),
@@ -351,7 +356,7 @@ mod tests {
             "module settings; data Item { value: u8; } const SIZE: [Item; 0] = [];",
             "module settings; const SIZE: [f32; 0] = [];",
             "module settings; const SIZE: [string; 0] = [];",
-            "module settings; data Config {} const Config::SIZE: [u8; 0] = [];",
+            "module settings; data Config {} const Config::SIZE: u64 = 1;",
         ] {
             assert!(
                 crate::normalize_generic_data(parse(&[source]))

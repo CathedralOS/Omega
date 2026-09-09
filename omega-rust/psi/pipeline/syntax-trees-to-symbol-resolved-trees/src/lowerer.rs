@@ -25,6 +25,7 @@ pub(crate) struct PendingAuthoredExpression {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PendingConstDeclaration {
+    pub(crate) scope: syntax_trees::identifier::Identifier,
     pub(crate) semantic_name: String,
     pub(crate) source_span: source::SourceSpan,
     pub(crate) is_public: bool,
@@ -494,6 +495,7 @@ impl Lowerer {
             .const_declarations
             .iter()
             .map(|declaration| PendingConstDeclaration {
+                scope: syntax_trees::identifier::Identifier::generated(""),
                 semantic_name: base.symbols.name(declaration.symbol).to_owned(),
                 source_span: base
                     .symbols

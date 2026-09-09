@@ -6,3 +6,7 @@ machine keep(value: Indexed<SIZE>) -> Indexed<SIZE> { value }
 machine selected(value: Indexed<settings::SIZE>) -> Indexed<OTHER> { value }
 data Main {}
 machine Main::main(&mut self) {}
+data Sizes {}
+const Sizes::SIZE: [u64; 2] = [1, 2];
+machine root_scoped(value: Indexed<Sizes::SIZE>) -> Indexed<SIZE> { value }
+machine selected_scoped(value: Indexed<settings::Sizes::SIZE>) -> Indexed<OTHER> { value }

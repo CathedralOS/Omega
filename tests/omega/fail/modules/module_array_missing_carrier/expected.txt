@@ -1,0 +1,1 @@
+module type-scoped array constants require an exact nongeneric data carrier in their declaring module
