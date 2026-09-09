@@ -155,8 +155,12 @@ can preserve individual paths. Captured SSA values remain values, but an earlier
 field equality cannot describe a later observation.
 
 [Proof scheduling](src/control_graph.rs) cuts DFS ancestor edges in its working
-graph. Cut targets start without incoming semantic axioms; every normal return
-still contributes to the exit intersection. General invariant reconstruction,
+graph. Cut targets discard incoming semantic axioms. A declared scalar range
+may enter as an induction hypothesis only with checked establishment and
+preservation obligations for every actual arrival; ranking alone grants no range.
+The [range reconstruction](src/verification/reconstruction/scalar_range_invariants.rs)
+emits these obligations alongside operation safety, before successor binding.
+Every normal return still contributes to the exit intersection. General invariant reconstruction,
 wider rank views/projections, callee-progress composition, and cyclic guarded-
 crash path enumeration need further support.
 

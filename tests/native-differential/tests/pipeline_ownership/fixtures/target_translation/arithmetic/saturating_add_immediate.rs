@@ -13,6 +13,7 @@ pub(crate) fn saturating_integer_add_immediate_return_artifact(
     let right = ValueId::new(80_006).unwrap();
     let saturating_add = ValueId::new(80_008).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

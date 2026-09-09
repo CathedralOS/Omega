@@ -6,6 +6,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(3_501).unwrap();
     let entry = BlockId::new(3_502).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -447,6 +448,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
         outcome_specific_ensures: Vec::new(),
     };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
         structural_types: vec![StructuralTypeDeclaration {

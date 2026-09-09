@@ -282,6 +282,7 @@ mod tests {
         let owner = semantic_id(1, MachineId::new);
         let parameter = semantic_id(1, ValueId::new);
         TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: owner,
             structural_types: Vec::new(),

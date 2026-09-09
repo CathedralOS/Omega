@@ -13,6 +13,7 @@ pub(crate) fn wrapping_integer_multiply_immediate_return_artifact(
     let right = ValueId::new(73_006).unwrap();
     let wrapping_multiply = ValueId::new(73_008).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

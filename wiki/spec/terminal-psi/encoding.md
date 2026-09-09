@@ -30,6 +30,15 @@ Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs
 its logical result and obligations; an encoded proof cannot select them.
 
+The semantic scalar-range-invariant roster precedes the machine table. Rows
+are strictly ordered by `(machine, header, parameter)` and encode those three
+identities, the integer carrier, inclusive minimum and maximum, and a counted
+arrival list. Arrivals are strictly ordered by edge identity and retain the
+edge and obligation identities. Every actual header arrival must occur exactly
+once. Bounds and the roster participate in semantic identity; their certificates
+remain replaceable flat proof evidence. The corresponding reconstructed ledger
+owner retains machine, header, parameter, and edge independently of evidence.
+
 ## Residual jump encoding
 
 Within the terminator tag space, a Jump with no residual affine discards uses

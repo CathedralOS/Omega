@@ -12,6 +12,7 @@ pub(crate) fn boolean_equal_immediate_return_artifact(
     let right = ValueId::new(69_006).unwrap();
     let equal = ValueId::new(69_008).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

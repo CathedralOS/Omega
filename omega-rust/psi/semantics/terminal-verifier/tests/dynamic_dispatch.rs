@@ -111,6 +111,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
     };
     let application = closed_application(caller, realization);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
         structural_types: vec![

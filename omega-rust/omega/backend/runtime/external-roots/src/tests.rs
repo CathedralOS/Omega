@@ -2505,6 +2505,7 @@ fn program_local_root_module() -> TerminalModule {
             &schema,
         );
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry,
         structural_types: vec![StructuralTypeDeclaration {

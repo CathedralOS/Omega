@@ -100,6 +100,11 @@ logical ordering alone does not establish availability.
   every predecessor. A fact from one arm does not survive the join.
 - Cyclic reconvergence requires checked invariant establishment and preservation,
   not the acyclic merge rule.
+- Scalar range invariant arrival questions come from the semantic roster and
+  every actual incoming edge, independently of the supplied proof bundle. Each
+  question is the conjunction of the inclusive lower and upper bounds on the
+  actual successor argument. Establishment and preservation must both check
+  before the header's bounds may justify downstream safety obligations.
 - Each successor applies its own argument-to-parameter substitution.
 - A partial operation establishes its result equation only on its normal
   successor, after its safety obligation is discharged. That equation cannot

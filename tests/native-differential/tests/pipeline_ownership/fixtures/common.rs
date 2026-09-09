@@ -95,6 +95,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -646,6 +647,7 @@ pub(crate) fn conditional_immediate_module(
     machines: Vec<TerminalMachine>,
 ) -> TerminalModule {
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry,
         structural_types: Vec::new(),

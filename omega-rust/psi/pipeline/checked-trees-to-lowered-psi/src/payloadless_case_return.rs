@@ -115,6 +115,7 @@ pub(super) fn lower_payloadless_case_return_machine(
     };
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: terminal_machine,
             structural_types,

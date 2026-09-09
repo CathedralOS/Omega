@@ -933,6 +933,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     };
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
             structural_types,

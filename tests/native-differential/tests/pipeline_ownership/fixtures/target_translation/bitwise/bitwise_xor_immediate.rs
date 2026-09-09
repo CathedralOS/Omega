@@ -13,6 +13,7 @@ pub(crate) fn integer_bitwise_xor_immediate_return_artifact(
     let right = ValueId::new(79_006).unwrap();
     let bitwise_xor = ValueId::new(79_008).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

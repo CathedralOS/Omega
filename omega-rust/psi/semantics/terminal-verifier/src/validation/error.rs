@@ -37,6 +37,17 @@ pub enum SuspensionCallPlanError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    NonCanonicalScalarRangeInvariants,
+    InvalidScalarRangeInvariant {
+        machine: MachineId,
+        header: BlockId,
+        parameter: ValueId,
+    },
+    InvalidScalarRangeInvariantArrivals {
+        machine: MachineId,
+        header: BlockId,
+        parameter: ValueId,
+    },
     InvalidByteSequenceWrite(OperationId),
     InvalidStructuralByteSequenceFieldStore(OperationId),
     InvalidStructuralByteSequenceFieldAccess(OperationId),

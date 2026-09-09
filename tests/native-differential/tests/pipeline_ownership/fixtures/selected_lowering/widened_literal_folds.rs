@@ -79,6 +79,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
         kind,
     };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

@@ -774,6 +774,7 @@ mod tests {
     ) -> TerminalModule {
         let machine = MachineId::new(1).unwrap();
         TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine,
             structural_types: Vec::new(),

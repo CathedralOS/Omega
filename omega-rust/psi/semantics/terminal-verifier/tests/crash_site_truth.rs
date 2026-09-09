@@ -80,6 +80,7 @@ fn jump(edge: u64, target: u64, arguments: &[u64]) -> Terminator {
 
 fn module(parameter: u64, expected: bool) -> TerminalModule {
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: MachineId::new(1).unwrap(),
         structural_types: Vec::new(),

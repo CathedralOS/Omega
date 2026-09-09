@@ -1589,6 +1589,7 @@ fn retained_safe_point_catalog_is_complete_ordered_and_semantically_exact() {
 
 fn unit_fixture() -> TerminalModule {
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(900),
         structural_types: Vec::new(),
@@ -2197,6 +2198,7 @@ fn three_helper_nominal_affine_fixture() -> TerminalModule {
 fn unit_effect_fixture() -> TerminalModule {
     let service = service_id(1);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(700),
         structural_types: Vec::new(),
@@ -2427,6 +2429,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
     let goal = Proposition::Equal(literal.clone(), literal);
     let obligation = obligation_id(1);
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -2546,6 +2549,7 @@ fn call_fixture() -> TerminalModule {
         outcome_specific_ensures: Vec::new(),
     };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),

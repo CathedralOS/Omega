@@ -37,6 +37,7 @@ pub(super) fn verified_exact_add_unit_with_right(
     let scalar_type = ScalarType::Integer(integer);
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

@@ -692,6 +692,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
     let claim = claim_id(1);
     let edge = edge_id(1);
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![StructuralTypeDeclaration {
@@ -2653,6 +2654,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
     let structural_type = structural_type_id(1);
     let literal = place_id(1);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![StructuralTypeDeclaration {
@@ -2769,6 +2771,7 @@ fn effect_artifact_sections() -> (Vec<u8>, Vec<u8>) {
 
 fn scalar_boundary_effect_module() -> TerminalModule {
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -2912,6 +2915,7 @@ fn effect_module() -> TerminalModule {
     let domain = structural_domain_id(1);
     let service = service_id(1);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![StructuralTypeDeclaration {
@@ -3292,6 +3296,7 @@ fn payloadless_call_module() -> TerminalModule {
 
 fn unit_module() -> TerminalModule {
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
@@ -4031,6 +4036,7 @@ fn nominal_affine_module() -> TerminalModule {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![token.clone()],
@@ -5054,6 +5060,7 @@ fn partial_affine_field_module() -> TerminalModule {
         contract: empty_contract(contract_id(2)),
     };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
         structural_types: vec![token, pair],
@@ -5287,6 +5294,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         },
     };
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller.id,
         structural_types: vec![StructuralTypeDeclaration {

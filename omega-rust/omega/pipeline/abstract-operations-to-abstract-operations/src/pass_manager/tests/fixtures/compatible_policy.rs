@@ -30,6 +30,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
     let scalar_type = ScalarType::Integer(integer);
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),
@@ -188,6 +189,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
     let count_scalar_type = ScalarType::Integer(count_type);
     let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

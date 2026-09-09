@@ -83,6 +83,10 @@ pub struct TerminalModule {
     /// Source-free proof-only SCCs reachable from the retained root proof
     /// closure. These are semantic obligation inputs, not producer evidence.
     pub proof_recursive_components: Vec<TerminalProofRecursiveComponent>,
+    /// Optional scalar loop-header assertions ordered by machine, header and
+    /// parameter. Every actual arrival owns an independently checked obligation;
+    /// no first-arrival fact or ranking certificate establishes these implicitly.
+    pub scalar_range_invariants: Vec<ScalarRangeInvariant>,
     /// Exact source-handle-free generic conformance applications used by the
     /// retained machine closure. Rows are owned by the concrete terminal
     /// machine whose specialization selected the application.

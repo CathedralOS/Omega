@@ -22,6 +22,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
     let operation_result = ValueId::new(84_008).unwrap();
     let obligation = ObligationId::new(84_011).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

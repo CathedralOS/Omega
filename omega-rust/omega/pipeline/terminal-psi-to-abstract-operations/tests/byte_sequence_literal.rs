@@ -187,6 +187,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
     let structural_type = StructuralTypeId::new(1).unwrap();
     let literal = place_id(1);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: vec![StructuralTypeDeclaration {

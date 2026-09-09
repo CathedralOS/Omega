@@ -213,18 +213,18 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            65, 59, 108, 31, 250, 1, 97, 113, 211, 50, 145, 211, 150, 13, 155, 7, 201, 230, 62, 29,
-            105, 139, 156, 61, 87, 75, 67, 14, 40, 139, 68, 228,
+            141, 79, 158, 175, 189, 38, 249, 92, 114, 52, 57, 203, 142, 125, 46, 95, 169, 79, 64,
+            155, 180, 37, 69, 183, 189, 45, 197, 50, 248, 38, 72, 211,
         ],
-        "v22 identity binds vocabulary 87 alongside unchanged scalar operation tags",
+        "v22 identity binds vocabulary 93 alongside unchanged scalar operation tags",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            155, 77, 41, 173, 249, 130, 82, 91, 194, 157, 207, 25, 180, 118, 79, 112, 72, 38, 243,
-            195, 156, 154, 135, 175, 72, 24, 99, 9, 23, 143, 245, 82,
+            235, 154, 0, 164, 153, 134, 177, 244, 39, 12, 101, 208, 0, 4, 13, 224, 39, 102, 118,
+            102, 78, 137, 173, 91, 35, 183, 189, 136, 97, 131, 241, 94,
         ],
-        "v22 identity binds vocabulary 87 alongside unchanged storage and return tags",
+        "v22 identity binds vocabulary 93 alongside unchanged storage and return tags",
     );
 }
 
@@ -259,6 +259,65 @@ fn rebuild_is_deterministic_and_keeps_distinct_fuel_sites() {
         first.functions[0].published_service_ceiling,
         source.functions[0].published_service_ceiling
     );
+}
+
+#[test]
+fn invariant_question_coordinates_each_bind_the_unit_identity() {
+    let mut unit =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let machine = unit.functions[0].machine;
+    let header = id(201, BlockId::new);
+    let parameter = id(202, ValueId::new);
+    let edge = id(203, EdgeId::new);
+    unit.proof_questions.push(ProofQuestion::new(
+        unit.psi,
+        [5; 32],
+        ProofQuestionOwner::ScalarRangeInvariant {
+            machine,
+            header,
+            parameter,
+            edge,
+        },
+        id(204, ObligationId::new),
+        ProofQuestionClass::Derivable,
+        vec![1],
+        Vec::new(),
+        Vec::new(),
+        false,
+    ));
+    let baseline = recompute_psi_optimization_unit_identity(&unit);
+    for owner in [
+        ProofQuestionOwner::ScalarRangeInvariant {
+            machine: id(211, MachineId::new),
+            header,
+            parameter,
+            edge,
+        },
+        ProofQuestionOwner::ScalarRangeInvariant {
+            machine,
+            header: id(212, BlockId::new),
+            parameter,
+            edge,
+        },
+        ProofQuestionOwner::ScalarRangeInvariant {
+            machine,
+            header,
+            parameter: id(213, ValueId::new),
+            edge,
+        },
+        ProofQuestionOwner::ScalarRangeInvariant {
+            machine,
+            header,
+            parameter,
+            edge: id(214, EdgeId::new),
+        },
+    ] {
+        let mut changed = unit.clone();
+        // Retain the old question digest to check the unit's own owner encoding.
+        changed.proof_questions[0].owner = owner;
+        assert_ne!(recompute_psi_optimization_unit_identity(&changed), baseline);
+    }
 }
 
 #[test]

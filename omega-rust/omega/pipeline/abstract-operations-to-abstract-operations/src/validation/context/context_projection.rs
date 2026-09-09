@@ -51,6 +51,7 @@ fn independently_project_proof_questions(
         .iter()
         .map(|row| {
             let owner = match row.owner {
+                terminal_verifier::ReconstructedTerminalObligationOwner::ScalarRangeInvariant { machine, header, parameter, edge } => ProofQuestionOwner::ScalarRangeInvariant { machine, header, parameter, edge },
                 terminal_verifier::ReconstructedTerminalObligationOwner::Operation {
                     machine,
                     operation,

@@ -1202,6 +1202,14 @@ Owners include
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
+  Repair contextual nominal cleanup certificates: `unit_cleanup.rs` and
+  `unit_cleanup/ordered.rs` still index owned-field requirements as permanent
+  assumptions, while Terminal reconstruction retains them as validity-scoped
+  observations. macOS probes fail ten `nominal_affine_source` integration cases
+  with `UnknownAssumption`, plus the Omega `scalar_affine_cleanup` contextual-proof
+  case; the deciding source paths are unchanged from `6a0b299141`. Acceptance: these
+  cases independently verify using current field evidence without restoring
+  stale owned-field assumptions after writes or consuming calls.
   Implement native boundary call-result residual cleanup, including result homes
   and projected copies;
   whole-result disposal does not cover a projected result's residuals.
@@ -1260,17 +1268,6 @@ Owners include
   computation lowering. Acceptance: selected arguments
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
-  Carry invocation range bounds onto current loop values only through checked
-  invariant establishment and preservation. The unchanged
-  [range-only addition](tests/native-differential/tests/scalar_control_cycles/selected_call_exact_add.omg)
-  rejects at Terminal production with `OperationProofUnavailable(6)`
-  (macOS; source-production inputs unchanged from `195dfb6086`).
-  Acceptance: `scalar_control_cycles` publishes and
-  natively executes that source without an added per-iteration upper-bound guard;
-  zero iterations return the supplied marker and positive counts return `2`;
-  substituted establishment/backedge evidence rejects. Natural descent alone
-  does not supply that invariant. Owning paths: Terminal verifier
-  `verification/reconstruction.rs` and checked-to-lowered operation proofs.
   Generalize mixed state signatures and borrowed loop formals through their exact
   ownership and arrival contracts rather than source-state duplication.
   Extend guarded scalar control to longer dispatches. Complete

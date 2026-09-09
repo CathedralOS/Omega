@@ -3732,6 +3732,7 @@ fn assemble_unit_closure(
     call_evidence.append(&mut scalar_evidence);
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),
             structural_types,

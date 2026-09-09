@@ -13,6 +13,7 @@ pub(crate) fn integer_less_than_immediate_return_artifact(
     let right = ValueId::new(71_006).unwrap();
     let less_than = ValueId::new(71_008).unwrap();
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

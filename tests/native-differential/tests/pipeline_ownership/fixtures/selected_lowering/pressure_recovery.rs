@@ -102,6 +102,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
         kind,
     };
     let module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
         structural_types: Vec::new(),

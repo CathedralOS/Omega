@@ -55,6 +55,7 @@ fn structural_scalar_field_module() -> TerminalModule {
     let value_field = id::<StructuralFieldId>(1);
     let integer = integer_type();
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: caller,
         structural_types: vec![

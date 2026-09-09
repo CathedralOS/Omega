@@ -20,6 +20,23 @@ use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALA
 pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
+            .scalar_range_invariants
+            .iter()
+            .map(|invariant| (invariant.machine, invariant.header, invariant.parameter)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "scalar range invariants by machine, header, and parameter",
+        ));
+    }
+    for invariant in &module.scalar_range_invariants {
+        if !strictly_increasing(invariant.arrivals.iter().map(|arrival| arrival.edge)) {
+            return Err(CodecError::NonCanonicalOrder(
+                "scalar range invariant arrivals by EdgeId",
+            ));
+        }
+    }
+    if !strictly_increasing(
+        module
             .suspension_call_sites
             .iter()
             .map(|site| (site.operation, site.crossing)),

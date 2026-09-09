@@ -67,6 +67,7 @@ fn fixture() -> TerminalModule {
         effective,
     };
     let mut module = TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: id(1),
         structural_types: Vec::new(),

@@ -18,7 +18,7 @@ impl<'a> MachineReconstructionContext<'a> {
         machine: &'a TerminalMachine,
         crash_facts: bool,
     ) -> Self {
-        let reconstruct_path_facts = matches!(machine.ranked_scc, Some(terminal_psi::TerminalRankedScc::Natural(_))) || machine.blocks.iter().any(|block| {
+        let reconstruct_path_facts = (!crash_facts && module.scalar_range_invariants.iter().any(|invariant| invariant.machine == machine.id)) || matches!(machine.ranked_scc, Some(terminal_psi::TerminalRankedScc::Natural(_))) || machine.blocks.iter().any(|block| {
             block.operations.iter().any(|operation| {
                 matches!(
                     &operation.kind,

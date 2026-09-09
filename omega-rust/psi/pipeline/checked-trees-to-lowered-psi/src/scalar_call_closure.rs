@@ -338,8 +338,9 @@ pub(super) fn lower_scalar_call_closure(
         selected_ieee_float_fma_occurrences
             .append(&mut lowered.selected_ieee_float_fma_occurrences);
     }
-    let mut lowered = LoweredPsi {
+    let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_range_invariants: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),
             structural_types: Vec::new(),
@@ -377,6 +378,7 @@ pub(super) fn lower_scalar_call_closure(
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
     };
-    finalize_operation_proofs(&mut lowered)?;
+    // Final proof metadata and invariant identities belong to the assembled
+    // root module, not this provisional scalar closure.
     Ok(lowered)
 }

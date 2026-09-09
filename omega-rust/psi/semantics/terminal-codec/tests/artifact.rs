@@ -2432,6 +2432,7 @@ fn semantic_module() -> TerminalModule {
     let literal = ScalarTerm::integer(integer, IntegerValue::Signed(7)).unwrap();
     let goal = Proposition::Equal(literal.clone(), literal);
     TerminalModule {
+        scalar_range_invariants: Vec::new(),
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine_id(1),
         structural_types: Vec::new(),
