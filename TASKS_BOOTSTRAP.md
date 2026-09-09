@@ -205,6 +205,13 @@ prerequisite to every lower-rung milestone.
   one explicit resource/request/observation profile against the selected lower
   chain and test exact/adjacent refusals without publishing an Epsilon
   observation. The private diagnostic adapter is not that boundary.
+  Before adding expanded-storage analysis, resolve the proposed
+  [Epsilon storage-policy revision](OWNER_QUESTIONS.md#epsilon-static-storage-policy).
+  The existing section 10 requirement remains in force pending the ruling;
+  logical expanded size and actual cumulative evaluator allocation are different
+  obligations. This decision does not block checking/runtime conformance or
+  lower-chain resource analysis. Do not treat sparse diagnostic success as
+  final-profile admission or restore the retired Epsilon Alpha backend.
   Justify retained features by the Epsilon-written D source.
   Use concrete existing D slices for intermediate acceptance; do not invent
   speculative language facilities while D is incomplete.

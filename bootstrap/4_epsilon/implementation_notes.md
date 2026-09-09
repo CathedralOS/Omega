@@ -198,8 +198,14 @@ must name a concrete failing program or required conformance/refinement
 obligation, not assume an unspecified syntax form is unimplemented.
 The entry-diagnostic subjudgment is implemented. Profile-
 independent structural type-formation judgment is now implemented; its
-physical storage realization remains later than complete checking, with the
-[resource contract](LANGUAGE.md#10-resource-classification) fixing its over-`Int` demand representation. The existing source is
+expanded-storage admission remains later than complete checking, with the
+[resource contract](LANGUAGE.md#10-resource-classification) fixing its over-`Int`
+demand representation. This unimplemented admission rule measures logical
+expanded storage, not the sparse runtime's actual allocation. It cannot bound
+cumulative immutable Gamma allocation, and the Gamma heap limit cannot supply
+its required source-coordinate witness. The proposed policy revision is tracked
+in that contract; neither obligation is discharged by current diagnostic runs.
+The existing source is
 therefore not yet a compiler edge and no validation may describe it as one.
 
 The [closure-checking contract](LANGUAGE.md#4-names-types-and-closure-checking)

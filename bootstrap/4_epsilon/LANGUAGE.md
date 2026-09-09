@@ -741,16 +741,21 @@ capacity/failure logic. Enlarging `[Node; N]` produces a different `D` source
 subject, not a different Epsilon language.
 
 Execution-profile bounds include sealed stdin, Alpha memory and return-stack
-capacities, maximum emitted tape bytes, and a finite observation-step budget.
-They are recorded with the checked compiler run but cannot change Epsilon
+capacities, evaluator output bytes, and a finite observation-step budget.
+They are recorded with the checked evaluator run but cannot change Epsilon
 meaning.
 
 Private implementation budgets include parser tables, syntax arenas, symbol
 tables, output buffers, recursion stacks, and temporary proof or lowering
 storage. Exhausting any execution-profile or private budget yields outer
 `Incomplete(resource, limit, requested, coordinate?)` before publication. A
-detected compiler contradiction yields outer `InternalFailure`. Neither is a
-Epsilon rejection, trap, divergence verdict, or partial successful tape.
+detected evaluator contradiction yields outer `InternalFailure`. Neither is an
+Epsilon rejection, trap, divergence verdict, or partial successful observation.
+
+The proposed replacement of expanded-storage admission for interpreted execution
+is [undetermined pending owner review](../../OWNER_QUESTIONS.md#epsilon-static-storage-policy).
+The following requirements remain in force unless explicitly revised; sparse
+runtime storage alone does not discharge them.
 
 The language and resource contracts separate valid fixed storage from one selected realization. After
 `CheckEpsilon` succeeds, the compiler expands only the storage roots actually
