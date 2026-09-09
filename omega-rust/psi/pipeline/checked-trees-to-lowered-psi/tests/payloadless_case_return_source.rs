@@ -8,8 +8,8 @@ use terminal_codec::{
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalPayloadlessCaseResult, TerminalPayloadlessCaseValue,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarCaseResult,
+    TerminalScalarCaseValue,
 };
 use terminal_psi::{OperationKind, OperationResult, StructuralTypeShape, Terminator};
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -738,7 +738,7 @@ fn selected_witness_tail_use_is_canonical_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mutate = |mut module: terminal_psi::TerminalModule,
@@ -893,7 +893,7 @@ fn two_selected_witness_tail_uses_are_ordered_distinct_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mutate = |mut module: terminal_psi::TerminalModule,
@@ -1020,7 +1020,7 @@ fn three_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mut reordered = module.clone();
@@ -1131,7 +1131,7 @@ fn four_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mut reordered = module.clone();
@@ -1242,7 +1242,7 @@ fn five_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mut reordered = module.clone();
@@ -1369,7 +1369,7 @@ fn six_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mut reordered = module.clone();
@@ -1496,7 +1496,7 @@ fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mut reordered = module.clone();
@@ -1655,7 +1655,7 @@ fn fifteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(_))
     ));
 
     let mut reordered = module.clone();
@@ -1796,11 +1796,12 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         execution
             .resume(&mut meter)
             .expect("guarded caller completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
-            TerminalPayloadlessCaseResult {
-                value: TerminalPayloadlessCaseValue {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
+            TerminalScalarCaseResult {
+                value: TerminalScalarCaseValue {
                     structural_type: caller.result.structural().unwrap().structural_type,
                     result_case: selected.guard.result_case,
+                    fields: Vec::new(),
                 },
             }
         ))
@@ -2223,11 +2224,12 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
         execution
             .resume(&mut TerminalFuelMeter::with_allowance(4))
             .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
-            TerminalPayloadlessCaseResult {
-                value: TerminalPayloadlessCaseValue {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
+            TerminalScalarCaseResult {
+                value: TerminalScalarCaseValue {
                     structural_type: caller.result.structural().unwrap().structural_type,
                     result_case: success_case,
+                    fields: Vec::new(),
                 },
             }
         ))
@@ -2254,7 +2256,7 @@ fn exact_payloadless_case_return_is_canonical_verified_and_executable() {
     };
     assert!(operation_result.qualifications.is_empty());
     assert!(operation_result.claims.is_empty());
-    let OperationKind::EstablishPayloadlessCase { result_case } = &operation.kind else {
+    let OperationKind::EstablishScalarCase { result_case, .. } = &operation.kind else {
         panic!("the source case constructor must remain exact")
     };
     let result_type = module
@@ -2320,11 +2322,12 @@ fn exact_payloadless_case_return_is_canonical_verified_and_executable() {
         execution
             .resume(&mut meter)
             .expect("the case return completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
-            TerminalPayloadlessCaseResult {
-                value: TerminalPayloadlessCaseValue {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
+            TerminalScalarCaseResult {
+                value: TerminalScalarCaseValue {
                     structural_type: operation_result.structural_type,
                     result_case: *result_case,
+                    fields: Vec::new(),
                 },
             }
         ))
@@ -2458,11 +2461,12 @@ fn guarded_payloadless_case_return_retains_active_evidence_and_vacuous_siblings(
         execution
             .resume(&mut meter)
             .expect("guarded producer completes"),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
-            TerminalPayloadlessCaseResult {
-                value: TerminalPayloadlessCaseValue {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarCase(
+            TerminalScalarCaseResult {
+                value: TerminalScalarCaseValue {
                     structural_type: machine.result.structural().unwrap().structural_type,
                     result_case: success_case,
+                    fields: Vec::new(),
                 },
             }
         ))
@@ -2487,7 +2491,7 @@ fn guarded_payloadless_case_return_retains_active_evidence_and_vacuous_siblings(
     ));
 
     let mut changed_case = module.clone();
-    let OperationKind::EstablishPayloadlessCase { result_case } =
+    let OperationKind::EstablishScalarCase { result_case, .. } =
         &mut changed_case.machines[0].blocks[0].operations[0].kind
     else {
         unreachable!()

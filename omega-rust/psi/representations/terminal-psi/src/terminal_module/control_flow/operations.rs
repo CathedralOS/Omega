@@ -188,12 +188,13 @@ pub enum OperationKind {
         field: StructuralFieldId,
         value: ValueId,
     },
-    /// Establish one exact payloadless case of a declared structural sum. The
-    /// destination and structural type are carried by the structural operation
-    /// result; this row contributes the exact case-membership fact without
-    /// inventing payload fields or runtime scalar work.
-    EstablishPayloadlessCase {
+    /// Atomically establish one exact scalar-payload case of a declared sum.
+    /// The structural operation result supplies the destination and type. The
+    /// field roster is complete and ordered by declaration, with already
+    /// evaluated operands; an empty roster also establishes a payloadless case.
+    EstablishScalarCase {
         result_case: StructuralCaseId,
+        fields: Vec<crate::ScalarCaseField>,
     },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.

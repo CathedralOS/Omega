@@ -136,35 +136,70 @@ pub(super) fn build(
         Some(ExpectedCallValueResult::Structural(&result)),
         &[],
     );
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        source_site,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        scalar_arguments,
-        structural_arguments,
-        completion_receipts,
-    } = built?
-    else {
-        return None;
-    };
-    if !completion_receipts.is_empty() || !whole_view_arguments(&structural_arguments) {
-        return None;
-    }
-    let operation = CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        coordinate,
-        source_site,
-        result: result.clone(),
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        scalar_arguments,
-        structural_arguments,
-        completion_receipts,
-        discard_result_on_return: false,
+    let operation = match built? {
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            source_site,
+            result: produced,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            target_contract_commitment,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            ..
+        } if produced == result
+            && structural_arguments.iter().all(|argument| {
+                whole_shared_argument(argument)
+                    || (argument.source_parameter_index().is_some()
+                        && argument.path.is_empty()
+                        && argument.access == CheckedStructuralAccess::MutableBorrow)
+            }) =>
+        {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                source_site,
+                result: produced,
+                target_machine,
+                target_state,
+                target_contract_report_fingerprint,
+                target_contract_commitment,
+                service_reach,
+                scalar_arguments,
+                structural_arguments,
+                discard_result_on_return: false,
+            }
+        }
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            source_site,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            completion_receipts,
+        } => {
+            if !completion_receipts.is_empty() || !whole_view_arguments(&structural_arguments) {
+                return None;
+            }
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate,
+                source_site,
+                result: result.clone(),
+                target_machine,
+                target_state,
+                target_contract_report_fingerprint,
+                service_reach,
+                scalar_arguments,
+                structural_arguments,
+                completion_receipts,
+                discard_result_on_return: false,
+            }
+        }
+        _ => return None,
     };
     let mut cases = Vec::new();
     let mut used_destructures = Vec::new();

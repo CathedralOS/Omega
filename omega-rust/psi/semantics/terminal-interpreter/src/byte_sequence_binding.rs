@@ -110,7 +110,23 @@ impl TerminalExecution {
             .machines
             .get(&callee)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee))?;
-        if machine.result == TerminalMachineResult::Unit
+        let scalar_case_result = machine.result.structural().is_some_and(|result| {
+            matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+            ) && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && self
+                    .structural_types
+                    .get(&result.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                        if cases.iter().all(|case| case.fields.iter().all(|field|
+                            field.relevance == terminal_psi::BindingRelevance::Relevant
+                                && field.field_type.scalar_type().is_some())))
+                    })
+        });
+        if (machine.result == TerminalMachineResult::Unit || scalar_case_result)
             && machine
                 .structural_parameters
                 .iter()
@@ -129,7 +145,8 @@ impl TerminalExecution {
                 })
         {
             // Share only exact referent preparation. External buffer staging and
-            // replacement are not part of an ordinary Unit call.
+            // replacement are not part of an ordinary call. Its result form
+            // does not change the borrowed input's referent or backing.
             if machine.structural_parameters.len() != arguments.len() {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }

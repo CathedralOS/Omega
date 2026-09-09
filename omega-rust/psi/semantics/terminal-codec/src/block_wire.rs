@@ -174,9 +174,18 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 writer.id(field);
                 writer.id(value);
             }
-            OperationKind::EstablishPayloadlessCase { result_case } => {
+            OperationKind::EstablishScalarCase {
+                result_case,
+                fields,
+            } => {
                 writer.u8(42);
                 writer.id(result_case);
+                writer.len("scalar case fields", fields.len())?;
+                for field in fields {
+                    writer.id(field.field);
+                    writer.id(field.value);
+                    encode_optional_id(writer, field.range_obligation);
+                }
             }
             OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
                 writer.u8(40);
@@ -948,8 +957,15 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 field: reader.id("StructuralFieldId")?,
                 value: reader.id("ValueId")?,
             },
-            42 => OperationKind::EstablishPayloadlessCase {
+            42 => OperationKind::EstablishScalarCase {
                 result_case: reader.id("StructuralCaseId")?,
+                fields: decode_counted(reader, |reader| {
+                    Ok(terminal_psi::ScalarCaseField {
+                        field: reader.id("StructuralFieldId")?,
+                        value: reader.id("ValueId")?,
+                        range_obligation: decode_optional_id(reader, "ObligationId")?,
+                    })
+                })?,
             },
             40 => OperationKind::EstablishByteSequenceLiteral {
                 destination: reader.id("PlaceId")?,

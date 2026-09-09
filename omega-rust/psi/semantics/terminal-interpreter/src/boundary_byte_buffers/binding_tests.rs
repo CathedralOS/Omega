@@ -149,7 +149,7 @@ fn execution() -> TerminalExecution {
             (field(0), ByteSequenceView::new(vec![99])),
             (field(1), ByteSequenceView::new(vec![10])),
         ]),
-        payloadless_case_values: BTreeMap::new(),
+        scalar_case_values: BTreeMap::new(),
         byte_sequence_values: BTreeMap::new(),
         live_affine_frontier: BTreeSet::new(),
         live_claims: BTreeMap::new(),

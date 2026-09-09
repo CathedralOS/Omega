@@ -18,31 +18,84 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         operation,
         &state.structural_parameters,
     )?;
-    let CheckedUnitEffectOperationPlan::CallUnit {
+    let (
         coordinate,
         target_machine,
         target_state,
         target_contract_report_fingerprint,
         service_reach,
         structural_arguments,
-        claim_transfers,
-        ..
-    } = operation
-    else {
-        unreachable!("internal leaf shape was validated")
+    ) = match operation {
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } if claim_transfers.is_empty() => (
+            coordinate,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            structural_arguments,
+        ),
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            target_contract_commitment,
+            service_reach,
+            structural_arguments,
+            result,
+            ..
+        } => {
+            let target = UnitBody::find(plans, *target_machine)?;
+            let checked_trees::CheckedControlResultPlan::Structural(signature) = target.result()
+            else {
+                return unsupported("internal structural call has no structural graph result");
+            };
+            let contract = checked
+                .facts
+                .contract_plans
+                .for_machine(*target_machine)
+                .ok_or(LoweringError::Unsupported(
+                    "internal structural call contract missing",
+                ))?;
+            if target_contract_commitment.is_zero()
+                || *target_contract_commitment != contract.commitment
+                || result.type_identity != signature.type_identity
+                || result.multiplicity != signature.multiplicity
+                || result.multiplicity != Multiplicity::Affine
+                || !signature.qualifications.is_empty()
+                || result.statement_index != coordinate.statement_index
+            {
+                return unsupported("internal structural call result or commitment drifted");
+            }
+            (
+                coordinate,
+                target_machine,
+                target_state,
+                target_contract_report_fingerprint,
+                service_reach,
+                structural_arguments,
+            )
+        }
+        _ => return unsupported("internal call has unsupported claim transfers or result"),
     };
-    if !claim_transfers.is_empty()
-        || structural_arguments.iter().any(|argument| {
-            (argument.source_parameter_index().is_none()
-                && argument.byte_sequence_literal().is_none())
-                || !argument.path.is_empty()
-                || !matches!(
-                    argument.access,
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-                        | checked_trees::CheckedStructuralAccess::SharedBorrow
-                )
-        })
-    {
+    if structural_arguments.iter().any(|argument| {
+        (argument.source_parameter_index().is_none() && argument.byte_sequence_literal().is_none())
+            || !argument.path.is_empty()
+            || !matches!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+                    | checked_trees::CheckedStructuralAccess::SharedBorrow
+            )
+    }) {
         return unsupported("composed internal Unit call requires structural transfer lowering");
     }
     super::super::admission::retain_exact_flow_call(
@@ -56,6 +109,11 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         return unsupported("composed internal Unit call is recursive");
     }
     let target = UnitBody::find(plans, *target_machine)?;
+    if matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+        && target.result() != checked_trees::CheckedControlResultPlan::Unit
+    {
+        return unsupported("internal Unit call cannot erase a structural result");
+    }
     let entry = target.entry()?;
     if entry.state != *target_state
         || entry.contract_report_fingerprint != *target_contract_report_fingerprint

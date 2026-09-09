@@ -308,6 +308,7 @@ pub(super) fn validate(
                 matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
                 )
             })
             .count()

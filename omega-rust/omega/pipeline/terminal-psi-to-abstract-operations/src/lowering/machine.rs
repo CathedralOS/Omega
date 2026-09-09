@@ -30,19 +30,29 @@ pub(super) fn lower_machine(
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractFunction, LoweringError> {
+    if let Some(operation) = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(&operation.kind,
+            OperationKind::EstablishScalarCase { fields, .. } if !fields.is_empty())
+        })
+    {
+        return Err(LoweringError::UnsupportedScalarCase(operation.id));
+    }
     if !retain_payloadless_for_optimization
         && let Some(operation) = machine
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
             .find(|operation| {
-                matches!(
-                    operation.kind,
-                    OperationKind::EstablishPayloadlessCase { .. }
-                ) || matches!(operation.kind, OperationKind::CallStructural { .. })
-                    && operation.result.structural().is_some_and(|result| {
-                        result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                    })
+                matches!(operation.kind, OperationKind::EstablishScalarCase { .. })
+                    || matches!(operation.kind, OperationKind::CallStructural { .. })
+                        && operation.result.structural().is_some_and(|result| {
+                            result.multiplicity
+                                == terminal_psi::StructuralMultiplicity::Unrestricted
+                        })
             })
     {
         return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));

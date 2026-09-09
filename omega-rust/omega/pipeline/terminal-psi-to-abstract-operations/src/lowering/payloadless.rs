@@ -66,8 +66,8 @@ pub(super) fn exact_payloadless_case_return_exits(machine: &TerminalMachine) -> 
             return false;
         };
         if !matches!(
-            operation.kind,
-            OperationKind::EstablishPayloadlessCase { .. }
+            &operation.kind,
+            OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty()
         ) || operation_result.place != *source
             || operation_result.structural_type != result.structural_type
             || operation_result.multiplicity != StructuralMultiplicity::Unrestricted
@@ -289,8 +289,8 @@ pub(super) fn exact_unrestricted_payloadless_result(
                     })
                     .is_some_and(|operation| {
                         (matches!(
-                            operation.kind,
-                            OperationKind::EstablishPayloadlessCase { .. }
+                            &operation.kind,
+                            OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty()
                         ) || exact_payloadless_structural_call(module, operation, machines))
                             && operation
                                 .result

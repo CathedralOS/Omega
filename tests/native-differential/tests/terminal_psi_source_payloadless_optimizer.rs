@@ -123,6 +123,51 @@ fn source_payloadless_producer_enters_optimizer_while_ordinary_lowering_stays_fe
 }
 
 #[test]
+fn source_scalar_payload_constructor_stops_at_the_abstract_boundary() {
+    let lowered = lowered_source(
+        r#"
+        data LineReadResult {
+            case Invalid;
+            case LineComplete(count: u64);
+            case EndOfInput(count: u64);
+            case Full(count: u64);
+        }
+        machine full(count: u64) -> LineReadResult {
+            LineReadResult::Full { count: count }
+        }
+        "#,
+        "full",
+    );
+    let producer = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(&operation.kind,
+            terminal_psi::OperationKind::EstablishScalarCase { fields, .. }
+                if fields.len() == 1)
+        })
+        .expect("source retains its scalar payload constructor")
+        .id;
+    let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    for result in [
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()).map(|_| ()),
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
+            .map(|_| ()),
+    ] {
+        assert!(
+            matches!(result,
+            Err(ArtifactLoweringError::Lowering(LoweringError::UnsupportedScalarCase(operation)))
+                if operation == producer),
+            "the verified payload must not become a payloadless abstract case: {result:?}"
+        );
+    }
+}
+
+#[test]
 fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corruption() {
     let lowered = lowered_source(GUARDED_CALL_SOURCE, "Root::caller");
     let verified = optimizer_unit(&lowered);

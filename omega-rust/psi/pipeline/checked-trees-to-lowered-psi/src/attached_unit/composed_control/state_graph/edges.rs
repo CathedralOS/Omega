@@ -10,7 +10,8 @@ pub(super) fn successors(
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Vec<&CheckedStructuralControlSuccessorPlan> {
     match &state.terminator {
-        CheckedComposedUnitControlTerminatorPlan::ReturnUnit => Vec::new(),
+        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+        | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => Vec::new(),
         CheckedComposedUnitControlTerminatorPlan::Jump { successor } => vec![successor],
         CheckedComposedUnitControlTerminatorPlan::Conditional {
             when_true,

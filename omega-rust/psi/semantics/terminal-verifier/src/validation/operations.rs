@@ -11,6 +11,9 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
+        return super::scalar_case::operands(module, machine, operation, value_types, defined);
+    }
     if let OperationKind::StructuralByteSequenceFieldByteStore {
         index,
         value,
@@ -701,7 +704,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::CallDynamicParameterUnit { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::CallStructuralWithScalarArguments { .. }
-        | OperationKind::EstablishPayloadlessCase { .. }
+        | OperationKind::EstablishScalarCase { .. }
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }

@@ -13,7 +13,16 @@ pub(super) fn validate(
     let end = statements
         .iter()
         .position(|statement| matches!(statement, StatementNode::Transition(_)))
-        .unwrap_or(statements.len());
+        .unwrap_or_else(|| {
+            if matches!(
+                state.terminator,
+                CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
+            ) {
+                statements.len().saturating_sub(1)
+            } else {
+                statements.len()
+            }
+        });
     let prefix = state.bindings.len();
     let marker_count = super::cases::validate_markers(checked, source, state, end)?;
     if prefix > end || state.operations.len() + marker_count != end - prefix {
@@ -22,6 +31,27 @@ pub(super) fn validate(
     for (ordinal, operation) in state.operations.iter().enumerate() {
         let ordinal = prefix + ordinal;
         match (operation, &statements[ordinal]) {
+            (
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate,
+                    result,
+                    discard_result_on_return,
+                    ..
+                },
+                StatementNode::LocalData(_),
+            ) if coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && !discard_result_on_return
+                && matches!(&state.terminator, CheckedComposedUnitControlTerminatorPlan::ClosedSum { result: selected, .. } if selected == result) =>
+            {
+                crate::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+            }
             (
                 CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     coordinate,

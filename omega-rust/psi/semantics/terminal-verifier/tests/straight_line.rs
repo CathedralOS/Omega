@@ -402,8 +402,9 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishPayloadlessCase {
+        kind: OperationKind::EstablishScalarCase {
             result_case: payloadless,
+            fields: vec![],
         },
     });
     machine.blocks[0].terminator = Terminator::ReturnStructural {
@@ -416,7 +417,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
     validate_module(&module).expect("exact payloadless member validates");
 
     let mut unknown = module.clone();
-    let OperationKind::EstablishPayloadlessCase { result_case } =
+    let OperationKind::EstablishScalarCase { result_case, .. } =
         &mut unknown.machines[0].blocks[0].operations[0].kind
     else {
         unreachable!()
@@ -424,11 +425,11 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
     *result_case = StructuralCaseId::new(904).unwrap();
     assert!(matches!(
         validate_module(&unknown),
-        Err(ModuleError::PayloadlessCaseRequiresPayloadlessMember { .. })
+        Err(ModuleError::ScalarCaseFieldMismatch { .. })
     ));
 
     let mut bearing = module.clone();
-    let OperationKind::EstablishPayloadlessCase { result_case } =
+    let OperationKind::EstablishScalarCase { result_case, .. } =
         &mut bearing.machines[0].blocks[0].operations[0].kind
     else {
         unreachable!()
@@ -436,7 +437,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
     *result_case = payload_bearing;
     assert!(matches!(
         validate_module(&bearing),
-        Err(ModuleError::PayloadlessCaseRequiresPayloadlessMember { .. })
+        Err(ModuleError::ScalarCaseFieldMismatch { .. })
     ));
 
     let mut non_sum = module.clone();
@@ -444,7 +445,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
         StructuralTypeShape::Record { fields: Vec::new() };
     assert!(matches!(
         validate_module(&non_sum),
-        Err(ModuleError::PayloadlessCaseRequiresSum { .. })
+        Err(ModuleError::ScalarCaseRequiresSum { .. })
     ));
 
     let mut generic_unrestricted = module.clone();
@@ -6993,8 +6994,9 @@ fn payloadless_guard_module() -> (TerminalModule, StructuralCaseId, StructuralCa
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::EstablishPayloadlessCase {
+        kind: OperationKind::EstablishScalarCase {
             result_case: success,
+            fields: vec![],
         },
     }];
     machine.blocks[0].terminator = Terminator::ReturnStructural {
@@ -7109,7 +7111,10 @@ fn multi_exit_payloadless_guard_module() -> (
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             }),
-            kind: OperationKind::EstablishPayloadlessCase { result_case },
+            kind: OperationKind::EstablishScalarCase {
+                result_case,
+                fields: vec![],
+            },
         }],
         terminator: Terminator::ReturnStructural {
             edge: EdgeId::new(edge_raw).unwrap(),

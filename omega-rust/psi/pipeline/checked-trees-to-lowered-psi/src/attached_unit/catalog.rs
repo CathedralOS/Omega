@@ -138,6 +138,11 @@ pub(super) fn lower_unit_structural_types_including(
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
+        if let UnitBody::Composed(plan) = body
+            && let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result
+        {
+            roots.push(result.type_identity.clone());
+        }
         roots.extend(body.attachment().map(str::to_owned));
         roots.extend(
             body.structural_parameters()
@@ -186,6 +191,33 @@ pub(super) fn lower_unit_structural_types_including(
                         realization
                             .structural_parameters
                             .iter()
+                            .map(|parameter| parameter.type_identity.clone()),
+                    );
+                }
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    target_machine,
+                    target_state,
+                    result,
+                    ..
+                } if plans.composed_for_machine(*target_machine).is_some() => {
+                    let target = UnitBody::find(plans, *target_machine)?;
+                    let checked_trees::CheckedControlResultPlan::Structural(signature) =
+                        target.result()
+                    else {
+                        return unsupported(
+                            "structural graph call has no structural result catalog",
+                        );
+                    };
+                    if target.entry()?.state != *target_state
+                        || signature.type_identity != result.type_identity
+                    {
+                        return unsupported("structural graph call result catalog drifted");
+                    }
+                    roots.push(signature.type_identity);
+                    roots.extend(target.attachment().map(str::to_owned));
+                    roots.extend(
+                        target
+                            .structural_parameters()
                             .map(|parameter| parameter.type_identity.clone()),
                     );
                 }

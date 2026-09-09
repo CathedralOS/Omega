@@ -757,6 +757,7 @@ impl CheckedUnitEffectPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedComposedUnitControlMachinePlan {
     pub machine: SymbolHandle,
+    pub result: CheckedControlResultPlan,
     /// Exact cyclic-state subjects selected by the checked Slice::Length
     /// witness. Empty means this shared plan retains no such witness.
     pub slice_length_ranks: Vec<CheckedStateSliceLengthRank>,
@@ -769,6 +770,21 @@ pub struct CheckedComposedUnitControlMachinePlan {
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
     pub states: Vec<CheckedComposedUnitControlStatePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedControlResultPlan {
+    Unit,
+    Structural(CheckedStructuralResultPlan),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedScalarCaseFieldPlan {
+    /// Authored evaluation order, independent of declaration field order.
+    pub field_ordinal: u32,
+    pub field_identity: String,
+    pub primitive_type: PrimitiveType,
+    pub expression: CheckedScalarExpression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -800,6 +816,11 @@ pub struct CheckedComposedUnitControlStatePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
     ReturnUnit,
+    ReturnCase {
+        statement_ordinal: u32,
+        case_identity: String,
+        fields: Vec<CheckedScalarCaseFieldPlan>,
+    },
     Jump {
         successor: CheckedStructuralControlSuccessorPlan,
     },

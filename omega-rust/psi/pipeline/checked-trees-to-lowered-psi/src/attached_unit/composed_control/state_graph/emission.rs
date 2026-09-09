@@ -22,6 +22,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             },
         })
         .collect::<Vec<_>>();
+    let machine_result = returns::result(&plan.result, catalogs, &mut structural_places)?;
     let entry_reentered = plan
         .states
         .iter()
@@ -234,6 +235,16 @@ pub(in crate::attached_unit::composed_control) fn emit(
             };
         let body_end = operations.len();
         let prepared_cases = case_emission::prepare(state, catalogs, &operations, &mut next_value)?;
+        let returned_case = returns::emit(
+            checked,
+            state,
+            &machine_result,
+            &bindings,
+            catalogs,
+            &values,
+            &mut next_value,
+            &mut operations,
+        )?;
         let inherited_lengths = operations.byte_lengths.clone();
         let mut edge_blocks = Vec::new();
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
@@ -448,6 +459,16 @@ pub(in crate::attached_unit::composed_control) fn emit(
             }
         };
         let terminator = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. } => {
+                Terminator::ReturnStructural {
+                    edge: edge_id(allocate_dense(&mut next_edge)?),
+                    source: returned_case.ok_or(LoweringError::Unsupported(
+                        "case return construction missing",
+                    ))?,
+                    returned_claims: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                }
+            }
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(&mut next_edge)?),
                 trivial_affine_discards: Vec::new(),
@@ -576,7 +597,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         structural_parameters: parameters,
         entry_claims: Vec::new(),
         ranked_scc: None,
-        result: TerminalMachineResult::Unit,
+        result: machine_result,
         published_service_ceiling: lower_installation_machine_service_ceiling(
             checked,
             plan.machine,

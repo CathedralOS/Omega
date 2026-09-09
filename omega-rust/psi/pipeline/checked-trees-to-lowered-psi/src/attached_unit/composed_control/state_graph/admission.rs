@@ -53,7 +53,8 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     plan: &'a CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedGraph<'a>, LoweringError> {
     super::super::admission::validate_contract(checked, plan)?;
-    if plan.states.len() < 2
+    if plan.states.is_empty()
+        || (plan.states.len() < 2 && plan.result == checked_trees::CheckedControlResultPlan::Unit)
         || !plan.body_qualifications.is_empty()
         || checked
             .facts
@@ -101,12 +102,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     for (source, state) in source_states.iter().zip(&plan.states) {
         if source.symbol != state.state
             || !checked.state_contracts(source).is_empty()
-            || !matches!(
-                checked
-                    .type_reference_table
-                    .type_reference(source.return_type),
-                TypeReferenceNode::Unit
-            )
+            || !super::returns::signature_matches(checked, source, &plan.result)
             || !state.entry_claims.is_empty()
         {
             return unsupported("Unit graph state identity, contract, or custody drifted");
@@ -194,7 +190,14 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             (CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }, _) => {
                 super::cases::validate(checked, plan, source, state, tail, terminator_ordinal)?;
             }
-            (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, []) => {}
+            (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, [])
+                if plan.result == checked_trees::CheckedControlResultPlan::Unit => {}
+            (
+                CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. },
+                [StatementNode::Expression(_)],
+            ) => {
+                super::returns::validate(checked, plan, source, state, terminator_ordinal)?;
+            }
             (
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor },
                 [StatementNode::Transition(transition)],

@@ -13,7 +13,7 @@ use terminal_psi::{
 };
 
 use super::*;
-use crate::{ExecutableMachine, LiveClaim, TerminalExecutionStatus, TerminalPayloadlessCaseValue};
+use crate::{ExecutableMachine, LiveClaim, TerminalExecutionStatus, TerminalScalarCaseValue};
 
 fn place(ordinal: u64) -> PlaceId {
     PlaceId::new(ordinal).unwrap()
@@ -152,7 +152,7 @@ fn execution() -> (TerminalExecution, Operation) {
         structural_scalar_fields: BTreeMap::new(),
         structural_byte_sequence_fields: BTreeMap::new(),
         structural_byte_arrays: BTreeMap::new(),
-        payloadless_case_values: BTreeMap::new(),
+        scalar_case_values: BTreeMap::new(),
         byte_sequence_values: BTreeMap::from([(
             place(1),
             crate::ByteSequenceBinding::Immutable(crate::ByteSequenceView::new(vec![
@@ -354,11 +354,12 @@ fn failed_replacement_preserves_descriptors_and_live_custody() {
                     });
             }
             "conflicting case" => {
-                execution.payloadless_case_values.insert(
+                execution.scalar_case_values.insert(
                     place(2),
-                    TerminalPayloadlessCaseValue {
+                    TerminalScalarCaseValue {
                         structural_type: result.structural_type,
                         result_case: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                        fields: vec![],
                     },
                 );
             }
@@ -462,7 +463,7 @@ fn failed_replacement_preserves_descriptors_and_live_custody() {
         let previous_scalars = execution.values.clone();
         let previous_claims = execution.live_claims.clone();
         let previous_frontier = execution.live_affine_frontier.clone();
-        let previous_cases = execution.payloadless_case_values.clone();
+        let previous_cases = execution.scalar_case_values.clone();
         assert!(
             execution
                 .execute_byte_sequence_subslice(&operation)
@@ -476,10 +477,7 @@ fn failed_replacement_preserves_descriptors_and_live_custody() {
             execution.live_affine_frontier, previous_frontier,
             "{mutation}"
         );
-        assert_eq!(
-            execution.payloadless_case_values, previous_cases,
-            "{mutation}"
-        );
+        assert_eq!(execution.scalar_case_values, previous_cases, "{mutation}");
         assert_eq!(
             execution.byte_sequence_values.len(),
             previous_bytes.len(),

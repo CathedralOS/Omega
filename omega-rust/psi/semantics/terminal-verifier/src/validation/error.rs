@@ -516,13 +516,13 @@ pub enum ModuleError {
     },
     TrivialAffineLocalEstablishmentMismatch(MachineId),
     NonCanonicalTrivialAffineLocals(MachineId),
-    PayloadlessCaseResultMismatch(OperationId),
-    PayloadlessCaseRequiresSum {
+    ScalarCaseResultMismatch(OperationId),
+    ScalarCaseRequiresSum {
         operation: OperationId,
         structural_type: semantic_vocabulary::StructuralTypeId,
         result_case: semantic_vocabulary::StructuralCaseId,
     },
-    PayloadlessCaseRequiresPayloadlessMember {
+    ScalarCaseFieldMismatch {
         operation: OperationId,
         structural_type: semantic_vocabulary::StructuralTypeId,
         result_case: semantic_vocabulary::StructuralCaseId,

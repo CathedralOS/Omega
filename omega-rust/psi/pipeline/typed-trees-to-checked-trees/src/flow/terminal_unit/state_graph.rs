@@ -3,6 +3,7 @@
 use super::*;
 
 mod closed_sum;
+mod returns;
 
 #[cfg(test)]
 mod tests;
@@ -14,7 +15,11 @@ pub(super) fn build(
     machine: &typed_trees::machine::Machine,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     let states = program.machine_states(machine);
-    if states.len() < 2 || !machine_binders(program, machine).is_empty() {
+    if states.is_empty() || !machine_binders(program, machine).is_empty() {
+        return None;
+    }
+    let result = returns::signature(program, shapes, states[0].return_type)?;
+    if states.len() < 2 && result == checked_trees::CheckedControlResultPlan::Unit {
         return None;
     }
     let slice_length_ranks = if machine.termination_plan.implementation_witness.is_some() {
@@ -31,7 +36,9 @@ pub(super) fn build(
     let mut attachment = None;
     let mut signatures = Vec::new();
     for state in states {
-        if !is_unit(program, state.return_type) || !program.state_contracts(state).is_empty() {
+        if returns::signature(program, shapes, state.return_type)? != result
+            || !program.state_contracts(state).is_empty()
+        {
             return None;
         }
         let (structural, scalar) = if machine.attached_data.is_some() {
@@ -102,7 +109,11 @@ pub(super) fn build(
         let binding_count = bindings.len();
         let terminator_index = statements
             .iter()
-            .position(|statement| matches!(statement, StatementNode::Transition(_)))
+            .position(|statement| {
+                matches!(statement, StatementNode::Transition(_))
+                    || (result != checked_trees::CheckedControlResultPlan::Unit
+                        && matches!(statement, StatementNode::Expression(_)))
+            })
             .unwrap_or(statements.len());
         let flow = state_flow(facts, machine.symbol, state.symbol)?;
         let source_calls = facts.flow.control.calls.span_or_empty(flow.calls);
@@ -181,7 +192,14 @@ pub(super) fn build(
             )
         };
         let terminator = match &statements[terminator_index..] {
-            [] => CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
+            [] if result == checked_trees::CheckedControlResultPlan::Unit => {
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            }
+            [StatementNode::Expression(expression)]
+                if result != checked_trees::CheckedControlResultPlan::Unit =>
+            {
+                returns::constructor(program, facts, state, ordinal, *expression)?
+            }
             [StatementNode::Transition(transition)]
                 if transition.guard == TransitionGuardNode::Always =>
             {
@@ -253,6 +271,7 @@ pub(super) fn build(
         planned,
     )?;
     plan.slice_length_ranks = slice_length_ranks;
+    plan.result = result;
     Some(plan)
 }
 

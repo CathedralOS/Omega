@@ -41,7 +41,7 @@ pub enum StructuralEffectCustody {
     ExactPublishedService,
     ExactEmptyAffineLocal,
     ExactAffineScalarRecord,
-    ExactPayloadlessCase,
+    ExactScalarCase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -63,7 +63,7 @@ pub enum StructuralEffectAction {
     EmitPortWrite,
     EstablishAffinePlace,
     EstablishAffineScalarRecord,
-    EstablishPayloadlessCase,
+    EstablishScalarCase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -292,11 +292,11 @@ impl StructuralEffectSemanticRow {
             ),
         },
         Self {
-            tag: OperationSemanticTag::EstablishPayloadlessCase,
+            tag: OperationSemanticTag::EstablishScalarCase,
             schema: structural_effect_leaf(
                 StructuralEffectResultShape::Structural,
-                StructuralEffectCustody::ExactPayloadlessCase,
-                StructuralEffectAction::EstablishPayloadlessCase,
+                StructuralEffectCustody::ExactScalarCase,
+                StructuralEffectAction::EstablishScalarCase,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::AddsOwnedPlace,
             ),
@@ -382,7 +382,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::StructuralByteSequenceFieldStore
             | OperationSemanticTag::StructuralByteSequenceFieldLength
             | OperationSemanticTag::StructuralByteSequenceFieldByteStore
-            | OperationSemanticTag::EstablishPayloadlessCase
+            | OperationSemanticTag::EstablishScalarCase
             | OperationSemanticTag::EstablishByteSequenceLiteral
             | OperationSemanticTag::ByteSequenceLength
             | OperationSemanticTag::ByteSequenceWrite
@@ -441,7 +441,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::StructuralByteSequenceFieldStore,
         OperationSemanticTag::StructuralByteSequenceFieldLength,
         OperationSemanticTag::StructuralByteSequenceFieldByteStore,
-        OperationSemanticTag::EstablishPayloadlessCase,
+        OperationSemanticTag::EstablishScalarCase,
         OperationSemanticTag::EstablishByteSequenceLiteral,
         OperationSemanticTag::ByteSequenceLength,
         OperationSemanticTag::ByteSequenceRead,
@@ -553,7 +553,10 @@ pub enum StructuralEffectObservation {
         destination: PlaceId,
         equation: Proposition,
     },
-    PayloadlessCaseEstablished(Proposition),
+    ScalarCaseEstablished {
+        membership: Proposition,
+        fields: Vec<terminal_psi::ScalarCaseField>,
+    },
 }
 
 impl StructuralEffectObservation {
@@ -608,7 +611,10 @@ impl StructuralEffectObservation {
     pub fn local_equation(&self) -> Option<&Proposition> {
         match self {
             Self::BooleanFieldEquation(proposition)
-            | Self::PayloadlessCaseEstablished(proposition)
+            | Self::ScalarCaseEstablished {
+                membership: proposition,
+                ..
+            }
             | Self::AffineScalarRecordEstablished {
                 equation: proposition,
                 ..
@@ -672,9 +678,7 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishAffineScalarRecord => {
             OperationSemanticTag::EstablishAffineScalarRecord
         }
-        StructuralEffectAction::EstablishPayloadlessCase => {
-            OperationSemanticTag::EstablishPayloadlessCase
-        }
+        StructuralEffectAction::EstablishScalarCase => OperationSemanticTag::EstablishScalarCase,
     };
     let expected_goal = match schema.action {
         StructuralEffectAction::StoreByteSequenceField => {
@@ -806,9 +810,9 @@ fn validate_structural_effect_schema(
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
             }
-            StructuralEffectAction::EstablishPayloadlessCase => {
+            StructuralEffectAction::EstablishScalarCase => {
                 schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactPayloadlessCase
+                    && schema.custody == StructuralEffectCustody::ExactScalarCase
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
             }
@@ -1021,19 +1025,23 @@ pub fn structural_effect_leaf_observation_in(
             value: *value,
         },
         (
-            StructuralEffectAction::EstablishPayloadlessCase,
-            OperationKind::EstablishPayloadlessCase { result_case },
+            StructuralEffectAction::EstablishScalarCase,
+            OperationKind::EstablishScalarCase {
+                result_case,
+                fields,
+            },
         ) => {
             let result = operation
                 .result
                 .structural()
-                .expect("validated payloadless-case structural result");
-            StructuralEffectObservation::PayloadlessCaseEstablished(
-                Proposition::StructuralCaseMembership {
+                .expect("validated scalar-case structural result");
+            StructuralEffectObservation::ScalarCaseEstablished {
+                membership: Proposition::StructuralCaseMembership {
                     subject: StructuralCaseSubject::new(result.place, Vec::new()),
                     case: *result_case,
                 },
-            )
+                fields: fields.clone(),
+            }
         }
         (
             StructuralEffectAction::ReadIntegerField,
@@ -1347,7 +1355,7 @@ mod tests {
                 OperationSemanticTag::ByteSequenceLength,
                 OperationSemanticTag::WriteOnlyPrimitiveStore,
                 OperationSemanticTag::StructuralScalarFieldStore,
-                OperationSemanticTag::EstablishPayloadlessCase,
+                OperationSemanticTag::EstablishScalarCase,
                 OperationSemanticTag::EstablishByteSequenceLiteral,
                 OperationSemanticTag::BooleanStructuralField,
                 OperationSemanticTag::IntegerStructuralField,

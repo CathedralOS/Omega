@@ -102,8 +102,8 @@ impl TerminalExecution {
                 .live_affine_frontier
                 .iter()
                 .any(|entry| entry.place == *source || entry.place == result.place)
-            || self.payloadless_case_values.contains_key(source)
-            || self.payloadless_case_values.contains_key(&result.place)
+            || self.scalar_case_values.contains_key(source)
+            || self.scalar_case_values.contains_key(&result.place)
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }

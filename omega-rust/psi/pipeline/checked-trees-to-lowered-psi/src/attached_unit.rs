@@ -467,7 +467,9 @@ fn assemble_unit_closure(
                     realization_machine,
                     ..
                 } => Some(*realization_machine),
-                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => {
+                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
+                    if plans.composed_for_machine(*target_machine).is_none() =>
+                {
                     Some(*target_machine)
                 }
                 _ => None,

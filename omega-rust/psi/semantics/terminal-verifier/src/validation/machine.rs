@@ -196,10 +196,20 @@ pub(super) fn validate_machine(
                 }
                 continue;
             }
+            if let OperationKind::EstablishScalarCase { fields, .. } = &operation.kind {
+                super::scalar_case::fields(module, machine, operation)?;
+                for obligation in fields.iter().filter_map(|field| field.range_obligation) {
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
             if matches!(
                 operation.kind,
-                OperationKind::EstablishPayloadlessCase { .. }
-                    | OperationKind::EstablishAffineScalarRecord { .. }
+                OperationKind::EstablishAffineScalarRecord { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }
             ) {
                 validate_unit_operation_static(module, machine, machines, operation)?;
@@ -364,7 +374,7 @@ pub(super) fn validate_machine(
                 | OperationKind::CallDynamicParameterUnit { .. }
                 | OperationKind::CallStructural { .. }
                 | OperationKind::CallStructuralWithScalarArguments { .. }
-                | OperationKind::EstablishPayloadlessCase { .. }
+                | OperationKind::EstablishScalarCase { .. }
                 | OperationKind::ByteSequenceSubslice { .. }
                 | OperationKind::EstablishAffineScalarRecord { .. }
                 | OperationKind::EstablishPrimitiveLocal { .. }

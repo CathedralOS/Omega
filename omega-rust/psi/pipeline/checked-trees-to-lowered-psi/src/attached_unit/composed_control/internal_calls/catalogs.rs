@@ -27,6 +27,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
         let reach = match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -110,6 +111,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
                 );
             }
             Ok(super::super::catalogs::LoweredComposedInternalTarget {
+                result: target.result(),
                 source: entry.machine,
                 structural_parameters: entry.structural_parameters.to_vec(),
                 id,

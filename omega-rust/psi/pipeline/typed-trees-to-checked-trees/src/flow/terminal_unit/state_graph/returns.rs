@@ -1,0 +1,134 @@
+//! Normal graph results and source-bound scalar case construction.
+
+use super::*;
+use checked_trees::{CheckedControlResultPlan, CheckedScalarCaseFieldPlan};
+
+pub(super) fn signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    reference: TypeReferenceHandle,
+) -> Option<CheckedControlResultPlan> {
+    if is_unit(program, reference) {
+        return Some(CheckedControlResultPlan::Unit);
+    }
+    let multiplicity = crate::checks::type_multiplicity(program, reference);
+    if !matches!(
+        multiplicity,
+        Multiplicity::Unrestricted | Multiplicity::Affine
+    ) || !parameter_qualifications(program, shapes, reference, &[])?.is_empty()
+        || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+    {
+        return None;
+    }
+    let type_identity = shapes.add_type(reference, &[], &[])?;
+    let CheckedUnitStructuralTypeShape::Sum { cases } = &shapes.types.get(&type_identity)?.shape
+    else {
+        return None;
+    };
+    if cases.is_empty()
+        || cases.iter().any(|case| {
+            case.fields.iter().any(|field| {
+                !matches!(
+                    field.field_type,
+                    CheckedUnitStructuralFieldType::Scalar(_)
+                        | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                )
+            })
+        })
+    {
+        return None;
+    }
+    Some(CheckedControlResultPlan::Structural(
+        CheckedStructuralResultPlan {
+            type_identity,
+            multiplicity,
+            qualifications: Vec::new(),
+        },
+    ))
+}
+
+pub(super) fn constructor(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    statement_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    let TypeReferenceNode::Named { symbol, .. } = program
+        .type_reference_table
+        .type_reference(state.return_type)
+    else {
+        return None;
+    };
+    let (case_symbol, fields) = match program.expression_table.expression(expression) {
+        ExpressionNode::StructLiteral(literal) if literal.type_symbol == *symbol => (
+            literal.case_symbol?,
+            program.expression_table.struct_fields(literal.fields),
+        ),
+        ExpressionNode::Name(path)
+            if path.head_symbol == *symbol
+                && program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 2 =>
+        {
+            (path.symbol, &[][..])
+        }
+        _ => return None,
+    };
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *symbol)?;
+    let variant = program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Variant(variant) if variant.symbol == case_symbol => Some(variant),
+            _ => None,
+        })?;
+    let declarations = program.data_payload_fields(variant);
+    if fields.len() != declarations.len() {
+        return None;
+    }
+    let mut planned = Vec::new();
+    for (ordinal, field) in fields.iter().enumerate() {
+        let declaration = declarations
+            .iter()
+            .find(|declaration| declaration.symbol == field.field_symbol)?;
+        let identity = declaration
+            .identity
+            .map(|identity| format!("#{identity}"))
+            .unwrap_or_else(|| declaration.name.as_str().to_owned());
+        if planned
+            .iter()
+            .any(|field: &CheckedScalarCaseFieldPlan| field.field_identity == identity)
+        {
+            return None;
+        }
+        let field_ordinal = u32::try_from(ordinal).ok()?;
+        let (binding, expression) = facts.values.scalar_expressions.bound_expression_at(
+            state.symbol,
+            statement_ordinal,
+            CheckedScalarExpressionRole::ReturnCaseField { field_ordinal },
+        )?;
+        if binding.expression != field.value || binding.destination.is_valid() {
+            return None;
+        }
+        planned.push(CheckedScalarCaseFieldPlan {
+            field_ordinal,
+            field_identity: identity,
+            primitive_type: program.primitive_type_reference(declaration.type_reference)?,
+            expression: expression.clone(),
+        });
+    }
+    Some(CheckedComposedUnitControlTerminatorPlan::ReturnCase {
+        statement_ordinal,
+        case_identity: variant
+            .identity
+            .map(|identity| format!("#{identity}"))
+            .unwrap_or_else(|| variant.name.as_str().to_owned()),
+        fields: planned,
+    })
+}

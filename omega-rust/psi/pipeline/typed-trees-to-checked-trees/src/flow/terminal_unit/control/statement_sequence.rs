@@ -110,7 +110,11 @@ pub(in crate::flow::terminal_unit) fn build(
         .iter()
         .enumerate()
         .skip(construction_statement_count)
-        .take_while(|(_, statement)| !matches!(statement, StatementNode::Transition(_)))
+        .take_while(|(_, statement)| {
+            !matches!(statement, StatementNode::Transition(_))
+                && !(matches!(statement, StatementNode::Expression(_))
+                    && !is_unit(program, state.return_type))
+        })
     {
         let statement_index = u32::try_from(index).ok()?;
         let mut structural_result = None;

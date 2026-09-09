@@ -93,7 +93,10 @@ pub(super) fn lower_payloadless_case_return_machine(
                         claims: Vec::new(),
                     },
                 ),
-                kind: OperationKind::EstablishPayloadlessCase { result_case },
+                kind: OperationKind::EstablishScalarCase {
+                    result_case,
+                    fields: Vec::new(),
+                },
             }],
             terminator: Terminator::ReturnStructural {
                 edge: edge_id(1),

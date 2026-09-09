@@ -32,6 +32,11 @@ pub(crate) fn checked_unit_call_closure_including(
                 CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
                     Some(*target_machine)
                 }
+                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
+                    if plans.composed_for_machine(*target_machine).is_some() =>
+                {
+                    Some(*target_machine)
+                }
                 _ => None,
             })
         {
@@ -395,6 +400,11 @@ pub(super) fn reject_recursive_unit_closure(
             .operations()
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
+                    Some(*target_machine)
+                }
+                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
+                    if plans.composed_for_machine(*target_machine).is_some() =>
+                {
                     Some(*target_machine)
                 }
                 _ => None,

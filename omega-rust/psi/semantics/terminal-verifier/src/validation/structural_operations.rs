@@ -64,9 +64,16 @@ pub(crate) fn exact_payloadless_case_return_exits(
             .flat_map(|block| &block.operations)
             .find(|operation| operation.id == producer)?;
         let operation_result = operation.result.structural()?;
-        let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
+        let OperationKind::EstablishScalarCase {
+            result_case,
+            ref fields,
+        } = operation.kind
+        else {
             return None;
         };
+        if !fields.is_empty() {
+            return None;
+        }
         if operation_result.place != *source
             || operation_result.structural_type != result.structural_type
             || operation_result.multiplicity != StructuralMultiplicity::Unrestricted
@@ -163,6 +170,9 @@ pub(super) fn validate_unit_operation_static(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
+    if validate_scalar_case_call(module, machine, machines, operation)? {
+        return Ok(());
+    }
     match &operation.kind {
         OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
             super::primitive_storage::store_type(module, machine, operation.id, *destination)?;
@@ -194,54 +204,8 @@ pub(super) fn validate_unit_operation_static(
         OperationKind::StructuralByteSequenceFieldStore { .. } => {
             super::structural_byte_sequence_store::capacity(module, machine, operation)?;
         }
-        OperationKind::EstablishPayloadlessCase { result_case } => {
-            let Some(result) = operation.result.structural() else {
-                return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
-            };
-            let Some(place) = machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == result.place)
-            else {
-                return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
-            };
-            if !matches!(
-                place.kind,
-                StructuralPlaceKind::OperationResult { producer, structural_type }
-                    if producer == operation.id && structural_type == result.structural_type
-            ) || result.multiplicity != StructuralMultiplicity::Unrestricted
-                || !super::structural_result_contracts::has_empty_qualification_rosters(
-                    &result.qualifications,
-                    &result.projected_qualifications,
-                )
-                || !result.claims.is_empty()
-            {
-                return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
-            }
-            let Some(declaration) = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
-            else {
-                return Err(ModuleError::UnknownStructuralType(result.structural_type));
-            };
-            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                return Err(ModuleError::PayloadlessCaseRequiresSum {
-                    operation: operation.id,
-                    structural_type: result.structural_type,
-                    result_case: *result_case,
-                });
-            };
-            if !cases
-                .iter()
-                .any(|case| case.id == *result_case && case.fields.is_empty())
-            {
-                return Err(ModuleError::PayloadlessCaseRequiresPayloadlessMember {
-                    operation: operation.id,
-                    structural_type: result.structural_type,
-                    result_case: *result_case,
-                });
-            }
+        OperationKind::EstablishScalarCase { .. } => {
+            super::scalar_case::fields(module, machine, operation)?;
         }
         OperationKind::EstablishAffineScalarRecord { field, value } => {
             let Some(result) = operation.result.structural() else {
@@ -1053,6 +1017,136 @@ pub(super) fn validate_unit_operation_static(
     Ok(())
 }
 
+/// Ordinary claim-free scalar-sum results use the same argument, requirement,
+/// crash, and service checks as continuing calls. No callee topology supplies
+/// facts or excuses checking its body.
+fn validate_scalar_case_call(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    operation: &terminal_psi::Operation,
+) -> Result<bool, ModuleError> {
+    let Some(result) = operation.result.structural() else {
+        return Ok(false);
+    };
+    if !super::scalar_case::plain_type(module, result.structural_type)
+        || !matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        )
+        || !result.claims.is_empty()
+    {
+        return Ok(false);
+    }
+    let (
+        callee_id,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    ) = match &operation.kind {
+        OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => (
+            *callee,
+            arguments.as_slice(),
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        OperationKind::CallStructural {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence,
+        } if selected_evidence.is_empty() => (
+            *callee,
+            &[][..],
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        _ => return Ok(false),
+    };
+    let callee = machines
+        .get(&callee_id)
+        .copied()
+        .ok_or(ModuleError::UnknownCallTarget {
+            operation: operation.id,
+            callee: callee_id,
+        })?;
+    if !callee.contract.outcome_specific_ensures.is_empty() {
+        return Ok(false);
+    }
+    let failure = || ModuleError::StructuralCallTargetMismatch {
+        operation: operation.id,
+        callee: callee_id,
+    };
+    let signature = callee.result.structural().ok_or_else(failure)?;
+    if !matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
+        || !super::structural_result_contracts::call_result_matches(result, signature)
+        || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty() || !claim_transfers.is_empty() || !returned_claim_transfers.is_empty()
+        || !callee.entry_claims.is_empty() || !callee.content_entry_claims.is_empty()
+        || !callee.content_identity_reshuffles.is_empty() || !callee.content_partition_compositions.is_empty()
+        || module.evidence_contract_lanes.iter().any(|lane| lane.machine == callee.id)
+        || requirement_obligations.len() != callee.contract.requires.len()
+        || arguments.len() != callee.parameters.len()
+        || !machine.structural_places.iter().any(|place| place.id == result.place
+            && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
+                if producer == operation.id && structural_type == result.structural_type))
+    {
+        return Err(failure());
+    }
+    validate_structural_arguments(
+        module,
+        machine,
+        structural_arguments,
+        &callee.structural_parameters,
+        operation.id,
+        false,
+        StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults,
+    )?;
+    validate_unit_call_claim_transfers(
+        module,
+        machine,
+        callee,
+        structural_arguments,
+        claim_transfers,
+        operation.id,
+    )?;
+    validate_service_reach(
+        operation.id,
+        &machine.published_service_ceiling,
+        &callee.published_service_ceiling,
+    )?;
+    validate_unit_call_crash_continuations(
+        module,
+        machine,
+        callee,
+        arguments,
+        structural_arguments,
+        crash_continuations,
+        operation.id,
+    )?;
+    Ok(true)
+}
+
 /// Validate the complete bounded representation for a nonempty run of
 /// pairwise-disjoint field transfers, followed by disposal of every maximal
 /// residual sibling subtree in recursive reverse declaration order. This
@@ -1153,7 +1247,15 @@ pub(super) fn validate_structural_arguments(
     let ordinary_call = matches!(
         call_kind,
         Some(OperationKind::CallUnit { .. } | OperationKind::CallStructuralScalar { .. })
-    );
+    ) || (source_policy
+        == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+        && matches!(
+            call_kind,
+            Some(
+                OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+            )
+        ));
     let result_projection = allow_projected && unit_call;
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {

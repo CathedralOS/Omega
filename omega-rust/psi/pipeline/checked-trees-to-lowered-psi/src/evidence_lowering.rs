@@ -97,9 +97,16 @@ fn exact_payloadless_return_guard(machine: &TerminalMachine) -> Option<OutcomeSp
                 .structural()
                 .is_some_and(|result| result.place == source)
         })?;
-        let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
+        let OperationKind::EstablishScalarCase {
+            result_case,
+            ref fields,
+        } = operation.kind
+        else {
             return None;
         };
+        if !fields.is_empty() {
+            return None;
+        }
         let operation_result = operation.result.structural()?;
         (operation_result.structural_type == result.structural_type).then_some(
             OutcomeSpecificGuard {

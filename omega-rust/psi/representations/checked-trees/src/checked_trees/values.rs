@@ -208,6 +208,10 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    /// Scalar operand of an ordinary case-construction return, in authored order.
+    ReturnCaseField {
+        field_ordinal: u32,
+    },
     /// Initial value written into mutable local storage. This does not append
     /// an immutable runtime binding or change the scalar operand namespace.
     StorageInitializer,

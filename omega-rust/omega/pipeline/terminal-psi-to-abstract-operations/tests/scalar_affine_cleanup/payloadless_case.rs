@@ -112,7 +112,10 @@ fn omega_fences_verified_payloadless_case_materialization() {
                         projected_qualifications: Vec::new(),
                         claims: Vec::new(),
                     }),
-                    kind: OperationKind::EstablishPayloadlessCase { result_case },
+                    kind: OperationKind::EstablishScalarCase {
+                        result_case,
+                        fields: Vec::new(),
+                    },
                 }],
                 terminator: Terminator::ReturnStructural {
                     edge: edge_id(91),

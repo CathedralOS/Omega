@@ -462,7 +462,8 @@ pub(super) fn retain_call_targets<'a>(
                         &mut boundaries,
                     )?;
                 }
-                CheckedUnitEffectOperationPlan::CallUnit { .. } => {
+                CheckedUnitEffectOperationPlan::CallUnit { .. }
+                | CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
                     internal_calls::admission::retain_call_target(
                         checked,
                         machine,

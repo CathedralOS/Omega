@@ -53,6 +53,7 @@ mod propositions;
 mod quotient_correspondence;
 mod ranked_scc;
 mod root_service_reach;
+pub(crate) mod scalar_case;
 mod structural_byte_sequence_fields;
 mod structural_byte_sequence_store;
 mod structural_operations;

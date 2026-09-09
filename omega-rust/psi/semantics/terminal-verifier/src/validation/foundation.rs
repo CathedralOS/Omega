@@ -869,8 +869,8 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                                 .find(|operation| operation.id == *producer)
                                 .is_some_and(|operation| {
                                     (matches!(
-                                        operation.kind,
-                                        OperationKind::EstablishPayloadlessCase { .. }
+                                        &operation.kind,
+                                        OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty()
                                     ) || super::structural_operations::exact_payloadless_structural_call(
                                         module,
                                         operation,
@@ -916,6 +916,22 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                             });
                 if result.multiplicity == StructuralMultiplicity::Unrestricted
                     && !exact_unrestricted_payloadless_result
+                    && !(result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && super::scalar_case::plain_type(module, result.structural_type)
+                        && machine.blocks.iter().all(|block| match &block.terminator {
+                            Terminator::ReturnStructural {
+                                source,
+                                returned_claims,
+                                ..
+                            } => {
+                                returned_claims.is_empty()
+                                    && super::scalar_case::plain_return_source(
+                                        module, machine, *source,
+                                    )
+                            }
+                            _ => true,
+                        }))
                 {
                     return Err(ModuleError::StructuralResultMustBeOwned(machine.id));
                 }

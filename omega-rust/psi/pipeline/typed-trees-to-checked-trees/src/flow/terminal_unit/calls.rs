@@ -1127,6 +1127,48 @@ pub(super) fn build_call_operation(
             completion_receipts: transfers,
         })
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
+        // A closed graph's result signature is available before its body plan.
+        // The closure pass below retains this call only when that complete body
+        // was produced, avoiding an authored machine-order dependency.
+        if structural_arguments.iter().all(|argument| {
+            argument.path.is_empty()
+                && argument.source_parameter_index().is_some()
+                && matches!(
+                    argument.access,
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+                )
+        }) && transfers.is_empty()
+            && result.multiplicity == Multiplicity::Affine
+            && validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                target_state.return_type,
+            )
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(target_state.return_type),
+                TypeReferenceNode::Named { .. }
+            )
+            && program
+                .machine_states(target_machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == target_state.symbol)
+            && machine_binders(program, target_machine).is_empty()
+        {
+            return Some(CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                source_site,
+                result: result.clone(),
+                target_machine: target_machine.symbol,
+                target_state: target_state.symbol,
+                target_contract_report_fingerprint: target_contract.report_fingerprint,
+                target_contract_commitment: target_contract.commitment,
+                service_reach: call.service_reach,
+                scalar_arguments,
+                structural_arguments,
+                discard_result_on_return: true,
+            });
+        }
         let target = facts
             .flow
             .terminal_structural_returns

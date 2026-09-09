@@ -13,6 +13,20 @@ Production reconstruction does not run a sufficient-form reducer or search for
 an alternative question. Proof discovery belongs to producers; admission checks
 their serialized derivations.
 
+`EstablishScalarCase` atomically establishes a claim-free affine or unrestricted
+sum result from an exact declaration-ordered scalar field roster. Operands must
+be defined and exactly typed. Every restricted integer field has its own
+declaration-derived inclusive-range conjunction obligation; raw fields have none.
+All initializer obligations precede case membership and field-to-SSA equations.
+Structural, borrowed, erased, qualified, and linear payload construction remains
+unsupported. Empty selected payloads preserve the previous empty-case behavior;
+the guarded outcome importer still recognizes only that empty form.
+
+Plain scalar-case results use ordinary structural return custody and internal
+call composition. Mixed scalar arguments retain positional requirement and
+guarantee substitution, with fresh-result observation invalidation before
+requirements and argument-mutation invalidation before guarantees.
+
 Reconstruction separates machine context, path facts, operation facts,
 terminator facts, and deterministic control-flow scheduling. All-incoming and
 all-return intersections cannot be replaced by a union. An operation's
@@ -112,11 +126,15 @@ allowing swaps and self-loops without duplication or overwriting a live owner.
 Every arrival, including a backedge, must establish the same structural frontier.
 Disposal follows establishment dominance and parameter order, not serialized
 block IDs. Owned byte descriptors do not gain immutable-view read authority.
-Unit loops also admit a claim-free, unqualified affine boundary-result sum with
+Unit and plain scalar-sum-result loops also admit a claim-free, unqualified affine boundary-result sum with
 relevant scalar payloads when its producer and case inspection share a block.
 Every case edge discards that exact whole result before entering its successor;
 the result is never loop-carried custody. Full frontier equality and proof-loop
 cuts still apply, so no preceding iteration's result or case fact is reused.
+Scalar-case constructors can also establish the result on normal-return leaves.
+Fresh internal case results can be inspected/disposed under the same local
+custody rule. These additions preserve the existing full-graph checks and cuts;
+they establish no termination or loop-invariant authority.
 Qualified or partial owned cyclic custody, loop-carried structural results,
 projected claims, and arbitrary operation families remain unsupported. Eligibility is not dominance,
 frontier, or proof authority; all subsequent checks still run.
