@@ -1,4 +1,5 @@
 use super::calling_plans::validate_paired_calling_plans;
+use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use terminal_production::CheckedProgramEntryTerminalReceipt;
 
 /// Exact build-owned source-entry custody carried into native realization.
@@ -7,7 +8,8 @@ use terminal_production::CheckedProgramEntryTerminalReceipt;
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProgramEntrySettlement<'entry> {
     pub(crate) source: &'entry program_entry_plan::SelectedProgramEntrySourceSignature,
-    pub(crate) semantic_boundary_entry_plan: Option<&'entry calling_conventions::BoundaryEntryPlan>,
+    pub(crate) semantic_calling_application: Option<&'entry BoundaryCallingPlanRealization>,
+    pub(crate) physical_calling_application: Option<&'entry BoundaryCallingPlanRealization>,
     pub(crate) storage_entry: Option<&'entry program_entry_plan::SelectedProgramStorageEntryPlan>,
     pub(crate) fused_service_establishments:
         &'entry [program_entry_plan::ProgramEntryFusedServiceEstablishment],
@@ -17,20 +19,25 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
     pub const fn new(
         source: &'entry program_entry_plan::SelectedProgramEntrySourceSignature,
         calling_plans: Option<(
-            &'entry calling_conventions::BoundaryEntryPlan,
+            &'entry BoundaryCallingPlanRealization,
+            &'entry BoundaryCallingPlanRealization,
             &'entry program_entry_plan::SelectedProgramStorageEntryPlan,
         )>,
         fused_service_establishments: &'entry [
             program_entry_plan::ProgramEntryFusedServiceEstablishment
         ],
     ) -> Self {
-        let (semantic_boundary_entry_plan, storage_entry) = match calling_plans {
-            Some((semantic, storage)) => (Some(semantic), Some(storage)),
-            None => (None, None),
-        };
+        let (semantic_calling_application, physical_calling_application, storage_entry) =
+            match calling_plans {
+                Some((semantic, physical, storage)) => {
+                    (Some(semantic), Some(physical), Some(storage))
+                }
+                None => (None, None, None),
+            };
         Self {
             source,
-            semantic_boundary_entry_plan,
+            semantic_calling_application,
+            physical_calling_application,
             storage_entry,
             fused_service_establishments,
         }
@@ -43,7 +50,22 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
     pub const fn semantic_boundary_entry_plan(
         self,
     ) -> Option<&'entry calling_conventions::BoundaryEntryPlan> {
-        self.semantic_boundary_entry_plan
+        match self.semantic_calling_application {
+            Some(application) => Some(&application.boundary_entry_plan),
+            None => None,
+        }
+    }
+
+    pub const fn semantic_calling_application(
+        self,
+    ) -> Option<&'entry BoundaryCallingPlanRealization> {
+        self.semantic_calling_application
+    }
+
+    pub const fn physical_calling_application(
+        self,
+    ) -> Option<&'entry BoundaryCallingPlanRealization> {
+        self.physical_calling_application
     }
 
     pub const fn storage_entry(
@@ -58,7 +80,10 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         self.fused_service_establishments
     }
 
-    pub(crate) fn validate_for_target(self, target: target::NativeTarget) -> Result<(), String> {
+    /// Check the target and calling-contract custody before native lowering.
+    /// This validates declarations only; Terminal replay, storage provisioning,
+    /// and installation authority remain independent requirements.
+    pub fn validate_for_target(self, target: target::NativeTarget) -> Result<(), String> {
         let slot = self.source.target_slot();
         if slot.owner.native_target() != target {
             return Err(format!(
@@ -74,12 +99,13 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             || slot.semantic_calling_convention.is_some();
         match (
             declares_two_surfaces,
-            self.semantic_boundary_entry_plan,
+            self.semantic_calling_application,
+            self.physical_calling_application,
             self.storage_entry,
         ) {
-            (false, None, None) => Ok(()),
-            (true, Some(semantic), Some(storage)) => {
-                validate_paired_calling_plans(self.source, semantic, storage)
+            (false, None, None, None) => Ok(()),
+            (true, Some(semantic), Some(physical), Some(storage)) => {
+                validate_paired_calling_plans(self.source, semantic, physical, storage)
             }
             _ => Err(
                 "selected ProgramEntry lost its exact paired semantic/physical calling-plan custody"
@@ -119,7 +145,8 @@ pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) checked_entry: CheckedProgramEntryTerminalReceipt,
     pub(crate) target: target::NativeTarget,
     pub(crate) source: program_entry_plan::SelectedProgramEntrySourceSignature,
-    pub(crate) semantic_boundary_entry_plan: Option<calling_conventions::BoundaryEntryPlan>,
+    pub(crate) semantic_calling_application: Option<BoundaryCallingPlanRealization>,
+    pub(crate) physical_calling_application: Option<BoundaryCallingPlanRealization>,
     pub(crate) storage_entry: Option<program_entry_plan::SelectedProgramStorageEntryPlan>,
     pub(crate) fused_service_establishments:
         Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
@@ -141,7 +168,18 @@ impl ValidatedNativeProgramEntrySettlement {
     pub const fn semantic_boundary_entry_plan(
         &self,
     ) -> Option<&calling_conventions::BoundaryEntryPlan> {
-        self.semantic_boundary_entry_plan.as_ref()
+        match self.semantic_calling_application.as_ref() {
+            Some(application) => Some(&application.boundary_entry_plan),
+            None => None,
+        }
+    }
+
+    pub const fn semantic_calling_application(&self) -> Option<&BoundaryCallingPlanRealization> {
+        self.semantic_calling_application.as_ref()
+    }
+
+    pub const fn physical_calling_application(&self) -> Option<&BoundaryCallingPlanRealization> {
+        self.physical_calling_application.as_ref()
     }
 
     pub const fn storage_entry(

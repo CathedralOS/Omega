@@ -67,7 +67,8 @@ pub fn validate_native_program_entry_settlement(
         checked_entry: checked_entry.clone(),
         target,
         source: program_entry.source.clone(),
-        semantic_boundary_entry_plan: program_entry.semantic_boundary_entry_plan.cloned(),
+        semantic_calling_application: program_entry.semantic_calling_application.cloned(),
+        physical_calling_application: program_entry.physical_calling_application.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
         fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
     })

@@ -149,9 +149,109 @@ fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
         "build evaluation must produce the exact canonical normalized UEFI physical contract: {physical_contract:#?}"
     );
     assert_eq!(
-        plans.semantic_boundary_entry_plan.call.policy,
+        plans
+            .semantic_calling_application
+            .boundary_entry_plan
+            .call
+            .policy,
         calling_conventions::CallingPolicy::MicrosoftX64
     );
+    native_realization::NativeProgramEntrySettlement::new(
+        source,
+        Some((
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+            &plans.storage_entry,
+        )),
+        selected.fused_service_establishments(),
+    )
+    .validate_for_target(target::NativeTarget::uefi_x64())
+    .expect("native settlement must replay the actual authored two-surface applications");
+
+    let rejects =
+        |semantic: &provider_planning::calling_policy_plans::BoundaryCallingPlanRealization,
+         physical: &provider_planning::calling_policy_plans::BoundaryCallingPlanRealization,
+         storage: &program_entry_plan::SelectedProgramStorageEntryPlan| {
+            assert!(
+                native_realization::NativeProgramEntrySettlement::new(
+                    source,
+                    Some((semantic, physical, storage)),
+                    selected.fused_service_establishments(),
+                )
+                .validate_for_target(target::NativeTarget::uefi_x64())
+                .is_err()
+            );
+        };
+    let semantic = &plans.semantic_calling_application;
+    let physical = &plans.physical_calling_application;
+    rejects(physical, semantic, &plans.storage_entry);
+    rejects(semantic, semantic, &plans.storage_entry);
+    assert!(
+        native_realization::NativeProgramEntrySettlement::new(source, None, &[])
+            .validate_for_target(target::NativeTarget::uefi_x64())
+            .is_err()
+    );
+
+    for physical_role in [false, true] {
+        let original = if physical_role { physical } else { semantic };
+        let mut wrong_report = original.clone();
+        wrong_report.report_fingerprint ^= 1;
+        let mut raw_plan_identity = original.clone();
+        let plan = raw_plan_identity.replayed_validated_plan().unwrap();
+        raw_plan_identity.commitment =
+            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                plan.contract_commitment_digest(),
+            );
+        for changed in [&wrong_report, &raw_plan_identity] {
+            if physical_role {
+                rejects(semantic, changed, &plans.storage_entry);
+            } else {
+                rejects(changed, physical, &plans.storage_entry);
+            }
+        }
+    }
+
+    // Recompute even the public application digest and schema row after a
+    // structurally valid placement change. The sealed authored plan must still
+    // reject it; self-consistent public metadata is not source custody.
+    let mut moved = semantic.clone();
+    moved.boundary_entry_plan.call.parameters.swap(0, 1);
+    let (_, report, commitment) = moved
+        .replayed_validated_application()
+        .expect("swapped equal-size parameters still form a structurally valid ABI plan");
+    moved.report_fingerprint = report;
+    moved.commitment = commitment;
+    let mut schema = plans.storage_entry.schema().clone();
+    let method = schema
+        .methods
+        .iter_mut()
+        .find(|method| method.requirement_identity == plans.storage_entry.requirement_identity())
+        .unwrap();
+    method.calling_plan_report_fingerprint = Some(report);
+    method.calling_plan_commitment = Some(commitment);
+    let forged_storage = program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
+        source.target_slot(),
+        schema,
+        plans.storage_entry.requirement_identity().to_owned(),
+    )
+    .unwrap()
+    .with_physical_contract(physical_contract.clone())
+    .unwrap();
+    rejects(&moved, physical, &forged_storage);
+
+    let mut missing_physical = plans.storage_entry.schema().clone();
+    missing_physical
+        .methods
+        .retain(|method| method.requirement_owner != "UefiPhysicalEntry");
+    let missing_physical = program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
+        source.target_slot(),
+        missing_physical,
+        plans.storage_entry.requirement_identity().to_owned(),
+    )
+    .unwrap()
+    .with_physical_contract(physical_contract.clone())
+    .unwrap();
+    rejects(semantic, physical, &missing_physical);
 }
 
 #[test]

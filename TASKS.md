@@ -616,6 +616,9 @@ Owners include
   --no-fail-fast`; this establishes calling applications, not installed roots.
   Hosted `target::TargetProfile::program_entry_slot` still leaves physical
   requirement, contract package, boundary schema and calling conventions absent.
+  Ordinary `cli_mvp` imports reach the target's provider modules, not the target
+  definition that imports `entry.omg`. Route the selected contract through exact
+  package source assembly; a slot binding alone does not load authored source.
   Join the macOS source/package custody and exact applications through that slot
   without weakening its independent acceptance checks or using report hashes as
   identity. The existing
@@ -660,6 +663,16 @@ Owners include
   program continuation. Emit and validate the adapter, exact calling plan,
   stack/custody transfer, and return behavior. Application lookalikes and
   cross-target substitutions must reject.
+
+  Resume beyond native declaration/calling-custody preflight, which replays both
+  retained authored applications. In `program-entry-plan/src/optimized_semantic_entry/validation.rs`,
+  `validate_method` still compares schema application identity with raw ABI-plan
+  identity; retain exact source-application custody through the native binder
+  instead of dropping this check or adding an upward backend dependency.
+  The last full Terminal probe of `build/uefi_program_entry_storage_roots` stopped
+  in lowering because `Boot::launch` lacked a checked transitive Unit machine plan.
+  Its checked-source/preflight regression is not complete Terminal or firmware
+  execution acceptance. Close these joins before claiming an executable bridge.
 
 - **UEFI-OS-HANDOFF.** Implement the nonreturning custody transfer from Boot
   Services to the selected OS entry. The bounded memory-map/key retry loop must

@@ -241,10 +241,13 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let calling_plans = proposal
-            .program_entry()
-            .calling_plans()
-            .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
+        let calling_plans = proposal.program_entry().calling_plans().map(|plans| {
+            (
+                &plans.semantic_calling_application,
+                &plans.physical_calling_application,
+                &plans.storage_entry,
+            )
+        });
         let program_entry = native_realization::NativeProgramEntrySettlement::new(
             proposal.program_entry().source_signature(),
             calling_plans,
