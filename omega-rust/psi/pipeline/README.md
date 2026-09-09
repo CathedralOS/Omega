@@ -115,8 +115,9 @@ Exact primitive carriers, builtin operator meaning and
 package selection are checked before fixed-width arithmetic. Each argument retains
 one canonical result, every selected constant occurrence and its builtin operator
 occurrences. Nongeneric machine parameters, results, locals and casts resolve
-named integer or Boolean indices and compound integer expressions in their
-original lexical scope before using the same probe. Runtime bindings cannot be
+named integer or Boolean indices and compound expressions containing named
+constants in their original lexical scope before using the same probe. Fixed-width
+integer comparisons can produce Boolean indices. Runtime bindings cannot be
 captured as constants. Public entry
 signatures retain public exposure independently of body and internal-state uses.
 Root scalar references also use resolved substitution, so locals and explicit
@@ -126,8 +127,11 @@ paths before legacy materialization: a runtime-qualified root cannot acquire
 a same-spelled static aggregate. The selection prepass retains declaration
 custody without materializing aggregate values. Module-owned aggregates still
 require namespace-aware initializer normalization and materialization.
-Open templates, aggregate evaluation, computed Boolean expressions, constrained
-destinations, authored operators and module-owned domain families remain outside this probe.
+The comparisons preserve each operand carrier and use the shared typed integer
+order operation; anonymous operands must land exactly in the selected peer carrier.
+Open templates, aggregate evaluation, Boolean logic, wholly anonymous comparisons,
+constrained destinations, authored operators and module-owned domain families
+remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
 type identity without discarding the original constant or operator occurrences.
 Unrelated root constants and literal or binder-only
@@ -161,6 +165,7 @@ cargo run -p omega -- --check tests/omega/pass/modules/compound_constant_indices
 cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/boolean_machine_indices/main.omg
+cargo run -p omega -- --check tests/omega/pass/modules/comparison_machine_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/aggregate_machine_indices/main.omg
 ```
 

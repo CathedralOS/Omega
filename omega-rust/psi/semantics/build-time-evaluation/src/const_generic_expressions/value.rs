@@ -1,4 +1,4 @@
-//! Exact integer evaluation and Boolean literals after declaration selection.
+//! Exact integer evaluation and comparisons after declaration selection.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
@@ -18,6 +18,7 @@ use typed_trees::{
 #[derive(Clone, Copy)]
 enum Value {
     Anonymous(ExpressionHandle),
+    Boolean(bool),
     Landed(LandedIntegerType, IntegerValue),
 }
 
@@ -158,6 +159,9 @@ pub(super) fn evaluate(
         )?,
         value => value,
     };
+    if let Value::Boolean(value) = value {
+        return Ok((CanonicalConstValue::boolean(value), warnings));
+    }
     let Value::Landed(carrier, value) = value else {
         return Err("constant expression has no integer landing".into());
     };
@@ -236,6 +240,29 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
     );
     if !shifts && left_carrier != right_carrier {
         return Err("constant operands have incompatible landed integer carriers".into());
+    }
+    if matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) {
+        let ordering = integer
+            .compare(left, right)
+            .ok_or("constant comparison operands are outside their selected integer carrier")?;
+        let result = match operator {
+            BinaryOperator::Equal => ordering.is_eq(),
+            BinaryOperator::NotEqual => ordering.is_ne(),
+            BinaryOperator::Less => ordering.is_lt(),
+            BinaryOperator::LessOrEqual => ordering.is_le(),
+            BinaryOperator::Greater => ordering.is_gt(),
+            BinaryOperator::GreaterOrEqual => ordering.is_ge(),
+            _ => unreachable!(),
+        };
+        return Ok(Value::Boolean(result));
     }
     let result = match operator {
         BinaryOperator::Add => integer.exact_add(left, right),

@@ -1,0 +1,5 @@
+const LIMIT: u64 = 3;
+data Flag<const Value: bool> { value: u8; }
+machine keep(LIMIT: u64, value: Flag<(LIMIT == 3)>) {}
+data Main {}
+machine Main::main(&mut self) {}

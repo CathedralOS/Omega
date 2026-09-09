@@ -14,6 +14,9 @@ use std::{
 };
 use typed_trees::{statement::StatementNode, types::TypeReferenceHandle};
 
+#[path = "module_machine_indices/comparisons.rs"]
+mod comparisons;
+
 #[path = "module_machine_indices/noninteger.rs"]
 mod noninteger;
 

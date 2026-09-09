@@ -1,0 +1,9 @@
+use settings;
+const LIMIT: u64 = 3;
+data Flag<const Value: bool> { value: u8; }
+machine keep(value: Flag<(LIMIT == 3)>) -> Flag<true> {
+    let local: Flag<(LIMIT + 1 >= 4)> = value;
+    local
+}
+data Main {}
+machine Main::main(&mut self) {}
