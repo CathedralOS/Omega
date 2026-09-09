@@ -150,55 +150,47 @@ prerequisite to every lower-rung milestone.
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
   Resume evidence on macOS arm64, canonical Delta closure SHA-256
-  `94775f52b7fa012c2e9ad654c362f40854f5a7e529c59014747b8e44492581bd`
+  `7b39266be43a7459a717f6624cc6e128579869398eae3e3ecef5a08006183df5`
   and the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md):
-  `sh tests/epsilon/checking/run.sh` reconstructs the
-  [pinned checking receipt](tests/epsilon/checking/receipt.tsv) and checks its
-  exact [judgment inventory](tests/epsilon/checking/fixtures.tsv) with the
-  selected evaluator.
+  `sh tests/epsilon/checking/run.sh` reconstructs the unchanged
+  [checking receipt](tests/epsilon/checking/receipt.tsv) and passes its complete
+  [judgment inventory](tests/epsilon/checking/fixtures.tsv).
+  `sh tests/delta/normalization/run.sh` passes source depth 1,024 and width 2,048;
+  `sh tests/delta/resource-boundary/run.sh --generated-environment` preserves
+  the exact wide-parameter receipt and execution.
+  The [full-width reconstruction](bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
+  now reaches exact DCOUT resource-12 refusal under the unchanged profile:
+  status 2, requested 477,932,916 bytes, and no other output.
+  Its canonical DCREQ fixture run took 4,855.704 seconds; this is one stress
+  control, not a bootstrap-chain timing. The reproducible gate selection is
+  `sh tests/delta/resource-boundary/run.sh --reconstructed-wide`; that new shell
+  selection was syntax-checked, not separately rerun after the direct fixture run.
+
+  Next acceptance: close remaining compiler-execution allocation containment
+  against the selected profile, not another isolated capture fast path.
+  [Capture's source-level accounting](bootstrap/3_delta/implementation/normalization/README.md#capture-allocation-ownership)
+  and the passing full-width case do not constitute a whole-producer bound or
+  checked refinement certificate. Generic overlapping helper batches, earlier
+  checking/lowering, and runtime contexts remain part of that argument.
+  Retain original binding atoms, immutable scopes, and matched parameter/argument
+  order. No renaming maps, additional lookup subsystem, allocator, or provision
+  increase is justified by this one case.
+
   Follow the [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
   Alpha local-slot/label/fixup resources have zero use here, and match coverage
-  is bounded by admitted constructors. Do not implement fictitious tables or
-  chase arbitrary corrupt private pairs. The
-  [normalization audit](bootstrap/3_delta/implementation/normalization/README.md)
-  gives source-level height, static-environment, and capture-allocation arguments;
-  `sh tests/delta/normalization/run.sh` exercises source depth 1,024 and payload
-  width 2,048. The [full-width control](tests/delta/normalization/README.md#full-width-allocation-control)
-  targets 65,535 pattern bindings plus one parameter. The current compiler's
-  canonical compilation and generated execution pass under the unchanged
-  profile; the complete opt-in gate retains earlier-compiler evidence only.
-  Capture follows descendant splitting, removing the
-  demonstrated repeated-tail allocation obstruction. This is neither a
-  whole-producer allocation bound nor a checked edge certificate.
-  The [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
-  separately bounds intermediate and complete byte counts below `2^62`;
-  synthetic overflowing metadata is not an admitted-source refusal case.
-  Next acceptance: account for remaining compiler-execution allocation against
-  the selected profile. The source-derived, unrun
-  [wide-reconstruction case](bootstrap/3_delta/implementation/normalization/README.md#remaining-wide-capture-obstruction)
-  still cannot reach payload-size refusal: nonfinal-argument capture frames
-  alone require at least 50,136,576 pairs, beyond the arena. Original binding
-  atoms and bodies are now reused; do not restore capture renaming or its maps.
-  Removing those frames alone still leaves at least 183,609,879,296 binding
-  comparisons on the same source. **Strategy checkpoint:** defer an isolated
-  atomic-argument fast path; first derive a collection route with joint lookup
-  and cumulative-allocation bounds that can reach the exact payload refusal.
-  Preserve this source, parameter/argument correspondence, and lexical scopes;
-  a larger arena, another index, or a passing last-field control alone does not
-  establish that route. This is engineering work, not an owner decision or a
-  block on independent bootstrap tasks. The
+  is bounded by admitted constructors. The
+  [emission occurrence argument](bootstrap/3_delta/implementation/emission/README.md#reachable-byte-count-bound)
+  bounds byte counts below `2^62`; corrupt private metadata is not an
+  admitted-source refusal case. The
   [arithmetic allocation inventory](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
-  and [name-storage argument and regression](tests/delta/resource-boundary/README.md#long-identifier-storage)
-  bound particular paths, not the whole producer. Neither justifies further
-  arbitrary source scaling, an allocation ledger, or increased provision by
-  itself. Preserve these existing controls rather than rediscovering them.
-  If it exhausts the evaluator, trace the allocation owner and governing
-  observation contract before changing implementation or provision; do not
-  assume a Gamma-owned failure is a DCOUT frame. Distinguish cumulative
-  compiler allocation from final receipt size; no host-synthesized frames or
-  invented Alpha slot/label/fixup allocations. Application runtime exhaustion
-  remains separate, not a static promise of unlimited execution.
+  and [name-storage regression](tests/delta/resource-boundary/README.md#long-identifier-storage)
+  bound particular paths, not the whole producer. Preserve those controls rather
+  than rediscovering them or arbitrarily scaling source.
+  For an evaluator exhaustion, trace its allocation owner and observation
+  contract; a Gamma-owned failure is not DCOUT. Distinguish cumulative compiler
+  allocation from receipt size and from application runtime exhaustion. These
+  engineering obligations do not block independent bootstrap work.
   Acceptance: Delta conformance and malformed-source gates pass, the exact
   Epsilon evaluator closure compiles through the selected route, and its
   available entries execute with measured resources and unchanged semantics.

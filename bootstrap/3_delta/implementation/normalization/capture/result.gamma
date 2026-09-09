@@ -1,6 +1,26 @@
-; One ordered immutable binding list serves both parameters and call arguments.
-(def capture_finish ((count Int) (reversed Int)) Int
-  (pair count (syntax_reverse_nodes count reversed 0)))
+; Sort only direct references and owned binders, never completed helper batches.
+; One sorted immutable result serves both parameters and call arguments.
+(def capture_finish ((state Int)) Int
+  (let references Int (first state)
+    (let retained Int (second state)
+      (let owned Int (first retained)
+        (let batches Int (second retained)
+          (let merged Int
+            (capture_merge_batches (first batches) (second batches)
+              (capture_sort (first references) (second references)))
+            (if (eq (first owned) 0)
+              merged
+              (let sorted_owned Int (capture_sort (first owned) (second owned))
+                (capture_difference (first merged) (second merged)
+                  (first sorted_owned) (second sorted_owned) 0 0)))))))))
+
+(def capture_merge_batches ((remaining Int) (batches Int) (merged Int)) Int
+  (if (eq remaining 0)
+    merged
+    (let batch Int (first batches)
+      (capture_merge_batches (- remaining 1) (second batches)
+        (capture_union (first merged) (second merged)
+          (first batch) (second batch) 0 0)))))
 
 (def capture_count ((result Int)) Int (first result))
 (def capture_bindings ((result Int)) Int (second result))

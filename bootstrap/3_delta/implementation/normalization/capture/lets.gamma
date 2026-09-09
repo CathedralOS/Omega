@@ -1,18 +1,11 @@
-; The binder is absent from its initializer and active only in its body.
-; Surrounding continuations restore their saved scope after this body finishes.
-(def capture_let
-  ((node Int) (bound_count Int) (bound Int) (count Int) (captures Int)
-   (depth Int) (frames Int)) Int
+; Produced bindings have unique declaration identities. A binder owned here
+; cannot denote an unrelated free reference in the initializer or a sibling.
+; Collect it once and subtract it after visiting both children.
+(def capture_let ((node Int) (state Int) (depth Int) (frames Int)) Int
   (let payload Int (gamma_payload node)
     (let expressions Int (second payload)
-      (capture_visit (first expressions) bound_count bound count captures (+ depth 1)
-        (capture_frame 2
-          (pair (first payload) (pair (second expressions) (pair bound_count bound)))
-          frames)))))
-
-(def capture_initializer_done
-  ((payload Int) (count Int) (captures Int) (depth Int) (frames Int)) Int
-  (let body_and_scope Int (second payload)
-    (let scope Int (second body_and_scope)
-      (capture_visit (first body_and_scope) (+ (first scope) 1)
-        (pair (first payload) (second scope)) count captures depth frames))))
+      (let retained Int (second state)
+        (capture_visit (first expressions)
+          (pair (first state)
+            (pair (capture_prepend (first payload) (first retained)) (second retained)))
+          (+ depth 1) (capture_frame 2 (second expressions) frames))))))

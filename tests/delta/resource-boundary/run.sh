@@ -9,8 +9,10 @@ if [ "$#" -ne 0 ]; then
         RESOURCE_BOUNDARY_GROUP=generated-environment
     elif [ "$#" -eq 1 ] && [ "$1" = --long-name ]; then
         RESOURCE_BOUNDARY_GROUP=long-name
+    elif [ "$#" -eq 1 ] && [ "$1" = --reconstructed-wide ]; then
+        RESOURCE_BOUNDARY_GROUP=reconstructed-wide
     else
-        echo "usage: $0 [--payload|--generated-environment|--long-name]" >&2
+        echo "usage: $0 [--payload|--generated-environment|--long-name|--reconstructed-wide]" >&2
         exit 2
     fi
 fi
@@ -53,6 +55,7 @@ from match_coverage import fixtures as match_coverage
 from syntax_storage import fixtures as syntax_storage
 from payload_bytes import fixtures as payload_bytes
 from payload_bytes import accepted_fixtures as accepted_payload_bytes
+from payload_bytes import reconstructed_wide_fixtures
 from name_storage import accepted_fixtures as accepted_name_storage
 
 directory = Path(os.environ["RESOURCE_BOUNDARY_TMP"])
@@ -70,6 +73,8 @@ group = os.environ["RESOURCE_BOUNDARY_GROUP"]
 # The long-name regression is opt-in: its successful compilation took 691s.
 # This host watchdog is not a compiler capacity or a DCOUT observation.
 diagnostic_timeout = 1200 if group == "long-name" else 300
+if group == "reconstructed-wide":
+    diagnostic_timeout = 7200
 function_cases = function_rows() if group == "all" else ()
 constructor_cases = constructor_rows() if group == "all" else ()
 type_cases = type_rows() if group == "all" else ()
@@ -77,6 +82,8 @@ environment_cases = environment_rows() if group == "all" else ()
 coverage_cases = match_coverage() if group == "all" else ()
 syntax_cases = syntax_storage() if group == "all" else ()
 payload_cases = payload_bytes() if group in ("all", "payload") else ()
+if group == "reconstructed-wide":
+    payload_cases = reconstructed_wide_fixtures()
 cases = (
     function_cases + constructor_cases + type_cases + environment_cases
     + coverage_cases + syntax_cases + payload_cases

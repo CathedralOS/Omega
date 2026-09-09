@@ -1,0 +1,56 @@
+; Counted-list merge sort. The split prefix may be reversed because both halves
+; are sorted independently. Only logarithmically many calls remain non-tail.
+(def capture_sort ((count Int) (bindings Int)) Int
+  (if (lt count 2)
+    (pair count bindings)
+    (let half Int (/ count 2)
+      (let split Int (capture_split half bindings 0)
+        (let left Int (capture_sort half (first split))
+          (let right Int (capture_sort (- count half) (second split))
+            (capture_union (first left) (second left)
+              (first right) (second right) 0 0)))))))
+
+(def capture_split ((remaining Int) (bindings Int) (prefix Int)) Int
+  (if (eq remaining 0)
+    (pair prefix bindings)
+    (capture_split (- remaining 1) (second bindings) (pair (first bindings) prefix))))
+
+; Prefix reversal copies only consumed survivors; an untouched tail stays shared.
+(def capture_join ((count Int) (reversed Int) (tail_count Int) (tail Int)) Int
+  (pair (+ count tail_count) (syntax_reverse_nodes count reversed tail)))
+
+(def capture_union
+  ((left_count Int) (left Int) (right_count Int) (right Int)
+   (count Int) (reversed Int)) Int
+  (if (eq left_count 0)
+    (capture_join count reversed right_count right)
+    (if (eq right_count 0)
+      (capture_join count reversed left_count left)
+      (let order Int (capture_compare_binding (first left) (first right))
+        (if (lt order 0)
+          (capture_union (- left_count 1) (second left) right_count right
+            (+ count 1) (pair (first left) reversed))
+          (if (eq order 0)
+            (capture_union (- left_count 1) (second left) (- right_count 1) (second right)
+              (+ count 1) (pair (first left) reversed))
+            (capture_union left_count left (- right_count 1) (second right)
+              (+ count 1) (pair (first right) reversed))))))))
+
+; Both inputs are sorted unique sets. Exclude owned identities in one scan,
+; not one scan per let; if ownership is exhausted, reuse the reference suffix.
+(def capture_difference
+  ((reference_count Int) (references Int) (owned_count Int) (owned Int)
+   (count Int) (reversed Int)) Int
+  (if (eq reference_count 0)
+    (capture_join count reversed 0 0)
+    (if (eq owned_count 0)
+      (capture_join count reversed reference_count references)
+      (let order Int (capture_compare_binding (first references) (first owned))
+        (if (lt order 0)
+          (capture_difference (- reference_count 1) (second references) owned_count owned
+            (+ count 1) (pair (first references) reversed))
+          (if (eq order 0)
+            (capture_difference (- reference_count 1) (second references)
+              (- owned_count 1) (second owned) count reversed)
+            (capture_difference reference_count references
+              (- owned_count 1) (second owned) count reversed)))))))

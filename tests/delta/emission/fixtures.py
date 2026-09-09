@@ -21,4 +21,9 @@ CASES = [
     ("let_before_sibling", 15, b"", b"(pair (let $z7 Int (first 1) (x (second $z7))) (first 2))", 57, 0),
     ("capture_retained_call", 16, b"", b"(first $v3)", 11, 1),
     ("capture_retained_let", 17, b"", b"(let $z7 Int (first $v3) (pair $z7 (second $v3)))", 49, 0),
+    ("capture_sorted_identities", 19, b"a b c", b"(x $p0 $p1 a b)", 15, 0),
+    ("capture_disjoint_equal_spelling", 20, b"a a c", b"(x)", 3, 0),
+    ("capture_overlapping_helper_batches", 21, b"a b c", b"(x a b c)", 9, 0),
+    ("capture_owned_identity_in_batches", 22, b"a b c", b"(x a c)", 7, 0),
+    ("capture_empty_helper_batch", 23, b"a b c", b"(x)", 3, 0),
 ]

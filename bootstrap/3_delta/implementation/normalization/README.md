@@ -84,149 +84,140 @@ summary and is not bounded by this height argument.
 
 ## Captured bindings
 
-A helper receives only the fragment's free, already-bound local atoms.
-Bindings introduced inside the fragment are not captures; global function
-names, fixed primitive names, and constants are not local captures either.
-Capture discovery follows explicit binding identity rather than equal source
-spellings or numeric pair provenance.
+[capture.gamma](capture.gamma) visits the completed fragment and coordinates
+three counted lists: direct references, binders owned inside the fragment, and
+argument batches from completed extraction helpers. It leaves the body and
+binding atoms unchanged. Global call heads and constants are not captures.
 
-Capture lookup checks the collected free bindings before scanning the
-local-bound spine. Within a produced function, each identity has one lexical
-binder and every reference resolves to that binder. An identity free in an
-extracted subtree therefore cannot become bound later in that subtree. Source
-identities use distinct declaration starts; lowering-generated markers separate
-arithmetic and match binders. Extraction preserves those binding atoms.
-Saved scopes keep sibling and initializer bindings separate.
-The projection helper is a separate definition and capture never follows global
-call heads. Shared expression nodes preserve their owning lexical scope.
+Binding identity makes one final set difference sufficient. Within a produced
+function, each identity has one lexical binder and every reference resolves to
+it. A free identity therefore cannot denote an unrelated internal binder in a
+sibling or initializer. Source identities are declaration starts; generated
+identities are marker/coordinate pairs. Equal spellings in disjoint scopes
+remain distinct identities. For example,
+`(let value Int (let value Int 1 value) value)` owns both identities and has
+no free reference. This argument applies to produced plans, not synthetic trees
+that reuse an identity for unrelated binders.
 
-This invariant permits immediate completion on a collected-binding hit. A miss
-still checks local binding before recording a new free binding. The rule is not
-valid for arbitrary synthetic trees that reuse one identity for a free occurrence
-and an unrelated local binder. Both lookups scan counted binding lists; collection
-adds no index and establishes no universal allocation or runtime bound.
+The collection owners are:
 
-[capture/bindings.gamma](capture/bindings.gamma) compares a source binding's
-declaration start, or a generated binding's marker and identity number, in
-distinct categories. It records each free binding once, in first-occurrence
-order. [capture/lets.gamma](capture/lets.gamma) excludes a let's binder from its
-initializer scope and includes it only in its body.
-[capture/calls.gamma](capture/calls.gamma) visits arguments in order with the
-same surrounding scope. [capture/result.gamma](capture/result.gamma) returns
-the count and one ordered immutable binding list, shared by the helper's
-parameters and replacement-call arguments.
+- [capture/calls.gamma](capture/calls.gamma) traverses ordinary arguments.
+  Only normalization creates generated marker-104 (`$h`) heads. Descendants
+  finish before their parent's capture, so these calls already carry sorted
+  unique binding arguments. Collection retains their existing counted lists;
+  it does not traverse, sort, or copy their elements.
+- [capture/lets.gamma](capture/lets.gamma) records the binder and visits both
+  children. Identity-based subtraction replaces saved lexical scope spines.
+- [capture/bindings.gamma](capture/bindings.gamma) orders generated bindings
+  first by marker/coordinate, then source bindings by declaration start.
+  It never compares pair provenance or source spelling.
+- [capture/sets.gamma](capture/sets.gamma) sorts only newly encountered references
+  and owned binders, unions sorted batches, and subtracts owned identities.
+  Merge and difference copy consumed prefixes and reuse untouched tails.
+  Counted-list merge sort uses logarithmic non-tail depth; its element walks
+  are tail calls. It introduces no tree, map, allocator, or profile.
+- [capture/result.gamma](capture/result.gamma) composes those operations.
+  With no owned binders, it returns the merged batch unchanged.
 
-The completed body and its reference atoms remain unchanged. This requires
-spelling safety as well as identity preservation: source binding atoms print
-their original names, not their declaration coordinates. A binding free in an
-extracted subtree was active throughout that subtree. Delta's prohibition on
-active shadowing therefore excludes an internal binder with the same spelling,
-and simultaneously active free bindings have distinct spellings. Lowering keeps
-source scopes and introduces only source-forbidden `$` names with distinct
-markers and coordinates. Collection never follows a global helper definition.
+One sorted unique list supplies both parameters and replacement-call arguments.
+The same permutation is applied to both; all arguments are already-bound atoms,
+so reordering them moves no computation or trap. Initializers remain exactly
+where lowering placed them. Pair-bearing values keep their provenance.
 
-Disjoint source scopes may still reuse a spelling. For example, in
-`(let value Int (let value Int 1 value) value)`, both bindings are local to the
-whole expression; neither is a capture. Extracting within either scope collects
-only that scope's binding. Saved initializer and sibling scopes prevent those
-bindings from becoming simultaneously active in a helper. These arguments apply
-to produced plans, not arbitrary synthetic trees with conflicting free and
-internal names. Gamma validates each function independently, so using an original
-name as a helper parameter does not conflict with its caller's binding.
-
-No initializer is copied or evaluated again. Pair-bearing values flow through
-ordinary Gamma arguments with their existing provenance. Only helper names use
-fresh `$hN` identities from the program-wide counter; parameter atoms are reused.
-Helper names are allocated in extraction order, while completed helper
-definitions follow the authored definitions in
-deterministic completion order. A helper extracted inside another helper can
-therefore precede it in the definition list without changing either identity.
+Original spelling is safe too. A free binding was active throughout the extracted
+fragment. Delta forbids active shadowing, so internal binders cannot conflict
+with its spelling, and simultaneously active captures have distinct spellings.
+Lowering's source-forbidden `$` names use distinct markers and coordinates.
+Each Gamma function is validated independently; capture does not follow global
+helper definitions. Only helper names receive fresh `$hN` identities.
+Names are allocated in extraction order; definitions are appended in deterministic
+completion order, with inner helpers possibly preceding their parents.
 
 ### Capture allocation ownership
 
-The former capture-and-rename traversal, run before splitting, repeatedly rebuilt
-the still-oversized descendant body. The [full-width source control](../../../../tests/delta/normalization/README.md#full-width-allocation-control)
-exposed why that ordering could not cover the selected Delta profile: one parameter
-and 65,535 pattern binders exactly fill the active-local provision. Its source
-and syntax storage fit their independent provisions.
+Splitting descendants before collection avoids rebuilding oversized tails.
+Reusing original atoms and bodies avoids fresh parameter atoms and renaming
+maps. Batching additionally avoids traversing and rediscovering every reference
+in a completed helper's argument list. These are separate changes; none alone
+establishes a whole-producer linear bound.
 
-For a chain of 65,535 binding lets, each fresh 255-level budget can descend at
-most 254 let-body edges before extraction. Ignoring enclosing wrappers only
-weakens the bound. Under that implementation the first 257 extractions
-recaptured at least
-`sum(j=1..257, 65,535 - 254*j) = 8,421,633` lets. Each rebuild allocates two
-payload pairs and four node pairs through `gamma_let` and `gamma_node`:
-50,529,798 pairs, already beyond the selected 40,265,318-pair arena before
-counting capture frames, initializers, checking, or lowering. This is a
-source-level allocation lower bound, not a measured exhaustion observation.
+For the current counted-list implementation, in pairs:
 
-Splitting first removes that repeated descendant rebuild. Collection now also
-removes renaming and rebuilding of each completed helper body. Each helper visits
-its own body and arguments to deeper helpers, without traversing their definitions.
-This does not establish a whole-producer linear bound:
-height-bounded bodies can still contain broad arguments and large capture sets,
-and all preceding phases still consume cumulative storage. It adds no allocator,
-resource ledger, representation, or profile.
+- Starting a collection allocates three; adding a direct reference allocates
+  three; adding an owned binder or a completed batch allocates four.
+- A nonfinal ordinary argument allocates three continuation/payload pairs;
+  a let continuation allocates two.
+- Union consuming `q` prefix entries allocates `2q + 1`; difference copying
+  `p` surviving entries allocates `2p + 1`. Unconsumed tails stay shared.
+- Sorting `n >= 1` direct entries allocates at most
+  `(2.5 * ceil(log2(n)) + 1) * n` pairs. Existing helper batches are not sorted.
 
-#### Remaining wide-capture obstruction
+Generic multiple-batch unions can still repeatedly copy prefixes. Earlier
+checking/lowering, normalizer frames and rebuilt nodes, and emission preflight
+also allocate or perform work. The lexical trie reused by lowering is another
+construction pass, not free reuse of checking's stored environment.
+These formulas are source-level accounting, not measured arena peaks or a
+complete resource proof.
 
-A separate source-derived case still requires a whole-producer resource argument.
-Keep the full-width control's declaration, pattern, and identity entry, but change
-`select` to return `Wide` and reconstruct `(Wide field00000 ... field65534)`
-instead of returning only the last field. Applied to `wide_pattern_source(65535, 5)`,
-this gives 1,704,033 bytes, SHA-256
+#### Full-width payload refusal
+
+The regression keeps the full-width control's declaration, pattern, and identity
+entry, but changes `select` to reconstruct `(Wide field00000 ... field65534)`.
+Its 1,704,033 bytes have SHA-256
 `c69598944c34dc0f37187fb67bcf5624b021ac393a8cd8d91f7b967ab84a0945`.
-Its source remains below 2 MiB,
-expression depth is three, and active locals remain 65,536. Parser/grammar
-allocation is conservatively below `(28 * 65,535 + 1,024) * 40 = 73,400,160`
-syntax bytes. This case has not been executed; the following is an allocation
-argument, not an observed evaluator failure.
+Expression depth is three and active locals are 65,536. Source and syntax fit
+their independent provisions. The selected outcome is exact payload refusal,
+not publication of a larger Gamma artifact.
 
-[Constructor lowering](../lowering/constructors.gamma) makes a right-nested
-product whose leaves reference all those distinct bindings. The first 257
-extraction cuts along that product must forward at least 8,421,633 capture
-incidences by the same suffix sum above. The former renaming implementation
-allocated five pairs per fresh parameter atom: 42,108,165 pairs before mappings,
-frames, or earlier phases. Reusing original atoms removes that lower bound;
-it does not remove the collected list entries or their lookup work.
-The printed parameter declarations alone require at least seven bytes each,
-or 58,951,431 bytes, beyond the payload
-provision. Thus the issue is reaching canonical payload refusal, not admitting
-that receipt or speeding up successful Epsilon compilation.
+The preceding unbatched collector's nonfinal argument continuation allocated
+**five** pairs (two frame, three payload), not six. Counting only product cuts
+2 through 257 gives
+`5 * sum(j=2..257, 65,535 - 254*j - 1) = 41,780,480` pairs, already above
+the 40,265,318-pair arena. Its first 257 product cuts also required at least
+183,609,879,296 binding comparisons. These are source-derived bounds, not
+observed evaluator exhaustion or measured durations.
 
-Sharing the parameter/argument list and retaining the original body do not by
-themselves let this case reach canonical refusal. For every nonfinal argument,
-`capture_call_arguments` still allocates three frame pairs and three payload
-pairs, even when the argument is an atom. Count only product cuts 2 through 257,
-whose replacement calls occur inside preceding helpers:
-`6 * sum(j=2..257, 65,535 - 254*j - 1) = 50,136,576` pairs. This exceeds the
-arena without relying on collection of the outermost replacement call, binding
-lists, or earlier phases. The remaining allocation owner is the argument
-continuation, not fresh parameter atoms. Quadratic lookup work remains separate;
-this source-level bound is not a measured exhaustion result or justification for
-a new refusal/profile by itself.
+In the batched route, product helpers prepend small lower-coordinate field
+prefixes to shared suffix batches. Generated-first ordering permits payload
+bindings to join at the head. Pattern helpers subtract their owned suffix
+once, copying the retained field prefix once rather than once per binder.
+This removes the demonstrated capture recurrences without a source-specific
+accelerator. Lowering separately reuses the existing exact-name trie instead
+of making 2,147,450,880 linear binding comparisons for this source.
 
-Lookup has an independent cost that frame removal does not address.
-Each helper's `m` distinct free bindings require at least `m * (m - 1) / 2`
-identity comparisons: each first reference misses every previously collected
-binding before it can be added. With `m_j = 65,535 - 254*j`, the first 257 cuts
-therefore require at least
-`sum(j=1..257, m_j * (m_j - 1) / 2) = 183,609,879,296` comparisons.
-These are source-derived operations, not a measured duration. Processing atoms
-without continuation frames leaves this recurrence unchanged; a larger arena
-or longer watchdog does not reduce it either. A slow once-only run can still be
-acceptable: this count is not a new work limit or proof of unacceptable runtime.
+The exact requested payload count is independently derived from serialization,
+not from a resource lower bound or compiler-produced count:
 
-Do not add an isolated atomic-argument fast path as the next resource-closure
-milestone. First derive a collection route with joint lookup-work and cumulative
-allocation bounds for this exact source, including ordered parameters/arguments,
-scope restoration, and the exact complete payload count required by refusal.
-Either justify retaining that lookup cost or select a cheaper collection route;
-an index that improves lookup but exceeds cumulative storage is not a solution.
-Include frame removal only if that route needs it; do not replace this source
-with the successful last-field control or add a new refusal from a lower bound.
-This implementation-strategy checkpoint needs no owner ruling and does not
-pause independent bootstrap work.
+| Component | Bytes |
+| --- | ---: |
+| Original unnormalized payload, including fixed runtime and adapter | 4,446,892 |
+| 774 helper wrappers and decimal helper-name digits | 19,904 |
+| 516 captures of the eight-byte payload binding | 12,384 |
+| 16,909,062 captures of ten-byte field bindings | 473,453,736 |
+| Total requested payload | 477,932,916 |
+
+Three match-wrapper lets leave budget 252. Projection helpers have even IDs
+0..514; binding-chain helpers have odd IDs 1..515 and capture field prefixes
+of length `251 + 254*j`. The final chain starts at field 65,529; its six lets
+leave the constructor budget 249. Product helpers 516..773 capture suffixes
+starting at `247 + 254*j`. Each family has 258 members (`j = 0..257`).
+A nonempty helper adds
+`16 + 2*name_length + 2*sum(binding_name_lengths) + 8*arity` bytes,
+including its definition LF. Capture order changes none of these lengths.
+
+The [opt-in resource control](../../../../tests/delta/resource-boundary/README.md)
+uses this exact source and a literal 40-byte DCOUT resource-12 expectation:
+coordinate and limit 16,777,212, requested 477,932,916. Its host watchdog is
+not a language limit. A successful refusal still does not close allocation
+containment for all admitted programs or the Delta refinement edge.
+
+Canonical compiler SHA-256
+`7b39266be43a7459a717f6624cc6e128579869398eae3e3ecef5a08006183df5`
+completed this exact DCREQ/profile-1 fixture on macOS arm64 in 4,855.704 seconds:
+status 2, exactly the expected 40-byte frame, and empty stderr. The frame's
+SHA-256 is `e968f867c7a64e64a9340320dafb7b925487e7d7aad6567c38b10ae51966d155`.
+This is completion evidence for one stress source, not a measured arena peak,
+bootstrap-chain duration, or controlled speedup comparison.
 
 ### Static validation-environment bound
 
@@ -246,7 +237,7 @@ the bindings already active outside the fragment; they do not accompany a
 second copy of that environment. Bindings introduced inside the fragment retain
 their scopes and are not parameters. This mapping is injective and composes
 through nested extraction. An inner helper collects original bindings before
-the outer helper is closed; outer collection visits its call arguments, not its
+the outer helper is closed; outer collection consumes its argument batch, not its
 global head or completed definition. Sibling scopes and let initializers do not retain
 bindings introduced only in another child.
 

@@ -56,4 +56,5 @@ for name, mode, source, published, extent, cache in CASES:
 # reports zero fallback metadata, followed by unmarked Gamma main's final zero.
 for repetition in range(2):
     observe(f"negative_word_metadata/{repetition + 1}", b"\x12", b"\x00" * 5)
-print("Delta emission: 19 exact serializer controls passed twice (38 observations)")
+print(f"Delta emission: {len(CASES) + 1} exact serializer controls passed twice "
+      f"({2 * (len(CASES) + 1)} observations)")

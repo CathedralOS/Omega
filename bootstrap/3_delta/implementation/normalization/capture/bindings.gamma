@@ -1,35 +1,27 @@
-; Binding equality observes explicit identity, never pair-reference provenance
-; or printed spelling. Source bindings own a declaration start; generated
-; bindings own their marker and coordinate in a separate identity category.
-(def capture_same_binding ((left Int) (right Int)) Int
+; Generated bindings precede source bindings. Within each category compare
+; explicit identity, never pair provenance or printed spelling. This ordering
+; lets small generated prefixes share the tail of existing source batches.
+(def capture_compare_binding ((left Int) (right Int)) Int
   (let kind Int (gamma_kind left)
-    (if (eq kind (gamma_kind right))
-      (let left_identity Int (gamma_payload left)
-        (let right_identity Int (gamma_payload right)
-          (if (eq kind 2)
-            (eq (syntax_start left_identity) (syntax_start right_identity))
-            (if (eq kind 4)
-              (if (eq (first left_identity) (first right_identity))
-                (eq (second left_identity) (second right_identity))
-                0)
-              0))))
-      0)))
+    (let other_kind Int (gamma_kind right)
+      (if (eq kind other_kind)
+        (let left_identity Int (gamma_payload left)
+          (let right_identity Int (gamma_payload right)
+            (if (eq kind 2)
+              (capture_compare_number
+                (syntax_start left_identity) (syntax_start right_identity))
+              (let marker_order Int
+                (capture_compare_number (first left_identity) (first right_identity))
+                (if (eq marker_order 0)
+                  (capture_compare_number (second left_identity) (second right_identity))
+                  marker_order)))))
+        (if (eq kind 4) -1 1)))))
 
-(def capture_is_bound ((node Int) (count Int) (bindings Int)) Int
-  (if (eq count 0)
-    0
-    (if (capture_same_binding node (first bindings))
-      1
-      (capture_is_bound node (- count 1) (second bindings)))))
+(def capture_compare_number ((left Int) (right Int)) Int
+  (if (eq left right) 0 (if (lt left right) -1 1)))
 
-; Produced plans give each identity one lexical binder. A previously captured
-; free identity cannot later be bound inside this fragment. Check the captures
-; before scanning the local spine; only unseen references need classification.
-(def capture_reference
-  ((node Int) (bound_count Int) (bound Int) (count Int) (captures Int)
-   (depth Int) (frames Int)) Int
-  (if (capture_is_bound node count captures)
-    (capture_resume count captures depth frames)
-    (if (capture_is_bound node bound_count bound)
-      (capture_resume count captures depth frames)
-      (capture_resume (+ count 1) (pair node captures) depth frames))))
+(def capture_same_binding ((left Int) (right Int)) Int
+  (eq (capture_compare_binding left right) 0))
+
+(def capture_prepend ((value Int) (counted Int)) Int
+  (pair (+ (first counted) 1) (pair value (second counted))))
