@@ -19,6 +19,9 @@ use terminal_psi::{
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
+#[path = "crash_member_source/bounded_inputs.rs"]
+mod bounded_inputs;
+
 const SOURCE: &str = r#"
     data Packet { should_abort: bool; }
     data Helper {}
@@ -2974,17 +2977,15 @@ fn exact_member_addition_rebases_every_operand_end_to_end() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let used_fuel = bounded_inputs::execute(
+        &lowered.semantic_module,
         &semantics,
         &proof,
-        &AdmissionProfile::default(),
-        &[],
-        &[argument],
+        argument,
+        [("current", 20), ("delta", 5), ("limit", 30)],
         &mut Accept,
-    )
-    .expect("member arithmetic remains verified metadata at interpretation");
-    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
-    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+    );
+    assert_eq!(used_fuel, fixed.ceiling_units());
 
     let mut redirected = lowered.semantic_module.clone();
     let OperationKind::CallUnit {
@@ -3165,17 +3166,15 @@ fn exact_member_subtraction_rebases_every_operand_end_to_end() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let used_fuel = bounded_inputs::execute(
+        &lowered.semantic_module,
         &semantics,
         &proof,
-        &AdmissionProfile::default(),
-        &[],
-        &[argument],
+        argument,
+        [("current", 150), ("delta", 25), ("floor", 100)],
         &mut Accept,
-    )
-    .expect("member subtraction remains verified metadata at interpretation");
-    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
-    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+    );
+    assert_eq!(used_fuel, fixed.ceiling_units());
 
     let mut redirected = lowered.semantic_module.clone();
     let OperationKind::CallUnit {
@@ -3328,17 +3327,15 @@ fn exact_member_multiplication_rebases_every_operand_end_to_end() {
         qualifications: Vec::new(),
         path: Vec::new(),
     };
-    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+    let used_fuel = bounded_inputs::execute(
+        &lowered.semantic_module,
         &semantics,
         &proof,
-        &AdmissionProfile::default(),
-        &[],
-        &[argument],
+        argument,
+        [("current", 3), ("factor", 4), ("limit", 20)],
         &mut Accept,
-    )
-    .expect("member multiplication remains verified metadata at interpretation");
-    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
-    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+    );
+    assert_eq!(used_fuel, fixed.ceiling_units());
 
     let mut redirected = lowered.semantic_module.clone();
     let OperationKind::CallUnit {

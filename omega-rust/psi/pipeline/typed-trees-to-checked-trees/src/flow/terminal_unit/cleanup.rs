@@ -1320,9 +1320,14 @@ fn is_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
 }
 
 fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
+    // Numeric restrictions remain on the retained field type for arithmetic
+    // proofs, but do not introduce custody or executable cleanup. A bounded
+    // integer is the same no-cleanup leaf as its raw scalar carrier when
+    // reconstructing the untouched complement of a partial move.
     matches!(
         field_type,
         CheckedUnitStructuralFieldType::Structural { .. }
+            | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::ByteSequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )

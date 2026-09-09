@@ -3240,6 +3240,61 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
 }
 
 #[test]
+fn bounded_integer_fields_preserve_partial_cleanup_without_scalar_residuals() {
+    let checked = checked(
+        r#"
+        data Token { value: i16 [-10..=20]; }
+        data Pair { before: u8 [0..=10]; tokens: [Token; 2]; after: i32 [-5..=5]; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::partial(value: Pair) {
+            Sink::take(value.tokens[0]);
+        }
+        machine Root::complete(value: Pair) {
+            Sink::take(value.tokens[0]);
+            Sink::take(value.tokens[1]);
+        }
+        "#,
+    );
+    let path = |index| {
+        vec![
+            CheckedUnitStructuralPathSegment::Field("tokens".to_owned()),
+            CheckedUnitStructuralPathSegment::FixedIndex(index),
+        ]
+    };
+    assert_token_cleanup_partition(
+        &checked,
+        "partial",
+        &[path(0)],
+        &[(path(1), "named(name(Token))".to_owned())],
+    );
+    assert_token_cleanup_partition(&checked, "complete", &[path(0), path(1)], &[]);
+    let bounded_fields = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .filter_map(|declaration| match &declaration.shape {
+            CheckedUnitStructuralTypeShape::Record { fields } => Some(fields),
+            _ => None,
+        })
+        .flatten()
+        .filter(|field| {
+            matches!(
+                field.field_type,
+                CheckedUnitStructuralFieldType::BoundedInteger(_)
+            )
+        })
+        .count();
+    assert_eq!(
+        bounded_fields, 3,
+        "cleanup must retain every numeric restriction"
+    );
+}
+
+#[test]
 fn partial_cleanup_keeps_borrowed_byte_views_fenced() {
     let checked = checked(
         r#"

@@ -330,9 +330,12 @@ fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> boo
 }
 
 fn checked_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
+    // Reconstruct the producer's no-cleanup scalar classification without
+    // stripping the numeric restrictions needed by contract proof lowering.
     matches!(
         field_type,
         CheckedUnitStructuralFieldType::Structural { .. }
+            | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::ByteSequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )
