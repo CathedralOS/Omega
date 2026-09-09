@@ -1155,24 +1155,21 @@ Owners include
   Repeat with `selected_row` and `selected_empty_row` for selected and empty shapes.
   The source correspondence owner is
   `checked-trees-to-lowered-psi/src/attached_unit/scalar_arrays.rs`.
-  Continue with source-level array call-result lowering, array arguments and
+  Continue with array arguments and
   state transfers, and native construction; exact value/type custody and
   initialized backing must survive those boundaries. The current native consumer
   explicitly rejects `EstablishScalarArray`, including empty payloads.
-  Portable call-result execution is available independently of source-call lowering:
-  `module_machine_indices::array_call_results` decodes the customer's `computed_row`
-  artifact, invokes it through an ordinary Terminal caller, and returns `[42u8, 9u8]`.
-  Nested/empty results retain payloads and fuel continuation in
-  `terminal-interpreter/src/scalar_array.rs`; canonical call signatures and callee
-  requirements remain independently checked. The source probe
-  `machine called_row(value: u8) -> [u8; 2] { computed_row(value) }` still rejects
-  at checked control-plan production on base `eb59fdfff6` (macOS AArch64).
-  Reproduce by adding it beside `computed_row` and using the outer CLI command
-  above with `--machine called_row`. Next acceptance is that same source call,
-  both as an immutable local and a final expression, through decoded execution.
-  Extend ordinary sequencing in `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
-  and structural-call body/result validation in `checked-trees-to-lowered-psi/src/attached_unit/`;
-  do not introduce another affine-only or source-shape-specific producer family.
+  The customer's `called_row` and `bound_row` also lower from source through
+  ordinary calls and return `[42u8, 9u8]` after independent decoding. On macOS
+  AArch64, use the same outer command with `--machine called_row` or
+  `--machine bound_row`. Primitive-array call results retain nested/empty shapes,
+  source occurrence/result binding, and callee requirements through ordinary
+  sequencing in `typed-trees-to-checked-trees/src/flow/terminal_unit/control/statement_sequence.rs`
+  and complete body closure in `checked-trees-to-lowered-psi/src/attached_unit/`.
+  Next acceptance is carrying that payload through an ordinary array parameter;
+  the current portable consumer explicitly rejects that transport. Boundary-provider
+  array result payloads also remain unsupported. Preserve independent custody
+  checks; do not substitute opaque structural identities for executable values.
   General slice-backed `.len` operands also need retained view formation and bounds
   obligations before folding; a known endpoint difference alone cannot erase that
   operation. The array operand correspondence owner rejects missing view evidence.

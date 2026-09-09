@@ -33,7 +33,7 @@ pub(crate) fn checked_unit_call_closure_including(
                     Some(*target_machine)
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if plans.composed_for_machine(*target_machine).is_some() =>
+                    if UnitBody::contains(plans, *target_machine) =>
                 {
                     Some(*target_machine)
                 }
@@ -412,7 +412,7 @@ pub(super) fn reject_recursive_unit_closure(
                     Some(*target_machine)
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if plans.composed_for_machine(*target_machine).is_some() =>
+                    if UnitBody::contains(plans, *target_machine) =>
                 {
                     Some(*target_machine)
                 }

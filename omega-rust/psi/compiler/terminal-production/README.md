@@ -233,8 +233,13 @@ calls. Integer/Boolean leaves use the existing pure scalar and computation owner
 including ordered calls and selective Boolean evaluation. Completed leaves survive
 later control joins in private scalar slots; they never enter the authored local
 namespace. Source replay checks literal and selected operation meaning in addition
-to the shared read/call custody. Array transport through calls/state arguments and
-native array construction still need their complete value and storage paths.
+to the shared read/call custody. Ordinary calls return array payloads through that
+same sequence, either directly or into immutable locals. Their closure retains
+each complete callee body; source replay checks the exact result binding and
+call occurrence, not merely a compatible array type. Nested scalar arguments
+and borrowed primitive-local operands retain the shared evaluation schedule.
+Array arguments/state transfers, boundary-provider array payloads, and native
+array construction still need their complete value and storage paths.
 General slice-backed `.len` operands require retained view formation and bounds
 evidence; endpoint subtraction alone cannot justify eliminating the view operation.
 

@@ -41,7 +41,14 @@ pub(super) fn is_supported(
     {
         return false;
     }
-    initializer_target_is_supported(program, machine, local, false, true)
+    initializer_target_is_supported(
+        program,
+        machine,
+        local.initial_value,
+        local.type_reference,
+        false,
+        true,
+    )
 }
 
 pub(super) fn has_parameter_receiver(

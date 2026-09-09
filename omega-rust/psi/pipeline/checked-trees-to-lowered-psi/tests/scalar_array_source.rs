@@ -1,5 +1,8 @@
 //! Array results rejoin exact authored bindings and initializer contents.
 
+#[path = "scalar_array_source/call_results.rs"]
+mod call_results;
+
 use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     CheckedUnitEffectOperationPlan,

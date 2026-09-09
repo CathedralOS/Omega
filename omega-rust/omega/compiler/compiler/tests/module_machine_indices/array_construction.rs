@@ -3,14 +3,14 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 use terminal_psi::StructuralTypeShape;
 
-fn integer(value: u128, width: u16) -> TerminalScalarValue {
+pub(super) fn integer(value: u128, width: u16) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, width).expect("integer carrier"),
         value: IntegerValue::Unsigned(value),
     }
 }
 
-fn assert_decoded_array(
+pub(super) fn assert_decoded_array(
     semantics: &[u8],
     proof: &[u8],
     arguments: &[TerminalScalarValue],
@@ -189,6 +189,8 @@ fn existing_module_array_customer_returns_real_arrays_from_portable_bytes() {
         ("root_array", vec![], 64, vec![1, 2]),
         ("selected_array", vec![], 64, vec![2, 1]),
         ("computed_row", vec![integer(42, 8)], 8, vec![42, 9]),
+        ("called_row", vec![integer(42, 8)], 8, vec![42, 9]),
+        ("bound_row", vec![integer(42, 8)], 8, vec![42, 9]),
     ] {
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, name)
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));

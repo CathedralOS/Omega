@@ -35,10 +35,10 @@ pub(crate) fn validate_discarded_structural(
             != result.type_identity
         || checked.type_multiplicity(target.return_type) != result.multiplicity
         || result.multiplicity == language_semantics::Multiplicity::Linear
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
+        || !(validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             target.return_type,
-        )
+        ) || validation::is_closed_primitive_array_type(&checked.typed, target.return_type))
     {
         return unsupported("discarded structural result disagrees with its authored signature");
     }
@@ -95,6 +95,28 @@ pub(crate) fn validate_structural(
             caller_state,
             coordinate,
             result,
+        );
+    }
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    if let Some(StatementNode::Expression(expression)) =
+        statements.get(result.statement_index as usize)
+    {
+        if machine.symbol != caller_machine
+            || result.statement_index != coordinate.statement_index
+            || result.statement_index as usize + 1 != statements.len()
+            || checked.normalized_type_identity(state.return_type).as_str() != result.type_identity
+            || checked.type_multiplicity(state.return_type) != result.multiplicity
+        {
+            return unsupported(
+                "structural call result differs from its authored return destination",
+            );
+        }
+        return super::occurrences::validate(
+            checked,
+            caller_machine,
+            caller_state,
+            coordinate,
+            *expression,
         );
     }
     let Some(StatementNode::LocalData(local)) = checked

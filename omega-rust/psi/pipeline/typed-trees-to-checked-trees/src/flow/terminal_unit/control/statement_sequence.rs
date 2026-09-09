@@ -32,7 +32,11 @@ pub(super) fn has_structural_result(
             local.initial_value,
             local.type_reference,
         )
-        .is_some();
+        .is_some()
+            || matches!(
+                program.expression_table.expression(local.initial_value),
+                ExpressionNode::Call(_)
+            );
     }
     let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
     else {
@@ -109,6 +113,7 @@ pub(in crate::flow::terminal_unit) fn build(
     let mut structural_count = 0_usize;
     let mut structural_local_symbols = Vec::new();
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
+    let mut returned_call = None;
     // Only whole claim-free affine results participate in move custody.
     // Unrestricted boundary results keep their separate non-moving route.
     let mut structural_results = Vec::new();
@@ -133,11 +138,14 @@ pub(in crate::flow::terminal_unit) fn build(
         .skip(construction_statement_count)
         .take_while(|(_, statement)| {
             !matches!(statement, StatementNode::Transition(_))
-                && !(matches!(statement, StatementNode::Expression(_))
-                    && !is_unit(program, state.return_type))
+                && !matches!(statement, StatementNode::Expression(expression)
+                    if !is_unit(program, state.return_type)
+                        && !matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         })
     {
         let statement_index = u32::try_from(index).ok()?;
+        let completes_machine = matches!(statement, StatementNode::Expression(_))
+            && !is_unit(program, state.return_type);
         let mut structural_result = None;
         let result = match statement {
             StatementNode::Assignment(_) => {
@@ -175,7 +183,8 @@ pub(in crate::flow::terminal_unit) fn build(
                     return None;
                 }
                 local_count = local_count.checked_add(1)?;
-                if validation::is_closed_primitive_array_type(program, local.type_reference) {
+                if validation::is_closed_primitive_array_type(program, local.type_reference)
+                    && !matches!(program.expression_table.expression(local.initial_value), ExpressionNode::Call(_)) {
                     if local.is_mutable {
                         return None;
                     }
@@ -299,6 +308,12 @@ pub(in crate::flow::terminal_unit) fn build(
                 None
             }
             StatementNode::Call(_) => None,
+            StatementNode::Expression(_) if completes_machine => {
+                let mut result = checked_structural_result_type(program, shapes, state.return_type, &binders)?;
+                result.statement_index = statement_index;
+                structural_result = Some((result, None));
+                None
+            }
             StatementNode::Expression(_)
                 if call_occurrences::tail_call(program, state, index).is_some() =>
             {
@@ -421,7 +436,8 @@ pub(in crate::flow::terminal_unit) fn build(
                 }),
             &structural_results,
         )?;
-        if let Some((result, None)) = &structural_result {
+        if let Some((result, None)) = &structural_result
+            && !completes_machine {
             // An explicit discard still invokes the value-returning machine.
             // Its anonymous result cannot enter the named-local operand roster.
             // Dispose plain affine contents on this normal continuation, before
@@ -461,8 +477,15 @@ pub(in crate::flow::terminal_unit) fn build(
         }
         if let Some((result, symbol)) = structural_result {
             operation = bind_structural_call_result(operation, result.clone())?;
+            if completes_machine {
+                returned_call = Some(result.clone());
+            }
             if let Some(symbol) = symbol {
                 structural_local_symbols.push(symbol);
+                if matches!(statement, StatementNode::LocalData(local)
+                    if validation::is_closed_primitive_array_type(program, local.type_reference)) {
+                    array_bindings.push((symbol, result.clone()));
+                }
                 if matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::StructuralCall { .. }
@@ -528,6 +551,11 @@ pub(in crate::flow::terminal_unit) fn build(
                     return None;
                 }
                 Some(binding.clone())
+            } else if matches!(
+                program.expression_table.expression(*expression),
+                ExpressionNode::Call(_)
+            ) {
+                returned_call
             } else {
                 let elements = super::scalar_arrays::elements(
                     program,

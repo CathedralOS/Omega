@@ -1,4 +1,6 @@
-//! Borrowed views of complete Unit bodies; no synthetic checked plans or states.
+//! Borrowed views of ordinary statement and graph bodies. Structural result
+//! calls traverse either complete body through the same closure; result shape
+//! does not select a different producer. No synthetic checked plans or states.
 
 use super::*;
 use checked_trees::{
@@ -23,6 +25,15 @@ pub(crate) struct UnitEntry<'a> {
 }
 
 impl<'a> UnitBody<'a> {
+    /// Body membership routes closure traversal, not validation. find still
+    /// rejects duplicate or missing owners before a body is consumed.
+    pub(crate) fn contains(
+        plans: &checked_trees::CheckedUnitEffectPlans,
+        symbol: symbols::SymbolHandle,
+    ) -> bool {
+        plans.for_machine(symbol).is_some() || plans.composed_for_machine(symbol).is_some()
+    }
+
     pub(crate) fn result(self) -> checked_trees::CheckedControlResultPlan {
         match self {
             Self::Ordinary(plan) => plan.structural_result.as_ref().map_or(

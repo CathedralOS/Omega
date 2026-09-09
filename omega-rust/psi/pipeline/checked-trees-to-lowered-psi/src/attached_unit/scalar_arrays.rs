@@ -1,5 +1,7 @@
 //! Array construction shares the ordinary structural result namespace. Replay
 //! rejoins each operand to its authored expression before emitting portable values.
+//! Returning a call result instead uses the shared call-source and callee-body
+//! checks; the final binding must still identify its exact producer below.
 
 use super::*;
 use checked_trees::expression::ExpressionNode;
@@ -230,6 +232,7 @@ pub(super) fn validate_result(
     let has_exact_producer = machine.operations.iter().any(|operation| {
         matches!(operation,
             CheckedUnitEffectOperationPlan::EstablishScalarArray { result: candidate, .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { result: candidate, .. }
             if candidate == result)
     });
     if !has_exact_producer {

@@ -10,7 +10,7 @@ use semantic_vocabulary::{
 };
 
 use super::super::affine_custody::DefinitionIndex;
-use super::super::integer_evidence::{cited_facts, closed_integer_relation};
+use super::super::integer_evidence::{cited_facts, closed_integer_relation, projected_facts};
 use super::super::{cast_custody, cast_selection};
 use super::dispatch::{add_endpoint_candidates, lower_add_math_leaf, relax_math_bound};
 use super::{bound, range};
@@ -984,9 +984,13 @@ fn direct_cited_operand_endpoints(
     semantic_axioms: &[Proposition],
 ) -> Vec<ProofNode> {
     let mut proofs = Vec::new();
-    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+    // Range contracts retain both endpoints in one conjunction. Project its
+    // unconditional leaves with elimination proofs; flattening assumptions
+    // would change citation positions, and selecting a disjunction would be unsound.
+    for projected in projected_facts(assumptions, semantic_axioms) {
+        let fact = projected.proposition;
         if let Some(proof) =
-            oriented_landed_zero_endpoint(integer_type, operand, lower, citation.proof(fact))
+            oriented_landed_zero_endpoint(integer_type, operand, lower, projected.proof())
         {
             proofs.push(proof);
             continue;
@@ -1021,7 +1025,7 @@ fn direct_cited_operand_endpoints(
                 .iter()
                 .any(|proof: &ProofNode| &proof.conclusion == fact)
         {
-            proofs.push(citation.proof(fact));
+            proofs.push(projected.proof());
         }
     }
     proofs

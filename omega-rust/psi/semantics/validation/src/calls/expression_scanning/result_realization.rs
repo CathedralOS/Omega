@@ -172,7 +172,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
     report_nested_call_in_bound_value_call(program, machine, state_name, value, diagnostics);
 }
 
-/// Source-family eligibility for the existing Unit result-local call path.
+/// Result destinations handled by the ordinary checked statement sequence.
 /// Typing and ordinary call validation still own result, argument and contract
 /// compatibility; this predicate does not supply those semantic judgments.
 /// Scalar and plain structural results use the authored statement sequence.
@@ -185,22 +185,37 @@ pub fn unit_result_initializer_call_is_supported(
     let [state] = program.machine_states(machine) else {
         return false;
     };
-    if !unit_type(program, state.return_type)
+    if !(unit_type(program, state.return_type)
+        || crate::is_closed_primitive_array_type(program, state.return_type))
         || !program.expression_table.expression_is_valid(value)
     {
         return false;
     }
-    let mut initializers = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(statement_index, statement)| match statement {
-            StatementNode::LocalData(local) if local.initial_value == value => {
-                Some((statement_index, local))
-            }
-            _ => None,
-        });
+    let statements = program.statement_table.statements(state.statement_nodes);
+    // A final array call has the state's result destination, not a synthetic
+    // local. Its operands still use the same checked computation evaluator.
+    if matches!(statements.last(), Some(StatementNode::Expression(expression)) if *expression == value)
+        && crate::is_closed_primitive_array_type(program, state.return_type)
+    {
+        return initializer_target_is_supported(
+            program,
+            machine,
+            value,
+            state.return_type,
+            true,
+            false,
+        );
+    }
+    let mut initializers =
+        statements
+            .iter()
+            .enumerate()
+            .filter_map(|(statement_index, statement)| match statement {
+                StatementNode::LocalData(local) if local.initial_value == value => {
+                    Some((statement_index, local))
+                }
+                _ => None,
+            });
     let Some((statement_index, local)) = initializers.next() else {
         return false;
     };
@@ -210,12 +225,19 @@ pub fn unit_result_initializer_call_is_supported(
             && program
                 .primitive_type_reference(local.type_reference)
                 .is_none()
-            && !ordinary_structural_initializer(program, local)
+            && !ordinary_structural_initializer(program, local.initial_value, local.type_reference)
             && !boundary_structural_initializer(program, machine, local))
     {
         return false;
     }
-    initializer_target_is_supported(program, machine, local, true, false)
+    initializer_target_is_supported(
+        program,
+        machine,
+        local.initial_value,
+        local.type_reference,
+        true,
+        false,
+    )
 }
 
 fn boundary_structural_initializer(
@@ -228,20 +250,28 @@ fn boundary_structural_initializer(
     // qualification, reference, or linear-result realization route.
     program.type_multiplicity(local.type_reference) != language_semantics::Multiplicity::Linear
         && crate::has_plain_owned_contents(program, local.type_reference)
-        && initializer_target_is_supported(program, machine, local, false, false)
+        && initializer_target_is_supported(
+            program,
+            machine,
+            local.initial_value,
+            local.type_reference,
+            false,
+            false,
+        )
 }
 
 fn ordinary_structural_initializer(
     program: &TypedTrees,
-    local: &typed_trees::statement::TableLocalData,
+    value: ExpressionHandle,
+    result_type: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    if program.type_multiplicity(local.type_reference) != language_semantics::Multiplicity::Affine
-        || !crate::has_plain_owned_contents(program, local.type_reference)
+    if !((program.type_multiplicity(result_type) == language_semantics::Multiplicity::Affine
+        && crate::has_plain_owned_contents(program, result_type))
+        || crate::is_closed_primitive_array_type(program, result_type))
     {
         return false;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
-    else {
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
     program.machines().iter().any(|owner| {
@@ -252,7 +282,8 @@ fn ordinary_structural_initializer(
                     && program
                         .primitive_type_reference(target.return_type)
                         .is_none()
-                    && crate::has_plain_owned_contents(program, target.return_type)
+                    && (crate::has_plain_owned_contents(program, target.return_type)
+                        || crate::is_closed_primitive_array_type(program, target.return_type))
             })
     })
 }
@@ -260,12 +291,12 @@ fn ordinary_structural_initializer(
 fn initializer_target_is_supported(
     program: &TypedTrees,
     machine: &Machine,
-    local: &typed_trees::statement::TableLocalData,
+    value: ExpressionHandle,
+    result_type: typed_trees::types::TypeReferenceHandle,
     allow_ordinary: bool,
     allow_parameter_receiver: bool,
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
-    else {
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
     if !call.target_symbol.is_valid()
@@ -292,19 +323,15 @@ fn initializer_target_is_supported(
             && !unit_type(program, target.return_type)
             && (allow_ordinary
                 || program.primitive_type_reference(target.return_type)
-                    == program.primitive_type_reference(local.type_reference))
+                    == program.primitive_type_reference(result_type))
             && (owner.supply_mode.is_boundary_declaration()
                 || (allow_ordinary
-                    && ((program
-                        .primitive_type_reference(local.type_reference)
-                        .is_some()
+                    && ((program.primitive_type_reference(result_type).is_some()
                         && program
                             .primitive_type_reference(target.return_type)
                             .is_some())
-                        || (program
-                            .primitive_type_reference(local.type_reference)
-                            .is_none()
-                            && ordinary_structural_initializer(program, local)))));
+                        || (program.primitive_type_reference(result_type).is_none()
+                            && ordinary_structural_initializer(program, value, result_type)))));
     }
 
     let selected_parameter = program.machine_parameter_signature(call.target_symbol);
@@ -331,7 +358,7 @@ fn initializer_target_is_supported(
         || unit_type(program, signature.return_type)
         || (!allow_ordinary
             && program.primitive_type_reference(signature.return_type)
-                != program.primitive_type_reference(local.type_reference))
+                != program.primitive_type_reference(result_type))
         || program
             .state_signature_parameters(signature)
             .iter()

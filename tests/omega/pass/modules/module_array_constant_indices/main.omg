@@ -22,3 +22,5 @@ const EMPTY_ROWS: [[u8; 0]; 1] = [[]];
 machine selected_row() -> [u8; 2] { ROWS[0] }
 machine selected_empty_row() -> [u8; 0] { EMPTY_ROWS[0] }
 machine computed_row(value: u8) -> [u8; 2] { [value, 7u8 + 2u8] }
+machine called_row(value: u8) -> [u8; 2] { computed_row(value) }
+machine bound_row(value: u8) -> [u8; 2] { let row: [u8; 2] = computed_row(value); row }

@@ -224,6 +224,15 @@ pub(crate) fn validate_usage(
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
     }
+    // Unrestricted values carry no disposal debt. Argument transport is still
+    // checked above; completing with a result is rejoined to source separately.
+    if result.multiplicity == Multiplicity::Unrestricted {
+        return if producer.discard || consumed || disposed || !projected_paths.is_empty() {
+            unsupported("unrestricted result acquired affine transfer or disposal custody")
+        } else {
+            Ok(())
+        };
+    }
     if (projected_paths.is_empty() && producer.discard == (consumed || disposed))
         || (!projected_paths.is_empty() && producer.discard)
         || (producer.coordinate.call_ordinal != 0

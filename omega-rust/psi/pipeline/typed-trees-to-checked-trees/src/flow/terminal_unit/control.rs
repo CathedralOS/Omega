@@ -2253,6 +2253,8 @@ pub(super) fn checked_unit_structural_result_local(
 /// Result shape is independent of whether the source binds or discards it.
 /// Only no-code disposable results use this path; linear claims and nominal
 /// cleanup still require their checked settlement plan.
+/// Primitive arrays use their complete-shape classifier, including dimensions
+/// with no leaves; the older owned-storage classifier excludes empty arrays.
 fn checked_structural_result_type(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -2264,7 +2266,8 @@ fn checked_structural_result_type(
         || is_reference(program, result_type)
         || crate::checks::type_multiplicity(program, result_type) == Multiplicity::Linear
         || type_graph_requires_nominal_drop(program, result_type)
-        || !validation::has_plain_owned_contents_with_numeric_constraints(program, result_type)
+        || !(validation::has_plain_owned_contents_with_numeric_constraints(program, result_type)
+            || validation::is_closed_primitive_array_type(program, result_type))
         || !parameter_qualifications(program, shapes, result_type, binders)?.is_empty()
     {
         return None;
