@@ -259,14 +259,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   diagnosis with comparable timings and unchanged findings. Windows timing is
   unverified; this work does not block the native operand work below.
 
-  After the bounded-line API migration (tested from `ef362977e1` on macOS ARM64),
-  the downstream native `cli_mvp` probe remains red:
+  Resume the downstream native `cli_mvp` probe:
   `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution at `InvalidUnitMachinePlan { machine: "Main::main", reason:
-  "attached Unit closure is missing a checked transitive machine plan" }`.
-  Resume the ordinary transitive source-call closure, not a line intrinsic.
+  execution at `Unsupported("provider candidate has no checked affine identity return plan")`
+  (macOS ARM64, `ac80b59b07`). Main's complete checked call plan now retains its
+  raw fixed-buffer borrow, structural line result, and immediate disposal.
+  Next owner: `checked-trees-to-lowered-psi/src/attached_unit/providers.rs`;
+  structural provider candidates currently require an affine identity-return
+  plan, while `ConsoleNativeProvider::read_line` has a composed state-graph
+  result plan. Admit that actual checked body through the existing provider
+  route, preserving exact requirement/result signatures and settlement custody.
+  Do not substitute a line intrinsic or rewrite portable boundary calls into
+  selected direct calls. Re-run this same native probe; entry provisioning and
+  later native realization remain separate dependencies, not implied passes.
   The native sample harness now supplies exact test-owned Console acceptance and
   receiving permissions through the shared canary helper. Byte-output and exit
   classification succeed; fixture acceptance does not replace the CLI's package review.
@@ -275,9 +282,9 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   they do not establish the complete entry-owned caller. Do not substitute Linux
   or interpreter output for that acceptance.
   Terminal production retains authored boundary calls; native provider selection
-  owns adapter realization, independently of interpreter dispatch. Complete the
+  owns adapter realization, independently of interpreter dispatch. Preserve the
   [borrowed-byte writer closure](omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
-  in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
+  from `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
