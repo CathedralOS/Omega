@@ -95,6 +95,16 @@ do not claim a faster compiler from a smaller helper alone.
   custody and admission. Compare whole-route time with the SAMPLE-CORPUS probe;
   no generic persistent cache or second package-review workflow.
 
+  Immutable parse-checkpoint exposure is deferred on measured cost, not a design
+  blocker. At `9d9075eb61`, the already-built release CLI's macOS ARM64 `cli_mvp`
+  route took 19.37 seconds; a temporary phase probe took 19.36 seconds with the
+  same missing-acceptance findings. All four source preparations totaled 46.248 ms
+  while recorded checking phases totaled 12.674 seconds. Reusing preparation
+  across the two passes can save only part of that 46 ms and still clones child
+  syntax. Do not add a public preparation handle or review cache for that cost.
+  Resume only when a repeated binding-independent phase has material measured
+  self cost; preserve the existing session, generated-source and policy checks.
+
 Optimizer revision/analysis reuse is tracked only in `TASKS_OPTIMIZER.md`.
 
 ## Semantic reflection
@@ -1065,6 +1075,16 @@ Owners include
   facts, and reject incomplete coverage. Side-effectful subjects, unselected
   trapping arms, duplicate/overlapping patterns, and nonnumeric results need
   controls; subtraction/multiplication is not a general match implementation.
+
+  The `9d9075eb61` macOS release `--check` probe
+  `machine nonzero(value: i64) -> i64 requires value != 0 { value }`
+  with `machine choose(value: i64) -> i64 { match value { 0 -> 7 _ -> nonzero(value) } }`
+  rejects the missing `value != 0` call premise. Retain dispatch and arm facts
+  through source representations; existing transition blocks are enclosing
+  return/control edges, not expression-local result joins. Scalar computation
+  `Select` already provides selective arms, but reusing a subject computation
+  handle across comparisons reevaluates it: multi-arm dispatch needs an explicit
+  saved-subject value. Extend checked source replay with the producer.
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) for pre-resolution
