@@ -38,6 +38,7 @@ impl LegalizedScalarFunction {
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
+                    LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
@@ -152,6 +153,15 @@ pub enum LegalizedScalarInstructionKind {
         source: semantic_vocabulary::PlaceId,
         start: ValueId,
         end: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// Replace one byte through the exact current exclusive view, retaining its bounds fact.
+    ByteSequenceWrite {
+        destination: semantic_vocabulary::PlaceId,
+        index: ValueId,
+        value: ValueId,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,

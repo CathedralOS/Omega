@@ -14,7 +14,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
-fn verified_mutable_byte_view_write_rejects_unrealized_state_bindings() {
+fn verified_mutable_byte_view_write_retains_exact_native_projection() {
     let source = r#"
         machine put(out: &mut [u8], byte: u8) {
             transition out.len > 0 {
@@ -90,17 +90,46 @@ fn verified_mutable_byte_view_write_rejects_unrealized_state_bindings() {
             lower_artifact_sections_for_native_realization(&semantic_bytes, &proof_bytes, &profile)
                 .map(|_| ()),
         ] {
-            // This source reaches the earlier state-binding fence, before the
-            // separate per-operation ByteSequenceWrite realization fence.
             assert!(
-                matches!(
-                    result,
-                    Err(ArtifactLoweringError::Lowering(
-                        LoweringError::UnsupportedStructuralSuccessorArguments { machine, .. }
-                    )) if machine == writer
-                ),
-                "a verified mutable view cannot lose its write during projection: {result:?}"
+                result.is_ok(),
+                "verified byte writer must project: {result:?}"
             );
+        }
+        let plan = lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile).unwrap();
+        let actual = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == writer)
+            .unwrap();
+        for operation in terminal
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == writer)
+            .unwrap()
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+        {
+            if let OperationKind::ByteSequenceWrite {
+                destination,
+                index,
+                value,
+                length,
+                obligation,
+            } = operation.kind
+            {
+                assert!(actual.operations.contains(
+                    &abstract_operations::AbstractOperation::ByteSequenceWrite {
+                        psi_operation: operation.id,
+                        destination,
+                        index,
+                        value,
+                        length,
+                        obligation,
+                    }
+                ));
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-//! Immutable byte-view observation source contracts.
+//! Exact byte-view observation and mutation source contracts.
 
 use std::collections::BTreeMap;
 
@@ -12,7 +12,7 @@ use terminal_psi::{
 
 use crate::OptimizationUnitValidationError;
 
-pub(super) fn validate_immutable_byte_view_source(
+pub(super) fn validate_byte_view_source(
     function: &PsiOptimizationFunction,
     block: BlockId,
     node: u32,
@@ -21,12 +21,25 @@ pub(super) fn validate_immutable_byte_view_source(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let (source, length) = match operation {
+        AbstractOperation::ByteSequenceWrite {
+            destination,
+            length,
+            ..
+        } => (*destination, Some(*length)),
         AbstractOperation::ByteSequenceLength { source, .. } => (*source, None),
         AbstractOperation::ByteSequenceRead { source, length, .. }
         | AbstractOperation::ByteSequenceSubslice { source, length, .. } => {
             (*source, Some(*length))
         }
         _ => return Ok(()),
+    };
+    let permitted_access = |access| match operation {
+        AbstractOperation::ByteSequenceWrite { .. } => access == StructuralAccess::MutableBorrow,
+        AbstractOperation::ByteSequenceLength { .. } => matches!(
+            access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        ),
+        _ => access == StructuralAccess::SharedBorrow,
     };
     let structural_type = match source_kind {
         Some(StructuralPlaceKind::BlockParameter {
@@ -39,7 +52,7 @@ pub(super) fn validate_immutable_byte_view_source(
             .and_then(|block| block.structural_parameters.get(*position as usize))
             .filter(|parameter| {
                 parameter.place == source
-                    && parameter.access == StructuralAccess::SharedBorrow
+                    && permitted_access(parameter.access)
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
@@ -50,7 +63,7 @@ pub(super) fn validate_immutable_byte_view_source(
             .iter()
             .find(|parameter| {
                 parameter.place == source
-                    && parameter.access == StructuralAccess::SharedBorrow
+                    && permitted_access(parameter.access)
                     && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
@@ -146,10 +159,23 @@ pub(super) fn validate_immutable_byte_view_source(
     // Scalar-use validation independently requires the exact length definition
     // and endpoints to dominate the operation. Structural availability checks
     // require a subslice producer to dominate every descriptor use.
-    if !valid || !exact_length || !valid_result {
+    let writable = !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
+        || matches!(
+            source_kind,
+            Some(
+                StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. }
+            )
+        );
+    if !valid || !exact_length || !valid_result || !writable {
         return Err(
             if matches!(operation, AbstractOperation::ByteSequenceSubslice { .. }) {
                 OptimizationUnitValidationError::InvalidByteSequenceSubslice {
+                    machine: function.machine,
+                    block,
+                    node,
+                }
+            } else if matches!(operation, AbstractOperation::ByteSequenceWrite { .. }) {
+                OptimizationUnitValidationError::InvalidByteSequenceWrite {
                     machine: function.machine,
                     block,
                     node,

@@ -142,9 +142,21 @@ fn activation_local_roster_and_memory_roles_round_trip() {
             byte_size: 24,
             alignment: 8,
         });
-    for role in [
-        SelectedMemoryAccessRole::WriteLocal { slot },
-        SelectedMemoryAccessRole::AddressLocal { slot },
+    for (role, byte_count) in [
+        (SelectedMemoryAccessRole::WriteLocal { slot }, 8),
+        (SelectedMemoryAccessRole::AddressLocal { slot }, 8),
+        (
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index: semantic_vocabulary::ValueId::new(61).unwrap(),
+                value: semantic_vocabulary::ValueId::new(67).unwrap(),
+                length: semantic_vocabulary::ValueId::new(71).unwrap(),
+                obligation: ObligationId::new(73).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [79; 32],
+                ),
+            },
+            1,
+        ),
     ] {
         function.memory_accesses.push(SelectedMemoryAccess {
             instruction: SelectedInstructionId(1),
@@ -153,7 +165,7 @@ fn activation_local_roster_and_memory_roles_round_trip() {
             ),
             place: slot.structural_place().unwrap(),
             byte_offset: 0,
-            byte_count: 8,
+            byte_count,
             role,
         });
     }

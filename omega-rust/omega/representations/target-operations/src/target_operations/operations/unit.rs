@@ -68,6 +68,17 @@ pub enum TargetUnitOperation {
         result: StructuralOperationResult,
         view: crate::TargetByteView,
     },
+    /// Replace one initialized byte through the original mutable descriptor.
+    /// Scalar origins and the exact same-view length proof remain independent.
+    ByteSequenceWrite {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        view: crate::TargetByteView,
+        index: TargetUnitScalarArgumentSource,
+        value: TargetUnitScalarArgumentSource,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     EstablishByteSequenceLiteral {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,

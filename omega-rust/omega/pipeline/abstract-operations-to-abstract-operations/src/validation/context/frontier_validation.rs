@@ -103,6 +103,11 @@ fn validate_surviving_byte_operations(
                 psi_operation,
                 obligation,
                 ..
+            }
+            | O::ByteSequenceWrite {
+                psi_operation,
+                obligation,
+                ..
             } => (*psi_operation, Some(*obligation)),
             O::ByteSequenceLength { psi_operation, .. } => (*psi_operation, None),
             _ => continue,
@@ -120,6 +125,23 @@ fn validate_surviving_byte_operations(
             });
         let matches = original.is_some_and(|original| {
             let (result, kind) = match operation {
+                O::ByteSequenceWrite {
+                    destination,
+                    index,
+                    value,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Unit,
+                    terminal_psi::OperationKind::ByteSequenceWrite {
+                        destination: *destination,
+                        index: *index,
+                        value: *value,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
                 O::ByteSequenceSubslice {
                     result,
                     source,

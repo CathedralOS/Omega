@@ -64,6 +64,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         AbstractOperation::DynamicDescriptorParameter { .. }
         | AbstractOperation::StoreDynamicDescriptor { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
+        | AbstractOperation::ByteSequenceWrite { .. }
         | AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }

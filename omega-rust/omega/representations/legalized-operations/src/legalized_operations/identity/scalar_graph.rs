@@ -174,6 +174,26 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     }
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::ByteSequenceWrite {
+                    destination,
+                    index,
+                    value,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(19);
+                    for identity in [
+                        destination.get(),
+                        index.get(),
+                        value.get(),
+                        length.get(),
+                        obligation.get(),
+                    ] {
+                        bytes.extend_from_slice(&identity.to_le_bytes());
+                    }
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::ByteSequenceRead {
                     source,
                     index,

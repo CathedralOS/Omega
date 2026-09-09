@@ -103,6 +103,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::BooleanStructuralField { .. }
         | O::PrimitiveScalarRead { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequenceWrite { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }

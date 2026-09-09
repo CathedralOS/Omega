@@ -110,6 +110,7 @@ pub(super) fn validate_successors(
                     || !matches!(
                         parameter.access,
                         terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow
                             | terminal_psi::StructuralAccess::Owned
                     )
                 {

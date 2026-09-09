@@ -10,6 +10,7 @@ pub(in crate::legalization) fn instruction(
     | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::CallUnit { psi_operation, .. }
+    | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
@@ -239,6 +240,25 @@ pub(super) fn validate(
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        if let AbstractOperation::ByteSequenceWrite {
+            destination,
+            index,
+            value,
+            length,
+            ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || super::byte_views::mutable_parameter(optimized, *destination).is_none()
+                || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
+                || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))
             {
                 return Err(invalid);
             }

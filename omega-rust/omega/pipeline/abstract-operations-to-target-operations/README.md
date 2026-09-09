@@ -75,8 +75,12 @@ subtract, immutable byte length and read observations, integer comparisons,
 subslice establishments, scalar calls and ordinary Unit calls. Arithmetic retains
 its exact safety obligation; scalar calls retain their callee ABI and result home
 without requiring a fabricated caller attachment.
-Views must be exact shared parameters or dominating establishments;
+Read/subslice views must be exact shared parameters or dominating establishments;
 their length-observation identity is retained separately from scalar residence.
+Whole mutable machine/block parameters support length observations and indexed
+byte writes. A write retains the exact declaration, original descriptor, typed
+index/byte sources, current length and bounds obligation in the ordinary Unit
+graph. It neither changes descriptor extent nor creates a mutable subslice.
 Comparisons define Boolean homes for conditions rather than repeating their
 producer at the edge. Boolean parameters and constants can cross block edges;
 computed comparison results still require native value materialization before

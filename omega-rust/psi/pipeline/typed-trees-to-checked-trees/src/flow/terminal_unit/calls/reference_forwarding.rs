@@ -196,7 +196,7 @@ fn prefix_preserves_parameter(
             .iter()
             .any(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
             && !(preceding.statement_index < call.statement_index
-                && preceding_fixed_array_loan_preserves_carrier(
+                && preceding_byte_loan_preserves_carrier(
                     program,
                     borrow,
                     borrow_state,
@@ -212,7 +212,7 @@ fn prefix_preserves_parameter(
 
 /// A completed call through a byte view can change elements, not the caller's
 /// reference carrier. This does not admit assignments or restore live loans.
-fn preceding_fixed_array_loan_preserves_carrier(
+fn preceding_byte_loan_preserves_carrier(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     state: &checked_trees::StateBorrowFact,
@@ -261,11 +261,18 @@ fn preceding_fixed_array_loan_preserves_carrier(
     if matching.next().is_some()
         || parameter.is_self
         || parameter.is_const
-        || !super::fixed_byte_array_mutable_view_is_admitted(
+        || !(super::fixed_byte_array_mutable_view_is_admitted(
             program,
             source.type_reference,
             parameter.type_reference,
-        )
+        ) || [source.type_reference, parameter.type_reference]
+            .into_iter()
+            .all(|reference| {
+                structural_access_for_type_reference(program, reference)
+                    == Some(CheckedStructuralAccess::MutableBorrow)
+                    && byte_sequence_carrier(program, reference, &[])
+                        == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            }))
     {
         return false;
     }

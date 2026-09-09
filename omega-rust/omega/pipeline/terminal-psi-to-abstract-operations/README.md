@@ -189,6 +189,8 @@ extending a shape; successful descriptor transport alone is not executable
 reference preservation.
 
 Whole mutable byte-view `ByteSequenceWrite` is a distinct Terminal operation,
-not an owned primitive-field store. This consumer explicitly rejects it with
-`UnsupportedByteSequenceWrite` until exact native view/write custody is realized.
-Successful Terminal verification or interpretation does not imply native support.
+not an owned primitive-field store. Projection retains its exact destination,
+index, byte, current length and bounds obligation. Whole mutable-view state
+bindings retain exclusive transfer, not a second usable name. The ordinary
+native graph realizes fixed-extent writes and Unit helper calls; this does not
+admit bounded-owner field replacement or complete the line-input provider.

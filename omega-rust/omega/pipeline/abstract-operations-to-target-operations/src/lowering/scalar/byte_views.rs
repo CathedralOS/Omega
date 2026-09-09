@@ -31,8 +31,19 @@ pub(in crate::lowering) fn is_immutable_byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
+    parameter.access == StructuralAccess::SharedBorrow
+        && is_byte_parameter(parameter, structural_types)
+}
+
+pub(in crate::lowering) fn is_byte_parameter(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> bool {
     !parameter.is_self
-        && parameter.access == StructuralAccess::SharedBorrow
+        && matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
@@ -46,6 +57,64 @@ pub(in crate::lowering) fn is_immutable_byte_parameter(
                     )
                 )
             })
+}
+
+/// Mutable views are only whole machine or block parameters, never subslices.
+pub(in crate::lowering) fn mutable_parameter_view(
+    function: &AbstractFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    parameters: &[TargetStructuralParameter],
+    place: PlaceId,
+) -> Result<(terminal_psi::StructuralParameterDeclaration, TargetByteView), LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    if let Some((entry, semantic)) = function.block_entries.iter().find_map(|entry| {
+        entry
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+            .map(|parameter| (entry, parameter))
+    }) {
+        if entry.block == function.entry
+            || semantic.access != StructuralAccess::MutableBorrow
+            || !is_byte_parameter(semantic, structural_types)
+        {
+            return Err(invalid());
+        }
+        return Ok((
+            semantic.clone(),
+            TargetByteView::BlockParameter {
+                block: entry.block,
+                place,
+                structural_type: semantic.structural_type,
+            },
+        ));
+    }
+    let semantic = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+        .ok_or_else(invalid)?;
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+        .ok_or_else(invalid)?;
+    if semantic.access != StructuralAccess::MutableBorrow
+        || !is_byte_parameter(semantic, structural_types)
+        || parameter.structural_type != semantic.structural_type
+        || parameter.access != semantic.access
+        || parameter.multiplicity != semantic.multiplicity
+        || parameter.projected_qualifications != semantic.projected_qualifications
+        || parameter.shape != ValueShape::borrowed_reference(16, 8)
+    {
+        return Err(invalid());
+    }
+    Ok((
+        semantic.clone(),
+        TargetByteView::Parameter {
+            place,
+            placement: parameter.placement.clone(),
+        },
+    ))
 }
 
 pub(super) fn lower_byte_observation(
@@ -112,15 +181,22 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         _ => return Ok(false),
     };
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
-    let view = view_for_place(
-        function,
-        structural_types,
-        parameters,
-        values,
-        lengths,
-        source,
-        &mut Vec::new(),
-    )?;
+    let mutable_view = matches!(operation, AbstractOperation::ByteSequenceLength { .. })
+        .then(|| mutable_parameter_view(function, structural_types, parameters, source).ok())
+        .flatten();
+    let view = if let Some((_, view)) = mutable_view {
+        view
+    } else {
+        view_for_place(
+            function,
+            structural_types,
+            parameters,
+            values,
+            lengths,
+            source,
+            &mut Vec::new(),
+        )?
+    };
     let ScalarType::Integer(scalar_type) = result.scalar_type else {
         return Err(invalid());
     };

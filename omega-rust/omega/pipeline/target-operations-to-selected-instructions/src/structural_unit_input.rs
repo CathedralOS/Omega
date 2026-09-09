@@ -152,7 +152,9 @@ pub(crate) fn accepts_borrowed_view(
         && parameters.iter().enumerate().all(|(position, parameter)| {
             parameter.semantic.position as usize == position
                 && !parameter.semantic.is_self
-                && parameter.semantic.access == StructuralAccess::SharedBorrow
+                && (parameter.semantic.access == StructuralAccess::SharedBorrow
+                    || (parameter.semantic.access == StructuralAccess::MutableBorrow
+                        && call_plan.result.is_none()))
                 && parameter.semantic.multiplicity
                     == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.semantic.qualifications.is_empty()

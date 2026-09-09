@@ -75,7 +75,9 @@ pub(crate) fn validate_structural_place_availability(
     Ok(())
 }
 
-fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
+pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
+    operation: &O,
+) -> Vec<PlaceId> {
     let mut inputs = match operation {
         O::Jump {
             structural_bindings,
@@ -162,6 +164,10 @@ fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         | O::ByteSequenceSubslice { source, .. }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }
+        | O::ByteSequenceWrite {
+            destination: source,
+            ..
+        }
         | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {

@@ -339,6 +339,7 @@ pub(in crate::selection) fn validate(
                 | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
                 | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                 | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
+                | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {

@@ -100,7 +100,7 @@ worklist; independent replay follows each declared value forward to an observer.
 Explicit expected-set tests cover unused cycles, live multi-edge chains, swaps,
 and retained instructions whose results are unused.
 
-Whole, unqualified, unrestricted shared byte views use the same edge bridges.
+Whole, unqualified, unrestricted shared or mutable byte views use the same edge bridges.
 Each block parameter owns a 16-byte activation-local descriptor slot. Its address
 is formed at invocation entry without reading uninitialized contents. The chosen
 edge snapshots both words of every incoming descriptor and all scalar arguments
@@ -111,6 +111,14 @@ memory metadata distinguishes operation, block-address and edge-copy origins.
 Source-graph availability establishes initialized descriptor contents; address
 register dominance alone does not. Length/bounds observations belong to the newly
 bound destination view rather than an arbitrary predecessor's scalar length.
+
+Indexed mutable-view writes load the original backing pointer, form the checked
+byte address with `ByteViewAddress`, and use the ordinary one-byte `Store`.
+The write footprint retains the exact destination, index, byte, current length,
+obligation and accepted fact. Independent replay checks the complete sequence;
+only the store carries the source operation's fuel. Descriptor words and bytes
+outside the selected element remain unchanged. Mutable subslices and bounded-owner
+field replacement remain separate realization work.
 
 Structural argument snapshots, loads/stores, frame addresses and calls use
 ordinary virtual instructions with exact slot/access/call metadata. Copying an

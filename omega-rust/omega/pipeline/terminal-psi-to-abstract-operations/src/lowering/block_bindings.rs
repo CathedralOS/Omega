@@ -1,4 +1,4 @@
-//! Admit whole immutable byte views and plain owned structural arrivals.
+//! Admit whole shared or exclusive byte views and plain owned structural arrivals.
 
 use terminal_psi::{TerminalModule, Terminator};
 
@@ -33,7 +33,8 @@ pub(super) fn validate_structural_block_bindings(
                                         terminal_psi::StructuralMultiplicity::Affine
                                             | terminal_psi::StructuralMultiplicity::Unrestricted
                                     ),
-                                    terminal_psi::StructuralAccess::SharedBorrow => {
+                                    terminal_psi::StructuralAccess::SharedBorrow
+                                    | terminal_psi::StructuralAccess::MutableBorrow => {
                                         parameter.multiplicity
                                             == terminal_psi::StructuralMultiplicity::Unrestricted
                                             && matches!(
@@ -43,8 +44,7 @@ pub(super) fn validate_structural_block_bindings(
                                                 )
                                             )
                                     }
-                                    terminal_psi::StructuralAccess::MutableBorrow
-                                    | terminal_psi::StructuralAccess::WriteOnlyBorrow => false,
+                                    terminal_psi::StructuralAccess::WriteOnlyBorrow => false,
                                 }
                         })
                 })
@@ -99,6 +99,8 @@ fn unsupported_argument(argument: &terminal_psi::StructuralArgument) -> bool {
     !argument.path.is_empty()
         || !matches!(
             argument.access,
-            terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::Owned
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::Owned
         )
 }

@@ -38,8 +38,24 @@ pub(super) fn lower(
         OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
             Err(LoweringError::UnsupportedStructuralByteSequenceFieldByteStore(operation.id))
         }
-        OperationKind::ByteSequenceWrite { .. } => {
-            Err(LoweringError::UnsupportedByteSequenceWrite(operation.id))
+        OperationKind::ByteSequenceWrite {
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+        } => {
+            if operation.result != terminal_psi::OperationResult::Unit {
+                return Err(LoweringError::InvalidByteSequenceWrite(operation.id));
+            }
+            Ok(AbstractOperation::ByteSequenceWrite {
+                psi_operation: operation.id,
+                destination: *destination,
+                index: *index,
+                value: *value,
+                length: *length,
+                obligation: *obligation,
+            })
         }
         OperationKind::StructuralByteSequenceFieldStore { .. } => Err(
             LoweringError::UnsupportedStructuralByteSequenceFieldStore(operation.id),

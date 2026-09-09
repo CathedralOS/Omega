@@ -5,6 +5,7 @@ use super::*;
 mod availability;
 mod primitive_locals;
 
+pub(super) use availability::operation_place_inputs;
 pub(crate) use availability::validate_structural_place_availability;
 
 pub(crate) fn validate_structural_root_uniqueness(
@@ -71,12 +72,22 @@ pub(crate) fn validate_structural_root_operations(
                 O::ByteSequenceSubslice { source, .. }
                 | O::ByteSequenceLength { source, .. }
                 | O::ByteSequenceRead { source, .. } => {
-                    super::byte_views::validate_immutable_byte_view_source(
+                    super::byte_views::validate_byte_view_source(
                         function,
                         block.id,
                         node_index,
                         &node.operation,
                         place_kinds.get(source),
+                        structural_types,
+                    )?;
+                }
+                O::ByteSequenceWrite { destination, .. } => {
+                    super::byte_views::validate_byte_view_source(
+                        function,
+                        block.id,
+                        node_index,
+                        &node.operation,
+                        place_kinds.get(destination),
                         structural_types,
                     )?;
                 }

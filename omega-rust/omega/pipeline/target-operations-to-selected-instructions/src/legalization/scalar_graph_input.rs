@@ -244,6 +244,7 @@ pub(super) fn match_input(
             obligation,
             ..
         }
+        | AbstractOperation::ByteSequenceWrite { psi_operation, obligation, .. }
         | AbstractOperation::ByteSequenceRead {
             psi_operation,
             obligation,
