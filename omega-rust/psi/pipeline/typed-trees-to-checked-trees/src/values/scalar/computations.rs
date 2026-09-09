@@ -1,4 +1,10 @@
 //! Checked execution plans for call-bearing scalar writes, guards, arguments, and returns.
+//!
+//! A known normal-return result is not an effect-free computation. Short-circuit
+//! selection may omit an unreachable RHS, but must retain the evaluated left
+//! graph, including calls whose result becomes known only at a later selection.
+//! Keep exact source occurrences on retained applications and selections so
+//! folding an enclosing guard does not change their operand custody.
 
 use super::*;
 use checked_trees::{
@@ -9,6 +15,7 @@ use symbols::SymbolHandle;
 
 mod call_arguments;
 mod integers;
+mod normal_return;
 #[cfg(test)]
 mod tests;
 
@@ -609,6 +616,11 @@ impl Builder<'_, '_> {
                         Some(condition)
                     };
                 }
+                if normal_return::boolean_result(self.plans, condition) == Some(!evaluate_when) {
+                    // Unlike replacing this with a constant, returning the
+                    // original graph preserves every effect leading to its result.
+                    return Some(condition);
+                }
                 let right = self.expression(binary.right, PrimitiveType::Bool)?;
                 let skipped = self.boolean(!evaluate_when);
                 let (when_true, when_false) = if evaluate_when {
@@ -636,6 +648,7 @@ impl Builder<'_, '_> {
                 Some(self.insert(
                     PrimitiveType::Bool,
                     CheckedScalarComputationKind::Apply {
+                        source_expression: expression,
                         expression: CheckedScalarExpression::Boolean(Box::new(
                             CheckedBooleanExpression::Not(Box::new(
                                 CheckedBooleanExpression::Parameter { position: 0 },
@@ -658,7 +671,7 @@ impl Builder<'_, '_> {
                     )
                     && operator_is_builtin(self.operators, expression) =>
             {
-                if let Some(comparison) = self.integer_comparison(&binary) {
+                if let Some(comparison) = self.integer_comparison(expression, &binary) {
                     return Some(comparison);
                 }
                 if !matches!(
@@ -680,6 +693,7 @@ impl Builder<'_, '_> {
                 Some(self.insert(
                     PrimitiveType::Bool,
                     CheckedScalarComputationKind::Apply {
+                        source_expression: expression,
                         expression: CheckedScalarExpression::Boolean(Box::new(template)),
                         operands,
                     },

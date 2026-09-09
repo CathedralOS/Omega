@@ -417,6 +417,7 @@ fn integer_application_operand_namespaces_reject_malformed_templates() {
             let CheckedScalarComputationKind::Apply {
                 expression,
                 operands,
+                ..
             } = &mut node.kind
             else {
                 unreachable!()

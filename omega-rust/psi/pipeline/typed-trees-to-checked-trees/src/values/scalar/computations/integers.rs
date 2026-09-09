@@ -28,6 +28,7 @@ impl Builder<'_, '_> {
 
     fn integer_application(
         &mut self,
+        source_expression: ExpressionHandle,
         expression: CheckedScalarExpression,
         domain: ArithmeticDomain,
         operands: impl IntoIterator<Item = CheckedScalarComputationHandle>,
@@ -37,6 +38,7 @@ impl Builder<'_, '_> {
         let computation = self.insert(
             primitive_type,
             CheckedScalarComputationKind::Apply {
+                source_expression,
                 expression,
                 operands,
             },
@@ -121,6 +123,7 @@ impl Builder<'_, '_> {
                 let left = self.materialize_integer(left)?;
                 let right = self.materialize_integer(right)?;
                 self.integer_application(
+                    expression,
                     CheckedScalarExpression::IntegerBinary {
                         kind,
                         primitive_type,
@@ -140,7 +143,7 @@ impl Builder<'_, '_> {
                 let (value, domain) =
                     construct_integer_bitwise_not(parameter(0, primitive_type), operand.domain)?;
                 let operand = self.materialize_integer(operand)?;
-                self.integer_application(value, domain, [operand])
+                self.integer_application(expression, value, domain, [operand])
             }
             ExpressionNode::Cast(cast) => {
                 let operand = self.integer_operand(cast.value)?;
@@ -165,7 +168,7 @@ impl Builder<'_, '_> {
                         self.exact_integer_casts,
                     )?;
                     let operand = self.materialize_integer(operand)?;
-                    self.integer_application(template, domain, [operand])
+                    self.integer_application(expression, template, domain, [operand])
                 } else {
                     // Same-carrier qualification changes later policy, not payload.
                     Some(IntegerOperand {
@@ -217,6 +220,7 @@ impl Builder<'_, '_> {
 
     pub(super) fn integer_comparison(
         &mut self,
+        source_expression: ExpressionHandle,
         binary: &typed_trees::expression::TableBinaryExpression,
     ) -> Option<CheckedScalarComputationHandle> {
         let (mut left, mut right) = self.integer_operands(binary)?;
@@ -255,6 +259,7 @@ impl Builder<'_, '_> {
         Some(self.insert(
             PrimitiveType::Bool,
             CheckedScalarComputationKind::Apply {
+                source_expression,
                 expression: CheckedScalarExpression::Boolean(Box::new(template)),
                 operands,
             },

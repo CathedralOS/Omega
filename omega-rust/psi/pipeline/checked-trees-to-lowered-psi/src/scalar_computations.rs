@@ -586,6 +586,7 @@ impl<'a> Expansion<'a> {
             CheckedScalarComputationKind::Apply {
                 expression,
                 operands,
+                ..
             } => {
                 let operands = plans
                     .operands
