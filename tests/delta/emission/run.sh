@@ -12,8 +12,6 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
-python3 -B "$GATE_DIR/packed_text_test.py"
-
 EMISSION_TMP=$(mktemp -d)
 trap 'rm -rf -- "$EMISSION_TMP"' EXIT HUP INT TERM
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \

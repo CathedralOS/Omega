@@ -42,18 +42,17 @@ pipeline's existing runtime selection remains separate from generic expression
 serialization. These helpers, definition order, whitespace, hygienic spellings,
 and the final publication byte retain the established receipt format.
 
-Each packed runtime chunk has an adjacent exact ASCII annotation, checked by the
-[emission gate](../../../../tests/delta/emission/README.md). The fixed emitter
-selects count or publication once: count advances by the complete fixed extent,
-while publication sequences the existing zero-returning byte writers with balanced
-addition, then advances the count. Left-to-right evaluation preserves output
-order; zero sums cannot overflow. No per-chunk bindings or pair allocations are
-needed. The checked chunk lengths establish each fixed total. This keeps the emitted text
-visible on the implementation reading path without adding Gamma literal syntax
-or a host source generator. The annotation checker is diagnostic; byte agreement
-does not prove that the runtime implements Delta. Packing and its limited
-readability remain candidates for whole-chain comparison, not a reason to retain
-the representation permanently.
+Fixed runtime text uses ordinary Gamma character literals in groups of eight.
+One shared writer replaces packed decimal constants, byte-unpacking arithmetic,
+and a separate comment-agreement checker. Count mode advances by the complete
+fixed extent; publication sequences writes with balanced addition, then advances
+the count. Gamma's left-to-right evaluation preserves output order. Each leaf
+returns a byte or a sum of eight bytes; the largest fixed body writes 660 bytes,
+so every intermediate sum is nonnegative and at most `660 * 255`. No per-chunk
+bindings or pair allocations are needed. The
+[staged compiler gate](../../../../tests/delta/staged-compiler/run.sh) pins exact
+runtime bytes, receipt counts, and execution. No new Gamma syntax or host source
+generator is involved. Generic packed-word serialization remains separate.
 
 Emission entrypoints receive a count/publication flag and running byte count.
 The expression entrance chooses cached counting or publication once; recursive

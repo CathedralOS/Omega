@@ -7,22 +7,22 @@ it is not a checked refinement certificate or a cumulative pair-allocation bound
 
 The subject is the canonical [`delta_compiler.gamma`](../../delta_compiler.gamma)
 prefix plus the ordered [`implementation.gamma.sources`](../implementation.gamma.sources)
-closure: 160,576 bytes, SHA-256
-`001fe82924f137bef79fb10abc2cf123e8ddb5015b1e8d435ab1700adf2e50df`.
+closure: 159,514 bytes, SHA-256
+`bbe70aa8e63ff786660827c521253afc0763d14e3223c0ed06973e927695f965`.
 It executes under the exact source/tape and provisions in the
 [Gamma evaluator profile](../../../2_gamma/EVALUATOR_PROFILE.md).
 Changes to either executable subject require rechecking the corresponding
 argument; a new source manifest digest alone does not preserve this evidence.
 
 Fixed runtime emission branches once between counting and publication. Balanced
-addition sequences zero-returning byte writers in publication order, eliminating
-per-chunk local bindings and linear syntax depth. The three changed bodies have
-one local each and heights 10, 10, and 8; all other bodies are unchanged. The
-recomputed fixed-source maxima below are smaller without increasing any provision.
+addition sequences bounded byte sums in publication order without per-chunk
+local bindings or linear syntax depth. The three bodies have one local each and
+heights 12, 13, and 9. Their shared eight-byte writer has no locals or user calls.
+The fixed-source maxima below need no larger provision.
 
 ## Fixed source and call inventory
 
-The compiler contains 368 Gamma definitions. Inspecting every body gives these
+The compiler contains 369 Gamma definitions. Inspecting every body gives these
 maxima, including bodies not reached from the canonical `main`:
 
 | Fixed-source quantity | Maximum | Owning body |
@@ -66,7 +66,8 @@ Remove those four bounded edges, collapse zero-weight recursive components,
 and propagate maximum weighted demands from local peaks through the resulting
 acyclic graph. The previous 18-context fixed overhead from `main` remains a
 conservative bound: the fixed-emitter rewrite removes counted-writer calls and
-introduces only primitive additions, not additional nested user calls. Reserving 64 for
+replaces the recursive unpacking writer with one call containing only primitive
+writes and additions, not additional nested user calls. Reserving 64 for
 that overhead and adding all three recursion allowances, even though their
 deepest paths do not coexist, gives:
 

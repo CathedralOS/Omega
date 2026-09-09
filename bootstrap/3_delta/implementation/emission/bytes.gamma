@@ -1,192 +1,211 @@
-; Fixed Gamma text, packed least-significant byte first. Each ascii annotation
-; states the exact emitted bytes; tests/delta/emission/packed_text_test.py checks
-; their correspondence. Count mode advances once by the complete fixed extent.
-; Publication sequences zero-returning byte writers through balanced addition:
-; Gamma evaluates left before right, so this preserves order without pair storage,
-; per-chunk bindings, or a linear expression-depth cost. No addition can overflow.
+; Fixed Gamma text uses ordinary character literals, grouped eight at a time.
+; Balanced addition sequences writes left to right without pairs or per-chunk
+; bindings. Each leaf returns a byte or a sum of eight bytes; the largest body
+; writes 660 bytes, so every sum is nonnegative and at most 660 * 255.
+; Counting advances once without evaluating any writer; publication keeps
+; the same fixed extent. Exact emitted text is pinned by the staged gate.
+(def emit_eight_bytes ((first Int) (second Int) (third Int) (fourth Int) (fifth Int) (sixth Int) (seventh Int) (eighth Int)) Int
+  (+ (+ (+ (write first)
+    (write second))
+    (+ (write third)
+    (write fourth)))
+    (+ (+ (write fifth)
+    (write sixth))
+    (+ (write seventh)
+    (write eighth)))))
+
 (def emit_bytes_runtime ((publish Int) (written Int)) Int
   (if publish
     (let effect Int
-      (+ (+ (+ (+ (+ (+ (emit_ascii_bytes 7089831434963477544 8) ; ascii: "(def $db"
-         (emit_ascii_bytes 8389723558316089445 8)) ; ascii: "e () Int"
-         (+ (emit_ascii_bytes 3467897510007154720 8) ; ascii: " (pair 0"
-            (+ (emit_ascii_bytes 3467897510007154720 8) ; ascii: " (pair 0"
-               (emit_ascii_bytes 7217029574761721888 8)))) ; ascii: " 0)))\n(d"
-         (+ (+ (emit_ascii_bytes 2338320813777774181 8) ; ascii: "ef $dbs "
-            (emit_ascii_bytes 2987133713209763880 8)) ; ascii: "((v Int)"
-            (+ (emit_ascii_bytes 7577342057489440809 8) ; ascii: ") Int (i"
-               (+ (emit_ascii_bytes 2339092740868415590 8) ; ascii: "f (lt v "
-                  (emit_ascii_bytes 2319670669981264176 8))))) ; ascii: "0) (/ 1 "
-         (+ (+ (+ (emit_ascii_bytes 2891423562602654000 8) ; ascii: "0) (if ("
-            (emit_ascii_bytes 3906083366815954028 8)) ; ascii: "lt v 256"
-            (+ (emit_ascii_bytes 2338047023773130793 8) ; ascii: ") (pair "
-               (+ (emit_ascii_bytes 2338047023773130801 8) ; ascii: "1 (pair "
-                  (emit_ascii_bytes 3398001280012394545 8)))) ; ascii: "1 v)) (/"
-            (+ (+ (emit_ascii_bytes 2965947086477996320 8) ; ascii: " 1 0))))"
-               (emit_ascii_bytes 7215928127114192906 8)) ; ascii: "\n(def $d"
-               (+ (emit_ascii_bytes 5269341478867463266 8) ; ascii: "bl ((v I"
-                  (+ (emit_ascii_bytes 8389723558316176494 8) ; ascii: "nt)) Int"
-                     (emit_ascii_bytes 2338621041743898656 8)))))) ; ascii: " (first "
-         (+ (+ (+ (+ (emit_ascii_bytes 7378413687648364918 8) ; ascii: "v))\n(def"
-            (emit_ascii_bytes 2893598371810124832 8)) ; ascii: " $dbc (("
-            (+ (emit_ascii_bytes 2891356540815089772 8) ; ascii: "l Int) ("
-               (+ (emit_ascii_bytes 2317429063302062194 8) ; ascii: "r Int)) "
-                  (emit_ascii_bytes 8387228800646409801 8)))) ; ascii: "Int (let"
-            (+ (+ (emit_ascii_bytes 2338615366867774496 8) ; ascii: " ll Int "
-               (emit_ascii_bytes 7791355394540529192 8)) ; ascii: "(first l"
-               (+ (emit_ascii_bytes 8223700898533613609 8) ; ascii: ") (let r"
-                  (+ (emit_ascii_bytes 7361169275375657068 8) ; ascii: "l Int (f"
-                     (emit_ascii_bytes 2317508966977073769 8))))) ; ascii: "irst r) "
-            (+ (+ (+ (emit_ascii_bytes 5269332649694293032 8) ; ascii: "(let n I"
-               (emit_ascii_bytes 7812654823309866094 8)) ; ascii: "nt (+ ll"
-               (+ (emit_ascii_bytes 7379473583022305824 8) ; ascii: " rl) (if"
-                  (+ (emit_ascii_bytes 7791348441022212128 8) ; ascii: " (lt n l"
-                     (emit_ascii_bytes 2319670669981264236 8)))) ; ascii: "l) (/ 1 "
-               (+ (+ (emit_ascii_bytes 8244227727215831344 8) ; ascii: "0) (pair"
-                  (+ (emit_ascii_bytes 8244227727215848992 8) ; ascii: " n (pair"
-                     (emit_ascii_bytes 8244227727215833632 8))) ; ascii: " 2 (pair"
-                  (+ (emit_ascii_bytes 2965947087585307680 8) ; ascii: " l r))))"
-                     (+ (emit_ascii_bytes 7306008519607134505 8) ; ascii: "))))\n(de"
-                        (emit_ascii_bytes 2891424633056403558 8))))))) ; ascii: "f $dbg ("
-         (+ (+ (+ (+ (+ (emit_ascii_bytes 2317511500280919592 8) ; ascii: "(v Int) "
-            (emit_ascii_bytes 2966029846622267688 8)) ; ascii: "(i Int))"
-            (+ (emit_ascii_bytes 7379473584280717600 8) ; ascii: " Int (if"
-               (+ (emit_ascii_bytes 3467887301188397088 8) ; ascii: " (lt i 0"
-                  (emit_ascii_bytes 3467825727375155241 8)))) ; ascii: ") (/ 1 0"
-            (+ (+ (emit_ascii_bytes 7793514779387633705 8) ; ascii: ") (if (l"
-               (emit_ascii_bytes 8244232915406889076 8)) ; ascii: "t i (fir"
-               (+ (emit_ascii_bytes 2891356218824094835 8) ; ascii: "st v)) ("
-                  (+ (emit_ascii_bytes 2339092693543707684 8) ; ascii: "$dbgi v "
-                     (emit_ascii_bytes 2319670669981264233 8))))) ; ascii: "i) (/ 1 "
-            (+ (+ (+ (emit_ascii_bytes 7217029574761720112 8) ; ascii: "0))))\n(d"
-               (emit_ascii_bytes 7595147478825985637 8)) ; ascii: "ef $dbgi"
-               (+ (emit_ascii_bytes 8389723559607937056 8) ; ascii: " ((v Int"
-                  (+ (emit_ascii_bytes 8389723559389831209 8) ; ascii: ") (i Int"
-                     (emit_ascii_bytes 2891438977793927465 8)))) ; ascii: ")) Int ("
-               (+ (+ (emit_ascii_bytes 7946918674834941292 8) ; ascii: "let n In"
-                  (+ (emit_ascii_bytes 7957688353961812084 8) ; ascii: "t (secon"
-                     (emit_ascii_bytes 7308260413915144292 8))) ; ascii: "d v) (le"
-                  (+ (emit_ascii_bytes 2338615366868279412 8) ; ascii: "t t Int "
-                     (+ (emit_ascii_bytes 7935470582616385064 8) ; ascii: "(first n"
-                        (emit_ascii_bytes 7289111621122138153 8)))))) ; ascii: ") (if (e"
-            (+ (+ (+ (+ (emit_ascii_bytes 2891356251746476145 8) ; ascii: "q t 1) ("
-               (emit_ascii_bytes 7935452968904779123 8)) ; ascii: "second n"
-               (+ (emit_ascii_bytes 7289111621122138153 8) ; ascii: ") (if (e"
-                  (+ (emit_ascii_bytes 2891356256041443441 8) ; ascii: "q t 2) ("
-                     (emit_ascii_bytes 7946918627590301036 8)))) ; ascii: "let c In"
-               (+ (+ (emit_ascii_bytes 7957688353961812084 8) ; ascii: "t (secon"
-                  (emit_ascii_bytes 7308260413914620004 8)) ; ascii: "d n) (le"
-                  (+ (emit_ascii_bytes 2338615366867755124 8) ; ascii: "t l Int "
-                     (+ (emit_ascii_bytes 7142837048199177768 8) ; ascii: "(first c"
-                        (emit_ascii_bytes 8800161650837037097 8))))) ; ascii: ") (let z"
-               (+ (+ (+ (emit_ascii_bytes 7594801941464369440 8) ; ascii: " Int (fi"
-                  (emit_ascii_bytes 2891356505149567858 8)) ; ascii: "rst l) ("
-                  (+ (emit_ascii_bytes 7575182581115676265 8) ; ascii: "if (lt i"
-                     (+ (emit_ascii_bytes 7089831468144884256 8) ; ascii: " z) ($db"
-                        (emit_ascii_bytes 2317499071232764263 8)))) ; ascii: "gi l i) "
-                  (+ (+ (emit_ascii_bytes 2891426853525136424 8) ; ascii: "($dbgi ("
-                     (+ (emit_ascii_bytes 7142819434487571827 8) ; ascii: "second c"
-                        (emit_ascii_bytes 8800149258799423529 8))) ; ascii: ") (- i z"
-                     (+ (emit_ascii_bytes 2891356217532819753 8) ; ascii: ")))))) ("
-                        (+ (emit_ascii_bytes 2965947116275441711 8) ; ascii: "/ 1 0)))"
-                           (emit_ascii_bytes 170469673 4)))))))) ; ascii: ")))\n"
+      (+ (+ (+ (+ (+ (+ (emit_eight_bytes '(' 'd' 'e' 'f' '\s' '$' 'd' 'b')
+         (emit_eight_bytes 'e' '\s' '(' ')' '\s' 'I' 'n' 't'))
+         (+ (emit_eight_bytes '\s' '(' 'p' 'a' 'i' 'r' '\s' '0')
+            (+ (emit_eight_bytes '\s' '(' 'p' 'a' 'i' 'r' '\s' '0')
+               (emit_eight_bytes '\s' '0' ')' ')' ')' '\n' '(' 'd'))))
+         (+ (+ (emit_eight_bytes 'e' 'f' '\s' '$' 'd' 'b' 's' '\s')
+            (emit_eight_bytes '(' '(' 'v' '\s' 'I' 'n' 't' ')'))
+            (+ (emit_eight_bytes ')' '\s' 'I' 'n' 't' '\s' '(' 'i')
+               (+ (emit_eight_bytes 'f' '\s' '(' 'l' 't' '\s' 'v' '\s')
+                  (emit_eight_bytes '0' ')' '\s' '(' '/' '\s' '1' '\s')))))
+         (+ (+ (+ (emit_eight_bytes '0' ')' '\s' '(' 'i' 'f' '\s' '(')
+            (emit_eight_bytes 'l' 't' '\s' 'v' '\s' '2' '5' '6'))
+            (+ (emit_eight_bytes ')' '\s' '(' 'p' 'a' 'i' 'r' '\s')
+               (+ (emit_eight_bytes '1' '\s' '(' 'p' 'a' 'i' 'r' '\s')
+                  (emit_eight_bytes '1' '\s' 'v' ')' ')' '\s' '(' '/'))))
+            (+ (+ (emit_eight_bytes '\s' '1' '\s' '0' ')' ')' ')' ')')
+               (emit_eight_bytes '\n' '(' 'd' 'e' 'f' '\s' '$' 'd'))
+               (+ (emit_eight_bytes 'b' 'l' '\s' '(' '(' 'v' '\s' 'I')
+                  (+ (emit_eight_bytes 'n' 't' ')' ')' '\s' 'I' 'n' 't')
+                     (emit_eight_bytes '\s' '(' 'f' 'i' 'r' 's' 't' '\s'))))))
+         (+ (+ (+ (+ (emit_eight_bytes 'v' ')' ')' '\n' '(' 'd' 'e' 'f')
+            (emit_eight_bytes '\s' '$' 'd' 'b' 'c' '\s' '(' '('))
+            (+ (emit_eight_bytes 'l' '\s' 'I' 'n' 't' ')' '\s' '(')
+               (+ (emit_eight_bytes 'r' '\s' 'I' 'n' 't' ')' ')' '\s')
+                  (emit_eight_bytes 'I' 'n' 't' '\s' '(' 'l' 'e' 't'))))
+            (+ (+ (emit_eight_bytes '\s' 'l' 'l' '\s' 'I' 'n' 't' '\s')
+               (emit_eight_bytes '(' 'f' 'i' 'r' 's' 't' '\s' 'l'))
+               (+ (emit_eight_bytes ')' '\s' '(' 'l' 'e' 't' '\s' 'r')
+                  (+ (emit_eight_bytes 'l' '\s' 'I' 'n' 't' '\s' '(' 'f')
+                     (emit_eight_bytes 'i' 'r' 's' 't' '\s' 'r' ')' '\s')))))
+            (+ (+ (+ (emit_eight_bytes '(' 'l' 'e' 't' '\s' 'n' '\s' 'I')
+               (emit_eight_bytes 'n' 't' '\s' '(' '+' '\s' 'l' 'l'))
+               (+ (emit_eight_bytes '\s' 'r' 'l' ')' '\s' '(' 'i' 'f')
+                  (+ (emit_eight_bytes '\s' '(' 'l' 't' '\s' 'n' '\s' 'l')
+                     (emit_eight_bytes 'l' ')' '\s' '(' '/' '\s' '1' '\s'))))
+               (+ (+ (emit_eight_bytes '0' ')' '\s' '(' 'p' 'a' 'i' 'r')
+                  (+ (emit_eight_bytes '\s' 'n' '\s' '(' 'p' 'a' 'i' 'r')
+                     (emit_eight_bytes '\s' '2' '\s' '(' 'p' 'a' 'i' 'r')))
+                  (+ (emit_eight_bytes '\s' 'l' '\s' 'r' ')' ')' ')' ')')
+                     (+ (emit_eight_bytes ')' ')' ')' ')' '\n' '(' 'd' 'e')
+                        (emit_eight_bytes 'f' '\s' '$' 'd' 'b' 'g' '\s' '(')))))))
+         (+ (+ (+ (+ (+ (emit_eight_bytes '(' 'v' '\s' 'I' 'n' 't' ')' '\s')
+            (emit_eight_bytes '(' 'i' '\s' 'I' 'n' 't' ')' ')'))
+            (+ (emit_eight_bytes '\s' 'I' 'n' 't' '\s' '(' 'i' 'f')
+               (+ (emit_eight_bytes '\s' '(' 'l' 't' '\s' 'i' '\s' '0')
+                  (emit_eight_bytes ')' '\s' '(' '/' '\s' '1' '\s' '0'))))
+            (+ (+ (emit_eight_bytes ')' '\s' '(' 'i' 'f' '\s' '(' 'l')
+               (emit_eight_bytes 't' '\s' 'i' '\s' '(' 'f' 'i' 'r'))
+               (+ (emit_eight_bytes 's' 't' '\s' 'v' ')' ')' '\s' '(')
+                  (+ (emit_eight_bytes '$' 'd' 'b' 'g' 'i' '\s' 'v' '\s')
+                     (emit_eight_bytes 'i' ')' '\s' '(' '/' '\s' '1' '\s')))))
+            (+ (+ (+ (emit_eight_bytes '0' ')' ')' ')' ')' '\n' '(' 'd')
+               (emit_eight_bytes 'e' 'f' '\s' '$' 'd' 'b' 'g' 'i'))
+               (+ (emit_eight_bytes '\s' '(' '(' 'v' '\s' 'I' 'n' 't')
+                  (+ (emit_eight_bytes ')' '\s' '(' 'i' '\s' 'I' 'n' 't')
+                     (emit_eight_bytes ')' ')' '\s' 'I' 'n' 't' '\s' '('))))
+               (+ (+ (emit_eight_bytes 'l' 'e' 't' '\s' 'n' '\s' 'I' 'n')
+                  (+ (emit_eight_bytes 't' '\s' '(' 's' 'e' 'c' 'o' 'n')
+                     (emit_eight_bytes 'd' '\s' 'v' ')' '\s' '(' 'l' 'e')))
+                  (+ (emit_eight_bytes 't' '\s' 't' '\s' 'I' 'n' 't' '\s')
+                     (+ (emit_eight_bytes '(' 'f' 'i' 'r' 's' 't' '\s' 'n')
+                        (emit_eight_bytes ')' '\s' '(' 'i' 'f' '\s' '(' 'e'))))))
+            (+ (+ (+ (+ (emit_eight_bytes 'q' '\s' 't' '\s' '1' ')' '\s' '(')
+               (emit_eight_bytes 's' 'e' 'c' 'o' 'n' 'd' '\s' 'n'))
+               (+ (emit_eight_bytes ')' '\s' '(' 'i' 'f' '\s' '(' 'e')
+                  (+ (emit_eight_bytes 'q' '\s' 't' '\s' '2' ')' '\s' '(')
+                     (emit_eight_bytes 'l' 'e' 't' '\s' 'c' '\s' 'I' 'n'))))
+               (+ (+ (emit_eight_bytes 't' '\s' '(' 's' 'e' 'c' 'o' 'n')
+                  (emit_eight_bytes 'd' '\s' 'n' ')' '\s' '(' 'l' 'e'))
+                  (+ (emit_eight_bytes 't' '\s' 'l' '\s' 'I' 'n' 't' '\s')
+                     (+ (emit_eight_bytes '(' 'f' 'i' 'r' 's' 't' '\s' 'c')
+                        (emit_eight_bytes ')' '\s' '(' 'l' 'e' 't' '\s' 'z')))))
+               (+ (+ (+ (emit_eight_bytes '\s' 'I' 'n' 't' '\s' '(' 'f' 'i')
+                  (emit_eight_bytes 'r' 's' 't' '\s' 'l' ')' '\s' '('))
+                  (+ (emit_eight_bytes 'i' 'f' '\s' '(' 'l' 't' '\s' 'i')
+                     (+ (emit_eight_bytes '\s' 'z' ')' '\s' '(' '$' 'd' 'b')
+                        (emit_eight_bytes 'g' 'i' '\s' 'l' '\s' 'i' ')' '\s'))))
+                  (+ (+ (emit_eight_bytes '(' '$' 'd' 'b' 'g' 'i' '\s' '(')
+                     (+ (emit_eight_bytes 's' 'e' 'c' 'o' 'n' 'd' '\s' 'c')
+                        (emit_eight_bytes ')' '\s' '(' '-' '\s' 'i' '\s' 'z')))
+                     (+ (emit_eight_bytes ')' ')' ')' ')' ')' ')' '\s' '(')
+                        (+ (emit_eight_bytes '/' '\s' '1' '\s' '0' ')' ')' ')')
+                           (+ (+ (write ')')
+    (write ')'))
+    (+ (write ')')
+    (write '\n'))))))))))
       (+ written 660))
     (emit_advance written 660)))
 
 (def emit_conformance_runtime ((publish Int) (written Int)) Int
   (if publish
     (let effect Int
-      (+ (+ (+ (+ (+ (+ (emit_ascii_bytes 7093209134684005416 8) ; ascii: "(def $pb"
-         (emit_ascii_bytes 7946918709323898983 8)) ; ascii: "g ((v In"
-         (+ (emit_ascii_bytes 7946918653488802164 8) ; ascii: "t) (i In"
-            (emit_ascii_bytes 2338615366863366516 8))) ; ascii: "t)) Int "
-         (+ (+ (emit_ascii_bytes 2338613026110204200 8) ; ascii: "(if (lt "
-            (emit_ascii_bytes 2319116451714179177 8)) ; ascii: "i 0) (/ "
-            (+ (emit_ascii_bytes 7379473583018352689 8) ; ascii: "1 0) (if"
-               (emit_ascii_bytes 2891426548884973600 8)))) ; ascii: " (lt i ("
-         (+ (+ (+ (emit_ascii_bytes 2987611087332075878 8) ; ascii: "first v)"
-            (emit_ascii_bytes 7595147530366099497 8)) ; ascii: ") ($pbgi"
-            (+ (emit_ascii_bytes 3398001281080522272 8) ; ascii: " v i) (/"
-               (emit_ascii_bytes 2965947086477996320 8))) ; ascii: " 1 0))))"
-            (+ (+ (emit_ascii_bytes 8080619255569328138 8) ; ascii: "\n(def $p"
-               (emit_ascii_bytes 2339101209273132898 8)) ; ascii: "bgi ((v "
-               (+ (emit_ascii_bytes 2335442000367873609 8) ; ascii: "Int) (i "
-                  (emit_ascii_bytes 7946918378633195081 8))))) ; ascii: "Int)) In"
-         (+ (+ (+ (+ (emit_ascii_bytes 7935470522381901940 8) ; ascii: "t (let n"
-            (emit_ascii_bytes 7310230740009896224 8)) ; ascii: " Int (se"
-            (+ (emit_ascii_bytes 2317513364754820963 8) ; ascii: "cond v) "
-               (emit_ascii_bytes 5269339246764059688 8))) ; ascii: "(let t I"
-            (+ (+ (emit_ascii_bytes 8318827349187523694 8) ; ascii: "nt (firs"
-               (emit_ascii_bytes 7379473583022415988 8)) ; ascii: "t n) (if"
-               (+ (emit_ascii_bytes 3539956989803440160 8) ; ascii: " (eq t 1"
-                  (emit_ascii_bytes 7957688353961812009 8)))) ; ascii: ") (secon"
-            (+ (+ (+ (emit_ascii_bytes 7379473583022415972 8) ; ascii: "d n) (if"
-               (emit_ascii_bytes 3612014583841368096 8)) ; ascii: " (eq t 2"
-               (+ (emit_ascii_bytes 7142836987964694569 8) ; ascii: ") (let c"
-                  (emit_ascii_bytes 7310230740009896224 8))) ; ascii: " Int (se"
-               (+ (+ (emit_ascii_bytes 2317504568661798755 8) ; ascii: "cond n) "
-                  (emit_ascii_bytes 5269330450671037480 8)) ; ascii: "(let l I"
-                  (+ (emit_ascii_bytes 8318827349187523694 8) ; ascii: "nt (firs"
-                     (+ (emit_ascii_bytes 7308260413913899124 8) ; ascii: "t c) (le"
-                        (emit_ascii_bytes 2338615366868672628 8))))))) ; ascii: "t z Int "
-         (+ (+ (+ (+ (+ (emit_ascii_bytes 7791355394540529192 8) ; ascii: "(first l"
-            (emit_ascii_bytes 7793514779387633705 8)) ; ascii: ") (if (l"
-            (+ (emit_ascii_bytes 2891356565278367860 8) ; ascii: "t i z) ("
-               (emit_ascii_bytes 2336277943776604196 8))) ; ascii: "$pbgi l "
-            (+ (+ (emit_ascii_bytes 7449640034218551657 8) ; ascii: "i) ($pbg"
-               (emit_ascii_bytes 7957688353961812073 8)) ; ascii: "i (secon"
-               (+ (emit_ascii_bytes 2318553501764100196 8) ; ascii: "d c) (- "
-                  (emit_ascii_bytes 2965947086366449769 8)))) ; ascii: "i z)))))"
-            (+ (+ (+ (emit_ascii_bytes 7289111621122138153 8) ; ascii: ") (if (e"
-               (emit_ascii_bytes 2891356260336410737 8)) ; ascii: "q t 3) ("
-               (+ (emit_ascii_bytes 2317499071102805362 8) ; ascii: "read i) "
-                  (emit_ascii_bytes 2965954744421461800 8))) ; ascii: "(/ 1 0))"
-               (+ (+ (emit_ascii_bytes 7217029574761720105 8) ; ascii: ")))))\n(d"
-                  (emit_ascii_bytes 2335506115550275173 8)) ; ascii: "ef $pbi "
-                  (+ (emit_ascii_bytes 2891438977793927464 8) ; ascii: "() Int ("
-                     (emit_ascii_bytes 7955934336550265200 8))))) ; ascii: "pair (in"
-            (+ (+ (+ (+ (emit_ascii_bytes 7021155937670165872 8) ; ascii: "put) (pa"
-               (emit_ascii_bytes 2965954744455033449 8)) ; ascii: "ir 3 0))"
-               (+ (emit_ascii_bytes 2603193170278222377 8) ; ascii: ")\n(def $"
-                  (emit_ascii_bytes 2339101209274049136 8))) ; ascii: "pbw ((v "
-               (+ (+ (emit_ascii_bytes 2335442000367873609 8) ; ascii: "Int) (i "
-                  (emit_ascii_bytes 2336849375251426889 8)) ; ascii: "Int) (n "
-                  (+ (emit_ascii_bytes 7946918378633195081 8) ; ascii: "Int)) In"
-                     (emit_ascii_bytes 7289111621122138228 8)))) ; ascii: "t (if (e"
-               (+ (+ (+ (emit_ascii_bytes 2891356513738760305 8) ; ascii: "q i n) ("
-                  (emit_ascii_bytes 3539882223029805424 8)) ; ascii: "pair 0 1"
-                  (+ (emit_ascii_bytes 8656046462761181225 8) ; ascii: ") (let x"
-                     (emit_ascii_bytes 8248105362409802016 8))) ; ascii: " Int (wr"
-                  (+ (+ (emit_ascii_bytes 7093209167869342825 8) ; ascii: "ite ($pb"
-                     (emit_ascii_bytes 2317429014751748199 8)) ; ascii: "g v i)) "
-                     (+ (emit_ascii_bytes 2339092753590264872 8) ; ascii: "($pbw v "
-                        (+ (emit_ascii_bytes 2317437498531261224 8) ; ascii: "(+ i 1) "
-                           (emit_ascii_bytes 11171900500334 6)))))))) ; ascii: "n))))\n"
+      (+ (+ (+ (+ (+ (+ (emit_eight_bytes '(' 'd' 'e' 'f' '\s' '$' 'p' 'b')
+         (emit_eight_bytes 'g' '\s' '(' '(' 'v' '\s' 'I' 'n'))
+         (+ (emit_eight_bytes 't' ')' '\s' '(' 'i' '\s' 'I' 'n')
+            (emit_eight_bytes 't' ')' ')' '\s' 'I' 'n' 't' '\s')))
+         (+ (+ (emit_eight_bytes '(' 'i' 'f' '\s' '(' 'l' 't' '\s')
+            (emit_eight_bytes 'i' '\s' '0' ')' '\s' '(' '/' '\s'))
+            (+ (emit_eight_bytes '1' '\s' '0' ')' '\s' '(' 'i' 'f')
+               (emit_eight_bytes '\s' '(' 'l' 't' '\s' 'i' '\s' '('))))
+         (+ (+ (+ (emit_eight_bytes 'f' 'i' 'r' 's' 't' '\s' 'v' ')')
+            (emit_eight_bytes ')' '\s' '(' '$' 'p' 'b' 'g' 'i'))
+            (+ (emit_eight_bytes '\s' 'v' '\s' 'i' ')' '\s' '(' '/')
+               (emit_eight_bytes '\s' '1' '\s' '0' ')' ')' ')' ')')))
+            (+ (+ (emit_eight_bytes '\n' '(' 'd' 'e' 'f' '\s' '$' 'p')
+               (emit_eight_bytes 'b' 'g' 'i' '\s' '(' '(' 'v' '\s'))
+               (+ (emit_eight_bytes 'I' 'n' 't' ')' '\s' '(' 'i' '\s')
+                  (emit_eight_bytes 'I' 'n' 't' ')' ')' '\s' 'I' 'n')))))
+         (+ (+ (+ (+ (emit_eight_bytes 't' '\s' '(' 'l' 'e' 't' '\s' 'n')
+            (emit_eight_bytes '\s' 'I' 'n' 't' '\s' '(' 's' 'e'))
+            (+ (emit_eight_bytes 'c' 'o' 'n' 'd' '\s' 'v' ')' '\s')
+               (emit_eight_bytes '(' 'l' 'e' 't' '\s' 't' '\s' 'I')))
+            (+ (+ (emit_eight_bytes 'n' 't' '\s' '(' 'f' 'i' 'r' 's')
+               (emit_eight_bytes 't' '\s' 'n' ')' '\s' '(' 'i' 'f'))
+               (+ (emit_eight_bytes '\s' '(' 'e' 'q' '\s' 't' '\s' '1')
+                  (emit_eight_bytes ')' '\s' '(' 's' 'e' 'c' 'o' 'n'))))
+            (+ (+ (+ (emit_eight_bytes 'd' '\s' 'n' ')' '\s' '(' 'i' 'f')
+               (emit_eight_bytes '\s' '(' 'e' 'q' '\s' 't' '\s' '2'))
+               (+ (emit_eight_bytes ')' '\s' '(' 'l' 'e' 't' '\s' 'c')
+                  (emit_eight_bytes '\s' 'I' 'n' 't' '\s' '(' 's' 'e')))
+               (+ (+ (emit_eight_bytes 'c' 'o' 'n' 'd' '\s' 'n' ')' '\s')
+                  (emit_eight_bytes '(' 'l' 'e' 't' '\s' 'l' '\s' 'I'))
+                  (+ (emit_eight_bytes 'n' 't' '\s' '(' 'f' 'i' 'r' 's')
+                     (+ (emit_eight_bytes 't' '\s' 'c' ')' '\s' '(' 'l' 'e')
+                        (emit_eight_bytes 't' '\s' 'z' '\s' 'I' 'n' 't' '\s')))))))
+         (+ (+ (+ (+ (+ (emit_eight_bytes '(' 'f' 'i' 'r' 's' 't' '\s' 'l')
+            (emit_eight_bytes ')' '\s' '(' 'i' 'f' '\s' '(' 'l'))
+            (+ (emit_eight_bytes 't' '\s' 'i' '\s' 'z' ')' '\s' '(')
+               (emit_eight_bytes '$' 'p' 'b' 'g' 'i' '\s' 'l' '\s')))
+            (+ (+ (emit_eight_bytes 'i' ')' '\s' '(' '$' 'p' 'b' 'g')
+               (emit_eight_bytes 'i' '\s' '(' 's' 'e' 'c' 'o' 'n'))
+               (+ (emit_eight_bytes 'd' '\s' 'c' ')' '\s' '(' '-' '\s')
+                  (emit_eight_bytes 'i' '\s' 'z' ')' ')' ')' ')' ')'))))
+            (+ (+ (+ (emit_eight_bytes ')' '\s' '(' 'i' 'f' '\s' '(' 'e')
+               (emit_eight_bytes 'q' '\s' 't' '\s' '3' ')' '\s' '('))
+               (+ (emit_eight_bytes 'r' 'e' 'a' 'd' '\s' 'i' ')' '\s')
+                  (emit_eight_bytes '(' '/' '\s' '1' '\s' '0' ')' ')')))
+               (+ (+ (emit_eight_bytes ')' ')' ')' ')' ')' '\n' '(' 'd')
+                  (emit_eight_bytes 'e' 'f' '\s' '$' 'p' 'b' 'i' '\s'))
+                  (+ (emit_eight_bytes '(' ')' '\s' 'I' 'n' 't' '\s' '(')
+                     (emit_eight_bytes 'p' 'a' 'i' 'r' '\s' '(' 'i' 'n')))))
+            (+ (+ (+ (+ (emit_eight_bytes 'p' 'u' 't' ')' '\s' '(' 'p' 'a')
+               (emit_eight_bytes 'i' 'r' '\s' '3' '\s' '0' ')' ')'))
+               (+ (emit_eight_bytes ')' '\n' '(' 'd' 'e' 'f' '\s' '$')
+                  (emit_eight_bytes 'p' 'b' 'w' '\s' '(' '(' 'v' '\s')))
+               (+ (+ (emit_eight_bytes 'I' 'n' 't' ')' '\s' '(' 'i' '\s')
+                  (emit_eight_bytes 'I' 'n' 't' ')' '\s' '(' 'n' '\s'))
+                  (+ (emit_eight_bytes 'I' 'n' 't' ')' ')' '\s' 'I' 'n')
+                     (emit_eight_bytes 't' '\s' '(' 'i' 'f' '\s' '(' 'e'))))
+               (+ (+ (+ (emit_eight_bytes 'q' '\s' 'i' '\s' 'n' ')' '\s' '(')
+                  (emit_eight_bytes 'p' 'a' 'i' 'r' '\s' '0' '\s' '1'))
+                  (+ (emit_eight_bytes ')' '\s' '(' 'l' 'e' 't' '\s' 'x')
+                     (emit_eight_bytes '\s' 'I' 'n' 't' '\s' '(' 'w' 'r')))
+                  (+ (+ (emit_eight_bytes 'i' 't' 'e' '\s' '(' '$' 'p' 'b')
+                     (emit_eight_bytes 'g' '\s' 'v' '\s' 'i' ')' ')' '\s'))
+                     (+ (emit_eight_bytes '(' '$' 'p' 'b' 'w' '\s' 'v' '\s')
+                        (+ (emit_eight_bytes '(' '+' '\s' 'i' '\s' '1' ')' '\s')
+                           (+ (+ (write 'n')
+    (+ (write ')')
+    (write ')')))
+    (+ (write ')')
+    (+ (write ')')
+    (write '\n')))))))))))
       (+ written 526))
     (emit_advance written 526)))
 
 (def emit_conformance_adapter ((publish Int) (written Int)) Int
   (if publish
     (let effect Int
-      (+ (+ (+ (+ (emit_ascii_bytes 7593470432647668776 8) ; ascii: "(def mai"
-         (emit_ascii_bytes 8389723558316089454 8)) ; ascii: "n () Int"
-         (+ (emit_ascii_bytes 8389124325506623520 8) ; ascii: " (if (lt"
-            (+ (emit_ascii_bytes 3760561988245206048 8) ; ascii: " 4194304"
-               (emit_ascii_bytes 2987141578602653728 8)))) ; ascii: " (input)"
-         (+ (+ (emit_ascii_bytes 2338047023773130793 8) ; ascii: ") (pair "
-            (emit_ascii_bytes 2891356247447254322 8)) ; ascii: "253 0) ("
-            (+ (emit_ascii_bytes 7946918709194679660 8) ; ascii: "let v In"
-               (+ (emit_ascii_bytes 7881128233702793332 8) ; ascii: "t (__d_m"
-                  (emit_ascii_bytes 7093209167869929825 8))))) ; ascii: "ain ($pb"
-         (+ (+ (+ (emit_ascii_bytes 8387228800641476969 8) ; ascii: "i)) (let"
-            (emit_ascii_bytes 2891438977793945120 8)) ; ascii: " n Int ("
-            (+ (emit_ascii_bytes 2987611087332075878 8) ; ascii: "first v)"
-               (+ (emit_ascii_bytes 8389124325506623520 8) ; ascii: " (if (lt"
-                  (emit_ascii_bytes 3760561988245206048 8)))) ; ascii: " 4194304"
-            (+ (+ (emit_ascii_bytes 7593473764363955744 8) ; ascii: " n) (pai"
-               (emit_ascii_bytes 2967907563040022642 8)) ; ascii: "r 254 0)"
-               (+ (emit_ascii_bytes 8511934560402155552 8) ; ascii: " ($pbw v"
-                  (+ (emit_ascii_bytes 2965947087518183456 8) ; ascii: " 0 n))))"
-                     (emit_ascii_bytes 10537 2)))))) ; ascii: "))"
+      (+ (+ (+ (+ (emit_eight_bytes '(' 'd' 'e' 'f' '\s' 'm' 'a' 'i')
+         (emit_eight_bytes 'n' '\s' '(' ')' '\s' 'I' 'n' 't'))
+         (+ (emit_eight_bytes '\s' '(' 'i' 'f' '\s' '(' 'l' 't')
+            (+ (emit_eight_bytes '\s' '4' '1' '9' '4' '3' '0' '4')
+               (emit_eight_bytes '\s' '(' 'i' 'n' 'p' 'u' 't' ')'))))
+         (+ (+ (emit_eight_bytes ')' '\s' '(' 'p' 'a' 'i' 'r' '\s')
+            (emit_eight_bytes '2' '5' '3' '\s' '0' ')' '\s' '('))
+            (+ (emit_eight_bytes 'l' 'e' 't' '\s' 'v' '\s' 'I' 'n')
+               (+ (emit_eight_bytes 't' '\s' '(' '_' '_' 'd' '_' 'm')
+                  (emit_eight_bytes 'a' 'i' 'n' '\s' '(' '$' 'p' 'b')))))
+         (+ (+ (+ (emit_eight_bytes 'i' ')' ')' '\s' '(' 'l' 'e' 't')
+            (emit_eight_bytes '\s' 'n' '\s' 'I' 'n' 't' '\s' '('))
+            (+ (emit_eight_bytes 'f' 'i' 'r' 's' 't' '\s' 'v' ')')
+               (+ (emit_eight_bytes '\s' '(' 'i' 'f' '\s' '(' 'l' 't')
+                  (emit_eight_bytes '\s' '4' '1' '9' '4' '3' '0' '4'))))
+            (+ (+ (emit_eight_bytes '\s' 'n' ')' '\s' '(' 'p' 'a' 'i')
+               (emit_eight_bytes 'r' '\s' '2' '5' '4' '\s' '0' ')'))
+               (+ (emit_eight_bytes '\s' '(' '$' 'p' 'b' 'w' '\s' 'v')
+                  (+ (emit_eight_bytes '\s' '0' '\s' 'n' ')' ')' ')' ')')
+                     (+ (write ')')
+    (write ')')))))))
       (+ written 154))
     (emit_advance written 154)))
