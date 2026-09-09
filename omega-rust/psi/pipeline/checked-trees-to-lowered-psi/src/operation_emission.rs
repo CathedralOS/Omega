@@ -36,9 +36,11 @@ pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
         .map(|evidence| evidence.obligation)
         .collect::<BTreeSet<_>>();
     // Some closure builders have already supplied source-derived evidence for
-    // contextual call/cleanup obligations and closed contracts. Reconstruct every site, but
+    // contextual call obligations and closed contracts. Reconstruct every site, but
     // synthesize only obligations that remain undispatched; the final verifier
     // still checks the retained evidence against the exact goal.
+    // Nominal cleanup builders leave their obligations pending so certificates
+    // cite live field observations at each completed edge, not entry-list indexes.
     let pending = obligations
         .obligations()
         .iter()

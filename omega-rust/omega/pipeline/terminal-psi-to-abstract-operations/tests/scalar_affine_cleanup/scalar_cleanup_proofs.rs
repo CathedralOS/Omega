@@ -3,7 +3,8 @@
 use abstract_operations::AbstractOperation;
 use optimization_unit::{OwnershipFrontierOwnedPlace, OwnershipFrontierSite, ProofQuestionOwner};
 use proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, ProofError, ProofNode,
+    ProofRule, ProofSystemMarker,
 };
 use semantic_vocabulary::{
     EvidenceIdentity, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
@@ -26,6 +27,45 @@ use super::support::{
     block_id, contract_id, edge_id, machine_id, obligation_id, place_id, structural_type_id,
     value_id,
 };
+
+#[test]
+fn scalar_cleanup_rejects_permanent_assumptions_and_unavailable_observations() {
+    let (module, proof) = contextual_mixed_scalar_cleanup_module();
+    let mut permanent_assumption = proof.clone();
+    let EvidenceRoute::CertificateDerived(certificate) =
+        &mut permanent_assumption.evidence[0].route
+    else {
+        panic!("cleanup fixture carries a certificate")
+    };
+    certificate.proof.rule = ProofRule::Assumption { index: 0 };
+    assert!(matches!(
+        terminal_verifier::verify_module(&module, &permanent_assumption, &AdmissionProfile::default()),
+        Err(terminal_verifier::VerificationError::RejectedEvidence {
+            obligation,
+            error: EvidenceError::Certificate(ProofError::UnknownAssumption(0)),
+        }) if obligation == obligation_id(1)
+    ));
+
+    for changed_requirement in [None, Some(false)] {
+        let mut changed = module.clone();
+        let requirements = &mut changed.machines[0].contract.requires;
+        if let Some(expected) = changed_requirement {
+            let Proposition::Equal(left, _) = &mut requirements[0] else {
+                panic!("cleanup premise observes a boolean field")
+            };
+            *left = ScalarTerm::boolean(expected);
+        } else {
+            requirements.clear();
+        }
+        terminal_verifier::validate_module(&changed)
+            .expect("changing an entry premise retains a well-formed cleanup question");
+        assert!(matches!(
+            terminal_verifier::verify_module(&changed, &proof, &AdmissionProfile::default()),
+            Err(terminal_verifier::VerificationError::RejectedEvidence { obligation, .. })
+                if obligation == obligation_id(1)
+        ));
+    }
+}
 
 #[test]
 fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
@@ -420,6 +460,20 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
             },
         ],
     };
+    let questions = terminal_verifier::reconstruct_terminal_obligations(&module)
+        .expect("reconstruct the exact cleanup question before constructing evidence");
+    let question = questions
+        .obligations()
+        .iter()
+        .find(|question| question.obligation.id == obligation)
+        .expect("cleanup requirement has a reconstructed question");
+    assert!(question.requirements.is_empty());
+    assert_eq!(question.obligation.proposition, caller_requirement);
+    let observation_position = question
+        .semantic_axioms
+        .iter()
+        .position(|premise| premise == &question.obligation.proposition)
+        .expect("owned readiness remains valid at this cleanup site");
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         control_cycles: Vec::new(),
@@ -430,8 +484,10 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 identity: EvidenceIdentity::new(1).expect("certificate"),
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
-                    conclusion: caller_requirement,
-                    rule: ProofRule::Assumption { index: 0 },
+                    conclusion: question.obligation.proposition.clone(),
+                    rule: ProofRule::SemanticAxiom {
+                        index: observation_position,
+                    },
                 },
             }),
         }],

@@ -2,6 +2,10 @@
 //!
 //! The nominal entry point retains family precedence. Ordered nominal cleanup
 //! and partial-affine cleanup live in separate responsibility modules.
+//! Build cleanup requirements and their obligation identities here, but leave
+//! certificates to final operation proof emission. Owned-field requirements are
+//! validity-scoped observations, not permanent assumption slots; their available
+//! premises are known only after the complete caller and cleanup edge exist.
 
 use super::*;
 
@@ -381,9 +385,9 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
         .collect::<Vec<_>>();
     let cleanup_type = lookup_type_id(&type_ids, &cleanup.type_identity)?;
 
-    let (cleanup_receiver, requirement_obligations, target_requires, caller_requires, evidence) =
+    let (cleanup_receiver, requirement_obligations, target_requires, caller_requires) =
         if contextual_caller_requirements.is_empty() {
-            (None, Vec::new(), Vec::new(), Vec::new(), Vec::new())
+            (None, Vec::new(), Vec::new(), Vec::new())
         } else {
             if !lowered.proof_bundle.evidence.is_empty()
                 || lowered.semantic_module.machines.iter().any(|machine| {
@@ -500,7 +504,6 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
 
             let mut requirement_obligations = Vec::with_capacity(target_clauses.len());
             let mut target_requires = Vec::with_capacity(target_clauses.len());
-            let mut evidence = Vec::with_capacity(target_clauses.len());
             for (obligation_index, (expected, field, target_requirement)) in
                 target_clauses.into_iter().enumerate()
             {
@@ -510,39 +513,23 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
                     .ok_or(LoweringError::Unsupported(
                         "contextual nominal cleanup obligation identity space is exhausted",
                     ))?;
-                let assumption_index = caller_clauses
+                if !caller_clauses
                     .iter()
-                    .position(|(caller_expected, caller_field, _)| {
+                    .any(|(caller_expected, caller_field, _)| {
                         *caller_expected == expected && *caller_field == field
                     })
-                    .ok_or(LoweringError::Unsupported(
-                        "contextual nominal cleanup caller requirement is absent",
-                    ))?;
-                let caller_requirement = caller_requires[assumption_index].clone();
+                {
+                    return unsupported("contextual nominal cleanup caller requirement is absent");
+                }
                 let obligation = obligation_id(identity);
                 requirement_obligations.push(obligation);
                 target_requires.push(target_requirement);
-                evidence.push(ObligationEvidence {
-                    obligation,
-                    route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                        identity: EvidenceIdentity::new(identity)
-                            .expect("terminal obligation identity is nonzero"),
-                        proof_system_marker: ProofSystemMarker::CURRENT,
-                        proof: ProofNode {
-                            conclusion: caller_requirement,
-                            rule: ProofRule::Assumption {
-                                index: assumption_index,
-                            },
-                        },
-                    }),
-                });
             }
             (
                 receiver,
                 requirement_obligations,
                 target_requires,
                 caller_requires,
-                evidence,
             )
         };
 
@@ -725,7 +712,6 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
             requirement_obligations,
         }],
     };
-    lowered.proof_bundle.evidence = evidence;
     Ok(lowered)
 }
 

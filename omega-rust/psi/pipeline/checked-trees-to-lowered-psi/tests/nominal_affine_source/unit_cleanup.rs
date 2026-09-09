@@ -357,7 +357,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     assert_eq!(
         caller_right,
         &semantic_vocabulary::ScalarTerm::boolean_field(parameter.place, *target_field),
-        "the caller assumption is the cleanup target premise rebased to the owned root",
+        "the caller observation is the cleanup target premise rebased to the owned root",
     );
 
     terminal_verifier::verify_module(
@@ -379,6 +379,114 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
         lowered.proof_bundle,
         "contextual cleanup evidence is canonical proof-artifact data",
     );
+
+    // The generated certificate must not turn the entry observation into an
+    // enduring assumption. A mutable call writes the field before cleanup.
+    let mut changed = lowered.semantic_module.clone();
+    let mut mutator = entry.clone();
+    mutator.id = semantic_vocabulary::MachineId::new(9003).unwrap();
+    mutator.entry = semantic_vocabulary::BlockId::new(9003).unwrap();
+    mutator.contract.id = semantic_vocabulary::ContractId::new(9003).unwrap();
+    mutator.contract.requires.clear();
+    let borrowed_place = semantic_vocabulary::PlaceId::new(9003).unwrap();
+    mutator.structural_parameters[0].place = borrowed_place;
+    mutator.structural_parameters[0].access = terminal_psi::StructuralAccess::MutableBorrow;
+    mutator.structural_places[0].id = borrowed_place;
+    mutator.blocks[0].id = mutator.entry;
+    mutator.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: semantic_vocabulary::EdgeId::new(9003).unwrap(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let value = semantic_vocabulary::ValueId::new(9001).unwrap();
+    mutator.blocks[0].operations.extend([
+        terminal_psi::Operation {
+            id: semantic_vocabulary::OperationId::new(9001).unwrap(),
+            result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                id: value,
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: OperationKind::BooleanConstant { value: false },
+        },
+        terminal_psi::Operation {
+            id: semantic_vocabulary::OperationId::new(9002).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: borrowed_place,
+                path: Vec::new(),
+                field: *target_field,
+                value,
+            },
+        },
+    ]);
+    let changed_entry = changed
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == changed.entry)
+        .unwrap();
+    // The dedicated Unit nominal carrier has an empty-body contract. Ordinary
+    // scalar cleanup admits calls before return and carries the same goal.
+    let result = semantic_vocabulary::ValueId::new(9005).unwrap();
+    changed_entry.result = TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+        id: semantic_vocabulary::ValueId::new(9006).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    let Terminator::ReturnUnitNominalAffine { edge, cleanups } =
+        &changed_entry.blocks[0].terminator
+    else {
+        panic!("nominal cleanup")
+    };
+    changed_entry.blocks[0].terminator = Terminator::Return {
+        edge: *edge,
+        value: result,
+        cleanup_actions: cleanups
+            .iter()
+            .cloned()
+            .map(TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
+    changed_entry.blocks[0]
+        .operations
+        .push(terminal_psi::Operation {
+            id: semantic_vocabulary::OperationId::new(8999).unwrap(),
+            result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                id: result,
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: OperationKind::BooleanConstant { value: false },
+        });
+    changed_entry.blocks[0]
+        .operations
+        .push(terminal_psi::Operation {
+            id: semantic_vocabulary::OperationId::new(9000).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: mutator.id,
+                arguments: Vec::new(),
+                structural_arguments: vec![terminal_psi::StructuralArgument {
+                    place: parameter.place,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+    changed.machines.push(mutator);
+    terminal_verifier::validate_module(&changed).expect("well-typed write before owned cleanup");
+    let questions = terminal_verifier::reconstruct_terminal_obligations(&changed).unwrap();
+    let question = questions
+        .obligations()
+        .iter()
+        .find(|question| question.obligation.id == *obligation)
+        .unwrap();
+    assert!(!question.requirements.contains(caller_requirement));
+    assert!(!question.semantic_axioms.contains(caller_requirement));
+    assert!(matches!(
+        terminal_verifier::verify_module(&changed, &lowered.proof_bundle, &AdmissionProfile::default()),
+        Err(terminal_verifier::VerificationError::RejectedEvidence { obligation: rejected, .. })
+            if rejected == *obligation
+    ));
 }
 
 #[test]
@@ -487,6 +595,8 @@ fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_art
         "the cleanup target retains only its canonical requirement subset",
     );
     assert_eq!(lowered.proof_bundle.evidence.len(), 2);
+    let questions = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
+        .expect("reconstruct live cleanup premises");
     for (obligation_index, evidence) in lowered.proof_bundle.evidence.iter().enumerate() {
         assert_eq!(
             evidence.obligation,
@@ -495,15 +605,24 @@ fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_art
         let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
             panic!("contextual cleanup evidence is certificate-derived")
         };
-        let assumption_index = [0, 2][obligation_index];
+        let requirement_position = [0, 2][obligation_index];
         assert_eq!(
             certificate.proof.conclusion,
-            caller_requires[assumption_index]
+            caller_requires[requirement_position]
         );
-        assert!(matches!(
-            certificate.proof.rule,
-            ProofRule::Assumption { index: assumption } if assumption == assumption_index
-        ));
+        let question = questions
+            .obligations()
+            .iter()
+            .find(|question| question.obligation.id == evidence.obligation)
+            .expect("each cleanup requirement has its own question");
+        assert!(question.requirements.is_empty());
+        let ProofRule::SemanticAxiom { index } = certificate.proof.rule else {
+            panic!("cleanup proves the live observation rather than a permanent assumption")
+        };
+        assert_eq!(
+            question.semantic_axioms.get(index),
+            Some(&certificate.proof.conclusion)
+        );
     }
 
     terminal_verifier::verify_module(
