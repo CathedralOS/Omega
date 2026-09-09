@@ -58,9 +58,12 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
         .expect("immutable scalar locals should lower from checked plans");
     let mut without_typed_frontend = checked.clone();
     without_typed_frontend.typed = Default::default();
-    let without_typed_frontend = lower_machine(&without_typed_frontend, "terminal_scalar_locals")
-        .expect("scalar locals must survive complete typed-tree disposal");
-    assert_eq!(without_typed_frontend, lowered);
+    assert_eq!(
+        lower_machine(&without_typed_frontend, "terminal_scalar_locals")
+            .expect_err("scalar local plans must retain authored initializer and return custody"),
+        LoweringError::Unsupported("scalar source custody has no authored state")
+    );
+    drop(without_typed_frontend);
     drop(checked);
 
     let semantic = encode_module(&lowered.semantic_module)
@@ -75,6 +78,9 @@ fn checked_source_scalar_locals_become_terminal_block_values() {
             .expect("scalar-local lowering should retain presentation spans"),
     )
     .expect("scalar-local debug map should encode canonically");
+    // Only canonical sections survive into the consumer, not checked trees or
+    // the producer's lowered representation.
+    drop(lowered);
     let semantic = decode_module(&semantic).expect("scalar-local terminal Psi should decode");
     let proof = decode_proof_bundle(&proof).expect("scalar-local proof bundle should decode");
     let debug = decode_debug_map(&semantic, &debug).expect("scalar-local debug map should decode");

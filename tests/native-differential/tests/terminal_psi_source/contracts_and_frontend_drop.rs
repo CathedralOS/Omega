@@ -1,3 +1,9 @@
+//! Checked plans own normalized payloads, but lowering still rejoins their
+//! declaration, statement, and expression-occurrence custody in `CheckedTrees`.
+//! Discarding that custody before production is corruption, not frontend disposal.
+//! The source-free boundary is the produced artifact: the round-trip test drops
+//! both checked trees and producer output before independent consumption.
+
 use super::*;
 
 #[test]
@@ -254,7 +260,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
 }
 
 #[test]
-fn terminal_scalar_contract_consumes_the_source_independent_checked_plan() {
+fn terminal_scalar_contract_consumes_normalized_checked_payloads() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(
             "terminal-Psi source canary should compile:\n{}",
@@ -319,12 +325,12 @@ fn terminal_scalar_contract_consumes_the_source_independent_checked_plan() {
     assert_eq!(
         lower_machine(&without_checked_contract, "terminal_constant")
             .expect_err("terminal production must fail without checked scalar contract values"),
-        LoweringError::Unsupported("machine must have exactly one requires and one ensures clause")
+        LoweringError::Unsupported("empty scalar contract would erase an authored normal clause")
     );
 }
 
 #[test]
-fn terminal_scalar_body_consumes_the_source_independent_checked_plan() {
+fn terminal_scalar_body_consumes_normalized_payloads_with_checked_source_bindings() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(
             "terminal-Psi source canary should compile:\n{}",
@@ -368,8 +374,9 @@ fn terminal_scalar_body_consumes_the_source_independent_checked_plan() {
         .expression_mut(return_expression) =
         checked_trees::expression::ExpressionNode::Boolean(false);
 
-    let actual = lower_machine(&without_typed_return, "terminal_constant")
-        .expect("terminal production must not reopen the checked return expression");
+    let actual = lower_machine(&without_typed_return, "terminal_constant").expect(
+        "lowering must consume the checked literal payload with retained occurrence custody",
+    );
     assert_eq!(actual.semantic_module, expected.semantic_module);
     assert_eq!(actual.proof_bundle, expected.proof_bundle);
 
@@ -379,13 +386,13 @@ fn terminal_scalar_body_consumes_the_source_independent_checked_plan() {
         lower_machine(&without_checked_scalar_body, "terminal_constant")
             .expect_err("terminal production must fail without the checked scalar body"),
         LoweringError::Unsupported(
-            "scalar expression has no source-independent checked value plan"
+            "scalar computation needs one checked expression and one source binding"
         )
     );
 }
 
 #[test]
-fn terminal_scalar_control_consumes_the_source_independent_checked_plan() {
+fn terminal_scalar_control_rejoins_the_checked_plan_to_authored_statements() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(
             "terminal-Psi source canary should compile:\n{}",
@@ -398,6 +405,12 @@ fn terminal_scalar_control_consumes_the_source_independent_checked_plan() {
     });
     let expected = lower_machine(&checked, "terminal_constant")
         .expect("the checked scalar control plan should lower");
+    verify_module(
+        &expected.semantic_module,
+        &expected.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the original scalar control should verify");
 
     let replacement_transition = {
         let machine = checked
@@ -435,8 +448,8 @@ fn terminal_scalar_control_consumes_the_source_independent_checked_plan() {
             .expect("terminal constant entry state")
             .statement_nodes
     };
-    let mut without_typed_control = checked.clone();
-    let [statement] = without_typed_control
+    let mut substituted_control = checked.clone();
+    let [statement] = substituted_control
         .typed
         .statement_table
         .statements_mut(constant_statements)
@@ -445,10 +458,14 @@ fn terminal_scalar_control_consumes_the_source_independent_checked_plan() {
     };
     *statement = replacement_transition;
 
-    let actual = lower_machine(&without_typed_control, "terminal_constant")
-        .expect("terminal production must not reopen checked statement topology");
-    assert_eq!(actual.semantic_module, expected.semantic_module);
-    assert_eq!(actual.proof_bundle, expected.proof_bundle);
+    assert_eq!(
+        lower_machine(&substituted_control, "terminal_constant").expect_err(
+            "another machine's transition cannot replace this machine's authored control"
+        ),
+        LoweringError::Unsupported(
+            "scalar successor has no exact machine/state target normalization"
+        )
+    );
 
     let mut without_checked_control = checked;
     without_checked_control.facts.flow.terminal_scalar_graphs = Default::default();
@@ -506,7 +523,7 @@ fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
 }
 
 #[test]
-fn terminal_production_survives_complete_typed_frontend_drop() {
+fn terminal_production_requires_typed_custody_but_not_debug_presentation() {
     let checked = compile_to_checked(&source_canary(), None).unwrap_or_else(|diagnostics| {
         panic!(
             "terminal-Psi source canary should compile:\n{}",
@@ -522,9 +539,11 @@ fn terminal_production_survives_complete_typed_frontend_drop() {
 
     let mut without_typed_frontend = checked.clone();
     without_typed_frontend.typed = Default::default();
-    let actual = lower_machine(&without_typed_frontend, "terminal_constant")
-        .expect("terminal production must survive complete typed-tree disposal");
-    assert_eq!(actual, expected);
+    assert_eq!(
+        lower_machine(&without_typed_frontend, "terminal_constant")
+            .expect_err("checked facts alone cannot supply authored occurrence custody"),
+        LoweringError::Unsupported("scalar source custody has no authored state")
+    );
 
     let mut without_debug_presentation = checked;
     without_debug_presentation.facts.flow.terminal_debug = Default::default();
