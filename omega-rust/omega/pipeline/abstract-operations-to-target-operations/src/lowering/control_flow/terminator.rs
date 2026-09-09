@@ -28,6 +28,21 @@ pub(super) fn lower_terminator(
         cleanup_actions: Vec::new(),
     };
     match operation {
+        AbstractOperation::ReturnStructural { psi_edge, source, returned_claims,
+            trivial_affine_locals, trivial_affine_discards } => {
+            let result = function.result.structural().ok_or_else(invalid)?;
+            let home = live.structural_homes.get(source).ok_or_else(invalid)?;
+            if result.structural_type != home.result.structural_type
+                || result.multiplicity != home.result.multiplicity
+                || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+                || !returned_claims.is_empty() || !trivial_affine_locals.is_empty()
+                || !trivial_affine_discards.is_empty()
+            { return Err(invalid()); }
+            provenance.edges.push(*psi_edge);
+            Ok(TargetControlTerminator::ReturnStructural {
+                psi_edge: *psi_edge, source: home.clone(), cleanup_actions: Vec::new(),
+            })
+        }
         AbstractOperation::Return {
             psi_edge,
             result,

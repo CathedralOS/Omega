@@ -65,7 +65,7 @@ pub(super) fn check(
         _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
     }
     match (&row.internal_machine_fixup, &span.internal_machine_fixup, selected.kind) {
-        (Some(source), Some(actual), SelectedInstructionKind::CallI64 { callee } | SelectedInstructionKind::CallUnit { callee }) => {
+        (Some(source), Some(actual), SelectedInstructionKind::CallI64 { callee } | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee }) => {
             require(row.branch.is_none() && source.callee == callee && actual.callee == callee
                 && source.state == SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
                 && actual.state == FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
@@ -79,7 +79,7 @@ pub(super) fn check(
                 && Some(actual.reference_function_offset) == row.offset.checked_add(u64::from(source.reference_row_offset))
                 && actual.patch_byte_width == source.patch_byte_width && actual.addend == source.addend)
         },
-        (None, None, kind) if !matches!(kind, SelectedInstructionKind::CallI64 { .. } | SelectedInstructionKind::CallUnit { .. }) => Ok(()),
+        (None, None, kind) if !matches!(kind, SelectedInstructionKind::CallI64 { .. } | SelectedInstructionKind::CallUnit { .. } | SelectedInstructionKind::CallAggregate { .. }) => Ok(()),
         _ => Err(ResolvedFragmentEmissionError::ArtifactMismatch),
     }
 }

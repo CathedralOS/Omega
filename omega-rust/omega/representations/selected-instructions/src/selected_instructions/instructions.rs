@@ -133,6 +133,8 @@ pub enum SelectedInstructionKind {
     ConditionalBranchI64LessThan,
     Jump,
     ReturnI64,
+    /// Return the complete direct aggregate ABI register-fragment roster.
+    ReturnAggregate { fragment_count: u8 },
     /// Value-less semantic return. This is deliberately distinct from
     /// `ReturnI64` even on targets where both select the same opcode.
     ReturnUnit,
@@ -140,6 +142,10 @@ pub enum SelectedInstructionKind {
     /// result. The target constraint row owns the exact ABI views and complete
     /// call clobbers; `callee` retains relocation/publication custody.
     CallI64 {
+        callee: MachineId,
+    },
+    /// Ordinary call defining every direct aggregate result fragment.
+    CallAggregate {
         callee: MachineId,
     },
 }

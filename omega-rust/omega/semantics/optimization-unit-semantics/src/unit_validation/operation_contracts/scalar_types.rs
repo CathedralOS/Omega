@@ -49,7 +49,7 @@ pub(crate) fn operation_scalar_types_match(
             scalar(value.value) == Some(value.scalar_type)
         }
         O::PrimitiveScalarRead { .. }
-        | O::EstablishPayloadlessCase { .. }
+        | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
@@ -456,8 +456,9 @@ pub(crate) fn operation_scalar_types_match(
                     && requirement.result
                         == terminal_psi::ClosedConformanceCallableResult::Unit)
         }
-        O::CallStructural { callee, .. } => functions.get(callee).is_some_and(|callee| {
-            callee.parameters.is_empty()
+        O::CallStructural { callee, arguments, .. } => functions.get(callee).is_some_and(|callee| {
+            callee.parameters.len() == arguments.len()
+                && callee.parameters.iter().zip(arguments).all(|(parameter, argument)| scalar(*argument) == Some(parameter.scalar_type))
                 && matches!(
                     callee.result,
                     abstract_operations::AbstractFunctionResult::Structural(_)

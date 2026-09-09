@@ -206,6 +206,13 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// Establish a fresh sum in its exact durable aggregate home.
+    EstablishScalarCase {
+        psi_operation: OperationId,
+        result_home: TargetStructuralHomeRequirement,
+        result_case: semantic_vocabulary::StructuralCaseId,
+        fields: Vec<terminal_psi::ScalarCaseField>,
+    },
     /// One direct scalar-result call whose authored parameter roster contains
     /// one or more existential descriptors. This role remains distinct from
     /// an ordinary structural call because each descriptor expands to an

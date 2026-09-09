@@ -211,6 +211,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Target-owned register-call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no scalar register-call form.
     pub call_i64: Vec<RegisterConstraintKey>,
+    pub call_aggregate: Vec<RegisterConstraintKey>,
+    pub return_aggregate: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub float32_to_bits: Option<RegisterConstraintKey>,

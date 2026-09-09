@@ -28,12 +28,13 @@ pub(super) fn validate_declaration(
             | MachineSemanticKind::ConditionalBranchU64LessThan
             | MachineSemanticKind::ConditionalBranchI64LessThan
             | MachineSemanticKind::ReturnI64
+            | MachineSemanticKind::ReturnAggregate
             | MachineSemanticKind::ReturnUnit
     ) {
         MachineBarrier::ControlFlow
     } else if matches!(
         semantic,
-        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+        MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate
     ) {
         MachineBarrier::Call
     } else {
@@ -46,12 +47,12 @@ pub(super) fn validate_declaration(
     }
     match (semantic, declaration.call) {
         (
-            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit,
+            MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate,
             crate::MachineCallEffect::DirectInternalNormalReturnV1 {
                 pre_call_stack_alignment,
             },
         ) if pre_call_stack_alignment.is_power_of_two() => {}
-        (MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit, _) => {
+        (MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate, _) => {
             return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
                 semantic,
             ));
@@ -208,6 +209,21 @@ fn validate_encoded_effects(
             || encoded.control != MachineEncodedControlEffect::HostedWriteReturnOrTrapV1)
     {
         return Err(());
+    }
+    if declaration.semantic == MachineSemanticKind::CallAggregate {
+        let arity = constraint.operands.iter().take_while(|operand| operand.access == RegisterOperandAccess::Use).count();
+        let (arguments, results) = constraint.operands.split_at(arity);
+        if !(1..=2).contains(&results.len())
+            || results.iter().any(|operand| operand.access != RegisterOperandAccess::Def || operand.fixed_view.is_none())
+            || !encoded.external_operand_reads.iter().copied().eq(arguments.iter().map(|operand| operand.operand))
+            || !encoded.external_operand_writes.iter().copied().eq(results.iter().map(|operand| operand.operand))
+            || encoded.implicit_unit_uses != constraint.implicit_uses
+            || encoded.implicit_unit_defs != constraint.implicit_defs
+            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1 {
+            return Err(());
+        }
     }
     if declaration.semantic == MachineSemanticKind::CallI64 {
         let (result, arguments) = constraint.operands.split_last().ok_or(())?;

@@ -7,6 +7,7 @@ use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKi
 use semantic_vocabulary::IntegerValue;
 
 mod byte_input;
+mod aggregate_return;
 mod byte_output;
 mod control;
 mod integer_conversion;
@@ -49,6 +50,8 @@ pub(super) fn build(
         catalog,
         registers: Vec::new(),
         instructions: Vec::new(),
+        case_blocks: Vec::new(),
+        case_body_end: None,
         definitions: Vec::new(),
         transport: structural::Transport::default(),
     };
@@ -406,7 +409,8 @@ pub(super) fn build(
                     )?;
                     output
                 }
-                LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
+                LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
                 | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                 | LegalizedScalarInstructionKind::HostedReadByte { .. }
                 | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
@@ -433,11 +437,11 @@ pub(super) fn build(
             } else {
                 control::build(function, source, block, &order, &mut builder, &environment)?
             };
-        let body_end = builder
+        let body_end = builder.case_body_end.take().unwrap_or(builder
             .instructions
             .len()
             .checked_sub(1)
-            .ok_or_else(invalid)?;
+            .ok_or_else(invalid)?);
         blocks.push(SelectedBlock {
             id: block_id,
             origin: selected_instructions::SelectedBlockOrigin::Source(block.id),
@@ -445,6 +449,7 @@ pub(super) fn build(
             terminator,
         });
     }
+    blocks.append(&mut builder.case_blocks);
     Ok(SelectedFunction {
         machine: source.machine,
         attachment: source.attachment,
@@ -470,6 +475,8 @@ struct Builder<'a> {
     catalog: &'a ValidatedRegisterConstraintCatalog,
     registers: Vec<VirtualRegister>,
     instructions: Vec<SelectedInstruction>,
+    case_blocks: Vec<SelectedBlock>,
+    case_body_end: Option<usize>,
     definitions: Vec<(ValueId, VirtualRegisterId, ValueDefinitionSite, ScalarType)>,
 }
 

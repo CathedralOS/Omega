@@ -86,8 +86,8 @@ pub(crate) fn operation_structural_call_contract_matches(
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> bool {
     match operation {
-        O::EstablishPayloadlessCase { .. } => {
-            payloadless_establishment_matches(caller, operation, types)
+        O::EstablishScalarCase { .. } => {
+            scalar_case_establishment_matches(caller, operation, types)
         }
         O::EstablishAffineScalarRecord { .. } => {
             affine_scalar_record_establishment_matches(caller, operation, types)
@@ -223,8 +223,8 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
-                StructuralProjectionPolicy::EmptyOnly,
-                false,
+                if plain_scalar_sum_call(operation, callee, types) { StructuralProjectionPolicy::Unit } else { StructuralProjectionPolicy::EmptyOnly },
+                plain_scalar_sum_call(operation, callee, types),
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,
@@ -234,6 +234,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 result,
                 callee,
                 exact_payloadless_structural_call(operation, callee, types)
+                    || plain_scalar_sum_call(operation, callee, types)
                     || exact_plain_affine_structural_call(operation, callee, types),
                 claim_transfers,
                 returned_claim_transfers,

@@ -9,9 +9,17 @@ pub(in crate::lowering) fn requires_graph(
         matches!(
             operation,
             AbstractOperation::EstablishPrimitiveLocal { .. }
+                | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
         )
+    }) {
+        return Ok(true);
+    }
+    if function.operations.iter().any(|operation| {
+        matches!(operation, AbstractOperation::CallStructural { result, .. }
+            if matches!(types.get(&result.structural_type).map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Sum { .. })))
     }) {
         return Ok(true);
     }

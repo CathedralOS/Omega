@@ -44,7 +44,7 @@ pub(crate) fn reconstruct_declared_places(
                 }
                 O::EstablishPrimitiveLocal { result, .. }
                 | O::ByteSequenceSubslice { result, .. }
-                | O::EstablishPayloadlessCase { result, .. }
+                | O::EstablishScalarCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {

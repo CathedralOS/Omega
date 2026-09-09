@@ -107,11 +107,22 @@ pub enum WholeFunctionReturnMechanism {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionReturnValueEvidence {
     UnitV1,
+    /// Ordered direct ABI fragments; exact source/result storage is retained by selection.
+    AggregateV1 {
+        fragments: Vec<WholeFunctionReturnFragmentEvidence>,
+    },
     ScalarI64V1 {
         virtual_register: VirtualRegisterId,
         view: RegisterViewId,
         units: Vec<RegisterUnitId>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WholeFunctionReturnFragmentEvidence {
+    pub virtual_register: VirtualRegisterId,
+    pub view: RegisterViewId,
+    pub units: Vec<RegisterUnitId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

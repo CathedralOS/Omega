@@ -45,8 +45,8 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
             value: scalar,
         },
     ];
-    assert!(!requires_primitive_storage_replay(&[]));
-    assert!(!requires_primitive_storage_replay(&existing));
+    assert!(!requires_graph_storage_replay(&[]));
+    assert!(!requires_graph_storage_replay(&existing));
     for operation in [
         AbstractOperation::EstablishPrimitiveLocal {
             psi_operation: operation,
@@ -64,12 +64,12 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
             source: result.place,
         },
     ] {
-        assert!(requires_primitive_storage_replay(std::slice::from_ref(
+        assert!(requires_graph_storage_replay(std::slice::from_ref(
             &operation
         )));
         let mut mixed = existing.to_vec();
         mixed.push(operation);
-        assert!(requires_primitive_storage_replay(&mixed));
+        assert!(requires_graph_storage_replay(&mixed));
     }
 }
 

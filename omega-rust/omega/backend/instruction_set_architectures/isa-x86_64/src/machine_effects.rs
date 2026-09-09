@@ -89,8 +89,14 @@ pub fn x86_64_machine_effect_catalog(
                             | MachineSemanticKind::CallUnit
                     ) {
                         memory::declaration(semantic, constraint, constraints)
-                    } else if semantic == MachineSemanticKind::CallI64 {
-                        scalar_call_declaration(constraint, constraints)
+                    } else if matches!(semantic, MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate) {
+                        scalar_call_declaration(semantic, constraint, constraints)
+                    } else if semantic == MachineSemanticKind::ReturnAggregate {
+                        let mut returned = declaration(MachineSemanticKind::ReturnI64, &selected_keys);
+                        returned.semantic = semantic;
+                        returned.constraint = constraint;
+                        returned.alternatives[0].key.family = semantic.into();
+                        returned
                     } else {
                         declaration(semantic, &selected_keys)
                     },
@@ -137,6 +143,8 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
+        call_aggregate: if target.object_format == ObjectFormat::Elf { crate::register_model::x86_64_system_v_aggregate_call_keys() } else { Vec::new() },
+        return_aggregate: if target.object_format == ObjectFormat::Elf { crate::register_model::x86_64_system_v_aggregate_return_keys() } else { Vec::new() },
         hosted_read_byte: (target == NativeTarget::linux_x64())
             .then_some(crate::X86_64_HOSTED_READ_BYTE),
         hosted_exit_process_i32: (target == NativeTarget::linux_x64())
@@ -268,6 +276,7 @@ fn declaration(
                 | MachineSemanticKind::ConditionalBranchU64LessThan
                 | MachineSemanticKind::ConditionalBranchI64LessThan
                 | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::ReturnAggregate
                 | MachineSemanticKind::Jump
                 | MachineSemanticKind::ReturnUnit
         ) {
@@ -336,9 +345,11 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
         | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallI64
+        | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
         | MachineSemanticKind::Load32
@@ -401,7 +412,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     MachineEncodedControlEffect::ConditionalRelativeBranchV1,
                 )
             }
-            MachineSemanticKind::ReturnI64 | MachineSemanticKind::ReturnUnit => {
+            MachineSemanticKind::ReturnI64 | MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnUnit => {
                 let stack_pointer = view("rsp");
                 let mut defs = units("rsp");
                 defs.extend(units("rip"));
@@ -486,13 +497,14 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
                 maximum_bytes: Some(6),
             }
         }
-        MachineSemanticKind::ReturnI64 | MachineSemanticKind::ReturnUnit => {
+        MachineSemanticKind::ReturnI64 | MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnUnit => {
             MachineSizeKnowledge::ExactBytes(1)
         }
         MachineSemanticKind::ExactSubtractI64 => {
             unreachable!("subtraction declares alias-dependent alternatives")
         }
         MachineSemanticKind::CallI64
+        | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
         | MachineSemanticKind::Load32
@@ -634,6 +646,7 @@ mod tests {
                             | MachineSemanticKind::ConditionalBranchU64LessThan
                             | MachineSemanticKind::ConditionalBranchI64LessThan
                             | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::ReturnAggregate
                             | MachineSemanticKind::Jump
                             | MachineSemanticKind::ReturnUnit
                     ) {

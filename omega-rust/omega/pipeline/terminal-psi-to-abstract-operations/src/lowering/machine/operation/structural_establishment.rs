@@ -13,7 +13,6 @@ pub(super) fn lower(
     block: &Block,
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
-    retain_payloadless_for_optimization: bool,
     byte_sequence_literals: &[StructuralLiteral<'_>],
     unit_affine_locals: &[StructuralLiteral<'_>],
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
@@ -24,19 +23,14 @@ pub(super) fn lower(
             result_case,
             fields,
         } => {
-            if !fields.is_empty() {
-                return Err(LoweringError::UnsupportedScalarCase(operation.id));
-            }
-            if !retain_payloadless_for_optimization {
-                return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
-            }
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
             };
-            AbstractOperation::EstablishPayloadlessCase {
+            AbstractOperation::EstablishScalarCase {
                 psi_operation: operation.id,
                 result,
                 result_case,
+                fields,
             }
         }
         OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {

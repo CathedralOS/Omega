@@ -197,6 +197,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::Store64 => 17,
         Family::FrameAddress => 18,
         Family::CallUnit => 19,
+        Family::CallAggregate => 35,
+        Family::ReturnAggregate => 36,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

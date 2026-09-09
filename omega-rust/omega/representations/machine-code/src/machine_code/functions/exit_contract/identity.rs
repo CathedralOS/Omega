@@ -101,6 +101,15 @@ pub fn whole_function_exit_contract_identity(
             hasher.update(&returned.bytes);
             match &returned.value {
                 WholeFunctionReturnValueEvidence::UnitV1 => hasher.update([1]),
+                WholeFunctionReturnValueEvidence::AggregateV1 { fragments } => {
+                    hasher.update([3]);
+                    hasher.update((fragments.len() as u64).to_le_bytes());
+                    for fragment in fragments {
+                        hasher.update(fragment.virtual_register.0.to_le_bytes());
+                        hasher.update(fragment.view.0.to_le_bytes());
+                        encode_units(&mut hasher, &fragment.units);
+                    }
+                }
                 WholeFunctionReturnValueEvidence::ScalarI64V1 {
                     virtual_register,
                     view,

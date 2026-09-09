@@ -104,6 +104,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactSubtractI64 { .. } => 5,
         SelectedInstructionKind::ConditionalBranchNonZero => 6,
         SelectedInstructionKind::ReturnI64 => 7,
+        SelectedInstructionKind::CallAggregate { .. } => 35,
+        SelectedInstructionKind::ReturnAggregate { .. } => 36,
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
@@ -210,7 +212,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
+        SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
         SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
         }

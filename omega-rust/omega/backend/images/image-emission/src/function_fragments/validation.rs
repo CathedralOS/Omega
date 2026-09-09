@@ -16,14 +16,14 @@ pub fn validate_function_fragment_object_artifact(
     source::admit(source)?;
     let text = source.source().text_section();
     let layout = &artifact.object.layout;
-    let requires_primitive_storage_replay =
+    let requires_graph_storage_replay =
         text.functions
             .iter()
             .try_fold(false, |required, placed| -> Result<bool, Error> {
                 let (abstracted, _) = source::function(source, placed.machine)?;
-                Ok(required || source::requires_primitive_storage_replay(&abstracted.operations))
+                Ok(required || source::requires_graph_storage_replay(&abstracted.operations))
             })?;
-    if artifact.requires_primitive_storage_replay != requires_primitive_storage_replay
+    if artifact.requires_graph_storage_replay != requires_graph_storage_replay
         || artifact.psi != text.psi
         || artifact.target != text.target
         || artifact.entry != text.semantic_entry

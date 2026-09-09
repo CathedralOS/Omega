@@ -26,6 +26,11 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
             bytes.push(0);
             bytes.extend_from_slice(&source.get().to_le_bytes());
         }
+        SelectedBlockOrigin::CaseDispatch { source, case_ordinal } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&source.get().to_le_bytes());
+            bytes.extend_from_slice(&case_ordinal.to_le_bytes());
+        }
         SelectedBlockOrigin::EdgeTransfer { edge, target } => {
             bytes.push(1);
             bytes.extend_from_slice(&edge.get().to_le_bytes());
@@ -104,6 +109,9 @@ pub(super) fn decode_block(
             edge: decode_id(cursor, EdgeId::new)?,
             target: decode_id(cursor, BlockId::new)?,
         },
+        2 => SelectedBlockOrigin::CaseDispatch {
+            source: decode_id(cursor, BlockId::new)?, case_ordinal: cursor.u32()?,
+        },
         tag => return Err(FixedViewCopyDecodeError::UnknownBlockOrigin(tag)),
     };
     let instruction_count = cursor.length()?;
@@ -153,6 +161,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     bytes.push(match successor.role {
         SelectedSuccessorRole::Semantic => 0,
         SelectedSuccessorRole::EdgeTransferContinuation => 1,
+        SelectedSuccessorRole::CaseDispatchContinuation => 2,
     });
     bytes.extend_from_slice(&successor.psi_edge.get().to_le_bytes());
     bytes.extend_from_slice(&successor.block.0.to_le_bytes());
@@ -206,6 +215,7 @@ fn decode_successor(
     let role = match cursor.byte()? {
         0 => SelectedSuccessorRole::Semantic,
         1 => SelectedSuccessorRole::EdgeTransferContinuation,
+        2 => SelectedSuccessorRole::CaseDispatchContinuation,
         tag => return Err(FixedViewCopyDecodeError::UnknownSuccessorRole(tag)),
     };
     let psi_edge = decode_id(cursor, EdgeId::new)?;

@@ -174,6 +174,7 @@ pub(super) fn validate_successors(
             )
         }
         AbstractOperation::Return { .. }
+        | AbstractOperation::ReturnStructural { .. }
         | AbstractOperation::ReturnUnit { .. }
         | AbstractOperation::StructuralCase { .. } => Ok(()),
         _ => Err(LoweringError::UnsupportedControlFlow(function.machine)),

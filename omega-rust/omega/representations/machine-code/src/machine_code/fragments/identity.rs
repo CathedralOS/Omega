@@ -188,6 +188,7 @@ fn encode_successor(hasher: &mut Sha256, successor: &FunctionFragmentSuccessorPr
     hasher.update([match successor.role {
         selected_instructions::SelectedSuccessorRole::Semantic => 0,
         selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation => 1,
+        selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation => 2,
     }]);
     hasher.update(successor.psi_edge.get().to_le_bytes());
     hasher.update(successor.block.0.to_le_bytes());
@@ -294,6 +295,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
         MachineAlternativeFamily::CallUnit => 19,
+        MachineAlternativeFamily::CallAggregate => 35,
+        MachineAlternativeFamily::ReturnAggregate => 36,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

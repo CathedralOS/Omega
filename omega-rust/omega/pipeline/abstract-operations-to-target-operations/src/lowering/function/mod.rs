@@ -50,9 +50,8 @@ pub(super) fn lower_function(
             },
         );
     }
-    if let Some(result) = function.result.structural() {
-        return lower_structural_function(function, result, target, functions, structural_types);
-    }
+    // Fresh aggregates belong to the ordinary graph. The legacy structural
+    // route only forwards existing input carriers and cannot construct a result.
     if super::control_flow::requires_graph(function, structural_types)? {
         return super::control_flow::lower(
             function,
@@ -65,6 +64,9 @@ pub(super) fn lower_function(
             scalar_abis,
             native_callbacks,
         );
+    }
+    if let Some(result) = function.result.structural() {
+        return lower_structural_function(function, result, target, functions, structural_types);
     }
     let Some(function_result) = function.result.scalar() else {
         return lower_unit_function(

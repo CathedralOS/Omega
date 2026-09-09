@@ -214,6 +214,15 @@ pub fn x86_64_system_v_register_call_keys() -> Vec<RegisterConstraintKey> {
 }
 
 /// Exact Linux System-V scalar call with two U64 arguments and one U64 result.
+pub fn x86_64_system_v_aggregate_call_keys() -> Vec<RegisterConstraintKey> {
+    (1000..1014).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant }).collect()
+}
+
+pub fn x86_64_system_v_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
+    (10..12).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Return, variant }).collect()
+}
+
+/// Exact Linux System-V scalar call with two U64 arguments and one U64 result.
 pub const X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,
     variant: 3,
@@ -1026,6 +1035,25 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(call);
     }
 
+    for (ordinal, key) in x86_64_system_v_aggregate_call_keys().into_iter().enumerate() {
+        let arity = ordinal % 7;
+        let fragments = ordinal / 7 + 1;
+        let mut call = scalar_call.clone();
+        call.key = key;
+        call.operands = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"].into_iter().take(arity).enumerate()
+            .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name))
+            .chain(["rax", "rdx"].into_iter().take(fragments).enumerate()
+                .map(|(position, name)| fixed((arity + position) as u16, RegisterOperandAccess::Def, name))).collect();
+        constraints.push(call);
+    }
+    let returned = constraints.iter().find(|row| row.key == X86_64_SYSTEM_V_RETURN).expect("canonical return row").clone();
+    for (ordinal, key) in x86_64_system_v_aggregate_return_keys().into_iter().enumerate() {
+        let mut row = returned.clone();
+        row.key = key;
+        row.operands = ["rax", "rdx"].into_iter().take(ordinal + 1).enumerate()
+            .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name)).collect();
+        constraints.push(row);
+    }
     let abi_call = constraints
         .iter()
         .find(|row| row.key == X86_64_MICROSOFT_CALL)
@@ -1227,6 +1255,8 @@ pub fn x86_64_register_constraint_catalog(
             let mut required = X86_64_REQUIRED_REGISTER_CONSTRAINTS.to_vec();
             required.extend(x86_64_system_v_mixed_unit_call_keys());
             required.extend(x86_64_microsoft_mixed_unit_call_keys());
+            required.extend(x86_64_system_v_aggregate_call_keys());
+            required.extend(x86_64_system_v_aggregate_return_keys());
             required.sort_unstable();
             required
         },

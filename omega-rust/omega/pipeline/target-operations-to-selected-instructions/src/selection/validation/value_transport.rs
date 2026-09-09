@@ -86,6 +86,7 @@ fn reaches_observer(function: &LegalizedScalarFunction, value: ValueId) -> bool 
 
 fn reads(instruction: &Instruction, value: ValueId) -> bool {
     match instruction {
+        Instruction::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == value),
         Instruction::HostedWriteByteI32 { source, .. }
         | Instruction::HostedExitProcessI32 { source, .. } => *source == value,
         Instruction::StructuralScalarFieldStore { value: stored, .. }

@@ -139,7 +139,7 @@ use terminal_psi::TerminalPsiIdentity;
 pub struct ObjectArtifact {
     /// Primitive storage operations require retained initialization and access
     /// evidence even when no borrowed call exposes their local residence.
-    requires_primitive_storage_replay: bool,
+    requires_graph_storage_replay: bool,
     /// Complete common-pipeline replay inputs, independent of the current object.
     fragment_replay: Option<function_fragments::replay::FragmentReplay>,
     psi: TerminalPsiIdentity,
@@ -3105,7 +3105,7 @@ fn build_object_artifact_with_x86_feature_profile(
     }
 
     Ok(ObjectArtifact {
-        requires_primitive_storage_replay: false,
+        requires_graph_storage_replay: false,
         fragment_replay: None,
         psi: plan.psi,
         target: plan.target,

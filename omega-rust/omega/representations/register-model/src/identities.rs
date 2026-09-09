@@ -186,6 +186,12 @@ pub fn target_register_environment_identity(
     for key in &selected_keys.call_i64 {
         constraint_key(&mut bytes, key.family, key.variant);
     }
+    for keys in [&selected_keys.call_aggregate, &selected_keys.return_aggregate] {
+        u64_value(&mut bytes, keys.len() as u64);
+        for key in keys {
+            constraint_key(&mut bytes, key.family, key.variant);
+        }
+    }
     for key in [
         selected_keys.materialize_i64,
         selected_keys.copy_i64,

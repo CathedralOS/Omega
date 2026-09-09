@@ -77,15 +77,24 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*field);
             encode_abstract_result(bytes, *value);
         }
-        O::EstablishPayloadlessCase {
+        O::EstablishScalarCase {
             psi_operation,
             result,
             result_case,
+            fields,
         } => {
             bytes.u8(48);
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.id(*result_case);
+            bytes.slice(fields, |bytes, field| {
+                bytes.id(field.field);
+                bytes.id(field.value);
+                match field.range_obligation {
+                    Some(obligation) => { bytes.u8(1); bytes.id(obligation); }
+                    None => bytes.u8(0),
+                }
+            });
         }
         O::EstablishByteSequenceLiteral {
             psi_operation,

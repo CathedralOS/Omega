@@ -8,6 +8,7 @@ mod operations;
 mod primitive_calls;
 mod primitive_storage;
 mod scalar_sources;
+pub(super) mod scalar_sums;
 mod structural_case;
 mod terminator;
 mod transfers;
@@ -51,7 +52,7 @@ pub(super) fn lower(
     let unobserved_owned = super::unobserved_owned::accepts(function, structural_types);
     if !matches!(
         function.result,
-        AbstractFunctionResult::Unit | AbstractFunctionResult::Scalar(_)
+        AbstractFunctionResult::Unit | AbstractFunctionResult::Scalar(_) | AbstractFunctionResult::Structural(_)
     ) || (!unobserved_owned
         && !function.structural_parameters.iter().all(|parameter| {
             super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
@@ -118,6 +119,8 @@ pub(super) fn lower(
     for operation in &function.operations {
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
+            | AbstractOperation::EstablishScalarCase { result, .. }
+            | AbstractOperation::CallStructural { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }
             | AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -162,6 +165,7 @@ pub(super) fn lower(
         }
         ranges.push(entry.operation_offset..end);
         let targets = match &function.operations[end - 1] {
+            AbstractOperation::ReturnStructural { .. } => Vec::new(),
             AbstractOperation::Return {
                 cleanup_actions, ..
             } if cleanup_actions.is_empty()

@@ -41,6 +41,7 @@ pub(super) fn folded_zero<'a>(
                 continue;
             }
             let uses = match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == definition.value),
                 LegalizedScalarInstructionKind::HostedReadByte { .. } => false,
                 LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
                 | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => {

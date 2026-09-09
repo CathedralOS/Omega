@@ -28,6 +28,8 @@ impl SelectedConstraintKeys {
         .chain(self.call_unit.iter().copied())
         .chain(self.call_unit_mixed.iter().copied())
         .chain(self.call_i64.iter().copied())
+        .chain(self.call_aggregate.iter().copied())
+        .chain(self.return_aggregate.iter().copied())
         .chain([
             self.materialize_i64,
             self.copy_i64,
@@ -82,7 +84,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CompareI64 => self.compare_i64,
             MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
             MachineSemanticKind::ConditionalBranchI64LessThan => self.conditional_branch,
-            MachineSemanticKind::CallI64 => return None,
+            MachineSemanticKind::CallI64 | MachineSemanticKind::CallAggregate | MachineSemanticKind::ReturnAggregate => return None,
             MachineSemanticKind::Jump => self.jump,
         })
     }
@@ -94,9 +96,13 @@ impl SelectedConstraintKeys {
             .flat_map(|semantic| {
                 if matches!(
                     semantic,
-                    MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit
+                    MachineSemanticKind::CallI64 | MachineSemanticKind::CallUnit | MachineSemanticKind::CallAggregate | MachineSemanticKind::ReturnAggregate
                 ) {
-                    (if semantic == MachineSemanticKind::CallUnit {
+                    (if semantic == MachineSemanticKind::CallAggregate {
+                        &self.call_aggregate
+                    } else if semantic == MachineSemanticKind::ReturnAggregate {
+                        &self.return_aggregate
+                    } else if semantic == MachineSemanticKind::CallUnit {
                         &self.call_unit
                     } else {
                         &self.call_i64

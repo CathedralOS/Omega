@@ -34,6 +34,7 @@ pub(super) fn validate_target(
         .flat_map(|block| &block.nodes)
         .flat_map(|node| match &node.operation {
             AbstractOperation::Return { psi_edge, .. }
+            | AbstractOperation::ReturnStructural { psi_edge, .. }
             | AbstractOperation::ReturnUnit { psi_edge, .. }
             | AbstractOperation::Jump { psi_edge, .. } => vec![*psi_edge],
             AbstractOperation::Conditional {

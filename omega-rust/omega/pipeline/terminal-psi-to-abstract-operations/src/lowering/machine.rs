@@ -30,34 +30,10 @@ pub(super) fn lower_machine(
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractFunction, LoweringError> {
-    if let Some(operation) = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| {
-            matches!(&operation.kind,
-            OperationKind::EstablishScalarCase { fields, .. } if !fields.is_empty())
-        })
-    {
-        return Err(LoweringError::UnsupportedScalarCase(operation.id));
-    }
-    if !retain_payloadless_for_optimization
-        && let Some(operation) = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .find(|operation| {
-                matches!(operation.kind, OperationKind::EstablishScalarCase { .. })
-                    || matches!(operation.kind, OperationKind::CallStructural { .. })
-                        && operation.result.structural().is_some_and(|result| {
-                            result.multiplicity
-                                == terminal_psi::StructuralMultiplicity::Unrestricted
-                        })
-            })
-    {
-        return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
-    }
+    // Scalar sums use the ordinary graph; their physical result convention
+    // remains a checked downstream decision, not a separate machine family.
     if let Some(result) = machine.result.structural()
+        && !plain_scalar_sum_result(machine, structural_types)
         && !(retain_payloadless_for_optimization
             && exact_unrestricted_payloadless_result(module, machine, machines))
     {
@@ -68,6 +44,17 @@ pub(super) fn lower_machine(
         structural_types,
         dynamic_dispatch,
         &module.closed_conformance_applications,
-        retain_payloadless_for_optimization,
     )
+}
+
+fn plain_scalar_sum_result(machine: &TerminalMachine, types: &[terminal_psi::StructuralTypeDeclaration]) -> bool {
+    machine.result.structural().is_some_and(|result| {
+        matches!(result.multiplicity, terminal_psi::StructuralMultiplicity::Affine | terminal_psi::StructuralMultiplicity::Unrestricted)
+            && result.qualifications.is_empty() && result.projected_qualifications.is_empty()
+            && types.iter().find(|declaration| declaration.id == result.structural_type)
+                .is_some_and(|declaration| matches!(&declaration.shape, terminal_psi::StructuralTypeShape::Sum { cases }
+                    if cases.iter().all(|case| case.fields.iter().all(|field|
+                        field.relevance == terminal_psi::BindingRelevance::Relevant
+                            && field.field_type.scalar_type().is_some()))))
+    })
 }

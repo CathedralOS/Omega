@@ -21,7 +21,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::PrimitiveScalarRead { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
-        | O::EstablishPayloadlessCase { .. }
+        | O::EstablishScalarCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. } => structural::encode(bytes, operation),

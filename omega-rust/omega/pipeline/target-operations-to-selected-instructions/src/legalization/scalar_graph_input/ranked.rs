@@ -100,6 +100,7 @@ pub(in crate::legalization) fn structural_contract(
         return None;
     };
     Some(LegalizedStructuralContract {
+        result: None,
         structural_types: ranked.structural_types.clone(),
         parameters: abstracted
             .structural_parameters

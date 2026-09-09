@@ -110,6 +110,7 @@ pub fn encode_aarch64_selected_scalar_call_template(
 ) -> Result<ValidatedAarch64SelectedScalarCallTemplate, Aarch64ScalarCallTemplateError> {
     let callee = match kind {
         SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
     };
@@ -146,6 +147,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
     }
     let callee = match kind {
         SelectedInstructionKind::CallI64 { callee }
+        | SelectedInstructionKind::CallAggregate { callee }
         | SelectedInstructionKind::CallUnit { callee } => callee,
         _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
     };
@@ -153,6 +155,8 @@ pub fn validate_aarch64_selected_scalar_call_template(
     let expected_alternative = MachineAlternativeKey {
         family: if unit {
             MachineAlternativeFamily::CallUnit
+        } else if matches!(kind, SelectedInstructionKind::CallAggregate { .. }) {
+            MachineAlternativeFamily::CallAggregate
         } else {
             MachineAlternativeFamily::CallI64
         },
@@ -161,8 +165,11 @@ pub fn validate_aarch64_selected_scalar_call_template(
     if alternative != expected_alternative {
         return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
     }
-    let (expected_operand_views, expected) = if unit {
-        let keys = if target == NativeTarget::linux_arm64() {
+    let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
+    let (expected_operand_views, expected) = if unit || aggregate {
+        let keys = if aggregate {
+            crate::aarch64_register_aggregate_call_keys(target == NativeTarget::macos_arm64())
+        } else if target == NativeTarget::linux_arm64() {
             crate::aarch64_aapcs64_register_unit_call_keys()
                 .into_iter()
                 .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
@@ -188,8 +195,8 @@ pub fn validate_aarch64_selected_scalar_call_template(
             })
             .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
         let mut expected = expected_effects(target, physical, 0);
-        expected.external_operand_reads = (0..operand_views.len() as u16).collect();
-        expected.external_operand_writes.clear();
+        expected.external_operand_reads = row.operands.iter().filter(|operand| operand.access == register_model::RegisterOperandAccess::Use).map(|operand| operand.operand).collect();
+        expected.external_operand_writes = row.operands.iter().filter(|operand| operand.access == register_model::RegisterOperandAccess::Def).map(|operand| operand.operand).collect();
         expected.implicit_unit_uses = row.implicit_uses.clone();
         expected.implicit_unit_defs = row.implicit_defs.clone();
         expected.implicit_unit_clobbers = row.clobbers.clone();

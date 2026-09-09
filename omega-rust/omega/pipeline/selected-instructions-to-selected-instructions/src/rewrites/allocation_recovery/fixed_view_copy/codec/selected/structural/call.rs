@@ -37,6 +37,13 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
             encode_placement(bytes, value);
         }
     }
+    match &call.structural_result {
+        None => bytes.push(0),
+        Some(result) => {
+            bytes.push(1);
+            super::read_result::encode_result(bytes, result);
+        }
+    }
     length(bytes, call.claim_transfers.len());
     for transfer in &call.claim_transfers {
         bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
@@ -81,6 +88,11 @@ pub(super) fn decode_call(
         1 => Some(decode_placement(cursor)?),
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
+    let structural_result = match cursor.byte()? {
+        0 => None,
+        1 => Some(super::read_result::decode_result(cursor)?),
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    };
     let count = cursor.length()?;
     let mut claim_transfers = Vec::new();
     for _ in 0..count {
@@ -102,6 +114,7 @@ pub(super) fn decode_call(
             call_plan,
             arguments,
             result_placement,
+            structural_result,
             claim_transfers,
             requirement_obligations,
             crash_continuations,

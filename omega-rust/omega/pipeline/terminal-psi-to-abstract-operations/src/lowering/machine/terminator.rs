@@ -9,7 +9,6 @@ pub(super) fn lower_terminator(
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     result: Option<terminal_psi::ValueDeclaration>,
     lowered_unit_affine_locals: &[LoweredAffineLocal],
-    retain_payloadless_for_optimization: bool,
     operations: &mut Vec<AbstractOperation>,
 ) -> Result<(), LoweringError> {
     match &block.terminator {
@@ -290,10 +289,7 @@ pub(super) fn lower_terminator(
             source,
             returned_claims,
             trivial_affine_discards,
-        } if retain_payloadless_for_optimization
-            && machine.result.structural().is_some_and(|result| {
-                result.multiplicity == StructuralMultiplicity::Unrestricted
-            }) =>
+        } if machine.result.structural().is_some() =>
         {
             operations.push(AbstractOperation::ReturnStructural {
                 psi_edge: *edge,

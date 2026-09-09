@@ -42,7 +42,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(place.id);
         }
         O::EstablishPrimitiveLocal { result, .. }
-        | O::EstablishPayloadlessCase { result, .. }
+        | O::EstablishScalarCase { result, .. }
         | O::EstablishAffineScalarRecord { result, .. }
         | O::CallStructural { result, .. }
         | O::BoundaryCall {
@@ -133,7 +133,7 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
-        | AbstractOperation::EstablishPayloadlessCase {
+        | AbstractOperation::EstablishScalarCase {
             psi_operation,
             result,
             ..

@@ -5,6 +5,13 @@ pub(super) fn encode_structural_contract(
     bytes: &mut Vec<u8>,
     function: &LegalizedStructuralContract,
 ) {
+    match &function.result {
+        None => bytes.push(0),
+        Some(result) => {
+            bytes.push(1);
+            super::projected_structural_call_return::encode_result(bytes, result);
+        }
+    }
     encode_len(bytes, function.structural_types.len());
     for declaration in &function.structural_types {
         encode_structural_type(bytes, declaration);

@@ -1,4 +1,4 @@
-//! Unsupported payloadless-case materialization fences at its exact producer.
+//! Empty scalar cases retain their exact constructor and ordinary call.
 
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::StructuralPlaceKind;
@@ -9,15 +9,13 @@ use terminal_psi::{
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact_sections,
-};
+use terminal_psi_to_abstract_operations::lower_artifact_sections;
 use terminal_verifier::ProofBundle;
 
 use super::support::{block_id, contract_id, edge_id, machine_id, place_id, structural_type_id};
 
 #[test]
-fn omega_fences_verified_payloadless_case_materialization() {
+fn omega_retains_verified_empty_scalar_case_materialization() {
     let operation = semantic_vocabulary::OperationId::new(91).unwrap();
     let operation_place = place_id(91);
     let result_place = place_id(92);
@@ -137,15 +135,7 @@ fn omega_fences_verified_payloadless_case_materialization() {
     let semantic = encode_module(&module).expect("the payloadless case module verifies");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
     let result = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default());
-    assert!(
-        matches!(
-            result,
-            Err(ArtifactLoweringError::Lowering(
-                LoweringError::UnsupportedPayloadlessCase(rejected_operation)
-            )) if rejected_operation == operation
-        ),
-        "unexpected result: {result:?}"
-    );
+    result.expect("empty scalar-case constructor reaches abstract operations");
 
     let mut called = module;
     let mut callee = called.machines.remove(0);
@@ -228,13 +218,5 @@ fn omega_fences_verified_payloadless_case_materialization() {
     called.machines = vec![caller, callee];
     let semantic = encode_module(&called).expect("payloadless caller verifies");
     let result = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default());
-    assert!(
-        matches!(
-            result,
-            Err(ArtifactLoweringError::Lowering(
-                LoweringError::UnsupportedPayloadlessCase(rejected_operation)
-            )) if rejected_operation == call
-        ),
-        "the call itself owns the target-lowering fence: {result:?}"
-    );
+    result.expect("ordinary empty scalar-case call reaches abstract operations");
 }

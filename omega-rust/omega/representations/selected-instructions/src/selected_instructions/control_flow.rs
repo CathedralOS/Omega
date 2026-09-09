@@ -33,6 +33,8 @@ pub struct SelectedBlock {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedBlockOrigin {
     Source(BlockId),
+    /// Continues selection of a declared sum case; no semantic edge is taken yet.
+    CaseDispatch { source: BlockId, case_ordinal: u32 },
     /// Copies for one authored edge; the target is semantic lineage, not a
     /// claim that this implementation block exists in Terminal Psi.
     EdgeTransfer {
@@ -46,6 +48,7 @@ impl SelectedBlock {
     pub const fn source_block(&self) -> BlockId {
         match self.origin {
             SelectedBlockOrigin::Source(block) => block,
+            SelectedBlockOrigin::CaseDispatch { source, .. } => source,
             SelectedBlockOrigin::EdgeTransfer { target, .. } => target,
         }
     }
@@ -57,6 +60,9 @@ pub enum SelectedSuccessorRole {
     /// Completes the physical transfer after its semantic edge was selected.
     /// It retains the edge's identity but carries no second fuel charge.
     EdgeTransferContinuation,
+    /// Continues case tests. The edge names the next candidate's lineage only;
+    /// this transfer performs no source edge, payload binding, cleanup, or fuel.
+    CaseDispatchContinuation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

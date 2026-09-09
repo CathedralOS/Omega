@@ -12,7 +12,7 @@ pub(super) fn validate(
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
         return Err(replay.invalid());
     };
-    if operation.result.is_some() || call.result_placement.is_some() {
+    if operation.result.is_some() || (call.result_placement.is_some() && call.structural_result.is_none()) {
         return Err(replay.invalid());
     }
     call.validate_source(&operation.ownership)
@@ -108,7 +108,7 @@ pub(super) fn validate(
         }
     }
     let order = crate::selection::scalar_call_abi::register_argument_order(call);
-    let operands = order
+    let mut operands = order
         .iter()
         .map(|index| {
             operands
@@ -118,6 +118,15 @@ pub(super) fn validate(
                 .ok_or_else(|| replay.invalid())
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let mut result_registers = Vec::new();
+    if let Some(result) = &call.structural_result {
+        for location in &call.result_placement.as_ref().ok_or_else(|| replay.invalid())?.locations {
+            let ValueLocation::Register { value_byte_offset, .. } = location else { return Err(replay.invalid()); };
+            let register = super::structural_case::temporary(replay, result.place, u32::from(*value_byte_offset), false)?;
+            operands.push(register);
+            result_registers.push(register);
+        }
+    }
     replay.transport.calls.push(SelectedCallContract {
         instruction: SelectedInstructionId(
             replay
@@ -131,9 +140,8 @@ pub(super) fn validate(
         ownership: operation.ownership.clone(),
     });
     replay.check_instruction(
-        SelectedInstructionKind::CallUnit {
-            callee: call.callee,
-        },
+        if call.structural_result.is_some() { SelectedInstructionKind::CallAggregate { callee: call.callee } }
+        else { SelectedInstructionKind::CallUnit { callee: call.callee } },
         key,
         &operands,
         &SelectedInstructionProvenance {
@@ -148,5 +156,21 @@ pub(super) fn validate(
             ..Default::default()
         },
     )?;
+    if let Some((result, placement)) = crate::selection::scalar_case_input::call_result(source, call) {
+        use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, FrameStorageSlotId, SelectedMemoryAccessRole};
+        let slot = LocalStorageSlotId::Structural { operation: operation.operation, place: result.place };
+        replay.transport.local_slots.push(SelectedLocalStorageSlot { id: slot, byte_size: u32::from(placement.shape.byte_size), alignment: placement.shape.alignment });
+        let block = source.blocks.iter().find(|block| block.instructions.iter().any(|row| row.operation == operation.operation)).ok_or_else(|| replay.invalid())?.id;
+        let pointer = super::structural_case::temporary(replay, result.place, 0, false)?;
+        super::structural_case::memory(replay, block, result.place, 0, u32::from(placement.shape.byte_size), SelectedMemoryAccessRole::AddressLocal { slot })?;
+        replay.check_instruction(SelectedInstructionKind::FrameAddress { slot: FrameStorageSlotId::Local(slot), byte_offset: 0 },
+            replay.constraints.keys.frame_address.ok_or_else(|| replay.invalid())?, &[pointer], &Default::default())?;
+        for (location, value) in placement.locations.iter().zip(result_registers) {
+            let ValueLocation::Register { value_byte_offset, byte_size, .. } = location else { return Err(replay.invalid()); };
+            super::structural_case::memory(replay, block, result.place, u32::from(*value_byte_offset), u32::from(*byte_size), SelectedMemoryAccessRole::WritePlace)?;
+            replay.check_instruction(SelectedInstructionKind::Store { byte_offset: u32::from(*value_byte_offset), byte_size: *byte_size as u8 },
+                replay.constraints.keys.store.ok_or_else(|| replay.invalid())?, &[pointer, value], &Default::default())?;
+        }
+    }
     Ok(())
 }

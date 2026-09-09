@@ -10,6 +10,7 @@ use semantic_vocabulary::{IntegerType, PlaceId};
 pub(super) fn validate(
     block: &LegalizedScalarBlock,
     replay: &mut Replay<'_>,
+    catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let LegalizedScalarTerminator::StructuralCase {
@@ -22,11 +23,8 @@ pub(super) fn validate(
     else {
         return Err(invalid());
     };
-    let [empty, present] = cases.as_slice() else {
-        return Err(invalid());
-    };
-    if empty.case_tag != 0
-        || present.case_tag != 1
+    if cases.len() < 2
+        || cases.iter().enumerate().any(|(ordinal, case)| usize::try_from(case.case_tag) != Ok(ordinal))
         || layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
@@ -83,26 +81,75 @@ pub(super) fn validate(
         &[address, tag],
         &Default::default(),
     )?;
-    replay.check_instruction(
-        SelectedInstructionKind::CompareI64Zero,
-        replay.constraints.keys.compare_i64_zero,
-        &[tag],
-        &Default::default(),
-    )?;
-    let SelectedTerminator::ConditionalBranch {
+    let original_block = replay.block;
+    let mut original_cursor = None;
+    for ordinal in 0..cases.len() - 1 {
+        if ordinal == 0 {
+            replay.check_instruction(SelectedInstructionKind::CompareI64Zero,
+                replay.constraints.keys.compare_i64_zero, &[tag], &Default::default())?;
+        } else {
+            let expected = temporary(replay, result.place, 0, false)?;
+            replay.check_instruction(SelectedInstructionKind::MaterializeI64 { value: semantic_vocabulary::IntegerValue::Unsigned(ordinal as u128) },
+                replay.constraints.keys.materialize_i64, &[expected], &Default::default())?;
+            replay.check_instruction(SelectedInstructionKind::CompareI64,
+                replay.constraints.keys.compare_i64, &[tag, expected], &Default::default())?;
+        }
+        let SelectedTerminator::ConditionalBranch {
         instruction,
         when_zero,
         when_nonzero,
-    } = &replay.block.terminator
-    else {
-        return Err(invalid());
-    };
-    for (expected, actual) in [(empty, when_zero), (present, when_nonzero)] {
+        } = &replay.block.terminator else { return Err(invalid()); };
+        successor(&cases[ordinal], when_zero, slot, replay)?;
+        let next = if ordinal + 2 == cases.len() {
+            successor(&cases[ordinal + 1], when_nonzero, slot, replay)?;
+            None
+        } else {
+            let expected_origin = selected_instructions::SelectedBlockOrigin::CaseDispatch {
+                source: block.id, case_ordinal: (ordinal + 1).try_into().map_err(|_| invalid())?,
+            };
+            let next = replay.selected.blocks.iter().find(|candidate| candidate.origin == expected_origin)
+                .ok_or_else(invalid)?;
+            if when_nonzero.role != SelectedSuccessorRole::CaseDispatchContinuation
+                || when_nonzero.psi_edge != cases[ordinal + 1].edge
+                || when_nonzero.source_target != block.id
+                || when_nonzero.block != next.id
+                || !when_nonzero.fuel.is_empty() || !when_nonzero.bindings.is_empty()
+                || !when_nonzero.structural_bindings.is_empty() || when_nonzero.structural_case.is_some()
+            { return Err(invalid()); }
+            Some(next)
+        };
+        if instruction.id.0 as usize != replay.instruction_cursor
+            || instruction.kind != SelectedInstructionKind::ConditionalBranchNonZero
+            || instruction.constraint != replay.constraints.keys.conditional_branch
+            || !instruction.operands.is_empty()
+            || instruction.provenance != SelectedInstructionProvenance::default()
+            || replay.block_cursor != replay.block.instructions.len()
+        { return Err(invalid()); }
+        if ordinal == 0 { original_cursor = Some(replay.block_cursor); }
+        else { validate_block_constraints(replay.function, replay.block, replay.selected, catalog)?; }
+        if let Some(next) = next {
+            replay.instruction_cursor = replay.instruction_cursor.checked_add(1).ok_or_else(invalid)?;
+            replay.block = next;
+            replay.block_cursor = 0;
+        }
+    }
+    replay.block = original_block;
+    replay.block_cursor = original_cursor.ok_or_else(invalid)?;
+    Ok(())
+}
+
+fn successor(
+    expected: &legalized_operations::LegalizedStructuralCaseSuccessor,
+    actual: &selected_instructions::SelectedSuccessor,
+    slot: LocalStorageSlotId,
+    replay: &Replay<'_>,
+) -> Result<(), SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
         let destination = replay
             .selected
             .blocks
             .iter()
-            .find(|candidate| candidate.source_block() == expected.target)
+            .find(|candidate| candidate.origin == selected_instructions::SelectedBlockOrigin::Source(expected.target))
             .ok_or_else(invalid)?;
         let retained = actual.structural_case.as_ref().ok_or_else(invalid)?;
         if actual.role != SelectedSuccessorRole::Semantic
@@ -145,19 +192,10 @@ pub(super) fn validate(
                 _ => return Err(invalid()),
             }
         }
-    }
-    if instruction.id.0 as usize != replay.instruction_cursor
-        || instruction.kind != SelectedInstructionKind::ConditionalBranchNonZero
-        || instruction.constraint != replay.constraints.keys.conditional_branch
-        || !instruction.operands.is_empty()
-        || instruction.provenance != SelectedInstructionProvenance::default()
-    {
-        return Err(invalid());
-    }
     Ok(())
 }
 
-fn temporary(
+pub(super) fn temporary(
     replay: &mut Replay<'_>,
     place: PlaceId,
     byte_offset: u32,
@@ -204,7 +242,7 @@ fn temporary(
     Ok(row.id)
 }
 
-fn memory(
+pub(super) fn memory(
     replay: &mut Replay<'_>,
     block: semantic_vocabulary::BlockId,
     place: PlaceId,

@@ -35,6 +35,11 @@ pub struct TargetScalarBlockParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetControlTerminator {
+    ReturnStructural {
+        psi_edge: EdgeId,
+        source: crate::TargetStructuralHomeRequirement,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+    },
     ReturnScalar {
         psi_edge: EdgeId,
         source_value: ValueId,

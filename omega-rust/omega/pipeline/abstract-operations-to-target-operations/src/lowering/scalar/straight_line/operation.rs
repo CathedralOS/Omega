@@ -89,7 +89,7 @@ pub(super) fn lower_operation(
             }
             provenance.operations.push(*psi_operation);
         }
-        AbstractOperation::EstablishPayloadlessCase { psi_operation, .. } => {
+        AbstractOperation::EstablishScalarCase { psi_operation, .. } => {
             return Err(LoweringError::UnitOperationInScalarFunction {
                 machine: function.machine,
                 operation: *psi_operation,
