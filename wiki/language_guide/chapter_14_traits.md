@@ -870,10 +870,12 @@ StructuralEquality:
     Point satisfies Equatable { }   // compiler emits this block's equals row
 ```
 
-Synthesis is a compiler privilege over a closed core set. User-written trait
-bodies do not acquire arbitrary field reflection. Future generator syntax is
-unsettled; [semantic evaluation](../spec/language/evaluation.md#trait-bodies-and-generators)
-owns its admission and reflection boundaries.
+Synthesis is a compiler privilege over a closed core set. Ordinary machines may
+use [semantic reflection](chapter_21_reflection.md) within their own visibility
+and dependency authority. A trait body does not inherit a conforming owner's
+private access, and reflection does not synthesize laws or enlarge the core set.
+[Semantic evaluation](../spec/language/evaluation.md#trait-bodies-and-generators)
+owns evaluation eligibility.
 
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums need an explicit named conformance. Adding a payload case

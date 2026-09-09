@@ -21,6 +21,8 @@ beside code; completed work belongs in Git, not current reference material.
   [lifetimes and carried borrows](spec/language/lifetimes.md),
   [concurrency and atomics](spec/language/concurrency.md),
   [machines and refinement](spec/language/machines.md),
+  [anonymous machines and captures](spec/language/anonymous_machines.md),
+  [semantic reflection and typed visitation](spec/language/reflection.md),
   [named conformances](spec/language/conformances.md),
   [generic applications](spec/language/generics.md),
   [termination and progress](spec/language/termination.md),

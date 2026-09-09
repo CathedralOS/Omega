@@ -229,9 +229,14 @@ untrusted search reuse, not a replacement admission route.
 ## Trait bodies and generators
 
 A trait machine body is its overridable default, without a `default` keyword.
-Reflection iterates only the conforming `Self` inside its own machine body.
-It grants no visibility, boundary/compiler access, type descriptor, or
-type-as-value capability and does not bypass evaluator admission.
+[Semantic reflection](reflection.md) may inspect an explicitly selected type
+under the lexical author's ordinary dependency and visibility authority; it is
+not restricted to a conforming Self. A generic default does not inherit a
+conformance author's or caller's private access. An owner can instead supply a
+checked visitor/operation through an explicit requirement or conformance.
+Owned TypeSchema descriptions and typed per-member calls follow the reflection
+contract; they grant no runtime type-to-generic conversion, source splicing,
+boundary authority, or exemption from evaluator admission.
 
 Generated equality follows the current field set. Handwritten equality owns
 its coverage and is not automatically substitutable equality; that requires
@@ -242,8 +247,16 @@ no reference patterns or new binding modes. Larger fields require an explicit
 borrow expression or waiver.
 
 Body-shape coverage is not a requirable value proposition. A separate
-trait-level coverage gate is deferred. Generator unroll syntax remains
-unsettled; illustrative field-combiner notation is not approved syntax.
+trait-level coverage gate is deferred. Reflection visitation establishes its
+declared member/case coverage through checked elaboration, not an arbitrary
+body-coverage proposition or a separate generator-unroll keyword.
+
+Reflection policy receivers are owned within an evaluation root. That root
+freezes completed selections into an ordinary symbolic result snapshot; the
+policy's mutable receiver does not escape or mutate compiler state out of band.
+The [selection result contract](reflection.md#selection-evaluation-and-retained-results)
+requires independent resolution, coverage, access, and requirement validation.
+Choosing a static declaration is not manufacturing proof or a runtime callable.
 
 The [implementation note](../../../omega-rust/psi/semantics/build-time-evaluation/README.md)
 records the narrower currently supported admission and materialization paths.
