@@ -39,6 +39,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
         "the derived borrow placement retains referent shape and transports its pointer"
     );
     source.structural = Some(legalized_operations::LegalizedStructuralContract {
+        result: None,
         structural_types: vec![StructuralTypeDeclaration {
             id: structural_type,
             identity: "bytes".into(),
@@ -77,6 +78,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
     });
     source.blocks[0].instructions[0].kind =
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            structural_result: None,
             source: LegalizedCallUnitSource::AuthoredCallUnit,
             callee: MachineId::new(2).unwrap(),
             call_plan: source.call_plan.clone(),

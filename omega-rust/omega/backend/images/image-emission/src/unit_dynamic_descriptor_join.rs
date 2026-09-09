@@ -13,7 +13,7 @@ pub(super) fn validate_unit_dynamic_descriptor_join(
     target: NativeTarget,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
-    let boolean_parameter = function.unit_scalar_abi.as_ref().is_some_and(|abi| {
+    let boolean_parameter = function.parameter_abi.as_ref().is_some_and(|abi| {
         matches!(
             abi.parameters.as_slice(),
             [parameter] if parameter.scalar_type == ScalarType::Boolean
@@ -46,7 +46,7 @@ pub(super) fn validate_unit_dynamic_descriptor_join(
         return Ok(());
     }
     let invalid = || ObjectError::InvalidUnitDynamicDescriptorJoin(function.machine);
-    let Some(abi) = function.unit_scalar_abi.as_ref() else {
+    let Some(abi) = function.parameter_abi.as_ref() else {
         return Err(invalid());
     };
     let [parameter] = abi.parameters.as_slice() else {

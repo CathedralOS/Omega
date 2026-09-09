@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v31\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v32\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -171,7 +171,10 @@ pub fn selected_instruction_plan_identity(
                     bytes.push(0);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                 }
-                selected_instructions::SelectedBlockOrigin::CaseDispatch { source, case_ordinal } => {
+                selected_instructions::SelectedBlockOrigin::CaseDispatch {
+                    source,
+                    case_ordinal,
+                } => {
                     bytes.push(2);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                     bytes.extend_from_slice(&case_ordinal.to_le_bytes());
@@ -258,7 +261,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     });
     match instruction.kind {
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        SelectedInstructionKind::CallAggregate { callee } => bytes.extend_from_slice(&callee.get().to_le_bytes()),
+        SelectedInstructionKind::CallAggregate { callee } => {
+            bytes.extend_from_slice(&callee.get().to_le_bytes())
+        }
         SelectedInstructionKind::HostedWriteByteI32 { slot }
         | SelectedInstructionKind::HostedReadByte { slot } => {
             contracts::frame_slot(

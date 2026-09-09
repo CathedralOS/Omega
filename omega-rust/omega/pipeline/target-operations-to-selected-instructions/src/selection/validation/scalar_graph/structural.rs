@@ -298,7 +298,10 @@ pub(super) fn operation(
         primitive_locals::write(source, node, replay)?;
         return Ok(true);
     }
-    if matches!(node.kind, LegalizedScalarInstructionKind::EstablishScalarCase { .. }) {
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+    ) {
         scalar_case::establish(source, node, replay)?;
         return Ok(true);
     }

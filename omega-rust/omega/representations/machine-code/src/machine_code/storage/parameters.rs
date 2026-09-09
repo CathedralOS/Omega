@@ -28,8 +28,11 @@ pub struct UnitParameterRecord {
     pub shape: ValueShape,
 }
 
+/// Incoming scalar identities accompany the complete ABI plan. Structural
+/// parameter homes are recorded separately; a non-Unit result stays in the plan
+/// and is realized by the retained function graph, not an invented scalar value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnitScalarFunctionAbiRecord {
+pub struct ParameterFunctionAbiRecord {
     pub call_plan: CallPlan,
     pub parameters: Vec<target_operations::ScalarAbiValue>,
     /// Exact entry stores; ABI declarations above remain the original inputs.

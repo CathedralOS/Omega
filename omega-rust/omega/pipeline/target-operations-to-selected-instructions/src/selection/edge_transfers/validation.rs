@@ -66,10 +66,17 @@ pub(in crate::selection) fn project(
         for successor in successors_mut(&mut source.terminator) {
             if successor.role == SelectedSuccessorRole::CaseDispatchContinuation {
                 if successor.block.0 as usize >= source_count
-                    || !matches!(prepared.blocks[successor.block.0 as usize].origin, SelectedBlockOrigin::CaseDispatch { .. })
-                    || !successor.fuel.is_empty() || !successor.bindings.is_empty()
-                    || !successor.structural_bindings.is_empty() || successor.structural_case.is_some()
-                { return Err(error()); }
+                    || !matches!(
+                        prepared.blocks[successor.block.0 as usize].origin,
+                        SelectedBlockOrigin::CaseDispatch { .. }
+                    )
+                    || !successor.fuel.is_empty()
+                    || !successor.bindings.is_empty()
+                    || !successor.structural_bindings.is_empty()
+                    || successor.structural_case.is_some()
+                {
+                    return Err(error());
+                }
                 continue;
             }
             if successor.role != SelectedSuccessorRole::Semantic {

@@ -18,6 +18,7 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
     let identity = StructuralTypeId::new(1).unwrap();
     let producer = OperationId::new(2).unwrap();
     source.structural = Some(legalized_operations::LegalizedStructuralContract {
+        result: None,
         structural_types: vec![StructuralTypeDeclaration {
             id: identity,
             identity: "u64".into(),
@@ -60,6 +61,7 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
     )
     .unwrap();
     source.blocks[0].instructions[2].kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+        structural_result: None,
         source: LegalizedCallUnitSource::AuthoredCallUnit, callee: MachineId::new(10).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {
             semantic: terminal_psi::StructuralArgument { place, access: StructuralAccess::MutableBorrow, path: Vec::new() },

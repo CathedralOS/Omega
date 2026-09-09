@@ -52,6 +52,7 @@ fn fixed_array_call(
         // it makes no claim of graph or source admission.
         blocks: Vec::new(),
         structural: Some(LegalizedStructuralContract {
+            result: None,
             structural_types: vec![
                 StructuralTypeDeclaration {
                     id: array_type,
@@ -101,6 +102,7 @@ fn fixed_array_call(
         }),
     };
     let call = LegalizedScalarCall {
+        structural_result: None,
         source: legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit,
         callee: MachineId::new(2).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {

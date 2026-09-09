@@ -70,11 +70,21 @@ pub(crate) fn validate_transports(
         };
         for edge in edges {
             match (block.origin, edge.role) {
-                (SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::CaseDispatch { .. }, SelectedSuccessorRole::Semantic) => {}
-                (SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::CaseDispatch { .. }, SelectedSuccessorRole::CaseDispatchContinuation)
-                    if edge.fuel.is_empty() && edge.bindings.is_empty()
-                        && edge.structural_bindings.is_empty() && edge.structural_case.is_none()
-                        && matches!(block.terminator, SelectedTerminator::ConditionalBranch { .. }) => {}
+                (
+                    SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::CaseDispatch { .. },
+                    SelectedSuccessorRole::Semantic,
+                ) => {}
+                (
+                    SelectedBlockOrigin::Source(_) | SelectedBlockOrigin::CaseDispatch { .. },
+                    SelectedSuccessorRole::CaseDispatchContinuation,
+                ) if edge.fuel.is_empty()
+                    && edge.bindings.is_empty()
+                    && edge.structural_bindings.is_empty()
+                    && edge.structural_case.is_none()
+                    && matches!(
+                        block.terminator,
+                        SelectedTerminator::ConditionalBranch { .. }
+                    ) => {}
                 (
                     SelectedBlockOrigin::EdgeTransfer {
                         edge: owner,

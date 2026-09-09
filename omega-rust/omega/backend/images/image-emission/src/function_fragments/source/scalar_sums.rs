@@ -4,23 +4,56 @@
 //! account for the exact declarations and operations at the object boundary.
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use selected_instructions::{SelectedFunction, SelectedTerminator};
-use target_operations::{TargetControlTerminator, TargetFunction, TargetOperation, TargetUnitOperation};
+use target_operations::{
+    TargetControlTerminator, TargetFunction, TargetOperation, TargetUnitOperation,
+};
 
-pub(super) fn header(source: &AbstractFunction, target: &TargetFunction, selected: &SelectedFunction) -> bool {
-    let Some(result) = source.result.structural() else { return false; };
-    let (TargetOperation::ControlGraph(graph), Some(contract)) = (&target.operation, &selected.structural) else { return false; };
+pub(super) fn header(
+    source: &AbstractFunction,
+    target: &TargetFunction,
+    selected: &SelectedFunction,
+) -> bool {
+    let Some(result) = source.result.structural() else {
+        return false;
+    };
+    let (TargetOperation::ControlGraph(graph), Some(contract)) =
+        (&target.operation, &selected.structural)
+    else {
+        return false;
+    };
     contract.result.as_ref() == Some(result)
         && graph.call_plan.result.is_some()
-        && target.scalar_abi.is_none() && target.mixed_structural_scalar_abi.is_none()
+        && target.scalar_abi.is_none()
+        && target.mixed_structural_scalar_abi.is_none()
         && graph.scalar_parameters.len() == source.parameters.len()
         && graph.parameters.len() == source.structural_parameters.len()
-        && graph.scalar_parameters.iter().zip(&source.parameters).all(|(actual, expected)| actual.value == expected.value && actual.scalar_type == expected.scalar_type)
-        && contract.parameters.iter().map(|row| &row.semantic).eq(source.structural_parameters.iter())
-        && contract.parameters.iter().map(|row| &row.target).eq(graph.parameters.iter())
+        && graph
+            .scalar_parameters
+            .iter()
+            .zip(&source.parameters)
+            .all(|(actual, expected)| {
+                actual.value == expected.value && actual.scalar_type == expected.scalar_type
+            })
+        && contract
+            .parameters
+            .iter()
+            .map(|row| &row.semantic)
+            .eq(source.structural_parameters.iter())
+        && contract
+            .parameters
+            .iter()
+            .map(|row| &row.target)
+            .eq(graph.parameters.iter())
 }
 
-pub(super) fn operation(source: &AbstractOperation, target: &TargetFunction, selected: &SelectedFunction) -> bool {
-    let TargetOperation::ControlGraph(graph) = &target.operation else { return false; };
+pub(super) fn operation(
+    source: &AbstractOperation,
+    target: &TargetFunction,
+    selected: &SelectedFunction,
+) -> bool {
+    let TargetOperation::ControlGraph(graph) = &target.operation else {
+        return false;
+    };
     match source {
         AbstractOperation::EstablishScalarCase { psi_operation, result, result_case, fields } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,

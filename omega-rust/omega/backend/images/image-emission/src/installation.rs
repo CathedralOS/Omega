@@ -41,6 +41,7 @@ mod internal_unit_call_codec;
 mod internal_unit_call_source_codec;
 mod internal_unit_scalar_call_codec;
 mod mixed_structural_scalar_abi_codec;
+mod parameter_abi_codec;
 mod port_effect_codec;
 mod private_function_codec;
 mod provider_execution_codec;
@@ -61,7 +62,6 @@ mod structural_source_codec;
 mod trivial_affine_local_codec;
 mod unit_continuation_codec;
 mod unit_dynamic_descriptor_join;
-mod unit_scalar_abi_codec;
 mod unit_scalar_codec;
 mod unit_structural_scalar_field_store_codec;
 mod unit_write_only_primitive_store_codec;
@@ -103,7 +103,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 93;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 94;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -513,7 +513,7 @@ pub struct InstalledFunction {
     pub attachment: Option<StructuralTypeId>,
     pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<target_operations::MixedStructuralScalarFunctionAbi>,
-    pub unit_scalar_abi: Option<machine_code::UnitScalarFunctionAbiRecord>,
+    pub parameter_abi: Option<machine_code::ParameterFunctionAbiRecord>,
     pub structural_call_scalar_return: Option<machine_code::StructuralCallScalarReturnEvidence>,
     pub text_offset: usize,
     pub byte_count: usize,
@@ -767,7 +767,7 @@ where
                 machine: function.machine,
                 scalar_abi: function.scalar_abi.clone(),
                 mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
-                unit_scalar_abi: function.unit_scalar_abi.clone(),
+                parameter_abi: function.parameter_abi.clone(),
                 structural_call_scalar_return: function.structural_call_scalar_return,
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
@@ -1264,7 +1264,7 @@ pub fn validate_installation_record(
                     || installed.attachment != emitted.attachment
                     || installed.scalar_abi != emitted.scalar_abi
                     || installed.mixed_structural_scalar_abi != emitted.mixed_structural_scalar_abi
-                    || installed.unit_scalar_abi != emitted.unit_scalar_abi
+                    || installed.parameter_abi != emitted.parameter_abi
                     || installed.structural_call_scalar_return
                         != emitted.structural_call_scalar_return
                     || installed.text_offset != emitted.text_offset
@@ -1699,12 +1699,12 @@ fn installed_scalar_source_is_exact(
             .ok()
             .and_then(|index| {
                 function
-                    .unit_scalar_abi
+                    .parameter_abi
                     .as_ref()
                     .and_then(|abi| abi.parameters.get(index))
             })
             .is_some_and(|parameter| {
-                let expected_location = function.unit_scalar_abi.as_ref().and_then(|abi| {
+                let expected_location = function.parameter_abi.as_ref().and_then(|abi| {
                     crate::unit_scalar_call_custody::entry_spills::parameter_location(
                         abi,
                         usize::try_from(parameter_index).ok()?,
@@ -1913,7 +1913,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             && crate::unit_scalar_call_custody::entry_spills::validate_shape(
                 record.target,
                 &function.unit_parameter_homes,
-                function.unit_scalar_abi.as_ref(),
+                function.parameter_abi.as_ref(),
                 true,
                 function
                     .unit_stack
@@ -1965,7 +1965,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 || !function.scalar_control_affine_cleanups.is_empty()
                 || function.structural_call_scalar_return.is_some()
                 || !crate::unit_continuations::exact_scalar_bindings(
-                    function.unit_scalar_abi.as_ref(),
+                    function.parameter_abi.as_ref(),
                     &function.unit_continuations,
                 )
                 || !function.unit_scalar_homes.is_empty()
@@ -1984,7 +1984,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         }
         if function.unit_continuations.is_empty()
             && function
-                .unit_scalar_abi
+                .parameter_abi
                 .as_ref()
                 .is_some_and(|abi| !abi.entry_register_spills.is_empty())
         {
@@ -2917,9 +2917,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 installed.machine,
             ));
         }
-        let callee_unit_scalar_abi = function_by_machine
+        let callee_parameter_abi = function_by_machine
             .get(&custody.target)
-            .and_then(|target| target.unit_scalar_abi.as_ref());
+            .and_then(|target| target.parameter_abi.as_ref());
         let callee_unit_parameters = function_by_machine
             .get(&custody.target)
             .map_or(&[][..], |target| target.unit_parameters.as_slice());
@@ -2964,7 +2964,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         let plan = evaluate_call_plan(
             CallingPolicy::native_for_target(record.target),
             &CallSignature {
-                parameters: if let Some(abi) = callee_unit_scalar_abi {
+                parameters: if let Some(abi) = callee_parameter_abi {
                     abi.parameters
                         .iter()
                         .map(|parameter| {
@@ -3235,7 +3235,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     stack.frame_bytes,
                     parameter_homes,
                     &function.unit_scalar_homes,
-                    function.unit_scalar_abi.as_ref(),
+                    function.parameter_abi.as_ref(),
                     None,
                     !function.unit_continuations.is_empty(),
                 )
@@ -3317,7 +3317,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         // against the admitted image by validate_installation_record. Its span
         // is the call instruction, not a legacy contiguous materialization.
         let mixed_roster_is_exact = if let Some(call_instruction) = selected_scalar_call {
-            callee_unit_scalar_abi.is_some_and(|abi| {
+            callee_parameter_abi.is_some_and(|abi| {
                 callee_mixed_abi.is_none()
                     && callee_mixed_structural_return.is_none()
                     && custody.result.is_none()
@@ -3340,7 +3340,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             && argument.byte_count == custody.byte_count
                     })
             })
-        } else if let Some(abi) = callee_unit_scalar_abi {
+        } else if let Some(abi) = callee_parameter_abi {
             callee_mixed_abi.is_none()
                 && callee_mixed_structural_return.is_none()
                 && custody.result.is_none()
@@ -4193,7 +4193,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         record.target,
                         &installed.settlement,
                     ) && function
-                        .unit_scalar_abi
+                        .parameter_abi
                         .as_ref()
                         .is_none_or(|abi| abi.call_plan.result.is_none())
                         && function.unit_stack.is_some()
@@ -5225,7 +5225,7 @@ mod resource_tests {
             attachment: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
-            unit_scalar_abi: None,
+            parameter_abi: None,
             structural_call_scalar_return: None,
             text_offset: 24,
             byte_count: 16,

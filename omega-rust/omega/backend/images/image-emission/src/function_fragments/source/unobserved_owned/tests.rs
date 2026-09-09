@@ -114,6 +114,7 @@ fn fixture() -> (AbstractFunction, TargetFunction, SelectedFunction) {
         provenance,
         ranked: None,
         structural: Some(legalized_operations::LegalizedStructuralContract {
+            result: None,
             structural_types: vec![],
             parameters: vec![legalized_operations::LegalizedCallUnitParameter {
                 semantic: parameter,

@@ -18,7 +18,9 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
     for block in &function.blocks {
         for instruction in &block.instructions {
             match &instruction.kind {
-                Instruction::EstablishScalarCase { fields, .. } => pending.extend(fields.iter().map(|field| field.value)),
+                Instruction::EstablishScalarCase { fields, .. } => {
+                    pending.extend(fields.iter().map(|field| field.value))
+                }
                 Instruction::HostedWriteByteI32 { source, .. }
                 | Instruction::HostedExitProcessI32 { source, .. } => pending.push(*source),
                 Instruction::StructuralScalarFieldStore { value, .. }

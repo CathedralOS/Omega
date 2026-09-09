@@ -22,8 +22,15 @@ pub(super) fn encode_signature(bytes: &mut Vec<u8>, value: &LegalizedStructuralC
             bytes.extend_from_slice(&result.place.get().to_le_bytes());
             bytes.extend_from_slice(&result.structural_type.get().to_le_bytes());
             encode_multiplicity(bytes, result.multiplicity);
-            encode_ids(bytes, result.qualifications.iter().map(|domain| domain.get()));
-            super::projected_qualifications::encode_projected(bytes, &result.projected_qualifications, true);
+            encode_ids(
+                bytes,
+                result.qualifications.iter().map(|domain| domain.get()),
+            );
+            super::projected_qualifications::encode_projected(
+                bytes,
+                &result.projected_qualifications,
+                true,
+            );
         }
     }
     length(bytes, value.structural_places.len());
@@ -59,7 +66,9 @@ pub(super) fn decode_signature(
             structural_type: decode_id(cursor, StructuralTypeId::new)?,
             multiplicity: decode_multiplicity(cursor)?,
             qualifications: decode_ids(cursor, StructuralDomainId::new)?,
-            projected_qualifications: super::projected_qualifications::decode_projected(cursor, true)?,
+            projected_qualifications: super::projected_qualifications::decode_projected(
+                cursor, true,
+            )?,
         }),
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };

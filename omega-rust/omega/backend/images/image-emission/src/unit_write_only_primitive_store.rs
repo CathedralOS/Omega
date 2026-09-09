@@ -52,7 +52,7 @@ fn validate_store(
             scalar_type,
             location,
         } => {
-            let abi = function.unit_scalar_abi.as_ref()?;
+            let abi = function.parameter_abi.as_ref()?;
             let scalar_parameter_index = usize::try_from(parameter_index).ok()?;
             let scalar_parameter = abi.parameters.get(scalar_parameter_index)?;
             let (scalar_shape, byte_size) = native_scalar_shape(scalar_type)?;

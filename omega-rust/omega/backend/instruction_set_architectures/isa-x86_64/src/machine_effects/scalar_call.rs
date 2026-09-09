@@ -38,15 +38,29 @@ pub(super) fn declaration(
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
             key: MachineAlternativeKey {
-                family: if semantic == MachineSemanticKind::CallAggregate { MachineAlternativeFamily::CallAggregate } else { MachineAlternativeFamily::CallI64 },
+                family: if semantic == MachineSemanticKind::CallAggregate {
+                    MachineAlternativeFamily::CallAggregate
+                } else {
+                    MachineAlternativeFamily::CallI64
+                },
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
             size: MachineSizeKnowledge::ExactBytes(5),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
-                external_operand_reads: row.operands.iter().filter(|operand| operand.access == register_model::RegisterOperandAccess::Use).map(|operand| operand.operand).collect(),
-                external_operand_writes: row.operands.iter().filter(|operand| operand.access == register_model::RegisterOperandAccess::Def).map(|operand| operand.operand).collect(),
+                external_operand_reads: row
+                    .operands
+                    .iter()
+                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
+                    .map(|operand| operand.operand)
+                    .collect(),
+                external_operand_writes: row
+                    .operands
+                    .iter()
+                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
+                    .map(|operand| operand.operand)
+                    .collect(),
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),

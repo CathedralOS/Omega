@@ -75,12 +75,16 @@ fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType
 }
 
 pub(super) fn published_call(contract: &selected_instructions::SelectedCallContract) -> bool {
-    contract.call.result_placement.is_none()
-        || contract
-            .call
-            .arguments
-            .iter()
-            .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
+    // Fresh aggregate results use complete selected call/storage replay. The
+    // legacy singular structural-result record describes a different family
+    // (whole-input returns); recording that here would misstate result custody.
+    contract.call.structural_result.is_none()
+        && (contract.call.result_placement.is_none()
+            || contract
+                .call
+                .arguments
+                .iter()
+                .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. })))
 }
 fn pointer(placement: &ValuePlacement) -> Result<calling_conventions::MachineRegister, Error> {
     match placement.locations.as_slice() {

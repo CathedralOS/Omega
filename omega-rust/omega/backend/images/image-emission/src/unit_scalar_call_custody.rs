@@ -470,7 +470,7 @@ pub(super) fn validate_source(
             location,
         } => {
             let index = usize::try_from(parameter_index).map_err(|_| invalid())?;
-            let abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+            let abi = function.parameter_abi.as_ref().ok_or_else(invalid)?;
             let parameter = abi.parameters.get(index).ok_or_else(invalid)?;
             let expected_location =
                 entry_spills::parameter_location(abi, index, source_value, consumer_code_offset)

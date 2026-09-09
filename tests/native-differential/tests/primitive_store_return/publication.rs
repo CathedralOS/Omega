@@ -88,7 +88,7 @@ fn publish(
     assert_eq!(object.text_bytes(), source.source().text_section().bytes);
     let function = object.entry_function();
     assert!(function.scalar_abi.is_none());
-    assert!(function.unit_scalar_abi.is_none());
+    assert!(function.parameter_abi.is_none());
     let mixed = function
         .mixed_structural_scalar_abi
         .as_ref()
@@ -183,7 +183,7 @@ fn publish(
         function.scalar_structural_parameter_homes
     );
     assert!(installed.scalar_abi.is_none());
-    assert!(installed.unit_scalar_abi.is_none());
+    assert!(installed.parameter_abi.is_none());
     assert!(installed.unit_parameters.is_empty());
     assert!(installed.unit_parameter_homes.is_empty());
     assert!(installed.unit_write_only_primitive_stores.is_empty());

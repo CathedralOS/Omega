@@ -215,11 +215,21 @@ pub fn x86_64_system_v_register_call_keys() -> Vec<RegisterConstraintKey> {
 
 /// Exact Linux System-V scalar call with two U64 arguments and one U64 result.
 pub fn x86_64_system_v_aggregate_call_keys() -> Vec<RegisterConstraintKey> {
-    (1000..1014).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant }).collect()
+    (1000..1014)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
+        })
+        .collect()
 }
 
 pub fn x86_64_system_v_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
-    (10..12).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Return, variant }).collect()
+    (10..12)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Return,
+            variant,
+        })
+        .collect()
 }
 
 /// Exact Linux System-V scalar call with two U64 arguments and one U64 result.
@@ -1035,28 +1045,50 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(call);
     }
 
-    for (ordinal, key) in x86_64_system_v_aggregate_call_keys().into_iter().enumerate() {
+    for (ordinal, key) in x86_64_system_v_aggregate_call_keys()
+        .into_iter()
+        .enumerate()
+    {
         let arity = ordinal % 7;
         let fragments = ordinal / 7 + 1;
         let mut call = scalar_call.clone();
         call.key = key;
-        call.operands = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"].into_iter().take(arity).enumerate()
+        call.operands = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+            .into_iter()
+            .take(arity)
+            .enumerate()
             .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name))
-            .chain(["rax", "rdx"].into_iter().take(fragments).enumerate()
-                .map(|(position, name)| fixed((arity + position) as u16, RegisterOperandAccess::Def, name))).collect();
+            .chain(["rax", "rdx"].into_iter().take(fragments).enumerate().map(
+                |(position, name)| {
+                    fixed((arity + position) as u16, RegisterOperandAccess::Def, name)
+                },
+            ))
+            .collect();
         // Result fragments are explicit definitions. The remaining volatile
         // units still clobber live caller values, including rdx for one fragment.
         for name in ["rax", "rdx"].into_iter().take(fragments) {
-            call.clobbers.retain(|unit| !view(name).write_units.contains(unit));
+            call.clobbers
+                .retain(|unit| !view(name).write_units.contains(unit));
         }
         constraints.push(call);
     }
-    let returned = constraints.iter().find(|row| row.key == X86_64_SYSTEM_V_RETURN).expect("canonical return row").clone();
-    for (ordinal, key) in x86_64_system_v_aggregate_return_keys().into_iter().enumerate() {
+    let returned = constraints
+        .iter()
+        .find(|row| row.key == X86_64_SYSTEM_V_RETURN)
+        .expect("canonical return row")
+        .clone();
+    for (ordinal, key) in x86_64_system_v_aggregate_return_keys()
+        .into_iter()
+        .enumerate()
+    {
         let mut row = returned.clone();
         row.key = key;
-        row.operands = ["rax", "rdx"].into_iter().take(ordinal + 1).enumerate()
-            .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name)).collect();
+        row.operands = ["rax", "rdx"]
+            .into_iter()
+            .take(ordinal + 1)
+            .enumerate()
+            .map(|(position, name)| fixed(position as u16, RegisterOperandAccess::Use, name))
+            .collect();
         constraints.push(row);
     }
     let abi_call = constraints
@@ -1418,16 +1450,32 @@ mod tests {
         let catalog = x86_64_register_constraint_catalog(&model);
         let second = model.model().view_named("rdx").unwrap();
         let scratch = model.model().view_named("rcx").unwrap();
-        for (ordinal, key) in x86_64_system_v_aggregate_call_keys().into_iter().enumerate() {
+        for (ordinal, key) in x86_64_system_v_aggregate_call_keys()
+            .into_iter()
+            .enumerate()
+        {
             let fragments = ordinal % 14 / 7 + 1;
             let call = row(&catalog, key);
-            assert_eq!(call.operands.iter().filter(|operand| operand.access == RegisterOperandAccess::Def).count(), fragments);
+            assert_eq!(
+                call.operands
+                    .iter()
+                    .filter(|operand| operand.access == RegisterOperandAccess::Def)
+                    .count(),
+                fragments
+            );
             for unit in &second.write_units {
                 assert_eq!(call.clobbers.contains(unit), fragments == 1, "{key:?}");
             }
-            assert!(scratch.write_units.iter().all(|unit| call.clobbers.contains(unit)));
+            assert!(
+                scratch
+                    .write_units
+                    .iter()
+                    .all(|unit| call.clobbers.contains(unit))
+            );
             let mut altered = catalog.clone();
-            row_mut(&mut altered, key).clobbers.retain(|unit| !scratch.write_units.contains(unit));
+            row_mut(&mut altered, key)
+                .clobbers
+                .retain(|unit| !scratch.write_units.contains(unit));
             assert!(validate_x86_64_register_constraint_catalog(altered, &model).is_err());
         }
     }
@@ -1499,6 +1547,8 @@ mod tests {
             X86_64_REQUIRED_REGISTER_CONSTRAINTS.len()
                 + x86_64_system_v_mixed_unit_call_keys().len()
                 + x86_64_microsoft_mixed_unit_call_keys().len()
+                + x86_64_system_v_aggregate_call_keys().len()
+                + x86_64_system_v_aggregate_return_keys().len()
         );
 
         let sysv_call = row(catalog, X86_64_SYSTEM_V_CALL);

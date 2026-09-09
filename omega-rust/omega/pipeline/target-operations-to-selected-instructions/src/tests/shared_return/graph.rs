@@ -153,7 +153,8 @@ fn scalar_cfg_accepts_signed_comparisons_and_more_than_four_blocks() {
                         selected_instructions::SelectedBlockOrigin::Source(source) => {
                             Some(source.get())
                         }
-                        selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. } => None,
+                        selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. }
+                        | selected_instructions::SelectedBlockOrigin::CaseDispatch { .. } => None,
                     })
                     .collect::<Vec<_>>();
                 sources.sort();

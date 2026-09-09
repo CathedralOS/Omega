@@ -69,6 +69,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     projected_qualifications: Vec::new(),
                 };
                 source.structural = Some(legalized_operations::LegalizedStructuralContract {
+                    result: None,
                     structural_types: vec![StructuralTypeDeclaration {
                         id: structural_type,
                         identity: "Record".into(),

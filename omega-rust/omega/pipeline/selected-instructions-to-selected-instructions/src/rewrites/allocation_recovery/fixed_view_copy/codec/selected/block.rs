@@ -26,7 +26,10 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
             bytes.push(0);
             bytes.extend_from_slice(&source.get().to_le_bytes());
         }
-        SelectedBlockOrigin::CaseDispatch { source, case_ordinal } => {
+        SelectedBlockOrigin::CaseDispatch {
+            source,
+            case_ordinal,
+        } => {
             bytes.push(2);
             bytes.extend_from_slice(&source.get().to_le_bytes());
             bytes.extend_from_slice(&case_ordinal.to_le_bytes());
@@ -110,7 +113,8 @@ pub(super) fn decode_block(
             target: decode_id(cursor, BlockId::new)?,
         },
         2 => SelectedBlockOrigin::CaseDispatch {
-            source: decode_id(cursor, BlockId::new)?, case_ordinal: cursor.u32()?,
+            source: decode_id(cursor, BlockId::new)?,
+            case_ordinal: cursor.u32()?,
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownBlockOrigin(tag)),
     };

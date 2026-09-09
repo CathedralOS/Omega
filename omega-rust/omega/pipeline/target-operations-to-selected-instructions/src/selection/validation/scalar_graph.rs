@@ -8,8 +8,8 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
-mod byte_input;
 mod aggregate_return;
+mod byte_input;
 mod byte_output;
 mod control;
 mod process_exit;
@@ -71,7 +71,12 @@ pub(in crate::selection) fn validate(
     register_entry::validate(source, &environment, catalog, &mut replay)?;
     scalar_stack::entry(source, &mut replay)?;
     // Check the predeclared destination roster before any edge refers to it.
-    for block in selected.blocks.iter().filter(|block| matches!(block.origin, selected_instructions::SelectedBlockOrigin::Source(_))) {
+    for block in selected.blocks.iter().filter(|block| {
+        matches!(
+            block.origin,
+            selected_instructions::SelectedBlockOrigin::Source(_)
+        )
+    }) {
         let source_block = source
             .blocks
             .iter()
@@ -96,7 +101,12 @@ pub(in crate::selection) fn validate(
                 .push((parameter.value, id, parameter.site, parameter.scalar_type));
         }
     }
-    for block in selected.blocks.iter().filter(|block| matches!(block.origin, selected_instructions::SelectedBlockOrigin::Source(_))) {
+    for block in selected.blocks.iter().filter(|block| {
+        matches!(
+            block.origin,
+            selected_instructions::SelectedBlockOrigin::Source(_)
+        )
+    }) {
         let source_block = source
             .blocks
             .iter()
@@ -106,7 +116,7 @@ pub(in crate::selection) fn validate(
         if block.id != SelectedBlockId(0) {
             replay.block_cursor = 0;
         }
-        if !crate::unobserved_owned_input::accepts(source) {
+        if source.ranked.is_none() && !crate::unobserved_owned_input::accepts(source) {
             structural::block_entry(source_block, &mut replay)?;
         }
         for (operation_index, operation) in source_block.instructions.iter().enumerate() {

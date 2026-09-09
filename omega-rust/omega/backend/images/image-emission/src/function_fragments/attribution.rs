@@ -118,11 +118,12 @@ pub(super) fn produce(
                 when_fallthrough,
                 ..
             } => {
-                if [when_taken, when_fallthrough].iter().any(|successor|
+                if [when_taken, when_fallthrough].iter().any(|successor| {
                     successor.role != SelectedSuccessorRole::Semantic
                         && !(successor.role == SelectedSuccessorRole::CaseDispatchContinuation
-                            && successor.fuel.is_empty() && successor.bindings.is_empty()))
-                {
+                            && successor.fuel.is_empty()
+                            && successor.bindings.is_empty())
+                }) {
                     return Err(Error::Mismatch(
                         "conditional successor has nonsemantic attribution role",
                     ));
@@ -136,11 +137,13 @@ pub(super) fn produce(
                 let FunctionFragmentBranchEvidence::Conditional(branch) = branch else {
                     return Err(Error::Mismatch("conditional has jump evidence"));
                 };
-                if when_fallthrough.role == SelectedSuccessorRole::Semantic { push(
-                    SemanticCodeSite::Edge(when_fallthrough.psi_edge),
-                    host(branch.when_fallthrough_offset)?,
-                    0,
-                )?; }
+                if when_fallthrough.role == SelectedSuccessorRole::Semantic {
+                    push(
+                        SemanticCodeSite::Edge(when_fallthrough.psi_edge),
+                        host(branch.when_fallthrough_offset)?,
+                        0,
+                    )?;
+                }
             }
             Control::DirectInternalCall { .. } | Control::None => {}
         }
@@ -245,18 +248,21 @@ pub(super) fn validate(
                 when_fallthrough,
                 ..
             } => {
-                if [when_taken, when_fallthrough].iter().any(|successor|
+                if [when_taken, when_fallthrough].iter().any(|successor| {
                     successor.role != SelectedSuccessorRole::Semantic
                         && !(successor.role == SelectedSuccessorRole::CaseDispatchContinuation
-                            && successor.fuel.is_empty() && successor.bindings.is_empty()))
-                {
+                            && successor.fuel.is_empty()
+                            && successor.bindings.is_empty())
+                }) {
                     return Err(Error::Mismatch(
                         "conditional successor has nonsemantic attribution role",
                     ));
                 }
-                [when_taken, when_fallthrough].into_iter()
+                [when_taken, when_fallthrough]
+                    .into_iter()
                     .filter(|successor| successor.role == SelectedSuccessorRole::Semantic)
-                    .map(|successor| successor.psi_edge).collect()
+                    .map(|successor| successor.psi_edge)
+                    .collect()
             }
             Control::DirectInternalCall { .. } | Control::None => Vec::new(),
         };

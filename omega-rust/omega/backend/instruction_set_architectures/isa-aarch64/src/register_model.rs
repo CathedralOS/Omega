@@ -118,12 +118,22 @@ pub fn aarch64_darwin_register_call_keys() -> Vec<RegisterConstraintKey> {
 /// Complete integer-bank result fragments, ordered by fragment count then input arity.
 pub fn aarch64_register_aggregate_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let first = if darwin { 1020 } else { 1000 };
-    (first..first + 18).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Call, variant }).collect()
+    (first..first + 18)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
+        })
+        .collect()
 }
 
 pub fn aarch64_register_aggregate_return_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let first = if darwin { 12 } else { 10 };
-    (first..first + 2).map(|variant| RegisterConstraintKey { family: RegisterConstraintFamily::Return, variant }).collect()
+    (first..first + 2)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Return,
+            variant,
+        })
+        .collect()
 }
 
 /// Register-only Unit call keys, indexed by argument count.
@@ -1178,28 +1188,58 @@ pub fn aarch64_register_constraint_catalog(
         .expect("canonical ABI call row")
         .clone();
     for darwin in [false, true] {
-        for (index, key) in aarch64_register_aggregate_call_keys(darwin).into_iter().enumerate() {
+        for (index, key) in aarch64_register_aggregate_call_keys(darwin)
+            .into_iter()
+            .enumerate()
+        {
             let arity = index % 9;
             let result_count = index / 9 + 1;
-            let mut call = if darwin { abi_call.clone() } else { scalar_call.clone() };
+            let mut call = if darwin {
+                abi_call.clone()
+            } else {
+                scalar_call.clone()
+            };
             call.key = key;
-            call.operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"].into_iter().take(arity).enumerate()
+            call.operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+                .into_iter()
+                .take(arity)
+                .enumerate()
                 .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
-                .chain(["x0", "x1"].into_iter().take(result_count).enumerate().map(|(index, name)| fixed((arity + index) as u16, RegisterOperandAccess::Def, name))).collect();
+                .chain(["x0", "x1"].into_iter().take(result_count).enumerate().map(
+                    |(index, name)| fixed((arity + index) as u16, RegisterOperandAccess::Def, name),
+                ))
+                .collect();
             // Each returned fragment is an explicit post-call definition, not
             // an unknown architectural clobber competing for the same point.
             // Keep all caller-saved units outside the actual result untouched.
             for name in ["x0", "x1"].into_iter().take(result_count) {
-                call.clobbers.retain(|unit| !view(name).write_units.contains(unit));
+                call.clobbers
+                    .retain(|unit| !view(name).write_units.contains(unit));
             }
             constraints.push(call);
         }
-        let source_key = if darwin { AARCH64_DARWIN_RETURN } else { AARCH64_AAPCS64_RETURN };
-        let returned = constraints.iter().find(|row| row.key == source_key).expect("canonical return row").clone();
-        for (index, key) in aarch64_register_aggregate_return_keys(darwin).into_iter().enumerate() {
+        let source_key = if darwin {
+            AARCH64_DARWIN_RETURN
+        } else {
+            AARCH64_AAPCS64_RETURN
+        };
+        let returned = constraints
+            .iter()
+            .find(|row| row.key == source_key)
+            .expect("canonical return row")
+            .clone();
+        for (index, key) in aarch64_register_aggregate_return_keys(darwin)
+            .into_iter()
+            .enumerate()
+        {
             let mut row = returned.clone();
             row.key = key;
-            row.operands = ["x0", "x1"].into_iter().take(index + 1).enumerate().map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name)).collect();
+            row.operands = ["x0", "x1"]
+                .into_iter()
+                .take(index + 1)
+                .enumerate()
+                .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
+                .collect();
             constraints.push(row);
         }
     }
@@ -1479,16 +1519,33 @@ mod tests {
         let catalog = aarch64_register_constraint_catalog(&model);
         let second = model.model().view_named("x1").unwrap();
         let scratch = model.model().view_named("x2").unwrap();
-        for (ordinal, key) in [false, true].into_iter().flat_map(aarch64_register_aggregate_call_keys).enumerate() {
+        for (ordinal, key) in [false, true]
+            .into_iter()
+            .flat_map(aarch64_register_aggregate_call_keys)
+            .enumerate()
+        {
             let fragments = ordinal % 18 / 9 + 1;
             let call = row(&catalog, key);
-            assert_eq!(call.operands.iter().filter(|operand| operand.access == RegisterOperandAccess::Def).count(), fragments);
+            assert_eq!(
+                call.operands
+                    .iter()
+                    .filter(|operand| operand.access == RegisterOperandAccess::Def)
+                    .count(),
+                fragments
+            );
             for unit in &second.write_units {
                 assert_eq!(call.clobbers.contains(unit), fragments == 1, "{key:?}");
             }
-            assert!(scratch.write_units.iter().all(|unit| call.clobbers.contains(unit)));
+            assert!(
+                scratch
+                    .write_units
+                    .iter()
+                    .all(|unit| call.clobbers.contains(unit))
+            );
             let mut altered = catalog.clone();
-            row_mut(&mut altered, key).clobbers.retain(|unit| !scratch.write_units.contains(unit));
+            row_mut(&mut altered, key)
+                .clobbers
+                .retain(|unit| !scratch.write_units.contains(unit));
             assert!(validate_aarch64_register_constraint_catalog(altered, &model).is_err());
         }
     }
@@ -1568,6 +1625,10 @@ mod tests {
             AARCH64_REQUIRED_REGISTER_CONSTRAINTS.len()
                 + aarch64_aapcs64_mixed_unit_call_keys().len()
                 + aarch64_darwin_mixed_unit_call_keys().len()
+                + aarch64_register_aggregate_call_keys(false).len()
+                + aarch64_register_aggregate_call_keys(true).len()
+                + aarch64_register_aggregate_return_keys(false).len()
+                + aarch64_register_aggregate_return_keys(true).len()
         );
 
         let call = row(catalog, AARCH64_AAPCS64_CALL);

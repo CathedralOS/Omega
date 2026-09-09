@@ -302,8 +302,14 @@ pub(super) fn validate(
             }
             continue;
         }
-        if matches!(node.operation, AbstractOperation::EstablishScalarCase { .. } | AbstractOperation::CallStructural { .. }) {
-            if result.is_some() || !node.definitions.is_empty() { return Err(invalid); }
+        if matches!(
+            node.operation,
+            AbstractOperation::EstablishScalarCase { .. }
+                | AbstractOperation::CallStructural { .. }
+        ) {
+            if result.is_some() || !node.definitions.is_empty() {
+                return Err(invalid);
+            }
             continue;
         }
         if let AbstractOperation::CallUnit {

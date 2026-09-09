@@ -2,9 +2,7 @@
 
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
-use abstract_operations_to_target_operations::{
-    LoweringError as TargetLoweringError, lower_to_target_operations,
-};
+use abstract_operations_to_target_operations::lower_to_target_operations;
 use checked_trees_to_lowered_psi::lower_machine;
 use optimization_unit::recompute_psi_optimization_unit_identity;
 use optimization_unit_semantics::{
@@ -21,7 +19,7 @@ use target::NativeTarget;
 use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, build_verified_psi_optimization_unit,
+    build_verified_psi_optimization_unit,
     lower_artifact_sections, lower_artifact_sections_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -94,24 +92,20 @@ fn assert_structural_call_rejects(mut unit: optimization_unit::PsiOptimizationUn
 }
 
 #[test]
-fn source_payloadless_producer_enters_optimizer_while_ordinary_lowering_stays_fenced() {
+fn source_payloadless_producer_retains_ordinary_and_optimizer_custody() {
     let lowered = lowered_source(SOURCE, "Root::choose");
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
-    assert!(matches!(
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()),
-        Err(ArtifactLoweringError::Lowering(
-            LoweringError::UnsupportedPayloadlessCase(_)
-        ))
-    ));
+    lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("ordinary lowering retains the same payloadless constructor");
 
     let optimizer_input =
         lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
             .expect("optimizer-only lowering retains the exact producer");
-    assert!(matches!(
-        lower_to_target_operations(optimizer_input.plan(), NativeTarget::linux_x64()),
-        Err(TargetLoweringError::UnsupportedStructuralReturn(_))
-    ));
+    let targeted = lower_to_target_operations(optimizer_input.plan(), NativeTarget::linux_x64())
+        .expect("payloadless results use the same ordinary aggregate path");
+    assert!(targeted.functions.iter().all(|function|
+        matches!(function.operation, target_operations::TargetOperation::ControlGraph(_))));
 
     let verified = optimizer_unit(&lowered);
     validate_verified_psi_optimization_unit(&verified)
@@ -123,7 +117,7 @@ fn source_payloadless_producer_enters_optimizer_while_ordinary_lowering_stays_fe
 }
 
 #[test]
-fn source_scalar_payload_constructor_stops_at_the_abstract_boundary() {
+fn source_scalar_payload_constructor_retains_exact_abstract_fields() {
     let lowered = lowered_source(
         r#"
         data LineReadResult {
@@ -154,16 +148,24 @@ fn source_scalar_payload_constructor_stops_at_the_abstract_boundary() {
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
     for result in [
-        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()).map(|_| ()),
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()),
         lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
-            .map(|_| ()),
+            .map(|input| input.plan().clone()),
     ] {
-        assert!(
-            matches!(result,
-            Err(ArtifactLoweringError::Lowering(LoweringError::UnsupportedScalarCase(operation)))
-                if operation == producer),
-            "the verified payload must not become a payloadless abstract case: {result:?}"
-        );
+        let result = result.expect("ordinary scalar payload reaches the shared abstract graph");
+        let retained = result.functions.iter().flat_map(|function| &function.operations)
+            .find_map(|operation| match operation {
+                AbstractOperation::EstablishScalarCase { psi_operation, fields, .. }
+                    if *psi_operation == producer => Some(fields),
+                _ => None,
+            }).unwrap();
+        let authored = lowered.semantic_module.machines.iter().flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations).find_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::EstablishScalarCase { fields, .. }
+                    if operation.id == producer => Some(fields),
+                _ => None,
+            }).unwrap();
+        assert_eq!(retained, authored, "field and SSA identities survive abstraction");
     }
 }
 
@@ -321,8 +323,7 @@ fn guarded_source_call_replays_exact_classifier_and_rejects_independent_corrupti
             )
         })
         .expect("callee retains its case producer");
-    let AbstractOperation::EstablishScalarCase { result_case, .. } = &mut producer.operation
-    else {
+    let AbstractOperation::EstablishScalarCase { result_case, .. } = &mut producer.operation else {
         unreachable!()
     };
     *result_case = StructuralCaseId::new(99_002).unwrap();

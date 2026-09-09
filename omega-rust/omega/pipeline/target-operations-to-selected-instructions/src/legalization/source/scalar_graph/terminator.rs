@@ -5,11 +5,20 @@ pub(super) fn project(
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     match &node.operation {
-        AbstractOperation::ReturnStructural { psi_edge, source, .. } => {
-            let (defining_operation, result) = scalar_graph_input::structural_case::source_result(function, *source)?;
+        AbstractOperation::ReturnStructural {
+            psi_edge, source, ..
+        } => {
+            let (defining_operation, result) =
+                scalar_graph_input::structural_case::source_result(function, *source)?;
             Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
-                edge: *psi_edge, value: LegalizedScalarReturnValue::Structural { defining_operation, result: result.clone() },
-                fuel: node.fuel.clone(), effect: node.effect, ownership: node.ownership.clone(),
+                edge: *psi_edge,
+                value: LegalizedScalarReturnValue::Structural {
+                    defining_operation,
+                    result: result.clone(),
+                },
+                fuel: node.fuel.clone(),
+                effect: node.effect,
+                ownership: node.ownership.clone(),
             }))
         }
         AbstractOperation::StructuralCase { .. } => {

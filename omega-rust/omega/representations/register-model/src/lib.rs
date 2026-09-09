@@ -211,7 +211,10 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Target-owned register-call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no scalar register-call form.
     pub call_i64: Vec<RegisterConstraintKey>,
+    /// Argument-count-major rows, with one- and two-fragment results per count.
+    /// Empty means direct aggregate calls are unsupported in this environment.
     pub call_aggregate: Vec<RegisterConstraintKey>,
+    /// Direct returns indexed by fragment count minus one; no hidden pointer ABI.
     pub return_aggregate: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
@@ -1624,6 +1627,8 @@ mod tests {
         )
         .unwrap();
         let keys = TargetRegisterEnvironmentConstraintKeys {
+            call_aggregate: Vec::new(),
+            return_aggregate: Vec::new(),
             load64: Some(instruction_key(30)),
             load8: None,
             load16: None,
@@ -1747,6 +1752,14 @@ mod tests {
             },
             TargetRegisterEnvironmentConstraintKeys {
                 call_i64: Vec::new(),
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                call_aggregate: vec![instruction_key(30)],
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                return_aggregate: vec![instruction_key(31)],
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {

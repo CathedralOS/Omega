@@ -1,4 +1,4 @@
-//! Canonical installation shape for selected borrowed-pointer Unit functions.
+//! Canonical installation shape for selected borrowed-pointer functions.
 //! These records cannot establish source authority: installation validation must
 //! still join every field and byte to the independently admitted executable image.
 
@@ -101,8 +101,10 @@ pub(super) fn pointer_location(placement: &ValuePlacement) -> Option<IndirectPoi
 
 fn combined_plan(function: &InstalledFunction, target: target::NativeTarget) -> Option<CallPlan> {
     let mut parameters = Vec::new();
-    if let Some(abi) = &function.unit_scalar_abi {
-        if abi.parameters.is_empty() || !abi.entry_register_spills.is_empty() {
+    if let Some(abi) = &function.parameter_abi {
+        if abi.parameters.is_empty() && abi.call_plan.result.is_none()
+            || !abi.entry_register_spills.is_empty()
+        {
             return None;
         }
         for (parameter_index, parameter) in abi.parameters.iter().enumerate() {
@@ -126,7 +128,23 @@ fn combined_plan(function: &InstalledFunction, target: target::NativeTarget) -> 
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters,
-            result: None,
+            // The complete image join establishes the result declaration and
+            // physical return. This local check only reconstructs ABI shape;
+            // it must not replace a structural result with Unit or a scalar.
+            result: match function
+                .parameter_abi
+                .as_ref()
+                .and_then(|abi| abi.call_plan.result.as_ref())
+            {
+                None => None,
+                Some(result)
+                    if result.shape.class == ValueClass::Integer
+                        && matches!(result.shape.byte_size, 4 | 8 | 12 | 16) =>
+                {
+                    Some(result.shape)
+                }
+                Some(_) => return None,
+            },
         },
     )
     .ok()
@@ -154,8 +172,6 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         || !function.unit_structural_scalar_field_stores.is_empty()
         || !function.unit_write_only_primitive_stores.is_empty()
         || !function.scalar_structural_scalar_field_stores.is_empty()
-        || function.scalar_stack.is_some()
-        || !function.scalar_call_stacks.is_empty()
         || !function.foreign_call_stacks.is_empty()
         || function.byte_count == 0
     {
@@ -165,10 +181,10 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         return false;
     };
     let scalar_count = function
-        .unit_scalar_abi
+        .parameter_abi
         .as_ref()
         .map_or(0, |abi| abi.parameters.len());
-    if function.unit_scalar_abi.as_ref().is_some_and(|abi| {
+    if function.parameter_abi.as_ref().is_some_and(|abi| {
         abi.call_plan != plan
             || abi
                 .parameters
@@ -227,19 +243,79 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         .iter()
         .filter(|call| call.machine == function.machine)
         .collect::<Vec<_>>();
-    let Some(stack) = function.unit_stack else {
-        return false;
-    };
     let linkage = if record.target.architecture == target::Architecture::X86_64 {
         8
     } else {
         0
     };
-    stack.stack_alignment == 16
+    let call_attribution_is_exact = |owner, text_offset| {
+        let target_operations::CallSiteOwner::Operation(operation) = owner else {
+            return false;
+        };
+        record
+            .semantic_code_attribution
+            .iter()
+            .filter(|row| {
+                row.machine == function.machine
+                    && row.attribution.site == machine_code::SemanticCodeSite::Operation(operation)
+                    && function
+                        .text_offset
+                        .checked_add(row.attribution.code_offset)
+                        .is_some_and(|start| {
+                            start <= text_offset
+                                && start
+                                    .checked_add(row.attribution.byte_count)
+                                    .is_some_and(|end| text_offset < end)
+                        })
+            })
+            .count()
+            == 1
+    };
+    let displacement = usize::from(record.target.architecture == target::Architecture::X86_64);
+    if plan.result.is_some() {
+        let Some(stack) = function.scalar_stack else {
+            return false;
+        };
+        return function.unit_stack.is_none()
+            && function.unit_call_stacks.is_empty()
+            && stack.stack_alignment == 16
+            && calls.iter().all(|call| {
+                function
+                    .scalar_call_stacks
+                    .iter()
+                    .filter(|site| {
+                        call.custody.owner == site.owner
+                            && call.custody.target == site.target
+                            && call.text_offset.checked_add(displacement) == Some(site.text_offset)
+                    })
+                    .count()
+                    == 1
+            })
+            && function.scalar_call_stacks.iter().all(|site| {
+                site.caller_live_bytes <= stack.local_peak_bytes
+                    && site
+                        .caller_live_bytes
+                        .checked_sub(linkage)
+                        .is_some_and(|frame| frame.is_multiple_of(8))
+                    && call_attribution_is_exact(site.owner, site.text_offset)
+            })
+            && function
+                .scalar_call_stacks
+                .iter()
+                .map(|site| site.caller_live_bytes)
+                .max()
+                .is_none_or(|peak| peak == stack.local_peak_bytes);
+    }
+    let Some(stack) = function.unit_stack else {
+        return false;
+    };
+    function.scalar_stack.is_none()
+        && function.scalar_call_stacks.is_empty()
+        && stack.stack_alignment == 16
         && stack.frame_bytes.is_multiple_of(8)
         // The stack roster covers every ordinary call. Legacy argument-custody
-        // records cover only calls with structural transport (and Unit calls),
-        // not scalar-only calls returning fresh aggregates. Require every such
+        // records cover Unit calls and scalar-returning structural calls,
+        // not calls returning fresh aggregates. Require every such
         // record to join one stack site, without inventing a legacy result home.
         // Unrepresented calls still need exact operation attribution below;
         // the enclosing installation/image join and retained physical replay
@@ -247,26 +323,14 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         && calls.iter().all(|call| {
             function.unit_call_stacks.iter().filter(|site| {
                 call.custody.owner == site.owner && call.custody.target == site.target
-                    && call.text_offset == site.text_offset
+                    && call.text_offset.checked_add(displacement) == Some(site.text_offset)
             }).count() == 1
         })
         && function.unit_call_stacks.iter().all(|site| {
             site.active_frame_bytes == stack.frame_bytes
                 && site.transient_bytes == linkage
                 && stack.frame_bytes.checked_add(linkage) == Some(site.caller_live_bytes)
-                && match site.owner {
-                    target_operations::CallSiteOwner::Operation(operation) => {
-                        record.semantic_code_attribution.iter().filter(|row| {
-                            row.machine == function.machine
-                                && row.attribution.site == machine_code::SemanticCodeSite::Operation(operation)
-                                && function.text_offset.checked_add(row.attribution.code_offset).is_some_and(|start| {
-                                    start <= site.text_offset
-                                        && start.checked_add(row.attribution.byte_count).is_some_and(|end| site.text_offset < end)
-                                })
-                        }).count() == 1
-                    }
-                    _ => false,
-                }
+                && call_attribution_is_exact(site.owner, site.text_offset)
         })
         && stack.local_peak_bytes
             == function

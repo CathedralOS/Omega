@@ -5,8 +5,8 @@ use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOper
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
-mod structural_case;
 mod scalar_sums;
+mod structural_case;
 mod unobserved_owned;
 pub(super) use unobserved_owned::{arrivals as unobserved_owned_arrivals, scalar_cleanup_retained};
 #[cfg(test)]
@@ -170,15 +170,15 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         if let Some(abi) = &targeted.mixed_structural_scalar_abi {
             super::mixed_scalar_abi::admit(abstracted, targeted, selected, abi)?;
         }
-        if unit && !abstracted.parameters.is_empty() && ranked.is_none() {
-            let (call_plan, scalar_parameters, structural_parameters) = unit_scalar_abi(targeted)
+        if (unit && !abstracted.parameters.is_empty() || aggregate_result) && ranked.is_none() {
+            let (call_plan, scalar_parameters, structural_parameters) = parameter_abi(targeted)
                 .ok_or(Error::Mismatch(
-                "parameterized Unit function has no retained scalar ABI",
-            ))?;
+                    "parameterized Unit function has no retained scalar ABI",
+                ))?;
             if scalar_parameters.len() != abstracted.parameters.len()
                 || call_plan.parameters.len()
                     != abstracted.parameters.len() + abstracted.structural_parameters.len()
-                || call_plan.result.is_some()
+                || call_plan.result.is_some() != aggregate_result
                 || structural_parameters.len() != abstracted.structural_parameters.len()
                 || structural.is_some_and(|contract| {
                     contract.parameters.len() != structural_parameters.len()
@@ -206,7 +206,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     "Unit scalar ABI differs from current source",
                 ));
             }
-        } else if unit_scalar_abi(targeted).is_some() {
+        } else if parameter_abi(targeted).is_some() {
             return Err(Error::Mismatch("unexpected Unit scalar ABI"));
         }
         for operation in &abstracted.operations {
@@ -453,7 +453,7 @@ pub(super) fn ranked_record(
 }
 
 /// Borrow already validated target ABI facts; this does not construct an ABI plan.
-pub(super) fn unit_scalar_abi(
+pub(super) fn parameter_abi(
     function: &target_operations::TargetFunction,
 ) -> Option<(
     &calling_conventions::CallPlan,
@@ -467,7 +467,10 @@ pub(super) fn unit_scalar_abi(
             Some((&body.call_plan, &body.scalar_parameters, &body.parameters))
         }
         target_operations::TargetOperation::ControlGraph(graph)
-            if graph.call_plan.result.is_none() && !graph.scalar_parameters.is_empty() =>
+            if graph.call_plan.result.is_none() && !graph.scalar_parameters.is_empty()
+                || graph.call_plan.result.is_some()
+                    && function.scalar_abi.is_none()
+                    && function.mixed_structural_scalar_abi.is_none() =>
         {
             Some((
                 &graph.call_plan,

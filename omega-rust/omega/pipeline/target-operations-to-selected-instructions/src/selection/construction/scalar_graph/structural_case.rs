@@ -31,7 +31,10 @@ pub(super) fn build(
         return Err(invalid());
     };
     if cases.len() < 2
-        || cases.iter().enumerate().any(|(ordinal, case)| usize::try_from(case.case_tag) != Ok(ordinal))
+        || cases
+            .iter()
+            .enumerate()
+            .any(|(ordinal, case)| usize::try_from(case.case_tag) != Ok(ordinal))
         || layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
@@ -93,14 +96,28 @@ pub(super) fn build(
     for ordinal in 0..cases.len() - 1 {
         let start = builder.instructions.len();
         if ordinal == 0 {
-            builder.emit(SelectedInstructionKind::CompareI64Zero,
-                builder.constraints.keys.compare_i64_zero, &[tag], Default::default())?;
+            builder.emit(
+                SelectedInstructionKind::CompareI64Zero,
+                builder.constraints.keys.compare_i64_zero,
+                &[tag],
+                Default::default(),
+            )?;
         } else {
             let expected = register(builder, result.place, 0, 64, false)?;
-            builder.emit(SelectedInstructionKind::MaterializeI64 { value: semantic_vocabulary::IntegerValue::Unsigned(ordinal as u128) },
-                builder.constraints.keys.materialize_i64, &[expected], Default::default())?;
-            builder.emit(SelectedInstructionKind::CompareI64,
-                builder.constraints.keys.compare_i64, &[tag, expected], Default::default())?;
+            builder.emit(
+                SelectedInstructionKind::MaterializeI64 {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(ordinal as u128),
+                },
+                builder.constraints.keys.materialize_i64,
+                &[expected],
+                Default::default(),
+            )?;
+            builder.emit(
+                SelectedInstructionKind::CompareI64,
+                builder.constraints.keys.compare_i64,
+                &[tag, expected],
+                Default::default(),
+            )?;
         }
         let when_zero = successor(source, order, builder, slot, &cases[ordinal])?;
         let when_nonzero = if ordinal + 2 == cases.len() {
@@ -111,23 +128,36 @@ pub(super) fn build(
                 psi_edge: cases[ordinal + 1].edge,
                 source_target: block.id,
                 block: SelectedBlockId((extra_base + ordinal).try_into().map_err(|_| invalid())?),
-                bindings: Vec::new(), structural_bindings: Vec::new(), fuel: Vec::new(), structural_case: None,
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                fuel: Vec::new(),
+                structural_case: None,
             }
         };
-        builder.emit(SelectedInstructionKind::ConditionalBranchNonZero,
-            builder.constraints.keys.conditional_branch, &[], Default::default())?;
+        builder.emit(
+            SelectedInstructionKind::ConditionalBranchNonZero,
+            builder.constraints.keys.conditional_branch,
+            &[],
+            Default::default(),
+        )?;
         let terminator = SelectedTerminator::ConditionalBranch {
             instruction: builder.instructions.last().cloned().ok_or_else(invalid)?,
-            when_zero, when_nonzero,
+            when_zero,
+            when_nonzero,
         };
         if ordinal == 0 {
             builder.case_body_end = Some(builder.instructions.len() - 1);
             first = Some(terminator);
         } else {
             builder.case_blocks.push(SelectedBlock {
-                id: SelectedBlockId((extra_base + ordinal - 1).try_into().map_err(|_| invalid())?),
+                id: SelectedBlockId(
+                    (extra_base + ordinal - 1)
+                        .try_into()
+                        .map_err(|_| invalid())?,
+                ),
                 origin: selected_instructions::SelectedBlockOrigin::CaseDispatch {
-                    source: block.id, case_ordinal: ordinal.try_into().map_err(|_| invalid())?,
+                    source: block.id,
+                    case_ordinal: ordinal.try_into().map_err(|_| invalid())?,
                 },
                 instructions: builder.instructions[start..builder.instructions.len() - 1].to_vec(),
                 terminator,

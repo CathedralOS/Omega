@@ -51,6 +51,7 @@ fn structural_function() -> SelectedFunction {
     };
     function.virtual_registers.push(pointer);
     function.structural = Some(LegalizedStructuralContract {
+        result: None,
         structural_types: Vec::new(),
         parameters: Vec::new(),
         structural_places: Vec::new(),
@@ -61,6 +62,7 @@ fn structural_function() -> SelectedFunction {
         instruction: SelectedInstructionId(0),
         operation: OperationId::new(41).unwrap(),
         call: LegalizedScalarCall {
+            structural_result: None,
             source: LegalizedCallUnitSource::AuthoredCallUnit,
             callee: MachineId::new(42).unwrap(),
             call_plan: call_plan(&[MachineRegister::X86Rax, MachineRegister::X86Rcx], 0x4567),

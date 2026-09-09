@@ -40,7 +40,16 @@ pub(super) fn validate(
                     return Err(invalid());
                 }
                 let (kind, key, operands, values) = match returned.value {
-                    LegalizedScalarReturnValue::Structural { .. } => return super::aggregate_return::validate(source, block, returned, replay, environment, catalog),
+                    LegalizedScalarReturnValue::Structural { .. } => {
+                        return super::aggregate_return::validate(
+                            source,
+                            block,
+                            returned,
+                            replay,
+                            environment,
+                            catalog,
+                        );
+                    }
                     LegalizedScalarReturnValue::Unit => (
                         SelectedInstructionKind::ReturnUnit,
                         keys.return_unit,
@@ -318,7 +327,9 @@ fn check_successor(
         .selected
         .blocks
         .iter()
-        .filter(|block| block.origin == selected_instructions::SelectedBlockOrigin::Source(source.target))
+        .filter(|block| {
+            block.origin == selected_instructions::SelectedBlockOrigin::Source(source.target)
+        })
         .collect::<Vec<_>>();
     let [block] = matches.as_slice() else {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
@@ -418,24 +429,36 @@ pub(super) fn block_order(
         if actual.id.0 as usize != position {
             return Err(invalid);
         }
-        if actual.origin != selected_instructions::SelectedBlockOrigin::Source(source.blocks[order[position]].id) {
+        if actual.origin
+            != selected_instructions::SelectedBlockOrigin::Source(source.blocks[order[position]].id)
+        {
             return Err(invalid);
         }
     }
     let mut extra = source.blocks.len();
     for source_position in order {
         let block = &source.blocks[source_position];
-        if let legalized_operations::LegalizedScalarTerminator::StructuralCase { cases, .. } = &block.terminator {
+        if let legalized_operations::LegalizedScalarTerminator::StructuralCase { cases, .. } =
+            &block.terminator
+        {
             for ordinal in 1..cases.len().saturating_sub(1) {
                 let actual = selected.blocks.get(extra).ok_or(invalid.clone())?;
-                if actual.id.0 as usize != extra || actual.origin != (selected_instructions::SelectedBlockOrigin::CaseDispatch {
-                    source: block.id, case_ordinal: ordinal.try_into().map_err(|_| invalid.clone())?,
-                }) { return Err(invalid); }
+                if actual.id.0 as usize != extra
+                    || actual.origin
+                        != (selected_instructions::SelectedBlockOrigin::CaseDispatch {
+                            source: block.id,
+                            case_ordinal: ordinal.try_into().map_err(|_| invalid.clone())?,
+                        })
+                {
+                    return Err(invalid);
+                }
                 extra += 1;
             }
         }
     }
-    if extra != selected.blocks.len() { return Err(invalid); }
+    if extra != selected.blocks.len() {
+        return Err(invalid);
+    }
     Ok(())
 }
 

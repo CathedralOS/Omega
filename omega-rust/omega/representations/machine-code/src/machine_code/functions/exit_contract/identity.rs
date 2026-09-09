@@ -10,7 +10,7 @@ use super::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v12\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v13\0";
 
 pub fn whole_function_exit_contract_identity(
     contract: &WholeFunctionExitContract,
