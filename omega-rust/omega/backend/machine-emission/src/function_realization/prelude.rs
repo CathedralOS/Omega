@@ -25,7 +25,6 @@ pub(super) use crate::{
 pub(super) use crate::{
     ValidatedWholeFunctionExitContract, WholeFunctionExitContractError,
     stage_whole_function_exit_contract_for_layout,
-    validate_whole_function_exit_contract_for_layout,
 };
 pub(super) use machine_code::{
     ResolvedMachineLayout, ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
