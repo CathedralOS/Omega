@@ -1,7 +1,9 @@
-# 0005: Matching-logic proof interchange experiment
+# Exploring matching-logic proof interchange
 
-Status: open research; no new calculus, kernel replacement, or implementation
-experiment is approved by this proposal. Affected subjects:
+Purpose: retain research background and possible comparison methods for matching
+logic. This is not a concrete integration proposal or authorization for a new
+calculus, kernel replacement, or implementation experiment. Delete these notes
+when superseded by a concrete design or no longer useful. Related subjects:
 [proof contracts](../spec/proofs/contracts.md) and
 [artifact verification](../spec/terminal-psi/verification.md).
 
@@ -23,10 +25,11 @@ calculus; it does not establish non-axiomatizability of every fixpoint-free
 many-sorted calculus. Omega's nominal declaration identities are not the
 hybrid-model nominals discussed by the paper.
 
-## Bounded comparison
+## Possible bounded comparison
 
-Use one real vertical slice with scalar propositions, equality, quantification,
-a Terminal state transition, and a reconstructed refinement obligation. The
+An informative comparison would use one real vertical slice with scalar
+propositions, equality, quantification, a Terminal state transition, and a
+reconstructed refinement obligation. The
 artifact verifier derives the theory and goal from canonical subjects; a proof
 producer cannot supply its own weaker question.
 
@@ -52,8 +55,8 @@ completeness theorem supplies no Omega authority merely by being cited.
 
 ## Possible outcomes and alternatives
 
-The experiment may justify an untrusted proof producer, an independent semantic
-cross-check, or a proof-import route. A checked source proof with a trusted
+A future comparison might motivate an untrusted proof producer, an independent
+semantic cross-check, or a proof-import route. A checked source proof with a trusted
 translation retains a translation admission; an imported statement alone is a
 foreign-theorem admission. Neither is independently checked translation.
 
