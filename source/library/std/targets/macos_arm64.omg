@@ -3,3 +3,4 @@
 // implementations live beneath `std/targets/macos_arm64/`). Target filtering
 // keeps non-selected implementations inert.
 use targets::macos_arm64::filesystem_impl;
+use targets::macos_arm64::entry;

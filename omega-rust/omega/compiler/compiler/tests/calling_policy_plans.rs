@@ -15,6 +15,9 @@ use provider_planning::plans::{
 use std::fs;
 use std::path::PathBuf;
 
+#[path = "calling_policy_plans/macos_entry.rs"]
+mod macos_entry;
+
 use semantic_vocabulary::PackageKeyIdentity;
 
 fn write_program(name: &str, source: &str) -> PathBuf {
