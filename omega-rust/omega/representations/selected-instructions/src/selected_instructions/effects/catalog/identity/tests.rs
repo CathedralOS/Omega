@@ -23,6 +23,8 @@ fn keys() -> SelectedConstraintKeys {
         hosted_write_byte_i32: Some(instruction(24)),
         hosted_exit_process_i32: Some(instruction(32)),
         load64: Some(instruction(20)),
+        load8: Some(instruction(34)),
+        load16: Some(instruction(35)),
         load32: Some(instruction(27)),
         load8_indexed: Some(instruction(23)),
         store: Some(instruction(25)),
@@ -227,4 +229,26 @@ fn identity_distinguishes_call_arity_order_and_role_boundaries() {
         relabeled.selected_keys.in_identity_order()
     );
     assert_ne!(baseline, machine_effect_catalog_identity(&relabeled));
+}
+
+#[test]
+fn identity_distinguishes_narrow_load_keys_and_semantics() {
+    let source = catalog();
+    let baseline = machine_effect_catalog_identity(&source);
+    for mutation in 0..3 {
+        let mut changed = source.clone();
+        match mutation {
+            0 => changed.selected_keys.load8 = None,
+            1 => changed.selected_keys.load16 = None,
+            _ => {
+                let load = changed
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == MachineSemanticKind::Load8)
+                    .unwrap();
+                load.semantic = MachineSemanticKind::Load16;
+            }
+        }
+        assert_ne!(baseline, machine_effect_catalog_identity(&changed));
+    }
 }

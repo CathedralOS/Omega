@@ -211,7 +211,7 @@ pub(super) fn lower(
     };
     match scalar_type {
         ScalarType::Boolean => {
-            live.boolean_homes.insert(result, home);
+            live.scalar_homes.insert(result, home);
         }
         ScalarType::Integer(_) => {
             live.integers.insert(result, KnownUnitInteger::Home(home));

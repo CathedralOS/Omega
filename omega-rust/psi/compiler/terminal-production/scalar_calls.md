@@ -122,8 +122,17 @@ while an earlier immutable snapshot retains its original value. Local assignment
 use the same primitive-store operation as reference parameters. Source replay
 retains declaration, initializer, destination, borrow occurrence, and read identity.
 The interpreter uses fresh activation-local identities and preserves them across
-fuel suspension. The ordinary native graph realizes fixed 64-bit integer locals,
-fresh reads and borrowed calls; other primitive read widths remain unsupported.
+fuel suspension. Ordinary Unit calls rejoin their authored local actual and
+complete borrow event; agreeing cached operands cannot substitute another local.
+Readable primitive-reference initializers retain their original input place,
+independently of dense scalar parameter positions. Write-only reads reject.
+The ordinary native graph realizes fixed 8/16/32/64-bit integer, Boolean, and
+IEEE binary32/binary64 locals, exact-width fresh reads, and borrowed calls.
+[`primitive_local_unit_calls.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/primitive_local_unit_calls.rs)
+checks source/borrow substitutions, crash-route arguments, read access, and
+canonical interpretation with one-unit fuel pauses. Native width and protected-page
+controls live in the
+[`primitive_locals` tests](../../../../tests/native-differential/tests/primitive_locals.rs).
 Checked computation calls retain whole primitive borrows alongside dense scalar
 operands and use the same shared callee closure. Nested calls in ordinary Unit
 operands preserve earlier scalar snapshots, later reads of mutated locals, and

@@ -17,6 +17,8 @@ use super::{
 mod scalar_call;
 
 #[cfg(test)]
+mod narrow_load_tests;
+#[cfg(test)]
 mod tests;
 
 pub(super) fn encode_row(
@@ -32,6 +34,8 @@ pub(super) fn encode_row(
         kind @ (SelectedInstructionKind::Store { .. }
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Load8 { .. }
+        | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::HostedReadByte { .. }

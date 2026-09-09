@@ -2,6 +2,8 @@
 use proof_admission::AdmissionProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 
+#[path = "primitive_locals/literals.rs"]
+mod literals;
 #[cfg(any(
     all(
         target_os = "linux",
@@ -14,6 +16,8 @@ use terminal_codec::CanonicalTerminalArtifact;
 mod native_function;
 #[path = "primitive_locals/publication.rs"]
 mod publication;
+#[path = "primitive_locals/widths.rs"]
+mod widths;
 
 fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
     let tokens = source_files_to_tokens::Lexer::new(source)

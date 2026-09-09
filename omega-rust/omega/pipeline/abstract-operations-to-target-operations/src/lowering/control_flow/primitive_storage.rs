@@ -13,20 +13,29 @@ pub(super) fn is_primitive_reference(
         && parameter.access != StructuralAccess::Owned
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
-        && types.get(&parameter.structural_type).is_some_and(|declaration| {
-            matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                if crate::lowering::scalar_abi::fixed_native_integer_shape(integer).is_some())
-        })
+        && types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
+                if native_shape(scalar).is_some())
+            })
 }
 
 pub(super) fn shape(
     scalar: abstract_operations::AbstractResult,
 ) -> Result<ValueShape, LoweringError> {
-    let ScalarType::Integer(integer) = scalar.scalar_type else {
-        return Err(LoweringError::ValueTypeMismatch(scalar.value));
-    };
-    crate::lowering::scalar_abi::fixed_native_integer_shape(integer)
-        .ok_or(LoweringError::ValueTypeMismatch(scalar.value))
+    native_shape(scalar.scalar_type).ok_or(LoweringError::ValueTypeMismatch(scalar.value))
+}
+
+fn native_shape(scalar: ScalarType) -> Option<ValueShape> {
+    match scalar {
+        ScalarType::Integer(integer) => {
+            crate::lowering::scalar_abi::fixed_native_integer_shape(integer)
+        }
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(ValueShape::float(4)),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(ValueShape::float(8)),
+    }
 }
 
 pub(super) fn retain_result(
@@ -40,11 +49,17 @@ pub(super) fn retain_result(
         scalar_type: result.scalar_type,
         shape: shape(result)?,
     };
-    crate::lowering::unit::scalar_call::insert_known_unit_integer(
-        &mut live.integers,
-        result.value,
-        KnownUnitInteger::Home(home),
-    )
+    if matches!(result.scalar_type, ScalarType::Integer(_)) {
+        crate::lowering::unit::scalar_call::insert_known_unit_integer(
+            &mut live.integers,
+            result.value,
+            KnownUnitInteger::Home(home),
+        )
+    } else if live.scalar_homes.insert(result.value, home).is_some() {
+        Err(LoweringError::DuplicateValue(result.value))
+    } else {
+        Ok(())
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -73,9 +88,8 @@ pub(super) fn lower(
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
                 || !scalar_matches(result.structural_type, value.scalar_type)
-                || live.integers.get(&value.value).is_none_or(|known| {
-                    ScalarType::Integer(known.scalar_type()) != value.scalar_type
-                })
+                || super::scalar_sources::source(value.value, function, live)?.scalar_type()
+                    != value.scalar_type
             {
                 return Err(invalid());
             }
@@ -111,9 +125,8 @@ pub(super) fn lower(
         } => {
             let home = live.structural_homes.get(destination).ok_or_else(invalid)?;
             if !scalar_matches(home.result.structural_type, value.scalar_type)
-                || live.integers.get(&value.value).is_none_or(|known| {
-                    ScalarType::Integer(known.scalar_type()) != value.scalar_type
-                })
+                || super::scalar_sources::source(value.value, function, live)?.scalar_type()
+                    != value.scalar_type
             {
                 return Err(invalid());
             }

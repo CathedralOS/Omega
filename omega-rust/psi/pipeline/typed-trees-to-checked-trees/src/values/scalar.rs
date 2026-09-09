@@ -19,6 +19,7 @@ use typed_trees::{
 
 mod call_arguments;
 mod computations;
+mod primitive_reference_read;
 mod structural_fields;
 pub(crate) use structural_fields::resolve_structural_parameter_path;
 use structural_fields::{structural_data, structural_parameter_field_path};
@@ -2394,6 +2395,11 @@ fn lower_return_expression(
         land_anonymous_scalar_expression(program, operators, expression, result_type)
     {
         return Some(value);
+    }
+    if let Some(read) =
+        primitive_reference_read::lower(program, authored_parameters, expression, result_type)
+    {
+        return Some(read);
     }
     if result_type == PrimitiveType::Bool {
         return lower_boolean_expression(

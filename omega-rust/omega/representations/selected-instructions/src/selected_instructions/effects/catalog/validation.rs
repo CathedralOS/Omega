@@ -357,7 +357,10 @@ fn validate_encoded_effects(
         ) if declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
             && matches!(
                 (declaration.semantic, byte_count),
-                (MachineSemanticKind::Load32, 4) | (MachineSemanticKind::Load64, 8)
+                (MachineSemanticKind::Load8, 1)
+                    | (MachineSemanticKind::Load16, 2)
+                    | (MachineSemanticKind::Load32, 4)
+                    | (MachineSemanticKind::Load64, 8)
             )
             && encoded.external_operand_reads.contains(&pointer_operand) => {}
         (

@@ -112,6 +112,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallI64 { .. } => 13,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
+        SelectedInstructionKind::Load8 { .. } => 33,
+        SelectedInstructionKind::Load16 { .. } => 34,
         SelectedInstructionKind::Load32 { .. } => 30,
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::HostedReadByte { .. } => 32,
@@ -134,6 +136,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::Load64 { byte_offset }
+        | SelectedInstructionKind::Load8 { byte_offset }
+        | SelectedInstructionKind::Load16 { byte_offset }
         | SelectedInstructionKind::Load32 { byte_offset } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }

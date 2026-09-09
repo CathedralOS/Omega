@@ -9,6 +9,7 @@ use checked_trees::statement::{
 mod computation_calls;
 pub(super) mod direct_calls;
 mod parameters;
+pub(crate) mod primitive_references;
 mod storage_reads;
 pub(crate) mod successors;
 pub(crate) use computation_calls::validate_computation_calls;

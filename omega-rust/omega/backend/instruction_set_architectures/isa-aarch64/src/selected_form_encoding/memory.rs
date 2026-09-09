@@ -4,6 +4,8 @@ mod frame;
 mod indexed;
 #[cfg(test)]
 mod load32_tests;
+#[cfg(test)]
+mod narrow_load_tests;
 mod pointer;
 #[cfg(test)]
 mod pointer_tests;
@@ -32,7 +34,13 @@ pub fn encode_aarch64_selected_memory_form(
     }
     let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
     let width = load_width(kind)?;
-    let opcode = if width == 4 { 0xb940_0000 } else { 0xf940_0000 };
+    let opcode = match kind {
+        SelectedInstructionKind::Load8 { .. } => 0x3940_0000,
+        SelectedInstructionKind::Load16 { .. } => 0x7940_0000,
+        SelectedInstructionKind::Load32 { .. } => 0xb940_0000,
+        SelectedInstructionKind::Load64 { .. } => 0xf940_0000,
+        _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
+    };
     let word =
         opcode | ((displacement / width) << 10) | (u32::from(base) << 5) | u32::from(destination);
     validate_aarch64_selected_memory_form(
@@ -74,7 +82,15 @@ pub fn validate_aarch64_selected_memory_form(
         .try_into()
         .ok()
         .map(u32::from_le_bytes)
-        .filter(|word| word & 0xffc0_0000 == if width == 4 { 0xb940_0000 } else { 0xf940_0000 })
+        .filter(|word| {
+            matches!(
+                (kind, word & 0xffc0_0000),
+                (SelectedInstructionKind::Load8 { .. }, 0x3940_0000)
+                    | (SelectedInstructionKind::Load16 { .. }, 0x7940_0000)
+                    | (SelectedInstructionKind::Load32 { .. }, 0xb940_0000)
+                    | (SelectedInstructionKind::Load64 { .. }, 0xf940_0000)
+            )
+        })
         .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
     if (word & 31) != u32::from(destination)
         || ((word >> 5) & 31) != u32::from(base)
@@ -96,7 +112,7 @@ pub fn validate_aarch64_selected_memory_form(
                 implicit_unit_clobbers: Vec::new(),
                 memory: MachineEncodedMemoryEffect::ReadPointerV1 {
                     pointer_operand: 0,
-                    byte_count: if width == 4 { 4 } else { 8 },
+                    byte_count: width as u16,
                 },
                 stack: MachineEncodedStackEffect::UnchangedV1,
                 trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -115,13 +131,15 @@ fn request(
 ) -> Result<[u8; 2], Aarch64SelectedFormEncodingError> {
     let width = load_width(kind)?;
     if physical.model() != &aarch64_physical_register_model()
-        || !matches!(kind, SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
+        || !matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
         || alternative
             != (MachineAlternativeKey {
-                family: if width == 4 {
-                    MachineAlternativeFamily::Load32
-                } else {
-                    MachineAlternativeFamily::Load64
+                family: match kind {
+                    SelectedInstructionKind::Load8 { .. } => MachineAlternativeFamily::Load8,
+                    SelectedInstructionKind::Load16 { .. } => MachineAlternativeFamily::Load16,
+                    SelectedInstructionKind::Load32 { .. } => MachineAlternativeFamily::Load32,
+                    SelectedInstructionKind::Load64 { .. } => MachineAlternativeFamily::Load64,
+                    _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
                 },
                 variant: 0,
             })
@@ -137,6 +155,8 @@ fn request(
 
 fn load_width(kind: SelectedInstructionKind) -> Result<u32, Aarch64SelectedFormEncodingError> {
     match kind {
+        SelectedInstructionKind::Load8 { .. } => Ok(1),
+        SelectedInstructionKind::Load16 { .. } => Ok(2),
         SelectedInstructionKind::Load32 { .. } => Ok(4),
         SelectedInstructionKind::Load64 { .. } => Ok(8),
         _ => Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),

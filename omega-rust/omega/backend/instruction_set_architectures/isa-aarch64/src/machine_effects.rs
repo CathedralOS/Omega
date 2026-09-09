@@ -152,6 +152,8 @@ fn selected_keys(
             None
         },
         load64: Some(crate::AARCH64_LOAD64),
+        load8: Some(crate::AARCH64_LOAD8),
+        load16: Some(crate::AARCH64_LOAD16),
         load32: Some(crate::AARCH64_LOAD32),
         load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
         store: Some(crate::AARCH64_STORE),
@@ -203,7 +205,9 @@ fn declaration(
             .expect("required AArch64 machine semantic has a constraint"),
         memory: if matches!(
             semantic,
-            MachineSemanticKind::Load32
+            MachineSemanticKind::Load8
+                | MachineSemanticKind::Load16
+                | MachineSemanticKind::Load32
                 | MachineSemanticKind::Load64
                 | MachineSemanticKind::Load8Indexed
         ) {
@@ -217,7 +221,9 @@ fn declaration(
         },
         trap: if matches!(
             semantic,
-            MachineSemanticKind::Load32
+            MachineSemanticKind::Load8
+                | MachineSemanticKind::Load16
+                | MachineSemanticKind::Load32
                 | MachineSemanticKind::Load64
                 | MachineSemanticKind::Load8Indexed
                 | MachineSemanticKind::Store64
@@ -280,6 +286,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::BitsToFloat32
         | MachineSemanticKind::BitsToFloat64
         | MachineSemanticKind::CopyI64
+        | MachineSemanticKind::Load8
+        | MachineSemanticKind::Load16
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::AddressOffset
@@ -344,7 +352,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 target: view("x30"),
             },
         ),
-        MachineSemanticKind::Load32
+        MachineSemanticKind::Load8
+        | MachineSemanticKind::Load16
+        | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store => (
@@ -378,14 +388,18 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         implicit_unit_clobbers: vec![],
         memory: if matches!(
             semantic,
-            MachineSemanticKind::Load32 | MachineSemanticKind::Load64
+            MachineSemanticKind::Load8
+                | MachineSemanticKind::Load16
+                | MachineSemanticKind::Load32
+                | MachineSemanticKind::Load64
         ) {
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
-                byte_count: if semantic == MachineSemanticKind::Load32 {
-                    4
-                } else {
-                    8
+                byte_count: match semantic {
+                    MachineSemanticKind::Load8 => 1,
+                    MachineSemanticKind::Load16 => 2,
+                    MachineSemanticKind::Load32 => 4,
+                    _ => 8,
                 },
             }
         } else if semantic == MachineSemanticKind::Load8Indexed {

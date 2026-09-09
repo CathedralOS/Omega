@@ -46,6 +46,18 @@ pub(super) fn available(
 // the caller; collecting their descriptions does not authorize a producer or use.
 fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
     match operation {
+        TargetUnitOperation::IeeeFloatConstant {
+            psi_operation,
+            result,
+            value,
+        } => Some((
+            *result,
+            Source::IeeeFloatImmediate {
+                defining_operation: *psi_operation,
+                source_value: *result,
+                value: *value,
+            },
+        )),
         TargetUnitOperation::PrimitiveScalarRead {
             psi_operation,
             result,

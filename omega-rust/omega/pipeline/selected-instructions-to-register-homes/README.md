@@ -76,7 +76,8 @@ Without an optional recovery selection, genuine `NoCompatibleHome` pressure
 can enter [runtime spill recovery](src/assignment/runtime_spill/mod.rs). It
 visits a finite roster of original instruction-result values, restricted to the
 failing function and values interfering with its failed register. The selected
-rewrite owner admits ordinary nonaddress `u64` values and GPR-resident IEEE
+rewrite owner admits ordinary nonaddress fixed 8/16/32/64-bit integer, Boolean,
+and GPR-resident IEEE
 payloads in a single returning block, preserving exact scalar type and
 source-definition lineage, storing once, and reloading at
 each flexible use. Rewritten values and spill addresses never expand the
@@ -85,6 +86,8 @@ legality, and homes; independent replay reconstructs each pressure failure,
 rewrite, and final fact/manifest join. The current allocation view remains the
 same downstream representation. The manifest records exact transformed
 identities and realized selected storage, not final frame authority.
+These private eight-byte slots preserve full GPR payloads. They do not widen
+source referent reads, change scalar signedness, or normalize floating bits.
 
 The [assignment group](src/assignment/mod.rs) also exposes compiler-private
 logical spill, slot-coloring, recursive-recovery, pseudo, and access-constraint

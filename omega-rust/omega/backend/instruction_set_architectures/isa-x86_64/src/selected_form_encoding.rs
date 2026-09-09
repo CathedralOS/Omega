@@ -508,6 +508,8 @@ fn family_and_operand_count(
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load8 { .. }
+        | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }
@@ -743,6 +745,8 @@ fn encode_unchecked(
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load8 { .. }
+        | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }
@@ -1107,6 +1111,8 @@ fn validate_decoded(
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load8 { .. }
+        | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }
@@ -1163,6 +1169,8 @@ fn footprint(
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load8 { .. }
+        | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::Load32 { .. }
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store { .. }

@@ -360,6 +360,9 @@ fn authored_storage_read(
     if parameters.next().is_some() {
         return unsupported("scalar storage read has duplicate authored parameters");
     }
+    if let Some((primitive, _)) = super::primitive_references::parameter_type(checked, parameter) {
+        return Ok(Some((parameter.symbol, primitive, ReadKind::Storage)));
+    }
     Ok(checked
         .primitive_type_reference(parameter.type_reference)
         .filter(|primitive| parameter.is_mutable || supported_mutable_parameter(*primitive))

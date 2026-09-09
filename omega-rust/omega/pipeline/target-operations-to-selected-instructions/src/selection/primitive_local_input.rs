@@ -78,8 +78,7 @@ pub(super) fn readable(
     place: PlaceId,
     scalar: ScalarType,
 ) -> bool {
-    if !matches!(scalar, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && integer.bits() == 64)
-    {
+    if super::scalar_call_abi::scalar_shape(scalar).is_none() {
         return false;
     }
     if let Some((_, _, actual, _)) = local(source, place) {

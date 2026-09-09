@@ -68,8 +68,16 @@ pub(super) fn admit<'source>(
     else {
         return Err(RuntimeSpillError::UnsupportedValue);
     };
-    if (victim.scalar_type != ScalarType::Integer(unsigned)
-        && !matches!(victim.scalar_type, ScalarType::IeeeFloat(_)))
+    // This preserves a full GPR in its own eight-byte slot, not a source
+    // referent. Narrow values keep their exact type and all resident bits;
+    // neither signed widening nor a wider read of source storage is needed.
+    let scalar_payload = match victim.scalar_type {
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
+        ScalarType::Integer(integer) => {
+            !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)
+        }
+    };
+    if !scalar_payload
         || victim.entry_fixed_view.is_some()
         || !matches!(
             victim.definition_site,

@@ -6,6 +6,7 @@ mod observations;
 mod operations;
 mod primitive_calls;
 mod primitive_storage;
+mod scalar_sources;
 mod structural_case;
 mod terminator;
 mod transfers;
@@ -22,7 +23,8 @@ struct LiveDefinitions {
     nonreturning: bool,
     integers: BTreeMap<ValueId, KnownUnitInteger>,
     booleans: BTreeMap<ValueId, (OperationId, bool)>,
-    boolean_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    scalar_homes: BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    ieee_float_constants: BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
     boolean_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     block_views: BTreeSet<PlaceId>,
@@ -71,6 +73,7 @@ pub(super) fn lower(
         let result = match operation {
             AbstractOperation::IntegerConstant { result, .. }
             | AbstractOperation::BooleanConstant { result, .. }
+            | AbstractOperation::IeeeFloatConstant { result, .. }
             | AbstractOperation::IntegerWiden { result, .. }
             | AbstractOperation::IntegerEqual { result, .. }
             | AbstractOperation::IntegerLessThan { result, .. }
@@ -225,7 +228,8 @@ pub(super) fn lower(
             &prepared.scalar_parameters,
         )?,
         booleans: BTreeMap::new(),
-        boolean_homes: BTreeMap::new(),
+        scalar_homes: BTreeMap::new(),
+        ieee_float_constants: BTreeMap::new(),
         boolean_parameters: BTreeMap::new(),
         views: BTreeMap::new(),
         block_views: BTreeSet::new(),

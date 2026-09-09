@@ -186,6 +186,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::Store => 24,
         Family::AddressOffset => 25,
         Family::Load64 => 16,
+        Family::Load8 => 33,
+        Family::Load16 => 34,
         Family::Load32 => 30,
         Family::HostedExitProcessI32 => 31,
         Family::HostedReadByte => 32,

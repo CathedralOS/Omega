@@ -46,6 +46,16 @@ pub enum SelectedInstructionKind {
     Load64 {
         byte_offset: u32,
     },
+    /// Load exactly one byte and zero-extend its raw bits into GPR storage.
+    /// The result retains its scalar type; this is not semantic integer widening.
+    Load8 {
+        byte_offset: u32,
+    },
+    /// Load exactly two bytes and zero-extend their raw bits into GPR storage.
+    /// The result retains its scalar type; this is not semantic integer widening.
+    Load16 {
+        byte_offset: u32,
+    },
     /// Load exactly four bytes and zero-extend their raw bits into GPR storage.
     Load32 {
         byte_offset: u32,

@@ -109,6 +109,7 @@ pub(super) fn lower_unit_body(
                 &scalar_values,
                 &boolean_constants,
                 &ieee_float_constants,
+                &BTreeMap::new(),
                 &mut operations,
                 &mut provenance,
             )?,
@@ -128,44 +129,14 @@ pub(super) fn lower_unit_body(
             AbstractOperation::EstablishPayloadlessCase { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
             }
-            AbstractOperation::EstablishByteSequenceLiteral {
-                psi_operation,
-                place,
-                structural_type,
-                bytes,
-            } => {
-                if nonreturning_boundary
-                    || !matches!(
-                        (&place.kind, &structural_type.shape),
-                        (
-                            semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
-                                structural_type: place_type,
-                                ..
-                            },
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView
-                            )
-                        ) if *place_type == structural_type.id
-                    )
-                    || established_byte_sequences
-                        .insert(
-                            place.id,
-                            (*psi_operation, structural_type.clone(), bytes.clone()),
-                        )
-                        .is_some()
-                {
-                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ));
-                }
-                operations.push(TargetUnitOperation::EstablishByteSequenceLiteral {
-                    psi_operation: *psi_operation,
-                    place: *place,
-                    structural_type: structural_type.clone(),
-                    bytes: bytes.clone(),
-                });
-                provenance.operations.push(*psi_operation);
-            }
+            AbstractOperation::EstablishByteSequenceLiteral { .. } => super::byte_literal::lower(
+                operation,
+                function.machine,
+                nonreturning_boundary,
+                &mut established_byte_sequences,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::EstablishTrivialAffineLocal {
                 psi_operation,
                 place,

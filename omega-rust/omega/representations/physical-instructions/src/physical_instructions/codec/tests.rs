@@ -298,6 +298,14 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             base_operand: 0,
             byte_offset: 8,
         },
+        PhysicalAddressOperation::Load8 {
+            base_operand: 0,
+            byte_offset: 12,
+        },
+        PhysicalAddressOperation::Load16 {
+            base_operand: 0,
+            byte_offset: 12,
+        },
         PhysicalAddressOperation::Load32 {
             base_operand: 0,
             byte_offset: 12,
@@ -639,5 +647,63 @@ fn compiler_spill_slot_codec_retains_function_local_identity() {
             };
         assert_ne!(post_allocation_machine_identity(&changed), source.identity);
         assert!(PostAllocationMachinePlan::decode(&changed.encode()).is_err());
+    }
+}
+
+#[test]
+fn physical_codec_retains_narrow_load_families_and_exact_addresses() {
+    for (family, address, byte_count) in [
+        (
+            MachineAlternativeFamily::Load8,
+            PhysicalAddressOperation::Load8 {
+                base_operand: 0,
+                byte_offset: 3,
+            },
+            1,
+        ),
+        (
+            MachineAlternativeFamily::Load16,
+            PhysicalAddressOperation::Load16 {
+                base_operand: 0,
+                byte_offset: 6,
+            },
+            2,
+        ),
+    ] {
+        let mut source = plan();
+        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        instruction.alternative.key.family = family;
+        instruction.address = Some(address);
+        instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand: 0,
+            byte_count,
+        };
+        source.identity = post_allocation_machine_identity(&source);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        for mutation in 0..3 {
+            let mut changed = source.clone();
+            let instruction = &mut changed.functions[0].blocks[0].instructions[0];
+            match mutation {
+                0 => instruction.alternative.key.family = MachineAlternativeFamily::Load64,
+                1 => {
+                    instruction.address = Some(PhysicalAddressOperation::Load64 {
+                        base_operand: 0,
+                        byte_offset: 3,
+                    })
+                }
+                _ => {
+                    instruction.alternative.encoded.memory =
+                        MachineEncodedMemoryEffect::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: 8,
+                        }
+                }
+            }
+            assert_ne!(source.identity, post_allocation_machine_identity(&changed));
+            assert!(PostAllocationMachinePlan::decode(&changed.encode()).is_err());
+        }
     }
 }

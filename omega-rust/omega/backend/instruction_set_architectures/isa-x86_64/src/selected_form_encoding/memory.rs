@@ -4,6 +4,8 @@ mod indexed;
 #[cfg(test)]
 mod load32_tests;
 #[cfg(test)]
+mod narrow_load_tests;
+#[cfg(test)]
 mod pointer_tests;
 
 pub fn encode_x86_64_selected_memory_form(
@@ -20,12 +22,25 @@ pub fn encode_x86_64_selected_memory_form(
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
     let width = store_width(kind)?;
+    let narrow_load = matches!(
+        kind,
+        SelectedInstructionKind::Load8 { .. } | SelectedInstructionKind::Load16 { .. }
+    );
     let mut bytes = Vec::new();
-    if width == 2 {
+    if width == 2 && !narrow_load {
         bytes.push(0x66);
     }
-    let prefix = rex(register, 0, base) & if width == 8 { 0xff } else { 0xf7 };
-    bytes.extend_from_slice(&[prefix, opcode, modrm(2, register, base)]);
+    let prefix = rex(register, 0, base)
+        & if width == 8 || narrow_load {
+            0xff
+        } else {
+            0xf7
+        };
+    bytes.push(prefix);
+    if narrow_load {
+        bytes.push(0x0f);
+    }
+    bytes.extend_from_slice(&[opcode, modrm(2, register, base)]);
     if base & 7 == 4 {
         bytes.push(0x24);
     }
@@ -53,11 +68,15 @@ pub fn validate_x86_64_selected_memory_form(
     }
     let (opcode, register, base, footprint) = request(physical, kind, alternative, operands)?;
     let width = store_width(kind)?;
-    if matches!(kind, SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if byte_offset != displacement)
+    let narrow_load = matches!(
+        kind,
+        SelectedInstructionKind::Load8 { .. } | SelectedInstructionKind::Load16 { .. }
+    );
+    if matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if byte_offset != displacement)
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    let instruction = if width == 2 {
+    let instruction = if width == 2 && !narrow_load {
         bytes
             .strip_prefix(&[0x66])
             .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?
@@ -67,11 +86,13 @@ pub fn validate_x86_64_selected_memory_form(
     let prefix = *instruction
         .first()
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
+    let opcode_position = if narrow_load { 2 } else { 1 };
+    let mode_position = opcode_position + 1;
     let mode = *instruction
-        .get(2)
+        .get(mode_position)
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
     let has_sib = mode & 7 == 4;
-    let displacement_start = if has_sib { 4 } else { 3 };
+    let displacement_start = mode_position + 1 + usize::from(has_sib);
     let actual = instruction
         .get(displacement_start..)
         .filter(|tail| tail.len() == 4)
@@ -80,12 +101,18 @@ pub fn validate_x86_64_selected_memory_form(
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
     let decoded_register = ((mode >> 3) & 7) | ((prefix & 4) << 1);
     let decoded_base = (mode & 7) | ((prefix & 1) << 3);
-    if prefix & 0xfa != (if width == 8 { 0x48 } else { 0x40 })
-        || instruction[1] != opcode
+    if prefix & 0xfa
+        != (if width == 8 || narrow_load {
+            0x48
+        } else {
+            0x40
+        })
+        || (narrow_load && instruction.get(1) != Some(&0x0f))
+        || instruction[opcode_position] != opcode
         || mode >> 6 != 2
         || decoded_register != register
         || decoded_base != base
-        || (has_sib && instruction.get(3) != Some(&0x24))
+        || (has_sib && instruction.get(mode_position + 1) != Some(&0x24))
         || actual < 0
         || actual as u32 != displacement
     {
@@ -106,6 +133,8 @@ fn store_width(kind: SelectedInstructionKind) -> Result<u8, X86_64SelectedFormEn
         SelectedInstructionKind::Store { .. } => {
             Err(X86_64SelectedFormEncodingError::EncodedFormMismatch)
         }
+        SelectedInstructionKind::Load8 { .. } => Ok(1),
+        SelectedInstructionKind::Load16 { .. } => Ok(2),
         SelectedInstructionKind::Load32 { .. } => Ok(4),
         _ => Ok(8),
     }
@@ -141,6 +170,18 @@ fn request(
             2,
             0x8d,
             crate::X86_64_ADDRESS_OFFSET,
+        ),
+        SelectedInstructionKind::Load8 { .. } => (
+            MachineAlternativeFamily::Load8,
+            2,
+            0xb6,
+            crate::X86_64_LOAD8,
+        ),
+        SelectedInstructionKind::Load16 { .. } => (
+            MachineAlternativeFamily::Load16,
+            2,
+            0xb7,
+            crate::X86_64_LOAD16,
         ),
         SelectedInstructionKind::Load32 { .. } => (
             MachineAlternativeFamily::Load32,
@@ -204,16 +245,15 @@ fn request(
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedTrapBehavior::NeverV1,
         ),
-        SelectedInstructionKind::Load32 { .. } | SelectedInstructionKind::Load64 { .. } => (
+        SelectedInstructionKind::Load8 { .. }
+        | SelectedInstructionKind::Load16 { .. }
+        | SelectedInstructionKind::Load32 { .. }
+        | SelectedInstructionKind::Load64 { .. } => (
             vec![0],
             vec![1],
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
-                byte_count: if matches!(kind, SelectedInstructionKind::Load32 { .. }) {
-                    4
-                } else {
-                    8
-                },
+                byte_count: u16::from(store_width(kind)?),
             },
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ),

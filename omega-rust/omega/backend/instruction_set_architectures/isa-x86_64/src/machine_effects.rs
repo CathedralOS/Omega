@@ -77,7 +77,9 @@ pub fn x86_64_machine_effect_catalog(
                 Ok(
                     if matches!(
                         semantic,
-                        MachineSemanticKind::Load32
+                        MachineSemanticKind::Load8
+                            | MachineSemanticKind::Load16
+                            | MachineSemanticKind::Load32
                             | MachineSemanticKind::Load64
                             | MachineSemanticKind::Store
                             | MachineSemanticKind::AddressOffset
@@ -142,6 +144,8 @@ fn selected_keys(
         hosted_write_byte_i32: (target.object_format == ObjectFormat::Elf)
             .then_some(crate::X86_64_HOSTED_WRITE_BYTE_I32),
         load64: Some(crate::X86_64_LOAD64),
+        load8: Some(crate::X86_64_LOAD8),
+        load16: Some(crate::X86_64_LOAD16),
         load32: Some(crate::X86_64_LOAD32),
         load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
         store: Some(crate::X86_64_STORE),
@@ -335,6 +339,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallI64
+        | MachineSemanticKind::Load8
+        | MachineSemanticKind::Load16
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Store
@@ -487,6 +493,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             unreachable!("subtraction declares alias-dependent alternatives")
         }
         MachineSemanticKind::CallI64
+        | MachineSemanticKind::Load8
+        | MachineSemanticKind::Load16
         | MachineSemanticKind::Load32
         | MachineSemanticKind::Load64
         | MachineSemanticKind::Store
